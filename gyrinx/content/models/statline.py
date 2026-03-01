@@ -11,7 +11,10 @@ This module contains:
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from multiselectfield import MultiSelectField
 from simple_history.models import HistoricalRecords
+
+from gyrinx.models import FighterCategoryChoices
 
 from .base import Content
 
@@ -86,6 +89,11 @@ class ContentStatlineType(Content):
 
     help_text = "Represents a type of statline with its own set of stats (e.g., Fighter, Vehicle)."
     name = models.CharField(max_length=255, unique=True)
+    default_for_categories = MultiSelectField(
+        choices=FighterCategoryChoices.choices,
+        blank=True,
+        help_text="Fighter categories that default to this statline type when created in content packs.",
+    )
 
     history = HistoricalRecords()
 

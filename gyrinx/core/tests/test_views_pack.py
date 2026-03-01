@@ -1320,21 +1320,20 @@ def pack_fighter(pack, group_user, fighter_statline_type, content_house):
 
 @pytest.mark.django_db
 def test_add_fighter_form_loads(client, group_user, pack, fighter_statline_type):
-    """Test that the add fighter form page loads with stat inputs."""
+    """Test that the add fighter form page loads (Step 1 — basic info, no stats)."""
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/add/fighter/")
     assert response.status_code == 200
     assert b"Add Fighter" in response.content
-    # Stat inputs should be present
-    assert b"stat_movement" in response.content
-    assert b"stat_leadership" in response.content
+    # Stat inputs should NOT be on Step 1 (they're on Step 2 now)
+    assert b"stat_movement" not in response.content
 
 
 @pytest.mark.django_db
-def test_add_fighter_creates_fighter_and_statline(
+def test_add_fighter_step1_redirects_to_step2(
     client, group_user, pack, fighter_statline_type, content_house
 ):
-    """Test that submitting the add form creates fighter, pack item, and statline."""
+    """Test that Step 1 POST redirects to Step 2 with query params."""
     client.force_login(group_user)
     response = client.post(
         f"/pack/{pack.id}/add/fighter/",
@@ -1343,6 +1342,44 @@ def test_add_fighter_creates_fighter_and_statline(
             "category": "CHAMPION",
             "house": str(content_house.pk),
             "base_cost": "100",
+        },
+    )
+    assert response.status_code == 302
+    assert f"/pack/{pack.id}/add/fighter/stats/" in response.url
+    assert "type=Test+Champion" in response.url
+    assert "category=CHAMPION" in response.url
+
+
+@pytest.mark.django_db
+def test_add_fighter_step2_shows_stat_inputs(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that Step 2 shows stat inputs for the selected category."""
+    client.force_login(group_user)
+    response = client.get(
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Test+Champion&category=CHAMPION"
+        f"&house_id={content_house.pk}&base_cost=100"
+    )
+    assert response.status_code == 200
+    assert b"stat_movement" in response.content
+    assert b"stat_leadership" in response.content
+    # Should show summary of Step 1 choices
+    assert b"Test Champion" in response.content
+    assert b"Champion" in response.content
+
+
+@pytest.mark.django_db
+def test_add_fighter_creates_fighter_and_statline(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that submitting Step 2 creates fighter, pack item, and statline."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Test+Champion&category=CHAMPION"
+        f"&house_id={content_house.pk}&base_cost=100",
+        {
             "stat_movement": '4"',
             "stat_weapon_skill": "3+",
             "stat_ballistic_skill": "4+",
@@ -1391,13 +1428,10 @@ def test_add_fighter_with_default_stats(
     """Test that omitted stats default to '-'."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
-        {
-            "type": "Minimal Fighter",
-            "category": "JUVE",
-            "house": str(content_house.pk),
-            "base_cost": "25",
-        },
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Minimal+Fighter&category=JUVE"
+        f"&house_id={content_house.pk}&base_cost=25",
+        {},
     )
     assert response.status_code == 302
 
@@ -1416,16 +1450,13 @@ def test_add_fighter_with_default_stats(
 def test_add_fighter_with_house(
     client, group_user, pack, fighter_statline_type, content_house
 ):
-    """Test creating a fighter with a house assigned."""
+    """Test creating a fighter with a house assigned via two-step flow."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
-        {
-            "type": "House Fighter",
-            "category": "GANGER",
-            "house": str(content_house.pk),
-            "base_cost": "50",
-        },
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=House+Fighter&category=GANGER"
+        f"&house_id={content_house.pk}&base_cost=50",
+        {},
     )
     assert response.status_code == 302
 
@@ -1451,9 +1482,11 @@ def test_add_fighter_form_shows_rules_field(
 def test_add_fighter_with_rules(
     client, group_user, pack, fighter_statline_type, content_house, pack_rule
 ):
-    """Test that creating a fighter with rules assigns them correctly."""
+    """Test that creating a fighter with rules assigns them correctly via two-step flow."""
     rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
     client.force_login(group_user)
+
+    # Step 1: POST basic info with rules selected.
     response = client.post(
         f"/pack/{pack.id}/add/fighter/",
         {
@@ -1464,6 +1497,12 @@ def test_add_fighter_with_rules(
             "rules": [str(rule.pk)],
         },
     )
+    assert response.status_code == 302
+    step2_url = response.url
+    assert f"rule_ids={rule.pk}" in step2_url
+
+    # Step 2: POST stats.
+    response = client.post(step2_url, {})
     assert response.status_code == 302
 
     fighter = ContentFighter.objects.all_content().get(type="Ruled Fighter")
@@ -1608,12 +1647,10 @@ def test_add_fighter_auto_formats_stats(
     """Test that stat values are auto-formatted based on ContentStat config."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Format+Test+Fighter&category=GANGER"
+        f"&house_id={content_house.pk}&base_cost=50",
         {
-            "type": "Format Test Fighter",
-            "category": "GANGER",
-            "house": str(content_house.pk),
-            "base_cost": "50",
             # Movement is_inches: "4" should become '4"'
             "stat_movement": "4",
             # WS is_target: "3" should become "3+"
@@ -1697,12 +1734,16 @@ def test_edit_fighter_auto_formats_stats(
 
 
 @pytest.mark.django_db
-def test_add_fighter_form_shows_placeholders(
-    client, group_user, pack, fighter_statline_type
+def test_add_fighter_step2_shows_placeholders(
+    client, group_user, pack, fighter_statline_type, content_house
 ):
-    """Test that the add fighter form shows placeholder hints per stat."""
+    """Test that Step 2 shows placeholder hints per stat."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    response = client.get(
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Placeholder+Test&category=GANGER"
+        f"&house_id={content_house.pk}&base_cost=50"
+    )
     content = response.content.decode()
     # Movement (is_inches) should have '4"' placeholder
     assert 'placeholder="4&quot;"' in content
@@ -3461,3 +3502,90 @@ def test_base_weapon_trait_model_level_uniqueness():
     with pytest.raises(ValidationError) as exc_info:
         duplicate.validate_unique()
     assert "name" in exc_info.value.message_dict
+
+
+# --- Two-step add-fighter flow ---
+
+
+@pytest.mark.django_db
+def test_add_fighter_step2_invalid_params_redirects(
+    client, group_user, pack, fighter_statline_type
+):
+    """Accessing Step 2 without valid query params redirects to Step 1."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/fighter/stats/")
+    assert response.status_code == 302
+    assert f"/pack/{pack.id}/add/fighter/" in response.url
+
+
+@pytest.mark.django_db
+def test_add_fighter_step2_save_and_add_another(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """'Save and add another' from Step 2 redirects back to Step 1."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Another+Fighter&category=GANGER"
+        f"&house_id={content_house.pk}&base_cost=50"
+        f"&save_and_add_another=1",
+        {"save_and_add_another": "1"},
+    )
+    assert response.status_code == 302
+    assert f"/pack/{pack.id}/add/fighter/" in response.url
+    # Fighter should have been created
+    assert ContentFighter.objects.all_content().filter(type="Another Fighter").exists()
+
+
+@pytest.mark.django_db
+def test_get_statline_type_for_category_fallback(fighter_statline_type):
+    """_get_statline_type_for_category falls back to Fighter for unmapped categories."""
+    from gyrinx.core.views.pack import _get_statline_type_for_category
+
+    # CREW is not in the default_for_categories for Fighter (as per the plan)
+    result = _get_statline_type_for_category("CREW")
+    assert result.name == "Fighter"
+
+
+@pytest.mark.django_db
+def test_get_statline_type_for_category_mapped(fighter_statline_type):
+    """_get_statline_type_for_category returns the mapped type for known categories."""
+    from gyrinx.core.views.pack import _get_statline_type_for_category
+
+    # GANGER should map to Fighter via default_for_categories
+    fighter_statline_type.default_for_categories = "GANGER"
+    fighter_statline_type.save()
+    result = _get_statline_type_for_category("GANGER")
+    assert result.name == "Fighter"
+
+
+@pytest.mark.django_db
+def test_add_fighter_step2_uses_category_statline(
+    client, group_user, pack, content_house, fighter_statline_type
+):
+    """Step 2 shows the correct stats for a category with a different statline type."""
+    # Create a custom statline type with fewer stats for CREW.
+    crew_type = ContentStatlineType.objects.create(
+        name="Crew Test Type", default_for_categories="CREW"
+    )
+    bs_stat = ContentStat.objects.get(field_name="ballistic_skill")
+    ld_stat = ContentStat.objects.get(field_name="leadership")
+    ContentStatlineTypeStat.objects.create(
+        statline_type=crew_type, stat=bs_stat, position=1
+    )
+    ContentStatlineTypeStat.objects.create(
+        statline_type=crew_type, stat=ld_stat, position=2
+    )
+
+    client.force_login(group_user)
+    response = client.get(
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Crew+Test&category=CREW"
+        f"&house_id={content_house.pk}&base_cost=30"
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Should show only BS and Ld, not Movement
+    assert "stat_ballistic_skill" in content
+    assert "stat_leadership" in content
+    assert "stat_movement" not in content

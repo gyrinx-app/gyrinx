@@ -1,3 +1,17 @@
+{% if weapon_traits %}
+    <div>
+        <label class="form-label" for="wp_traits">Traits</label>
+        <select name="wp_traits" id="wp_traits" class="form-select" multiple size="6">
+            {% for trait in weapon_traits %}
+                <option value="{{ trait.pk }}"
+                        {% if trait.pk|stringformat:"s" in selected_trait_ids %}selected{% endif %}>
+                    {{ trait.name }}
+                </option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Hold Ctrl/Cmd to select multiple traits.</div>
+    </div>
+{% endif %}
 <div>
     <label class="form-label">Weapon stats</label>
     <div class="d-flex flex-wrap gap-2">
@@ -15,17 +29,3 @@
     </div>
     <div class="form-text">Set each stat value, or leave blank for unset.</div>
 </div>
-{% if weapon_traits %}
-    <div>
-        <label class="form-label" for="wp_traits">Traits</label>
-        <select name="wp_traits" id="wp_traits" class="form-select" multiple size="6">
-            {% for trait in weapon_traits %}
-                <option value="{{ trait.pk }}"
-                        {% if trait.pk|stringformat:"s" in selected_trait_ids %}selected{% endif %}>
-                    {{ trait.name }}
-                </option>
-            {% endfor %}
-        </select>
-        <div class="form-text">Hold Ctrl/Cmd to select multiple traits.</div>
-    </div>
-{% endif %}

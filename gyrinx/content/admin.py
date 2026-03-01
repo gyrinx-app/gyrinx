@@ -1181,7 +1181,7 @@ class ContentStatAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentStatlineType)
 class ContentStatlineTypeAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
-    list_display = ["name", "get_stat_count"]
+    list_display = ["name", "default_for_categories", "get_stat_count"]
     list_display_links = ["name"]
 
     inlines = [ContentStatlineTypeStatInline]
