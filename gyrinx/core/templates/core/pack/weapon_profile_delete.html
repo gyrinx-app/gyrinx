@@ -1,21 +1,21 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    Delete profile - {{ equipment.name }} - {{ pack.name }}
+    Archive profile - {{ equipment.name }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">Delete profile</h1>
+        <h1 class="h3">Archive profile</h1>
         <p>
-            Are you sure you want to delete the profile <strong>{{ profile.name }}</strong> from <strong>{{ equipment.name }}</strong>?
+            Are you sure you want to archive the profile <strong>{{ profile.name }}</strong> from <strong>{{ equipment.name }}</strong>?
         </p>
-        <p class="text-muted small">This action cannot be undone.</p>
+        <p class="text-muted small">Archived items can be restored later.</p>
         <form action="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
               method="post">
             {% csrf_token %}
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                <button type="submit" class="btn btn-danger btn-sm">Archive</button>
                 <a href="{% url 'core:pack' pack.id %}" class="btn btn-link btn-sm">Cancel</a>
             </div>
         </form>
