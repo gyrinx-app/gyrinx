@@ -305,7 +305,7 @@ class ContentGearPackForm(forms.ModelForm):
         }
         help_texts = {
             "name": "The name of the gear.",
-            "category": "The gear category (e.g. Armour, Wargear).",
+            "category": "The gear category (e.g. Armour, Personal Equipment).",
             "cost": "The credit cost at the Trading Post.",
             "rarity": "The availability of this gear.",
             "rarity_roll": "The roll required to find this gear (e.g. 7, 10).",
