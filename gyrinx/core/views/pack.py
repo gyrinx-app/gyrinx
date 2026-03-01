@@ -1011,7 +1011,16 @@ def add_pack_item(request, id, content_type_slug):
         "slug": entry.slug,
     }
 
+    if is_fighter:
+        context["next_step_hint"] = (
+            "You can configure the Fighter statline on the next screen."
+        )
+        context["next_step_button"] = "Next →"
+
     if is_weapon:
+        context["next_step_hint"] = (
+            "You can add more weapon stat profiles after saving."
+        )
         context["weapon_stat_fields"] = _build_weapon_stat_context(request)
         context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
         context["selected_trait_ids"] = (
@@ -1225,6 +1234,15 @@ def edit_pack_item(request, id, item_id):
             stat_context_entry = entry_dict
             weapon_stat_context.append(stat_context_entry)
         context["weapon_stat_values"] = weapon_stat_context
+        context["related_links"] = [
+            {
+                "url": reverse(
+                    "core:pack-add-weapon-profile",
+                    args=(pack.id, pack_item.id),
+                ),
+                "label": "add weapon profile",
+            },
+        ]
         context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
         if standard_profile and request.method != "POST":
             context["selected_trait_ids"] = set(

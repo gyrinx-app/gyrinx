@@ -16,7 +16,10 @@
             {{ form }}
             {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields %}
             <div class="mt-3 d-flex gap-2 align-items-center">
-                <button type="submit" class="btn btn-primary">Add profile</button>
+                <button type="submit" class="btn btn-success">
+                    <i class="bi-check-lg me-1"></i>
+                    Add profile
+                </button>
                 <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
             </div>
         </form>
