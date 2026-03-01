@@ -2835,7 +2835,7 @@ def test_add_weapon_creates_item_with_profile(
     equip = ContentEquipment.objects.all_content().get(name="Custom Pistol")
     assert equip.is_weapon()
 
-    profile = ContentWeaponProfile.objects.get(equipment=equip, name="")
+    profile = ContentWeaponProfile.objects.all_content().get(equipment=equip, name="")
     assert profile.range_short == '4"'
     assert profile.strength == "3"
     assert profile.damage == "1"
@@ -2844,6 +2844,12 @@ def test_add_weapon_creates_item_with_profile(
     ct = ContentType.objects.get_for_model(ContentEquipment)
     assert CustomContentPackItem.objects.filter(
         pack=pack, content_type=ct, object_id=equip.pk
+    ).exists()
+
+    # Standard profile also gets a pack item
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=profile_ct, object_id=profile.pk
     ).exists()
 
 
@@ -2873,7 +2879,7 @@ def test_add_weapon_with_traits(client, group_user, pack, weapon_category):
     )
 
     equip = ContentEquipment.objects.all_content().get(name="Traited Pistol")
-    profile = ContentWeaponProfile.objects.get(equipment=equip, name="")
+    profile = ContentWeaponProfile.objects.all_content().get(equipment=equip, name="")
     assert set(profile.traits.values_list("name", flat=True)) == {
         "Rapid Fire (1)",
         "Knockback",
@@ -2970,10 +2976,14 @@ def test_add_weapon_profile(client, group_user, pack, pack_weapon):
     )
     assert response.status_code == 302
 
-    assert ContentWeaponProfile.objects.filter(
+    assert (
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=equip, name="Overcharge")
+        .exists()
+    )
+    profile = ContentWeaponProfile.objects.all_content().get(
         equipment=equip, name="Overcharge"
-    ).exists()
-    profile = ContentWeaponProfile.objects.get(equipment=equip, name="Overcharge")
+    )
     assert profile.cost == 10
     assert profile.strength == "5"
 
@@ -3031,7 +3041,7 @@ def test_edit_weapon_profile_shows_delete_for_named(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
     )
     assert response.status_code == 200
-    assert b"Delete profile" in response.content
+    assert b"Archive profile" in response.content
 
 
 @pytest.mark.django_db
@@ -3049,12 +3059,12 @@ def test_edit_weapon_profile_hides_delete_for_standard(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard.id}/edit/"
     )
     assert response.status_code == 200
-    assert b"Delete profile" not in response.content
+    assert b"Archive profile" not in response.content
 
 
 @pytest.mark.django_db
 def test_delete_weapon_profile(client, group_user, pack, pack_weapon):
-    """Test deleting a named weapon profile."""
+    """Test deleting a named weapon profile archives its pack item."""
     from gyrinx.content.models.weapon import ContentWeaponProfile
 
     equip = pack_weapon.content_object
@@ -3064,19 +3074,32 @@ def test_delete_weapon_profile(client, group_user, pack, pack_weapon):
         cost=5,
         strength="4",
     )
+    # Profile needs a pack item (as created by the add-profile view)
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_pack_item = CustomContentPackItem(
+        pack=pack,
+        content_type=profile_ct,
+        object_id=profile.pk,
+        owner=group_user,
+    )
+    profile_pack_item.save_with_user(user=group_user)
 
     client.force_login(group_user)
     response = client.get(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
     )
     assert response.status_code == 200
-    assert b"Delete profile" in response.content
+    assert b"Archive profile" in response.content
 
     response = client.post(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
     )
     assert response.status_code == 302
-    assert not ContentWeaponProfile.objects.filter(id=profile.id).exists()
+
+    # Profile still exists but its pack item is archived
+    assert ContentWeaponProfile.objects.all_content().filter(id=profile.id).exists()
+    profile_pack_item.refresh_from_db()
+    assert profile_pack_item.archived is True
 
 
 @pytest.mark.django_db
@@ -3488,7 +3511,9 @@ def test_custom_trait_shows_in_weapon_traitline(
         },
     )
     equipment = ContentEquipment.objects.all_content().get(name="Trait Gun")
-    profile = ContentWeaponProfile.objects.get(equipment=equipment, name="")
+    profile = ContentWeaponProfile.objects.all_content().get(
+        equipment=equipment, name=""
+    )
 
     # The traitline should include the custom pack trait.
     assert "Jet Boost" in profile.traitline()

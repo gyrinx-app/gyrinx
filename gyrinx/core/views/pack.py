@@ -525,12 +525,15 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                 for item_data in items:
                     eq = item_data["content_object"]
                     item_data["profiles"] = (
-                        eq.contentweaponprofile_set.prefetch_related(
+                        ContentWeaponProfile.objects.with_packs([pack])
+                        .filter(equipment=eq)
+                        .prefetch_related(
                             Prefetch(
                                 "traits",
                                 queryset=ContentWeaponTrait.objects.all_content(),
                             )
-                        ).order_by(
+                        )
+                        .order_by(
                             models.Case(
                                 models.When(name="", then=0),
                                 default=1,
@@ -894,8 +897,12 @@ def _build_weapon_stat_context(request):
     return stat_context
 
 
-def _create_standard_weapon_profile(equipment, post_data, user):
-    """Create a standard (unnamed) weapon profile from POST data."""
+def _create_standard_weapon_profile(equipment, post_data, user, pack):
+    """Create a standard (unnamed) weapon profile from POST data.
+
+    Also creates a CustomContentPackItem linking the profile to the pack,
+    so the profile is properly scoped and excluded from the default manager.
+    """
     profile = ContentWeaponProfile(
         equipment=equipment,
         name="",
@@ -911,6 +918,13 @@ def _create_standard_weapon_profile(equipment, post_data, user):
     # Set traits from multi-select (always set, even if empty, to allow clearing).
     trait_ids = post_data.getlist("wp_traits")
     profile.traits.set(trait_ids)
+
+    # Create pack item so the profile is scoped to this pack.
+    ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    pack_item = CustomContentPackItem(
+        pack=pack, content_type=ct, object_id=profile.pk, owner=user
+    )
+    pack_item.save_with_user(user)
 
     return profile
 
@@ -989,7 +1003,7 @@ def add_pack_item(request, id, content_type_slug):
                 item.save_with_user(user=request.user)
                 if is_weapon:
                     _create_standard_weapon_profile(
-                        content_obj, request.POST, request.user
+                        content_obj, request.POST, request.user, pack
                     )
             if "save_and_add_another" in request.POST:
                 messages.success(request, f'{singular_label} "{content_obj}" saved.')
@@ -1182,9 +1196,14 @@ def edit_pack_item(request, id, item_id):
         ]
 
     # Load standard weapon profile for inline editing.
+    # Use all_content() because pack profiles are excluded by the default manager.
     standard_profile = None
     if is_weapon:
-        standard_profile = content_obj.contentweaponprofile_set.filter(name="").first()
+        standard_profile = (
+            ContentWeaponProfile.objects.all_content()
+            .filter(equipment=content_obj, name="")
+            .first()
+        )
 
     if request.method == "POST":
         form = entry.form_class(
@@ -1279,6 +1298,9 @@ def delete_pack_item(request, id, item_id):
     if request.method == "POST":
         pack_item._history_user = request.user
         pack_item.archive()
+        _cascade_weapon_profile_pack_items(
+            pack, content_obj, request.user, archive=True
+        )
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
     return render(
@@ -1309,9 +1331,50 @@ def restore_pack_item(request, id, item_id):
         archived=True,
     )
 
+    content_obj = pack_item.content_object
+    if content_obj is None:
+        raise Http404
+
     pack_item._history_user = request.user
     pack_item.unarchive()
+    _cascade_weapon_profile_pack_items(pack, content_obj, request.user, archive=False)
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+
+def _cascade_weapon_profile_pack_items(pack, content_obj, user, *, archive):
+    """Cascade archive/unarchive to weapon profile pack items.
+
+    When a weapon equipment is archived from a pack, its profile pack items
+    should also be archived. When restored, they should be unarchived.
+    Does nothing if the content object is not a weapon.
+    """
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+    item_ct = (
+        ContentType.objects.get_for_model(type(content_obj)) if content_obj else None
+    )
+    if item_ct != equipment_ct:
+        return
+    if not content_obj or not content_obj.is_weapon():
+        return
+
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_ids = (
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=content_obj)
+        .values_list("pk", flat=True)
+    )
+    profile_pack_items = CustomContentPackItem.objects.filter(
+        pack=pack,
+        content_type=profile_ct,
+        object_id__in=profile_ids,
+        archived=not archive,
+    )
+    for item in profile_pack_items:
+        item._history_user = user
+        if archive:
+            item.archive()
+        else:
+            item.unarchive()
 
 
 def _get_weapon_and_pack(pack_id, item_id, user):
@@ -1354,6 +1417,15 @@ def add_weapon_profile(request, id, item_id):
                 # Set traits (always set, even if empty, to allow clearing).
                 trait_ids = request.POST.getlist("wp_traits")
                 profile.traits.set(trait_ids)
+                # Create pack item so the profile is scoped to this pack.
+                ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+                profile_pack_item = CustomContentPackItem(
+                    pack=pack,
+                    content_type=ct,
+                    object_id=profile.pk,
+                    owner=request.user,
+                )
+                profile_pack_item.save_with_user(request.user)
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = ContentWeaponProfilePackForm()
@@ -1380,7 +1452,9 @@ def edit_weapon_profile(request, id, item_id, profile_id):
     """Edit a weapon profile on a weapon in a pack."""
     pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
     profile = get_object_or_404(
-        ContentWeaponProfile, id=profile_id, equipment=equipment
+        ContentWeaponProfile.objects.all_content(),
+        id=profile_id,
+        equipment=equipment,
     )
 
     if request.method == "POST":
@@ -1435,19 +1509,35 @@ def edit_weapon_profile(request, id, item_id, profile_id):
 @login_required
 @group_membership_required(["Custom Content"])
 def delete_weapon_profile(request, id, item_id, profile_id):
-    """Delete a weapon profile from a weapon in a pack."""
+    """Archive a weapon profile's pack item (soft-delete from the pack).
+
+    The profile itself remains intact — only the CustomContentPackItem
+    linking it to the pack is archived.
+    """
     pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
     profile = get_object_or_404(
-        ContentWeaponProfile, id=profile_id, equipment=equipment
+        ContentWeaponProfile.objects.all_content(),
+        id=profile_id,
+        equipment=equipment,
     )
 
     # Standard (unnamed) profiles cannot be deleted.
     if not profile.name:
         raise Http404
 
+    # Look up the profile's pack item.
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_pack_item = get_object_or_404(
+        CustomContentPackItem,
+        pack=pack,
+        content_type=profile_ct,
+        object_id=profile.pk,
+        archived=False,
+    )
+
     if request.method == "POST":
-        profile._history_user = request.user
-        profile.delete()
+        profile_pack_item._history_user = request.user
+        profile_pack_item.archive()
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
     context = {

@@ -44,12 +44,16 @@ class ContentQuerySet(models.QuerySet):
         return self.filter(~Exists(pack_exists))
 
     def with_packs(self, packs):
-        """Return items not in any pack plus items from specified packs."""
+        """Return items not in any pack plus items from specified packs.
+
+        Only non-archived pack items are considered when checking membership
+        in the specified packs, so archived (soft-deleted) content is excluded.
+        """
         from django.db.models import Exists, OuterRef
 
         pack_items = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
         not_in_any_pack = ~Exists(pack_items)
-        in_specified_packs = Exists(pack_items.filter(pack__in=packs))
+        in_specified_packs = Exists(pack_items.filter(pack__in=packs, archived=False))
         return self.filter(not_in_any_pack | in_specified_packs)
 
 
