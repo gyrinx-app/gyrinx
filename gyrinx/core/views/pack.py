@@ -1331,11 +1331,13 @@ def restore_pack_item(request, id, item_id):
         archived=True,
     )
 
+    content_obj = pack_item.content_object
+    if content_obj is None:
+        raise Http404
+
     pack_item._history_user = request.user
     pack_item.unarchive()
-    _cascade_weapon_profile_pack_items(
-        pack, pack_item.content_object, request.user, archive=False
-    )
+    _cascade_weapon_profile_pack_items(pack, content_obj, request.user, archive=False)
     return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
 
