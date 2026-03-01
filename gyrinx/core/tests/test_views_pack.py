@@ -3170,7 +3170,7 @@ def test_pack_lists_view_type_filter_list(
     # Create a campaign-mode list
     from gyrinx.core.models.list import List
 
-    gang = make_list("Campaign Gang", content_house=content_house)
+    gang = make_list("My Gang Alpha", content_house=content_house)
     gang.status = List.CAMPAIGN_MODE
     gang.campaign = campaign
     gang.save()
@@ -3179,7 +3179,7 @@ def test_pack_lists_view_type_filter_list(
     assert response.status_code == 200
     content = response.content.decode()
     assert "List Builder" in content
-    assert "Campaign Gang" not in content
+    assert "My Gang Alpha" not in content
 
 
 @pytest.mark.django_db
@@ -3191,7 +3191,7 @@ def test_pack_lists_view_type_filter_gang(
     make_list("List Builder", content_house=content_house)
     from gyrinx.core.models.list import List
 
-    gang = make_list("Campaign Gang", content_house=content_house)
+    gang = make_list("My Gang Alpha", content_house=content_house)
     gang.status = List.CAMPAIGN_MODE
     gang.campaign = campaign
     gang.save()
@@ -3199,19 +3199,19 @@ def test_pack_lists_view_type_filter_gang(
     response = client.get(f"/pack/{pack.id}/lists/?type=gang")
     assert response.status_code == 200
     content = response.content.decode()
-    assert "Campaign Gang" in content
+    assert "My Gang Alpha" in content
     assert "List Builder" not in content
 
 
 @pytest.mark.django_db
 def test_pack_lists_view_tabs_present(client, group_user, pack):
-    """The page renders tabs for All, List Building, and Campaign."""
+    """The page renders tabs for All, Lists, and Campaign Gangs."""
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
-    assert "List Building" in content
-    assert "Campaign" in content
+    assert "Lists" in content
+    assert "Campaign Gangs" in content
 
 
 @pytest.mark.django_db
