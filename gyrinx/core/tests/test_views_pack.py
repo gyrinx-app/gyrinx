@@ -3041,7 +3041,7 @@ def test_edit_weapon_profile_shows_delete_for_named(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
     )
     assert response.status_code == 200
-    assert b"Delete profile" in response.content
+    assert b"Archive profile" in response.content
 
 
 @pytest.mark.django_db
@@ -3059,7 +3059,7 @@ def test_edit_weapon_profile_hides_delete_for_standard(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard.id}/edit/"
     )
     assert response.status_code == 200
-    assert b"Delete profile" not in response.content
+    assert b"Archive profile" not in response.content
 
 
 @pytest.mark.django_db
@@ -3089,7 +3089,7 @@ def test_delete_weapon_profile(client, group_user, pack, pack_weapon):
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
     )
     assert response.status_code == 200
-    assert b"Delete profile" in response.content
+    assert b"Archive profile" in response.content
 
     response = client.post(
         f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
