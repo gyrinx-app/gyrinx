@@ -1093,13 +1093,16 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
         list_fighter=fighter,
     )
 
+    packs = lst.packs.all()
     error_message = None
 
     # Handle adding a new profile
     if request.method == "POST" and "profile_id" in request.POST:
         profile_id = request.POST.get("profile_id")
         profile = get_object_or_404(
-            ContentWeaponProfile, pk=profile_id, equipment=assignment.content_equipment
+            ContentWeaponProfile.objects.all_content(),
+            pk=profile_id,
+            equipment=assignment.content_equipment,
         )
 
         try:
@@ -1129,8 +1132,10 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
 
     # Get all available profiles for this weapon
     # Exclude standard (free) profiles as they're automatically included
+    # Use with_packs() so pack-created profiles are visible to subscribers
     profiles_qs = (
-        ContentWeaponProfile.objects.filter(equipment=assignment.content_equipment)
+        ContentWeaponProfile.objects.with_packs(packs)
+        .filter(equipment=assignment.content_equipment)
         .exclude(cost=0)
         .prefetch_related(
             Prefetch(
@@ -1229,7 +1234,7 @@ def delete_list_fighter_weapon_profile(request, id, fighter_id, assign_id, profi
         list_fighter=fighter,
     )
     profile = get_object_or_404(
-        ContentWeaponProfile,
+        ContentWeaponProfile.objects.all_content(),
         pk=profile_id,
     )
 
