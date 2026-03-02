@@ -22,7 +22,7 @@
                 <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
                 {% if profile.name %}
                     <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
-                       class="btn btn-link text-danger ms-auto">Delete profile</a>
+                       class="btn btn-link text-danger ms-auto">Archive profile</a>
                 {% endif %}
             </div>
         </form>

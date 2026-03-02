@@ -90,6 +90,7 @@ class CustomContentPackItem(AppBase):
         constraints = [
             models.UniqueConstraint(
                 fields=["pack", "content_type", "object_id"],
+                condition=models.Q(archived=False),
                 name="unique_pack_content_item",
             ),
         ]

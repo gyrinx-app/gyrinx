@@ -163,7 +163,9 @@ class ContentEquipmentManager(ContentManager):
                 default=0,
             ),
             has_weapon_profiles=Exists(
-                ContentWeaponProfile.objects.filter(equipment=OuterRef("pk"))
+                ContentWeaponProfile.objects.all_content().filter(
+                    equipment=OuterRef("pk")
+                )
             ),
         ).order_by("category__name", "name", "id")
 
@@ -279,13 +281,17 @@ class ContentEquipmentQuerySet(ContentQuerySet):
     def with_profiles_for_fighter(self, content_fighter) -> "ContentEquipmentQuerySet":
         """
         Annotates the queryset with weapon profiles for a given fighter, if any.
+
+        Uses all_content() so that pack-created profiles are included — the
+        parent equipment is already pack-filtered, so profiles are FK-scoped
+        to their parent equipment with no cross-pack leakage.
         """
         from .weapon import ContentWeaponProfile
 
         return self.prefetch_related(
             models.Prefetch(
                 "contentweaponprofile_set",
-                queryset=ContentWeaponProfile.objects.with_cost_for_fighter(
+                queryset=ContentWeaponProfile.objects.all_content().with_cost_for_fighter(
                     content_fighter
                 ),
                 to_attr="pre_profiles_for_fighter",
@@ -325,8 +331,10 @@ class ContentEquipmentQuerySet(ContentQuerySet):
             weapon_profile=OuterRef("pk"),
         )
 
-        # Create a queryset that includes both regular profiles and expansion profiles
-        profile_queryset = ContentWeaponProfile.objects.annotate(
+        # Create a queryset that includes both regular profiles and expansion profiles.
+        # Use all_content() so pack-created profiles are included — the parent
+        # equipment is already pack-filtered.
+        profile_queryset = ContentWeaponProfile.objects.all_content().annotate(
             # First priority: Expansion profile cost override
             expansion_profile_cost=Subquery(
                 expansion_profile_items.values("cost")[:1],
@@ -446,10 +454,17 @@ class ContentEquipment(FighterCostMixin, Content):
         """
         Indicates whether this equipment is a weapon. If 'has_weapon_profiles'
         is annotated, uses that; otherwise checks the database.
+
+        Uses all_content() so pack-scoped profiles are included — a weapon
+        remains a weapon even when its profiles are managed via a content pack.
         """
         if hasattr(self, "has_weapon_profiles"):
             return self.has_weapon_profiles
-        return self.contentweaponprofile_set.exists()
+        from .weapon import ContentWeaponProfile
+
+        return (
+            ContentWeaponProfile.objects.all_content().filter(equipment=self).exists()
+        )
 
     @cached_property
     def is_weapon_cached(self):
@@ -494,9 +509,11 @@ class ContentEquipment(FighterCostMixin, Content):
 
         from .weapon import ContentWeaponProfile
 
-        return ContentWeaponProfile.objects.filter(
-            equipment=self
-        ).with_cost_for_fighter(content_fighter)
+        return (
+            ContentWeaponProfile.objects.all_content()
+            .filter(equipment=self)
+            .with_cost_for_fighter(content_fighter)
+        )
 
     def set_dirty(self) -> None:
         """

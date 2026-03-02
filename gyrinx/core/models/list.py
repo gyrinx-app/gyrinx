@@ -1450,7 +1450,12 @@ class ListFighterQuerySet(models.QuerySet):
         to reduce N+1 query issues.
         """
         return (
-            self.select_related(
+            self.prefetch_related(None)  # Clear inherited lookups to prevent
+            # doubling when called on a cached queryset (e.g. from
+            # with_fighter_data's Prefetch). Without this, Prefetch objects
+            # with custom querysets would appear twice and Django raises
+            # ValueError("lookup was already seen with a different queryset").
+            .select_related(
                 "content_fighter",
                 "content_fighter__house",
                 "content_fighter__custom_statline",
@@ -1469,7 +1474,10 @@ class ListFighterQuerySet(models.QuerySet):
                 "disabled_default_assignments",
                 "advancements",
                 "stat_overrides",
-                "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
+                Prefetch(
+                    "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
+                    queryset=ContentWeaponProfile.objects.all_content(),
+                ),
                 "listfighterequipmentassignment_set__weapon_profiles_field",
                 "listfighterequipmentassignment_set__weapon_accessories_field__modifiers",
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
@@ -1480,7 +1488,10 @@ class ListFighterQuerySet(models.QuerySet):
                 "content_fighter__house",
                 "content_fighter__house__restricted_equipment_categories",
                 "content_fighter__house__restricted_equipment_categories__restricted_to",
-                "content_fighter__default_assignments__equipment__contentweaponprofile_set",
+                Prefetch(
+                    "content_fighter__default_assignments__equipment__contentweaponprofile_set",
+                    queryset=ContentWeaponProfile.objects.all_content(),
+                ),
                 # Prefetch equipment list items for cost override lookups
                 "content_fighter__contentfighterequipmentlistitem_set",
                 "legacy_content_fighter__contentfighterequipmentlistitem_set",
