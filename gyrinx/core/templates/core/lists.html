@@ -26,12 +26,12 @@
             <li class="nav-item">
                 <a class="nav-link{% if current_tab == 'list' %} active{% endif %}"
                    {% if current_tab == 'list' %}aria-current="page"{% endif %}
-                   href="?{% qt request type="list" page=None %}">List Building</a>
+                   href="?{% qt request type="list" page=None %}">Lists</a>
             </li>
             <li class="nav-item">
                 <a class="nav-link{% if current_tab == 'gang' %} active{% endif %}"
                    {% if current_tab == 'gang' %}aria-current="page"{% endif %}
-                   href="?{% qt request type="gang" page=None %}">Campaign</a>
+                   href="?{% qt request type="gang" page=None %}">Campaign Gangs</a>
             </li>
         </ul>
         <div class="vstack gap-4">
