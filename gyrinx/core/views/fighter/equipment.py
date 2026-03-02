@@ -116,6 +116,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         form.fields["content_equipment"].queryset = ContentEquipment.objects.with_packs(
             packs
         )
+        form.fields[
+            "weapon_profiles_field"
+        ].queryset = ContentWeaponProfile.objects.with_packs(packs)
+        form.fields[
+            "upgrades_field"
+        ].queryset = ContentEquipmentUpgrade.objects.with_packs(packs)
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
 

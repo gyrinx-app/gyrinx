@@ -1478,7 +1478,10 @@ class ListFighterQuerySet(models.QuerySet):
                     "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
                     queryset=ContentWeaponProfile.objects.all_content(),
                 ),
-                "listfighterequipmentassignment_set__weapon_profiles_field",
+                Prefetch(
+                    "listfighterequipmentassignment_set__weapon_profiles_field",
+                    queryset=ContentWeaponProfile.objects.all_content(),
+                ),
                 "listfighterequipmentassignment_set__weapon_accessories_field__modifiers",
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
                 "listfighterequipmentassignment_set__upgrades_field__modifiers",
