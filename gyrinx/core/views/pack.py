@@ -50,6 +50,7 @@ from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
 )
+from gyrinx.core.utils import safe_redirect
 from gyrinx.models import is_valid_uuid
 
 
@@ -1253,15 +1254,37 @@ def edit_pack_item(request, id, item_id):
             stat_context_entry = entry_dict
             weapon_stat_context.append(stat_context_entry)
         context["weapon_stat_values"] = weapon_stat_context
-        context["related_links"] = [
-            {
-                "url": reverse(
-                    "core:pack-add-weapon-profile",
-                    args=(pack.id, pack_item.id),
-                ),
-                "label": "add weapon profile",
-            },
-        ]
+        # Named profiles for inline display on the edit page.
+        named_profiles = (
+            ContentWeaponProfile.objects.with_packs([pack])
+            .filter(equipment=content_obj)
+            .exclude(name="")
+            .prefetch_related(
+                Prefetch(
+                    "traits",
+                    queryset=ContentWeaponTrait.objects.all_content(),
+                )
+            )
+            .order_by("name")
+        )
+        context["named_profiles"] = named_profiles
+        profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+        profile_ids = (
+            ContentWeaponProfile.objects.all_content()
+            .filter(equipment=content_obj)
+            .values_list("pk", flat=True)
+        )
+        archived_profile_count = CustomContentPackItem.objects.filter(
+            pack=pack,
+            content_type=profile_ct,
+            object_id__in=profile_ids,
+            archived=True,
+        ).count()
+        context["archived_profile_count"] = archived_profile_count
+        context["archived_profiles_url"] = reverse(
+            "core:pack-archived-weapon-profiles",
+            args=(pack.id, pack_item.id),
+        )
         context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
         if standard_profile and request.method != "POST":
             context["selected_trait_ids"] = set(
@@ -1338,7 +1361,11 @@ def restore_pack_item(request, id, item_id):
     pack_item._history_user = request.user
     pack_item.unarchive()
     _cascade_weapon_profile_pack_items(pack, content_obj, request.user, archive=False)
-    return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+    fallback = reverse("core:pack", args=(pack.id,))
+    next_url = request.POST.get("next")
+    if next_url:
+        return safe_redirect(request, next_url, fallback_url=fallback)
+    return HttpResponseRedirect(fallback)
 
 
 def _cascade_weapon_profile_pack_items(pack, content_obj, user, *, archive):
@@ -1538,7 +1565,9 @@ def delete_weapon_profile(request, id, item_id, profile_id):
     if request.method == "POST":
         profile_pack_item._history_user = request.user
         profile_pack_item.archive()
-        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+        return HttpResponseRedirect(
+            reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+        )
 
     context = {
         "pack": pack,
@@ -1547,6 +1576,42 @@ def delete_weapon_profile(request, id, item_id, profile_id):
         "profile": profile,
     }
     return render(request, "core/pack/weapon_profile_delete.html", context)
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def archived_weapon_profiles(request, id, item_id):
+    """Display archived weapon profiles for a weapon pack item."""
+    pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
+
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_ids = (
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=equipment)
+        .values_list("pk", flat=True)
+    )
+    archived_items = []
+    for item in CustomContentPackItem.objects.filter(
+        pack=pack, content_type=profile_ct, object_id__in=profile_ids, archived=True
+    ):
+        if item.content_object is not None:
+            archived_items.append(
+                {"pack_item": item, "content_object": item.content_object}
+            )
+
+    edit_url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+    return render(
+        request,
+        "core/pack/pack_archived.html",
+        {
+            "pack": pack,
+            "archived_items": archived_items,
+            "section_label": "Weapon Profiles",
+            "back_url": edit_url,
+            "back_text": str(equipment),
+            "restore_next": edit_url,
+        },
+    )
 
 
 class PackListsView(GroupMembershipRequiredMixin, generic.ListView):

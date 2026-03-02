@@ -36,10 +36,47 @@
             {% if weapon_stat_values %}
                 {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_values %}
             {% endif %}
-            {% if related_links %}
-                <div class="p-3 border rounded">
-                    You can also:
-                    {% for link in related_links %}<a href="{{ link.url }}" class="linked">{{ link.label }}</a>{% endfor %}
+            {% if weapon_stat_values %}
+                <div>
+                    <label class="form-label">Profiles</label>
+                    {% if named_profiles %}
+                        <table class="table table-sm table-borderless mb-0 fs-7">
+                            {% include "core/includes/weapon_stat_headers.html" with first_col="Profile" %}
+                            <tbody class="table-group-divider">
+                                {% for profile in named_profiles %}
+                                    <tr class="align-top">
+                                        <td rowspan="{% if profile.traitline|length > 0 %}2{% else %}1{% endif %}">
+                                            <i class="bi-dash"></i>
+                                            {{ profile.name }}
+                                            {% if profile.cost_display %}({{ profile.cost_display }}){% endif %}
+                                            <span class="text-secondary small">
+                                                · <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
+                                                · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover text-danger">Archive</a>
+                                            </span>
+                                        </td>
+                                        {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                                    </tr>
+                                    {% if profile.traitline|length > 0 %}
+                                        <tr>
+                                            <td colspan="8">{{ profile.traitline|join:", " }}</td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-secondary mb-2">No named profiles yet.</p>
+                    {% endif %}
+                    <div class="d-flex gap-1 align-items-center small">
+                        <a href="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
+                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Add profile</a>
+                        {% if archived_profile_count > 0 %}
+                            · <a href="{{ archived_profiles_url }}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Archived ({{ archived_profile_count }})</a>
+                        {% endif %}
+                    </div>
                 </div>
             {% endif %}
             <div class="mt-3">

@@ -3128,6 +3128,124 @@ def test_cannot_delete_standard_weapon_profile(client, group_user, pack, pack_we
 
 
 @pytest.mark.django_db
+def test_archived_weapon_profiles_page_shows_archived(
+    client, group_user, pack, pack_weapon
+):
+    """Test that the archived weapon profiles page shows archived profiles."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile.objects.create(
+        equipment=equip, name="Burst", cost=5, strength="4"
+    )
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_pack_item = CustomContentPackItem(
+        pack=pack, content_type=profile_ct, object_id=profile.pk, owner=group_user
+    )
+    profile_pack_item.save_with_user(user=group_user)
+
+    # Archive the profile via its delete endpoint
+    client.force_login(group_user)
+    client.post(f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/")
+
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Archived Weapon Profiles" in content
+    assert "Burst" in content
+    assert "Restore" in content
+
+
+@pytest.mark.django_db
+def test_archived_weapon_profiles_page_empty(client, group_user, pack, pack_weapon):
+    """Test that the archived profiles page shows empty message when none archived."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "No archived weapon profiles" in content
+
+
+@pytest.mark.django_db
+def test_weapon_edit_shows_archived_profiles_link(
+    client, group_user, pack, pack_weapon
+):
+    """Test that weapon edit shows archived profiles link when profiles are archived."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile.objects.create(
+        equipment=equip, name="Burst", cost=5, strength="4"
+    )
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_pack_item = CustomContentPackItem(
+        pack=pack, content_type=profile_ct, object_id=profile.pk, owner=group_user
+    )
+    profile_pack_item.save_with_user(user=group_user)
+
+    # Archive the profile
+    client.force_login(group_user)
+    client.post(f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/")
+
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Archived (1)" in content
+    assert f"/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/" in content
+
+
+@pytest.mark.django_db
+def test_weapon_edit_omits_archived_link_when_none(
+    client, group_user, pack, pack_weapon
+):
+    """Test that weapon edit omits archived profiles link when none are archived."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Archived" not in content
+
+
+@pytest.mark.django_db
+def test_weapon_edit_shows_named_profiles_inline(client, group_user, pack, pack_weapon):
+    """Test that weapon edit page shows named profiles with Edit/Archive links."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    profile = ContentWeaponProfile.objects.create(
+        equipment=equip, name="Burst", cost=5, strength="4"
+    )
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_pack_item = CustomContentPackItem(
+        pack=pack, content_type=profile_ct, object_id=profile.pk, owner=group_user
+    )
+    profile_pack_item.save_with_user(user=group_user)
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Burst" in content
+    assert (
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/" in content
+    )
+    assert (
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/" in content
+    )
+
+
+@pytest.mark.django_db
+def test_weapon_edit_shows_add_profile_link(client, group_user, pack, pack_weapon):
+    """Test that weapon edit shows 'Add profile' link even with no named profiles."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Add profile" in content
+    assert f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/" in content
+
+
+@pytest.mark.django_db
 def test_weapon_category_only_shows_weapons(client, group_user, pack, weapon_category):
     """Test that the weapon form only shows Weapons & Ammo categories."""
     ContentEquipmentCategory.objects.get_or_create(

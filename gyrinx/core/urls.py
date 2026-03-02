@@ -804,6 +804,11 @@ urlpatterns = [
         pack_views.delete_weapon_profile,
         name="pack-delete-weapon-profile",
     ),
+    path(
+        "pack/<id>/item/<item_id>/archived-profiles/",
+        pack_views.archived_weapon_profiles,
+        name="pack-archived-weapon-profiles",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",
