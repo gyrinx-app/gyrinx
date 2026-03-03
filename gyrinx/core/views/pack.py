@@ -1429,7 +1429,7 @@ def add_weapon_profile(request, id, item_id):
     pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
 
     if request.method == "POST":
-        form = ContentWeaponProfilePackForm(request.POST)
+        form = ContentWeaponProfilePackForm(request.POST, pack=pack)
         if form.is_valid():
             with transaction.atomic():
                 profile = form.save(commit=False)
@@ -1441,9 +1441,7 @@ def add_weapon_profile(request, id, item_id):
                     setattr(profile, field_name, raw.strip())
                 profile.full_clean()
                 profile.save()
-                # Set traits (always set, even if empty, to allow clearing).
-                trait_ids = request.POST.getlist("wp_traits")
-                profile.traits.set(trait_ids)
+                form.save_m2m()
                 # Create pack item so the profile is scoped to this pack.
                 ct = ContentType.objects.get_for_model(ContentWeaponProfile)
                 profile_pack_item = CustomContentPackItem(
@@ -1455,7 +1453,7 @@ def add_weapon_profile(request, id, item_id):
                 profile_pack_item.save_with_user(request.user)
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
-        form = ContentWeaponProfilePackForm()
+        form = ContentWeaponProfilePackForm(pack=pack)
 
     context = {
         "form": form,
@@ -1463,12 +1461,6 @@ def add_weapon_profile(request, id, item_id):
         "pack_item": pack_item,
         "equipment": equipment,
         "weapon_stat_fields": _build_weapon_stat_context(request),
-        "weapon_traits": ContentWeaponTrait.objects.with_packs([pack]),
-        "selected_trait_ids": (
-            set(request.POST.getlist("wp_traits"))
-            if request.method == "POST"
-            else set()
-        ),
     }
     return render(request, "core/pack/weapon_profile_add.html", context)
 
@@ -1485,7 +1477,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
     )
 
     if request.method == "POST":
-        form = ContentWeaponProfilePackForm(request.POST, instance=profile)
+        form = ContentWeaponProfilePackForm(request.POST, instance=profile, pack=pack)
         if form.is_valid():
             with transaction.atomic():
                 updated_profile = form.save(commit=False)
@@ -1495,11 +1487,10 @@ def edit_weapon_profile(request, id, item_id, profile_id):
                     setattr(updated_profile, field_name, raw.strip())
                 updated_profile.full_clean()
                 updated_profile.save()
-                trait_ids = request.POST.getlist("wp_traits")
-                updated_profile.traits.set(trait_ids)
+                form.save_m2m()
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
-        form = ContentWeaponProfilePackForm(instance=profile)
+        form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
 
     # Build stat context from existing profile.
     weapon_stat_context = []
@@ -1515,11 +1506,6 @@ def edit_weapon_profile(request, id, item_id, profile_id):
             entry_dict["value"] = getattr(profile, field_name, "")
         weapon_stat_context.append(entry_dict)
 
-    if request.method == "POST":
-        selected_trait_ids = set(request.POST.getlist("wp_traits"))
-    else:
-        selected_trait_ids = set(str(t.pk) for t in profile.all_traits())
-
     context = {
         "form": form,
         "pack": pack,
@@ -1527,8 +1513,6 @@ def edit_weapon_profile(request, id, item_id, profile_id):
         "equipment": equipment,
         "profile": profile,
         "weapon_stat_values": weapon_stat_context,
-        "weapon_traits": ContentWeaponTrait.objects.with_packs([pack]),
-        "selected_trait_ids": selected_trait_ids,
     }
     return render(request, "core/pack/weapon_profile_edit.html", context)
 

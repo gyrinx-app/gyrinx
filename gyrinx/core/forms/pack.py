@@ -2,14 +2,16 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
 
+from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
-from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
+from gyrinx.forms import group_select
+from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 
 # Fighter categories excluded from pack creation.
 _EXCLUDED_FIGHTER_CATEGORIES = {
@@ -92,14 +94,18 @@ class ContentFighterPackForm(forms.ModelForm):
             "category": forms.Select(attrs={"class": "form-select"}),
             "house": forms.Select(attrs={"class": "form-select"}),
             "base_cost": forms.NumberInput(attrs={"class": "form-control"}),
-            "skills": forms.SelectMultiple(attrs={"class": "form-select", "size": 8}),
-            "primary_skill_categories": forms.SelectMultiple(
-                attrs={"class": "form-select", "size": 6}
+            "skills": BsCheckboxSelectMultipleCompact(
+                attrs={"class": "form-check-input"}
             ),
-            "secondary_skill_categories": forms.SelectMultiple(
-                attrs={"class": "form-select", "size": 6}
+            "primary_skill_categories": BsCheckboxSelectMultipleCompact(
+                attrs={"class": "form-check-input"}
             ),
-            "rules": forms.SelectMultiple(attrs={"class": "form-select", "size": 6}),
+            "secondary_skill_categories": BsCheckboxSelectMultipleCompact(
+                attrs={"class": "form-check-input"}
+            ),
+            "rules": BsCheckboxSelectMultipleCompact(
+                attrs={"class": "form-check-input"}
+            ),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -154,6 +160,10 @@ class ContentFighterPackForm(forms.ModelForm):
                 .queryset.filter(contentfighter=self.instance)
                 .values_list("pk", flat=True)
             )
+
+        # Group skills by category for better readability.
+        if "skills" in self.fields:
+            group_select(self, "skills", key=lambda x: x.category)
 
         # On create (no saved instance yet), hide M2M fields that only
         # make sense after the fighter exists — except rules, which users
@@ -406,16 +416,21 @@ class ContentWeaponPackForm(forms.ModelForm):
 
 
 class ContentWeaponProfilePackForm(forms.ModelForm):
-    """Form for adding/editing weapon profiles in a content pack."""
+    """Form for adding/editing weapon profiles in a content pack.
+
+    Accepts an optional ``pack`` kwarg to filter the traits queryset
+    to include both base library traits and pack-specific traits.
+    """
 
     class Meta:
         model = ContentWeaponProfile
-        fields = ["name", "cost", "rarity", "rarity_roll"]
+        fields = ["name", "cost", "rarity", "rarity_roll", "traits"]
         labels = {
             "name": "Profile name",
             "cost": "Cost",
             "rarity": "Availability",
             "rarity_roll": "Availability level",
+            "traits": "Traits",
         }
         help_texts = {
             "name": "Leave blank for the standard profile. Named profiles represent alternate fire modes.",
@@ -428,4 +443,25 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
             "cost": forms.NumberInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
             "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
+            "traits": BsCheckboxSelectMultipleCompact(
+                attrs={"class": "form-check-input"}
+            ),
         }
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if pack is not None:
+            self.fields["traits"].queryset = ContentWeaponTrait.objects.with_packs(
+                [pack]
+            )
+
+        # Fix initial values for traits M2M when editing.
+        # model_to_dict() uses instance.traits.all() which goes through
+        # ContentManager and excludes pack content.
+        if not self.instance._state.adding and pack is not None:
+            instance_trait_ids = self.instance.traits.values_list("pk", flat=True)
+            self.initial["traits"] = list(
+                self.fields["traits"]
+                .queryset.filter(pk__in=instance_trait_ids)
+                .values_list("pk", flat=True)
+            )
