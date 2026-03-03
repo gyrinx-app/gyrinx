@@ -13,7 +13,7 @@ class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
 
 
 class BsCheckboxSelectMultipleCompact(forms.CheckboxSelectMultiple):
-    """Compact checkbox multi-select in a scrollable bordered box with columns."""
+    """Compact checkbox multi-select in a scrollable bordered box with a search filter."""
 
     template_name = "pages/forms/widgets/bs_checkbox_select_compact.html"
     option_template_name = "pages/forms/widgets/bs_checkbox_option_compact.html"

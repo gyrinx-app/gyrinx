@@ -459,8 +459,9 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
         # model_to_dict() uses instance.traits.all() which goes through
         # ContentManager and excludes pack content.
         if not self.instance._state.adding and pack is not None:
+            instance_trait_ids = self.instance.traits.values_list("pk", flat=True)
             self.initial["traits"] = list(
                 self.fields["traits"]
-                .queryset.filter(contentweaponprofile=self.instance)
+                .queryset.filter(pk__in=instance_trait_ids)
                 .values_list("pk", flat=True)
             )
