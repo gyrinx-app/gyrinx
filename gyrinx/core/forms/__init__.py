@@ -12,6 +12,13 @@ class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     option_template_name = "pages/forms/widgets/bs_checkbox_option.html"
 
 
+class BsCheckboxSelectMultipleCompact(forms.CheckboxSelectMultiple):
+    """Compact checkbox multi-select in a scrollable bordered box with columns."""
+
+    template_name = "pages/forms/widgets/bs_checkbox_select_compact.html"
+    option_template_name = "pages/forms/widgets/bs_checkbox_option_compact.html"
+
+
 class BsRadioSelect(forms.RadioSelect):
     template_name = "pages/forms/widgets/bs_radio_select.html"
     option_template_name = "pages/forms/widgets/bs_radio_option.html"

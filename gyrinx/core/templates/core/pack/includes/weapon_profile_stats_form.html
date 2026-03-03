@@ -1,15 +1,30 @@
 {% if weapon_traits %}
     <div>
-        <label class="form-label" for="wp_traits">Traits</label>
-        <select name="wp_traits" id="wp_traits" class="form-select" multiple size="6">
+        <label class="form-label">Traits</label>
+        <input type="search"
+               class="form-control form-control-sm mb-2"
+               placeholder="Filter..."
+               data-filter-target="wp_traits_list"
+               oninput="(function(el){ var t=el.value.toLowerCase(); var container=document.getElementById(el.dataset.filterTarget); var items=container.querySelectorAll('[data-filter-label]'); var visible=0; for(var i=0;i&lt;items.length;i++){ var show=items[i].dataset.filterLabel.toLowerCase().indexOf(t)!==-1; items[i].style.display=show?'':'none'; if(show) visible++; } container.querySelector('[data-filter-empty]').style.display=visible===0?'':'none'; })(this)">
+        {# djlint:off H021 #}
+        <div id="wp_traits_list"
+             class="border rounded p-2"
+             style="max-height: 16rem;
+                    overflow-y: auto">
             {% for trait in weapon_traits %}
-                <option value="{{ trait.pk }}"
-                        {% if trait.pk|stringformat:"s" in selected_trait_ids %}selected{% endif %}>
-                    {{ trait.name }}
-                </option>
+                <div class="mb-1" data-filter-label="{{ trait.name }}">
+                    <input type="checkbox"
+                           name="wp_traits"
+                           value="{{ trait.pk }}"
+                           id="wp_traits_{{ forloop.counter }}"
+                           class="form-check-input"
+                           {% if trait.pk|stringformat:"s" in selected_trait_ids %}checked{% endif %}>
+                    <label for="wp_traits_{{ forloop.counter }}">{{ trait.name }}</label>
+                </div>
             {% endfor %}
-        </select>
-        <div class="form-text">Hold Ctrl/Cmd to select multiple traits.</div>
+            {# djlint:off H021 #}
+            <div class="text-secondary small" data-filter-empty style="display: none;">No matches.</div>
+        </div>
     </div>
 {% endif %}
 <div>

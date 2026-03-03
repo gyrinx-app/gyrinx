@@ -1,0 +1,27 @@
+{% with id=widget.attrs.id %}
+    <div>
+        <input type="search"
+               class="form-control form-control-sm mb-2"
+               placeholder="Filter..."
+               data-filter-target="{{ id }}"
+               oninput="(function(el){ var t=el.value.toLowerCase(); var container=document.getElementById(el.dataset.filterTarget); var items=container.querySelectorAll('[data-filter-label]'); var visible=0; for(var i=0;i&lt;items.length;i++){ var show=items[i].dataset.filterLabel.toLowerCase().indexOf(t)!==-1; items[i].style.display=show?'':'none'; if(show) visible++; } container.querySelector('[data-filter-empty]').style.display=visible===0?'':'none'; })(this)">
+        {# djlint:off H021 #}
+        <div {% if id %}id="{{ id }}"{% endif %}
+             class="border rounded p-2"
+             style="max-height: 16rem;
+                    overflow-y: auto">
+            {% for group, options, index in widget.optgroups %}
+                {% if group %}
+                    <div>
+                        <label class="h6">{{ group }}</label>
+                    {% endif %}
+                    {% for option in options %}
+                        <div class="mb-1" data-filter-label="{{ option.label }}">{% include option.template_name with widget=option %}</div>
+                    {% endfor %}
+                    {% if group %}</div>{% endif %}
+            {% endfor %}
+            {# djlint:off H021 #}
+            <div class="text-secondary small" data-filter-empty style="display: none;">No matches.</div>
+        </div>
+    </div>
+{% endwith %}
