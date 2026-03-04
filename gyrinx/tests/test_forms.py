@@ -4,6 +4,7 @@ import pytest
 from django import forms
 
 from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
 from gyrinx.forms import fighter_group_key, group_select, group_sorter
 from gyrinx.models import FighterCategoryChoices
 
@@ -137,6 +138,37 @@ def test_group_select_with_multiple_widget():
     # Multiple widgets should not have empty option
     assert choices[0][0] == "House Goliath"
     assert len(choices) == 1
+
+
+@pytest.mark.django_db
+def test_group_select_with_compact_multiple_widget():
+    """Test group_select with BsCheckboxSelectMultipleCompact widget.
+
+    Regression test: the compact widget class name does not end with
+    "Multiple", so the old string-based check incorrectly added an
+    empty option which rendered as a spurious checkbox.
+    """
+    house = ContentHouse.objects.create(name="House Goliath")
+    ContentFighter.objects.create(
+        type="Ganger", category=FighterCategoryChoices.GANGER, house=house
+    )
+
+    class TestForm(forms.Form):
+        fighters = forms.ModelMultipleChoiceField(
+            queryset=ContentFighter.objects.all(),
+            widget=BsCheckboxSelectMultipleCompact(attrs={"class": "form-check-input"}),
+        )
+
+    form = TestForm()
+    group_select(form, "fighters", key=lambda x: x.house.name)
+
+    choices = form.fields["fighters"].widget.choices
+
+    # Multiple widgets should not have the empty option
+    assert choices[0][0] == "House Goliath"
+    assert len(choices) == 1
+    # Ensure no empty-string choice sneaked in
+    assert not any(key == "" for key, _ in choices)
 
 
 @pytest.mark.django_db
