@@ -46,7 +46,7 @@ def group_select(form, field, key=lambda x: x, sort_groups_by=None):
         else formfield.widget
     )
 
-    if not resolved_widget.__class__.__name__.endswith("Multiple"):
+    if not getattr(resolved_widget, "allow_multiple_selected", False):
         formfield.widget.choices = [
             ("", "---------"),
         ] + choices
