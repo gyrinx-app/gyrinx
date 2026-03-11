@@ -3316,7 +3316,7 @@ def test_pack_lists_view_shows_add_button_for_unsubscribed(
 def test_pack_lists_view_shows_remove_button_for_subscribed(
     client, group_user, pack, content_house, make_list
 ):
-    """Subscribed lists show a Remove button."""
+    """Subscribed lists appear in the subscribed section with a Remove button."""
     client.force_login(group_user)
     lst = make_list("Subbed Gang", content_house=content_house)
     lst.packs.add(pack)
@@ -3324,6 +3324,7 @@ def test_pack_lists_view_shows_remove_button_for_subscribed(
     assert response.status_code == 200
     content = response.content.decode()
     assert "Subbed Gang" in content
+    assert "Subscribed" in content
     assert f"/pack/{pack.id}/unsubscribe/" in content
 
 
@@ -3445,31 +3446,59 @@ def test_pack_lists_view_requires_login(client, pack):
 
 @pytest.mark.django_db
 def test_pack_lists_view_hides_toggles(client, group_user, pack):
-    """The 'Your Lists Only' and 'Archived Only' toggles should not appear."""
+    """The 'Your Lists Only', 'Archived Only', and 'Subscribed Only' toggles should not appear."""
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Your Lists Only" not in content
     assert "Archived Only" not in content
-    assert "Subscribed Only" in content
+    assert "Subscribed Only" not in content
 
 
 @pytest.mark.django_db
-def test_pack_lists_view_subscribed_filter(
+def test_pack_lists_view_separates_subscribed_and_available(
     client, group_user, pack, content_house, make_list
 ):
-    """Subscribed filter shows only lists subscribed to this pack."""
+    """Subscribed lists appear in a separate section, not in the available list."""
     client.force_login(group_user)
     subscribed = make_list("Subscribed Gang", content_house=content_house)
     subscribed.packs.add(pack)
     make_list("Unsubscribed Gang", content_house=content_house)
 
-    response = client.get(f"/pack/{pack.id}/lists/?subscribed=1")
+    response = client.get(f"/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
+    # Both should be visible on the page
     assert "Subscribed Gang" in content
-    assert "Unsubscribed Gang" not in content
+    assert "Unsubscribed Gang" in content
+    # Subscribed section should be present
+    assert "Subscribed" in content
+    # Subscribed list should have unsubscribe URL, available should have subscribe URL
+    assert f"/pack/{pack.id}/unsubscribe/" in content
+    assert f"/pack/{pack.id}/subscribe/" in content
+
+
+@pytest.mark.django_db
+def test_pack_lists_view_multi_pack_subscription_not_duplicated(
+    client, group_user, pack, content_house, make_list
+):
+    """A list subscribed to multiple packs appears only in Subscribed for the current pack."""
+    client.force_login(group_user)
+    other_pack = CustomContentPack.objects.create(name="Other Pack", owner=group_user)
+    lst = make_list("Multi-pack Gang", content_house=content_house)
+    lst.packs.add(pack)
+    lst.packs.add(other_pack)
+    make_list("Unsubscribed Gang", content_house=content_house)
+
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Multi-pack Gang" in content
+    # Should appear only once (in Subscribed), not duplicated in Available
+    assert content.count("Multi-pack Gang") == 1
+    assert f"/pack/{pack.id}/unsubscribe/" in content
+    assert f"/pack/{pack.id}/subscribe/" in content
 
 
 # --- Custom weapon traits ---

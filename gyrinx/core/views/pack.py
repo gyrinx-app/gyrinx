@@ -1666,8 +1666,17 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
                 | models.Q(content_house__name__icontains=search_query)
             )
 
-        # Save before house filter for deriving house dropdown
+        # Save before house filter for deriving house dropdown (includes all
+        # user lists so houses aren't hidden when all lists are subscribed)
         self._queryset_before_house_filter = queryset
+
+        # Exclude already-subscribed lists (shown in a separate section).
+        # Use a pk subquery to avoid incorrect M2M exclude() join behaviour
+        # when a list is subscribed to multiple packs.
+        subscribed_ids = self.pack.subscribed_lists.filter(
+            owner=self.request.user,
+        ).values_list("pk", flat=True)
+        queryset = queryset.exclude(pk__in=subscribed_ids)
 
         # House filter
         house_ids = self.request.GET.getlist("house")
@@ -1675,10 +1684,6 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
             valid_house_ids = [h_id for h_id in house_ids if is_valid_uuid(h_id)]
             if valid_house_ids:
                 queryset = queryset.filter(content_house_id__in=valid_house_ids)
-
-        # Subscribed filter
-        if self.request.GET.get("subscribed") == "1":
-            queryset = queryset.filter(packs=self.pack)
 
         return queryset
 
@@ -1691,9 +1696,11 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
         context["is_owner"] = user == pack.owner
         context["can_edit"] = pack.can_edit(user)
 
-        # Subscribed list IDs for toggle buttons
-        context["subscribed_list_ids"] = set(
-            pack.subscribed_lists.filter(owner=user).values_list("id", flat=True)
+        # Subscribed lists shown in a dedicated section (unfiltered, unpaginated)
+        context["subscribed_lists"] = (
+            List.objects.filter(owner=user, archived=False, packs=pack)
+            .select_related("content_house", "campaign")
+            .order_by("name", "id")
         )
 
         # House dropdown from pre-house-filter queryset
