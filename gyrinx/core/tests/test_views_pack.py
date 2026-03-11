@@ -3479,6 +3479,28 @@ def test_pack_lists_view_separates_subscribed_and_available(
     assert f"/pack/{pack.id}/subscribe/" in content
 
 
+@pytest.mark.django_db
+def test_pack_lists_view_multi_pack_subscription_not_duplicated(
+    client, group_user, pack, content_house, make_list
+):
+    """A list subscribed to multiple packs appears only in Subscribed for the current pack."""
+    client.force_login(group_user)
+    other_pack = CustomContentPack.objects.create(name="Other Pack", owner=group_user)
+    lst = make_list("Multi-pack Gang", content_house=content_house)
+    lst.packs.add(pack)
+    lst.packs.add(other_pack)
+    make_list("Unsubscribed Gang", content_house=content_house)
+
+    response = client.get(f"/pack/{pack.id}/lists/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Multi-pack Gang" in content
+    # Should appear only once (in Subscribed), not duplicated in Available
+    assert content.count("Multi-pack Gang") == 1
+    assert f"/pack/{pack.id}/unsubscribe/" in content
+    assert f"/pack/{pack.id}/subscribe/" in content
+
+
 # --- Custom weapon traits ---
 
 

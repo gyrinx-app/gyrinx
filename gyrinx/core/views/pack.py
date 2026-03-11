@@ -1645,8 +1645,13 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
         # user lists so houses aren't hidden when all lists are subscribed)
         self._queryset_before_house_filter = queryset
 
-        # Exclude already-subscribed lists (shown in a separate section)
-        queryset = queryset.exclude(packs=self.pack)
+        # Exclude already-subscribed lists (shown in a separate section).
+        # Use a pk subquery to avoid incorrect M2M exclude() join behaviour
+        # when a list is subscribed to multiple packs.
+        subscribed_ids = self.pack.subscribed_lists.filter(
+            owner=self.request.user,
+        ).values_list("pk", flat=True)
+        queryset = queryset.exclude(pk__in=subscribed_ids)
 
         # House filter
         house_ids = self.request.GET.getlist("house")
