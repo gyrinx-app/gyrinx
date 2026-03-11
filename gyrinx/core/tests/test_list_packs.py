@@ -444,3 +444,25 @@ class TestListDetailShowsPacks:
         response = client.get(url)
         assert response.status_code == 200
         assert b"Content Pack" in response.content
+
+    def test_list_detail_shows_add_pack_link_for_cc_owner(
+        self, client, cc_user, make_list
+    ):
+        """Owner in Custom Content group sees 'Add Content Pack' when no packs."""
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Add Content Pack" in response.content
+
+    def test_list_detail_hides_add_pack_link_for_non_cc_owner(
+        self, client, user, make_list
+    ):
+        """Owner NOT in Custom Content group does not see 'Add Content Pack'."""
+        client.force_login(user)
+        lst = make_list("Test List")
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Add Content Pack" not in response.content
