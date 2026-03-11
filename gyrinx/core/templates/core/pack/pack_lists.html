@@ -10,63 +10,98 @@
             <h1 class="h3 mb-1">Add {{ pack.name }} to Lists & Gangs</h1>
             <p class="text-muted small mb-0">Manage which of your Lists & Gangs use this Content Pack.</p>
         </div>
-        <div class="grid">
-            {% url 'core:pack-lists' pack.id as action %}
-            {% include "core/includes/lists_filter.html" with action=action houses=houses hide_toggles=True show_subscribed_toggle=True %}
-        </div>
-        <ul class="nav nav-tabs">
-            <li class="nav-item">
-                <a class="nav-link{% if current_tab == 'all' %} active{% endif %}"
-                   {% if current_tab == 'all' %}aria-current="page"{% endif %}
-                   href="?{% qt_rm request 'type' 'page' %}">All</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link{% if current_tab == 'list' %} active{% endif %}"
-                   {% if current_tab == 'list' %}aria-current="page"{% endif %}
-                   href="?{% qt request type="list" page=None %}">Lists</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link{% if current_tab == 'gang' %} active{% endif %}"
-                   {% if current_tab == 'gang' %}aria-current="page"{% endif %}
-                   href="?{% qt request type="gang" page=None %}">Campaign Gangs</a>
-            </li>
-        </ul>
-        <div class="vstack gap-4">
-            {% for list in lists %}
-                <div class="hstack gap-3">
-                    <div class="d-flex flex-column gap-1 flex-grow-1">
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
-                            <h2 class="mb-0 h5">
-                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                            </h2>
-                        </div>
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                            <div>{{ list.content_house }}</div>
-                            {% if list.status == list.CAMPAIGN_MODE %}
-                                <div class="badge text-bg-success">
-                                    <i class="bi-award"></i> Campaign: {{ list.campaign.name }}
+        {% if subscribed_lists %}
+            <section>
+                <h2 class="h5 mb-2">Subscribed</h2>
+                <div class="vstack gap-4">
+                    {% for list in subscribed_lists %}
+                        <div class="hstack gap-3">
+                            <div class="d-flex flex-column gap-1 flex-grow-1">
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                                    <h3 class="mb-0 h5">
+                                        <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                                    </h3>
                                 </div>
-                            {% else %}
-                                <div class="badge text-bg-secondary">
-                                    <i class="bi-list-ul"></i> List
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                    <div>{{ list.content_house }}</div>
+                                    {% if list.status == list.CAMPAIGN_MODE %}
+                                        <div class="badge text-bg-success">
+                                            <i class="bi-award"></i> Campaign: {{ list.campaign.name }}
+                                        </div>
+                                    {% else %}
+                                        <div class="badge text-bg-secondary">
+                                            <i class="bi-list-ul"></i> List
+                                        </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                    <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>
+                                </div>
+                            </div>
+                            <div class="ms-auto">
+                                <form method="post"
+                                      action="{% url 'core:pack-unsubscribe' pack.id %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="list_id" value="{{ list.id }}">
+                                    <input type="hidden" name="return_url" value="pack-lists">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                                </form>
+                            </div>
                         </div>
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                            <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+        <section>
+            <h2 class="h5 mb-3">Available</h2>
+            <div class="grid mb-3">
+                {% url 'core:pack-lists' pack.id as action %}
+                {% include "core/includes/lists_filter.html" with action=action houses=houses hide_toggles=True %}
+            </div>
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link{% if current_tab == 'all' %} active{% endif %}"
+                       {% if current_tab == 'all' %}aria-current="page"{% endif %}
+                       href="?{% qt_rm request 'type' 'page' %}">All</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link{% if current_tab == 'list' %} active{% endif %}"
+                       {% if current_tab == 'list' %}aria-current="page"{% endif %}
+                       href="?{% qt request type="list" page=None %}">Lists</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link{% if current_tab == 'gang' %} active{% endif %}"
+                       {% if current_tab == 'gang' %}aria-current="page"{% endif %}
+                       href="?{% qt request type="gang" page=None %}">Campaign Gangs</a>
+                </li>
+            </ul>
+            <div class="vstack gap-4">
+                {% for list in lists %}
+                    <div class="hstack gap-3">
+                        <div class="d-flex flex-column gap-1 flex-grow-1">
+                            <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                                <h3 class="mb-0 h5">
+                                    <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                                </h3>
+                            </div>
+                            <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                <div>{{ list.content_house }}</div>
+                                {% if list.status == list.CAMPAIGN_MODE %}
+                                    <div class="badge text-bg-success">
+                                        <i class="bi-award"></i> Campaign: {{ list.campaign.name }}
+                                    </div>
+                                {% else %}
+                                    <div class="badge text-bg-secondary">
+                                        <i class="bi-list-ul"></i> List
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="ms-auto">
-                        {% if list.id in subscribed_list_ids %}
-                            <form method="post"
-                                  action="{% url 'core:pack-unsubscribe' pack.id %}"
-                                  class="d-inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="list_id" value="{{ list.id }}">
-                                <input type="hidden" name="return_url" value="pack-lists">
-                                <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
-                            </form>
-                        {% else %}
+                        <div class="ms-auto">
                             <form method="post"
                                   action="{% url 'core:pack-subscribe' pack.id %}"
                                   class="d-inline">
@@ -75,13 +110,13 @@
                                 <input type="hidden" name="return_url" value="pack-lists">
                                 <button type="submit" class="btn btn-primary btn-sm">Add</button>
                             </form>
-                        {% endif %}
+                        </div>
                     </div>
-                </div>
-            {% empty %}
-                <div class="py-2 text-muted small">No lists found.</div>
-            {% endfor %}
-            {% include "core/includes/pagination.html" %}
-        </div>
+                {% empty %}
+                    <div class="py-2 text-muted small">No lists found.</div>
+                {% endfor %}
+                {% include "core/includes/pagination.html" %}
+            </div>
+        </section>
     </div>
 {% endblock content %}
