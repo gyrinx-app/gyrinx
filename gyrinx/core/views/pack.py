@@ -19,6 +19,7 @@ from django.views import generic
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
+from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import ContentEquipment
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
@@ -1230,7 +1231,31 @@ def edit_pack_item(request, id, item_id):
         "content_obj": content_obj,
         "label": singular_label,
         "icon": entry.icon,
+        "is_fighter": is_fighter,
     }
+
+    # Load default equipment assignments for fighter items.
+    if is_fighter:
+        default_assignments = (
+            ContentFighterDefaultAssignment.objects.filter(fighter=content_obj)
+            .select_related("equipment", "equipment__category")
+            .prefetch_related(
+                Prefetch(
+                    "weapon_profiles_field",
+                    queryset=ContentWeaponProfile.objects.with_packs([pack]),
+                ),
+                Prefetch(
+                    "equipment__contentweaponprofile_set",
+                    queryset=ContentWeaponProfile.objects.with_packs([pack]),
+                ),
+            )
+        )
+        context["default_weapon_assigns"] = [
+            da for da in default_assignments if da.is_weapon()
+        ]
+        context["default_gear_assigns"] = [
+            da for da in default_assignments if not da.is_weapon()
+        ]
     # On POST re-render (validation error), use submitted values instead of DB values.
     if stat_values is not None and request.method == "POST":
         for sv in stat_values:
@@ -1954,5 +1979,235 @@ def pack_permissions(request, id):
             "pack": pack,
             "editors": editors,
             "error": error,
+        },
+    )
+
+
+# -- Default equipment for pack fighters --
+
+
+def _get_pack_fighter(pack, item_id):
+    """Load a pack item and verify it's a fighter, returning (pack_item, content_fighter)."""
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+        archived=False,
+    )
+    content_fighter = pack_item.content_object
+    if not isinstance(content_fighter, ContentFighter):
+        raise Http404
+    return pack_item, content_fighter
+
+
+def _build_default_equipment_choices(pack, is_weapon, search_query=None):
+    """Build equipment choices for the default equipment picker.
+
+    Returns a queryset of ContentEquipment filtered to the same category
+    groups that pack creators can use when adding gear/weapons, with
+    weapon profiles correctly loaded (including pack profiles).
+    """
+    qs = ContentEquipment.objects.with_packs([pack])
+    if is_weapon:
+        qs = qs.weapons().filter(category__group="Weapons & Ammo")
+    else:
+        qs = qs.non_weapons().exclude(category__group__in=["Weapons & Ammo", "Other"])
+
+    if search_query:
+        qs = qs.annotate(
+            search=SearchVector("name", "category__name"),
+        ).filter(search=SearchQuery(search_query))
+
+    # Use an explicit Prefetch so that weapon profiles from the pack are
+    # included — the default manager on ContentWeaponProfile excludes
+    # pack content.
+    qs = (
+        qs.select_related("category")
+        .prefetch_related(
+            Prefetch(
+                "contentweaponprofile_set",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            )
+        )
+        .order_by("category__name", "name")
+        .distinct()
+    )
+    return qs
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def add_pack_fighter_default_weapon(request, id, item_id):
+    """Add a default weapon to a pack fighter."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    error_message = None
+
+    if request.method == "POST":
+        equipment_id = request.POST.get("content_equipment")
+        if not equipment_id or not is_valid_uuid(equipment_id):
+            raise Http404
+
+        equipment = get_object_or_404(
+            ContentEquipment.objects.with_packs([pack]).weapons(),
+            pk=equipment_id,
+        )
+
+        # Check for duplicate.
+        if ContentFighterDefaultAssignment.objects.filter(
+            fighter=content_fighter, equipment=equipment
+        ).exists():
+            error_message = (
+                f"{equipment.name} is already assigned as default equipment."
+            )
+        else:
+            assignment = ContentFighterDefaultAssignment(
+                fighter=content_fighter,
+                equipment=equipment,
+                cost=0,
+            )
+            assignment._history_user = request.user
+            assignment.save()
+
+            # Set selected weapon profiles (non-standard, cost > 0).
+            profile_ids = request.POST.getlist("weapon_profiles_field")
+            if profile_ids:
+                valid_profiles = ContentWeaponProfile.objects.with_packs([pack]).filter(
+                    pk__in=[p for p in profile_ids if is_valid_uuid(p)],
+                    equipment=equipment,
+                )
+                assignment.weapon_profiles_field.set(valid_profiles)
+
+            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            return HttpResponseRedirect(f"{url}?flash={assignment.id}#{assignment.id}")
+
+    search_q = request.GET.get("q", "").strip()
+    equipment = _build_default_equipment_choices(
+        pack, is_weapon=True, search_query=search_q or None
+    )
+
+    # Group by category.
+    categories = defaultdict(list)
+    for item in equipment:
+        profiles = list(item.contentweaponprofile_set.all())
+        standard = [p for p in profiles if p.cost == 0]
+        non_standard = [p for p in profiles if p.cost > 0]
+        categories[item.category.name].append(
+            {
+                "equipment": item,
+                "standard_profiles": standard,
+                "non_standard_profiles": non_standard,
+                "all_profiles": profiles,
+            }
+        )
+
+    return render(
+        request,
+        "core/pack/pack_fighter_default_weapons_add.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "categories": dict(categories),
+            "search_q": search_q,
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def add_pack_fighter_default_gear(request, id, item_id):
+    """Add default gear to a pack fighter."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    error_message = None
+
+    if request.method == "POST":
+        equipment_id = request.POST.get("content_equipment")
+        if not equipment_id or not is_valid_uuid(equipment_id):
+            raise Http404
+
+        equipment = get_object_or_404(
+            ContentEquipment.objects.with_packs([pack]).non_weapons(),
+            pk=equipment_id,
+        )
+
+        # Check for duplicate.
+        if ContentFighterDefaultAssignment.objects.filter(
+            fighter=content_fighter, equipment=equipment
+        ).exists():
+            error_message = (
+                f"{equipment.name} is already assigned as default equipment."
+            )
+        else:
+            assignment = ContentFighterDefaultAssignment(
+                fighter=content_fighter,
+                equipment=equipment,
+                cost=0,
+            )
+            assignment._history_user = request.user
+            assignment.save()
+
+            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            return HttpResponseRedirect(f"{url}?flash={assignment.id}#{assignment.id}")
+
+    search_q = request.GET.get("q", "").strip()
+    equipment = _build_default_equipment_choices(
+        pack, is_weapon=False, search_query=search_q or None
+    )
+
+    # Group by category.
+    categories = defaultdict(list)
+    for item in equipment:
+        categories[item.category.name].append(item)
+
+    return render(
+        request,
+        "core/pack/pack_fighter_default_gear_add.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "categories": dict(categories),
+            "search_q": search_q,
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
+    """Remove a default equipment assignment from a pack fighter."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    assignment = get_object_or_404(
+        ContentFighterDefaultAssignment,
+        pk=assignment_id,
+        fighter=content_fighter,
+    )
+
+    if request.method == "POST":
+        assignment._history_user = request.user
+        assignment.delete()
+        return HttpResponseRedirect(
+            reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+        )
+
+    return render(
+        request,
+        "core/pack/pack_fighter_default_assignment_remove.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "assignment": assignment,
         },
     )

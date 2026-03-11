@@ -84,5 +84,8 @@
                 <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
             </div>
         </form>
+        {% if is_fighter %}
+            {% include "core/pack/includes/fighter_default_equipment.html" %}
+        {% endif %}
     </div>
 {% endblock content %}

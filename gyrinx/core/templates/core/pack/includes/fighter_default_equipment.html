@@ -1,0 +1,69 @@
+{% load custom_tags %}
+<div class="vstack gap-3 mt-3">
+    <h2 class="h5 mb-0">Default equipment</h2>
+    <p class="text-secondary small mb-0">Equipment that Fighters based on this template receive when hired.</p>
+    <!-- Weapons -->
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <h3 class="h6 mb-0">Weapons</h3>
+            <a href="{% url 'core:pack-fighter-default-weapon-add' pack.id pack_item.id %}"
+               class="btn btn-outline-primary btn-sm ms-auto">
+                <i class="bi-plus"></i> Add weapon
+            </a>
+        </div>
+        {% if default_weapon_assigns %}
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
+                {% for da in default_weapon_assigns %}
+                    <tbody id="{{ da.id }}" class="table-group-divider {% flash da.id %}">
+                        {% for profile in da.all_profiles %}
+                            <tr class="align-top">
+                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                    {% if forloop.first %}
+                                        {{ da.equipment.name }}
+                                        <a href="{% url 'core:pack-fighter-default-assignment-remove' pack.id pack_item.id da.id %}"
+                                           class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                    {% elif profile.name %}
+                                        <i class="bi-dash"></i> {{ profile.name }}
+                                    {% endif %}
+                                </td>
+                                {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                            </tr>
+                            {% if profile.traitline_cached|length > 0 %}
+                                <tr>
+                                    <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p class="text-secondary small mb-0">No default weapons.</p>
+        {% endif %}
+    </div>
+    <!-- Gear -->
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <h3 class="h6 mb-0">Gear</h3>
+            <a href="{% url 'core:pack-fighter-default-gear-add' pack.id pack_item.id %}"
+               class="btn btn-outline-primary btn-sm ms-auto">
+                <i class="bi-plus"></i> Add gear
+            </a>
+        </div>
+        {% if default_gear_assigns %}
+            <ul class="list-unstyled mb-0">
+                {% for da in default_gear_assigns %}
+                    <li id="{{ da.id }}"
+                        class="py-1 d-flex justify-content-between align-items-center {% flash da.id %}">
+                        <span>{{ da.equipment.name }}</span>
+                        <a href="{% url 'core:pack-fighter-default-assignment-remove' pack.id pack_item.id da.id %}"
+                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-secondary small mb-0">No default gear.</p>
+        {% endif %}
+    </div>
+</div>

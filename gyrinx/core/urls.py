@@ -809,6 +809,21 @@ urlpatterns = [
         pack_views.archived_weapon_profiles,
         name="pack-archived-weapon-profiles",
     ),
+    path(
+        "pack/<id>/item/<item_id>/default-equipment/weapons/add/",
+        pack_views.add_pack_fighter_default_weapon,
+        name="pack-fighter-default-weapon-add",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/default-equipment/gear/add/",
+        pack_views.add_pack_fighter_default_gear,
+        name="pack-fighter-default-gear-add",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/default-equipment/<assignment_id>/remove/",
+        pack_views.remove_pack_fighter_default_assignment,
+        name="pack-fighter-default-assignment-remove",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",
