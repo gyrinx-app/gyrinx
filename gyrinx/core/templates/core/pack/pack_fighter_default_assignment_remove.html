@@ -1,0 +1,33 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Remove default equipment - {{ content_fighter.type }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Remove default equipment</h1>
+        <p>
+            Are you sure you want to remove <strong>{{ assignment.equipment.name }}</strong>
+            from the default equipment of <strong>{{ content_fighter.type }}</strong>?
+        </p>
+        <div class="border border-warning rounded p-3 bg-warning bg-opacity-10">
+            <p class="mb-0">
+                <i class="bi-exclamation-triangle text-warning"></i>
+                <strong>Warning:</strong> This will immediately affect all Fighters based on this template.
+                Removing this default equipment means new Fighters will no longer receive it when hired.
+                Existing Fighters that already have this equipment will not be changed.
+            </p>
+        </div>
+        <form action="{% url 'core:pack-fighter-default-assignment-remove' pack.id pack_item.id assignment.id %}"
+              method="post">
+            {% csrf_token %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                <a href="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
+                   class="btn btn-link btn-sm">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

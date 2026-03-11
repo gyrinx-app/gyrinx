@@ -1,0 +1,116 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Add default weapon - {{ content_fighter.type }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
+    <div class="col-12 col-xl-8 px-0 vstack gap-3">
+        <h1 class="h3">Add default weapon: {{ content_fighter.type }}</h1>
+        {% if error_message %}
+            <div class="border border-danger rounded p-2 text-danger">
+                <strong>Error:</strong> {{ error_message }}
+            </div>
+        {% endif %}
+        <!-- Search -->
+        <form method="get" class="d-flex gap-2" id="search">
+            <input type="text"
+                   name="q"
+                   value="{{ search_q }}"
+                   class="form-control form-control-sm"
+                   placeholder="Search weapons...">
+            <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+            {% if search_q %}
+                <a href="{% url 'core:pack-fighter-default-weapon-add' pack.id pack_item.id %}"
+                   class="btn btn-outline-secondary btn-sm">Clear</a>
+            {% endif %}
+        </form>
+        <!-- Weapons by category -->
+        <div class="grid">
+            {% for category_name, weapons in categories.items %}
+                <div class="card g-col-12 g-col-md-6">
+                    <div class="card-header p-2">
+                        <h3 class="h5 mb-0">{{ category_name }}</h3>
+                    </div>
+                    <div class="card-body vstack gap-2 p-0 p-sm-2">
+                        {% for weapon in weapons %}
+                            <form action="{% url 'core:pack-fighter-default-weapon-add' pack.id pack_item.id %}"
+                                  method="post"
+                                  id="weapon-{{ weapon.equipment.id }}"
+                                  class="d-none">
+                                {% csrf_token %}
+                                <input type="hidden"
+                                       name="content_equipment"
+                                       value="{{ weapon.equipment.id }}">
+                            </form>
+                        {% endfor %}
+                        <table class="table table-sm table-borderless mb-0 fs-7">
+                            {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
+                            {% for weapon in weapons %}
+                                <tbody class="table-group-divider">
+                                    {% for profile in weapon.standard_profiles %}
+                                        <tr class="align-top">
+                                            <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                {% if forloop.first and profile.name == "" %}
+                                                    {{ weapon.equipment.name }}
+                                                {% elif profile.name %}
+                                                    {% if forloop.first %}{{ weapon.equipment.name }}{% endif %}
+                                                    <i class="bi-dash"></i> {{ profile.name }}
+                                                {% endif %}
+                                            </td>
+                                            {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                                        </tr>
+                                        {% if profile.traitline_cached|length > 0 %}
+                                            <tr>
+                                                <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                            </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% for profile in weapon.non_standard_profiles %}
+                                        <tr class="align-top">
+                                            <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                <div class="form-check">
+                                                    <input type="checkbox"
+                                                           name="weapon_profiles_field"
+                                                           value="{{ profile.id }}"
+                                                           id="profile-{{ profile.id }}"
+                                                           form="weapon-{{ weapon.equipment.id }}"
+                                                           class="form-check-input">
+                                                    <label class="form-check-label" for="profile-{{ profile.id }}">{{ profile.name }}</label>
+                                                </div>
+                                            </td>
+                                            {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                                        </tr>
+                                        {% if profile.traitline_cached|length > 0 %}
+                                            <tr>
+                                                <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                            </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <tr>
+                                        <td colspan="9">
+                                            <button type="submit"
+                                                    class="btn btn-outline-primary btn-sm"
+                                                    form="weapon-{{ weapon.equipment.id }}">
+                                                <i class="bi-plus"></i>
+                                                Add {{ weapon.equipment.name }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            {% endfor %}
+                        </table>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="g-col-12">
+                    No weapons found.
+                    {% if search_q %}
+                        <a href="{% url 'core:pack-fighter-default-weapon-add' pack.id pack_item.id %}"><em>Clear your search</em></a>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock content %}
