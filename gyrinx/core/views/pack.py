@@ -2051,7 +2051,7 @@ def add_pack_fighter_default_weapon(request, id, item_id):
             raise Http404
 
         equipment = get_object_or_404(
-            ContentEquipment.objects.with_packs([pack]).weapons(),
+            _build_default_equipment_choices(pack, is_weapon=True),
             pk=equipment_id,
         )
 
@@ -2133,7 +2133,7 @@ def add_pack_fighter_default_gear(request, id, item_id):
             raise Http404
 
         equipment = get_object_or_404(
-            ContentEquipment.objects.with_packs([pack]).non_weapons(),
+            _build_default_equipment_choices(pack, is_weapon=False),
             pk=equipment_id,
         )
 
