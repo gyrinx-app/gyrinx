@@ -79,6 +79,12 @@ Skills are loaded automatically by agents that need them. They can also be refer
   (implement / acknowledge / decline), plan changes, and implement approved fixes. Invoke with
   `/pr-feedback [PR number or URL]`. Uses the `pr-comments` fetch script for data.
 
+## Long sessions
+
+If you have the Pushpush MCP installed, you can use it to notify the user that you need their input. The tool is `send_push`. Use the `claude` topic.
+
+IMPORTANT: Use this when you are about to pause to get input, or about to use `AskUserQuestion`.
+
 ## Critical Workflow
 
 ### Before Starting
