@@ -1,4 +1,4 @@
-{% load allauth custom_tags color_tags %}
+{% load allauth custom_tags color_tags group_tags %}
 <div>
     {% if list.archived %}
         <div class="border rounded p-2 mb-3 hstack gap-2 align-items-center text-secondary">
@@ -70,6 +70,12 @@
                                 {% else %}
                                     {{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}
                                 {% endif %}
+                            </div>
+                        {% elif list.owner_cached == user and user|in_group:"Custom Content" %}
+                            <div>
+                                <a href="{% url 'core:list-packs' list.id %}" class="icon-link linked">
+                                    <i class="bi-box-seam"></i> Add Content Pack
+                                </a>
                             </div>
                         {% endif %}
                     {% endif %}
