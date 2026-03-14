@@ -441,7 +441,11 @@ class PacksView(GroupMembershipRequiredMixin, generic.ListView):
                     | models.Q(permissions__user=self.request.user)
                 ).distinct()
             else:
-                queryset = queryset.filter(listed=True)
+                queryset = queryset.filter(
+                    models.Q(listed=True)
+                    | models.Q(owner=self.request.user)
+                    | models.Q(permissions__user=self.request.user)
+                ).distinct()
         else:
             queryset = queryset.filter(listed=True)
 
