@@ -125,19 +125,6 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link fs-7 px-2 py-1"
-                                    id="info-tab-{{ fighter.id }}"
-                                    data-bs-toggle="tab"
-                                    data-bs-target="#info-{{ fighter.id }}"
-                                    type="button"
-                                    role="tab"
-                                    aria-controls="info-{{ fighter.id }}"
-                                    aria-selected="false">
-                                Info
-                                {% if fighter.has_info_content %}<i class="bi-dot"></i>{% endif %}
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link fs-7 px-2 py-1"
                                     id="lore-tab-{{ fighter.id }}"
                                     data-bs-toggle="tab"
                                     data-bs-target="#lore-{{ fighter.id }}"
@@ -149,6 +136,34 @@
                                 {% if fighter.has_lore_content %}<i class="bi-dot"></i>{% endif %}
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fs-7 px-2 py-1"
+                                    id="notes-tab-{{ fighter.id }}"
+                                    data-bs-toggle="tab"
+                                    data-bs-target="#notes-{{ fighter.id }}"
+                                    type="button"
+                                    role="tab"
+                                    aria-controls="notes-{{ fighter.id }}"
+                                    aria-selected="false">
+                                Notes
+                                {% if fighter.has_notes_content %}<i class="bi-dot"></i>{% endif %}
+                            </button>
+                        </li>
+                        {% if user == list.owner %}
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link fs-7 px-2 py-1"
+                                        id="info-tab-{{ fighter.id }}"
+                                        data-bs-toggle="tab"
+                                        data-bs-target="#info-{{ fighter.id }}"
+                                        type="button"
+                                        role="tab"
+                                        aria-controls="info-{{ fighter.id }}"
+                                        aria-selected="false">
+                                    Info
+                                    {% if fighter.has_info_content %}<i class="bi-dot"></i>{% endif %}
+                                </button>
+                            </li>
+                        {% endif %}
                     </ul>
                     {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         <div class="btn-group ms-auto">
@@ -247,7 +262,7 @@
         {% if not print %}
             <!-- Tab content -->
             <div class="tab-content" id="fighterTabContent-{{ fighter.id }}">
-                <!-- Details tab -->
+                <!-- Card tab -->
                 <div class="tab-pane fade show active vstack {{ body_classes_ }}"
                      id="card-{{ fighter.id }}"
                      role="tabpanel"
@@ -255,52 +270,19 @@
                      tabindex="0">
                     {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit is_arbitrator=is_arbitrator print=print body_classes_=body_classes_ %}
                 </div>
-                <!-- Info tab -->
-                <div class="tab-pane fade p-2"
-                     id="info-{{ fighter.id }}"
-                     role="tabpanel"
-                     aria-labelledby="info-tab-{{ fighter.id }}"
-                     tabindex="0">
-                    <div class="row">
-                        {% if fighter.image %}
-                            <div class="col-md-4 mb-3">
-                                <img src="{{ fighter.image.url }}"
-                                     alt="{{ fighter.name }}"
-                                     class="img-fluid rounded">
-                            </div>
-                        {% endif %}
-                        <div class="{% if fighter.image %}col-md-8{% else %}col-12{% endif %}">
-                            {% if fighter.save_roll %}
-                                <div class="mb-2">
-                                    <strong>Save:</strong> {{ fighter.save_roll }}
-                                </div>
-                            {% endif %}
-                            {% if fighter.private_notes and user == list.owner %}
-                                <div class="mb-2">
-                                    <strong>Notes:</strong>
-                                    <div class="mt-1">{{ fighter.private_notes|safe_rich_text|safe }}</div>
-                                </div>
-                            {% endif %}
-                            {% if not fighter.image and not fighter.save_roll and not fighter.private_notes %}
-                                <div class="text-muted">No info added yet.</div>
-                            {% endif %}
-                        </div>
-                        {% if can_edit %}
-                            <div class="mt-2">
-                                <a href="{% url 'core:list-fighter-info-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                   class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit
-                                </a>
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
                 <!-- Lore tab -->
                 <div class="tab-pane fade p-2"
                      id="lore-{{ fighter.id }}"
                      role="tabpanel"
                      aria-labelledby="lore-tab-{{ fighter.id }}"
                      tabindex="0">
+                    {% if fighter.image %}
+                        <div class="mb-2">
+                            <img src="{{ fighter.image.url }}"
+                                 alt="{{ fighter.name }}"
+                                 class="img-fluid rounded">
+                        </div>
+                    {% endif %}
                     {% if fighter.narrative %}
                         {{ fighter.narrative|safe_rich_text|safe }}
                         {% if can_edit %}
@@ -325,6 +307,71 @@
                         <div class="text-muted">No lore added yet.</div>
                     {% endif %}
                 </div>
+                <!-- Notes tab -->
+                <div class="tab-pane fade p-2"
+                     id="notes-{{ fighter.id }}"
+                     role="tabpanel"
+                     aria-labelledby="notes-tab-{{ fighter.id }}"
+                     tabindex="0">
+                    {% if fighter.notes %}
+                        {{ fighter.notes|safe_rich_text|safe }}
+                        {% if can_edit %}
+                            <div class="mt-2">
+                                <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% elif can_edit %}
+                        <div class="text-muted">
+                            No notes added yet.
+                            <div class="mt-2">
+                                <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit
+                                </a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-muted">No notes added yet.</div>
+                    {% endif %}
+                </div>
+                <!-- Info tab (owner only) -->
+                {% if user == list.owner %}
+                    <div class="tab-pane fade p-2"
+                         id="info-{{ fighter.id }}"
+                         role="tabpanel"
+                         aria-labelledby="info-tab-{{ fighter.id }}"
+                         tabindex="0">
+                        <div class="row">
+                            <div class="col-12">
+                                {% if fighter.save_roll %}
+                                    <div class="mb-2">
+                                        <strong>Save:</strong> {{ fighter.save_roll }}
+                                    </div>
+                                {% endif %}
+                                {% if fighter.private_notes %}
+                                    <div class="mb-2">
+                                        <div class="text-uppercase fs-8 fw-bold text-secondary mb-1">Private</div>
+                                        <div>{{ fighter.private_notes|safe_rich_text|safe }}</div>
+                                    </div>
+                                {% endif %}
+                                {% if not fighter.save_roll and not fighter.private_notes %}
+                                    <div class="text-muted">No info added yet.</div>
+                                {% endif %}
+                            </div>
+                            {% if can_edit %}
+                                <div class="mt-2">
+                                    <a href="{% url 'core:list-fighter-info-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                       class="btn btn-outline-secondary btn-sm">
+                                        <i class="bi-pencil"></i> Edit
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         {% else %}
             <!-- No tabs in print mode -->

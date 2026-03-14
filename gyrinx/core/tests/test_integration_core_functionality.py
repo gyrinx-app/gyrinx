@@ -613,10 +613,10 @@ def test_rename_list_and_change_properties(client, user, make_list):
     # Check changes appear on list page
     response = client.get(reverse("core:list", args=[lst.id]))
     assert "Renamed Gang" in response.content.decode()
-    # The narrative is not displayed on the list page, only a link to the About page
-    assert "About" in response.content.decode()  # Link to About page should be present
+    # The narrative is not displayed on the list page, only a link to the Lore page
+    assert "Lore" in response.content.decode()  # Link to Lore page should be present
 
-    # Check narrative appears on the About page
+    # Check narrative appears on the Lore page
     response = client.get(reverse("core:list-about", args=[lst.id]))
     assert "This gang has been completely rebranded!" in response.content.decode()
 

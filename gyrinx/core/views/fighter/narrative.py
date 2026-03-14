@@ -49,7 +49,9 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = EditListFighterNarrativeForm(request.POST, instance=fighter)
+        form = EditListFighterNarrativeForm(
+            request.POST, request.FILES, instance=fighter
+        )
         if form.is_valid():
             form.save()
 
@@ -77,6 +79,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
         {
             "form": form,
             "list": lst,
+            "fighter": fighter,
             "error_message": error_message,
             "return_url": return_url,
         },
@@ -119,7 +122,7 @@ def edit_list_fighter_info(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = EditListFighterInfoForm(request.POST, request.FILES, instance=fighter)
+        form = EditListFighterInfoForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
 
@@ -134,8 +137,6 @@ def edit_list_fighter_info(request, id, fighter_id):
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
-                has_image=bool(fighter.image),
-                image_url=fighter.image.url if fighter.image else None,
                 has_save=bool(fighter.save_roll),
                 has_private_notes=bool(fighter.private_notes),
             )
@@ -205,8 +206,8 @@ def edit_list_fighter_notes(request, id, fighter_id):
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
-                field="private_notes",
-                notes_length=len(fighter.private_notes) if fighter.private_notes else 0,
+                field="notes",
+                notes_length=len(fighter.notes) if fighter.notes else 0,
             )
 
             return safe_redirect(request, return_url, fallback_url=default_url)

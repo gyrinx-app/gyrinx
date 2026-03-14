@@ -153,14 +153,14 @@ class EditListForm(forms.ModelForm):
         fields = ["name", "narrative", "notes", "public", "theme_color"]
         labels = {
             "name": "Name",
-            "narrative": "About",
+            "narrative": "Lore",
             "notes": "Notes",
             "public": "Public",
             "theme_color": "Theme Color",
         }
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
-            "narrative": "Narrative description of the gang in this list: their history and how to play them.",
+            "narrative": "Lore for the gang in this list: their history and how to play them.",
             "notes": "Notes about the gang in this list.",
             "public": "If checked, this list will be visible to all users. If unchecked, it will be unlisted.",
             "theme_color": "Select a theme color for your gang. Used in campaign views.",
@@ -553,22 +553,30 @@ class EditListFighterNarrativeForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["narrative"]
+        fields = ["narrative", "image"]
         labels = {
-            "narrative": "About",
+            "narrative": "Lore",
+            "image": "Image",
         }
         help_texts = {
-            "narrative": "Narrative description of the {term_singular__lower}: their history and how to play them.",
+            "narrative": "Lore for the {term_singular__lower}: their history and how to play them.",
+            "image": "Fighter portrait or image (appears on the Lore tab)",
         }
         widgets = {
             "narrative": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
+            "image": BsClearableFileInput(
+                attrs={
+                    "class": "form-control",
+                    "accept": "image/*",
+                },
+            ),
         }
 
 
 class EditListFighterNotesForm(forms.ModelForm):
-    """Form for editing fighter notes (private_notes field)."""
+    """Form for editing fighter notes (notes field)."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -577,22 +585,22 @@ class EditListFighterNotesForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["private_notes"]
+        fields = ["notes"]
         labels = {
-            "private_notes": "Notes",
+            "notes": "Notes",
         }
         help_texts = {
-            "private_notes": "Notes about {term_proximal_demonstrative__lower}.",
+            "notes": "Notes about {term_proximal_demonstrative__lower}.",
         }
         widgets = {
-            "private_notes": TinyMCEWithUpload(
+            "notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
         }
 
 
 class EditListFighterInfoForm(forms.ModelForm):
-    """Form for editing fighter info section (image, save, private notes)"""
+    """Form for editing fighter info section (save roll, private notes)"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -601,16 +609,14 @@ class EditListFighterInfoForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["image", "save_roll", "private_notes"]
+        fields = ["save_roll", "private_notes"]
         labels = {
-            "image": "Image",
             "save_roll": "Save Roll",
-            "private_notes": "Notes",
+            "private_notes": "Private Notes",
         }
         help_texts = {
-            "image": "This image appears in Info section",
             "save_roll": "{term_singular}'s typical save roll",
-            "private_notes": "Notes about {term_proximal_demonstrative__lower} (only visible to you)",
+            "private_notes": "Private notes about {term_proximal_demonstrative__lower} (only visible to you)",
         }
         widgets = {
             "save_roll": forms.TextInput(
@@ -618,12 +624,6 @@ class EditListFighterInfoForm(forms.ModelForm):
             ),
             "private_notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
-            ),
-            "image": BsClearableFileInput(
-                attrs={
-                    "class": "form-control",
-                    "accept": "image/*",
-                },
             ),
         }
 

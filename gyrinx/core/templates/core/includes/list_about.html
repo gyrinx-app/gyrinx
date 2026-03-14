@@ -12,7 +12,7 @@
     <div class="d-flex gap-2 mb-3">
         <a href="{% url 'core:list-about' list.id %}"
            class="btn btn-secondary btn-sm">
-            <i class="bi-file-text"></i> About
+            <i class="bi-file-text"></i> Lore
         </a>
         <a href="{% url 'core:list-notes' list.id %}"
            class="btn btn-outline-secondary btn-sm">
@@ -43,10 +43,10 @@
             {{ list.narrative|safe_rich_text|safe }}
         {% elif list.owner_cached == user %}
             <div class="text-muted fst-italic">
-                No narrative added yet. <a href="{% url 'core:list-edit' list.id %}">Add one</a> to tell the story of your gang.
+                No lore added yet. <a href="{% url 'core:list-edit' list.id %}">Add some</a> to tell the story of your gang.
             </div>
         {% else %}
-            <div class="text-muted fst-italic">No narrative added yet.</div>
+            <div class="text-muted fst-italic">No lore added yet.</div>
         {% endif %}
     </div>
     <div class="grid auto-flow-dense">
@@ -64,6 +64,13 @@
                             </div>
                         {% endif %}
                     </div>
+                    {% if fighter.image %}
+                        <div class="mb-2">
+                            <img src="{{ fighter.image.url }}"
+                                 alt="{{ fighter.name }}"
+                                 class="img-fluid rounded size-em-5">
+                        </div>
+                    {% endif %}
                     {{ fighter.narrative|safe_rich_text|safe }}
                 </div>
             {% else %}
@@ -71,12 +78,19 @@
                     <div class="hstack">
                         <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
                     </div>
-                    <p class="text-muted">No narrative added yet.</p>
+                    {% if fighter.image %}
+                        <div class="mb-2">
+                            <img src="{{ fighter.image.url }}"
+                                 alt="{{ fighter.name }}"
+                                 class="img-fluid rounded size-em-5">
+                        </div>
+                    {% endif %}
+                    <p class="text-muted">No lore added yet.</p>
                     {% if list.owner_cached == user %}
                         <p>
                             <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
                                class="btn btn-outline-secondary btn-sm">
-                                <i class="bi-plus"></i> Add narrative for {{ fighter.name }}
+                                <i class="bi-plus"></i> Add lore for {{ fighter.name }}
                             </a>
                         </p>
                     {% endif %}

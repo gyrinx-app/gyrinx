@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    About {{ list.name }} by {{ list.owner_cached }}
+    Lore {{ list.name }} by {{ list.owner_cached }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
