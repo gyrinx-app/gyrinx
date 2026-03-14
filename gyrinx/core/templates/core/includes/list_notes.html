@@ -11,7 +11,9 @@
     <nav class="nav card card-body flex-column mb-3 p-2">
         <a class="nav-link p-2 py-1" href="#notes-list">Overview</a>
         {% for fighter in list.active_fighters %}
-            {% if fighter.notes %}<a class="nav-link p-2 py-1" href="#notes-{{ fighter.id }}">{{ fighter.name }}</a>{% endif %}
+            {% if fighter.notes or list.owner_cached == user and fighter.private_notes %}
+                <a class="nav-link p-2 py-1" href="#notes-{{ fighter.id }}">{{ fighter.name }}</a>
+            {% endif %}
         {% endfor %}
     </nav>
     <div id="list-overview" class="mb-4">
@@ -38,7 +40,7 @@
     </div>
     <div class="grid auto-flow-dense">
         {% for fighter in list.active_fighters %}
-            {% if fighter.notes %}
+            {% if fighter.notes or list.owner_cached == user and fighter.private_notes %}
                 <div class="g-col-12 g-col-md-6" id="notes-{{ fighter.id }}">
                     <div class="hstack">
                         <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
@@ -51,7 +53,13 @@
                             </div>
                         {% endif %}
                     </div>
-                    {{ fighter.notes|safe_rich_text|safe }}
+                    {% if fighter.notes %}{{ fighter.notes|safe_rich_text|safe }}{% endif %}
+                    {% if list.owner_cached == user and fighter.private_notes %}
+                        <div class="mb-2 mt-2">
+                            <div class="text-uppercase fs-7 fw-light text-secondary mb-1">Private</div>
+                            <div>{{ fighter.private_notes|safe_rich_text|safe }}</div>
+                        </div>
+                    {% endif %}
                 </div>
             {% else %}
                 <div class="g-col-12 g-col-md-6" id="notes-{{ fighter.id }}">
