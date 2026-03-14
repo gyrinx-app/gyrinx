@@ -1171,6 +1171,7 @@ class List(AppBase):
         values = {
             "public": self.public,
             "narrative": self.narrative,
+            "notes": self.notes,
             "theme_color": self.theme_color,
             # Don't copy rating_current/stash_current - they'll be recalculated
             "credits_current": self.credits_current,
@@ -3195,8 +3196,9 @@ class ListFighter(AppBase):
         target_fighter.xp_current = self.xp_current
         target_fighter.xp_total = self.xp_total
 
-        # Copy narrative
+        # Copy narrative and notes
         target_fighter.narrative = self.narrative
+        target_fighter.private_notes = self.private_notes
 
         target_fighter.save()
 
@@ -3299,6 +3301,7 @@ class ListFighter(AppBase):
             "content_fighter": self.content_fighter,
             "legacy_content_fighter": self.legacy_content_fighter,
             "narrative": self.narrative,
+            "private_notes": self.private_notes,
             "list": self.list,
             "cost_override": self.cost_override,
             "movement_override": self.movement_override,
