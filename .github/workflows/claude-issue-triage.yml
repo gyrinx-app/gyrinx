@@ -224,7 +224,7 @@ jobs:
             **WHEN TO USE WEB TOOLS:**
             - To fetch URLs mentioned in the issue (e.g., related discussions, examples, references)
             - To look up documentation for technologies mentioned in the issue
-            - To search for context that helps you understand or claude the issue
+            - To search for context that helps you understand or triage the issue
 
             **NEVER ACCESS URLs that contain:**
             - Authentication tokens, API keys, or credentials (patterns like `token=`, `key=`, `auth=`, `access_token=`, `password=`)
