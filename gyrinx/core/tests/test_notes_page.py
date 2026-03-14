@@ -41,18 +41,71 @@ def test_notes_page_shows_fighter_notes(client, user, make_list, make_list_fight
 
 
 @pytest.mark.django_db
-def test_notes_page_does_not_show_private_notes(
+def test_notes_page_shows_private_notes_to_owner(
     client, user, make_list, make_list_fighter
 ):
-    """Test that private_notes are NOT shown on the public notes page."""
+    """Test that private_notes are shown to the owner on the notes page."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+    fighter.private_notes = "<p>Secret private notes.</p>"
+    fighter.save()
+    client.force_login(user)
+
+    response = client.get(reverse("core:list-notes", args=[lst.id]))
+    content = response.content.decode()
+    assert "Secret private notes." in content
+    assert "Private" in content
+
+
+@pytest.mark.django_db
+def test_notes_page_hides_private_notes_from_non_owner(
+    client, user, make_user, make_list, make_list_fighter
+):
+    """Test that private_notes are NOT shown to non-owners on the notes page."""
     lst = make_list("Test Gang")
     fighter = make_list_fighter(lst, "Test Fighter")
     fighter.private_notes = "<p>Secret private notes.</p>"
     fighter.save()
 
+    other_user = make_user("otheruser", "password")
+    client.force_login(other_user)
+
     response = client.get(reverse("core:list-notes", args=[lst.id]))
     content = response.content.decode()
     assert "Secret private notes." not in content
+
+
+@pytest.mark.django_db
+def test_notes_page_hides_private_notes_from_anonymous(
+    client, user, make_list, make_list_fighter
+):
+    """Test that private_notes are NOT shown to anonymous users on the notes page."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+    fighter.private_notes = "<p>Secret private notes.</p>"
+    fighter.save()
+    client.logout()
+
+    response = client.get(reverse("core:list-notes", args=[lst.id]))
+    content = response.content.decode()
+    assert "Secret private notes." not in content
+
+
+@pytest.mark.django_db
+def test_notes_page_shows_fighter_with_only_private_notes_to_owner(
+    client, user, make_list, make_list_fighter
+):
+    """Test that fighters with only private notes (no public notes) appear for the owner."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+    fighter.private_notes = "<p>Only private notes.</p>"
+    fighter.save()
+    client.force_login(user)
+
+    response = client.get(reverse("core:list-notes", args=[lst.id]))
+    content = response.content.decode()
+    assert "Only private notes." in content
+    assert fighter.name in content
 
 
 @pytest.mark.django_db
