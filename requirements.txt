@@ -55,7 +55,7 @@ requests>=2.32.4
 rich==14.3.3
 ruff==0.15.5
 setuptools==81.0.0
-simpleeval==1.0.3
+simpleeval==1.0.5
 sqlparse==0.5.5
 
 # Security: minimum versions for vulnerable transitive dependencies
