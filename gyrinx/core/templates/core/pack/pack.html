@@ -84,10 +84,7 @@
         {% for section in content_sections %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
-                    <h2 class="h5 mb-0">
-                        {{ section.label }}
-                        {% if section.count > 0 %}<span class="badge bg-primary">{{ section.count }}</span>{% endif %}
-                    </h2>
+                    <h2 class="h5 mb-0">{{ section.label }}</h2>
                     {% if can_edit %}
                         <span class="d-flex gap-2 align-items-center">
                             {% if section.archived_count > 0 %}
