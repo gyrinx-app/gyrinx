@@ -92,11 +92,13 @@ jobs:
 
           # Format: "Jan 4th"
           since_date = f"{start.strftime('%b')} {ordinal(start.day)}"
+          until_date = f"{today.strftime('%b')} {ordinal(today.day)}"
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"end_date={today.strftime('%Y-%m-%d')}\n")
               f.write(f"start_date={start.strftime('%Y-%m-%d')}\n")
               f.write(f"since_date={since_date}\n")
+              f.write(f"until_date={until_date}\n")
           PY
 
       - name: Run Claude Weekly Summary
@@ -105,6 +107,8 @@ jobs:
         env:
           START_DATE: ${{ steps.dates.outputs.start_date }}
           END_DATE: ${{ steps.dates.outputs.end_date }}
+          SINCE_DATE: ${{ steps.dates.outputs.since_date }}
+          UNTIL_DATE: ${{ steps.dates.outputs.until_date }}
           GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -132,7 +136,7 @@ jobs:
 
             ## Step 2: Write the summary
 
-            Start with a short intro like "Changes from January 4th to 11th:" followed by a one-sentence overall summary.
+            Start with a short intro using EXACTLY these formatted dates: "Changes from $SINCE_DATE to $UNTIL_DATE:" followed by a one-sentence overall summary.
 
             Then write bullet points that:
             - Use British English spellings (e.g., "organised" not "organized", "colour" not "color")
@@ -153,12 +157,12 @@ jobs:
             Format: Intro line, blank line, then bullet points starting with dashes.
 
             Example style:
-            Changes from January 4th to 11th: Mostly bug fixes and UI polish.
+            Changes from Jan 4th to Jan 11th: Mostly bug fixes and UI polish.
 
             - **Dead fighters no longer appear in gang counts** - they were sneaking into the summary even after dying
             - **Equipment filters persist** when adding items, instead of resetting each time
 
-            If there were no meaningful user-facing changes, return: "Changes from [date range]: No major updates this time."
+            If there were no meaningful user-facing changes, return: "Changes from $SINCE_DATE to $UNTIL_DATE: No major updates this time."
 
             Return the full summary in the structured output.
 
