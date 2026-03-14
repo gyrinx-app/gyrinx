@@ -37,6 +37,8 @@ def index(request):
         houses = ContentHouse.objects.none()
         has_any_lists = False
         search_query = None
+        search_gangs_query = None
+        search_campaigns_query = None
     else:
         with span("fetch_user_dashboard_data"):
             # Check if user has ANY lists (for showing filter)
@@ -68,7 +70,7 @@ def index(request):
             lists = lists_queryset.order_by("-modified")[:5]
 
             # Campaign gangs - user's lists that are in active campaigns, show 5 most recent
-            campaign_gangs = (
+            campaign_gangs_queryset = (
                 List.objects.filter(
                     owner=request.user,
                     status=List.CAMPAIGN_MODE,
@@ -78,21 +80,45 @@ def index(request):
                 )
                 .with_latest_actions()
                 .select_related("campaign", "content_house")
-                .order_by("-modified")[:5]
             )
 
-            # Campaigns - where user is owner or has lists participating
-            campaigns = (
-                Campaign.objects.filter(
-                    Q(archived=False)
-                    & (
-                        Q(owner=request.user)  # User is campaign admin
-                        | Q(campaign_lists__owner=request.user)
-                    )  # User has lists in the campaign
+            # Apply search filter for campaign gangs
+            search_gangs_query = request.GET.get("q_gangs")
+            if search_gangs_query:
+                search_vector = SearchVector(
+                    "name", "content_house__name", "campaign__name"
                 )
-                .distinct()
-                .order_by("-created")
-            )
+                search_q = SearchQuery(search_gangs_query)
+                campaign_gangs_queryset = campaign_gangs_queryset.annotate(
+                    search=search_vector
+                ).filter(
+                    Q(search=search_q)
+                    | Q(name__icontains=search_gangs_query)
+                    | Q(content_house__name__icontains=search_gangs_query)
+                    | Q(campaign__name__icontains=search_gangs_query)
+                )
+
+            campaign_gangs = campaign_gangs_queryset.order_by("-modified")[:5]
+
+            # Campaigns - where user is owner or has lists participating
+            campaigns_queryset = Campaign.objects.filter(
+                Q(archived=False)
+                & (
+                    Q(owner=request.user)  # User is campaign admin
+                    | Q(campaign_lists__owner=request.user)
+                )  # User has lists in the campaign
+            ).distinct()
+
+            # Apply search filter for campaigns
+            search_campaigns_query = request.GET.get("q_campaigns")
+            if search_campaigns_query:
+                search_vector = SearchVector("name")
+                search_q = SearchQuery(search_campaigns_query)
+                campaigns_queryset = campaigns_queryset.annotate(
+                    search=search_vector
+                ).filter(Q(search=search_q) | Q(name__icontains=search_campaigns_query))
+
+            campaigns = campaigns_queryset.order_by("-created")
 
     # Log the dashboard view
     if request.user.is_authenticated:
@@ -130,6 +156,8 @@ def index(request):
             "houses": houses,
             "has_any_lists": has_any_lists,
             "search_query": search_query,
+            "search_gangs_query": search_gangs_query,
+            "search_campaigns_query": search_campaigns_query,
         },
     )
 

@@ -45,11 +45,37 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Campaign Gangs</h2>
                             {% if campaign_gangs %}
-                                <a href="{% url 'core:lists' %}?my=1&type=gang"
-                                   class="btn btn-link btn-sm">Show all</a>
+                                <span class="ms-auto small">
+                                    <a href="{% url 'core:lists' %}?my=1&type=gang"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                </span>
                             {% endif %}
                         </div>
                         <div class="vstack gap-3">
+                            {% if campaign_gangs or search_gangs_query %}
+                                <form id="search-gangs"
+                                      method="get"
+                                      action="{% url 'core:index' %}"
+                                      class="vstack gap-2">
+                                    <input type="hidden" name="cb" value="{% cachebuster %}">
+                                    {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                                    {% if search_campaigns_query %}
+                                        <input type="hidden" name="q_campaigns" value="{{ search_campaigns_query }}">
+                                    {% endif %}
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">
+                                            <i class="bi-search"></i>
+                                        </span>
+                                        <input class="form-control"
+                                               type="search"
+                                               placeholder="Search"
+                                               aria-label="Search campaign gangs"
+                                               name="q_gangs"
+                                               value="{{ search_gangs_query|default:'' }}">
+                                        <button class="btn btn-primary btn-sm" type="submit">Search</button>
+                                    </div>
+                                </form>
+                            {% endif %}
                             {% for gang in campaign_gangs %}
                                 <div class="hstack gap-3 position-relative">
                                     <div class="d-flex flex-column gap-1">
@@ -78,7 +104,11 @@
                                     </div>
                                 </div>
                             {% empty %}
-                                <p>You have no campaign gangs.</p>
+                                {% if search_gangs_query %}
+                                    <p class="text-secondary">No Campaign Gangs matched your search.</p>
+                                {% else %}
+                                    <p>You have no Campaign Gangs.</p>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -86,17 +116,37 @@
                     <div class="col-12 col-lg-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Campaigns</h2>
-                            {% if campaigns %}
-                                <a href="{% url 'core:campaigns' %}?my=1" class="btn btn-link btn-sm">Show all</a>
-                            {% endif %}
+                            <span class="ms-auto small">
+                                <a href="{% url 'core:campaigns-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New Campaign</a>
+                                {% if campaigns %}
+                                    ·
+                                    <a href="{% url 'core:campaigns' %}?my=1"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                {% endif %}
+                            </span>
                         </div>
                         <div class="vstack gap-3">
-                            {% if campaigns|length > 0 %}
-                                <div class="d-md-block">
-                                    <a href="{% url "core:campaigns-new" %}" class="btn btn-primary">
-                                        <i class="bi-plus-lg"></i>
-                                    New Campaign</a>
-                                </div>
+                            {% if campaigns|length > 0 or search_campaigns_query %}
+                                <form id="search-campaigns"
+                                      method="get"
+                                      action="{% url 'core:index' %}"
+                                      class="vstack gap-2">
+                                    <input type="hidden" name="cb" value="{% cachebuster %}">
+                                    {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+                                    {% if search_gangs_query %}<input type="hidden" name="q_gangs" value="{{ search_gangs_query }}">{% endif %}
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">
+                                            <i class="bi-search"></i>
+                                        </span>
+                                        <input class="form-control"
+                                               type="search"
+                                               placeholder="Search"
+                                               aria-label="Search campaigns"
+                                               name="q_campaigns"
+                                               value="{{ search_campaigns_query|default:'' }}">
+                                        <button class="btn btn-primary btn-sm" type="submit">Search</button>
+                                    </div>
+                                </form>
                             {% endif %}
                             {% for campaign in campaigns %}
                                 <div class="hstack gap-3 position-relative">
@@ -118,9 +168,13 @@
                                     </div>
                                 </div>
                             {% empty %}
-                                <p class="text-secondary">
-                                    You are not part of any campaigns. <a href="{% url 'core:campaigns' %}">Create a new campaign</a>.
-                                </p>
+                                {% if search_campaigns_query %}
+                                    <p class="text-secondary">No Campaigns matched your search.</p>
+                                {% else %}
+                                    <p class="text-secondary">
+                                        You are not part of any Campaigns. <a href="{% url 'core:campaigns' %}">Create a new Campaign</a>.
+                                    </p>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -128,18 +182,17 @@
                     <div class="col-12 col-lg-4">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h2 class="h4 mb-0">Lists</h2>
-                            {% if lists %}
-                                <a href="{% url 'core:lists' %}?my=1&type=list"
-                                   class="btn btn-link btn-sm">Show all</a>
-                            {% endif %}
+                            <span class="ms-auto small">
+                                <a href="{% url 'core:lists-new' %}" class="icon-link linked"><i class="bi-plus-lg"></i> New List</a>
+                                {% if lists %}
+                                    ·
+                                    <a href="{% url 'core:lists' %}?my=1&type=list"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                {% endif %}
+                            </span>
                         </div>
                         <div class="vstack gap-3">
                             {% if has_any_lists %}
-                                <div class="d-md-block">
-                                    <a href="{% url "core:lists-new" %}" class="btn btn-primary">
-                                        <i class="bi-plus-lg"></i>
-                                    New List</a>
-                                </div>
                                 {% url 'core:index' as action %}
                                 {% include "core/includes/lists_filter.html" with action=action houses=houses compact=True %}
                             {% endif %}
