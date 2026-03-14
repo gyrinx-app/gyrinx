@@ -174,6 +174,20 @@ def test_packs_index_shows_own_packs_when_my_off(
     other_user.groups.add(custom_content_group)
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
 
+    # Create an unlisted pack from another user shared via permission
+    from gyrinx.core.models.pack import CustomContentPackPermission
+
+    shared_pack = CustomContentPack.objects.create(
+        name="Shared Unlisted Pack", listed=False, owner=other_user
+    )
+    CustomContentPackPermission.objects.create(
+        pack=shared_pack, user=group_user, role="editor"
+    )
+    # Create an unlisted pack from another user with NO permission
+    CustomContentPack.objects.create(
+        name="Hidden Unlisted Pack", listed=False, owner=other_user
+    )
+
     client.force_login(group_user)
     response = client.get("/packs/?my=0")
     assert response.status_code == 200
@@ -181,6 +195,10 @@ def test_packs_index_shows_own_packs_when_my_off(
     assert b"My Unlisted Pack" in response.content
     # Other user's listed pack should also be visible
     assert b"Other Pack" in response.content
+    # Shared unlisted pack should be visible
+    assert b"Shared Unlisted Pack" in response.content
+    # Unshared unlisted pack from another user should NOT be visible
+    assert b"Hidden Unlisted Pack" not in response.content
 
 
 @pytest.mark.django_db
