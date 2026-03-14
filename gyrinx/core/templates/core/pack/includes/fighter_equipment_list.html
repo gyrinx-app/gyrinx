@@ -1,0 +1,86 @@
+{% load custom_tags %}
+<div class="vstack gap-3 mt-3">
+    <h2 class="h5 mb-0">Equipment list</h2>
+    <p class="text-secondary small mb-0">Equipment list for this Fighter type.</p>
+    <!-- Weapons -->
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <h3 class="h6 mb-0">Weapons</h3>
+            <a href="{% url 'core:pack-fighter-equipment-list-weapon-add' pack.id pack_item.id %}"
+               class="btn btn-outline-primary btn-sm ms-auto">
+                <i class="bi-plus"></i> Add weapon
+            </a>
+        </div>
+        {% if equip_list_weapon_groups %}
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
+                {% for group in equip_list_weapon_groups %}
+                    <tbody id="{{ group.items.0.id }}"
+                           class="table-group-divider {% flash group.items.0.id %}">
+                        <tr>
+                            <td colspan="9">
+                                {{ group.equipment.name }}
+                                {% with group.items.0 as base_eli %}
+                                    {% if base_eli.cost %}<span class="text-secondary">({{ base_eli.cost_display }})</span>{% endif %}
+                                    <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id base_eli.id %}"
+                                       class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                {% endwith %}
+                            </td>
+                        </tr>
+                        {% for profile in group.profiles %}
+                            <tr class="align-top">
+                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                    {% if profile.name %}
+                                        <i class="bi-dash"></i> {{ profile.name }}
+                                        {% for eli in group.items %}
+                                            {% if eli.weapon_profile_id == profile.id %}
+                                                {% if eli.cost %}<span class="text-secondary">(+{{ eli.cost_display }})</span>{% endif %}
+                                                <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
+                                                   class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                </td>
+                                {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                            </tr>
+                            {% if profile.traitline_cached|length > 0 %}
+                                <tr>
+                                    <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p class="text-secondary small mb-0">No available weapons.</p>
+        {% endif %}
+    </div>
+    <!-- Gear -->
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <h3 class="h6 mb-0">Gear</h3>
+            <a href="{% url 'core:pack-fighter-equipment-list-gear-add' pack.id pack_item.id %}"
+               class="btn btn-outline-primary btn-sm ms-auto">
+                <i class="bi-plus"></i> Add gear
+            </a>
+        </div>
+        {% if equip_list_gear %}
+            <ul class="list-unstyled mb-0">
+                {% for eli in equip_list_gear %}
+                    <li id="{{ eli.id }}"
+                        class="py-1 d-flex justify-content-between align-items-center {% flash eli.id %}">
+                        <span>
+                            {{ eli.equipment.name }}
+                            {% if eli.cost %}<span class="text-secondary">({{ eli.cost_display }})</span>{% endif %}
+                        </span>
+                        <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
+                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-secondary small mb-0">No available gear.</p>
+        {% endif %}
+    </div>
+</div>

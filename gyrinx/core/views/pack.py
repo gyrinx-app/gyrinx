@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
+from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
 from gyrinx.content.models.equipment import ContentEquipment
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
@@ -1256,6 +1257,54 @@ def edit_pack_item(request, id, item_id):
         context["default_gear_assigns"] = [
             da for da in default_assignments if not da.is_weapon()
         ]
+
+        # Equipment list items (available equipment for purchase).
+        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
+            fighter=content_obj
+        ).select_related("equipment", "equipment__category", "weapon_profile")
+        # Group weapon items by equipment for table display.
+        weapon_items = [
+            eli for eli in equipment_list_items if eli.equipment.is_weapon()
+        ]
+        equip_list_weapon_groups = []
+        seen_equipment = {}
+        for eli in weapon_items:
+            eid = eli.equipment_id
+            if eid not in seen_equipment:
+                group = {
+                    "equipment": eli.equipment,
+                    "items": [],
+                }
+                seen_equipment[eid] = group
+                equip_list_weapon_groups.append(group)
+            seen_equipment[eid]["items"].append(eli)
+        # Build profile lists: standard profiles (auto-included) plus
+        # non-standard profiles that have an explicit equipment list entry.
+        # Query profiles directly with with_packs() to include pack profiles
+        # (the reverse FK default manager excludes them).
+        if equip_list_weapon_groups:
+            equipment_ids = [g["equipment"].pk for g in equip_list_weapon_groups]
+            all_profiles_by_equipment = {}
+            for p in ContentWeaponProfile.objects.with_packs([pack]).filter(
+                equipment_id__in=equipment_ids
+            ):
+                all_profiles_by_equipment.setdefault(p.equipment_id, []).append(p)
+            for group in equip_list_weapon_groups:
+                all_profiles = all_profiles_by_equipment.get(group["equipment"].pk, [])
+                selected_profile_ids = {
+                    eli.weapon_profile_id
+                    for eli in group["items"]
+                    if eli.weapon_profile_id is not None
+                }
+                group["profiles"] = [
+                    p
+                    for p in all_profiles
+                    if p.cost == 0 or p.id in selected_profile_ids
+                ]
+        context["equip_list_weapon_groups"] = equip_list_weapon_groups
+        context["equip_list_gear"] = [
+            eli for eli in equipment_list_items if not eli.equipment.is_weapon()
+        ]
     # On POST re-render (validation error), use submitted values instead of DB values.
     if stat_values is not None and request.method == "POST":
         for sv in stat_values:
@@ -2216,5 +2265,228 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
             "pack_item": pack_item,
             "content_fighter": content_fighter,
             "assignment": assignment,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Equipment list management (available equipment for pack fighters)
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def add_pack_fighter_equipment_list_weapon(request, id, item_id):
+    """Add available weapons to a pack fighter's equipment list (bulk)."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    error_message = None
+
+    if request.method == "POST":
+        equipment_ids = [
+            eid for eid in request.POST.getlist("equipment") if is_valid_uuid(eid)
+        ]
+        if not equipment_ids:
+            raise Http404
+
+        available_qs = _build_default_equipment_choices(pack, is_weapon=True)
+        selected_equipment = available_qs.filter(pk__in=equipment_ids)
+
+        profile_ids = set(request.POST.getlist("profiles"))
+        skipped = []
+        last_id = None
+
+        for equipment in selected_equipment:
+            cost_str = request.POST.get(f"cost_{equipment.pk}", "0")
+            try:
+                base_cost = max(0, int(cost_str))
+            except (ValueError, TypeError):
+                base_cost = 0
+
+            # Skip duplicates.
+            if ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter, equipment=equipment, weapon_profile=None
+            ).exists():
+                skipped.append(equipment.name)
+                continue
+
+            item = ContentFighterEquipmentListItem(
+                fighter=content_fighter,
+                equipment=equipment,
+                weapon_profile=None,
+                cost=base_cost,
+            )
+            item._history_user = request.user
+            item.save()
+            last_id = item.id
+
+            # Create entries for selected non-standard profiles of this weapon.
+            if profile_ids:
+                valid_profiles = ContentWeaponProfile.objects.with_packs([pack]).filter(
+                    pk__in=[p for p in profile_ids if is_valid_uuid(p)],
+                    equipment=equipment,
+                    cost__gt=0,
+                )
+                for profile in valid_profiles:
+                    profile_cost_str = request.POST.get(
+                        f"profile_cost_{profile.pk}", "0"
+                    )
+                    try:
+                        profile_cost = max(0, int(profile_cost_str))
+                    except (ValueError, TypeError):
+                        profile_cost = 0
+                    eli = ContentFighterEquipmentListItem(
+                        fighter=content_fighter,
+                        equipment=equipment,
+                        weapon_profile=profile,
+                        cost=profile_cost,
+                    )
+                    eli._history_user = request.user
+                    eli.save()
+                    last_id = eli.id
+
+        if skipped and not last_id:
+            error_message = (
+                f"{', '.join(skipped)} already in the available equipment list."
+            )
+        elif last_id:
+            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            return HttpResponseRedirect(f"{url}?flash={last_id}#{last_id}")
+
+    equipment = _build_default_equipment_choices(pack, is_weapon=True)
+
+    # Group by category.
+    categories = defaultdict(list)
+    for item in equipment:
+        profiles = list(item.contentweaponprofile_set.all())
+        standard = [p for p in profiles if p.cost == 0]
+        non_standard = [p for p in profiles if p.cost > 0]
+        categories[item.category.name].append(
+            {
+                "equipment": item,
+                "standard_profiles": standard,
+                "non_standard_profiles": non_standard,
+                "all_profiles": profiles,
+            }
+        )
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_weapons_add.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "categories": dict(categories),
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def add_pack_fighter_equipment_list_gear(request, id, item_id):
+    """Add available gear to a pack fighter's equipment list (bulk)."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    error_message = None
+
+    if request.method == "POST":
+        equipment_ids = [
+            eid for eid in request.POST.getlist("equipment") if is_valid_uuid(eid)
+        ]
+        if not equipment_ids:
+            raise Http404
+
+        available_qs = _build_default_equipment_choices(pack, is_weapon=False)
+        selected_equipment = available_qs.filter(pk__in=equipment_ids)
+
+        skipped = []
+        last_id = None
+
+        for equipment in selected_equipment:
+            cost_str = request.POST.get(f"cost_{equipment.pk}", "0")
+            try:
+                cost = max(0, int(cost_str))
+            except (ValueError, TypeError):
+                cost = 0
+
+            if ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter, equipment=equipment, weapon_profile=None
+            ).exists():
+                skipped.append(equipment.name)
+                continue
+
+            item = ContentFighterEquipmentListItem(
+                fighter=content_fighter,
+                equipment=equipment,
+                weapon_profile=None,
+                cost=cost,
+            )
+            item._history_user = request.user
+            item.save()
+            last_id = item.id
+
+        if skipped and not last_id:
+            error_message = (
+                f"{', '.join(skipped)} already in the available equipment list."
+            )
+        elif last_id:
+            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            return HttpResponseRedirect(f"{url}?flash={last_id}#{last_id}")
+
+    equipment = _build_default_equipment_choices(pack, is_weapon=False)
+
+    # Group by category.
+    categories = defaultdict(list)
+    for item in equipment:
+        categories[item.category.name].append(item)
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_gear_add.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "categories": dict(categories),
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
+    """Remove an equipment list item from a pack fighter."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    eli = get_object_or_404(
+        ContentFighterEquipmentListItem,
+        pk=eli_id,
+        fighter=content_fighter,
+    )
+
+    if request.method == "POST":
+        eli._history_user = request.user
+        eli.delete()
+        return HttpResponseRedirect(
+            reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+        )
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_item_remove.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "eli": eli,
         },
     )

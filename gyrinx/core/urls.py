@@ -824,6 +824,22 @@ urlpatterns = [
         pack_views.remove_pack_fighter_default_assignment,
         name="pack-fighter-default-assignment-remove",
     ),
+    # Equipment list (available equipment)
+    path(
+        "pack/<id>/item/<item_id>/equipment-list/weapons/add/",
+        pack_views.add_pack_fighter_equipment_list_weapon,
+        name="pack-fighter-equipment-list-weapon-add",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/equipment-list/gear/add/",
+        pack_views.add_pack_fighter_equipment_list_gear,
+        name="pack-fighter-equipment-list-gear-add",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/equipment-list/<eli_id>/remove/",
+        pack_views.remove_pack_fighter_equipment_list_item,
+        name="pack-fighter-equipment-list-item-remove",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

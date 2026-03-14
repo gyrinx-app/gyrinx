@@ -50,12 +50,16 @@
                             {% for weapon in weapons %}
                                 <tbody class="table-group-divider">
                                     {% for profile in weapon.standard_profiles %}
+                                        {% if forloop.first and profile.name != "" %}
+                                            <tr>
+                                                <td colspan="9">{{ weapon.equipment.name }}</td>
+                                            </tr>
+                                        {% endif %}
                                         <tr class="align-top">
                                             <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
                                                 {% if forloop.first and profile.name == "" %}
                                                     {{ weapon.equipment.name }}
                                                 {% elif profile.name %}
-                                                    {% if forloop.first %}{{ weapon.equipment.name }}{% endif %}
                                                     <i class="bi-dash"></i> {{ profile.name }}
                                                 {% endif %}
                                             </td>

@@ -1,0 +1,203 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Configure equipment list - {{ content_fighter.type }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
+    <div class="col-12 px-0 vstack gap-3">
+        <h1 class="h3">Configure equipment list: {{ content_fighter.type }}</h1>
+        {% if error_message %}
+            <div class="border border-danger rounded p-2 text-danger">
+                <strong>Error:</strong> {{ error_message }}
+            </div>
+        {% endif %}
+        <form action="{% url 'core:pack-fighter-equipment-list-weapon-add' pack.id pack_item.id %}"
+              method="post"
+              id="bulk-form">
+            {% csrf_token %}
+            <!-- Filter + submit bar -->
+            <div class="d-flex gap-3 mb-3">
+                <button type="submit"
+                        class="btn btn-success flex-shrink-0"
+                        id="submit-btn"
+                        disabled>
+                    <i class="bi-plus-lg me-1"></i>
+                    Add selected
+                </button>
+                <input type="search"
+                       id="filter-input"
+                       class="form-control form-control-sm"
+                       placeholder="Filter weapons...">
+            </div>
+            <!-- Weapons by category -->
+            {% for category_name, weapons in categories.items %}
+                <div class="card mb-3" data-category>
+                    <div class="card-header p-2">
+                        <h3 class="h5 mb-0">{{ category_name }}</h3>
+                    </div>
+                    <div class="card-body p-2">
+                        <table class="table table-sm table-borderless mb-0 fs-7">
+                            <thead class="table-group-divider">
+                                <tr>
+                                    <th scope="col" class="pe-0"></th>
+                                    <th scope="col">Weapon</th>
+                                    <th class="text-center" scope="col">S</th>
+                                    <th class="text-center" scope="col">L</th>
+                                    <th class="text-center border-start" scope="col">S</th>
+                                    <th class="text-center" scope="col">L</th>
+                                    <th class="text-center border-start" scope="col">Str</th>
+                                    <th class="text-center" scope="col">Ap</th>
+                                    <th class="text-center" scope="col">D</th>
+                                    <th class="text-center" scope="col">Am</th>
+                                    <th class="text-center w-auto" scope="col">Cost</th>
+                                </tr>
+                            </thead>
+                            {% for weapon in weapons %}
+                                <tbody class="table-group-divider"
+                                       data-weapon-name="{{ weapon.equipment.name|lower }}">
+                                    {% for profile in weapon.standard_profiles %}
+                                        {% if forloop.first and profile.name != "" %}
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox"
+                                                           class="form-check-input weapon-check"
+                                                           name="equipment"
+                                                           value="{{ weapon.equipment.id }}"
+                                                           id="weapon-{{ weapon.equipment.id }}"
+                                                           data-weapon-parent="{{ weapon.equipment.id }}">
+                                                </td>
+                                                <td colspan="9">
+                                                    <label class="form-check-label fw-medium"
+                                                           for="weapon-{{ weapon.equipment.id }}">
+                                                        {{ weapon.equipment.name }}
+                                                    </label>
+                                                </td>
+                                                <td>
+                                                    <input type="number"
+                                                           name="cost_{{ weapon.equipment.id }}"
+                                                           value="0"
+                                                           min="0"
+                                                           class="form-control form-control-sm text-center p-0"
+                                                           class="w-auto">
+                                                </td>
+                                            </tr>
+                                        {% endif %}
+                                        <tr class="align-top">
+                                            {% if forloop.first and profile.name == "" %}
+                                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                    <input type="checkbox"
+                                                           class="form-check-input weapon-check"
+                                                           name="equipment"
+                                                           value="{{ weapon.equipment.id }}"
+                                                           id="weapon-{{ weapon.equipment.id }}"
+                                                           data-weapon-parent="{{ weapon.equipment.id }}">
+                                                </td>
+                                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                    <label class="form-check-label" for="weapon-{{ weapon.equipment.id }}">{{ weapon.equipment.name }}</label>
+                                                </td>
+                                            {% elif profile.name %}
+                                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}"></td>
+                                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                    <i class="bi-dash"></i> {{ profile.name }}
+                                                </td>
+                                            {% endif %}
+                                            {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                                            {% if forloop.first and profile.name == "" %}
+                                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                    <input type="number"
+                                                           name="cost_{{ weapon.equipment.id }}"
+                                                           value="0"
+                                                           min="0"
+                                                           class="form-control form-control-sm text-center p-0"
+                                                           class="w-auto">
+                                                </td>
+                                            {% endif %}
+                                        </tr>
+                                        {% if profile.traitline_cached|length > 0 %}
+                                            <tr>
+                                                <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                            </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% for profile in weapon.non_standard_profiles %}
+                                        <tr class="align-top">
+                                            <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}"></td>
+                                            <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                <div class="form-check">
+                                                    <input type="checkbox"
+                                                           class="form-check-input profile-check"
+                                                           name="profiles"
+                                                           value="{{ profile.id }}"
+                                                           id="profile-{{ profile.id }}"
+                                                           disabled
+                                                           data-weapon-child="{{ weapon.equipment.id }}">
+                                                    <label class="form-check-label" for="profile-{{ profile.id }}">{{ profile.name }}</label>
+                                                </div>
+                                            </td>
+                                            {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                                            <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                                <input type="number"
+                                                       name="profile_cost_{{ profile.id }}"
+                                                       value="0"
+                                                       min="0"
+                                                       class="form-control form-control-sm text-center p-0"
+                                                       class="w-auto">
+                                            </td>
+                                        </tr>
+                                        {% if profile.traitline_cached|length > 0 %}
+                                            <tr>
+                                                <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                            </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            {% endfor %}
+                        </table>
+                    </div>
+                </div>
+            {% empty %}
+                <p>No weapons found.</p>
+            {% endfor %}
+        </form>
+    </div>
+    <script>
+        (function () {
+            var form = document.getElementById("bulk-form");
+            var filterInput = document.getElementById("filter-input");
+            var submitBtn = document.getElementById("submit-btn");
+
+            // Parent checkbox enables/disables child profile checkboxes.
+            form.addEventListener("change", function (e) {
+                if (e.target.classList.contains("weapon-check")) {
+                    var id = e.target.dataset.weaponParent;
+                    var children = form.querySelectorAll('[data-weapon-child="' + id + '"]');
+                    for (var i = 0; i < children.length; i++) {
+                        children[i].disabled = !e.target.checked;
+                        if (!e.target.checked) children[i].checked = false;
+                    }
+                }
+                // Update submit button count.
+                var count = form.querySelectorAll(".weapon-check:checked").length;
+                submitBtn.disabled = count === 0;
+                submitBtn.textContent = count ? "Add selected (" + count + ")" : "Add selected";
+            });
+
+            // Client-side filtering by weapon name.
+            filterInput.addEventListener("input", function () {
+                var q = this.value.toLowerCase();
+                var bodies = form.querySelectorAll("[data-weapon-name]");
+                for (var i = 0; i < bodies.length; i++) {
+                    bodies[i].style.display = bodies[i].dataset.weaponName.indexOf(q) !== -1 ? "" : "none";
+                }
+                // Hide empty categories.
+                var cats = form.querySelectorAll("[data-category]");
+                for (var j = 0; j < cats.length; j++) {
+                    var visible = cats[j].querySelectorAll("tbody[data-weapon-name]:not([style*='display: none'])");
+                    cats[j].style.display = visible.length ? "" : "none";
+                }
+            });
+        })();
+    </script>
+{% endblock content %}
