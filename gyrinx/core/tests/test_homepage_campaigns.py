@@ -163,9 +163,9 @@ def test_homepage_no_campaigns():
     content = response.content.decode()
 
     # Check empty state messages
-    assert "You have no campaign gangs." in content
+    assert "You have no Campaign Gangs." in content
     assert (
-        'You are not part of any campaigns. <a href="/campaigns/">Create a new campaign</a>.'
+        'You are not part of any Campaigns. <a href="/campaigns/">Create a new Campaign</a>.'
         in content
     )
 
