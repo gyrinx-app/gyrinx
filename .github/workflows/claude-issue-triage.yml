@@ -7,17 +7,18 @@ on:
     types: [created]
 
 jobs:
-  triage:
+  claude:
     # Run on:
     # 1. Any newly opened issue (except from dependabot)
-    # 2. Comments containing @claude-triage from trusted collaborators
+    # 2. Comments containing @claude from trusted collaborators
     if: |
       github.actor != 'dependabot[bot]' &&
       (
         (github.event_name == 'issues' && github.event.action == 'opened') ||
         (github.event_name == 'issue_comment' &&
-          contains(github.event.comment.body, '@claude-triage') &&
-          contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+          contains(github.event.comment.body, '@claude') &&
+          (contains(github.event.comment.body, 'Triage') || contains(github.event.comment.body, 'triage')) &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
       )
 
     runs-on: [gyrinx-ubuntu-2]
@@ -43,8 +44,8 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-          # Support @claude-triage mentions for re-triggering
-          trigger_phrase: "@claude-triage"
+          # Support @claude mentions for re-triggering
+          trigger_phrase: "@claude triage"
 
           # Update the same comment if re-run
           use_sticky_comment: true
@@ -241,5 +242,3 @@ jobs:
             - ❌ FORBIDDEN: https://api.example.com/endpoint?token=abc123
             - ❌ FORBIDDEN: https://github.com/user/repo?access_token=xyz789
             - ❌ FORBIDDEN: http://localhost:8000/admin
-
-            Begin your triage now.
