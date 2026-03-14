@@ -576,7 +576,7 @@ class EditListFighterNarrativeForm(forms.ModelForm):
 
 
 class EditListFighterNotesForm(forms.ModelForm):
-    """Form for editing fighter notes (notes field)."""
+    """Form for editing fighter notes, save roll, and private notes."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -585,40 +585,21 @@ class EditListFighterNotesForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["notes"]
+        fields = ["notes", "save_roll", "private_notes"]
         labels = {
             "notes": "Notes",
+            "save_roll": "Save roll",
+            "private_notes": "Private notes",
         }
         help_texts = {
             "notes": "Notes about {term_proximal_demonstrative__lower}.",
+            "save_roll": "{term_singular}'s typical save roll",
+            "private_notes": "Private notes about {term_proximal_demonstrative__lower} (only visible to you)",
         }
         widgets = {
             "notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
-        }
-
-
-class EditListFighterInfoForm(forms.ModelForm):
-    """Form for editing fighter info section (save roll, private notes)"""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        inst = kwargs.get("instance", None)
-        template_form_with_terms(self, fighter=inst)
-
-    class Meta:
-        model = ListFighter
-        fields = ["save_roll", "private_notes"]
-        labels = {
-            "save_roll": "Save Roll",
-            "private_notes": "Private Notes",
-        }
-        help_texts = {
-            "save_roll": "{term_singular}'s typical save roll",
-            "private_notes": "Private notes about {term_proximal_demonstrative__lower} (only visible to you)",
-        }
-        widgets = {
             "save_roll": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g. 5+"}
             ),

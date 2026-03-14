@@ -3465,7 +3465,7 @@ class ListFighter(AppBase):
         return True
 
     def has_info_content(self):
-        """Check if the fighter has any content in the Info tab fields."""
+        """Check if the fighter has any content in the info fields (save roll, private notes)."""
         return bool(self.save_roll or self.private_notes)
 
     def has_lore_content(self):
@@ -3474,7 +3474,7 @@ class ListFighter(AppBase):
 
     def has_notes_content(self):
         """Check if the fighter has any content in the Notes tab."""
-        return bool(self.notes)
+        return bool(self.notes or self.save_roll or self.private_notes)
 
     class Meta:
         verbose_name = "List Fighter"

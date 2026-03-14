@@ -79,6 +79,10 @@ Skills are loaded automatically by agents that need them. They can also be refer
   (implement / acknowledge / decline), plan changes, and implement approved fixes. Invoke with
   `/pr-feedback [PR number or URL]`. Uses the `pr-comments` fetch script for data.
 
+## Browser automation
+
+Only use ONE of Chrome DevTools MCP or Claude in Chrome MCP in a session — they cannot work together. Prefer Claude in Chrome for browser testing.
+
 ## Long sessions
 
 If you have the Pushpush MCP installed, you can use it to notify the user that you need their input. The tool is `send_push`. Use the `claude` topic.

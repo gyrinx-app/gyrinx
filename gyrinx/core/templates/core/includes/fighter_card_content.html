@@ -5,10 +5,16 @@
     - list: The list object that contains the fighter
     - user: The current user
     - can_edit: Boolean indicating if the user can edit this fighter
-    - print: Boolean indicating if this is for print view
+    - print: Boolean indicating if this is for print view (large text, no links)
+    - compact: Boolean indicating compact mode (normal text, no links/tabs)
     - classes: Optional CSS classes for the card
+
+    Derived flags (set below):
+    - show_interactive: Show tabs, links, edit buttons, tooltips
+    - show_large_text: Use enlarged font sizes for print
 {% endcomment %}
-{% if print %}
+{% comment %} Derive display flags from mode {% endcomment %}
+{% if print or compact %}
     {% firstof classes 'g-col-12 g-col-sm-6 g-col-md-3 g-col-xl-2' as card_classes %}
     {% firstof body_classes 'p-0' as body_classes_ %}
 {% else %}
@@ -22,7 +28,7 @@
             <div class="hstack align-items-start">
                 <h3 class="h5 mb-0">{{ fighter.name }}</h3>
                 {% if list.is_campaign_mode and fighter.injury_state != 'active' %}
-                    {% if not print %}
+                    {% if not print and not compact %}
                         {% if can_edit or is_arbitrator %}
                             <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
                                class="badge ms-2 text-decoration-none {% if fighter.is_injured %}bg-warning{% elif fighter.is_dead %}bg-danger{% endif %}">
@@ -40,7 +46,7 @@
                     {% endif %}
                 {% endif %}
                 {% if fighter.is_captured and not fighter.is_vehicle %}
-                    {% if can_edit and list.campaign and not print %}
+                    {% if can_edit and list.campaign and not print and not compact %}
                         <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
                            class="badge ms-2 bg-warning text-dark text-decoration-none captured-badge-link"
                            data-bs-toggle="tooltip"
@@ -51,7 +57,7 @@
                               data-bs-title="Captured by {{ fighter.capture_info.capturing_list.name }}">Captured</span>
                     {% endif %}
                 {% elif fighter.is_sold_to_guilders and not fighter.is_vehicle %}
-                    {% if can_edit and list.campaign and not print %}
+                    {% if can_edit and list.campaign and not print and not compact %}
                         <a href="{% url 'core:campaign-captured-fighters' list.campaign.id %}"
                            class="badge ms-2 bg-secondary text-decoration-none">Sold to Guilders</a>
                     {% else %}
@@ -59,7 +65,7 @@
                     {% endif %}
                 {% endif %}
                 <div class="ms-auto hstack gap-2 flex-wrap">
-                    {% if not print %}
+                    {% if not print and not compact %}
                         {% if fighter.is_child_fighter %}
                             {% include "core/includes/parent_fighter_link.html" with fighter=fighter print=print %}
                         {% endif %}
@@ -69,7 +75,7 @@
             </div>
             <div class="hstack gap-2">
                 <div>
-                    {% if not print %}
+                    {% if not print and not compact %}
                         {% ref list.content_house_name fighter.content_fighter_cached.type value=fighter.content_fighter_cached.type %}
                         {% if fighter.category_override %}
                             {# djlint:off #}
@@ -98,7 +104,7 @@
                     </div>
                 </div>
             {% elif fighter.can_take_legacy %}
-                {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                {% if can_edit and not print and not compact and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                     <div class="hstack text-muted fs-7">
                         Legacy:&nbsp;
                         <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
@@ -107,7 +113,7 @@
                 {% endif %}
             {% endif %}
             {% include "core/debug/fighter_debug.html" %}
-            {% if not print %}
+            {% if not print and not compact %}
                 <div class="hstack align-items-center gap-2">
                     <!-- Tab navigation -->
                     <ul class="nav nav-tabs flex-grow-1 px-1"
@@ -149,21 +155,6 @@
                                 {% if fighter.has_notes_content %}<i class="bi-dot"></i>{% endif %}
                             </button>
                         </li>
-                        {% if user == list.owner %}
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link fs-7 px-2 py-1"
-                                        id="info-tab-{{ fighter.id }}"
-                                        data-bs-toggle="tab"
-                                        data-bs-target="#info-{{ fighter.id }}"
-                                        type="button"
-                                        role="tab"
-                                        aria-controls="info-{{ fighter.id }}"
-                                        aria-selected="false">
-                                    Info
-                                    {% if fighter.has_info_content %}<i class="bi-dot"></i>{% endif %}
-                                </button>
-                            </li>
-                        {% endif %}
                     </ul>
                     {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         <div class="btn-group ms-auto">
@@ -256,10 +247,19 @@
                     <div class="fs-3">{% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}</div>
                 </div>
             </div>
+        {% elif compact %}
+            <div>
+                <div class="hstack gap-2 align-items-baseline justify-content-end">
+                    {% if fighter.is_child_fighter %}
+                        {% include "core/includes/parent_fighter_link.html" with fighter=fighter %}
+                    {% endif %}
+                    {% include "core/includes/fighter_card_cost.html" with fighter=fighter %}
+                </div>
+            </div>
         {% endif %}
     </div>
     <div class="card-body p-0">
-        {% if not print %}
+        {% if not print and not compact %}
             <!-- Tab content -->
             <div class="tab-content" id="fighterTabContent-{{ fighter.id }}">
                 <!-- Card tab -->
@@ -313,70 +313,42 @@
                      role="tabpanel"
                      aria-labelledby="notes-tab-{{ fighter.id }}"
                      tabindex="0">
+                    {% if user == list.owner and fighter.save_roll %}
+                        <div class="mb-2">
+                            <strong>Save:</strong> {{ fighter.save_roll }}
+                        </div>
+                    {% endif %}
                     {% if fighter.notes %}
                         {{ fighter.notes|safe_rich_text|safe }}
-                        {% if can_edit %}
-                            <div class="mt-2">
-                                <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                   class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit
-                                </a>
-                            </div>
-                        {% endif %}
                     {% elif can_edit %}
-                        <div class="text-muted">
-                            No notes added yet.
-                            <div class="mt-2">
-                                <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                   class="btn btn-outline-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit
-                                </a>
-                            </div>
-                        </div>
+                        <div class="text-muted">No notes added yet.</div>
                     {% else %}
                         <div class="text-muted">No notes added yet.</div>
                     {% endif %}
-                </div>
-                <!-- Info tab (owner only) -->
-                {% if user == list.owner %}
-                    <div class="tab-pane fade p-2"
-                         id="info-{{ fighter.id }}"
-                         role="tabpanel"
-                         aria-labelledby="info-tab-{{ fighter.id }}"
-                         tabindex="0">
-                        <div class="row">
-                            <div class="col-12">
-                                {% if fighter.save_roll %}
-                                    <div class="mb-2">
-                                        <strong>Save:</strong> {{ fighter.save_roll }}
-                                    </div>
-                                {% endif %}
-                                {% if fighter.private_notes %}
-                                    <div class="mb-2">
-                                        <div class="text-uppercase fs-8 fw-bold text-secondary mb-1">Private</div>
-                                        <div>{{ fighter.private_notes|safe_rich_text|safe }}</div>
-                                    </div>
-                                {% endif %}
-                                {% if not fighter.save_roll and not fighter.private_notes %}
-                                    <div class="text-muted">No info added yet.</div>
-                                {% endif %}
-                            </div>
-                            {% if can_edit %}
-                                <div class="mt-2">
-                                    <a href="{% url 'core:list-fighter-info-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                       class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi-pencil"></i> Edit
-                                    </a>
-                                </div>
-                            {% endif %}
+                    {% if user == list.owner and fighter.private_notes %}
+                        <div class="mb-2 mt-2">
+                            <div class="text-uppercase fs-7 fw-light text-secondary mb-1">Private</div>
+                            <div>{{ fighter.private_notes|safe_rich_text|safe }}</div>
                         </div>
-                    </div>
-                {% endif %}
+                    {% endif %}
+                    {% if can_edit %}
+                        <div class="mt-2">
+                            <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         {% else %}
-            <!-- No tabs in print mode -->
+            <!-- No tabs in print/compact mode -->
             <div class="vstack {{ body_classes_ }}">
-                {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit is_arbitrator=is_arbitrator print=print body_classes_=body_classes_ %}
+                {% if compact %}
+                    {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=False is_arbitrator=False print=print compact=compact body_classes_=body_classes_ %}
+                {% else %}
+                    {% include "core/includes/fighter_card_content_inner.html" with fighter=fighter list=list user=user can_edit=can_edit is_arbitrator=is_arbitrator print=print compact=compact body_classes_=body_classes_ %}
+                {% endif %}
             </div>
         {% endif %}
     </div>

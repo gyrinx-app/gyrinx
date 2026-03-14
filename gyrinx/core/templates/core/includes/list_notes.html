@@ -1,31 +1,20 @@
 {% load allauth custom_tags %}
 <div>
-    <div class="vstack gap-1 mb-2">
-        <h2>{{ list.name }}</h2>
-        <div>{{ list.content_house_name }}</div>
-        <div class="text-secondary">
-            <i class="bi-person"></i>
-            <a href="{% url 'core:user' list.owner_cached.username %}"
-               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ list.owner_cached }}</a>
-        </div>
-    </div>
-    <div class="d-flex gap-2 mb-3">
-        <a href="{% url 'core:list-about' list.id %}"
-           class="btn btn-outline-secondary btn-sm">
-            <i class="bi-file-text"></i> Lore
-        </a>
-        <a href="{% url 'core:list-notes' list.id %}"
-           class="btn btn-secondary btn-sm">
-            <i class="bi-journal-text"></i> Notes
-        </a>
-    </div>
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a href="{% url 'core:list-about' list.id %}" class="nav-link">Lore</a>
+        </li>
+        <li class="nav-item">
+            <a href="{% url 'core:list-notes' list.id %}" class="nav-link active">Notes</a>
+        </li>
+    </ul>
     <nav class="nav card card-body flex-column mb-3 p-2">
         <a class="nav-link p-2 py-1" href="#notes-list">Overview</a>
         {% for fighter in list.active_fighters %}
             {% if fighter.notes %}<a class="nav-link p-2 py-1" href="#notes-{{ fighter.id }}">{{ fighter.name }}</a>{% endif %}
         {% endfor %}
     </nav>
-    <div id="list-overview">
+    <div id="list-overview" class="mb-4">
         <div class="hstack">
             <h3 class="h4" id="notes-list">Overview</h3>
             {% if list.owner_cached == user %}
@@ -80,7 +69,7 @@
                     {% endif %}
                 </div>
             {% endif %}
-            {% include "core/includes/fighter_card.html" with fighter=fighter list=list print=True classes="g-col-12 g-col-md-6" %}
+            {% include "core/includes/fighter_card.html" with fighter=fighter list=list compact=True classes="g-col-12 g-col-md-6" %}
         {% empty %}
             <div class="g-col-12 py-2">This List is empty.</div>
         {% endfor %}
