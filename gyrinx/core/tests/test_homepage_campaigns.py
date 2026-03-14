@@ -259,6 +259,74 @@ def test_homepage_archived_campaigns_excluded():
 
 
 @pytest.mark.django_db
+def test_homepage_search_campaign_gangs():
+    """Test that q_gangs search filters campaign gangs independently."""
+    user = User.objects.create_user(username="testuser", password="password")
+    house = ContentHouse.objects.create(name="Test House")
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+    List.objects.create(
+        name="Alpha Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    List.objects.create(
+        name="Beta Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    client = Client()
+    client.login(username="testuser", password="password")
+
+    # Search should filter gangs
+    response = client.get(reverse("core:index"), {"q_gangs": "Alpha"})
+    assert response.status_code == 200
+    assert b"Alpha Gang" in response.content
+    assert b"Beta Gang" not in response.content
+
+    # Non-matching search
+    response = client.get(reverse("core:index"), {"q_gangs": "Nonexistent"})
+    assert response.status_code == 200
+    assert b"No Campaign Gangs matched your search" in response.content
+
+    # q_gangs should not affect campaigns column
+    response = client.get(reverse("core:index"), {"q_gangs": "Alpha"})
+    assert b"Test Campaign" in response.content
+
+
+@pytest.mark.django_db
+def test_homepage_search_campaigns():
+    """Test that q_campaigns search filters campaigns independently."""
+    user = User.objects.create_user(username="testuser", password="password")
+    Campaign.objects.create(
+        name="Alpha Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+    Campaign.objects.create(
+        name="Beta Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+
+    client = Client()
+    client.login(username="testuser", password="password")
+
+    # Search should filter campaigns
+    response = client.get(reverse("core:index"), {"q_campaigns": "Alpha"})
+    assert response.status_code == 200
+    assert b"Alpha Campaign" in response.content
+    assert b"Beta Campaign" not in response.content
+
+    # Non-matching search
+    response = client.get(reverse("core:index"), {"q_campaigns": "Nonexistent"})
+    assert response.status_code == 200
+    assert b"No Campaigns matched your search" in response.content
+
+
+@pytest.mark.django_db
 def test_homepage_anonymous_user():
     """Test that anonymous users don't see campaign modules."""
     client = Client()
