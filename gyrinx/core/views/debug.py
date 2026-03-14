@@ -64,6 +64,74 @@ def debug_test_plan_detail(request, filename):
     return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
+def debug_design_system(request):
+    """Design system reference page for rebuilding in Figma."""
+    if not settings.DEBUG:
+        raise Http404("Debug views are only available in development")
+
+    theme_colours = [
+        ("blue", "#0771ea"),
+        ("indigo", "#5111dc"),
+        ("purple", "#5d3cb0"),
+        ("pink", "#c02d83"),
+        ("red", "#cb2b48"),
+        ("orange", "#ea5d0c"),
+        ("yellow", "#e8a10a"),
+        ("green", "#1a7b49"),
+        ("teal", "#1fb27e"),
+        ("cyan", "#10bdd3"),
+    ]
+    semantic_colours = [
+        "primary",
+        "secondary",
+        "success",
+        "danger",
+        "warning",
+        "info",
+        "light",
+        "dark",
+    ]
+    common_icons = [
+        ("bi-plus", "plus"),
+        ("bi-plus-lg", "plus-lg"),
+        ("bi-dash", "dash"),
+        ("bi-pencil", "pencil"),
+        ("bi-trash", "trash"),
+        ("bi-archive", "archive"),
+        ("bi-person", "person"),
+        ("bi-house-door", "house-door"),
+        ("bi-crosshair", "crosshair"),
+        ("bi-wrench", "wrench"),
+        ("bi-journal-text", "journal-text"),
+        ("bi-lightning", "lightning"),
+        ("bi-exclamation-triangle", "warning"),
+        ("bi-link-45deg", "link"),
+        ("bi-search", "search"),
+        ("bi-gear", "gear"),
+        ("bi-arrow-left", "arrow-left"),
+        ("bi-chevron-right", "chevron-right"),
+    ]
+    spacing_scale = [
+        ("0", "0"),
+        ("1", "0.25"),
+        ("2", "0.5"),
+        ("3", "1"),
+        ("4", "1.5"),
+        ("5", "3"),
+    ]
+
+    return render(
+        request,
+        "core/debug/design_system.html",
+        {
+            "theme_colours": theme_colours,
+            "semantic_colours": semantic_colours,
+            "common_icons": common_icons,
+            "spacing_scale": spacing_scale,
+        },
+    )
+
+
 def debug_list_actions(request, list_id):
     """Display all actions for a list, sorted newest first."""
     lst = get_object_or_404(List, id=list_id)

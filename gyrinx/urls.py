@@ -41,6 +41,11 @@ _debug_urls = [
         name="debug_test_plan_detail",
     ),
     path(
+        "_debug/design-system/",
+        debug_views.debug_design_system,
+        name="debug_design_system",
+    ),
+    path(
         "_debug/list/<uuid:list_id>/actions/",
         debug_views.debug_list_actions,
         name="debug_list_actions",

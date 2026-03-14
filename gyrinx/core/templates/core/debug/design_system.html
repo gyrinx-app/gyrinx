@@ -1,0 +1,577 @@
+{# djlint:off H021 #}
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Design system
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 px-0 vstack gap-5 pb-5">
+        <div>
+            <h1 class="h3">Design system</h1>
+            <p class="text-secondary">
+                Internal reference for rebuilding the Gyrinx design system.
+                Font: <strong>mynor-variable</strong> (Adobe Typekit).
+                Framework: Bootstrap 5.3 with custom SCSS overrides.
+            </p>
+        </div>
+        <!-- ============================================================ -->
+        <!-- COLOURS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Colours</h2>
+            <h3 class="h6 caps-label mb-2">Theme colours (custom overrides)</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for name, hex in theme_colours %}
+                    <div class="text-center">
+                        <div class="rounded-2 border"
+                             style="width:5rem;
+                                    height:3.5rem;
+                                    background:{{ hex }}"></div>
+                        <div class="small fw-semibold mt-1">{{ name }}</div>
+                        <code class="small text-secondary">{{ hex }}</code>
+                    </div>
+                {% endfor %}
+            </div>
+            <h3 class="h6 caps-label mb-2">Semantic colours (Bootstrap)</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for name in semantic_colours %}
+                    <div class="text-center">
+                        <div class="rounded-2 border bg-{{ name }}"
+                             style="width:5rem;
+                                    height:3.5rem"></div>
+                        <div class="small fw-semibold mt-1">{{ name }}</div>
+                        <code class="small text-secondary">bg-{{ name }}</code>
+                    </div>
+                {% endfor %}
+            </div>
+            <h3 class="h6 caps-label mb-2">Subtle backgrounds</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for name in semantic_colours %}
+                    <div class="text-center">
+                        <div class="rounded-2 border bg-{{ name }}-subtle"
+                             style="width:5rem;
+                                    height:3.5rem"></div>
+                        <div class="small fw-semibold mt-1">{{ name }}-subtle</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <h3 class="h6 caps-label mb-2">Text colours</h3>
+            <div class="vstack gap-1 mb-4">
+                <p class="mb-0">
+                    <span class="text-body">text-body (default)</span>
+                    ·
+                    <span class="text-secondary">text-secondary</span>
+                    ·
+                    <span class="text-muted">text-muted</span>
+                    ·
+                    <span class="text-body-secondary">text-body-secondary</span>
+                    ·
+                    <span class="text-body-tertiary">text-body-tertiary</span>
+                </p>
+                <p class="mb-0">
+                    {% for name in semantic_colours %}
+                        <span class="text-{{ name }}">text-{{ name }}</span>
+                        {% if not forloop.last %}·{% endif %}
+                    {% endfor %}
+                </p>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- TYPOGRAPHY -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Typography</h2>
+            <h3 class="h6 caps-label mb-2">Headings</h3>
+            <p class="text-secondary small mb-2">
+                Sizes shown as SCSS formula. Computed values reflect RFS (responsive font sizing) at current viewport.
+            </p>
+            <table class="table table-sm table-borderless mb-4" id="headings-table">
+                <thead>
+                    <tr>
+                        <th>Element</th>
+                        <th>SCSS</th>
+                        <th>Computed</th>
+                        <th>Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="align-middle">
+                        <td>
+                            <code>&lt;h1&gt;</code>
+                        </td>
+                        <td>base * 2.5</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <h1 class="mb-0" data-measure-target>Heading 1</h1>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>&lt;h2&gt;</code>
+                        </td>
+                        <td>base * 2</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <h2 class="mb-0" data-measure-target>Heading 2</h2>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>&lt;h3&gt;</code>
+                        </td>
+                        <td>base * 1.75</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <h3 class="mb-0" data-measure-target>Heading 3</h3>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>&lt;h4&gt;</code>
+                        </td>
+                        <td>base * 1.5</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <h4 class="mb-0" data-measure-target>Heading 4</h4>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>&lt;h5&gt;</code>
+                        </td>
+                        <td>base * 1.25</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <h5 class="mb-0" data-measure-target>Heading 5</h5>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>&lt;h6&gt;</code>
+                        </td>
+                        <td>base * 1</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <h6 class="mb-0" data-measure-target>Heading 6</h6>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <h3 class="h6 caps-label mb-2">Heading utility classes</h3>
+            <p class="text-secondary small mb-2">
+                Use <code>.h1</code>–<code>.h6</code> classes on any element to apply heading styles without semantic meaning.
+                Gyrinx typically uses <code>&lt;h1 class="h3"&gt;</code> for page titles.
+            </p>
+            <div class="border rounded p-3 mb-4">
+                <span class="h1">.h1</span>
+                <span class="h2">.h2</span>
+                <span class="h3">.h3</span>
+                <span class="h4">.h4</span>
+                <span class="h5">.h5</span>
+                <span class="h6">.h6</span>
+            </div>
+            <h3 class="h6 caps-label mb-2">Font sizes</h3>
+            <table class="table table-sm table-borderless mb-4" id="font-sizes-table">
+                <thead>
+                    <tr>
+                        <th>Class</th>
+                        <th>Size</th>
+                        <th>Computed</th>
+                        <th>Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-1</code>
+                        </td>
+                        <td>base * 2.5</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-1" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-2</code>
+                        </td>
+                        <td>base * 2</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-2" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-3</code>
+                        </td>
+                        <td>base * 1.75</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-3" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-4</code>
+                        </td>
+                        <td>base * 1.5</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-4" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-5</code>
+                        </td>
+                        <td>base * 1.25</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-5" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-6</code>
+                        </td>
+                        <td>base (1rem)</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-6" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.fs-7</code>
+                        </td>
+                        <td>base * 0.9 (custom)</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="fs-7" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                    <tr class="align-middle">
+                        <td>
+                            <code>.small</code>
+                        </td>
+                        <td>0.875em</td>
+                        <td>
+                            <code data-measure></code>
+                        </td>
+                        <td>
+                            <span class="small" data-measure-target>The quick brown fox</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <h3 class="h6 caps-label mb-2">Font weights</h3>
+            <div class="vstack gap-1 mb-4">
+                <p class="fw-light mb-0">
+                    <code>.fw-light (300)</code> – The quick brown fox jumps over the lazy dog
+                </p>
+                <p class="fw-normal mb-0">
+                    <code>.fw-normal (400)</code> – The quick brown fox jumps over the lazy dog
+                </p>
+                <p class="fw-medium mb-0">
+                    <code>.fw-medium (500)</code> – The quick brown fox jumps over the lazy dog
+                </p>
+                <p class="fw-semibold mb-0">
+                    <code>.fw-semibold (600)</code> – The quick brown fox jumps over the lazy dog
+                </p>
+                <p class="fw-bold mb-0">
+                    <code>.fw-bold (700)</code> – The quick brown fox jumps over the lazy dog
+                </p>
+            </div>
+            <h3 class="h6 caps-label mb-2">Custom text styles</h3>
+            <div class="vstack gap-2 mb-4">
+                <div>
+                    <span class="caps-label">.caps-label</span>
+                    <span class="text-secondary small ms-2">– small, uppercase, muted, semibold, tracked</span>
+                </div>
+                <div>
+                    <span class="lead">Lead paragraph text (.lead)</span>
+                </div>
+                <div>
+                    <span class="text-decoration-underline">Underlined text</span> ·
+                    <em>Italic text</em> ·
+                    <strong>Bold text</strong> ·
+                    <mark>Highlighted text</mark>
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- LINKS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Links</h2>
+            <div class="vstack gap-2 mb-4">
+                <div>
+                    <a href="#">Default link</a>
+                    <code class="ms-2 small text-secondary">&lt;a&gt;</code>
+                </div>
+                <div>
+                    <a href="#" class="linked">Linked style</a>
+                    <code class="ms-2 small text-secondary">.linked</code>
+                </div>
+                <div>
+                    <a href="#" class="link-sm">Small link</a>
+                    <code class="ms-2 small text-secondary">.link-sm</code>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link (common pattern)</a>
+                    <code class="ms-2 small text-secondary">.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Danger link (remove)</a>
+                    <code class="ms-2 small text-secondary">.link-danger (used for remove/delete)</code>
+                </div>
+                <div>
+                    <span class="tooltipped">Tooltipped style</span>
+                    <code class="ms-2 small text-secondary">.tooltipped (info underline, cursor: help)</code>
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- BUTTONS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Buttons</h2>
+            <h3 class="h6 caps-label mb-2">Standard (typically btn-sm in the app)</h3>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-primary btn-sm">Primary</button>
+                <button type="button" class="btn btn-secondary btn-sm">Secondary</button>
+                <button type="button" class="btn btn-success btn-sm">Success</button>
+                <button type="button" class="btn btn-danger btn-sm">Danger</button>
+                <button type="button" class="btn btn-warning btn-sm">Warning</button>
+                <button type="button" class="btn btn-info btn-sm">Info</button>
+                <button type="button" class="btn btn-light btn-sm">Light</button>
+                <button type="button" class="btn btn-dark btn-sm">Dark</button>
+                <button type="button" class="btn btn-link btn-sm">Link</button>
+            </div>
+            <h3 class="h6 caps-label mb-2">Outline</h3>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-outline-primary btn-sm">Primary</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm">Secondary</button>
+                <button type="button" class="btn btn-outline-success btn-sm">Success</button>
+                <button type="button" class="btn btn-outline-danger btn-sm">Danger</button>
+            </div>
+            <h3 class="h6 caps-label mb-2">Full size (used sparingly)</h3>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-primary">Primary</button>
+                <button type="button" class="btn btn-success">Save</button>
+                <button type="button" class="btn btn-link">Cancel</button>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- BADGES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Badges</h2>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <span class="badge text-bg-primary">Primary</span>
+                <span class="badge text-bg-secondary">Secondary</span>
+                <span class="badge text-bg-success">Success</span>
+                <span class="badge text-bg-danger">Danger</span>
+                <span class="badge text-bg-warning">Warning</span>
+                <span class="badge text-bg-info">Info</span>
+                <span class="badge text-bg-light">Light</span>
+                <span class="badge text-bg-dark">Dark</span>
+            </div>
+            <p class="mb-0">
+                Example in context: Credits <span class="badge text-bg-primary">150¢</span>
+                Rating <span class="badge text-bg-secondary">1050¢</span>
+            </p>
+        </section>
+        <!-- ============================================================ -->
+        <!-- BORDERS & CONTAINERS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Containers and surfaces</h2>
+            <h3 class="h6 caps-label mb-2">Preferred patterns (not cards unless for fighters in grids)</h3>
+            <div class="vstack gap-3">
+                <div class="border rounded p-3">
+                    <strong>border rounded p-3</strong> – Standard container for grouped content. Preferred over cards.
+                </div>
+                <div class="border rounded p-2">
+                    <strong>border rounded p-2</strong> – Compact variant, used for inline messages.
+                </div>
+                <div class="border border-warning rounded p-3 bg-warning bg-opacity-10">
+                    <i class="bi-exclamation-triangle text-warning"></i>
+                    <strong>Warning block</strong> – border-warning + bg-warning bg-opacity-10
+                </div>
+                <div class="border border-danger rounded p-2 text-danger">
+                    <strong>Error:</strong> Error message pattern – border-danger + text-danger
+                </div>
+                <div class="card">
+                    <div class="card-header p-2">
+                        <h5 class="mb-0">Card (used for fighter grids and category groups)</h5>
+                    </div>
+                    <div class="card-body p-2">Card body content</div>
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- FORMS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Form elements</h2>
+            <div class="col-12 col-md-6">
+                <div class="vstack gap-3">
+                    <div>
+                        <label class="form-label">Text input</label>
+                        <input type="text" class="form-control" value="Form control">
+                    </div>
+                    <div>
+                        <label class="form-label">Small input</label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               value="Form control sm">
+                    </div>
+                    <div>
+                        <label class="form-label">Select</label>
+                        <select class="form-select">
+                            <option>Option one</option>
+                            <option>Option two</option>
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="check-demo" checked>
+                        <label class="form-check-label" for="check-demo">Checkbox</label>
+                    </div>
+                    <div>
+                        <label class="form-label">Number (cost pattern)</label>
+                        <input type="number"
+                               class="form-control form-control-sm text-center p-0 w-auto"
+                               value="0"
+                               min="0">
+                    </div>
+                    <div>
+                        <label class="form-label">Search input</label>
+                        <input type="search"
+                               class="form-control form-control-sm"
+                               placeholder="Filter items...">
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- TABLES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Tables</h2>
+            <h3 class="h6 caps-label mb-2">Weapon stat table (table-sm table-borderless fs-7)</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead class="table-group-divider">
+                    <tr>
+                        <th scope="col">Weapon</th>
+                        <th class="text-center" scope="col">S</th>
+                        <th class="text-center" scope="col">L</th>
+                        <th class="text-center border-start" scope="col">S</th>
+                        <th class="text-center" scope="col">L</th>
+                        <th class="text-center border-start" scope="col">Str</th>
+                        <th class="text-center" scope="col">Ap</th>
+                        <th class="text-center" scope="col">D</th>
+                        <th class="text-center" scope="col">Am</th>
+                    </tr>
+                </thead>
+                <tbody class="table-group-divider">
+                    <tr>
+                        <td>Autogun</td>
+                        <td class="text-center">8"</td>
+                        <td class="text-center">24"</td>
+                        <td class="text-center border-start">+1</td>
+                        <td class="text-center">-</td>
+                        <td class="text-center border-start">3</td>
+                        <td class="text-center">-</td>
+                        <td class="text-center">1</td>
+                        <td class="text-center">4+</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- ICONS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Icons (Bootstrap Icons)</h2>
+            <p class="text-secondary small mb-2">Commonly used icons in the app:</p>
+            <div class="d-flex flex-wrap gap-3 fs-4">
+                {% for icon_class, label in common_icons %}
+                    <div class="text-center">
+                        <div>
+                            <i class="{{ icon_class }}"></i>
+                        </div>
+                        <code class="small text-secondary">{{ icon_class }}</code>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- FLASH ANIMATION -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Flash highlight</h2>
+            <div class="flash-warn border rounded p-3">
+                This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
+                Used when returning from add pages to highlight the newly added item.
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- SPACING REFERENCE -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Spacing scale</h2>
+            <p class="text-secondary small mb-2">
+                Bootstrap default spacing: 0.25rem increments. 1rem = 16px at default browser settings.
+            </p>
+            <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+                {% for level, rem in spacing_scale %}
+                    <div class="text-center">
+                        <div class="bg-primary rounded" style="width:2rem;height:{{ rem }}rem"></div>
+                        <code class="small">{{ level }}</code>
+                        <div class="small text-secondary">{{ rem }}rem</div>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+    <script>
+        // Compute and display actual rendered font sizes in pixels.
+        document.querySelectorAll("[data-measure]").forEach(function (cell) {
+            var row = cell.closest("tr");
+            var target = row.querySelector("[data-measure-target]");
+            if (target) {
+                var px = parseFloat(getComputedStyle(target).fontSize);
+                cell.textContent = Math.round(px * 100) / 100 + "px";
+            }
+        });
+    </script>
+{% endblock content %}
