@@ -161,6 +161,47 @@ def test_packs_index_shows_listed_packs_when_my_off(
 
 
 @pytest.mark.django_db
+def test_packs_index_shows_own_packs_when_my_off(
+    client, group_user, custom_content_group, make_user
+):
+    """Test that toggling off 'your packs' still shows the user's own packs."""
+    # Create an unlisted pack owned by the current user
+    CustomContentPack.objects.create(
+        name="My Unlisted Pack", listed=False, owner=group_user
+    )
+    # Create a listed pack from another user
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
+
+    # Create an unlisted pack from another user shared via permission
+    from gyrinx.core.models.pack import CustomContentPackPermission
+
+    shared_pack = CustomContentPack.objects.create(
+        name="Shared Unlisted Pack", listed=False, owner=other_user
+    )
+    CustomContentPackPermission.objects.create(
+        pack=shared_pack, user=group_user, role="editor"
+    )
+    # Create an unlisted pack from another user with NO permission
+    CustomContentPack.objects.create(
+        name="Hidden Unlisted Pack", listed=False, owner=other_user
+    )
+
+    client.force_login(group_user)
+    response = client.get("/packs/?my=0")
+    assert response.status_code == 200
+    # Own unlisted pack should still be visible
+    assert b"My Unlisted Pack" in response.content
+    # Other user's listed pack should also be visible
+    assert b"Other Pack" in response.content
+    # Shared unlisted pack should be visible
+    assert b"Shared Unlisted Pack" in response.content
+    # Unshared unlisted pack from another user should NOT be visible
+    assert b"Hidden Unlisted Pack" not in response.content
+
+
+@pytest.mark.django_db
 def test_packs_index_search(client, group_user):
     """Test that search filters packs."""
     CustomContentPack.objects.create(name="Alpha Pack", owner=group_user)
