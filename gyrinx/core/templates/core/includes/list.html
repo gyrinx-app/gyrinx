@@ -75,9 +75,8 @@
                             </div>
                         {% elif list.owner_cached == user and user|in_group:"Custom Content" %}
                             <div>
-                                <a href="{% url 'core:list-packs' list.id %}" class="icon-link linked">
-                                    <i class="bi-box-seam"></i> Add Content Pack
-                                </a>
+                                <i class="bi-box-seam"></i>
+                                <a href="{% url 'core:list-packs' list.id %}" class="linked">Add Content Pack</a>
                             </div>
                         {% endif %}
                     {% endif %}
