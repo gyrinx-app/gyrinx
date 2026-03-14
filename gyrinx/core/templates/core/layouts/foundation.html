@@ -96,5 +96,6 @@
         <script type="module" src="{% static 'core/js/index.js' %}"></script>
         {% block extra_script %}
         {% endblock extra_script %}
+        {% if debug %}<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>{% endif %}
     </body>
 </html>
