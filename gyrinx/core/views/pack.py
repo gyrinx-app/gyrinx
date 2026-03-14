@@ -1259,9 +1259,18 @@ def edit_pack_item(request, id, item_id):
         ]
 
         # Equipment list items (available equipment for purchase).
-        equipment_list_items = ContentFighterEquipmentListItem.objects.filter(
-            fighter=content_obj
-        ).select_related("equipment", "equipment__category", "weapon_profile")
+        # Order so base weapon (weapon_profile=NULL) comes first in each group.
+        equipment_list_items = (
+            ContentFighterEquipmentListItem.objects.filter(fighter=content_obj)
+            .select_related("equipment", "equipment__category", "weapon_profile")
+            .order_by(
+                "equipment__name",
+                models.Case(
+                    models.When(weapon_profile__isnull=True, then=0),
+                    default=1,
+                ),
+            )
+        )
         # Group weapon items by equipment for table display.
         weapon_items = [
             eli for eli in equipment_list_items if eli.equipment.is_weapon()
@@ -2474,6 +2483,16 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
     )
 
     if request.method == "POST":
+        # If removing the base weapon entry (no profile), also remove any
+        # profile-specific entries for the same fighter+equipment.
+        if eli.weapon_profile is None:
+            siblings = ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter,
+                equipment=eli.equipment,
+            ).exclude(pk=eli.pk)
+            for s in siblings:
+                s._history_user = request.user
+                s.delete()
         eli._history_user = request.user
         eli.delete()
         return HttpResponseRedirect(

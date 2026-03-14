@@ -24,7 +24,7 @@
                         id="submit-btn"
                         disabled>
                     <i class="bi-plus-lg me-1"></i>
-                    Add selected
+                    <span id="submit-btn-text">Add selected</span>
                 </button>
                 <input type="search"
                        id="filter-input"
@@ -65,8 +65,7 @@
                                                        name="cost_{{ item.id }}"
                                                        value="0"
                                                        min="0"
-                                                       class="form-control form-control-sm text-center p-0"
-                                                       class="w-auto">
+                                                       class="form-control form-control-sm text-center p-0 w-auto">
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -87,12 +86,13 @@
             var form = document.getElementById("bulk-form");
             var filterInput = document.getElementById("filter-input");
             var submitBtn = document.getElementById("submit-btn");
+            var submitBtnText = document.getElementById("submit-btn-text");
 
             // Update submit button count.
             form.addEventListener("change", function () {
                 var count = form.querySelectorAll(".gear-check:checked").length;
                 submitBtn.disabled = count === 0;
-                submitBtn.textContent = count ? "Add selected (" + count + ")" : "Add selected";
+                submitBtnText.textContent = count ? "Add selected (" + count + ")" : "Add selected";
             });
 
             // Client-side filtering by gear name.
