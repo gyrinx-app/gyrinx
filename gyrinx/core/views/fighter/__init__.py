@@ -43,8 +43,8 @@ from gyrinx.core.views.fighter.equipment import (
     sell_list_fighter_equipment,
 )
 from gyrinx.core.views.fighter.narrative import (
-    edit_list_fighter_info,
     edit_list_fighter_narrative,
+    edit_list_fighter_notes,
 )
 from gyrinx.core.views.fighter.powers import edit_list_fighter_powers
 from gyrinx.core.views.fighter.rules import (
@@ -90,7 +90,7 @@ __all__ = [
     "edit_list_fighter_powers",
     # narrative.py
     "edit_list_fighter_narrative",
-    "edit_list_fighter_info",
+    "edit_list_fighter_notes",
     # stats.py
     "list_fighter_stats_edit",
     # equipment.py

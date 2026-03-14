@@ -4,8 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-from gyrinx.core.forms.list import EditListFighterInfoForm, EditListFighterNarrativeForm
-from gyrinx.core.models.events import EventField, EventNoun, EventVerb, log_event
+from gyrinx.core.forms.list import (
+    EditListFighterNarrativeForm,
+    EditListFighterNotesForm,
+)
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.core.utils import get_return_url, safe_redirect
 from gyrinx.core.views.list.common import get_clean_list_or_404
@@ -45,7 +48,9 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
     error_message = None
     if request.method == "POST":
-        form = EditListFighterNarrativeForm(request.POST, instance=fighter)
+        form = EditListFighterNarrativeForm(
+            request.POST, request.FILES, instance=fighter
+        )
         if form.is_valid():
             form.save()
 
@@ -73,6 +78,7 @@ def edit_list_fighter_narrative(request, id, fighter_id):
         {
             "form": form,
             "list": lst,
+            "fighter": fighter,
             "error_message": error_message,
             "return_url": return_url,
         },
@@ -80,24 +86,22 @@ def edit_list_fighter_narrative(request, id, fighter_id):
 
 
 @login_required
-def edit_list_fighter_info(request, id, fighter_id):
+def edit_list_fighter_notes(request, id, fighter_id):
     """
-    Edit the info section (image, save, notes) of an existing :model:`core.ListFighter`.
+    Edit the notes of an existing :model:`core.ListFighter`.
 
     **Context**
 
     ``form``
-        A EditListFighterInfoForm for editing fighter info.
+        A EditListFighterNotesForm for editing fighter notes.
     ``list``
         The :model:`core.List` that owns this fighter.
-    ``fighter``
-        The :model:`core.ListFighter` being edited.
     ``error_message``
         None or a string describing a form error.
 
     **Template**
 
-    :template:`core/list_fighter_info_edit.html`
+    :template:`core/list_fighter_notes_edit.html`
     """
     lst = get_clean_list_or_404(List, id=id, owner=request.user)
     fighter = get_object_or_404(
@@ -109,44 +113,40 @@ def edit_list_fighter_info(request, id, fighter_id):
 
     # Get the return URL from query params or POST data, with fallback to default
     default_url = (
-        reverse("core:list-about", args=(lst.id,)) + f"#about-{str(fighter.id)}"
+        reverse("core:list-notes", args=(lst.id,)) + f"#notes-{str(fighter.id)}"
     )
     return_url = get_return_url(request, default_url)
 
     error_message = None
     if request.method == "POST":
-        form = EditListFighterInfoForm(request.POST, request.FILES, instance=fighter)
+        form = EditListFighterNotesForm(request.POST, instance=fighter)
         if form.is_valid():
             form.save()
 
-            # Log the info update event
+            # Log the notes update event
             log_event(
                 user=request.user,
                 noun=EventNoun.LIST_FIGHTER,
                 verb=EventVerb.UPDATE,
-                field=EventField.INFO,
                 object=fighter,
                 request=request,
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
-                has_image=bool(fighter.image),
-                image_url=fighter.image.url if fighter.image else None,
-                has_save=bool(fighter.save_roll),
-                has_private_notes=bool(fighter.private_notes),
+                field="notes",
+                notes_length=len(fighter.notes) if fighter.notes else 0,
             )
 
             return safe_redirect(request, return_url, fallback_url=default_url)
     else:
-        form = EditListFighterInfoForm(instance=fighter)
+        form = EditListFighterNotesForm(instance=fighter)
 
     return render(
         request,
-        "core/list_fighter_info_edit.html",
+        "core/list_fighter_notes_edit.html",
         {
             "form": form,
             "list": lst,
-            "fighter": fighter,
             "error_message": error_message,
             "return_url": return_url,
         },

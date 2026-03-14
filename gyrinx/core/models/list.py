@@ -239,9 +239,13 @@ class List(AppBase):
         default=True, help_text="Public lists are visible to all users.", db_index=True
     )
     narrative = models.TextField(
-        "about",
+        "lore",
         blank=True,
-        help_text="Narrative description of the gang in this list: their history and how to play them.",
+        help_text="Lore for the gang in this list: their history and how to play them.",
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about the gang in this list.",
     )
     status = models.CharField(
         max_length=20,
@@ -1167,6 +1171,7 @@ class List(AppBase):
         values = {
             "public": self.public,
             "narrative": self.narrative,
+            "notes": self.notes,
             "theme_color": self.theme_color,
             # Don't copy rating_current/stash_current - they'll be recalculated
             "credits_current": self.credits_current,
@@ -1771,10 +1776,16 @@ class ListFighter(AppBase):
         help_text="Fighter's typical save roll (e.g. '5+' or '4+ inv')",
     )
 
+    # Notes (public, shown on Notes page)
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about the fighter",
+    )
+
     # Private notes (only visible to list owner)
     private_notes = models.TextField(
         blank=True,
-        help_text="Notes about the fighter (only visible to you)",
+        help_text="Private notes about the fighter (only visible to you)",
     )
 
     # Injury state choices
@@ -3191,8 +3202,10 @@ class ListFighter(AppBase):
         target_fighter.xp_current = self.xp_current
         target_fighter.xp_total = self.xp_total
 
-        # Copy narrative
+        # Copy narrative and notes
         target_fighter.narrative = self.narrative
+        target_fighter.notes = self.notes
+        target_fighter.private_notes = self.private_notes
 
         target_fighter.save()
 
@@ -3295,6 +3308,8 @@ class ListFighter(AppBase):
             "content_fighter": self.content_fighter,
             "legacy_content_fighter": self.legacy_content_fighter,
             "narrative": self.narrative,
+            "notes": self.notes,
+            "private_notes": self.private_notes,
             "list": self.list,
             "cost_override": self.cost_override,
             "movement_override": self.movement_override,
@@ -3450,12 +3465,16 @@ class ListFighter(AppBase):
         return True
 
     def has_info_content(self):
-        """Check if the fighter has any content in the Info tab fields."""
-        return bool(self.image or self.save_roll or self.private_notes)
+        """Check if the fighter has any content in the info fields (save roll, private notes)."""
+        return bool(self.save_roll or self.private_notes)
 
     def has_lore_content(self):
         """Check if the fighter has any content in the Lore tab."""
-        return bool(self.narrative)
+        return bool(self.narrative or self.image)
+
+    def has_notes_content(self):
+        """Check if the fighter has any content in the Notes tab."""
+        return bool(self.notes or self.save_roll or self.private_notes)
 
     class Meta:
         verbose_name = "List Fighter"

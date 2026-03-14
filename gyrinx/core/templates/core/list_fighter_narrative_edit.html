@@ -1,18 +1,49 @@
 {% extends "core/layouts/base.html" %}
 {% load allauth custom_tags %}
 {% block head_title %}
-    About - {{ form.instance.name }} - {{ form.instance.content_fighter.name }} - {{ list.name }}
+    Lore - {{ form.instance.name }} - {{ form.instance.content_fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=form.instance fighter_url_name="core:list-fighter-narrative-edit" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">About: {{ form.instance.name }} - {{ form.instance.content_fighter.name }}</h1>
+        <h1 class="h3">Lore: {{ form.instance.name }} - {{ form.instance.content_fighter.name }}</h1>
         <form action="{% url 'core:list-fighter-narrative-edit' list.id form.instance.id %}"
-              method="post">
+              method="post"
+              enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="return_url" value="{{ return_url }}">
             {{ form.media }}
-            {{ form }}
+            <div class="mb-3">
+                <label for="{{ form.image.id_for_label }}" class="form-label">{{ form.image.label }}</label>
+                <div class="d-flex flex-column flex-md-row gap-2">
+                    {% if fighter.image %}
+                        <div class="mb-2 me-2 flex-shrink-0">
+                            <img src="{{ fighter.image.url }}"
+                                 alt="{{ fighter.name }}"
+                                 class="size-em-4 size-em-md-5 img-thumbnail">
+                        </div>
+                    {% endif %}
+                    <div class="flex-grow-1">
+                        {{ form.image }}
+                        {% if form.image.help_text %}<div class="form-text">{{ form.image.help_text }}</div>{% endif %}
+                    </div>
+                </div>
+                {% if form.image.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.image.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="mb-3">
+                <label for="{{ form.narrative.id_for_label }}" class="form-label">{{ form.narrative.label }}</label>
+                {{ form.narrative }}
+                {% if form.narrative.help_text %}<div class="form-text">{{ form.narrative.help_text }}</div>{% endif %}
+                {% if form.narrative.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.narrative.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Save</button>
                 <a href="{{ return_url }}" class="btn btn-link">Cancel</a>

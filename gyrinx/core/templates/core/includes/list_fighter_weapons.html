@@ -26,7 +26,7 @@
         <tr>
             <th scope="col">
                 Weapons
-                {% if not print and list.owner_cached == user %}
+                {% if not print and not compact and list.owner_cached == user %}
                     {% if mode == "gear" %}
                         <a href="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring cat=None %}"
                            class="fw-normal">Edit weapons</a>

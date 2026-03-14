@@ -150,22 +150,27 @@ class CloneListForm(forms.Form):
 class EditListForm(forms.ModelForm):
     class Meta:
         model = List
-        fields = ["name", "narrative", "public", "theme_color"]
+        fields = ["name", "narrative", "notes", "public", "theme_color"]
         labels = {
             "name": "Name",
-            "narrative": "About",
+            "narrative": "Lore",
+            "notes": "Notes",
             "public": "Public",
             "theme_color": "Theme Color",
         }
         help_texts = {
             "name": "The name you use to identify this list. This may be public.",
-            "narrative": "Narrative description of the gang in this list: their history and how to play them.",
+            "narrative": "Lore for the gang in this list: their history and how to play them.",
+            "notes": "Notes about the gang in this list.",
             "public": "If checked, this list will be visible to all users. If unchecked, it will be unlisted.",
             "theme_color": "Select a theme color for your gang. Used in campaign views.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "narrative": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
+            "notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -548,22 +553,30 @@ class EditListFighterNarrativeForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["narrative"]
+        fields = ["narrative", "image"]
         labels = {
-            "narrative": "About",
+            "narrative": "Lore",
+            "image": "Image",
         }
         help_texts = {
-            "narrative": "Narrative description of the {term_singular__lower}: their history and how to play them.",
+            "narrative": "Lore for the {term_singular__lower}: their history and how to play them.",
+            "image": "Fighter portrait or image (appears on the Lore tab)",
         }
         widgets = {
             "narrative": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
+            "image": BsClearableFileInput(
+                attrs={
+                    "class": "form-control",
+                    "accept": "image/*",
+                },
+            ),
         }
 
 
-class EditListFighterInfoForm(forms.ModelForm):
-    """Form for editing fighter info section (image, save, private notes)"""
+class EditListFighterNotesForm(forms.ModelForm):
+    """Form for editing fighter notes, save roll, and private notes."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -572,29 +585,26 @@ class EditListFighterInfoForm(forms.ModelForm):
 
     class Meta:
         model = ListFighter
-        fields = ["image", "save_roll", "private_notes"]
+        fields = ["notes", "save_roll", "private_notes"]
         labels = {
-            "image": "Image",
-            "save_roll": "Save Roll",
-            "private_notes": "Notes",
+            "notes": "Notes",
+            "save_roll": "Save roll",
+            "private_notes": "Private notes",
         }
         help_texts = {
-            "image": "This image appears in Info section",
+            "notes": "Notes about {term_proximal_demonstrative__lower}.",
             "save_roll": "{term_singular}'s typical save roll",
-            "private_notes": "Notes about {term_proximal_demonstrative__lower} (only visible to you)",
+            "private_notes": "Private notes about {term_proximal_demonstrative__lower} (only visible to you)",
         }
         widgets = {
+            "notes": TinyMCEWithUpload(
+                attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
+            ),
             "save_roll": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g. 5+"}
             ),
             "private_notes": TinyMCEWithUpload(
                 attrs={"cols": 80, "rows": 10}, mce_attrs=TINYMCE_EXTRA_ATTRS
-            ),
-            "image": BsClearableFileInput(
-                attrs={
-                    "class": "form-control",
-                    "accept": "image/*",
-                },
             ),
         }
 
