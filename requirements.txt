@@ -5,12 +5,12 @@ bleach==6.3.0
 click==8.3.1
 daphne==4.2.1
 Django==6.0.3
-django-allauth==65.14.3
+django-allauth==65.15.0
 django-csp==4.0
 django-debug-toolbar==6.2.0
 django-extensions==4.1
 django-multiselectfield==1.0.1
-django-polymorphic==4.11.1
+django-polymorphic==4.11.2
 django-recaptcha==4.1.0
 django-simple-history==3.11.0
 django-storages[google]==1.14.6
@@ -53,9 +53,9 @@ qrcode==8.2
 referencing==0.37.0
 requests>=2.32.4
 rich==14.3.3
-ruff==0.15.5
+ruff==0.15.6
 setuptools==81.0.0
-simpleeval==1.0.5
+simpleeval==1.0.6
 sqlparse==0.5.5
 
 # Security: minimum versions for vulnerable transitive dependencies
