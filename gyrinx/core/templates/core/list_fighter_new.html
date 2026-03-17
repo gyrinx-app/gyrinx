@@ -11,7 +11,54 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
-            {{ form }}
+            <div>
+                {{ form.name.label_tag }}
+                {{ form.name }}
+                {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
+                {% for error in form.name.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div>
+                <label class="form-label">{{ form.content_fighter.label }}</label>
+                {% if form.content_fighter.help_text %}
+                    <div class="form-text mb-2">{{ form.content_fighter.help_text }}</div>
+                {% endif %}
+                {% for error in form.content_fighter.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                {% for house_name, fighters in fighter_groups %}
+                    <div class="mb-3">
+                        <div class="text-uppercase text-secondary small mb-1">{{ house_name }}</div>
+                        {% for fighter in fighters %}
+                            {# djlint:off H021,H023 #}
+                            <label class="d-flex align-items-start gap-2 py-2 px-2 rounded fighter-type-option{% if form.content_fighter.value == fighter.id %} bg-light{% endif %}"
+                                   style="cursor: pointer">
+                                <input type="radio"
+                                       name="content_fighter"
+                                       value="{{ fighter.id }}"
+                                       class="form-check-input mt-1"
+                                       {% if form.content_fighter.value == fighter.id %}checked{% endif %}>
+                                <span class="flex-grow-1">
+                                    <span class="d-block">{{ fighter.type }}</span>
+                                    <span class="d-block text-secondary small">{{ fighter.category }} &middot; {{ fighter.cost }}&cent;</span>
+                                </span>
+                            </label>
+                            {# djlint:on #}
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            <div>
+                {{ form.category_override.label_tag }}
+                {{ form.category_override }}
+                {% if form.category_override.help_text %}
+                    <div class="form-text">{{ form.category_override.help_text }}</div>
+                {% endif %}
+                {% for error in form.category_override.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div>
+                {{ form.cost_override.label_tag }}
+                {{ form.cost_override }}
+                {% if form.cost_override.help_text %}<div class="form-text">{{ form.cost_override.help_text }}</div>{% endif %}
+                {% for error in form.cost_override.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">Add Fighter</button>
                 <a href="{% safe_referer list.get_absolute_url %}" class="btn btn-link">Cancel</a>

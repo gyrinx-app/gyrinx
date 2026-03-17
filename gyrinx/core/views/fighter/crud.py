@@ -1,5 +1,6 @@
 """Fighter CRUD views (create, read, update, delete, archive, restore, kill, resurrect)."""
 
+from itertools import groupby
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
@@ -13,6 +14,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 
 from gyrinx import messages
 from gyrinx.core.forms.list import CloneListFighterForm, ListFighterForm
+from gyrinx.forms import fighter_group_key, group_sorter
 from gyrinx.core.handlers.fighter import (
     FighterCloneParams,
     handle_fighter_archive_toggle,
@@ -28,6 +30,43 @@ from gyrinx.core.models.list import List, ListFighter
 from gyrinx.core.views.list.common import get_clean_list_or_404
 
 
+def _build_grouped_fighters(form, content_house):
+    """Build grouped fighter data for the add fighter template.
+
+    Returns a list of (house_name, fighters) tuples where each fighter is a dict
+    with id, type, category, and cost fields for structured template rendering.
+    """
+    queryset = form.fields["content_fighter"].queryset
+    sort_key = group_sorter(content_house.name if content_house else "")
+
+    groups = []
+    for house_name, fighters in groupby(queryset, key=fighter_group_key):
+        fighter_list = []
+        for f in fighters:
+            cost = f.cost_for_house(content_house) if content_house else f.cost_int()
+            fighter_list.append(
+                {
+                    "id": str(f.id),
+                    "type": f.type,
+                    "category": f.cat(),
+                    "cost": cost,
+                }
+            )
+        groups.append((house_name, fighter_list))
+
+    groups.sort(key=lambda x: sort_key(x[0]))
+
+    # Merge adjacent groups with the same key after sorting
+    merged = []
+    for house_name, fighters in groups:
+        if merged and merged[-1][0] == house_name:
+            merged[-1] = (house_name, merged[-1][1] + fighters)
+        else:
+            merged.append((house_name, fighters))
+
+    return merged
+
+
 @login_required
 def new_list_fighter(request, id):
     """
@@ -41,6 +80,8 @@ def new_list_fighter(request, id):
         The :model:`core.List` to which this fighter will be added.
     ``error_message``
         None or a string describing a form error.
+    ``fighter_groups``
+        List of (house_name, fighters) tuples for the fighter type picker.
 
     **Template**
 
@@ -70,7 +111,14 @@ def new_list_fighter(request, id):
                 return render(
                     request,
                     "core/list_fighter_new.html",
-                    {"form": form, "list": lst, "error_message": error_message},
+                    {
+                        "form": form,
+                        "list": lst,
+                        "error_message": error_message,
+                        "fighter_groups": _build_grouped_fighters(
+                            form, lst.content_house
+                        ),
+                    },
                 )
 
             # Log the fighter creation event (HTTP-specific)
@@ -99,7 +147,12 @@ def new_list_fighter(request, id):
     return render(
         request,
         "core/list_fighter_new.html",
-        {"form": form, "list": lst, "error_message": error_message},
+        {
+            "form": form,
+            "list": lst,
+            "error_message": error_message,
+            "fighter_groups": _build_grouped_fighters(form, lst.content_house),
+        },
     )
 
 
