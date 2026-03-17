@@ -843,6 +843,11 @@ urlpatterns = [
         pack_views.remove_pack_fighter_equipment_list_item,
         name="pack-fighter-equipment-list-item-remove",
     ),
+    path(
+        "pack/<id>/item/<item_id>/equipment-list/<eli_id>/edit/",
+        pack_views.edit_pack_fighter_equipment_list_item,
+        name="pack-fighter-equipment-list-edit",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

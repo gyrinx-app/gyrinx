@@ -8,50 +8,40 @@
             <h3 class="h6 mb-0">Weapons</h3>
             <a href="{% url 'core:pack-fighter-equipment-list-weapon-add' pack.id pack_item.id %}"
                class="btn btn-outline-primary btn-sm ms-auto">
-                <i class="bi-plus"></i> Add weapon
+                <i class="bi-plus"></i> Add weapons
             </a>
         </div>
         {% if equip_list_weapon_groups %}
-            <table class="table table-sm table-borderless mb-0 fs-7">
-                {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
+            <ul class="list-unstyled mb-0">
                 {% for group in equip_list_weapon_groups %}
-                    <tbody id="{{ group.items.0.id }}"
-                           class="table-group-divider {% flash group.items.0.id %}">
-                        <tr>
-                            <td colspan="9">
+                    <li id="{{ group.items.0.id }}" class="py-1 {% flash group.items.0.id %}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>
                                 {{ group.equipment.name }}
-                                {% with group.items.0 as base_eli %}
-                                    {% if base_eli.cost %}<span class="text-secondary">({{ base_eli.cost_display }})</span>{% endif %}
-                                    <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id base_eli.id %}"
-                                       class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
-                                {% endwith %}
-                            </td>
-                        </tr>
-                        {% for profile in group.profiles %}
-                            <tr class="align-top">
-                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
-                                    {% if profile.name %}
-                                        <i class="bi-dash"></i> {{ profile.name }}
-                                        {% for eli in group.items %}
-                                            {% if eli.weapon_profile_id == profile.id %}
-                                                {% if eli.cost %}<span class="text-secondary">(+{{ eli.cost_display }})</span>{% endif %}
-                                                <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
-                                                   class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% endif %}
-                                </td>
-                                {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
-                            </tr>
-                            {% if profile.traitline_cached|length > 0 %}
-                                <tr>
-                                    <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
-                                </tr>
+                                <span class="text-secondary">({{ group.items.0.cost_display }})</span>
+                            </span>
+                            <span>
+                                <a href="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id group.items.0.id %}"
+                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id group.items.0.id %}"
+                                   class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                            </span>
+                        </div>
+                        {% for eli in group.items %}
+                            {% if eli.weapon_profile_id %}
+                                <div class="d-flex justify-content-between align-items-center ps-3">
+                                    <span class="text-secondary">
+                                        <i class="bi-dash"></i> {{ eli.weapon_profile.name }}
+                                        <span>(+{{ eli.cost_display }})</span>
+                                    </span>
+                                    <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
+                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                </div>
                             {% endif %}
                         {% endfor %}
-                    </tbody>
+                    </li>
                 {% endfor %}
-            </table>
+            </ul>
         {% else %}
             <p class="text-secondary small mb-0">No available weapons.</p>
         {% endif %}
@@ -72,10 +62,14 @@
                         class="py-1 d-flex justify-content-between align-items-center {% flash eli.id %}">
                         <span>
                             {{ eli.equipment.name }}
-                            {% if eli.cost %}<span class="text-secondary">({{ eli.cost_display }})</span>{% endif %}
+                            <span class="text-secondary">({{ eli.cost_display }})</span>
                         </span>
-                        <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
-                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                        <span>
+                            <a href="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id eli.id %}"
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                            <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
+                               class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                        </span>
                     </li>
                 {% endfor %}
             </ul>
