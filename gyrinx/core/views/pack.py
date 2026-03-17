@@ -440,8 +440,7 @@ class PacksView(GroupMembershipRequiredMixin, generic.ListView):
             show_my_packs = self.request.GET.get("my", "1")
             if show_my_packs == "1":
                 queryset = queryset.filter(
-                    models.Q(owner=self.request.user)
-                    | models.Q(Exists(has_permission))
+                    models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
                 )
             else:
                 queryset = queryset.filter(
