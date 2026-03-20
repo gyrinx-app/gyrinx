@@ -15,48 +15,50 @@
                         {% if user_lists %}
                             <a href="{% url 'core:pack-lists' pack.id %}"
                                class="btn btn-primary btn-sm">
-                                <i class="bi-list-ul"></i> Add to a List
+                                <i class="bi-list-ul"></i> Add to List
                                 {% if subscribed_list_ids %}
-                                    <span class="badge bg-primary-subtle text-bg-light ms-1">{{ subscribed_list_ids|length }}</span>
+                                    <span class="badge bg-primary-subtle ms-1">{{ subscribed_list_ids|length }}</span>
                                 {% endif %}
                             </a>
                         {% endif %}
                         {% if user_campaigns %}
                             <a href="{% url 'core:pack-campaigns' pack.id %}"
                                class="btn btn-primary btn-sm">
-                                <i class="bi-award"></i> Add to a Campaign
+                                <i class="bi-award"></i> Add to Campaign
                                 {% if subscribed_campaign_ids %}
-                                    <span class="badge bg-primary-subtle text-bg-light ms-1">{{ subscribed_campaign_ids|length }}</span>
+                                    <span class="badge bg-primary-subtle ms-1">{{ subscribed_campaign_ids|length }}</span>
                                 {% endif %}
                             </a>
                         {% endif %}
-                        <div class="btn-group flex-nowrap">
-                            {% if can_edit %}
-                                <a href="{% url 'core:pack-edit' pack.id %}"
-                                   class="btn btn-secondary btn-sm">
-                                    <i class="bi-pencil"></i> Edit
-                                </a>
-                            {% endif %}
-                            {% if is_owner %}
-                                <div class="btn-group" role="group">
-                                    <button type="button"
-                                            class="btn btn-secondary btn-sm dropdown-toggle"
-                                            data-bs-toggle="dropdown"
-                                            aria-expanded="false"
-                                            aria-label="More options">
-                                        <i class="bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li>
-                                            <a href="{% url 'core:pack-permissions' pack.id %}"
-                                               class="dropdown-item icon-link">
-                                                <i class="bi-people"></i> Permissions
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </div>
-                            {% endif %}
-                        </div>
+                        {% if can_edit or is_owner %}
+                            <div class="btn-group flex-nowrap">
+                                {% if can_edit %}
+                                    <a href="{% url 'core:pack-edit' pack.id %}"
+                                       class="btn btn-secondary btn-sm">
+                                        <i class="bi-pencil"></i> Edit
+                                    </a>
+                                {% endif %}
+                                {% if is_owner %}
+                                    <div class="btn-group" role="group">
+                                        <button type="button"
+                                                class="btn btn-secondary btn-sm dropdown-toggle"
+                                                data-bs-toggle="dropdown"
+                                                aria-expanded="false"
+                                                aria-label="More options">
+                                            <i class="bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <a href="{% url 'core:pack-permissions' pack.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-people"></i> Permissions
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                     </nav>
                 {% endif %}
             </div>
