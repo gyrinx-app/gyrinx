@@ -2514,12 +2514,13 @@ def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             ContentFighterEquipmentListItem.objects.filter(
                 fighter=content_fighter, equipment=eli.equipment
             )
-            .select_related("weapon_profile")
+            .select_related("equipment", "weapon_profile")
             .order_by(
                 models.Case(
                     models.When(weapon_profile__isnull=True, then=0),
                     default=1,
                 ),
+                "weapon_profile__name",
             )
         )
     else:

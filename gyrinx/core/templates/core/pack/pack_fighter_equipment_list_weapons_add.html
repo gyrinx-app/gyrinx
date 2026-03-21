@@ -178,12 +178,18 @@
             var zeroCostWarningText = document.getElementById("zero-cost-warning-text");
 
             function updateWarning() {
-                var checked = form.querySelectorAll(".weapon-check:checked");
                 var zeroCount = 0;
-                for (var i = 0; i < checked.length; i++) {
-                    var id = checked[i].value;
-                    var costInput = form.querySelector('input[name="cost_' + id + '"]');
+                // Check base weapons.
+                var weapons = form.querySelectorAll(".weapon-check:checked");
+                for (var i = 0; i < weapons.length; i++) {
+                    var costInput = form.querySelector('input[name="cost_' + weapons[i].value + '"]');
                     if (costInput && (costInput.value === "" || costInput.value === "0")) zeroCount++;
+                }
+                // Check selected profiles.
+                var profiles = form.querySelectorAll(".profile-check:checked");
+                for (var j = 0; j < profiles.length; j++) {
+                    var pCostInput = form.querySelector('input[name="profile_cost_' + profiles[j].value + '"]');
+                    if (pCostInput && (pCostInput.value === "" || pCostInput.value === "0")) zeroCount++;
                 }
                 if (zeroCount > 0) {
                     zeroCostWarningText.textContent = zeroCount + " item" + (zeroCount > 1 ? "s" : "") + " at 0¢ — are you sure?";
@@ -203,9 +209,11 @@
                         if (!e.target.checked) children[i].checked = false;
                     }
                 }
-                // Update submit button count.
-                var count = form.querySelectorAll(".weapon-check:checked").length;
-                submitBtn.disabled = count === 0;
+                // Update submit button count (weapons + profiles).
+                var weaponCount = form.querySelectorAll(".weapon-check:checked").length;
+                var profileCount = form.querySelectorAll(".profile-check:checked").length;
+                var count = weaponCount + profileCount;
+                submitBtn.disabled = weaponCount === 0;
                 submitBtnText.textContent = count ? "Add selected (" + count + ")" : "Add selected";
                 updateWarning();
             });

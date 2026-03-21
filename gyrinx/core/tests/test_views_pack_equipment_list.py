@@ -633,3 +633,26 @@ def test_non_owner_cannot_remove_item(
     response = client.post(url)
     assert response.status_code == 404
     assert ContentFighterEquipmentListItem.objects.filter(pk=eli.pk).exists()
+
+
+@pytest.mark.django_db
+def test_non_owner_cannot_edit_item(
+    client, make_user, pack, pack_fighter, base_weapon, custom_content_group
+):
+    fighter, pack_item = pack_fighter
+    eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=base_weapon, cost=10
+    )
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-edit",
+        args=(pack.id, pack_item.id, eli.id),
+    )
+    response = client.get(url)
+    assert response.status_code == 404
+    response = client.post(url, {f"cost_{eli.pk}": "99"})
+    assert response.status_code == 404
+    eli.refresh_from_db()
+    assert eli.cost == 10
