@@ -270,9 +270,11 @@ def test_edit_page_shows_pack_weapon_profile_in_equipment_list(
     response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
     assert response.status_code == 200
     assert b"Combat Shotgun" in response.content
-    assert b"Scatter" in response.content
-    assert b"Slug" in response.content
+    # Simplified display shows profile names for non-standard profiles only.
     assert b"Executioner" in response.content
+    # Cost values should be visible.
+    assert "60¢".encode() in response.content
+    assert "20¢".encode() in response.content
 
 
 # -- Add equipment list weapon --
@@ -506,6 +508,80 @@ def test_remove_equipment_list_item_post(
     assert not ContentFighterEquipmentListItem.objects.filter(pk=eli.pk).exists()
 
 
+# -- Edit equipment list item --
+
+
+@pytest.mark.django_db
+def test_edit_equipment_list_item_get(
+    client, group_user, pack, pack_fighter, base_weapon
+):
+    fighter, pack_item = pack_fighter
+    eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=base_weapon, cost=15
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-edit",
+        args=(pack.id, pack_item.id, eli.id),
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    assert b"Autogun" in response.content
+    assert b'value="15"' in response.content
+
+
+@pytest.mark.django_db
+def test_edit_equipment_list_item_post(
+    client, group_user, pack, pack_fighter, base_weapon
+):
+    fighter, pack_item = pack_fighter
+    eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=base_weapon, cost=15
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-edit",
+        args=(pack.id, pack_item.id, eli.id),
+    )
+    response = client.post(url, {f"cost_{eli.pk}": "25"})
+    assert response.status_code == 302
+    eli.refresh_from_db()
+    assert eli.cost == 25
+
+
+@pytest.mark.django_db
+def test_edit_equipment_list_weapon_group(
+    client, group_user, pack, pack_fighter, weapon_with_profiles
+):
+    """Editing a weapon group updates costs for base and profile items."""
+    fighter, pack_item = pack_fighter
+    non_standard = ContentWeaponProfile.objects.get(
+        equipment=weapon_with_profiles, cost__gt=0
+    )
+    base_eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=weapon_with_profiles, weapon_profile=None, cost=35
+    )
+    profile_eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter,
+        equipment=weapon_with_profiles,
+        weapon_profile=non_standard,
+        cost=15,
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-edit",
+        args=(pack.id, pack_item.id, base_eli.id),
+    )
+    response = client.post(
+        url, {f"cost_{base_eli.pk}": "40", f"cost_{profile_eli.pk}": "20"}
+    )
+    assert response.status_code == 302
+    base_eli.refresh_from_db()
+    profile_eli.refresh_from_db()
+    assert base_eli.cost == 40
+    assert profile_eli.cost == 20
+
+
 # -- Permission checks --
 
 
@@ -557,3 +633,26 @@ def test_non_owner_cannot_remove_item(
     response = client.post(url)
     assert response.status_code == 404
     assert ContentFighterEquipmentListItem.objects.filter(pk=eli.pk).exists()
+
+
+@pytest.mark.django_db
+def test_non_owner_cannot_edit_item(
+    client, make_user, pack, pack_fighter, base_weapon, custom_content_group
+):
+    fighter, pack_item = pack_fighter
+    eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=base_weapon, cost=10
+    )
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-edit",
+        args=(pack.id, pack_item.id, eli.id),
+    )
+    response = client.get(url)
+    assert response.status_code == 404
+    response = client.post(url, {f"cost_{eli.pk}": "99"})
+    assert response.status_code == 404
+    eli.refresh_from_db()
+    assert eli.cost == 10

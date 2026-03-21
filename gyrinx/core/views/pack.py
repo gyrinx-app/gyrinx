@@ -1275,7 +1275,7 @@ def edit_pack_item(request, id, item_id):
                 ),
             )
         )
-        # Group weapon items by equipment for table display.
+        # Group weapon items by equipment for simplified display.
         weapon_items = [
             eli for eli in equipment_list_items if eli.equipment.is_weapon()
         ]
@@ -1291,29 +1291,6 @@ def edit_pack_item(request, id, item_id):
                 seen_equipment[eid] = group
                 equip_list_weapon_groups.append(group)
             seen_equipment[eid]["items"].append(eli)
-        # Build profile lists: standard profiles (auto-included) plus
-        # non-standard profiles that have an explicit equipment list entry.
-        # Query profiles directly with with_packs() to include pack profiles
-        # (the reverse FK default manager excludes them).
-        if equip_list_weapon_groups:
-            equipment_ids = [g["equipment"].pk for g in equip_list_weapon_groups]
-            all_profiles_by_equipment = {}
-            for p in ContentWeaponProfile.objects.with_packs([pack]).filter(
-                equipment_id__in=equipment_ids
-            ):
-                all_profiles_by_equipment.setdefault(p.equipment_id, []).append(p)
-            for group in equip_list_weapon_groups:
-                all_profiles = all_profiles_by_equipment.get(group["equipment"].pk, [])
-                selected_profile_ids = {
-                    eli.weapon_profile_id
-                    for eli in group["items"]
-                    if eli.weapon_profile_id is not None
-                }
-                group["profiles"] = [
-                    p
-                    for p in all_profiles
-                    if p.cost == 0 or p.id in selected_profile_ids
-                ]
         context["equip_list_weapon_groups"] = equip_list_weapon_groups
         context["equip_list_gear"] = [
             eli for eli in equipment_list_items if not eli.equipment.is_weapon()
@@ -2511,5 +2488,65 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             "pack_item": pack_item,
             "content_fighter": content_fighter,
             "eli": eli,
+        },
+    )
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+@transaction.atomic
+def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
+    """Edit cost of equipment list items for a pack fighter."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    eli = get_object_or_404(
+        ContentFighterEquipmentListItem.objects.select_related(
+            "equipment", "weapon_profile"
+        ),
+        pk=eli_id,
+        fighter=content_fighter,
+    )
+
+    # For weapons, gather the whole group (base + profiles).
+    if eli.equipment.is_weapon() and eli.weapon_profile is None:
+        group_items = list(
+            ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter, equipment=eli.equipment
+            )
+            .select_related("equipment", "weapon_profile")
+            .order_by(
+                models.Case(
+                    models.When(weapon_profile__isnull=True, then=0),
+                    default=1,
+                ),
+                "weapon_profile__name",
+            )
+        )
+    else:
+        group_items = [eli]
+
+    if request.method == "POST":
+        for item in group_items:
+            cost_str = request.POST.get(f"cost_{item.pk}", "")
+            try:
+                item.cost = max(0, int(cost_str))
+            except (ValueError, TypeError):
+                pass
+            item._history_user = request.user
+            item.save()
+
+        url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+        return HttpResponseRedirect(f"{url}?flash={eli.id}#{eli.id}")
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_item_edit.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "eli": eli,
+            "group_items": group_items,
         },
     )

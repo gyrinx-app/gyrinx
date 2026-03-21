@@ -18,18 +18,25 @@
               id="bulk-form">
             {% csrf_token %}
             <!-- Filter + submit bar -->
-            <div class="d-flex gap-3 mb-3">
-                <button type="submit"
-                        class="btn btn-success flex-shrink-0"
-                        id="submit-btn"
-                        disabled>
-                    <i class="bi-plus-lg me-1"></i>
-                    <span id="submit-btn-text">Add selected</span>
-                </button>
-                <input type="search"
-                       id="filter-input"
-                       class="form-control form-control-sm"
-                       placeholder="Filter weapons...">
+            <div class="d-flex flex-column gap-2 mb-3">
+                <div class="d-flex gap-3">
+                    <button type="submit"
+                            class="btn btn-success flex-shrink-0"
+                            id="submit-btn"
+                            disabled>
+                        <i class="bi-plus-lg me-1"></i>
+                        <span id="submit-btn-text">Add selected</span>
+                    </button>
+                    <input type="search"
+                           id="filter-input"
+                           class="form-control form-control-sm"
+                           placeholder="Filter weapons...">
+                </div>
+                <div id="zero-cost-warning"
+                     class="bg-warning-subtle text-warning-emphasis rounded p-2 small d-none">
+                    <i class="bi-exclamation-triangle"></i>
+                    <span id="zero-cost-warning-text"></span>
+                </div>
             </div>
             <!-- Weapons by category -->
             {% for category_name, weapons in categories.items %}
@@ -51,7 +58,7 @@
                                     <th class="text-center" scope="col">Ap</th>
                                     <th class="text-center" scope="col">D</th>
                                     <th class="text-center" scope="col">Am</th>
-                                    <th class="text-center w-auto" scope="col">Cost</th>
+                                    <th class="text-center w-em-5" scope="col">Cost</th>
                                 </tr>
                             </thead>
                             {% for weapon in weapons %}
@@ -79,7 +86,7 @@
                                                            name="cost_{{ weapon.equipment.id }}"
                                                            value="0"
                                                            min="0"
-                                                           class="form-control form-control-sm text-center p-0 w-auto">
+                                                           class="form-control form-control-sm text-center p-0 w-em-5">
                                                 </td>
                                             </tr>
                                         {% endif %}
@@ -109,7 +116,7 @@
                                                            name="cost_{{ weapon.equipment.id }}"
                                                            value="0"
                                                            min="0"
-                                                           class="form-control form-control-sm text-center p-0"
+                                                           class="form-control form-control-sm text-center p-0 w-em-5"
                                                            class="w-auto">
                                                 </td>
                                             {% endif %}
@@ -141,7 +148,7 @@
                                                        name="profile_cost_{{ profile.id }}"
                                                        value="0"
                                                        min="0"
-                                                       class="form-control form-control-sm text-center p-0"
+                                                       class="form-control form-control-sm text-center p-0 w-em-5"
                                                        class="w-auto">
                                             </td>
                                         </tr>
@@ -167,6 +174,30 @@
             var filterInput = document.getElementById("filter-input");
             var submitBtn = document.getElementById("submit-btn");
             var submitBtnText = document.getElementById("submit-btn-text");
+            var zeroCostWarning = document.getElementById("zero-cost-warning");
+            var zeroCostWarningText = document.getElementById("zero-cost-warning-text");
+
+            function updateWarning() {
+                var zeroCount = 0;
+                // Check base weapons.
+                var weapons = form.querySelectorAll(".weapon-check:checked");
+                for (var i = 0; i < weapons.length; i++) {
+                    var costInput = form.querySelector('input[name="cost_' + weapons[i].value + '"]');
+                    if (costInput && (costInput.value === "" || costInput.value === "0")) zeroCount++;
+                }
+                // Check selected profiles.
+                var profiles = form.querySelectorAll(".profile-check:checked");
+                for (var j = 0; j < profiles.length; j++) {
+                    var pCostInput = form.querySelector('input[name="profile_cost_' + profiles[j].value + '"]');
+                    if (pCostInput && (pCostInput.value === "" || pCostInput.value === "0")) zeroCount++;
+                }
+                if (zeroCount > 0) {
+                    zeroCostWarningText.textContent = zeroCount + " item" + (zeroCount > 1 ? "s" : "") + " at 0¢ — are you sure?";
+                    zeroCostWarning.classList.remove("d-none");
+                } else {
+                    zeroCostWarning.classList.add("d-none");
+                }
+            }
 
             // Parent checkbox enables/disables child profile checkboxes.
             form.addEventListener("change", function (e) {
@@ -178,10 +209,16 @@
                         if (!e.target.checked) children[i].checked = false;
                     }
                 }
-                // Update submit button count.
-                var count = form.querySelectorAll(".weapon-check:checked").length;
-                submitBtn.disabled = count === 0;
+                // Update submit button count (weapons + profiles).
+                var weaponCount = form.querySelectorAll(".weapon-check:checked").length;
+                var profileCount = form.querySelectorAll(".profile-check:checked").length;
+                var count = weaponCount + profileCount;
+                submitBtn.disabled = weaponCount === 0;
                 submitBtnText.textContent = count ? "Add selected (" + count + ")" : "Add selected";
+                updateWarning();
+            });
+            form.addEventListener("input", function (e) {
+                if (e.target.type === "number") updateWarning();
             });
 
             // Client-side filtering by weapon name.

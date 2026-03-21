@@ -1,0 +1,45 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Edit equipment list item - {{ content_fighter.type }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Edit equipment list cost</h1>
+        <form action="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id eli.id %}"
+              method="post">
+            {% csrf_token %}
+            <div class="vstack gap-2">
+                {% for item in group_items %}
+                    <div class="d-flex align-items-center gap-3">
+                        <label for="cost-{{ item.id }}" class="form-label mb-0 flex-grow-1">
+                            {% if item.weapon_profile %}
+                                {{ item.weapon_profile.name }}
+                            {% else %}
+                                {{ item.equipment.name }}
+                            {% endif %}
+                        </label>
+                        <input type="number"
+                               name="cost_{{ item.id }}"
+                               id="cost-{{ item.id }}"
+                               value="{{ item.cost }}"
+                               min="0"
+                               class="form-control form-control-sm text-center w-em-5">
+                    </div>
+                {% endfor %}
+            </div>
+            {% if group_items|length > 1 %}
+                <p class="form-text">
+                    To add a new profile, remove this item from the equipment list and re-add it with the profiles you want.
+                </p>
+            {% endif %}
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
+                   class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

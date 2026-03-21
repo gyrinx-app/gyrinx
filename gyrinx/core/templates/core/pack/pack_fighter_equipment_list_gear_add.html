@@ -18,18 +18,25 @@
               id="bulk-form">
             {% csrf_token %}
             <!-- Filter + submit bar -->
-            <div class="d-flex gap-3 mb-3">
-                <button type="submit"
-                        class="btn btn-success flex-shrink-0"
-                        id="submit-btn"
-                        disabled>
-                    <i class="bi-plus-lg me-1"></i>
-                    <span id="submit-btn-text">Add selected</span>
-                </button>
-                <input type="search"
-                       id="filter-input"
-                       class="form-control form-control-sm"
-                       placeholder="Filter gear...">
+            <div class="d-flex flex-column gap-2 mb-3">
+                <div class="d-flex gap-3">
+                    <button type="submit"
+                            class="btn btn-success flex-shrink-0"
+                            id="submit-btn"
+                            disabled>
+                        <i class="bi-plus-lg me-1"></i>
+                        <span id="submit-btn-text">Add selected</span>
+                    </button>
+                    <input type="search"
+                           id="filter-input"
+                           class="form-control form-control-sm"
+                           placeholder="Filter weapons...">
+                </div>
+                <div id="zero-cost-warning"
+                     class="bg-warning-subtle text-warning-emphasis rounded p-2 small d-none">
+                    <i class="bi-exclamation-triangle"></i>
+                    <span id="zero-cost-warning-text"></span>
+                </div>
             </div>
             <!-- Gear by category -->
             <div class="grid">
@@ -44,7 +51,7 @@
                                     <tr>
                                         <th scope="col" class="pe-0"></th>
                                         <th scope="col">Gear</th>
-                                        <th class="text-center w-auto" scope="col">Cost</th>
+                                        <th class="text-center w-em-5" scope="col">Cost</th>
                                     </tr>
                                 </thead>
                                 <tbody class="table-group-divider">
@@ -65,7 +72,7 @@
                                                        name="cost_{{ item.id }}"
                                                        value="0"
                                                        min="0"
-                                                       class="form-control form-control-sm text-center p-0 w-auto">
+                                                       class="form-control form-control-sm text-center p-0 w-em-5">
                                             </td>
                                         </tr>
                                     {% endfor %}
@@ -87,12 +94,34 @@
             var filterInput = document.getElementById("filter-input");
             var submitBtn = document.getElementById("submit-btn");
             var submitBtnText = document.getElementById("submit-btn-text");
+            var zeroCostWarning = document.getElementById("zero-cost-warning");
+            var zeroCostWarningText = document.getElementById("zero-cost-warning-text");
+
+            function updateWarning() {
+                var checked = form.querySelectorAll(".gear-check:checked");
+                var zeroCount = 0;
+                for (var i = 0; i < checked.length; i++) {
+                    var id = checked[i].value;
+                    var costInput = form.querySelector('input[name="cost_' + id + '"]');
+                    if (costInput && (costInput.value === "" || costInput.value === "0")) zeroCount++;
+                }
+                if (zeroCount > 0) {
+                    zeroCostWarningText.textContent = zeroCount + " item" + (zeroCount > 1 ? "s" : "") + " at 0¢ — are you sure?";
+                    zeroCostWarning.classList.remove("d-none");
+                } else {
+                    zeroCostWarning.classList.add("d-none");
+                }
+            }
 
             // Update submit button count.
             form.addEventListener("change", function () {
                 var count = form.querySelectorAll(".gear-check:checked").length;
                 submitBtn.disabled = count === 0;
                 submitBtnText.textContent = count ? "Add selected (" + count + ")" : "Add selected";
+                updateWarning();
+            });
+            form.addEventListener("input", function (e) {
+                if (e.target.type === "number") updateWarning();
             });
 
             // Client-side filtering by gear name.
