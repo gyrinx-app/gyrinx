@@ -53,7 +53,7 @@ qrcode==8.2
 referencing==0.37.0
 requests>=2.32.4
 rich==14.3.3
-ruff==0.15.6
+ruff==0.15.7
 setuptools==81.0.0
 simpleeval==1.0.7
 sqlparse==0.5.5
