@@ -11,52 +11,54 @@
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="mb-0">{{ pack.name }}</h1>
                 {% if can_edit or user_lists or user_campaigns %}
-                    <nav class="btn-group flex-nowrap ms-md-auto">
-                        {% if can_edit %}
-                            <a href="{% url 'core:pack-edit' pack.id %}"
+                    <nav class="d-flex flex-nowrap gap-2 ms-md-auto">
+                        {% if user_lists %}
+                            <a href="{% url 'core:pack-lists' pack.id %}"
                                class="btn btn-primary btn-sm">
-                                <i class="bi-pencil"></i> Edit
+                                <i class="bi-list-ul"></i> Add to List
+                                {% if subscribed_list_ids %}
+                                    <span class="badge bg-primary-subtle ms-1">{{ subscribed_list_ids|length }}</span>
+                                {% endif %}
                             </a>
                         {% endif %}
-                        <div class="btn-group" role="group">
-                            <button type="button"
-                                    class="btn btn-secondary btn-sm dropdown-toggle"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false"
-                                    aria-label="More options">
-                                <i class="bi-three-dots-vertical"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
+                        {% if user_campaigns %}
+                            <a href="{% url 'core:pack-campaigns' pack.id %}"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi-award"></i> Add to Campaign
+                                {% if subscribed_campaign_ids %}
+                                    <span class="badge bg-primary-subtle ms-1">{{ subscribed_campaign_ids|length }}</span>
+                                {% endif %}
+                            </a>
+                        {% endif %}
+                        {% if can_edit or is_owner %}
+                            <div class="btn-group flex-nowrap">
+                                {% if can_edit %}
+                                    <a href="{% url 'core:pack-edit' pack.id %}"
+                                       class="btn btn-secondary btn-sm">
+                                        <i class="bi-pencil"></i> Edit
+                                    </a>
+                                {% endif %}
                                 {% if is_owner %}
-                                    <li>
-                                        <a href="{% url 'core:pack-permissions' pack.id %}"
-                                           class="dropdown-item icon-link">
-                                            <i class="bi-people"></i> Permissions
-                                        </a>
-                                    </li>
+                                    <div class="btn-group" role="group">
+                                        <button type="button"
+                                                class="btn btn-secondary btn-sm dropdown-toggle"
+                                                data-bs-toggle="dropdown"
+                                                aria-expanded="false"
+                                                aria-label="More options">
+                                            <i class="bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li>
+                                                <a href="{% url 'core:pack-permissions' pack.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-people"></i> Permissions
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 {% endif %}
-                                {% if user_lists %}
-                                    <li>
-                                        <a href="{% url 'core:pack-lists' pack.id %}"
-                                           class="dropdown-item icon-link">
-                                            <i class="bi-list-ul"></i> Add to Lists
-                                            {% if subscribed_list_ids %}<span class="badge bg-primary ms-1">{{ subscribed_list_ids|length }}</span>{% endif %}
-                                        </a>
-                                    </li>
-                                {% endif %}
-                                {% if user_campaigns %}
-                                    <li>
-                                        <a href="{% url 'core:pack-campaigns' pack.id %}"
-                                           class="dropdown-item icon-link">
-                                            <i class="bi-flag"></i> Add to Campaigns
-                                            {% if subscribed_campaign_ids %}
-                                                <span class="badge bg-primary ms-1">{{ subscribed_campaign_ids|length }}</span>
-                                            {% endif %}
-                                        </a>
-                                    </li>
-                                {% endif %}
-                            </ul>
-                        </div>
+                            </div>
+                        {% endif %}
                     </nav>
                 {% endif %}
             </div>

@@ -416,7 +416,7 @@ def test_pack_detail_shows_add_to_campaigns(client, cc_user, make_campaign):
     response = client.get(reverse("core:pack", args=[pack.id]))
 
     assert response.status_code == 200
-    assert b"Add to Campaigns" in response.content
+    assert b"Add to Campaign" in response.content
 
 
 @pytest.mark.django_db
@@ -433,7 +433,7 @@ def test_pack_detail_shows_campaign_badge_count(client, cc_user, make_campaign):
 
     assert response.status_code == 200
     # Badge should show count of 1
-    assert b"Add to Campaigns" in response.content
+    assert b"Add to Campaign" in response.content
 
 
 @pytest.mark.django_db
