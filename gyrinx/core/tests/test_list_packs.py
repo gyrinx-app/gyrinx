@@ -364,7 +364,7 @@ class TestPackDetailViewSubscription:
         url = reverse("core:pack", args=(pack.id,))
         response = client.get(url)
         assert response.status_code == 200
-        assert b"Add to a List" in response.content
+        assert b"Add to List" in response.content
 
     def test_pack_detail_shows_subscribed_badge(self, client, cc_user, pack, make_list):
         client.force_login(cc_user)
@@ -374,7 +374,7 @@ class TestPackDetailViewSubscription:
         response = client.get(url)
         assert response.status_code == 200
         # Badge with count should appear next to the button
-        assert b"Add to a List" in response.content
+        assert b"Add to List" in response.content
 
 
 @pytest.mark.django_db
