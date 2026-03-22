@@ -1,5 +1,7 @@
 """Tests for the Notes and Lore pages."""
 
+import time
+
 import pytest
 from django.urls import reverse
 
@@ -403,3 +405,40 @@ def test_lore_page_shows_fighter_image(client, user, make_list, make_list_fighte
     response = client.get(reverse("core:list-about", args=[lst.id]))
     # Just verify the page loads - we can't easily test image display without an actual image
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_fighter_save_touches_list_modified(make_list, make_list_fighter):
+    """Test that saving a fighter bumps the parent list's modified timestamp."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    lst.refresh_from_db()
+    original_modified = lst.modified
+
+    # Small delay to ensure timestamps differ
+    time.sleep(0.01)
+
+    fighter.notes = "<p>Updated notes.</p>"
+    fighter.save()
+
+    lst.refresh_from_db()
+    assert lst.modified > original_modified
+
+
+@pytest.mark.django_db
+def test_fighter_narrative_save_touches_list_modified(make_list, make_list_fighter):
+    """Test that saving a fighter's narrative bumps the parent list's modified timestamp."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    lst.refresh_from_db()
+    original_modified = lst.modified
+
+    time.sleep(0.01)
+
+    fighter.narrative = "<p>Updated narrative.</p>"
+    fighter.save()
+
+    lst.refresh_from_db()
+    assert lst.modified > original_modified
