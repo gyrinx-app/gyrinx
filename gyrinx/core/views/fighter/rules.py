@@ -50,14 +50,15 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get query parameters
     search_query = request.GET.get("q", "").strip()
 
+    # Scope all rule queries to the list's subscribed packs.
+    # The default ContentManager excludes pack content, and all_content()
+    # leaks rules from unsubscribed packs.
+    rules_qs = ContentRule.objects.with_packs(lst.packs.all())
+
     # Get default rules from ContentFighter.
-    # Use all_content() to include pack rules assigned to the ContentFighter
-    # — the default manager excludes pack content.
-    default_rules = ContentRule.objects.all_content().filter(
-        contentfighter=fighter.content_fighter
-    )
-    # Use prefetched disabled_rules instead of values_list query
-    disabled_rule_ids = {r.id for r in fighter.disabled_rules.all()}
+    default_rules = rules_qs.filter(contentfighter=fighter.content_fighter)
+    # Query disabled_rules through with_packs to include pack rules.
+    disabled_rule_ids = {r.id for r in rules_qs.filter(disabled_by_fighters=fighter)}
 
     # Build default rules with status
     default_rules_display = []
@@ -69,13 +70,11 @@ def edit_list_fighter_rules(request, id, fighter_id):
             }
         )
 
-    # Get custom rules
-    custom_rules = fighter.custom_rules.all()
+    # Get custom rules through with_packs to include pack rules.
+    custom_rules = rules_qs.filter(custom_for_fighters=fighter)
 
-    # Get all available rules for search, including rules from subscribed packs
-    available_rules: QuerySetOf[ContentRule] = ContentRule.objects.with_packs(
-        lst.packs.all()
-    )
+    # Get all available rules for search
+    available_rules: QuerySetOf[ContentRule] = rules_qs
 
     if search_query:
         available_rules = available_rules.filter(Q(name__icontains=search_query))

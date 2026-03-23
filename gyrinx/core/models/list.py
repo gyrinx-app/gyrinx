@@ -2545,18 +2545,20 @@ class ListFighter(AppBase):
         """
         Get the ruleline for this fighter.
         """
+        # Scope rule queries to the list's subscribed packs.
+        # The default ContentManager excludes pack content, and all_content()
+        # leaks rules from unsubscribed packs. with_packs() includes base-game
+        # rules plus rules from the list's subscribed packs only.
+        packs = self.list.packs.all()
+        rules_qs = ContentRule.objects.with_packs(packs)
+
         # Start with default rules from ContentFighter.
-        # Use all_content() to include pack rules that were assigned to
-        # the ContentFighter — the default manager excludes pack content.
-        rules = list(
-            ContentRule.objects.all_content().filter(
-                contentfighter=self.content_fighter_cached
-            )
-        )
+        rules = list(rules_qs.filter(contentfighter=self.content_fighter_cached))
         modded = []
 
-        # Remove disabled rules
-        disabled_rules_set = set(self.disabled_rules.all())
+        # Remove disabled rules.
+        # Query disabled_rules through with_packs to include pack rules.
+        disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
         rules = [r for r in rules if r not in disabled_rules_set]
 
         # Apply modifications from equipment/items
@@ -2567,8 +2569,9 @@ class ListFighter(AppBase):
             elif mod.mode == "remove" and mod.rule in rules:
                 rules.remove(mod.rule)
 
-        # Add custom rules
-        for custom_rule in self.custom_rules.all():
+        # Add custom rules.
+        # Query through with_packs to include pack rules.
+        for custom_rule in rules_qs.filter(custom_for_fighters=self):
             if custom_rule not in rules:
                 rules.append(custom_rule)
                 modded.append(custom_rule)
