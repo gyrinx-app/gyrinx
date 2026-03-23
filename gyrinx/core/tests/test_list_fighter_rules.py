@@ -622,3 +622,220 @@ def test_pack_rules_visible_in_edit_view(client):
 
     assert response.status_code == 200
     assert "My Pack Rule" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_ruleline_excludes_rules_from_unsubscribed_packs():
+    """Rules from packs the list does NOT subscribe to should not appear in the ruleline."""
+    user = User.objects.create_user(username="rulepackuser", password="testpass")
+    house = ContentHouse.objects.create(name="Rule Pack House")
+
+    # Create two packs.
+    pack_subscribed = CustomContentPack.objects.create(
+        name="Subscribed Pack", owner=user
+    )
+    pack_other = CustomContentPack.objects.create(name="Other Pack", owner=user)
+
+    # Create a rule in each pack.
+    rule_subscribed = ContentRule.objects.create(name="Subscribed Rule")
+    rule_other = ContentRule.objects.create(name="Other Pack Rule")
+    rule_ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack_subscribed,
+        content_type=rule_ct,
+        object_id=rule_subscribed.pk,
+        owner=user,
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack_other,
+        content_type=rule_ct,
+        object_id=rule_other.pk,
+        owner=user,
+    )
+
+    # Create a content fighter with both rules assigned.
+    content_fighter = ContentFighter.objects.create(
+        type="Multi Pack Fighter", house=house, category="GANGER"
+    )
+    content_fighter.rules.add(rule_subscribed, rule_other)
+
+    # Create a list subscribed to only one pack.
+    lst = List.objects.create(name="Scoped List", content_house=house, owner=user)
+    lst.packs.add(pack_subscribed)
+
+    list_fighter = ListFighter.objects.create(
+        name="Scoped Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    ruleline_names = [r.value for r in list_fighter.ruleline]
+    assert "Subscribed Rule" in ruleline_names
+    assert "Other Pack Rule" not in ruleline_names
+
+
+@pytest.mark.django_db
+def test_rules_edit_default_rules_excludes_unsubscribed_packs(client):
+    """Default rules on the rules edit page should only show rules from subscribed packs."""
+    user = User.objects.create_user(username="ruleedituser", password="testpass")
+    house = ContentHouse.objects.create(name="Rule Edit House")
+
+    pack_subscribed = CustomContentPack.objects.create(
+        name="Subscribed Pack", owner=user
+    )
+    pack_other = CustomContentPack.objects.create(name="Other Pack", owner=user)
+
+    rule_subscribed = ContentRule.objects.create(name="Visible Default Rule")
+    rule_other = ContentRule.objects.create(name="Hidden Default Rule")
+    rule_ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack_subscribed,
+        content_type=rule_ct,
+        object_id=rule_subscribed.pk,
+        owner=user,
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack_other,
+        content_type=rule_ct,
+        object_id=rule_other.pk,
+        owner=user,
+    )
+
+    content_fighter = ContentFighter.objects.create(
+        type="Default Rule Fighter", house=house, category="GANGER"
+    )
+    content_fighter.rules.add(rule_subscribed, rule_other)
+
+    lst = List.objects.create(name="Default Rule List", content_house=house, owner=user)
+    lst.packs.add(pack_subscribed)
+
+    list_fighter = ListFighter.objects.create(
+        name="Default Rule Guy",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-rules-edit", args=[lst.id, list_fighter.id])
+    response = client.get(url)
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    # Subscribed pack rule should show as a default rule.
+    assert "Visible Default Rule" in content
+    # Unsubscribed pack rule should NOT show.
+    assert "Hidden Default Rule" not in content
+
+
+@pytest.mark.django_db
+def test_pack_custom_rules_appear_in_ruleline():
+    """Pack rules added as custom rules should appear in the fighter's ruleline."""
+    user = User.objects.create_user(username="custompackrule", password="testpass")
+    house = ContentHouse.objects.create(name="Custom Rule House")
+
+    pack = CustomContentPack.objects.create(name="Custom Rule Pack", owner=user)
+    pack_rule = ContentRule.objects.create(name="Pack Custom Rule")
+    rule_ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=rule_ct, object_id=pack_rule.pk, owner=user
+    )
+
+    content_fighter = ContentFighter.objects.create(
+        type="Custom Rule Fighter", house=house, category="GANGER"
+    )
+
+    lst = List.objects.create(name="Custom Rule List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Custom Rule Guy",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    list_fighter.custom_rules.add(pack_rule)
+
+    ruleline_names = [r.value for r in list_fighter.ruleline]
+    assert "Pack Custom Rule" in ruleline_names
+
+
+@pytest.mark.django_db
+def test_disabling_pack_rule_removes_from_ruleline():
+    """Disabling a pack rule assigned to a ContentFighter should remove it from the ruleline."""
+    user = User.objects.create_user(username="disablepackrule", password="testpass")
+    house = ContentHouse.objects.create(name="Disable Rule House")
+
+    pack = CustomContentPack.objects.create(name="Disable Rule Pack", owner=user)
+    pack_rule = ContentRule.objects.create(name="Disableable Pack Rule")
+    rule_ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=rule_ct, object_id=pack_rule.pk, owner=user
+    )
+
+    content_fighter = ContentFighter.objects.create(
+        type="Disable Rule Fighter", house=house, category="GANGER"
+    )
+    content_fighter.rules.add(pack_rule)
+
+    lst = List.objects.create(name="Disable Rule List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Disable Rule Guy",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Rule should appear before disabling.
+    assert "Disableable Pack Rule" in [r.value for r in list_fighter.ruleline]
+
+    # Disable it.
+    list_fighter.disabled_rules.add(pack_rule)
+
+    # Clear cached property if any, re-fetch.
+    list_fighter = ListFighter.objects.get(pk=list_fighter.pk)
+    assert "Disableable Pack Rule" not in [r.value for r in list_fighter.ruleline]
+
+
+@pytest.mark.django_db
+def test_pack_custom_rules_appear_on_rules_edit_page(client):
+    """Pack rules added as custom rules should appear in the User-added Rules section."""
+    user = User.objects.create_user(username="customedituser", password="testpass")
+    house = ContentHouse.objects.create(name="Custom Edit House")
+
+    pack = CustomContentPack.objects.create(name="Custom Edit Pack", owner=user)
+    pack_rule = ContentRule.objects.create(name="User Added Pack Rule")
+    rule_ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=rule_ct, object_id=pack_rule.pk, owner=user
+    )
+
+    content_fighter = ContentFighter.objects.create(
+        type="Custom Edit Fighter", house=house, category="GANGER"
+    )
+
+    lst = List.objects.create(name="Custom Edit List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Custom Edit Guy",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    list_fighter.custom_rules.add(pack_rule)
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-rules-edit", args=[lst.id, list_fighter.id])
+    response = client.get(url)
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    # The rule should appear in the User-added Rules section, not just in the
+    # Add Rules search. If custom_rules.all() filters it out, we'd see the
+    # empty state instead.
+    assert "No user-added rules" not in content
+    assert "User Added Pack Rule" in content
