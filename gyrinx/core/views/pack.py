@@ -11,7 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
-from django.db.models import Prefetch
+from django.db.models import Exists, OuterRef, Prefetch
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -434,18 +434,20 @@ class PacksView(GroupMembershipRequiredMixin, generic.ListView):
 
         # Default to user's own packs if authenticated
         if self.request.user.is_authenticated:
+            has_permission = CustomContentPackPermission.objects.filter(
+                pack=OuterRef("pk"), user=self.request.user
+            )
             show_my_packs = self.request.GET.get("my", "1")
             if show_my_packs == "1":
                 queryset = queryset.filter(
-                    models.Q(owner=self.request.user)
-                    | models.Q(permissions__user=self.request.user)
-                ).distinct()
+                    models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
+                )
             else:
                 queryset = queryset.filter(
                     models.Q(listed=True)
                     | models.Q(owner=self.request.user)
-                    | models.Q(permissions__user=self.request.user)
-                ).distinct()
+                    | models.Q(Exists(has_permission))
+                )
         else:
             queryset = queryset.filter(listed=True)
 
