@@ -512,6 +512,14 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                 else:
                     active_by_slug[slug].append(entry_data)
 
+        # Sort fighter items by house name for grouped display.
+        fighter_items = active_by_slug.get("fighter", [])
+        fighter_items.sort(
+            key=lambda e: (
+                str(e["content_object"].house) if e["content_object"].house else "",
+            )
+        )
+
         content_sections = []
         for ct_entry in SUPPORTED_CONTENT_TYPES:
             items = active_by_slug.get(ct_entry.slug, [])
