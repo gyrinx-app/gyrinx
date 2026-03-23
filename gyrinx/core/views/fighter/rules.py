@@ -58,7 +58,9 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Get default rules from ContentFighter.
     default_rules = rules_qs.filter(contentfighter=fighter.content_fighter)
     # Query disabled_rules through with_packs to include pack rules.
-    disabled_rule_ids = {r.id for r in rules_qs.filter(disabled_by_fighters=fighter)}
+    disabled_rule_ids = set(
+        rules_qs.filter(disabled_by_fighters=fighter).values_list("id", flat=True)
+    )
 
     # Build default rules with status
     default_rules_display = []

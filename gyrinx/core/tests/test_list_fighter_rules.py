@@ -762,6 +762,45 @@ def test_pack_custom_rules_appear_in_ruleline():
 
 
 @pytest.mark.django_db
+def test_disabling_pack_rule_removes_from_ruleline():
+    """Disabling a pack rule assigned to a ContentFighter should remove it from the ruleline."""
+    user = User.objects.create_user(username="disablepackrule", password="testpass")
+    house = ContentHouse.objects.create(name="Disable Rule House")
+
+    pack = CustomContentPack.objects.create(name="Disable Rule Pack", owner=user)
+    pack_rule = ContentRule.objects.create(name="Disableable Pack Rule")
+    rule_ct = ContentType.objects.get_for_model(ContentRule)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=rule_ct, object_id=pack_rule.pk, owner=user
+    )
+
+    content_fighter = ContentFighter.objects.create(
+        type="Disable Rule Fighter", house=house, category="GANGER"
+    )
+    content_fighter.rules.add(pack_rule)
+
+    lst = List.objects.create(name="Disable Rule List", content_house=house, owner=user)
+    lst.packs.add(pack)
+
+    list_fighter = ListFighter.objects.create(
+        name="Disable Rule Guy",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    # Rule should appear before disabling.
+    assert "Disableable Pack Rule" in [r.value for r in list_fighter.ruleline]
+
+    # Disable it.
+    list_fighter.disabled_rules.add(pack_rule)
+
+    # Clear cached property if any, re-fetch.
+    list_fighter = ListFighter.objects.get(pk=list_fighter.pk)
+    assert "Disableable Pack Rule" not in [r.value for r in list_fighter.ruleline]
+
+
+@pytest.mark.django_db
 def test_pack_custom_rules_appear_on_rules_edit_page(client):
     """Pack rules added as custom rules should appear in the User-added Rules section."""
     user = User.objects.create_user(username="customedituser", password="testpass")
