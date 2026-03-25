@@ -55,7 +55,7 @@
                 <div class="table-responsive">
                     <table class="table table-borderless table-sm align-middle mb-0">
                         <tbody>
-                            {% for skill in fighter.skills.all %}
+                            {% for skill in user_added_skills %}
                                 <tr>
                                     <td>{{ skill.name }}</td>
                                     <td class="text-secondary">{{ skill.category.name }}</td>
