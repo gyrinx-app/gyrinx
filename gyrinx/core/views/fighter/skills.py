@@ -74,10 +74,18 @@ def edit_list_fighter_skills(request, id, fighter_id):
             }
         )
 
-    # Get current fighter skills (user-added)
-    current_skill_ids = set(
-        skills_qs.filter(listfighter=fighter).values_list("id", flat=True)
+    # Get user-added skills (for display in the User-added Skills section)
+    user_added_skills = skills_qs.filter(listfighter=fighter)
+
+    # Build the full set of skill IDs to exclude from the search results:
+    # both default skills and user-added skills.
+    default_skill_ids = set(
+        skills_qs.filter(contentfighter=fighter.content_fighter).values_list(
+            "id", flat=True
+        )
     )
+    user_added_skill_ids = set(user_added_skills.values_list("id", flat=True))
+    current_skill_ids = default_skill_ids | user_added_skill_ids
 
     # Get all skill categories with annotations
     # Get fighter's primary and secondary categories including equipment modifications
@@ -202,6 +210,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
             "fighter": fighter,
             "list": lst,
             "default_skills_display": default_skills_display,
+            "user_added_skills": user_added_skills,
             "categories": all_categories,
             "search_query": search_query,
             "category_filter": category_filter,
