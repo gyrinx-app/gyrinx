@@ -4,60 +4,66 @@
       method="get"
       action="{{ action }}#search"
       class="vstack gap-3">
-    {# Category filter #}
-    <div>
-        <div class="form-check form-check-inline mb-0">
-            <input class="form-check-input"
-                   type="radio"
+    {# Search individual skill names #}
+    <div class="row">
+        <div class="col-12 col-lg-6">
+            <input type="hidden" name="flash" value="search">
+            <input type="hidden" name="cb" value="{% cachebuster %}">
+            <input type="hidden"
                    name="category_filter"
-                   id="primary-secondary-only"
-                   value="primary-secondary-only"
-                   data-gy-toggle-submit="search-skills"
-                   {% if not request.GET.category_filter or request.GET.category_filter == "primary-secondary-only" %}checked{% endif %}>
-            <label class="form-check-label mb-0" for="primary-secondary-only">Primary/Secondary Only</label>
-        </div>
-        <div class="form-check form-check-inline mb-0">
-            <input class="form-check-input"
-                   type="radio"
-                   name="category_filter"
-                   id="all"
-                   value="all"
-                   data-gy-toggle-submit="search-skills"
-                   {% if request.GET.category_filter == "all" %}checked{% endif %}>
-            <label class="form-check-label mb-0" for="all">All</label>
-        </div>
-        <div class="form-check form-check-inline mb-0">
-            <input class="form-check-input"
-                   type="radio"
-                   name="category_filter"
-                   id="all-with-restricted"
-                   value="all-with-restricted"
-                   data-gy-toggle-submit="search-skills"
-                   {% if request.GET.category_filter == "all-with-restricted" %}checked{% endif %}>
-            <label class="form-check-label mb-0" for="all-with-restricted">All + Restricted</label>
+                   value="{{ request.GET.category_filter|default:'primary-secondary-only' }}">
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="bi-search"></i>
+                </span>
+                <input class="form-control"
+                       type="search"
+                       placeholder="Search skills"
+                       aria-label="Search skills"
+                       name="q"
+                       value="{{ request.GET.q }}">
+                <button class="btn btn-primary" type="submit">Search</button>
+                {% if request.GET.q %}
+                    <a href="?cb={% cachebuster %}&{% qt_rm request "q" "flash" %}#search"
+                       class="btn btn-outline-secondary">Clear</a>
+                {% endif %}
+            </div>
         </div>
     </div>
+    {# Category filter tabs — preserve q param across tab switches #}
+    <ul class="nav nav-tabs mb-0">
+        <li class="nav-item">
+            <a href="{{ action }}?category_filter=primary-secondary-only{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}&cb={% cachebuster %}#search"
+               class="nav-link {% if not request.GET.category_filter or request.GET.category_filter == 'primary-secondary-only' %}active{% endif %}">
+                Primary/Secondary
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="{{ action }}?category_filter=all{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}&cb={% cachebuster %}#search"
+               class="nav-link {% if request.GET.category_filter == 'all' %}active{% endif %}">All</a>
+        </li>
+        <li class="nav-item">
+            <a href="{{ action }}?category_filter=all-with-restricted{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}&cb={% cachebuster %}#search"
+               class="nav-link {% if request.GET.category_filter == 'all-with-restricted' %}active{% endif %}">
+                All + Restricted
+            </a>
+        </li>
+    </ul>
     {# Category list for quick navigation on large screens #}
-    <div class="table-responsive d-none d-lg-block">
-        <table class="table table-borderless table-sm align-middle mb-0 hidden-sm">
-            <tbody>
-                {% for cat_data in categories %}
-                    <tr>
-                        <td class="ps-2">
-                            <a href="#category-{{ cat_data.category.id }}"
-                               class="text-decoration-none">{{ cat_data.category.name }}</a>
-                        </td>
-                        <td class="pe-2 text-secondary text-end">
-                            {% if cat_data.primary %}
-                                <span class="badge bg-primary">Primary</span>
-                            {% elif cat_data.secondary %}
-                                <span class="badge bg-secondary">Secondary</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="d-none d-lg-block">
+        <div class="row row-cols-3 g-0">
+            {% for cat_data in categories %}
+                <div class="col py-1 px-2 d-flex align-items-center gap-2">
+                    <a href="#category-{{ cat_data.category.id }}"
+                       class="text-decoration-none">{{ cat_data.category.name }}</a>
+                    {% if cat_data.primary %}
+                        <span class="badge bg-primary">Primary</span>
+                    {% elif cat_data.secondary %}
+                        <span class="badge bg-secondary">Secondary</span>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
     </div>
     {# Category dropdown for mobile #}
     <div class="d-lg-none mb-2">
@@ -77,42 +83,6 @@
                     </li>
                 {% endfor %}
             </ul>
-        </div>
-    </div>
-    {# Search individual skill names #}
-    <div class="row">
-        <div class="col-12 col-lg-6 mb-2 mb-lg-0">
-            <input type="hidden" name="flash" value="search">
-            <input type="hidden" name="cb" value="{% cachebuster %}">
-            <div class="input-group">
-                <span class="input-group-text">
-                    <i class="bi-search"></i>
-                </span>
-                <input class="form-control"
-                       type="search"
-                       placeholder="Search skills"
-                       aria-label="Search skills"
-                       name="q"
-                       value="{{ request.GET.q }}">
-                <button class="btn btn-primary" type="submit">Search</button>
-                {% if request.GET.q %}
-                    <a href="?cb={% cachebuster %}&{% qt_rm request "q" "flash" %}#search"
-                       class="btn btn-outline-secondary">Clear</a>
-                {% endif %}
-            </div>
-        </div>
-        <div class="col-12 col-lg-6 mb-2 mb-lg-0">
-            <div class="btn-group align-items-center">
-                <button class="btn btn-link icon-link btn-sm"
-                        type="submit"
-                        id="update-filters">
-                    <i class="bi-arrow-clockwise"></i>
-                    Update
-                </button>
-                •
-                <a class="btn btn-link text-secondary icon-link btn-sm"
-                   href="?cb={% cachebuster %}#search">Reset</a>
-            </div>
         </div>
     </div>
 </form>
