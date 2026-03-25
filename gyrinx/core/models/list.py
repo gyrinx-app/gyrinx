@@ -2341,8 +2341,17 @@ class ListFighter(AppBase):
         """
         from gyrinx.content.models import ContentModSkillTreeAccess
 
-        # Start with base primary skill categories from content fighter
-        categories = set(self.content_fighter.primary_skill_categories.all())
+        # Start with base primary skill categories from content fighter.
+        # Use with_packs() to include pack skill categories — the default
+        # manager on ContentSkillCategory excludes pack content.
+        from gyrinx.content.models.skill import ContentSkillCategory
+
+        packs = self.list.packs.all()
+        categories = set(
+            ContentSkillCategory.objects.with_packs(packs).filter(
+                primary_fighters=self.content_fighter
+            )
+        )
 
         # Apply equipment modifications
         for mod in self._mods:
@@ -2363,8 +2372,16 @@ class ListFighter(AppBase):
         """
         from gyrinx.content.models import ContentModSkillTreeAccess
 
-        # Start with base secondary skill categories from content fighter
-        categories = set(self.content_fighter.secondary_skill_categories.all())
+        # Start with base secondary skill categories from content fighter.
+        # Use with_packs() to include pack skill categories.
+        from gyrinx.content.models.skill import ContentSkillCategory
+
+        packs = self.list.packs.all()
+        categories = set(
+            ContentSkillCategory.objects.with_packs(packs).filter(
+                secondary_fighters=self.content_fighter
+            )
+        )
 
         # Apply equipment modifications
         for mod in self._mods:

@@ -214,3 +214,29 @@ def test_skills_edit_shows_pack_skills(
     response = client.get(url, {"category_filter": "all"})
     assert response.status_code == 200
     assert b"Pack Courage" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_skill_category_in_primary_categories(
+    pack, pack_skill_category, content_house, user
+):
+    """Pack skill categories assigned as primary show in get_primary_skill_categories."""
+    fighter = ContentFighter.objects.create(
+        type="Primary Cat Fighter",
+        category="GANGER",
+        house=content_house,
+        base_cost=50,
+    )
+    fighter.primary_skill_categories.add(pack_skill_category)
+
+    lst = List.objects.create(
+        name="Primary Cat List", owner=user, content_house=content_house
+    )
+    lst.packs.add(pack)
+
+    lf = ListFighter.objects.create(
+        name="Primary Cat Guy", content_fighter=fighter, list=lst, owner=user
+    )
+
+    primary_cats = lf.get_primary_skill_categories()
+    assert pack_skill_category in primary_cats
