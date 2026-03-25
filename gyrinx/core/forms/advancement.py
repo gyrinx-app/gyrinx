@@ -520,10 +520,16 @@ class SkillSelectionForm(forms.Form):
             base_skills_qs = ContentSkill.objects.all()
 
         if fighter and skill_type:
-            # Get existing skills to exclude (use pack-aware queryset)
-            existing_skill_ids = base_skills_qs.filter(listfighter=fighter).values_list(
+            # Get existing skills to exclude: both default skills (from ContentFighter)
+            # and user-added skills (from ListFighter M2M). Use pack-aware queryset
+            # so pack skills are correctly identified.
+            default_skill_ids = base_skills_qs.filter(
+                contentfighter=fighter.content_fighter
+            ).values_list("id", flat=True)
+            user_skill_ids = base_skills_qs.filter(listfighter=fighter).values_list(
                 "id", flat=True
             )
+            existing_skill_ids = set(default_skill_ids) | set(user_skill_ids)
 
             if "primary" in skill_type:
                 # Primary skills - show all skills from primary categories
