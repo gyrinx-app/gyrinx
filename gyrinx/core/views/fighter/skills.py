@@ -53,9 +53,16 @@ def edit_list_fighter_skills(request, id, fighter_id):
     show_primary_secondary_only = category_filter == "primary-secondary-only"
     show_restricted = category_filter == "all-with-restricted"
 
+    # Scope all skill queries to the list's subscribed packs.
+    # The default ContentManager excludes pack content.
+    skills_qs = ContentSkill.objects.with_packs(lst.packs.all())
+    skill_cats_qs = ContentSkillCategory.objects.with_packs(lst.packs.all())
+
     # Get default skills from ContentFighter
-    default_skills = fighter.content_fighter.skills.all()
-    disabled_skill_ids = set(fighter.disabled_skills.values_list("id", flat=True))
+    default_skills = skills_qs.filter(contentfighter=fighter.content_fighter)
+    disabled_skill_ids = set(
+        skills_qs.filter(disabled_for_fighters=fighter).values_list("id", flat=True)
+    )
 
     # Build default skills with status
     default_skills_display = []
@@ -68,7 +75,9 @@ def edit_list_fighter_skills(request, id, fighter_id):
         )
 
     # Get current fighter skills (user-added)
-    current_skill_ids = set(fighter.skills.values_list("id", flat=True))
+    current_skill_ids = set(
+        skills_qs.filter(listfighter=fighter).values_list("id", flat=True)
+    )
 
     # Get all skill categories with annotations
     # Get fighter's primary and secondary categories including equipment modifications
@@ -79,8 +88,8 @@ def edit_list_fighter_skills(request, id, fighter_id):
     primary_category_ids = [cat.id for cat in primary_categories]
     secondary_category_ids = [cat.id for cat in secondary_categories]
 
-    # Build skill categories query
-    skill_cats_query = ContentSkillCategory.objects.all()
+    # Build skill categories query using pack-aware queryset.
+    skill_cats_query = skill_cats_qs
     if show_restricted:
         # When showing restricted, exclude house-specific categories from regular categories
         # They will be added separately as special categories
@@ -106,7 +115,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
     if show_restricted:
         # When showing restricted, get all house-specific categories from all houses
         special_cats = (
-            ContentSkillCategory.objects.filter(houses__isnull=False)
+            skill_cats_qs.filter(houses__isnull=False)
             .distinct()
             .annotate(
                 primary=Case(
@@ -144,18 +153,19 @@ def edit_list_fighter_skills(request, id, fighter_id):
         if show_primary_secondary_only and not (cat.primary or cat.secondary):
             continue
 
-        # Get skills for this category that fighter doesn't have
-        skills_qs = cat.skills.exclude(id__in=current_skill_ids)
+        # Get skills for this category that fighter doesn't have.
+        # Use pack-aware queryset instead of cat.skills (default manager).
+        cat_skills_qs = skills_qs.filter(category=cat).exclude(id__in=current_skill_ids)
 
         # Apply search filter
         if search_query:
-            skills_qs = skills_qs.filter(name__icontains=search_query)
+            cat_skills_qs = cat_skills_qs.filter(name__icontains=search_query)
 
-        if skills_qs.exists():
+        if cat_skills_qs.exists():
             all_categories.append(
                 {
                     "category": cat,
-                    "skills": list(skills_qs.order_by("name")),
+                    "skills": list(cat_skills_qs.order_by("name")),
                     "is_special": False,
                     "primary": cat.primary,
                     "secondary": cat.secondary,
@@ -167,18 +177,18 @@ def edit_list_fighter_skills(request, id, fighter_id):
         if show_primary_secondary_only and not (cat.primary or cat.secondary):
             continue
 
-        # Get skills for this category that fighter doesn't have
-        skills_qs = cat.skills.exclude(id__in=current_skill_ids)
+        # Get skills for this category that fighter doesn't have.
+        cat_skills_qs = skills_qs.filter(category=cat).exclude(id__in=current_skill_ids)
 
         # Apply search filter
         if search_query:
-            skills_qs = skills_qs.filter(name__icontains=search_query)
+            cat_skills_qs = cat_skills_qs.filter(name__icontains=search_query)
 
-        if skills_qs.exists():
+        if cat_skills_qs.exists():
             all_categories.append(
                 {
                     "category": cat,
-                    "skills": list(skills_qs.order_by("name")),
+                    "skills": list(cat_skills_qs.order_by("name")),
                     "is_special": True,
                     "primary": cat.primary,
                     "secondary": cat.secondary,
@@ -217,7 +227,9 @@ def add_list_fighter_skill(request, id, fighter_id):
 
     skill_id = request.POST.get("skill_id")
     if skill_id:
-        skill = get_object_or_404(ContentSkill, id=skill_id)
+        skill = get_object_or_404(
+            ContentSkill.objects.with_packs(lst.packs.all()), id=skill_id
+        )
         fighter.skills.add(skill)
 
         # Log the skill addition event
@@ -259,7 +271,9 @@ def remove_list_fighter_skill(request, id, fighter_id, skill_id):
         owner=lst.owner,
     )
 
-    skill = get_object_or_404(ContentSkill, id=skill_id)
+    skill = get_object_or_404(
+        ContentSkill.objects.with_packs(lst.packs.all()), id=skill_id
+    )
     fighter.skills.remove(skill)
 
     # Log the skill removal event
@@ -300,10 +314,16 @@ def toggle_list_fighter_skill(request, id, fighter_id, skill_id):
         list=lst,
         owner=lst.owner,
     )
-    skill = get_object_or_404(ContentSkill, id=skill_id)
+    skill = get_object_or_404(
+        ContentSkill.objects.with_packs(lst.packs.all()), id=skill_id
+    )
 
-    # Ensure this is a default skill for the fighter
-    if not fighter.content_fighter.skills.filter(id=skill_id).exists():
+    # Ensure this is a default skill for the fighter (use with_packs for pack skills)
+    if (
+        not ContentSkill.objects.with_packs(lst.packs.all())
+        .filter(id=skill_id, contentfighter=fighter.content_fighter)
+        .exists()
+    ):
         messages.error(request, "This skill is not a default skill for this fighter.")
         return HttpResponseRedirect(
             reverse("core:list-fighter-skills-edit", args=(lst.id, fighter.id))

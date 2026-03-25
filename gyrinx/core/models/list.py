@@ -2682,15 +2682,21 @@ class ListFighter(AppBase):
 
     @traced("listfighter_skilline")
     def skilline(self):
+        # Scope skill queries to the list's subscribed packs.
+        packs = self.list.packs.all()
+        skills_qs = ContentSkill.objects.with_packs(packs)
+
         # Start with default skills from ContentFighter
-        default_skills = list(self.content_fighter_cached.skills.all())
+        default_skills = list(
+            skills_qs.filter(contentfighter=self.content_fighter_cached)
+        )
 
         # Remove disabled skills
-        disabled_skills_set = set(self.disabled_skills.all())
+        disabled_skills_set = set(skills_qs.filter(disabled_for_fighters=self))
         default_skills = [s for s in default_skills if s not in disabled_skills_set]
 
         # Combine with user-added skills
-        skills = set(default_skills + list(self.skills.all()))
+        skills = set(default_skills + list(skills_qs.filter(listfighter=self)))
 
         # Apply modifications from equipment/items
         for mod in self._skillmods:

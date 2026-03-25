@@ -30,12 +30,15 @@ from gyrinx.content.models.statline import (
     ContentStatlineStat,
     ContentStatlineType,
 )
+from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
     ContentGearPackForm,
     ContentHouseForm,
     ContentRuleForm,
+    ContentSkillCategoryPackForm,
+    ContentSkillPackForm,
     ContentWeaponPackForm,
     ContentWeaponProfilePackForm,
     ContentWeaponTraitPackForm,
@@ -114,6 +117,22 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-lightning",
         ContentWeaponTraitPackForm,
         "weapon-trait",
+    ),
+    ContentTypeEntry(
+        ContentSkillCategory,
+        "Skill Trees",
+        "Custom skill trees for your Content Pack.",
+        "bi-diagram-3",
+        ContentSkillCategoryPackForm,
+        "skill-tree",
+    ),
+    ContentTypeEntry(
+        ContentSkill,
+        "Skills",
+        "Custom skills for your Content Pack.",
+        "bi-star",
+        ContentSkillPackForm,
+        "skill",
     ),
 ]
 
@@ -874,7 +893,11 @@ def _get_entry_for_pack_item(pack_item):
 
 def _form_kwargs(entry, pack):
     """Return extra kwargs for forms that accept a ``pack`` parameter."""
-    if entry.form_class in (ContentFighterPackForm, ContentWeaponTraitPackForm):
+    if entry.form_class in (
+        ContentFighterPackForm,
+        ContentWeaponTraitPackForm,
+        ContentSkillPackForm,
+    ):
         return {"pack": pack}
     return {}
 

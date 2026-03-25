@@ -7,6 +7,7 @@ from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCa
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
+from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
@@ -161,6 +162,51 @@ class ContentFighterPackForm(forms.ModelForm):
                 .values_list("pk", flat=True)
             )
 
+        # Filter skills and skill categories: base library + pack content.
+        if pack is not None:
+            if "skills" in self.fields:
+                self.fields["skills"].queryset = ContentSkill.objects.with_packs([pack])
+            if "primary_skill_categories" in self.fields:
+                self.fields[
+                    "primary_skill_categories"
+                ].queryset = ContentSkillCategory.objects.with_packs([pack])
+            if "secondary_skill_categories" in self.fields:
+                self.fields[
+                    "secondary_skill_categories"
+                ].queryset = ContentSkillCategory.objects.with_packs([pack])
+        else:
+            if "skills" in self.fields:
+                self.fields["skills"].queryset = ContentSkill.objects.all()
+            if "primary_skill_categories" in self.fields:
+                self.fields[
+                    "primary_skill_categories"
+                ].queryset = ContentSkillCategory.objects.all()
+            if "secondary_skill_categories" in self.fields:
+                self.fields[
+                    "secondary_skill_categories"
+                ].queryset = ContentSkillCategory.objects.all()
+
+        # Fix initial values for skills M2M fields when editing (same issue as rules).
+        if not self.instance._state.adding:
+            if "skills" in self.fields:
+                self.initial["skills"] = list(
+                    self.fields["skills"]
+                    .queryset.filter(contentfighter=self.instance)
+                    .values_list("pk", flat=True)
+                )
+            if "primary_skill_categories" in self.fields:
+                self.initial["primary_skill_categories"] = list(
+                    self.fields["primary_skill_categories"]
+                    .queryset.filter(primary_fighters=self.instance)
+                    .values_list("pk", flat=True)
+                )
+            if "secondary_skill_categories" in self.fields:
+                self.initial["secondary_skill_categories"] = list(
+                    self.fields["secondary_skill_categories"]
+                    .queryset.filter(secondary_fighters=self.instance)
+                    .values_list("pk", flat=True)
+                )
+
         # Group skills by category for better readability.
         if "skills" in self.fields:
             group_select(self, "skills", key=lambda x: x.category)
@@ -296,6 +342,76 @@ class ContentWeaponTraitPackForm(forms.ModelForm):
             if qs.exists():
                 raise ValidationError(
                     "A weapon trait with this name already exists in this Content Pack."
+                )
+        return value
+
+
+class ContentSkillCategoryPackForm(forms.ModelForm):
+    """Form for adding/editing skill categories (skill trees) in a content pack."""
+
+    class Meta:
+        model = ContentSkillCategory
+        fields = ["name"]
+        labels = {
+            "name": "Name",
+        }
+        help_texts = {
+            "name": "The name of the skill tree (e.g. 'Bravado').",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentSkillCategory.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A skill tree with this name already exists in the content library."
+            )
+        return value
+
+
+class ContentSkillPackForm(forms.ModelForm):
+    """Form for adding/editing skills in a content pack."""
+
+    class Meta:
+        model = ContentSkill
+        fields = ["name", "category"]
+        labels = {
+            "name": "Name",
+            "category": "Skill tree",
+        }
+        help_texts = {
+            "name": "The name of the skill.",
+            "category": "The skill tree this skill belongs to.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "category": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if pack is not None:
+            self.fields["category"].queryset = ContentSkillCategory.objects.with_packs(
+                [pack]
+            )
+        else:
+            self.fields["category"].queryset = ContentSkillCategory.objects.all()
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        category = self.cleaned_data.get("category")
+        if category:
+            qs = ContentSkill.objects.filter(name__iexact=value, category=category)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "A skill with this name already exists in this skill tree."
                 )
         return value
 

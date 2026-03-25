@@ -977,7 +977,10 @@ def list_fighter_advancement_select(request, id, fighter_id):
         # Chosen skill
         if request.method == "POST":
             form = SkillSelectionForm(
-                request.POST, fighter=fighter, skill_type=skill_type
+                request.POST,
+                fighter=fighter,
+                skill_type=skill_type,
+                packs=lst.packs.all(),
             )
             if form.is_valid():
                 skill = form.cleaned_data["skill"]
@@ -998,21 +1001,30 @@ def list_fighter_advancement_select(request, id, fighter_id):
 
                 return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
         else:
-            form = SkillSelectionForm(fighter=fighter, skill_type=skill_type)
+            form = SkillSelectionForm(
+                fighter=fighter, skill_type=skill_type, packs=lst.packs.all()
+            )
 
     elif params.is_random_skill_advancement():
         if request.method == "POST":
             form = SkillCategorySelectionForm(
-                request.POST, fighter=fighter, skill_type=skill_type
+                request.POST,
+                fighter=fighter,
+                skill_type=skill_type,
+                packs=lst.packs.all(),
             )
             if form.is_valid():
                 category = form.cleaned_data["category"]
 
                 # Auto-select a random skill from the category
-                existing_skills = fighter.skills.all()
-                available_skills = ContentSkill.objects.filter(
-                    category=category
-                ).exclude(id__in=existing_skills.values_list("id", flat=True))
+                packs = lst.packs.all()
+                skills_qs = ContentSkill.objects.with_packs(packs)
+                existing_skill_ids = skills_qs.filter(listfighter=fighter).values_list(
+                    "id", flat=True
+                )
+                available_skills = skills_qs.filter(category=category).exclude(
+                    id__in=existing_skill_ids
+                )
 
                 if available_skills.exists():
                     # Pick a random skill from the available ones
@@ -1037,7 +1049,9 @@ def list_fighter_advancement_select(request, id, fighter_id):
                     # No available skills - show error
                     form.add_error(None, "No available skills in this category.")
         else:
-            form = SkillCategorySelectionForm(fighter=fighter, skill_type=skill_type)
+            form = SkillCategorySelectionForm(
+                fighter=fighter, skill_type=skill_type, packs=lst.packs.all()
+            )
 
     else:
         messages.error(

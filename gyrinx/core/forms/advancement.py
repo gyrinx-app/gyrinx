@@ -508,21 +508,29 @@ class SkillSelectionForm(forms.Form):
         help_text="Select a skill for this fighter.",
     )
 
-    def __init__(self, *args, fighter=None, skill_type=None, **kwargs):
+    def __init__(self, *args, fighter=None, skill_type=None, packs=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
         self.skill_type = skill_type
 
+        # Use pack-aware queryset if packs provided, otherwise default manager.
+        if packs is not None:
+            base_skills_qs = ContentSkill.objects.with_packs(packs)
+        else:
+            base_skills_qs = ContentSkill.objects.all()
+
         if fighter and skill_type:
-            # Get existing skills to exclude
-            existing_skills = fighter.skills.all()
+            # Get existing skills to exclude (use pack-aware queryset)
+            existing_skill_ids = base_skills_qs.filter(listfighter=fighter).values_list(
+                "id", flat=True
+            )
 
             if "primary" in skill_type:
                 # Primary skills - show all skills from primary categories
                 categories = fighter.get_primary_skill_categories()
                 self.fields["skill"].queryset = (
-                    ContentSkill.objects.filter(category__in=categories)
-                    .exclude(id__in=existing_skills.values_list("id", flat=True))
+                    base_skills_qs.filter(category__in=categories)
+                    .exclude(id__in=existing_skill_ids)
                     .select_related("category")
                     .order_by("category__name", "name")
                 )
@@ -530,17 +538,15 @@ class SkillSelectionForm(forms.Form):
                 # Secondary skills - show all skills from secondary categories
                 categories = fighter.get_secondary_skill_categories()
                 self.fields["skill"].queryset = (
-                    ContentSkill.objects.filter(category__in=categories)
-                    .exclude(id__in=existing_skills.values_list("id", flat=True))
+                    base_skills_qs.filter(category__in=categories)
+                    .exclude(id__in=existing_skill_ids)
                     .select_related("category")
                     .order_by("category__name", "name")
                 )
             elif "any" in skill_type:
                 # Any skill - show all skills
                 self.fields["skill"].queryset = (
-                    ContentSkill.objects.exclude(
-                        id__in=existing_skills.values_list("id", flat=True)
-                    )
+                    base_skills_qs.exclude(id__in=existing_skill_ids)
                     .select_related("category")
                     .order_by("category__name", "name")
                 )
@@ -557,29 +563,33 @@ class SkillCategorySelectionForm(forms.Form):
         help_text="Select a skill set from which a skill will be randomly picked.",
     )
 
-    def __init__(self, *args, fighter=None, skill_type=None, **kwargs):
+    def __init__(self, *args, fighter=None, skill_type=None, packs=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fighter = fighter
         self.skill_type = skill_type
 
+        # Use pack-aware queryset if packs provided.
+        if packs is not None:
+            base_cats_qs = ContentSkillCategory.objects.with_packs(packs)
+        else:
+            base_cats_qs = ContentSkillCategory.objects.all()
+
         if fighter and skill_type:
             if "primary" in skill_type:
                 categories = fighter.get_primary_skill_categories()
-                # Convert set of model instances to list of IDs
                 category_ids = [cat.id for cat in categories]
-                self.fields["category"].queryset = ContentSkillCategory.objects.filter(
+                self.fields["category"].queryset = base_cats_qs.filter(
                     id__in=category_ids
                 )
             elif "secondary" in skill_type:
                 categories = fighter.get_secondary_skill_categories()
-                # Convert set of model instances to list of IDs
                 category_ids = [cat.id for cat in categories]
-                self.fields["category"].queryset = ContentSkillCategory.objects.filter(
+                self.fields["category"].queryset = base_cats_qs.filter(
                     id__in=category_ids
                 )
             else:
                 # For "any" skill type, show all categories
-                self.fields["category"].queryset = ContentSkillCategory.objects.all()
+                self.fields["category"].queryset = base_cats_qs
 
 
 class RandomSkillForm(forms.Form):
