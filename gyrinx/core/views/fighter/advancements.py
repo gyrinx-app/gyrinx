@@ -1016,12 +1016,17 @@ def list_fighter_advancement_select(request, id, fighter_id):
             if form.is_valid():
                 category = form.cleaned_data["category"]
 
-                # Auto-select a random skill from the category
+                # Auto-select a random skill from the category.
+                # Exclude both default skills and user-added skills.
                 packs = lst.packs.all()
                 skills_qs = ContentSkill.objects.with_packs(packs)
-                existing_skill_ids = skills_qs.filter(listfighter=fighter).values_list(
+                default_skill_ids = skills_qs.filter(
+                    contentfighter=fighter.content_fighter
+                ).values_list("id", flat=True)
+                user_skill_ids = skills_qs.filter(listfighter=fighter).values_list(
                     "id", flat=True
                 )
+                existing_skill_ids = set(default_skill_ids) | set(user_skill_ids)
                 available_skills = skills_qs.filter(category=category).exclude(
                     id__in=existing_skill_ids
                 )

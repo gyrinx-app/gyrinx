@@ -139,8 +139,11 @@ def edit_list_fighter_skills(request, id, fighter_id):
             )
         )
     else:
-        # Default behavior: only show categories from the fighter's house
-        special_cats = fighter.content_fighter.house.skill_categories.all().annotate(
+        # Default behavior: only show categories from the fighter's house.
+        # Use pack-aware queryset instead of the reverse manager.
+        special_cats = skill_cats_qs.filter(
+            houses=fighter.content_fighter.house
+        ).annotate(
             primary=Case(
                 When(id__in=primary_category_ids, then=True),
                 default=False,

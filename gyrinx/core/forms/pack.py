@@ -364,7 +364,7 @@ class ContentSkillCategoryPackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentSkillCategory.objects.filter(name__iexact=value)
+        qs = ContentSkillCategory.objects.all_content().filter(name__iexact=value)
         if self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
@@ -406,7 +406,9 @@ class ContentSkillPackForm(forms.ModelForm):
         value = self.cleaned_data["name"]
         category = self.cleaned_data.get("category")
         if category:
-            qs = ContentSkill.objects.filter(name__iexact=value, category=category)
+            qs = ContentSkill.objects.all_content().filter(
+                name__iexact=value, category=category
+            )
             if self.instance.pk:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
