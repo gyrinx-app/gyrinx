@@ -72,12 +72,30 @@ def campaign_add_lists(request, id):
                             list_to_add
                         )
                         if not is_valid and request.POST.get("add_packs") == "true":
-                            # User confirmed — add incompatible packs to campaign
-                            for pack in incompatible:
-                                campaign.packs.add(pack)
-                            is_valid = True
-                            incompatible = []
-                        if not is_valid:
+                            # User confirmed — add incompatible packs to campaign.
+                            # Enforce access rules: reject archived or unlisted packs
+                            # not owned by the current user.
+                            blocked = [
+                                p
+                                for p in incompatible
+                                if p.archived
+                                or (not p.listed and p.owner != request.user)
+                            ]
+                            if blocked:
+                                pack_names = ", ".join(p.name for p in blocked)
+                                error_message = (
+                                    f"Cannot add these Content Packs to the Campaign: {pack_names}. "
+                                    f"Remove them from the gang before adding it."
+                                )
+                            else:
+                                with transaction.atomic():
+                                    for pack in incompatible:
+                                        campaign.packs.add(pack)
+                                    is_valid = True
+                                    incompatible = []
+                        if error_message:
+                            pass  # Error already set — skip to rendering
+                        elif not is_valid:
                             # Show inline confirmation prompt instead of error
                             show_pack_confirmation = True
                             pack_confirm_list = list_to_add

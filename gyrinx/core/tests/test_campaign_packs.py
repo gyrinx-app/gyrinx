@@ -708,6 +708,65 @@ def test_inline_pack_confirmation_adds_multiple_packs(
 
 
 @pytest.mark.django_db
+def test_inline_pack_confirmation_rejects_archived_pack(
+    client, user, make_campaign, make_list
+):
+    """Confirming does not add archived packs to the campaign."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    pack_allowed = CustomContentPack.objects.create(
+        name="Allowed", owner=user, listed=True
+    )
+    pack_archived = CustomContentPack.objects.create(
+        name="Archived Pack", owner=user, listed=True, archived=True
+    )
+    campaign.packs.add(pack_allowed)
+    lst.packs.add(pack_archived)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id), "add_packs": "true"},
+    )
+
+    assert response.status_code == 200
+    assert b"Cannot add" in response.content
+    assert pack_archived not in campaign.packs.all()
+    assert lst not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_inline_pack_confirmation_rejects_unlisted_pack_not_owned(
+    client, user, make_campaign, make_list, make_user
+):
+    """Confirming does not add unlisted packs owned by another user."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    other_user = make_user("other", "password")
+    pack_allowed = CustomContentPack.objects.create(
+        name="Allowed", owner=user, listed=True
+    )
+    pack_unlisted = CustomContentPack.objects.create(
+        name="Secret Pack", owner=other_user, listed=False
+    )
+    campaign.packs.add(pack_allowed)
+    lst.packs.add(pack_unlisted)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id), "add_packs": "true"},
+    )
+
+    assert response.status_code == 200
+    assert b"Cannot add" in response.content
+    assert pack_unlisted not in campaign.packs.all()
+    assert lst not in campaign.lists.all()
+
+
+@pytest.mark.django_db
 def test_invite_allowed_for_compatible_packs(client, user, make_campaign, make_list):
     """Sending an invite succeeds when list packs are compatible."""
     campaign = make_campaign("Test Campaign")
