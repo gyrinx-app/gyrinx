@@ -32,6 +32,9 @@ $green: #1a7b49;
 $teal: #1fb27e;
 $cyan: #10bdd3;
 
+// Card header background — match section header bars (bg-body-tertiary)
+$card-cap-bg: var(--bs-tertiary-bg);
+
 // Required
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
