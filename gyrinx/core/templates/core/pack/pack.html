@@ -85,7 +85,7 @@
         <!-- Content -->
         {% for section in content_sections %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                     <h2 class="h5 mb-0">{{ section.label }}</h2>
                     {% if can_edit %}
                         <span class="d-flex gap-2 align-items-center">
@@ -181,7 +181,7 @@
         {% endfor %}
         <!-- Activity -->
         <section>
-            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                 <h2 class="h5 mb-0">Activity</h2>
                 {% if total_activity_count > 0 %}
                     <a href="{% url 'core:pack-activity' pack.id %}"

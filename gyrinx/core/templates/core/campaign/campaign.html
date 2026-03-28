@@ -190,7 +190,7 @@
         </div>
         <!-- Gangs -->
         <section>
-            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                 <h2 class="h5 mb-0">Gangs</h2>
                 <div class="hstack gap-3">
                     {% if attribute_types %}
@@ -213,7 +213,7 @@
         <div class="row g-5">
             <!-- Assets -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                     <h2 class="h5 mb-0">
                         Assets
                         <i class="bi-info-circle text-secondary fs-6 ms-1"
@@ -296,7 +296,7 @@
             </section>
             <!-- Resources -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                     <h2 class="h5 mb-0">
                         Resources
                         <i class="bi-info-circle text-secondary fs-6 ms-1"
@@ -366,7 +366,7 @@
         <div class="row g-5">
             <!-- Battles -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                     <h2 class="h5 mb-0">Battle Reports</h2>
                     {% if can_log_actions %}
                         <a href="{% url 'core:battle-new' campaign.id %}"
@@ -395,7 +395,7 @@
             </section>
             <!-- Action Log -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                     <h2 class="h5 mb-0">
                         Action Log
                         <i class="bi-info-circle text-secondary fs-6 ms-1"
@@ -433,7 +433,7 @@
         <!-- Captured Fighters -->
         {% if campaign.is_in_progress %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-1">
                     <h2 class="h5 mb-0">Captured Fighters</h2>
                     <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
                        class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">View all →</a>
