@@ -139,3 +139,26 @@ def test_accept_only_considers_packs_from_accepted_campaign(
     assert (
         "campaign" not in response.url
     )  # Should redirect to invitations, not pack setup
+
+
+@pytest.mark.django_db
+def test_pack_setup_allows_unlisted_campaign_packs(
+    client, cc_user, make_campaign, make_list
+):
+    """Users can subscribe to unlisted packs when recommended by a campaign."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    unlisted_pack = CustomContentPack.objects.create(
+        name="Unlisted Pack", owner=cc_user, listed=False
+    )
+    campaign.packs.add(unlisted_pack)
+    campaign.lists.add(lst)
+
+    client.force_login(cc_user)
+    response = client.post(
+        reverse("core:invitation-pack-setup", args=[lst.id, campaign.id]),
+        {"pack_ids": [str(unlisted_pack.id)]},
+    )
+
+    assert response.status_code == 302
+    assert unlisted_pack in lst.packs.all()

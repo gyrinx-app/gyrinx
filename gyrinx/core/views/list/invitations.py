@@ -145,16 +145,21 @@ def invitation_pack_setup(request, id, campaign_id):
     if not in_campaign:
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
-    suggested_packs = lst.get_suggested_campaign_packs().filter(campaigns=campaign)
+    # Compute suggestions from campaign packs directly — works even when the
+    # list is only associated via a clone (in-progress campaigns).
+    subscribed_ids = set(lst.packs.values_list("id", flat=True))
+    suggested_packs = campaign.packs.exclude(id__in=subscribed_ids)
 
     if request.method == "POST":
         pack_ids = request.POST.getlist("pack_ids")
         if pack_ids:
             from gyrinx.core.models.pack import CustomContentPack
 
-            packs_to_add = CustomContentPack.objects.filter(
-                id__in=pack_ids, archived=False
-            ).filter(campaigns=campaign)
+            packs_to_add = list(
+                CustomContentPack.objects.filter(
+                    id__in=pack_ids, archived=False
+                ).filter(campaigns=campaign)
+            )
             for pack in packs_to_add:
                 lst.packs.add(pack)
             # For in-progress campaigns, the participant is a clone — add packs there too
