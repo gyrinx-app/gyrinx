@@ -12,6 +12,35 @@
             Content packs add custom fighters, rules, and other content to your list.
             Subscribe to a pack to make its content available when building your list.
         </p>
+        {% if campaign_packs %}
+            <!-- Recommended by Campaign -->
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                    <h2 class="h5 mb-0">
+                        Recommended by Campaign
+                        <span class="badge bg-info">{{ campaign_packs|length }}</span>
+                    </h2>
+                </div>
+                <p class="text-muted small">These Content Packs are used by a Campaign this gang is in.</p>
+                <ul class="list-unstyled mb-0">
+                    {% for pack in campaign_packs %}
+                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <div>
+                                <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                <span class="text-muted small">by {{ pack.owner }}</span>
+                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                            </div>
+                            <form method="post" action="{% url 'core:list-packs' list.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="pack_id" value="{{ pack.id }}">
+                                <input type="hidden" name="action" value="add">
+                                <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
         <!-- Subscribed packs -->
         <section>
             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">

@@ -106,12 +106,67 @@ def accept_invitation(request, id, invitation_id):
             messages.success(
                 request, f"You have joined the campaign '{invitation.campaign.name}'."
             )
+
+            # Redirect to pack setup if the campaign has packs the list doesn't
+            suggested = lst.get_suggested_campaign_packs()
+            if suggested.exists():
+                return HttpResponseRedirect(
+                    reverse(
+                        "core:invitation-pack-setup",
+                        args=(lst.id, invitation.campaign.id),
+                    )
+                )
         else:
             messages.error(request, "Unable to accept the invitation.")
     except ValueError as e:
         messages.error(request, str(e))
 
     return HttpResponseRedirect(reverse("core:list-invitations", args=(lst.id,)))
+
+
+@login_required
+def invitation_pack_setup(request, id, campaign_id):
+    """Show campaign packs for subscription after accepting an invitation."""
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+
+    from gyrinx.core.models.campaign import Campaign
+
+    campaign = get_object_or_404(Campaign, id=campaign_id)
+
+    # Verify this list is associated with this campaign (directly or as a clone source)
+    in_campaign = (
+        campaign.lists.filter(id=lst.id).exists()
+        or campaign.lists.filter(original_list=lst).exists()
+    )
+    if not in_campaign:
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    suggested_packs = lst.get_suggested_campaign_packs().filter(campaigns=campaign)
+
+    if request.method == "POST":
+        pack_ids = request.POST.getlist("pack_ids")
+        if pack_ids:
+            from gyrinx.core.models.pack import CustomContentPack
+
+            packs_to_add = CustomContentPack.objects.filter(
+                id__in=pack_ids, archived=False
+            ).filter(campaigns=campaign)
+            for pack in packs_to_add:
+                lst.packs.add(pack)
+            if packs_to_add:
+                pack_names = ", ".join(p.name for p in packs_to_add)
+                messages.success(request, f"Subscribed to {pack_names}")
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list/invitation_pack_setup.html",
+        {
+            "list": lst,
+            "campaign": campaign,
+            "suggested_packs": suggested_packs,
+        },
+    )
 
 
 @login_required

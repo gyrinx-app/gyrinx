@@ -728,6 +728,35 @@ class List(AppBase):
     def is_campaign_mode(self):
         return self.status == self.CAMPAIGN_MODE
 
+    def get_suggested_campaign_packs(self):
+        """Return campaign packs not yet subscribed by this list.
+
+        Checks both the pre-campaign M2M (self.campaigns) and the
+        in-progress FK (self.campaign) to find all associated campaigns,
+        then returns the union of their packs minus already-subscribed ones.
+        """
+        from gyrinx.core.models.pack import CustomContentPack
+
+        subscribed_ids = set(self.packs.values_list("id", flat=True))
+
+        # Campaigns associated via M2M (pre-campaign)
+        campaign_ids = set(self.campaigns.values_list("id", flat=True))
+        # Campaign associated via FK (in-progress)
+        if self.campaign_id:
+            campaign_ids.add(self.campaign_id)
+
+        if not campaign_ids:
+            return CustomContentPack.objects.none()
+
+        return (
+            CustomContentPack.objects.filter(
+                campaigns__id__in=campaign_ids, archived=False
+            )
+            .exclude(id__in=subscribed_ids)
+            .distinct()
+            .select_related("owner")
+        )
+
     @cached_property
     @traced("list_active_attributes_cached")
     def active_attributes_cached(self):
