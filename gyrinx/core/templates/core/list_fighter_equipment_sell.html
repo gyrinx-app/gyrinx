@@ -242,9 +242,9 @@
                     </tfoot>
                 </table>
             </div>
-            <div class="alert alert-success">
+            <div class="alert alert-success alert-icon" role="alert">
                 <i class="bi-check-lg"></i>
-                {{ sale_results.total_credits }}¢ has been added to your gang's credits.
+                <div>{{ sale_results.total_credits }}¢ has been added to your gang's credits.</div>
             </div>
             <div class="hstack gap-3">
                 {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}

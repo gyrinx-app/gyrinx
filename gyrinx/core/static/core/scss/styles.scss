@@ -111,7 +111,7 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 
 // Alerts with icon pinned left, content flowing right.
 // Usage: <div class="alert alert-danger alert-icon" role="alert">
-//          <i class="bi-exclamation-triangle"></i>
+//          <i class="bi-exclamation-triangle" aria-hidden="true"></i>
 //          <div>Content here</div>
 //        </div>
 // Django's form rendering puts label inside .form-check but without

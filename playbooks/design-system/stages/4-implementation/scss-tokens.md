@@ -4,14 +4,14 @@
 
 ### 1. Create `static/scss/_tokens.scss`
 
-- Every token from `tokens.json` as an SCSS variable
+- Semantic `$gy-` tokens that alias Bootstrap variables
 - Organised by category with comment headers
-- Bootstrap variable overrides at the top (so they take effect before Bootstrap compiles)
-- Custom `$gy-` tokens below
+- Reference comments for typography, spacing, and layout conventions
 
 ### 2. Update the SCSS Import Chain
 
-- `_tokens.scss` must be imported before Bootstrap's source
+- `_tokens.scss` is imported AFTER Bootstrap's `utilities/api` (tokens are semantic aliases, not variable overrides)
+- Bootstrap variable overrides (colours, `$card-cap-bg`, etc.) go before the Bootstrap imports in `styles.scss`
 - Verify the compiled CSS correctly reflects the token values
 
 ### 3. Verify Nothing Breaks
