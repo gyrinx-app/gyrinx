@@ -84,9 +84,34 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Utilities
 @import "bootstrap/scss/utilities/api";
 
+// Gyrinx design tokens (semantic aliases for Bootstrap variables)
+@import "tokens";
+
 //
 // Custom styles
 //
+
+// Alerts with icon pinned left, content flowing right.
+// Usage: <div class="alert alert-danger alert-icon" role="alert">
+//          <i class="bi-exclamation-triangle"></i>
+//          <div>Content here</div>
+//        </div>
+.alert-icon {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+
+    > i,
+    > .bi {
+        flex-shrink: 0;
+        line-height: inherit;
+    }
+
+    > div {
+        flex-grow: 1;
+        min-width: 0;
+    }
+}
 
 .hero {
     height: 25vh;

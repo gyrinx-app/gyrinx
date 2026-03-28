@@ -35,6 +35,7 @@ const options = {
         ".venv",
         "**/.venv",
         "**/venv",
+        "playbooks",
     ],
 };
 

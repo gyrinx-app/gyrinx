@@ -1,0 +1,73 @@
+// ==========================================================================
+// Gyrinx Design Tokens
+//
+// Semantic tokens that alias Bootstrap variables for project-wide use.
+// Imported AFTER Bootstrap so all Bootstrap vars are available.
+// Prefix: $gy-
+// ==========================================================================
+
+// --------------------------------------------------------------------------
+// Colour — semantic aliases
+// --------------------------------------------------------------------------
+
+// State colours (fighter/campaign status)
+$gy-state-active: $success;
+$gy-state-injured: $warning;
+$gy-state-captured: $warning;
+$gy-state-dead: $danger;
+
+// Action colours (button/link intent)
+$gy-action-primary: $primary;
+$gy-action-destructive: $danger;
+$gy-action-confirm: $success;
+
+// Text
+$gy-text-muted: var(--bs-secondary-color); // replaces deprecated text-muted
+
+// --------------------------------------------------------------------------
+// Component tokens
+// --------------------------------------------------------------------------
+
+// Colour-dot indicator (gang/fighter colour swatches)
+$gy-dot-size: 10px;
+
+// Stat input cell width (pack fighter forms)
+$gy-stat-input-width: 4rem;
+
+// --------------------------------------------------------------------------
+// Typography (reference — values set by Bootstrap)
+//
+// Scale:
+//   h1           2rem      Page titles (index pages)
+//   h1.h3        1.25rem   Sub-page titles
+//   h2.h5        1rem      Section headings
+//   body         0.875rem  Default text ($font-size-base)
+//   fs-7         0.79rem   Stats, weapons, tabs, metadata
+//   caps-label   0.75rem   Uppercase tracked section labels
+//
+// Font: mynor-variable with system fallbacks
+// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// Spacing (reference — Bootstrap default scale, unmodified)
+//
+// Semantic page gaps:
+//   gap-3  (1rem)    Form/edit pages
+//   gap-4  (1.5rem)  Index/listing pages
+//   gap-5  (3rem)    Detail pages
+//
+// Common patterns:
+//   vstack gap-3     Form field stacks
+//   div.mt-3         Button row below form
+//   mb-0             Heading inside bar (bar padding provides space)
+//   mb-2             Standalone section heading
+// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// Layout (reference — page shell width classes)
+//
+//   Form page:     col-12 col-md-8 col-lg-6
+//   List page:     col-lg-12
+//   Detail page:   col-lg-12 px-0
+//   Sidebar page:  row g-4
+// --------------------------------------------------------------------------

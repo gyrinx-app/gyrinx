@@ -91,25 +91,35 @@ def debug_design_system(request):
         "light",
         "dark",
     ]
+    # Canonical icons from the design system spec
     common_icons = [
-        ("bi-plus", "plus"),
-        ("bi-plus-lg", "plus-lg"),
+        ("bi-plus-lg", "Add"),
+        ("bi-pencil", "Edit"),
+        ("bi-trash", "Delete"),
+        ("bi-check-lg", "Save/confirm"),
+        ("bi-chevron-left", "Back"),
+        ("bi-search", "Search"),
+        ("bi-exclamation-triangle", "Warning/error"),
+        ("bi-info-circle", "Info"),
+        ("bi-three-dots-vertical", "More options"),
+        ("bi-box-seam", "Content pack"),
+        ("bi-archive", "Archive"),
+        ("bi-copy", "Clone"),
+    ]
+    # Additional icons used in the app
+    extra_icons = [
         ("bi-dash", "dash"),
-        ("bi-pencil", "pencil"),
-        ("bi-trash", "trash"),
-        ("bi-archive", "archive"),
         ("bi-person", "person"),
         ("bi-house-door", "house-door"),
         ("bi-crosshair", "crosshair"),
         ("bi-wrench", "wrench"),
         ("bi-journal-text", "journal-text"),
         ("bi-lightning", "lightning"),
-        ("bi-exclamation-triangle", "warning"),
         ("bi-link-45deg", "link"),
-        ("bi-search", "search"),
         ("bi-gear", "gear"),
-        ("bi-arrow-left", "arrow-left"),
         ("bi-chevron-right", "chevron-right"),
+        ("bi-eye", "public/visible"),
+        ("bi-eye-slash", "unlisted"),
     ]
     spacing_scale = [
         ("0", "0"),
@@ -120,6 +130,27 @@ def debug_design_system(request):
         ("5", "3"),
     ]
 
+    page_shells = [
+        ("Form page", "col-12 col-md-8 col-lg-6", "gap-3", "Edit forms, settings"),
+        (
+            "List/detail page",
+            "col-lg-12 px-0",
+            "gap-4",
+            "Index, listing, and detail pages",
+        ),
+        ("Sidebar page", "row g-4", "\u2014", "Lore, notes (with TOC nav)"),
+    ]
+    custom_classes = [
+        (".alert-icon", "Flex layout for alerts with pinned icon"),
+        (".caps-label", "Uppercase, tracked, semibold section labels"),
+        (".linked", "Composed link style (secondary, underline-opacity)"),
+        (".fs-7", "Compact font size (0.79rem)"),
+        (".mb-last-0", "Remove margin from last child in rich text"),
+        (".flash-warn", "2s warning-colour fade animation for new items"),
+        (".tooltipped", "Info-underline style with help cursor"),
+        (".table-fixed", "table-layout: fixed for stat grids"),
+    ]
+
     return render(
         request,
         "core/debug/design_system.html",
@@ -127,7 +158,10 @@ def debug_design_system(request):
             "theme_colours": theme_colours,
             "semantic_colours": semantic_colours,
             "common_icons": common_icons,
+            "extra_icons": extra_icons,
             "spacing_scale": spacing_scale,
+            "page_shells": page_shells,
+            "custom_classes": custom_classes,
         },
     )
 
