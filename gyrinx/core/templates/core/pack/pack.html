@@ -115,6 +115,43 @@
                     {% else %}
                         <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
                     {% endif %}
+                {% elif section.slug == "fighter" %}
+                    {% if section.items %}
+                        {% regroup section.items by content_object.house as fighters_by_house %}
+                        <div class="vstack gap-3">
+                            {% for house_group in fighters_by_house %}
+                                <div>
+                                    {% if house_group.grouper %}
+                                        <div class="text-secondary text-uppercase small mb-1">{{ house_group.grouper }}</div>
+                                    {% endif %}
+                                    <ul class="list-unstyled mb-0">
+                                        {% for entry in house_group.list %}
+                                            <li class="py-1">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <span class="fw-medium">{{ entry.content_object.type }}</span>
+                                                        <div class="text-secondary small">{{ entry.content_object.get_category_display }}</div>
+                                                    </div>
+                                                    {% if can_edit %}
+                                                        <span class="d-flex gap-2">
+                                                            {% if section.can_add %}
+                                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                            {% endif %}
+                                                            <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
+                    {% endif %}
                 {% elif section.items %}
                     <ul class="list-unstyled mb-0">
                         {% for entry in section.items %}
