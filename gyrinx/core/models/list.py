@@ -3596,6 +3596,18 @@ def create_linked_objects(sender, instance, **kwargs):
             )
 
 
+@receiver(
+    post_save,
+    sender=ListFighter,
+    dispatch_uid="touch_list_modified_on_fighter_save",
+)
+def touch_list_modified_on_fighter_save(sender, instance, **kwargs):
+    """Bump the parent list's modified timestamp when any fighter is saved."""
+    from django.utils import timezone
+
+    List.objects.filter(pk=instance.list_id).update(modified=timezone.now())
+
+
 class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
     """
     Custom QuerySet for :model:`content.ListFighterEquipmentAssignment`.

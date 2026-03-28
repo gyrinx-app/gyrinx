@@ -1,7 +1,10 @@
 """Tests for the Notes and Lore pages."""
 
+from datetime import timedelta
+
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
 from gyrinx.core.models.list import List
 
@@ -403,3 +406,36 @@ def test_lore_page_shows_fighter_image(client, user, make_list, make_list_fighte
     response = client.get(reverse("core:list-about", args=[lst.id]))
     # Just verify the page loads - we can't easily test image display without an actual image
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_fighter_save_touches_list_modified(make_list, make_list_fighter):
+    """Test that saving a fighter bumps the parent list's modified timestamp."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    # Force a known old timestamp to avoid sleep-based flakiness
+    old_time = timezone.now() - timedelta(hours=2)
+    List.objects.filter(pk=lst.pk).update(modified=old_time)
+
+    fighter.notes = "<p>Updated notes.</p>"
+    fighter.save()
+
+    lst.refresh_from_db()
+    assert lst.modified > old_time
+
+
+@pytest.mark.django_db
+def test_fighter_narrative_save_touches_list_modified(make_list, make_list_fighter):
+    """Test that saving a fighter's narrative bumps the parent list's modified timestamp."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+
+    old_time = timezone.now() - timedelta(hours=2)
+    List.objects.filter(pk=lst.pk).update(modified=old_time)
+
+    fighter.narrative = "<p>Updated narrative.</p>"
+    fighter.save()
+
+    lst.refresh_from_db()
+    assert lst.modified > old_time
