@@ -54,6 +54,21 @@ def test_manage_attributes_requires_owner(client, user, make_user, make_list):
 
 
 @pytest.mark.django_db
+def test_edit_attribute_requires_owner(client, user, make_user, make_list):
+    """Test that only the list owner can edit attributes."""
+    lst = make_list("Test Gang")
+    alignment = ContentAttribute.objects.create(name="Alignment", is_single_select=True)
+
+    other_user = make_user("otheruser", "password")
+    client.force_login(other_user)
+
+    response = client.get(
+        reverse("core:list-attribute-edit", args=[lst.id, alignment.id])
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
 def test_list_view_only_shows_set_attributes(client, user, make_list):
     """Test that the list detail only shows attributes with values set."""
     client.force_login(user)
