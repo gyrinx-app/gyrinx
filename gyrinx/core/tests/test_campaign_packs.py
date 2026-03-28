@@ -371,15 +371,34 @@ def test_campaign_detail_shows_packs(client, user, make_campaign):
 
 
 @pytest.mark.django_db
-def test_campaign_detail_no_packs_section_when_empty(client, user, make_campaign):
-    """Campaign detail page should not show packs section when no packs configured."""
+def test_campaign_detail_shows_packs_section_for_owner_when_empty(
+    client, user, make_campaign
+):
+    """Campaign detail page shows packs section with empty-state prompt for owner."""
     campaign = make_campaign("Test Campaign")
 
     client.force_login(user)
     response = client.get(reverse("core:campaign", args=[campaign.id]))
 
     assert response.status_code == 200
-    # The "Content Packs" info block should not appear when empty
+    # Owner should see the Content Packs section with empty-state text
+    assert b'caps-label">Content Packs' in response.content
+    assert b"any gang can join" in response.content
+    assert b"Add packs" in response.content
+
+
+@pytest.mark.django_db
+def test_campaign_detail_no_packs_section_for_non_owner_when_empty(
+    client, make_user, make_campaign
+):
+    """Campaign detail page should not show packs section for non-owners when empty."""
+    campaign = make_campaign("Test Campaign")
+
+    other_user = make_user("other", "password")
+    client.force_login(other_user)
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+
+    assert response.status_code == 200
     assert b'caps-label">Content Packs' not in response.content
 
 
@@ -592,6 +611,158 @@ def test_invite_blocked_for_incompatible_packs(client, user, make_campaign, make
     assert response.status_code == 200
     assert b"Forbidden Pack" in response.content
     assert not CampaignInvitation.objects.filter(campaign=campaign, list=lst).exists()
+    assert lst not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_inline_pack_confirmation_prompt_shown(client, user, make_campaign, make_list):
+    """Incompatible packs show an inline confirmation prompt instead of just an error."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    pack_allowed = CustomContentPack.objects.create(
+        name="Allowed", owner=user, listed=True
+    )
+    pack_missing = CustomContentPack.objects.create(
+        name="Missing Pack", owner=user, listed=True
+    )
+    campaign.packs.add(pack_allowed)
+    lst.packs.add(pack_missing)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id)},
+    )
+
+    assert response.status_code == 200
+    # Should show the confirmation prompt, not just an error
+    assert b"Content Packs Required" in response.content
+    assert b"Missing Pack" in response.content
+    assert b"Add Packs" in response.content
+    assert b'name="add_packs"' in response.content
+    # List should NOT be added yet
+    assert lst not in campaign.lists.all()
+    # No invitation created yet
+    assert not CampaignInvitation.objects.filter(campaign=campaign, list=lst).exists()
+
+
+@pytest.mark.django_db
+def test_inline_pack_confirmation_adds_packs_and_gang(
+    client, user, make_campaign, make_list
+):
+    """Confirming the inline prompt adds packs to campaign and the gang."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    pack_allowed = CustomContentPack.objects.create(
+        name="Allowed", owner=user, listed=True
+    )
+    pack_missing = CustomContentPack.objects.create(
+        name="Missing Pack", owner=user, listed=True
+    )
+    campaign.packs.add(pack_allowed)
+    lst.packs.add(pack_missing)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id), "add_packs": "true"},
+    )
+
+    # Should redirect on success (auto-accept, same owner)
+    assert response.status_code == 302
+    # Pack should be added to campaign
+    assert pack_missing in campaign.packs.all()
+    # List should be in the campaign
+    assert lst in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_inline_pack_confirmation_adds_multiple_packs(
+    client, user, make_campaign, make_list
+):
+    """Confirming adds all incompatible packs, not just one."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    pack_base = CustomContentPack.objects.create(
+        name="Base Pack", owner=user, listed=True
+    )
+    pack_a = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    pack_b = CustomContentPack.objects.create(name="Pack B", owner=user, listed=True)
+
+    campaign.packs.add(pack_base)
+    lst.packs.add(pack_a, pack_b)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id), "add_packs": "true"},
+    )
+
+    assert response.status_code == 302
+    assert pack_a in campaign.packs.all()
+    assert pack_b in campaign.packs.all()
+    assert lst in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_inline_pack_confirmation_rejects_archived_pack(
+    client, user, make_campaign, make_list
+):
+    """Confirming does not add archived packs to the campaign."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    pack_allowed = CustomContentPack.objects.create(
+        name="Allowed", owner=user, listed=True
+    )
+    pack_archived = CustomContentPack.objects.create(
+        name="Archived Pack", owner=user, listed=True, archived=True
+    )
+    campaign.packs.add(pack_allowed)
+    lst.packs.add(pack_archived)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id), "add_packs": "true"},
+    )
+
+    assert response.status_code == 200
+    assert b"Cannot add" in response.content
+    assert pack_archived not in campaign.packs.all()
+    assert lst not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_inline_pack_confirmation_rejects_unlisted_pack_not_owned(
+    client, user, make_campaign, make_list, make_user
+):
+    """Confirming does not add unlisted packs owned by another user."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+
+    other_user = make_user("other", "password")
+    pack_allowed = CustomContentPack.objects.create(
+        name="Allowed", owner=user, listed=True
+    )
+    pack_unlisted = CustomContentPack.objects.create(
+        name="Secret Pack", owner=other_user, listed=False
+    )
+    campaign.packs.add(pack_allowed)
+    lst.packs.add(pack_unlisted)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-add-lists", args=[campaign.id]),
+        {"list_id": str(lst.id), "add_packs": "true"},
+    )
+
+    assert response.status_code == 200
+    assert b"Cannot add" in response.content
+    assert pack_unlisted not in campaign.packs.all()
     assert lst not in campaign.lists.all()
 
 

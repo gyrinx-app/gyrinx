@@ -153,20 +153,26 @@
                         <div>{{ campaign.budget }}¢</div>
                     </div>
                 {% endif %}
-                {% if campaign_packs %}
+                {% if campaign_packs or is_owner %}
                     <div class="flex-grow-1 col-md-3 flex-md-grow-0">
                         <div class="caps-label">Content Packs</div>
-                        <div>
-                            {% spaceless %}
-                                {% for pack in campaign_packs %}
-                                    <span>{{ pack.name }}</span>
-                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                                {% endfor %}
-                            {% endspaceless %}
-                        </div>
-                        {% if is_owner %}
+                        {% if campaign_packs %}
+                            <div>
+                                {% spaceless %}
+                                    {% for pack in campaign_packs %}
+                                        <span>{{ pack.name }}</span>
+                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                    {% endfor %}
+                                {% endspaceless %}
+                            </div>
+                            {% if is_owner %}
+                                <a href="{% url 'core:campaign-packs' campaign.id %}"
+                                   class="small link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
+                            {% endif %}
+                        {% else %}
+                            <div class="text-muted">None – any gang can join</div>
                             <a href="{% url 'core:campaign-packs' campaign.id %}"
-                               class="small link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
+                               class="small link-primary link-underline-opacity-50 link-underline-opacity-100-hover">Add packs</a>
                         {% endif %}
                     </div>
                 {% endif %}

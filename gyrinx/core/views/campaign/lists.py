@@ -51,6 +51,9 @@ def campaign_add_lists(request, id):
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
     error_message = None
+    show_pack_confirmation = False
+    pack_confirm_list = None
+    pack_confirm_packs = None
 
     if request.method == "POST":
         list_id = request.POST.get("list_id")
@@ -68,12 +71,35 @@ def campaign_add_lists(request, id):
                         is_valid, incompatible = campaign.validate_list_packs(
                             list_to_add
                         )
-                        if not is_valid:
-                            pack_names = ", ".join(p.name for p in incompatible)
-                            error_message = (
-                                f"This gang uses Content Packs not allowed by this Campaign: {pack_names}. "
-                                f"Remove these packs from the gang before adding it."
-                            )
+                        if not is_valid and request.POST.get("add_packs") == "true":
+                            # User confirmed — add incompatible packs to campaign.
+                            # Enforce access rules: reject archived or unlisted packs
+                            # not owned by the current user.
+                            blocked = [
+                                p
+                                for p in incompatible
+                                if p.archived
+                                or (not p.listed and p.owner != request.user)
+                            ]
+                            if blocked:
+                                pack_names = ", ".join(p.name for p in blocked)
+                                error_message = (
+                                    f"Cannot add these Content Packs to the Campaign: {pack_names}. "
+                                    f"Remove them from the gang before adding it."
+                                )
+                            else:
+                                with transaction.atomic():
+                                    for pack in incompatible:
+                                        campaign.packs.add(pack)
+                                    is_valid = True
+                                    incompatible = []
+                        if error_message:
+                            pass  # Error already set — skip to rendering
+                        elif not is_valid:
+                            # Show inline confirmation prompt instead of error
+                            show_pack_confirmation = True
+                            pack_confirm_list = list_to_add
+                            pack_confirm_packs = incompatible
                         else:
                             # Check if an invitation already exists
                             invitation, created = (
@@ -306,6 +332,9 @@ def campaign_add_lists(request, id):
             "pending_invitations": pending_invitations,
             "campaign_packs": campaign_packs_qs,
             "has_campaign_packs": campaign_packs_qs.exists(),
+            "show_pack_confirmation": show_pack_confirmation,
+            "pack_confirm_list": pack_confirm_list,
+            "pack_confirm_packs": pack_confirm_packs,
         },
     )
 
