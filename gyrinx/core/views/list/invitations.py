@@ -9,6 +9,7 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
+from gyrinx.core.views.auth import group_membership_required
 from gyrinx.core.views.list.common import get_clean_list_or_404
 
 
@@ -108,7 +109,9 @@ def accept_invitation(request, id, invitation_id):
             )
 
             # Redirect to pack setup if the campaign has packs the list doesn't
-            suggested = lst.get_suggested_campaign_packs()
+            suggested = lst.get_suggested_campaign_packs().filter(
+                campaigns=invitation.campaign
+            )
             if suggested.exists():
                 return HttpResponseRedirect(
                     reverse(
@@ -125,6 +128,7 @@ def accept_invitation(request, id, invitation_id):
 
 
 @login_required
+@group_membership_required(["Custom Content"])
 def invitation_pack_setup(request, id, campaign_id):
     """Show campaign packs for subscription after accepting an invitation."""
     lst = get_clean_list_or_404(List, id=id, owner=request.user)
@@ -153,6 +157,11 @@ def invitation_pack_setup(request, id, campaign_id):
             ).filter(campaigns=campaign)
             for pack in packs_to_add:
                 lst.packs.add(pack)
+            # For in-progress campaigns, the participant is a clone — add packs there too
+            campaign_clone = campaign.lists.filter(original_list=lst).first()
+            if campaign_clone:
+                for pack in packs_to_add:
+                    campaign_clone.packs.add(pack)
             if packs_to_add:
                 pack_names = ", ".join(p.name for p in packs_to_add)
                 messages.success(request, f"Subscribed to {pack_names}")

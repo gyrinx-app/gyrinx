@@ -15,30 +15,36 @@
         {% if campaign_packs %}
             <!-- Recommended by Campaign -->
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">
                         Recommended by Campaign
-                        <span class="badge bg-info">{{ campaign_packs|length }}</span>
+                        <span class="badge text-bg-info">{{ campaign_packs|length }}</span>
                     </h2>
                 </div>
-                <p class="text-muted small">These Content Packs are used by a Campaign this gang is in.</p>
-                <ul class="list-unstyled mb-0">
-                    {% for pack in campaign_packs %}
-                        <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
-                            <div>
-                                <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
-                                <span class="text-muted small">by {{ pack.owner }}</span>
-                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
-                            </div>
-                            <form method="post" action="{% url 'core:list-packs' list.id %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="pack_id" value="{{ pack.id }}">
-                                <input type="hidden" name="action" value="add">
-                                <button type="submit" class="btn btn-sm btn-primary">Add</button>
-                            </form>
-                        </li>
-                    {% endfor %}
-                </ul>
+                <div class="px-2">
+                    <p class="text-secondary fs-7">These Content Packs are used by a Campaign this gang is in.</p>
+                    <ul class="list-unstyled mb-0">
+                        {% for pack in campaign_packs %}
+                            <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                                <div>
+                                    {% if pack.listed or pack.owner == request.user %}
+                                        <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                    {% else %}
+                                        <span class="fw-medium">{{ pack.name }}</span>
+                                    {% endif %}
+                                    <span class="text-secondary fs-7">by {{ pack.owner }}</span>
+                                    {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                                </div>
+                                <form method="post" action="{% url 'core:list-packs' list.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="pack_id" value="{{ pack.id }}">
+                                    <input type="hidden" name="action" value="add">
+                                    <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                                </form>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
             </section>
         {% endif %}
         <!-- Subscribed packs -->
@@ -46,7 +52,7 @@
             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                 <h2 class="h5 mb-0">
                     Subscribed Packs
-                    {% if subscribed_packs %}<span class="badge bg-primary">{{ subscribed_packs|length }}</span>{% endif %}
+                    {% if subscribed_packs %}<span class="badge text-bg-primary">{{ subscribed_packs|length }}</span>{% endif %}
                 </h2>
             </div>
             <div class="px-2">
@@ -55,7 +61,11 @@
                         {% for pack in subscribed_packs %}
                             <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                 <div>
-                                    <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                    {% if pack.listed or pack.owner == request.user %}
+                                        <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                    {% else %}
+                                        <span class="fw-medium">{{ pack.name }}</span>
+                                    {% endif %}
                                     <span class="text-secondary fs-7">by {{ pack.owner }}</span>
                                     {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                                 </div>
@@ -112,7 +122,11 @@
                         {% for pack in available_packs %}
                             <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                 <div>
-                                    <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                    {% if pack.listed or pack.owner == request.user %}
+                                        <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                    {% else %}
+                                        <span class="fw-medium">{{ pack.name }}</span>
+                                    {% endif %}
                                     <span class="text-secondary fs-7">by {{ pack.owner }}</span>
                                     {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                                 </div>

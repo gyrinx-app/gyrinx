@@ -271,7 +271,12 @@ class ListDetailView(generic.DetailView):
         context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
 
         # Suggested campaign packs (for the "X suggested" indicator)
-        if self.request.user.is_authenticated and list_obj.owner == self.request.user:
+        # Only show if user is in the Custom Content group (list-packs page requires it)
+        if (
+            self.request.user.is_authenticated
+            and list_obj.owner == self.request.user
+            and self.request.user.groups.filter(name="Custom Content").exists()
+        ):
             suggested = list_obj.get_suggested_campaign_packs()
             context["suggested_campaign_packs_count"] = suggested.count()
 
