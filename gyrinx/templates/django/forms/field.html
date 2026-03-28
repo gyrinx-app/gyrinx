@@ -1,4 +1,4 @@
-{% if field.field.widget.input_type == "checkbox" %}
+{% if field.field.widget.input_type == "checkbox" and not field.use_fieldset %}
     <div class="form-check">
         {{ field }}
         {% if field.label %}{{ field.label_tag }}{% endif %}
