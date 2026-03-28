@@ -1,9 +1,10 @@
 """Tests for the Notes and Lore pages."""
 
-import time
+from datetime import timedelta
 
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
 from gyrinx.core.models.list import List
 
@@ -413,17 +414,15 @@ def test_fighter_save_touches_list_modified(make_list, make_list_fighter):
     lst = make_list("Test Gang")
     fighter = make_list_fighter(lst, "Test Fighter")
 
-    lst.refresh_from_db()
-    original_modified = lst.modified
-
-    # Small delay to ensure timestamps differ
-    time.sleep(0.01)
+    # Force a known old timestamp to avoid sleep-based flakiness
+    old_time = timezone.now() - timedelta(hours=2)
+    List.objects.filter(pk=lst.pk).update(modified=old_time)
 
     fighter.notes = "<p>Updated notes.</p>"
     fighter.save()
 
     lst.refresh_from_db()
-    assert lst.modified > original_modified
+    assert lst.modified > old_time
 
 
 @pytest.mark.django_db
@@ -432,13 +431,11 @@ def test_fighter_narrative_save_touches_list_modified(make_list, make_list_fight
     lst = make_list("Test Gang")
     fighter = make_list_fighter(lst, "Test Fighter")
 
-    lst.refresh_from_db()
-    original_modified = lst.modified
-
-    time.sleep(0.01)
+    old_time = timezone.now() - timedelta(hours=2)
+    List.objects.filter(pk=lst.pk).update(modified=old_time)
 
     fighter.narrative = "<p>Updated narrative.</p>"
     fighter.save()
 
     lst.refresh_from_db()
-    assert lst.modified > original_modified
+    assert lst.modified > old_time
