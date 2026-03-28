@@ -66,10 +66,6 @@ def debug_test_plan_detail(request, filename):
 
 def debug_design_system(request):
     """Design system living reference page."""
-    if not settings.DEBUG and not (
-        request.user.is_authenticated and request.user.is_staff
-    ):
-        raise Http404
 
     theme_colours = [
         ("blue", "#0771ea"),
