@@ -4,8 +4,12 @@
     Edit {{ attribute.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:list' list.id as list_url %}
-    {% include "core/includes/back.html" with url=list_url text="Back to list" %}
+    {% if return_url %}
+        {% include "core/includes/back.html" with url=return_url text="Back to attributes" %}
+    {% else %}
+        {% url 'core:list' list.id as list_url %}
+        {% include "core/includes/back.html" with url=list_url text="Back to list" %}
+    {% endif %}
     <div class="row g-3 mb-3">
         <div class="col-lg-8">
             <div class="card">
@@ -18,13 +22,18 @@
                     {% endif %}
                     <form method="post">
                         {% csrf_token %}
+                        {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
                         <div class="mb-3">{{ form.values }}</div>
                         {% if form.errors %}<div class="alert alert-danger">{{ form.errors }}</div>{% endif %}
                         <div class="hstack gap-2">
                             <button type="submit" class="btn btn-primary btn-sm">
                                 <i class="bi-check-lg"></i> Save
                             </button>
-                            {% include "core/includes/cancel.html" with url=list_url %}
+                            {% if return_url %}
+                                {% include "core/includes/cancel.html" with url=return_url %}
+                            {% else %}
+                                {% include "core/includes/cancel.html" with url=list_url %}
+                            {% endif %}
                         </div>
                     </form>
                 </div>

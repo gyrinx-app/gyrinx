@@ -467,6 +467,11 @@ urlpatterns = [
         name="print-config-print",
     ),
     path(
+        "list/<id>/attributes",
+        list_attributes.manage_list_attributes,
+        name="list-attributes-manage",
+    ),
+    path(
         "list/<id>/attribute/<attribute_id>/edit",
         list_attributes.edit_list_attribute,
         name="list-attribute-edit",

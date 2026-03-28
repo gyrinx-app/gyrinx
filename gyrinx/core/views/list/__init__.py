@@ -8,7 +8,10 @@ For fighter views, import from gyrinx.core.views.fighter instead.
 from gyrinx.core.views import make_query_params_str
 
 # List views
-from gyrinx.core.views.list.attributes import edit_list_attribute
+from gyrinx.core.views.list.attributes import (
+    edit_list_attribute,
+    manage_list_attributes,
+)
 from gyrinx.core.views.list.common import get_clean_list_or_404
 from gyrinx.core.views.list.invitations import (
     accept_invitation,
@@ -35,6 +38,7 @@ __all__ = [
     # common.py
     "get_clean_list_or_404",
     # attributes.py
+    "manage_list_attributes",
     "edit_list_attribute",
     # invitations.py
     "list_invitations",
