@@ -92,11 +92,11 @@ def test_accessory_form_shows_weapon_info_and_tooltip(client):
     # Check form shows accessories with correct costs
     # Red Dot Sight should show 10¢ in Available Accessories
     assert "Red Dot Sight" in content
-    assert '<span class="text-muted">(10¢)</span>' in content
+    assert '<span class="text-secondary">(10¢)</span>' in content
 
     # Master Crafted should show 5¢ (25% of 10, rounded up to nearest 5)
     assert "Master Crafted" in content
-    assert '<span class="text-muted">(5¢)</span>' in content
+    assert '<span class="text-secondary">(5¢)</span>' in content
 
 
 @pytest.mark.django_db
@@ -178,7 +178,7 @@ def test_accessory_selection_preserves_existing_accessories(client):
 
     # Custom Grip should only appear in Available Accessories (not yet added)
     assert "Custom Grip" in content
-    assert '<span class="text-muted">(2¢)</span>' in content
+    assert '<span class="text-secondary">(2¢)</span>' in content
 
     # Extended Magazine should NOT appear in Available Accessories since it's already added
     # Check that it's in the weapon table but not in the available accessories list
