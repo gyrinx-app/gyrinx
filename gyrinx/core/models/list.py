@@ -774,6 +774,18 @@ class List(AppBase):
         return attributes
 
     @cached_property
+    @traced("list_set_attributes")
+    def set_attributes(self):
+        """Attributes that have at least one value assigned."""
+        return [a for a in self.all_attributes if a["assignments"]]
+
+    @cached_property
+    @traced("list_unset_attributes")
+    def unset_attributes(self):
+        """Attributes that have no value assigned."""
+        return [a for a in self.all_attributes if not a["assignments"]]
+
+    @cached_property
     @traced("list_expansion_equipment_by_category")
     def expansion_equipment_by_category(self) -> dict[str, pylist]:
         """
