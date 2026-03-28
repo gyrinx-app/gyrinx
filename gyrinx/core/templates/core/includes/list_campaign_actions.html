@@ -6,7 +6,7 @@
             {% if not list.campaign.archived %}
                 <a href="{% url 'core:campaign-action-new' list.campaign.id %}{% querystring gang=list.id return_url=request.get_full_path %}"
                    class="icon-link fs-7">
-                    <i class="bi-plus-circle" aria-hidden="true"></i> Log Action
+                    <i class="bi-plus-lg" aria-hidden="true"></i> Log Action
                 </a>
             {% endif %}
         </div>

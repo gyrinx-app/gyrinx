@@ -14,7 +14,7 @@
             {% if can_log_actions %}
                 <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
                    class="btn btn-primary btn-sm">
-                    <i class="bi-plus-circle"></i> Log Action
+                    <i class="bi-plus-lg"></i> Log Action
                 </a>
             {% endif %}
         </div>

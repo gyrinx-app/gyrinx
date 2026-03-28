@@ -200,7 +200,7 @@
                     {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                            <i class="bi-plus-circle"></i> Add Gangs
+                            <i class="bi-plus-lg"></i> Add Gangs
                         </a>
                     {% endif %}
                 </div>
@@ -370,7 +370,7 @@
                     <h2 class="h5 mb-0">Battle Reports</h2>
                     {% if can_log_actions %}
                         <a href="{% url 'core:battle-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7"><i class="bi-plus-circle"></i> New Battle</a>
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> New Battle</a>
                     {% endif %}
                 </div>
                 <div class="px-2">
@@ -405,7 +405,7 @@
                     <div class="hstack gap-3">
                         {% if can_log_actions and not campaign.archived %}
                             <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
-                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7"><i class="bi-plus-circle"></i> Log Action</a>
+                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> Log Action</a>
                         {% endif %}
                         <a href="{% url 'core:campaign-actions' campaign.id %}"
                            class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">View all →</a>

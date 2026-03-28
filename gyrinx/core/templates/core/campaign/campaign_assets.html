@@ -15,7 +15,7 @@
                     <div class="hstack gap-3 ms-md-auto fs-7">
                         <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
                            class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover">
-                            <i class="bi-plus-circle"></i> Add Asset Type
+                            <i class="bi-plus-lg"></i> Add Asset Type
                         </a>
                         or
                         {% if not campaign.archived %}
@@ -36,7 +36,7 @@
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
                                class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                                <i class="bi-plus-circle"></i> Add {{ asset_type.name_singular }}
+                                <i class="bi-plus-lg"></i> Add {{ asset_type.name_singular }}
                             </a>
                             <!-- Expanded links for sm and up -->
                             <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
