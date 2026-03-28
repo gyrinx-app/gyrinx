@@ -613,11 +613,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     # Build pack content map for visual indicators (single query, no N+1)
     if packs:
-        pack_content_map = dict(
+        pack_content_map = {}
+        for object_id, pname in (
             CustomContentPackItem.objects.filter(pack__in=packs, archived=False)
             .select_related("pack")
             .values_list("object_id", "pack__name")
-        )
+        ):
+            pack_content_map.setdefault(object_id, []).append(pname)
     else:
         pack_content_map = {}
 
