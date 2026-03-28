@@ -1,4 +1,4 @@
-{% load allauth custom_tags color_tags group_tags %}
+{% load custom_tags color_tags group_tags %}
 <div>
     {% if list.archived %}
         <div class="border rounded p-2 mb-3 hstack gap-2 align-items-center text-secondary">
@@ -162,12 +162,12 @@
                                                        data-bs-toggle="tooltip"
                                                        data-bs-title="This list already has a stash fighter"
                                                        onclick="return false;">
-                                                        <i class="bi-plus-circle"></i> Show Stash
+                                                        <i class="bi-plus-lg"></i> Show Stash
                                                     </a>
                                                 {% else %}
                                                     <a href="{% url 'core:list-show-stash' list.id %}"
                                                        class="dropdown-item icon-link">
-                                                        <i class="bi-plus-circle"></i> Show Stash
+                                                        <i class="bi-plus-lg"></i> Show Stash
                                                     </a>
                                                 {% endif %}
                                             </li>
@@ -188,7 +188,7 @@
                                                 <hr class="dropdown-divider">
                                             </li>
                                             <li>
-                                                <h6 class="dropdown-header text-uppercase small">Internal</h6>
+                                                <h6 class="dropdown-header text-uppercase fs-7">Internal</h6>
                                             </li>
                                             <li>
                                                 <a href="{% url 'debug_list_actions' list.id %}"

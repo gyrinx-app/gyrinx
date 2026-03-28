@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Return Fighter - {{ campaign.name }}
 {% endblock head_title %}
@@ -37,9 +37,9 @@
                             {{ captured_fighter.fighter.list.credits_current }}¢ available.
                         </div>
                     </div>
-                    <div class="alert alert-info">
+                    <div class="alert alert-info alert-icon mb-0" role="alert">
                         <i class="bi-info-circle"></i>
-                        The fighter will be returned to their original gang and can participate in battles again.
+                        <div>The fighter will be returned to their original gang and can participate in battles again.</div>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">

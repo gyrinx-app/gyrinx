@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Edit Stats - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -15,7 +15,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title mb-3">Stat Overrides</h5>
-                    <p class="text-muted mb-3">
+                    <p class="text-secondary mb-3">
                         Leave fields empty to use the default values. Enter new values to override the base stats.
                     </p>
                     <div class="table-responsive">
@@ -39,7 +39,7 @@
                                                 {{ field.field.short_name }}
                                             {% endif %}
                                         </td>
-                                        <td class="text-muted">{{ field.field.base_value }}</td>
+                                        <td class="text-secondary">{{ field.field.base_value }}</td>
                                         <td>
                                             {{ field }}
                                             {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors.0 }}</div>{% endif %}
@@ -51,9 +51,14 @@
                     </div>
                 </div>
             </div>
-            {% if error_message %}<div class="alert alert-danger" role="alert">{{ error_message }}</div>{% endif %}
+            {% if error_message %}
+                <div class="alert alert-danger alert-icon mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>{{ error_message }}</div>
+                </div>
+            {% endif %}
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-success">Save Changes</button>
                 <a href="{{ return_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>

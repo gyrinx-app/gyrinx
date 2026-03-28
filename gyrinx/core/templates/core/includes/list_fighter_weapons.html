@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% if mode == 'add' %}
     {% for assign in weapons %}
         <form action="{% url 'core:list-fighter-weapons-edit' list.id fighter.id %}{% querystring flash=None %}"

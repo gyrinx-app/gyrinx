@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     {{ pack.name }}
 {% endblock head_title %}
@@ -62,7 +62,7 @@
                     </nav>
                 {% endif %}
             </div>
-            <div class="d-flex flex-wrap gap-2 text-muted small">
+            <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a></span>
                 {% if pack.listed %}
                     <span data-bs-toggle="tooltip"
@@ -78,20 +78,20 @@
             <div class="vstack gap-1 col-md-9">
                 {% if pack.summary %}<div class="mb-last-0">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
                 {% if pack.description %}
-                    <div class="text-muted fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
+                    <div class="text-secondary fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
                 {% endif %}
             </div>
         {% endif %}
         <!-- Content -->
         {% for section in content_sections %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">{{ section.label }}</h2>
                     {% if can_edit %}
                         <span class="d-flex gap-2 align-items-center">
                             {% if section.archived_count > 0 %}
                                 <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
-                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Archived ({{ section.archived_count }})</a>
+                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
                             {% endif %}
                             {% if section.can_add %}
                                 <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
@@ -102,103 +102,107 @@
                         </span>
                     {% endif %}
                 </div>
-                {% if section.slug == "weapon" %}
-                    {% if section.items %}
-                        <table class="table table-sm table-borderless mb-0 fs-7">
-                            {% include "core/includes/weapon_stat_headers.html" %}
-                            {% for entry in section.items %}
-                                <tbody class="table-group-divider">
-                                    {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit %}
-                                </tbody>
-                            {% endfor %}
-                        </table>
-                    {% else %}
-                        <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
-                    {% endif %}
-                {% elif section.slug == "fighter" %}
-                    {% if section.items %}
-                        {% regroup section.items by content_object.house as fighters_by_house %}
-                        <div class="vstack gap-3">
-                            {% for house_group in fighters_by_house %}
-                                <div>
-                                    {% if house_group.grouper %}
-                                        <div class="text-secondary text-uppercase small mb-1">{{ house_group.grouper }}</div>
-                                    {% endif %}
-                                    <ul class="list-unstyled mb-0">
-                                        {% for entry in house_group.list %}
-                                            <li class="py-1">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <div>
-                                                        <span class="fw-medium">{{ entry.content_object.type }}</span>
-                                                        <div class="text-secondary small">{{ entry.content_object.get_category_display }}</div>
+                <div class="px-2">
+                    {% if section.slug == "weapon" %}
+                        {% if section.items %}
+                            <table class="table table-sm table-borderless mb-0 fs-7">
+                                {% include "core/includes/weapon_stat_headers.html" %}
+                                {% for entry in section.items %}
+                                    <tbody class="table-group-divider">
+                                        {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit %}
+                                    </tbody>
+                                {% endfor %}
+                            </table>
+                        {% else %}
+                            <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
+                        {% endif %}
+                    {% elif section.slug == "fighter" %}
+                        {% if section.items %}
+                            {% regroup section.items by content_object.house as fighters_by_house %}
+                            <div class="vstack gap-3">
+                                {% for house_group in fighters_by_house %}
+                                    <div>
+                                        {% if house_group.grouper %}
+                                            <div class="text-secondary text-uppercase fs-7 mb-1">{{ house_group.grouper }}</div>
+                                        {% endif %}
+                                        <ul class="list-unstyled mb-0">
+                                            {% for entry in house_group.list %}
+                                                <li class="py-1">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <span class="fw-medium">{{ entry.content_object.type }}</span>
+                                                            <div class="text-secondary fs-7">{{ entry.content_object.get_category_display }}</div>
+                                                        </div>
+                                                        {% if can_edit %}
+                                                            <span class="d-flex gap-2">
+                                                                {% if section.can_add %}
+                                                                    <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                {% endif %}
+                                                                <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archive</a>
+                                                            </span>
+                                                        {% endif %}
                                                     </div>
-                                                    {% if can_edit %}
-                                                        <span class="d-flex gap-2">
-                                                            {% if section.can_add %}
-                                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
-                                                            {% endif %}
-                                                            <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
-                                                        </span>
-                                                    {% endif %}
-                                                </div>
-                                            </li>
-                                        {% endfor %}
-                                    </ul>
-                                </div>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
+                        {% endif %}
+                    {% elif section.items %}
+                        <ul class="list-unstyled mb-0">
+                            {% for entry in section.items %}
+                                <li class="py-1">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>{{ entry.content_object }}</span>
+                                        {% if can_edit %}
+                                            <span class="d-flex gap-2">
+                                                {% if section.can_add %}
+                                                    <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                {% endif %}
+                                                <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archive</a>
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </li>
                             {% endfor %}
-                        </div>
+                        </ul>
                     {% else %}
                         <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
                     {% endif %}
-                {% elif section.items %}
-                    <ul class="list-unstyled mb-0">
-                        {% for entry in section.items %}
-                            <li class="py-1">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span>{{ entry.content_object }}</span>
-                                    {% if can_edit %}
-                                        <span class="d-flex gap-2">
-                                            {% if section.can_add %}
-                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
-                                            {% endif %}
-                                            <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
-                                        </span>
-                                    {% endif %}
-                                </div>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p class="text-center text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
-                {% endif %}
+                </div>
             </section>
         {% endfor %}
         <!-- Activity -->
         <section>
-            <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                 <h2 class="h5 mb-0">Activity</h2>
                 {% if total_activity_count > 0 %}
                     <a href="{% url 'core:pack-activity' pack.id %}"
-                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
+                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">View all →</a>
                 {% endif %}
             </div>
-            {% if recent_activities %}
-                <div class="list-group list-group-flush">
-                    {% for activity in recent_activities %}
-                        {% include "core/includes/pack_activity_item.html" with activity=activity %}
-                    {% endfor %}
-                </div>
-                {% if total_activity_count > 5 %}
-                    <a href="{% url 'core:pack-activity' pack.id %}"
-                       class="small mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
+            <div class="px-2">
+                {% if recent_activities %}
+                    <div class="list-group list-group-flush">
+                        {% for activity in recent_activities %}
+                            {% include "core/includes/pack_activity_item.html" with activity=activity %}
+                        {% endfor %}
+                    </div>
+                    {% if total_activity_count > 5 %}
+                        <a href="{% url 'core:pack-activity' pack.id %}"
+                           class="fs-7 mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
+                    {% endif %}
+                {% else %}
+                    <p class="text-secondary fs-7 mb-0">No activity yet.</p>
                 {% endif %}
-            {% else %}
-                <p class="text-muted small mb-0">No activity yet.</p>
-            {% endif %}
+            </div>
         </section>
     </div>
 {% endblock content %}

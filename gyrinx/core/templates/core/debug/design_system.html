@@ -8,17 +8,46 @@
         <div>
             <h1 class="h3">Design system</h1>
             <p class="text-secondary">
-                Internal reference for rebuilding the Gyrinx design system.
+                Living reference for the Gyrinx design system.
                 Font: <strong>mynor-variable</strong> (Adobe Typekit).
                 Framework: Bootstrap 5.3 with custom SCSS overrides.
             </p>
         </div>
         <!-- ============================================================ -->
-        <!-- COLOURS -->
+        <!-- 1. PRINCIPLES -->
         <!-- ============================================================ -->
         <section>
-            <h2 class="h4 mb-3">Colours</h2>
-            <h3 class="h6 caps-label mb-2">Theme colours (custom overrides)</h3>
+            <h2 class="h4 mb-3">Principles</h2>
+            <ol class="mb-0">
+                <li>
+                    <strong>Dense over spacious</strong> — show more data per screen.
+                </li>
+                <li>
+                    <strong>Colour for state only</strong> — the UI is neutral grey; colour signals state or action type.
+                </li>
+                <li>
+                    <strong>Mobile-first</strong> — design at 375px, enhance at <code>md</code>/<code>lg</code>/<code>xl</code>.
+                </li>
+                <li>
+                    <strong>Server-rendered</strong> — full-page loads, Django templates, standard form POST.
+                </li>
+                <li>
+                    <strong>Bootstrap vocabulary</strong> — custom classes only for gaps Bootstrap can't fill.
+                </li>
+                <li>
+                    <strong>Semantic HTML</strong> — one <code>&lt;h1&gt;</code> per page, heading levels never skip.
+                </li>
+                <li>
+                    <strong>Consistent state colours</strong> — active=success, injured/captured=warning, dead=danger.
+                </li>
+            </ol>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 2. COLOUR -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Colour</h2>
+            <h3 class="h6 caps-label mb-2">Theme colours (SCSS overrides)</h3>
             <div class="d-flex flex-wrap gap-2 mb-4">
                 {% for name, hex in theme_colours %}
                     <div class="text-center">
@@ -26,8 +55,8 @@
                              style="width:5rem;
                                     height:3.5rem;
                                     background:{{ hex }}"></div>
-                        <div class="small fw-semibold mt-1">{{ name }}</div>
-                        <code class="small text-secondary">{{ hex }}</code>
+                        <div class="fs-7 fw-semibold mt-1">{{ name }}</div>
+                        <code class="fs-7 text-secondary">{{ hex }}</code>
                     </div>
                 {% endfor %}
             </div>
@@ -38,8 +67,8 @@
                         <div class="rounded-2 border bg-{{ name }}"
                              style="width:5rem;
                                     height:3.5rem"></div>
-                        <div class="small fw-semibold mt-1">{{ name }}</div>
-                        <code class="small text-secondary">bg-{{ name }}</code>
+                        <div class="fs-7 fw-semibold mt-1">{{ name }}</div>
+                        <code class="fs-7 text-secondary">bg-{{ name }}</code>
                     </div>
                 {% endfor %}
             </div>
@@ -50,7 +79,7 @@
                         <div class="rounded-2 border bg-{{ name }}-subtle"
                              style="width:5rem;
                                     height:3.5rem"></div>
-                        <div class="small fw-semibold mt-1">{{ name }}-subtle</div>
+                        <div class="fs-7 fw-semibold mt-1">{{ name }}-subtle</div>
                     </div>
                 {% endfor %}
             </div>
@@ -60,8 +89,6 @@
                     <span class="text-body">text-body (default)</span>
                     ·
                     <span class="text-secondary">text-secondary</span>
-                    ·
-                    <span class="text-muted">text-muted</span>
                     ·
                     <span class="text-body-secondary">text-body-secondary</span>
                     ·
@@ -74,16 +101,152 @@
                     {% endfor %}
                 </p>
             </div>
+            <h3 class="h6 caps-label mb-2">Badges</h3>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <span class="badge text-bg-primary">Primary</span>
+                <span class="badge text-bg-secondary">Secondary</span>
+                <span class="badge text-bg-success">Success</span>
+                <span class="badge text-bg-danger">Danger</span>
+                <span class="badge text-bg-warning">Warning</span>
+                <span class="badge text-bg-info">Info</span>
+                <span class="badge text-bg-light">Light</span>
+                <span class="badge text-bg-dark">Dark</span>
+            </div>
+            <p class="text-secondary fs-7 mb-3">
+                Use <code>text-bg-*</code> format. Example: Credits <span class="badge text-bg-primary">150¢</span>
+                Rating <span class="badge text-bg-secondary">1050¢</span>
+            </p>
+            <h3 class="h6 caps-label mb-2">Link colours</h3>
+            <div class="d-flex flex-wrap gap-3 mb-3">
+                <div>
+                    <a href="#" class="link-primary">link-primary</a>
+                    <span class="text-secondary fs-7 d-block">Add / create</span>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">link-secondary</a>
+                    <span class="text-secondary fs-7 d-block">Edit / reset</span>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">link-danger</a>
+                    <span class="text-secondary fs-7 d-block">Delete / archive</span>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2">Colour rules</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>What</th>
+                        <th>Use</th>
+                        <th>Don't use</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>De-emphasised text</td>
+                        <td>
+                            <code>text-secondary</code>
+                        </td>
+                        <td>
+                            <del class="text-secondary">text-muted</del> (deprecated)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Badges</td>
+                        <td>
+                            <code>text-bg-primary</code>, <code>text-bg-secondary</code>, etc.
+                        </td>
+                        <td>
+                            <del class="text-secondary">bg-primary</del> (deprecated)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Hardcoded colours</td>
+                        <td colspan="2">Never. Use SCSS vars or Bootstrap classes.</td>
+                    </tr>
+                </tbody>
+            </table>
         </section>
         <!-- ============================================================ -->
-        <!-- TYPOGRAPHY -->
+        <!-- 3. TYPOGRAPHY -->
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Typography</h2>
-            <h3 class="h6 caps-label mb-2">Headings</h3>
-            <p class="text-secondary small mb-2">
-                Sizes shown as SCSS formula. Computed values reflect RFS (responsive font sizing) at current viewport.
-            </p>
+            <h3 class="h6 caps-label mb-2">Type scale (from spec)</h3>
+            <table class="table table-sm table-borderless mb-4 fs-7">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Size</th>
+                        <th>Class</th>
+                        <th>Use for</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Page title (index)</td>
+                        <td>2.19rem</td>
+                        <td>
+                            <code>h1</code>
+                        </td>
+                        <td>Index page titles</td>
+                    </tr>
+                    <tr>
+                        <td>Page title (sub)</td>
+                        <td>1.53rem</td>
+                        <td>
+                            <code>h1.h3</code>
+                        </td>
+                        <td>Edit forms, sub-page titles</td>
+                    </tr>
+                    <tr>
+                        <td>Section</td>
+                        <td>1rem</td>
+                        <td>
+                            <code>h2.h5</code>
+                        </td>
+                        <td>Section headings</td>
+                    </tr>
+                    <tr>
+                        <td>Body</td>
+                        <td>0.875rem</td>
+                        <td>(default)</td>
+                        <td>Everything</td>
+                    </tr>
+                    <tr>
+                        <td>Compact</td>
+                        <td>0.79rem</td>
+                        <td>
+                            <code>fs-7</code>
+                        </td>
+                        <td>Stats, weapons, tabs, metadata</td>
+                    </tr>
+                </tbody>
+            </table>
+            <h3 class="h6 caps-label mb-2">Heading hierarchy (live)</h3>
+            <div class="border rounded p-3 vstack gap-2 mb-4">
+                <div>
+                    <h1 class="mb-0" style="line-height:1.2">h1 — Index page title</h1>
+                    <code class="fs-7 text-secondary">&lt;h1&gt;</code>
+                </div>
+                <hr class="my-1">
+                <div>
+                    <h1 class="h3 mb-0">h1.h3 — Sub-page title</h1>
+                    <code class="fs-7 text-secondary">&lt;h1 class="h3"&gt;</code>
+                </div>
+                <hr class="my-1">
+                <div>
+                    <h2 class="h5 mb-0">h2.h5 — Section heading</h2>
+                    <code class="fs-7 text-secondary">&lt;h2 class="h5 mb-0"&gt;</code>
+                </div>
+                <hr class="my-1">
+                <div>
+                    <h3 class="h5 mb-0">h3.h5 — Card header</h3>
+                    <code class="fs-7 text-secondary">&lt;h3 class="h5 mb-0"&gt;</code>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2">Headings (full scale)</h3>
             <table class="table table-sm table-borderless mb-4" id="headings-table">
                 <thead>
                     <tr>
@@ -168,19 +331,6 @@
                     </tr>
                 </tbody>
             </table>
-            <h3 class="h6 caps-label mb-2">Heading utility classes</h3>
-            <p class="text-secondary small mb-2">
-                Use <code>.h1</code>–<code>.h6</code> classes on any element to apply heading styles without semantic meaning.
-                Gyrinx typically uses <code>&lt;h1 class="h3"&gt;</code> for page titles.
-            </p>
-            <div class="border rounded p-3 mb-4">
-                <span class="h1">.h1</span>
-                <span class="h2">.h2</span>
-                <span class="h3">.h3</span>
-                <span class="h4">.h4</span>
-                <span class="h5">.h5</span>
-                <span class="h6">.h6</span>
-            </div>
             <h3 class="h6 caps-label mb-2">Font sizes</h3>
             <table class="table table-sm table-borderless mb-4" id="font-sizes-table">
                 <thead>
@@ -276,7 +426,7 @@
                             <span class="fs-7" data-measure-target>The quick brown fox</span>
                         </td>
                     </tr>
-                    <tr class="align-middle">
+                    <tr class="align-middle text-decoration-line-through text-secondary">
                         <td>
                             <code>.small</code>
                         </td>
@@ -286,6 +436,7 @@
                         </td>
                         <td>
                             <span class="small" data-measure-target>The quick brown fox</span>
+                            <span class="text-decoration-none fs-7"> — use <code>.fs-7</code> instead</span>
                         </td>
                     </tr>
                 </tbody>
@@ -308,63 +459,331 @@
                     <code>.fw-bold (700)</code> – The quick brown fox jumps over the lazy dog
                 </p>
             </div>
-            <h3 class="h6 caps-label mb-2">Custom text styles</h3>
-            <div class="vstack gap-2 mb-4">
-                <div>
-                    <span class="caps-label">.caps-label</span>
-                    <span class="text-secondary small ms-2">– small, uppercase, muted, semibold, tracked</span>
-                </div>
-                <div>
-                    <span class="lead">Lead paragraph text (.lead)</span>
-                </div>
-                <div>
-                    <span class="text-decoration-underline">Underlined text</span> ·
-                    <em>Italic text</em> ·
-                    <strong>Bold text</strong> ·
-                    <mark>Highlighted text</mark>
-                </div>
+            <h3 class="h6 caps-label mb-2">caps-label</h3>
+            <div class="border rounded p-3 mb-4">
+                <span class="caps-label">Section label</span>
+                <span class="text-secondary fs-7 ms-2">– <code>.caps-label</code>: small, uppercase, semibold, tracked. For section sub-headers and metadata labels.</span>
             </div>
         </section>
         <!-- ============================================================ -->
-        <!-- LINKS -->
+        <!-- 4. SPACING -->
         <!-- ============================================================ -->
         <section>
-            <h2 class="h4 mb-3">Links</h2>
-            <div class="vstack gap-2 mb-4">
-                <div>
-                    <a href="#">Default link</a>
-                    <code class="ms-2 small text-secondary">&lt;a&gt;</code>
-                </div>
-                <div>
-                    <a href="#" class="linked">Linked style</a>
-                    <code class="ms-2 small text-secondary">.linked</code>
-                </div>
-                <div>
-                    <a href="#" class="link-sm">Small link</a>
-                    <code class="ms-2 small text-secondary">.link-sm</code>
-                </div>
-                <div>
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link (common pattern)</a>
-                    <code class="ms-2 small text-secondary">.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>
-                </div>
-                <div>
-                    <a href="#"
-                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Danger link (remove)</a>
-                    <code class="ms-2 small text-secondary">.link-danger (used for remove/delete)</code>
-                </div>
-                <div>
-                    <span class="tooltipped">Tooltipped style</span>
-                    <code class="ms-2 small text-secondary">.tooltipped (info underline, cursor: help)</code>
-                </div>
+            <h2 class="h4 mb-3">Spacing</h2>
+            <h3 class="h6 caps-label mb-2">Bootstrap spacing scale</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Bootstrap default spacing: 0.25rem increments. 1rem = 16px at default browser settings.
+            </p>
+            <div class="d-flex flex-wrap align-items-end gap-2 mb-4">
+                {% for level, rem in spacing_scale %}
+                    <div class="text-center">
+                        <div class="bg-primary rounded" style="width:2rem;height:{{ rem }}rem"></div>
+                        <code class="fs-7">{{ level }}</code>
+                        <div class="fs-7 text-secondary">{{ rem }}rem</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <h3 class="h6 caps-label mb-2">Page-level gap conventions</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Page type</th>
+                        <th>Gap</th>
+                        <th>Examples</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Form / edit</td>
+                        <td>
+                            <code>gap-3</code> (1rem)
+                        </td>
+                        <td>fighter-edit, list-edit</td>
+                    </tr>
+                    <tr>
+                        <td>Index / listing</td>
+                        <td>
+                            <code>gap-4</code> (1.5rem)
+                        </td>
+                        <td>lists, campaigns</td>
+                    </tr>
+                    <tr>
+                        <td>Detail</td>
+                        <td>
+                            <code>gap-5</code> (3rem)
+                        </td>
+                        <td>list detail, campaign detail</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 5. ICONS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Icons (Bootstrap Icons)</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Hyphenated format: <code>bi-pencil</code> not <code>bi bi-pencil</code>.
+                Sizes inherit from parent; use <code>fs-7</code> for compact, <code>fs-4</code> for featured.
+            </p>
+            <h3 class="h6 caps-label mb-2">Canonical icons (from spec)</h3>
+            <div class="d-flex flex-wrap gap-3 fs-4 mb-4">
+                {% for icon_class, label in common_icons %}
+                    <div class="text-center">
+                        <div>
+                            <i class="{{ icon_class }}"></i>
+                        </div>
+                        <code class="fs-7 text-secondary">{{ icon_class }}</code>
+                        <div class="fs-7 text-secondary">{{ label }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <h3 class="h6 caps-label mb-2">Additional icons used in app</h3>
+            <div class="d-flex flex-wrap gap-3 fs-4">
+                {% for icon_class, label in extra_icons %}
+                    <div class="text-center">
+                        <div>
+                            <i class="{{ icon_class }}"></i>
+                        </div>
+                        <code class="fs-7 text-secondary">{{ icon_class }}</code>
+                    </div>
+                {% endfor %}
             </div>
         </section>
         <!-- ============================================================ -->
-        <!-- BUTTONS -->
+        <!-- 6. CONTAINERS & CARDS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Containers and cards</h2>
+            <h3 class="h6 caps-label mb-2">Standard container</h3>
+            <div class="border rounded p-3 mb-3">
+                <strong>border rounded p-3</strong> – Grouped content, forms, callouts.
+            </div>
+            <h3 class="h6 caps-label mb-2">Compact container</h3>
+            <div class="border rounded p-2 mb-3">
+                <strong>border rounded p-2</strong> – Inline metadata, section bars.
+            </div>
+            <h3 class="h6 caps-label mb-2">Section header bar (with icon-link action)</h3>
+            <div class="mb-4">
+                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="h5 mb-0">Gangs</h2>
+                    <a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gangs</a>
+                </div>
+                <div class="px-2">
+                    <p class="text-secondary fs-7 mb-0">
+                        Content below is padded with <code>px-2</code> to align with the section title.
+                    </p>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2">Section header bar (with btn-sm action)</h3>
+            <div class="mb-4">
+                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mb-2">
+                    <h2 class="h5 mb-0">Battle Reports</h2>
+                    <a href="#" class="btn btn-primary btn-sm"><i class="bi-plus-lg"></i> New Battle</a>
+                </div>
+                <div class="px-2">
+                    <p class="text-secondary fs-7 mb-0">No battles reported yet.</p>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2">Card (fighter grids only)</h3>
+            <div class="card mb-3" style="max-width: 20rem">
+                <div class="card-header p-2">
+                    <h5 class="mb-0">Fighter name</h5>
+                </div>
+                <div class="card-body p-2">Card body content. Cards are used for fighter grids and equipment categories only.</div>
+            </div>
+            <p class="text-secondary fs-7 mb-0">
+                Cards are <strong>not</strong> for: info panels, form wrappers, action confirmations, campaign details. Use <code>border rounded p-3</code> instead.
+            </p>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 7. FEEDBACK (ALERTS) -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Feedback (alerts)</h2>
+            <p class="text-secondary fs-7 mb-3">
+                Use <code>alert alert-icon</code> everywhere.
+                Add/remove <code>alert-dismissible</code> based on context.
+                Always include an icon as the first child.
+            </p>
+            <h3 class="caps-label mb-2">Dismissible (flash messages after redirects)</h3>
+            <div class="vstack gap-2 mb-4">
+                <div class="alert alert-success alert-icon alert-dismissible fade show mb-0"
+                     role="alert">
+                    <i class="bi-check-lg"></i>
+                    <div>Fighter added to gang.</div>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="alert"
+                            aria-label="Close"></button>
+                </div>
+                <div class="alert alert-danger alert-icon alert-dismissible fade show mb-0"
+                     role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>Could not save changes.</div>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="alert"
+                            aria-label="Close"></button>
+                </div>
+                <div class="alert alert-warning alert-icon alert-dismissible fade show mb-0"
+                     role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>Your session is about to expire.</div>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="alert"
+                            aria-label="Close"></button>
+                </div>
+                <div class="alert alert-info alert-icon alert-dismissible fade show mb-0"
+                     role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>Invitation sent to opponent's gang.</div>
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="alert"
+                            aria-label="Close"></button>
+                </div>
+            </div>
+            <h3 class="caps-label mb-2">Non-dismissible (inline contextual feedback)</h3>
+            <div class="vstack gap-2 mb-4">
+                <div class="alert alert-danger alert-icon mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>This gang uses Content Packs not allowed by this Campaign: Scavvy Pack.</div>
+                </div>
+                <div class="alert alert-warning alert-icon mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>Starting the campaign will clone all gangs. This cannot be undone.</div>
+                </div>
+                <div class="alert alert-warning alert-icon mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>
+                        <strong>Remove gang from campaign?</strong>
+                        <p class="mb-0">The gang will be archived and all held assets will be unassigned.</p>
+                    </div>
+                </div>
+                <div class="alert alert-info alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>This action will be logged to the campaign action log.</div>
+                </div>
+                <div class="alert alert-secondary alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>Available XP: 6 · Cost: 3 XP</div>
+                </div>
+                <div class="alert alert-info alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>
+                        <p class="mb-1">This is a multi-line info note to demonstrate text alignment.</p>
+                        <p class="mb-0">The second line stays aligned with the first, not with the icon.</p>
+                    </div>
+                </div>
+            </div>
+            <h3 class="caps-label mb-2">Rules</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Colour</th>
+                        <th>Icon</th>
+                        <th>When to use</th>
+                        <th>Dismissible?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <code>alert-success</code>
+                        </td>
+                        <td>
+                            <code>bi-check-lg</code>
+                        </td>
+                        <td>Action completed successfully</td>
+                        <td>Flash only</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <code>alert-danger</code>
+                        </td>
+                        <td>
+                            <code>bi-exclamation-triangle</code>
+                        </td>
+                        <td>Errors, validation failures, blocked actions</td>
+                        <td>Both</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <code>alert-warning</code>
+                        </td>
+                        <td>
+                            <code>bi-exclamation-triangle</code>
+                        </td>
+                        <td>Destructive confirmations, irreversible changes, cautions</td>
+                        <td>Inline only</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <code>alert-info</code>
+                        </td>
+                        <td>
+                            <code>bi-info-circle</code>
+                        </td>
+                        <td>Contextual hints, "this will be logged", next-step guidance</td>
+                        <td>Both</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <code>alert-secondary</code>
+                        </td>
+                        <td>
+                            <code>bi-info-circle</code>
+                        </td>
+                        <td>Neutral meta info (XP display, error IDs)</td>
+                        <td>Inline only</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 8. BUTTONS -->
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Buttons</h2>
-            <h3 class="h6 caps-label mb-2">Standard (typically btn-sm in the app)</h3>
+            <h3 class="h6 caps-label mb-2">Toolbar actions (btn-sm)</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <button type="button" class="btn btn-primary btn-sm">
+                    <i class="bi-pencil"></i> Edit
+                </button>
+                <button type="button" class="btn btn-primary btn-sm">
+                    <i class="bi-plus-lg"></i> Add
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm">
+                    <i class="bi-trash"></i> Delete
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm">Clear</button>
+            </div>
+            <p class="text-secondary fs-7 mb-3">
+                Toolbar buttons are always <code>btn-primary</code> or <code>btn-secondary</code>.
+                Never use <code>btn-success</code> in toolbars — lifecycle actions (Start Campaign) should be broken out as a separate primary button.
+            </p>
+            <h3 class="h6 caps-label mb-2">Form submit (full size)</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <button type="button" class="btn btn-success">
+                    <i class="bi-check-lg"></i> Save
+                </button>
+                <button type="button" class="btn btn-success">
+                    <i class="bi-check-lg"></i> Create
+                </button>
+                <a href="#" class="btn btn-link">Cancel</a>
+            </div>
+            <p class="text-secondary fs-7 mb-3">
+                <strong>Rule:</strong> <code>btn-primary</code> opens or navigates. <code>btn-success</code> creates, saves, or confirms.
+            </p>
+            <h3 class="h6 caps-label mb-2">Icon link</h3>
+            <div class="d-flex flex-wrap gap-3 mb-4">
+                <a href="#" class="icon-link linked"><i class="bi-plus-lg"></i> Add gangs</a>
+                <a href="#" class="icon-link linked"><i class="bi-journal-text"></i> Log action</a>
+            </div>
+            <h3 class="h6 caps-label mb-2">All colour variants (btn-sm)</h3>
             <div class="d-flex flex-wrap gap-2 mb-3">
                 <button type="button" class="btn btn-primary btn-sm">Primary</button>
                 <button type="button" class="btn btn-secondary btn-sm">Secondary</button>
@@ -376,117 +795,70 @@
                 <button type="button" class="btn btn-dark btn-sm">Dark</button>
                 <button type="button" class="btn btn-link btn-sm">Link</button>
             </div>
-            <h3 class="h6 caps-label mb-2">Outline</h3>
+            <h3 class="h6 caps-label mb-2">Outline variants</h3>
             <div class="d-flex flex-wrap gap-2 mb-3">
                 <button type="button" class="btn btn-outline-primary btn-sm">Primary</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm">Secondary</button>
                 <button type="button" class="btn btn-outline-success btn-sm">Success</button>
                 <button type="button" class="btn btn-outline-danger btn-sm">Danger</button>
             </div>
-            <h3 class="h6 caps-label mb-2">Full size (used sparingly)</h3>
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                <button type="button" class="btn btn-primary">Primary</button>
-                <button type="button" class="btn btn-success">Save</button>
-                <button type="button" class="btn btn-link">Cancel</button>
-            </div>
+            <h3 class="h6 caps-label mb-2">Button context guide</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Context</th>
+                        <th>Classes</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Toolbar / header</td>
+                        <td>
+                            <code>btn btn-primary btn-sm</code>
+                        </td>
+                        <td>Edit, Add, Start (always primary in toolbars)</td>
+                    </tr>
+                    <tr>
+                        <td>Form submit</td>
+                        <td>
+                            <code>btn btn-success</code>
+                        </td>
+                        <td>Save, Create, Confirm</td>
+                    </tr>
+                    <tr>
+                        <td>Secondary</td>
+                        <td>
+                            <code>btn btn-secondary btn-sm</code>
+                        </td>
+                        <td>Cancel, Clear</td>
+                    </tr>
+                    <tr>
+                        <td>Destructive</td>
+                        <td>
+                            <code>btn btn-danger btn-sm</code>
+                        </td>
+                        <td>Delete, Archive</td>
+                    </tr>
+                    <tr>
+                        <td>Section "add" link</td>
+                        <td>
+                            <code>icon-link linked</code>
+                        </td>
+                        <td>"Add Gangs" in section header bar</td>
+                    </tr>
+                </tbody>
+            </table>
         </section>
         <!-- ============================================================ -->
-        <!-- BADGES -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Badges</h2>
-            <div class="d-flex flex-wrap gap-2 mb-3">
-                <span class="badge text-bg-primary">Primary</span>
-                <span class="badge text-bg-secondary">Secondary</span>
-                <span class="badge text-bg-success">Success</span>
-                <span class="badge text-bg-danger">Danger</span>
-                <span class="badge text-bg-warning">Warning</span>
-                <span class="badge text-bg-info">Info</span>
-                <span class="badge text-bg-light">Light</span>
-                <span class="badge text-bg-dark">Dark</span>
-            </div>
-            <p class="mb-0">
-                Example in context: Credits <span class="badge text-bg-primary">150¢</span>
-                Rating <span class="badge text-bg-secondary">1050¢</span>
-            </p>
-        </section>
-        <!-- ============================================================ -->
-        <!-- BORDERS & CONTAINERS -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Containers and surfaces</h2>
-            <h3 class="h6 caps-label mb-2">Preferred patterns (not cards unless for fighters in grids)</h3>
-            <div class="vstack gap-3">
-                <div class="border rounded p-3">
-                    <strong>border rounded p-3</strong> – Standard container for grouped content. Preferred over cards.
-                </div>
-                <div class="border rounded p-2">
-                    <strong>border rounded p-2</strong> – Compact variant, used for inline messages.
-                </div>
-                <div class="border border-warning rounded p-3 bg-warning bg-opacity-10">
-                    <i class="bi-exclamation-triangle text-warning"></i>
-                    <strong>Warning block</strong> – border-warning + bg-warning bg-opacity-10
-                </div>
-                <div class="border border-danger rounded p-2 text-danger">
-                    <strong>Error:</strong> Error message pattern – border-danger + text-danger
-                </div>
-                <div class="card">
-                    <div class="card-header p-2">
-                        <h5 class="mb-0">Card (used for fighter grids and category groups)</h5>
-                    </div>
-                    <div class="card-body p-2">Card body content</div>
-                </div>
-            </div>
-        </section>
-        <!-- ============================================================ -->
-        <!-- FORMS -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Form elements</h2>
-            <div class="col-12 col-md-6">
-                <div class="vstack gap-3">
-                    <div>
-                        <label class="form-label">Text input</label>
-                        <input type="text" class="form-control" value="Form control">
-                    </div>
-                    <div>
-                        <label class="form-label">Small input</label>
-                        <input type="text"
-                               class="form-control form-control-sm"
-                               value="Form control sm">
-                    </div>
-                    <div>
-                        <label class="form-label">Select</label>
-                        <select class="form-select">
-                            <option>Option one</option>
-                            <option>Option two</option>
-                        </select>
-                    </div>
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="check-demo" checked>
-                        <label class="form-check-label" for="check-demo">Checkbox</label>
-                    </div>
-                    <div>
-                        <label class="form-label">Number (cost pattern)</label>
-                        <input type="number"
-                               class="form-control form-control-sm text-center p-0 w-auto"
-                               value="0"
-                               min="0">
-                    </div>
-                    <div>
-                        <label class="form-label">Search input</label>
-                        <input type="search"
-                               class="form-control form-control-sm"
-                               placeholder="Filter items...">
-                    </div>
-                </div>
-            </div>
-        </section>
-        <!-- ============================================================ -->
-        <!-- TABLES -->
+        <!-- 9. TABLES -->
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Tables</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Canonical: <code>table table-sm table-borderless mb-0</code>.
+                Add <code>table-fixed</code> for stat grids, <code>fs-7</code> for compact data.
+            </p>
             <h3 class="h6 caps-label mb-2">Weapon stat table (table-sm table-borderless fs-7)</h3>
             <table class="table table-sm table-borderless mb-0 fs-7">
                 <thead class="table-group-divider">
@@ -514,52 +886,434 @@
                         <td class="text-center">1</td>
                         <td class="text-center">4+</td>
                     </tr>
+                    <tr>
+                        <td>Lasgun</td>
+                        <td class="text-center">18"</td>
+                        <td class="text-center">24"</td>
+                        <td class="text-center border-start">+1</td>
+                        <td class="text-center">-</td>
+                        <td class="text-center border-start">3</td>
+                        <td class="text-center">-</td>
+                        <td class="text-center">1</td>
+                        <td class="text-center">2+</td>
+                    </tr>
                 </tbody>
             </table>
         </section>
         <!-- ============================================================ -->
-        <!-- ICONS -->
+        <!-- 10. NAV TABS -->
         <!-- ============================================================ -->
         <section>
-            <h2 class="h4 mb-3">Icons (Bootstrap Icons)</h2>
-            <p class="text-secondary small mb-2">Commonly used icons in the app:</p>
-            <div class="d-flex flex-wrap gap-3 fs-4">
-                {% for icon_class, label in common_icons %}
-                    <div class="text-center">
-                        <div>
-                            <i class="{{ icon_class }}"></i>
-                        </div>
-                        <code class="small text-secondary">{{ icon_class }}</code>
+            <h2 class="h4 mb-3">Nav tabs</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Standard Bootstrap <code>nav nav-tabs</code>. Use <code>fs-7 px-2 py-1</code> on tab buttons for compact contexts (fighter card tabs).
+            </p>
+            <h3 class="h6 caps-label mb-2">Standard tabs</h3>
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#">Stats</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Equipment</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">Skills</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link disabled" href="#">Notes</a>
+                </li>
+            </ul>
+            <h3 class="h6 caps-label mb-2">Compact tabs (fighter card)</h3>
+            <ul class="nav nav-tabs mb-3">
+                <li class="nav-item">
+                    <a class="nav-link active fs-7 px-2 py-1" href="#">Stats</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fs-7 px-2 py-1" href="#">Equipment</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fs-7 px-2 py-1" href="#">Skills</a>
+                </li>
+            </ul>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 11. FORMS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Forms</h2>
+            <p class="text-secondary fs-7 mb-3">
+                Standard layout: <code>form.vstack.gap-3</code> containing field groups. Submit button row: <code>div.mt-3</code>.
+            </p>
+            <h3 class="h6 caps-label mb-2">Complete form example</h3>
+            <div class="col-12 col-md-8 col-lg-6 mb-4">
+                <form class="vstack gap-3">
+                    <div>
+                        <label class="form-label" for="ds-name">Fighter name</label>
+                        <input type="text" class="form-control" id="ds-name" value="Stig the Miner">
                     </div>
-                {% endfor %}
+                    <div>
+                        <label class="form-label" for="ds-type">Fighter type</label>
+                        <select class="form-select" id="ds-type">
+                            <option>Juve</option>
+                            <option>Ganger</option>
+                            <option selected>Champion</option>
+                            <option>Leader</option>
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="ds-check" checked>
+                        <label class="form-check-label" for="ds-check">Include in roster</label>
+                    </div>
+                    <div>
+                        <label class="form-label" for="ds-notes">Notes</label>
+                        <textarea class="form-control" id="ds-notes" rows="2">Some notes about this fighter.</textarea>
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-primary">Save</button>
+                        <a href="#" class="btn btn-link">Cancel</a>
+                    </div>
+                </form>
+            </div>
+            <h3 class="h6 caps-label mb-2">Individual form elements</h3>
+            <div class="col-12 col-md-6">
+                <div class="vstack gap-3">
+                    <div>
+                        <label class="form-label">Text input</label>
+                        <input type="text" class="form-control" value="Form control">
+                    </div>
+                    <div>
+                        <label class="form-label">Small input</label>
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               value="Form control sm">
+                    </div>
+                    <div>
+                        <label class="form-label">Select</label>
+                        <select class="form-select">
+                            <option>Option one</option>
+                            <option>Option two</option>
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="check-demo" checked>
+                        <label class="form-check-label" for="check-demo">Include in roster</label>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="check-demo-2" checked>
+                        <label class="form-check-label" for="check-demo-2">Public</label>
+                        <div class="form-text">If checked, this will be visible to all users. You can change this later.</div>
+                    </div>
+                    <div>
+                        <label class="form-label">Number (cost pattern)</label>
+                        <input type="number"
+                               class="form-control form-control-sm text-center p-0 w-auto"
+                               value="0"
+                               min="0">
+                    </div>
+                    <div>
+                        <label class="form-label">Search input</label>
+                        <input type="search"
+                               class="form-control form-control-sm"
+                               placeholder="Filter items...">
+                    </div>
+                </div>
             </div>
         </section>
         <!-- ============================================================ -->
-        <!-- FLASH ANIMATION -->
+        <!-- 12. PAGE SHELLS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Page shells</h2>
+            <table class="table table-sm table-borderless mb-4 fs-7">
+                <thead>
+                    <tr>
+                        <th>Shell</th>
+                        <th>Width classes</th>
+                        <th>Gap</th>
+                        <th>Use for</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for name, classes, gap, use in page_shells %}
+                        <tr>
+                            <td>{{ name }}</td>
+                            <td>
+                                <code>{{ classes }}</code>
+                            </td>
+                            <td>
+                                <code>{{ gap }}</code>
+                            </td>
+                            <td>{{ use }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <h3 class="h6 caps-label mb-2">Form page shell (live)</h3>
+            <div class="border rounded p-3 mb-4">
+                <div class="col-12 col-md-8 col-lg-6 vstack gap-3">
+                    <h1 class="h3 mb-0">Edit Fighter</h1>
+                    <div>
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" value="Stig the Miner">
+                    </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-success">
+                            <i class="bi-check-lg"></i> Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2">List/detail page shell (live)</h3>
+            <div class="border rounded p-3 mb-4">
+                <div class="col-lg-12 px-0 vstack gap-4">
+                    <div class="vstack gap-0">
+                        <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                            <h1 class="mb-0">My Gang</h1>
+                            <nav class="nav btn-group flex-nowrap ms-md-auto">
+                                <a href="#" class="btn btn-primary btn-sm"><i class="bi-pencil"></i> Edit</a>
+                                <div class="btn-group" role="group">
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm dropdown-toggle"
+                                            data-bs-toggle="dropdown">
+                                        <i class="bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#">Archive</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </nav>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
+                            <span><i class="bi-person"></i> admin</span>
+                            <span><i class="bi-eye"></i> Public</span>
+                        </div>
+                    </div>
+                    <div class="text-secondary fs-7">Section content would go here, separated by gap-4 from the header.</div>
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- SEARCH PATTERN -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Search pattern</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Standard search bar: icon prepend, search input, primary submit. Used on home, lists, campaigns, add-gangs.
+            </p>
+            <div class="col-12 col-md-8 col-lg-6 mb-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi-search"></i></span>
+                    <input class="form-control"
+                           type="search"
+                           placeholder="Search gangs..."
+                           name="q"
+                           value="">
+                    <button class="btn btn-primary" type="button">Search</button>
+                </div>
+            </div>
+            <p class="text-secondary fs-7 mb-0">
+                Search is navigation, so uses <code>btn-primary</code> (not <code>btn-success</code>). Optional "Clear" link appears when a query is active.
+            </p>
+        </section>
+        <!-- ============================================================ -->
+        <!-- PAGE PATTERNS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Page patterns</h2>
+            <h3 class="h6 caps-label mb-2">List/detail header</h3>
+            <p class="text-secondary fs-7 mb-2">Title left, action buttons right, metadata below.</p>
+            <div class="border rounded p-3 mb-4">
+                <div class="vstack gap-0">
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                        <h1 class="mb-0">Cawdor Facts</h1>
+                        <div class="ms-md-auto d-flex gap-1 flex-nowrap">
+                            <a href="#" class="btn btn-primary btn-sm"><i class="bi-person-add"></i> Add fighter</a>
+                            <a href="#" class="btn btn-primary btn-sm"><i class="bi-truck"></i> Add vehicle</a>
+                            <nav class="btn-group">
+                                <a href="#" class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
+                                <div class="btn-group" role="group">
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm dropdown-toggle"
+                                            data-bs-toggle="dropdown">
+                                        <i class="bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#">Archive</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </nav>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
+                        <span><i class="bi-person"></i> admin</span>
+                        <span><i class="bi-eye"></i> Public</span>
+                        <span>Cawdor (HoF)</span>
+                        <span>1397¢</span>
+                    </div>
+                </div>
+                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <h2 class="h5 mb-0">Gangs</h2>
+                    <a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gangs</a>
+                </div>
+                <div class="px-2">
+                    <p class="text-secondary fs-7 mb-0">
+                        <strong>Pattern:</strong> Add buttons are separate <code>btn-primary</code>. Edit + dropdown are grouped in <code>btn-group btn-secondary</code>.
+                        Section-level add links use <code>icon-link linked</code> in the section header bar.
+                    </p>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2">Campaign info columns</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Key metadata as horizontal label/value pairs with <code>caps-label</code>. Wraps on mobile.
+            </p>
+            <div class="border rounded p-3 mb-4">
+                <div class="d-flex flex-wrap gap-3 border-bottom pb-3 mb-2">
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="caps-label">Status</div>
+                        <div>In Progress</div>
+                    </div>
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="caps-label">Phase</div>
+                        <div>Occupation</div>
+                    </div>
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="caps-label">Budget</div>
+                        <div>1500¢</div>
+                    </div>
+                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                        <div class="caps-label">Content Packs</div>
+                        <div>Scavvy</div>
+                        <a href="#" class="fs-7 linked">Edit</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 13. EMPTY STATES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Empty states</h2>
+            <h3 class="h6 caps-label mb-2">Block empty state</h3>
+            <div class="border rounded p-3 mb-3">
+                <p class="text-secondary mb-0">No fighters yet.</p>
+            </div>
+            <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Fighter</th>
+                        <th>Skill</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Stig</td>
+                        <td>Infiltrate</td>
+                        <td>
+                            <span class="text-secondary fst-italic">None</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 14. LINKS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Links</h2>
+            <div class="vstack gap-2 mb-4">
+                <div>
+                    <a href="#">Default link</a>
+                    <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
+                </div>
+                <div>
+                    <a href="#" class="linked">Linked style</a>
+                    <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link</a>
+                    <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">Danger link</a>
+                    <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
+                </div>
+                <div>
+                    <a href="#" class="link-primary">Primary link</a>
+                    <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
+                </div>
+                <div>
+                    <span class="tooltipped">Tooltipped style</span>
+                    <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
+                </div>
+            </div>
+            <p class="text-secondary fs-7 mb-0">
+                All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
+                <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>.
+            </p>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 15. CUSTOM CSS REFERENCE -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Custom CSS reference</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
+            </p>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Class</th>
+                        <th>Purpose</th>
+                        <th>Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cls, purpose in custom_classes %}
+                        <tr>
+                            <td>
+                                <code>{{ cls }}</code>
+                            </td>
+                            <td>{{ purpose }}</td>
+                            <td>
+                                {% if cls == ".alert-icon" %}
+                                    <span class="text-secondary">(see Feedback section)</span>
+                                {% elif cls == ".caps-label" %}
+                                    <span class="caps-label">Example</span>
+                                {% elif cls == ".linked" %}
+                                    <a href="#" class="linked">linked text</a>
+                                {% elif cls == ".fs-7" %}
+                                    <span class="fs-7">compact text</span>
+                                {% elif cls == ".mb-last-0" %}
+                                    <span class="text-secondary">(removes last-child margin)</span>
+                                {% elif cls == ".flash-warn" %}
+                                    <span class="text-secondary">(see Flash highlight below)</span>
+                                {% elif cls == ".tooltipped" %}
+                                    <span class="tooltipped">hover me</span>
+                                {% elif cls == ".table-fixed" %}
+                                    <span class="text-secondary">(table-layout: fixed)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 16. FLASH ANIMATION -->
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Flash highlight</h2>
             <div class="flash-warn border rounded p-3">
                 This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
                 Used when returning from add pages to highlight the newly added item.
-            </div>
-        </section>
-        <!-- ============================================================ -->
-        <!-- SPACING REFERENCE -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Spacing scale</h2>
-            <p class="text-secondary small mb-2">
-                Bootstrap default spacing: 0.25rem increments. 1rem = 16px at default browser settings.
-            </p>
-            <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
-                {% for level, rem in spacing_scale %}
-                    <div class="text-center">
-                        <div class="bg-primary rounded" style="width:2rem;height:{{ rem }}rem"></div>
-                        <code class="small">{{ level }}</code>
-                        <div class="small text-secondary">{{ rem }}rem</div>
-                    </div>
-                {% endfor %}
             </div>
         </section>
     </div>

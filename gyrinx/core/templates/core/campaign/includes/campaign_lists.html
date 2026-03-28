@@ -26,7 +26,7 @@
                                                      height: 10px;
                                                      background-color: {{ group.colour }}"></span>
                                     {% endif %}
-                                    <strong class="small text-uppercase text-secondary">{{ group.name }}</strong>
+                                    <strong class="fs-7 text-uppercase text-secondary">{{ group.name }}</strong>
                                 </div>
                                 <hr class="mt-1 mb-0"
                                     {% if group.colour %}style="border-color: {{ group.colour }}; border-width: 2px; opacity: 0.5"{% endif %}>
@@ -148,7 +148,7 @@
     </div>
     {% if pending_invitations %}
         <div class="border-top mt-2 pt-2">
-            <small class="text-muted fw-bold">Invited</small>
+            <small class="text-secondary fw-bold">Invited</small>
             <div class="list-group list-group-flush mt-1">
                 {% for invitation in pending_invitations %}
                     <div class="list-group-item px-0">
@@ -165,13 +165,13 @@
         </div>
     {% endif %}
 {% else %}
-    <div class="p-3 text-center text-muted">
+    <div class="p-3 text-center text-secondary">
         No gangs have been added to this campaign yet.
         {% if campaign.owner == user and campaign.is_pre_campaign and not campaign.archived %}
             <br>
             <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                class="btn btn-primary btn-sm mt-2">
-                <i class="bi-plus-circle"></i> Add Gangs
+                <i class="bi-plus-lg"></i> Add Gangs
             </a>
         {% endif %}
     </div>

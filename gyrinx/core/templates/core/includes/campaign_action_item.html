@@ -1,4 +1,4 @@
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% comment %}
     Campaign action item template - accepts the following parameters:
     - action: The campaign action object to display
@@ -8,7 +8,7 @@
     - show_list_link: Boolean to show link to list (default: True)
 {% endcomment %}
 <div class="list-group-item px-0">
-    <small class="text-muted hstack w-100 justify-content-between">
+    <small class="text-secondary hstack w-100 justify-content-between">
         <div class="flex-grow-1">
             <strong><i class="bi-person"></i> {{ action.user.username }}</strong>
             {% if action.list and show_list_link|default:True %}
@@ -28,8 +28,8 @@
     </small>
     <p class="mb-0 {% if show_truncated|default:False %}text-truncate{% endif %}">{{ action.description }}</p>
     {% if action.dice_count > 0 %}
-        <small class="text-muted">
-            <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
+        <small class="text-secondary">
+            <i class="bi-dice-6"></i> Rolled {{ action.dice_count }}D6:
             {% for result in action.dice_results %}
                 {{ result }}
                 {% if not forloop.last %},{% endif %}
@@ -38,7 +38,7 @@
         </small>
     {% endif %}
     {% if action.outcome %}
-        <small class="text-muted d-block">
+        <small class="text-secondary d-block">
             <strong>Outcome:</strong>
             {% if show_truncated|default:False %}
                 {{ action.outcome|truncatewords:10 }}

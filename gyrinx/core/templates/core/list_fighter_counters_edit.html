@@ -11,7 +11,7 @@
             {% csrf_token %}
             <div>
                 <label for="{{ form.value.id_for_label }}" class="form-label fw-bold">{{ counter.name }}</label>
-                {% if counter.description %}<p class="text-muted fs-7 mb-1">{{ counter.description }}</p>{% endif %}
+                {% if counter.description %}<p class="text-secondary fs-7 mb-1">{{ counter.description }}</p>{% endif %}
                 <p class="mb-1 fs-7">
                     Current value: <span class="badge text-bg-secondary">{{ form.current_value }}</span>
                 </p>
@@ -21,7 +21,7 @@
                 {% endif %}
             </div>
             <div class="hstack gap-2 mt-3 align-items-center">
-                <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                <button type="submit" class="btn btn-success btn-sm">Save</button>
                 <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
                    class="btn btn-link">Cancel</a>
             </div>

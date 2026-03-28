@@ -6,8 +6,11 @@
         <div class="form-text">{{ form.category.help_text }}</div>
         {% if form.category.errors %}<div class="invalid-feedback d-block">{{ form.category.errors.0 }}</div>{% endif %}
     </div>
-    <div class="alert alert-warning p-2 fs-7">
-        <i class="bi-exclamation-triangle"></i> The skill will be chosen <em>automatically</em> when you click Confirm Advancement.
+    <div class="alert alert-warning alert-icon mb-0 p-2 fs-7" role="alert">
+        <i class="bi-exclamation-triangle"></i>
+        <div>
+            The skill will be chosen <em>automatically</em> when you click Confirm Advancement.
+        </div>
     </div>
 {% else %}
     <div>

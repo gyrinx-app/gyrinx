@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Edit {{ attribute.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -24,9 +24,14 @@
                         {% csrf_token %}
                         {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
                         <div class="mb-3">{{ form.values }}</div>
-                        {% if form.errors %}<div class="alert alert-danger">{{ form.errors }}</div>{% endif %}
+                        {% if form.errors %}
+                            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                                <i class="bi-exclamation-triangle"></i>
+                                <div>{{ form.errors }}</div>
+                            </div>
+                        {% endif %}
                         <div class="hstack gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm">
+                            <button type="submit" class="btn btn-success btn-sm">
                                 <i class="bi-check-lg"></i> Save
                             </button>
                             {% if return_url %}

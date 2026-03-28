@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Content Packs
 {% endblock head_title %}
@@ -16,7 +16,7 @@
                     <i class="bi-book fs-5"></i>
                     <div>
                         <div class="fw-medium">Default Game Content</div>
-                        <div class="text-muted small">Standard fighters, equipment, and rules from the core rulebooks.</div>
+                        <div class="text-secondary fs-7">Standard fighters, equipment, and rules from the core rulebooks.</div>
                     </div>
                     <span class="ms-auto badge bg-success">Included</span>
                 </div>
@@ -30,7 +30,7 @@
                 <!-- Separator -->
                 <div class="d-flex align-items-center gap-3">
                     <hr class="flex-grow-1">
-                    <span class="text-muted small">Optionally add content packs</span>
+                    <span class="text-secondary fs-7">Optionally add content packs</span>
                     <hr class="flex-grow-1">
                 </div>
                 <!-- Search -->
@@ -53,9 +53,11 @@
                                    value="{{ pack.id }}"
                                    class="form-check-input mt-1">
                             <div class="flex-grow-1">
-                                <div class="fw-medium small">{{ pack.name }}</div>
-                                <div class="text-muted small">by {{ pack.owner }}</div>
-                                {% if pack.summary %}<div class="text-muted small mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                                <div class="fw-medium fs-7">{{ pack.name }}</div>
+                                <div class="text-secondary fs-7">by {{ pack.owner }}</div>
+                                {% if pack.summary %}
+                                    <div class="text-secondary fs-7 mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>
+                                {% endif %}
                             </div>
                         </label>
                     {% endfor %}

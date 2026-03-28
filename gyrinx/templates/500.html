@@ -28,30 +28,30 @@
             <div class="error-container">
                 <h1 class="display-1 fw-bold text-danger">500</h1>
                 <h2 class="mb-3">Server Error</h2>
-                <p class="fs-5 text-muted mb-4">Something went wrong on our end.</p>
+                <p class="fs-5 text-secondary mb-4">Something went wrong on our end.</p>
                 {% if error_id %}
                     <div class="alert alert-secondary mb-4" role="alert">
                         <small>
                             <strong>Error ID:</strong> <code>{{ error_id }}</code>
                             <br>
-                            <span class="text-muted">Please include this ID when reporting the issue</span>
+                            <span class="text-secondary">Please include this ID when reporting the issue</span>
                         </small>
                     </div>
                 {% endif %}
                 <p class="mb-4">Please try again in a few moments. If the problem persists, you can:</p>
                 <ul class="list-unstyled">
                     <li class="mb-2">
-                        <i class="bi-arrow-clockwise text-muted"></i> Refresh the page
+                        <i class="bi-arrow-clockwise text-secondary"></i> Refresh the page
                     </li>
                     <li class="mb-2">
-                        <i class="bi-clock-history text-muted"></i> Come back later
+                        <i class="bi-clock-history text-secondary"></i> Come back later
                     </li>
                     <li class="mb-2">
-                        <i class="bi-clock-history text-muted"></i> <a href="https://discord.gg/NjMVRSEMAz" target="_new">Join the Discord</a> to report the issue
+                        <i class="bi-clock-history text-secondary"></i> <a href="https://discord.gg/NjMVRSEMAz" target="_new">Join the Discord</a> to report the issue
                     </li>
                     <li class="mb-2">
                         {# djlint: off #}
-                        <i class="bi-house text-muted"></i> Return to the <a href="/">home page</a>
+                        <i class="bi-house text-secondary"></i> Return to the <a href="/">home page</a>
                         {# djlint: on #}
                     </li>
                 </ul>

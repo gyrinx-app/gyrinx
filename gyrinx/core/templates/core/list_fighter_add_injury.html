@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Add {{ fighter.term_injury_singular }} - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -17,7 +17,7 @@
             {% csrf_token %}
             {{ form }}
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Add {{ fighter.term_injury_singular }}</button>
+                <button type="submit" class="btn btn-success">Add {{ fighter.term_injury_singular }}</button>
                 <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

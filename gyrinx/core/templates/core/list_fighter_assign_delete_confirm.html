@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Delete - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
@@ -9,9 +9,9 @@
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Delete {{ assign.content_equipment.name }} from {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}
-            <div class="alert alert-danger" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                {{ error_message }}
+            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>{{ error_message }}</div>
             </div>
         {% endif %}
         <form action="{% url action_url list.id fighter.id assign.id %}"
@@ -19,27 +19,33 @@
             {% csrf_token %}
             <p>Are you sure you want to delete the {{ assign.content_equipment.name }} from {{ fighter.name }}?</p>
             {% if assign.child_fighter %}
-                <div class="alert alert-danger mb-last-0" role="alert">
-                    <p>
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <strong>Warning:</strong> This will also <strong>delete {{ assign.child_fighter.fully_qualified_name }}</strong>, including any modifications, gear, weapons and upgrades.
-                    </p>
-                    <p>This action cannot be undone.</p>
+                <div class="alert alert-danger alert-icon mb-last-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>
+                        <p>
+                            <strong>Warning:</strong> This will also <strong>delete {{ assign.child_fighter.fully_qualified_name }}</strong>, including any modifications, gear, weapons and upgrades.
+                        </p>
+                        <p>This action cannot be undone.</p>
+                    </div>
                 </div>
                 <p>
                     If you want to instead keep this {{ assign.content_equipment.name }} in your stash, or assign it to another fighter, use the <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}">Reassign</a> option.
                 </p>
             {% else %}
-                <div class="alert alert-info" role="alert">
-                    <i class="bi bi-info-circle-fill me-2"></i>
-                    <strong>Tip:</strong> If you want to move this equipment to another fighter or to your stash instead of deleting it, use the Reassign option.
+                <div class="alert alert-info alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>
+                        <strong>Tip:</strong> If you want to move this equipment to another fighter or to your stash instead of deleting it, use the Reassign option.
+                    </div>
                 </div>
             {% endif %}
             {% if list.is_campaign_mode %}
                 {% if assign.cost_int < 0 %}
-                    <div class="alert alert-warning mt-3" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <strong>Note:</strong> This equipment has a negative cost. Removing it will cost you {{ assign.cost_int|abs }}¢.
+                    <div class="alert alert-warning alert-icon mb-0 mt-3" role="alert">
+                        <i class="bi-exclamation-triangle"></i>
+                        <div>
+                            <strong>Note:</strong> This equipment has a negative cost. Removing it will cost you {{ assign.cost_int|abs }}¢.
+                        </div>
                     </div>
                     <input type="hidden" name="refund" value="on">
                 {% else %}

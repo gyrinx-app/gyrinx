@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Add {{ label }} to {{ pack.name }}
 {% endblock head_title %}
@@ -18,8 +18,9 @@
                 {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields %}
             {% endif %}
             {% if next_step_hint %}
-                <div class="alert alert-info mt-3">
-                    <i class="bi bi-info-circle me-1"></i>{{ next_step_hint }}
+                <div class="alert alert-info alert-icon mb-0 mt-3" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>{{ next_step_hint }}</div>
                 </div>
             {% endif %}
             <div class="mt-2 d-flex gap-2 align-items-center">

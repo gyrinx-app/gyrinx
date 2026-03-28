@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Permissions — {{ pack.name }}
 {% endblock head_title %}
@@ -24,9 +24,9 @@
                        class="form-control"
                        placeholder="Username"
                        autocomplete="off">
-                <button type="submit" class="btn btn-primary btn-sm">Add</button>
+                <button type="submit" class="btn btn-success btn-sm">Add</button>
             </div>
-            {% if error %}<div class="text-danger small">{{ error }}</div>{% endif %}
+            {% if error %}<div class="text-danger fs-7">{{ error }}</div>{% endif %}
         </form>
         <!-- Current editors -->
         <div>
@@ -48,7 +48,7 @@
                     {% endfor %}
                 </ul>
             {% else %}
-                <p class="text-muted mb-0">No editors yet.</p>
+                <p class="text-secondary mb-0">No editors yet.</p>
             {% endif %}
         </div>
     </div>

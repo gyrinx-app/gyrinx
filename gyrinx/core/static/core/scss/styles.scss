@@ -32,6 +32,9 @@ $green: #1a7b49;
 $teal: #1fb27e;
 $cyan: #10bdd3;
 
+// Card header background — match section header bars (bg-body-tertiary)
+$card-cap-bg: var(--bs-tertiary-bg);
+
 // Required
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
@@ -84,9 +87,55 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Utilities
 @import "bootstrap/scss/utilities/api";
 
+// Gyrinx design tokens (semantic aliases for Bootstrap variables)
+@import "tokens";
+
 //
 // Custom styles
 //
+
+// Lighten secondary in light mode, darken in dark mode
+:root,
+[data-bs-theme="light"] {
+    --bs-secondary-color: #{lighten($secondary, 15%)};
+}
+
+[data-bs-theme="dark"] {
+    --bs-secondary-color: #{darken($secondary, 5%)};
+
+    // Navbar needs to stand out from the page background in dark mode
+    .navbar.bg-dark {
+        background-color: #{lighten($dark, 5%)} !important;
+    }
+}
+
+// Alerts with icon pinned left, content flowing right.
+// Usage: <div class="alert alert-danger alert-icon" role="alert">
+//          <i class="bi-exclamation-triangle" aria-hidden="true"></i>
+//          <div>Content here</div>
+//        </div>
+// Django's form rendering puts label inside .form-check but without
+// Bootstrap's form-check-label class. This rule adds the cursor styling.
+.form-check > label {
+    @extend .form-check-label;
+}
+
+.alert-icon {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+
+    > i,
+    > .bi {
+        flex-shrink: 0;
+        line-height: inherit;
+    }
+
+    > div {
+        flex-grow: 1;
+        min-width: 0;
+    }
+}
 
 .hero {
     height: 25vh;

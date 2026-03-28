@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Modify {{ resource.resource_type.name }}
 {% endblock head_title %}
@@ -7,10 +7,10 @@
     {% include "core/includes/back.html" with text="Back" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Modify {{ resource.resource_type.name }}</h1>
-        <h2 class="h5 text-muted">{{ resource.list.name }}</h2>
+        <h2 class="h5 text-secondary">{{ resource.list.name }}</h2>
         <div class="card">
             <div class="card-body">
-                <h6 class="card-subtitle mb-2 text-muted">Current Amount</h6>
+                <h6 class="card-subtitle mb-2 text-secondary">Current Amount</h6>
                 <p class="mb-0">
                     <span class="badge bg-primary fs-5">{{ resource.amount }}</span>
                 </p>
@@ -24,17 +24,18 @@
             {% include "core/includes/form_field.html" with field=form.modification %}
             <div class="card bg-body-secondary d-none" id="preview-card">
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">New Amount</h6>
+                    <h6 class="card-subtitle mb-2 text-secondary">New Amount</h6>
                     <p class="mb-0">
                         <span class="badge bg-success fs-5" id="new-amount">{{ resource.amount }}</span>
                     </p>
                 </div>
             </div>
-            <div class="alert alert-info" role="alert">
-                <i class="bi-info-circle"></i> This action will be recorded in the campaign action log.
+            <div class="alert alert-info alert-icon mb-0" role="alert">
+                <i class="bi-info-circle"></i>
+                <div>This action will be recorded in the campaign action log.</div>
             </div>
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Update Resource</button>
+                <button type="submit" class="btn btn-success">Update Resource</button>
                 {% include "core/includes/cancel.html" %}
             </div>
         </form>

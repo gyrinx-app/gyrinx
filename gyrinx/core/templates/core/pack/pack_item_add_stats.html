@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Configure stats for {{ params.type }} ({{ pack.name }})
 {% endblock head_title %}
@@ -10,7 +10,7 @@
             <i class="bi-person"></i> Configure stats for {{ params.type }}
         </h1>
         <div class="border rounded p-2">
-            <dl class="row mb-0 small">
+            <dl class="row mb-0 fs-7">
                 <dt class="col-4 text-secondary">Name</dt>
                 <dd class="col-8 mb-1">
                     {{ params.type }}
@@ -38,7 +38,7 @@
                 <div class="d-flex flex-wrap gap-2">
                     {% for stat in stat_definitions %}
                         <div class="text-center stat-input-cell">
-                            <label class="form-label small mb-1">{{ stat.short_name }}</label>
+                            <label class="form-label fs-7 mb-1">{{ stat.short_name }}</label>
                             <input type="text"
                                    name="stat_{{ stat.field_name }}"
                                    value="{{ stat.value|default:'' }}"

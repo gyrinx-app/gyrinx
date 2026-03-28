@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Campaign Resources - {{ campaign.name }}
 {% endblock head_title %}
@@ -10,18 +10,18 @@
         <div>
             <h1 class="mb-2">Campaign Resources</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                <p class="text-muted mb-0">{{ campaign.name }}</p>
+                <p class="text-secondary mb-0">{{ campaign.name }}</p>
                 {% if is_owner %}
                     <div class="hstack gap-3 ms-md-auto">
                         {% if not campaign.archived %}
                             <a href="{% url 'core:campaign-copy-in' campaign.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-box-arrow-in-down"></i> Copy from another Campaign
                             </a>
                         {% endif %}
                         <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
-                            <i class="bi-plus-circle"></i> Add Resource Type
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                            <i class="bi-plus-lg"></i> Add Resource Type
                         </a>
                     </div>
                 {% endif %}
@@ -34,18 +34,18 @@
                     {% if is_owner %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-resource-type-edit' campaign.id resource_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-pencil"></i> Edit
                             </a>
                             <a href="{% url 'core:campaign-resource-type-remove' campaign.id resource_type.id %}"
-                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-trash"></i> Remove
                             </a>
                         </div>
                     {% endif %}
                 </div>
                 {% if resource_type.description %}
-                    <div class="text-muted small mb-3 mb-last-0">{{ resource_type.description|safe }}</div>
+                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ resource_type.description|safe }}</div>
                 {% endif %}
                 {% with resources=resource_type.list_resources.all %}
                     {% if resources %}
@@ -67,10 +67,10 @@
                                         <td class="text-end">{{ resource.amount }}</td>
                                         <td class="text-end pe-0">
                                             {% if campaign.is_pre_campaign %}
-                                                <span class="text-muted small">Campaign not started</span>
+                                                <span class="text-secondary fs-7">Campaign not started</span>
                                             {% elif not campaign.archived and is_owner or not campaign.archived and resource.list in user_lists %}
                                                 <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                   class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                                   class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                                     <i class="bi-pencil"></i> Modify
                                                 </a>
                                             {% endif %}
@@ -80,7 +80,7 @@
                             </tbody>
                         </table>
                     {% else %}
-                        <p class="text-muted small mb-0">
+                        <p class="text-secondary fs-7 mb-0">
                             {% if campaign.is_pre_campaign %}
                                 Resources will be allocated when the campaign starts.
                             {% else %}
@@ -91,7 +91,7 @@
                 {% endwith %}
             </section>
         {% empty %}
-            <p class="text-muted small mb-0">
+            <p class="text-secondary fs-7 mb-0">
                 No resource types have been defined for this campaign yet.
                 {% if is_owner %}
                     <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">Create first resource type →</a>

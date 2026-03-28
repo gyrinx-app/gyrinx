@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Content Packs - {{ campaign.name }}
 {% endblock head_title %}
@@ -8,12 +8,12 @@
     <div class="col-12 px-0 vstack gap-5">
         <div>
             <h1 class="mb-2">Content Packs</h1>
-            <p class="text-muted mb-0">{{ campaign.name }}</p>
+            <p class="text-secondary mb-0">{{ campaign.name }}</p>
         </div>
         <section>
             <h2 class="h5 mb-3">Allowed Packs</h2>
             {% if campaign_packs %}
-                <p class="text-muted small mb-3">
+                <p class="text-secondary fs-7 mb-3">
                     Gangs joining this Campaign can use content from these packs and the core game content.
                 </p>
                 <div class="row g-2 mb-3">
@@ -23,7 +23,7 @@
                                 <div>
                                     <a href="{% url 'core:pack' pack.id %}"
                                        class="link-underline-opacity-25 link-underline-opacity-100-hover fw-semibold">{{ pack.name }}</a>
-                                    <div class="text-muted small">
+                                    <div class="text-secondary fs-7">
                                         <i class="bi-person"></i> {{ pack.owner.username }}
                                     </div>
                                 </div>
@@ -49,7 +49,7 @@
                                                     {% endfor %}
                                                 {% else %}
                                                     <li>
-                                                        <span class="dropdown-item-text text-muted small">All Gangs subscribed</span>
+                                                        <span class="dropdown-item-text text-secondary fs-7">All Gangs subscribed</span>
                                                     </li>
                                                 {% endif %}
                                                 <li>
@@ -63,7 +63,7 @@
                                     {% endif %}
                                     {% if is_owner and not campaign.archived %}
                                         <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
-                                           class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                           class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                             <i class="bi-trash"></i>
                                         </a>
                                     {% endif %}
@@ -73,7 +73,7 @@
                     {% endfor %}
                 </div>
             {% else %}
-                <p class="text-muted small mb-3">
+                <p class="text-secondary fs-7 mb-3">
                     {% if is_owner %}
                         No packs configured. Gangs can use any Content Packs they subscribe to, as well as the core game content.
                         Add packs below to restrict which packs can be used in this Campaign.
@@ -108,7 +108,7 @@
                                     <div>
                                         <a href="{% url 'core:pack' pack.id %}"
                                            class="link-underline-opacity-25 link-underline-opacity-100-hover fw-semibold">{{ pack.name }}</a>
-                                        <div class="text-muted small">
+                                        <div class="text-secondary fs-7">
                                             <i class="bi-person"></i> {{ pack.owner.username }}
                                         </div>
                                     </div>
@@ -116,7 +116,7 @@
                                           action="{% url 'core:campaign-pack-add' campaign.id pack.id %}">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi-plus-circle"></i> Add
+                                            <i class="bi-plus-lg"></i> Add
                                         </button>
                                     </form>
                                 </div>
@@ -124,7 +124,7 @@
                         {% endfor %}
                     </div>
                 {% else %}
-                    <p class="text-muted small mb-0">
+                    <p class="text-secondary fs-7 mb-0">
                         {% if search_query %}
                             No packs found matching "{{ search_query }}".
                         {% else %}

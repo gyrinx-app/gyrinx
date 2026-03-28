@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Action Outcome - {{ campaign.name }}
 {% endblock head_title %}
@@ -8,7 +8,7 @@
     {% include "core/includes/back.html" with text="Back" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Action Result</h1>
-        <h2 class="h5 text-muted">{{ campaign.name }}</h2>
+        <h2 class="h5 text-secondary">{{ campaign.name }}</h2>
         <div class="card">
             <div class="card-body">
                 {% if action.list %}
@@ -17,7 +17,7 @@
                 <p class="card-text">{{ action.description }}</p>
                 {% if action.dice_count > 0 %}
                     <p class="card-text">
-                        <i class="bi bi-dice-6"></i> Rolled {{ action.dice_count }}D6
+                        <i class="bi-dice-6"></i> Rolled {{ action.dice_count }}D6
                         <span class="ms-2">
                             {% for result in action.dice_results %}<span class="badge bg-secondary ">{{ result }}</span>{% endfor %}
                             = <strong>{{ action.dice_total }}</strong>
@@ -33,7 +33,7 @@
             {% return_url_field %}
             {% include "core/includes/form_field.html" with field=form.outcome %}
             <div class="mt-3 hstack gap-2">
-                <button type="submit" class="btn btn-primary" name="save">Save outcome</button>
+                <button type="submit" class="btn btn-success" name="save">Save outcome</button>
                 or
                 <button type="submit" class="btn btn-secondary" name="save_and_new">Save and log another action</button>
                 {% include "core/includes/cancel.html" with text="Skip" %}

@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Actions - {{ campaign.name }}
 {% endblock head_title %}
@@ -9,12 +9,12 @@
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h1 class="h3 mb-0">Campaign Actions</h1>
-                <h2 class="h5 text-muted">{{ campaign.name }}</h2>
+                <h2 class="h5 text-secondary">{{ campaign.name }}</h2>
             </div>
             {% if can_log_actions %}
                 <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
                    class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus-circle"></i> Log Action
+                    <i class="bi-plus-lg"></i> Log Action
                 </a>
             {% endif %}
         </div>
@@ -129,7 +129,7 @@
             </div>
             {% include "core/includes/pagination.html" %}
         {% else %}
-            <p class="text-muted">No actions logged yet.</p>
+            <p class="text-secondary">No actions logged yet.</p>
         {% endif %}
     </div>
 {% endblock content %}

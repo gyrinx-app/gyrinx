@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Add Gangs - {{ campaign.name }}
 {% endblock head_title %}
@@ -9,11 +9,12 @@
         <!-- Header -->
         <div>
             <h1 class="mb-1">Add Gangs</h1>
-            <p class="text-muted mb-0">{{ campaign.name }}</p>
+            <p class="text-secondary mb-0">{{ campaign.name }}</p>
         </div>
         {% if error_message %}
-            <div class="border border-danger rounded p-3 text-danger">
-                <i class="bi-exclamation-triangle"></i> {{ error_message }}
+            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>{{ error_message }}</div>
             </div>
         {% endif %}
         {% if show_pack_confirmation and pack_confirm_list %}
@@ -28,7 +29,7 @@
                 <ul class="mb-2">
                     {% for pack in pack_confirm_packs %}<li>{{ pack.name }}</li>{% endfor %}
                 </ul>
-                <p class="text-muted small mb-3">
+                <p class="text-secondary fs-7 mb-3">
                     Adding these packs to the Campaign will allow this and other gangs using them to join.
                 </p>
                 <div class="d-flex gap-2">
@@ -37,8 +38,8 @@
                         {% csrf_token %}
                         <input type="hidden" name="list_id" value="{{ pack_confirm_list.id }}">
                         <input type="hidden" name="add_packs" value="true">
-                        <button type="submit" class="btn btn-primary btn-sm">
-                            <i class="bi-plus-circle"></i> Add Packs &amp; Gang
+                        <button type="submit" class="btn btn-success btn-sm">
+                            <i class="bi-plus-lg"></i> Add Packs &amp; Gang
                         </button>
                     </form>
                     <a href="{% url 'core:campaign-add-lists' campaign.id %}"
@@ -107,7 +108,7 @@
                                    value="matching"
                                    {% if request.GET.packs == "matching" %}checked{% endif %}
                                    data-gy-toggle-submit="search">
-                            <label class="form-check-label small" for="packs-filter">Matching Content Packs</label>
+                            <label class="form-check-label fs-7" for="packs-filter">Matching Content Packs</label>
                         </div>
                     {% endif %}
                 </div>
@@ -127,9 +128,9 @@
                                            target="_blank"
                                            rel="noopener"
                                            class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme list %}</a>
-                                        {% if list.content_house %}<span class="text-muted fw-normal">· {{ list.content_house_name }}</span>{% endif %}
+                                        {% if list.content_house %}<span class="text-secondary fw-normal">· {{ list.content_house_name }}</span>{% endif %}
                                     </div>
-                                    <div class="small text-muted">
+                                    <div class="fs-7 text-secondary">
                                         {% if list.owner == request.user %}
                                             Your gang
                                         {% else %}
@@ -140,7 +141,7 @@
                                         {% endwith %}
                                     </div>
                                     {% if list.packs.all %}
-                                        <div class="small text-muted">
+                                        <div class="fs-7 text-secondary">
                                             <i class="bi-box-seam"></i>
                                             {% for pack in list.packs.all %}
                                                 {{ pack.name }}
@@ -164,7 +165,7 @@
                     </tbody>
                 </table>
             {% else %}
-                <p class="text-muted small mb-0">
+                <p class="text-secondary fs-7 mb-0">
                     {% if request.GET.q or request.GET.owner|default:"all" != "all" %}
                         No gangs found matching your search criteria.
                     {% else %}

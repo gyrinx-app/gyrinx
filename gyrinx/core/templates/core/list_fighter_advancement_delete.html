@@ -1,5 +1,4 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
 {% block head_title %}
     Remove Advancement - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -24,9 +23,11 @@
             </dl>
         </div>
         {% if advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
-            <div class="alert alert-warning">
-                <i class="bi-exclamation-triangle me-1"></i>
-                <strong>Note:</strong> Equipment added by this advancement must be removed manually.
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
+                    <strong>Note:</strong> Equipment added by this advancement must be removed manually.
+                </div>
             </div>
         {% endif %}
         <form action="{% url 'core:list-fighter-advancement-delete' list.id fighter.id advancement.id %}"

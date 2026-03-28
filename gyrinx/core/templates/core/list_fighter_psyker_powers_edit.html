@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Psyker Powers - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
@@ -35,7 +35,7 @@
                                             {% if assign.is_disabled %}
                                                 <input type="hidden" name="action" value="enable">
                                                 <button type="submit" class="btn btn-link icon-link fs-7 link-success">
-                                                    <i class="bi-check-circle"></i> Enable
+                                                    <i class="bi-check-lg"></i> Enable
                                                 </button>
                                             {% else %}
                                                 <input type="hidden" name="action" value="remove">

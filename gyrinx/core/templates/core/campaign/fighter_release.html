@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Release Fighter - {{ campaign.name }}
 {% endblock head_title %}
@@ -17,13 +17,15 @@
             <div class="card">
                 <div class="card-body">
                     <h2 class="h5 card-title">Confirm Release</h2>
-                    <div class="alert alert-warning">
+                    <div class="alert alert-warning alert-icon mb-0" role="alert">
                         <i class="bi-exclamation-triangle"></i>
-                        <strong>Are you sure you want to release this fighter?</strong>
-                        <p class="mb-0 mt-2">
-                            {{ captured_fighter.fighter.name }} will be returned to {{ captured_fighter.fighter.list.name }} without any ransom or compensation.
-                            This action cannot be undone.
-                        </p>
+                        <div>
+                            <strong>Are you sure you want to release this fighter?</strong>
+                            <p class="mb-0 mt-2">
+                                {{ captured_fighter.fighter.name }} will be returned to {{ captured_fighter.fighter.list.name }} without any ransom or compensation.
+                                This action cannot be undone.
+                            </p>
+                        </div>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">

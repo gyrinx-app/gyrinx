@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Edit Injuries - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -18,7 +18,7 @@
                     </div>
                     <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
                        class="btn btn-secondary btn-sm">
-                        <i class="bi bi-pencil"></i>
+                        <i class="bi-pencil"></i>
                         Update {{ fighter.term_singular }} State
                     </a>
                 </div>
@@ -52,7 +52,7 @@
                                 </tr>
                                 {% if injury.notes %}
                                     <tr>
-                                        <td colspan="2" class="ps-4 fs-7 text-muted">
+                                        <td colspan="2" class="ps-4 fs-7 text-secondary">
                                             <em>{{ injury.notes }}</em>
                                         </td>
                                     </tr>
@@ -63,15 +63,15 @@
                 </div>
             </div>
         {% else %}
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle me-1"></i>
-                {{ fighter.proximal_demonstrative }} has no {{ fighter.term_injury_plural|lower }}.
+            <div class="alert alert-info alert-icon mb-0" role="alert">
+                <i class="bi-info-circle"></i>
+                <div>{{ fighter.proximal_demonstrative }} has no {{ fighter.term_injury_plural|lower }}.</div>
             </div>
         {% endif %}
         <div>
             <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
                class="btn btn-primary">
-                <i class="bi bi-plus-lg"></i> Add {{ fighter.term_injury_singular }}
+                <i class="bi-plus-lg"></i> Add {{ fighter.term_injury_singular }}
             </a>
             <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
                class="btn btn-link">Cancel</a>

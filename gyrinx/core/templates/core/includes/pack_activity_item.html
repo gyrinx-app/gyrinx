@@ -3,7 +3,7 @@
     - activity: History record (HistoricalCustomContentPack or HistoricalCustomContentPackItem)
 {% endcomment %}
 <div class="list-group-item px-0">
-    <small class="text-muted hstack w-100 justify-content-between">
+    <small class="text-secondary hstack w-100 justify-content-between">
         <div class="flex-grow-1">
             {% if activity.history_user %}
                 <strong>{{ activity.history_user.username }}</strong>
@@ -41,7 +41,7 @@
         <p class="mb-0">{{ activity.item_description }}</p>
     {% endif %}
     {% if activity.changes and not activity.is_archive_action %}
-        <ul class="mb-0 small text-muted">
+        <ul class="mb-0 fs-7 text-secondary">
             {% for change in activity.changes %}<li>{{ change }}</li>{% endfor %}
         </ul>
     {% endif %}

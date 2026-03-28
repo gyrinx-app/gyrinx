@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% comment %}
     Fighter card content template - accepts the following parameters:
     - fighter: The fighter object to display
@@ -87,7 +87,7 @@
                             ({{ fighter.content_fighter_cached.cat }})
                         {% endif %}
                         {% if fighter.from_pack_name %}
-                            <i class="bi-box-seam text-muted small pack-icon"
+                            <i class="bi-box-seam text-secondary fs-7 pack-icon"
                                data-bs-toggle="tooltip"
                                data-bs-title="{{ fighter.from_pack_name }}"></i>
                         {% endif %}
@@ -99,7 +99,7 @@
                             ({{ fighter.content_fighter_cached.cat }})
                         {% endif %}
                         {% if fighter.from_pack_name %}
-                            <i class="bi-box-seam text-muted small pack-icon"
+                            <i class="bi-box-seam text-secondary fs-7 pack-icon"
                                data-bs-toggle="tooltip"
                                data-bs-title="{{ fighter.from_pack_name }}"></i>
                         {% endif %}
@@ -108,17 +108,17 @@
             </div>
             {% if fighter.legacy_content_fighter_cached %}
                 <div class="hstack gap-2">
-                    <div class="text-muted fs-7">
+                    <div class="text-secondary fs-7">
                         Legacy:
                         {{ fighter.legacy_content_fighter_cached.house.name }}
                     </div>
                 </div>
             {% elif fighter.can_take_legacy %}
                 {% if can_edit and not print and not compact and not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                    <div class="hstack text-muted fs-7">
+                    <div class="hstack text-secondary fs-7">
                         Legacy:&nbsp;
                         <a href="{% url 'core:list-fighter-edit' list.id fighter.id %}"
-                           class="text-muted fs-7 link-secondary">Add Gang Legacy</a>
+                           class="text-secondary fs-7 link-secondary">Add Gang Legacy</a>
                     </div>
                 {% endif %}
             {% endif %}
@@ -191,17 +191,17 @@
                                         </li>
                                     {% endif %}
                                     <li>
-                                        <span class="dropdown-item text-muted"
+                                        <span class="dropdown-item text-secondary"
                                               data-bs-toggle="tooltip"
                                               data-bs-title="Child fighters are managed through their crew"><i class="bi-copy"></i> Clone</span>
                                     </li>
                                     <li>
-                                        <span class="dropdown-item text-muted"
+                                        <span class="dropdown-item text-secondary"
                                               data-bs-toggle="tooltip"
                                               data-bs-title="Child fighters are managed through their crew"><i class="bi-archive"></i> Archive</span>
                                     </li>
                                     <li>
-                                        <span class="dropdown-item text-muted"
+                                        <span class="dropdown-item text-secondary"
                                               data-bs-toggle="tooltip"
                                               data-bs-title="Child fighters are managed through their crew"><i class="bi-trash"></i> Delete</span>
                                     </li>
@@ -304,7 +304,7 @@
                             </div>
                         {% endif %}
                     {% elif can_edit %}
-                        <div class="text-muted">
+                        <div class="text-secondary">
                             No lore added yet.
                             <div class="mt-2">
                                 <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
@@ -314,7 +314,7 @@
                             </div>
                         </div>
                     {% else %}
-                        <div class="text-muted">No lore added yet.</div>
+                        <div class="text-secondary">No lore added yet.</div>
                     {% endif %}
                 </div>
                 <!-- Notes tab -->
@@ -331,9 +331,9 @@
                     {% if fighter.notes %}
                         {{ fighter.notes|safe_rich_text|safe }}
                     {% elif can_edit %}
-                        <div class="text-muted">No notes added yet.</div>
+                        <div class="text-secondary">No notes added yet.</div>
                     {% else %}
-                        <div class="text-muted">No notes added yet.</div>
+                        <div class="text-secondary">No notes added yet.</div>
                     {% endif %}
                     {% if user == list.owner and fighter.private_notes %}
                         <div class="mb-2 mt-2">

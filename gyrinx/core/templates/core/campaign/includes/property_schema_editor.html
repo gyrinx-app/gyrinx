@@ -5,18 +5,18 @@ Requires: form with property_schema_json field
 <div>
     <label class="form-label">
         Properties
-        <i class="bi-info-circle text-muted"
+        <i class="bi-info-circle text-secondary"
            data-bs-toggle="tooltip"
            data-bs-title="Define properties that assets of this type can have (e.g., Boon, Income, Location)"></i>
     </label>
-    <small class="form-text text-muted d-block mb-2">Define the properties that can be set on assets of this type.</small>
+    <small class="form-text text-secondary d-block mb-2">Define the properties that can be set on assets of this type.</small>
     <div id="property-schema-list" class="vstack gap-2 mb-2">
         <!-- Property rows will be added here by JavaScript -->
     </div>
     <button type="button"
             id="add-property-btn"
             class="btn btn-outline-secondary btn-sm">
-        <i class="bi-plus-circle"></i> Add Property
+        <i class="bi-plus-lg"></i> Add Property
     </button>
     {{ form.property_schema_json }}
     {% if form.property_schema_json.errors %}

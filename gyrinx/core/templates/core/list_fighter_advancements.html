@@ -1,5 +1,4 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
 {% block head_title %}
     Advancements - {{ fighter.name }}
 {% endblock head_title %}
@@ -68,7 +67,7 @@
                     </table>
                 </div>
             {% else %}
-                <p class="text-muted">No advancements yet.</p>
+                <p class="text-secondary">No advancements yet.</p>
             {% endif %}
             <div class="d-flex align-items-center">
                 <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"

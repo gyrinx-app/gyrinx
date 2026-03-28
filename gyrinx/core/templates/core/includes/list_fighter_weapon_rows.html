@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% comment %} Base-case: one profile for the weapon {% endcomment %}
 {% if assign.all_profiles_cached|length == 1 %}
     {% with assign.all_profiles_cached.0 as profile %}

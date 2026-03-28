@@ -5,7 +5,7 @@ Requires: form with property fields (prop_<key>) and extra_properties_json field
 {% load custom_tags %}
 {% if form.schema_keys %}
     <fieldset class="border rounded px-3 pb-3">
-        <legend class="float-none w-auto px-2 fs-6 text-muted">Properties</legend>
+        <legend class="float-none w-auto px-2 fs-6 text-secondary">Properties</legend>
         <div class="vstack gap-3">
             {% for key in form.schema_keys %}
                 {% with field_name="prop_"|add:key %}

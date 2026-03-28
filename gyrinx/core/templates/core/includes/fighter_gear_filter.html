@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% comment %}This row is used to just make sure the next row starts on a new line.{% endcomment %}
 <div class="g-col-12"></div>
 <div class="g-col-12 g-col-xl-6">
@@ -59,7 +59,7 @@
                         <a class="ms-auto" href="?{% qt request cat=cat.id %}#search">only</a>
                     </div>
                 {% empty %}
-                    <span class="text-muted">No categories available.</span>
+                    <span class="text-secondary">No categories available.</span>
                 {% endfor %}
                 <div class="btn-group align-items-center">
                     <button class="btn btn-link icon-link btn-sm" type="submit" form="search">

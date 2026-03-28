@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Edit {{ asset.name }}
 {% endblock head_title %}
@@ -9,7 +9,7 @@
     {% include "core/includes/back.html" with url=back_url text="Back to Assets" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Edit {{ asset.asset_type.name_singular }}</h1>
-        <h2 class="h5 text-muted">{{ asset.name }}</h2>
+        <h2 class="h5 text-secondary">{{ asset.name }}</h2>
         <form action="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
               method="post"
               class="vstack gap-3">
@@ -27,12 +27,12 @@
                             <h3 class="h5 mb-0">{{ type_def.label_plural|default:type_def.label }}</h3>
                             {% if not campaign.archived %}
                                 <a href="{% url 'core:campaign-sub-asset-new' campaign.id asset.id type_key %}"
-                                   class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
-                                    <i class="bi-plus-circle"></i> Add {{ type_def.label }}
+                                   class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                    <i class="bi-plus-lg"></i> Add {{ type_def.label }}
                                 </a>
                             {% endif %}
                         </div>
-                        {% if type_def.description %}<p class="text-muted small">{{ type_def.description }}</p>{% endif %}
+                        {% if type_def.description %}<p class="text-secondary fs-7">{{ type_def.description }}</p>{% endif %}
                         {% with filtered_sub_assets=asset.sub_assets.all %}
                             {% for sub_asset in filtered_sub_assets %}
                                 {% if sub_asset.sub_asset_type == type_key %}
@@ -41,7 +41,7 @@
                                             <div>
                                                 <span class="fw-semibold">{{ sub_asset.name }}</span>
                                                 {% if sub_asset.properties_with_labels %}
-                                                    <div class="small text-muted">
+                                                    <div class="fs-7 text-secondary">
                                                         {% for label, value in sub_asset.properties_with_labels %}
                                                             {% if not forloop.first %}·{% endif %}
                                                             {{ label }}: {{ value }}
@@ -52,9 +52,9 @@
                                             {% if not campaign.archived %}
                                                 <div class="text-nowrap ms-2">
                                                     <a href="{% url 'core:campaign-sub-asset-edit' campaign.id asset.id sub_asset.id %}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
                                                     <a href="{% url 'core:campaign-sub-asset-remove' campaign.id asset.id sub_asset.id %}"
-                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small ms-2">Remove</a>
+                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7 ms-2">Remove</a>
                                                 </div>
                                             {% endif %}
                                         </div>
@@ -74,7 +74,7 @@
                 {% endfor %}
             {% endif %}
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Update {{ asset.asset_type.name_singular }}</button>
+                <button type="submit" class="btn btn-success">Update {{ asset.asset_type.name_singular }}</button>
                 <a href="{% url 'core:campaign-assets' campaign.id %}"
                    class="btn btn-link">Cancel</a>
             </div>

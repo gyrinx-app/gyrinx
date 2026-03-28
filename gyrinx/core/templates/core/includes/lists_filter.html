@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% comment %}Filter component for lists, used on both lists page and homepage.
     Parameters:
     - action: The URL to submit the form to
@@ -92,7 +92,7 @@
                             <a class="ms-auto" href="?{% qt request house=house.id %}#search">only</a>
                         </div>
                     {% empty %}
-                        <span class="text-muted">No houses available.</span>
+                        <span class="text-secondary">No houses available.</span>
                     {% endfor %}
                     <div class="btn-group align-items-center">
                         <button class="btn btn-link icon-link btn-sm" type="submit">

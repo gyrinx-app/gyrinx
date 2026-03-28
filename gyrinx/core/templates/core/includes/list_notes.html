@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 <div>
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
@@ -31,11 +31,11 @@
         {% if list.notes %}
             {{ list.notes|safe_rich_text|safe }}
         {% elif list.owner_cached == user %}
-            <div class="text-muted fst-italic">
+            <div class="text-secondary fst-italic">
                 No notes added yet. <a href="{% url 'core:list-edit' list.id %}">Add some</a> to keep track of your gang.
             </div>
         {% else %}
-            <div class="text-muted fst-italic">No notes added yet.</div>
+            <div class="text-secondary fst-italic">No notes added yet.</div>
         {% endif %}
     </div>
     <div class="grid auto-flow-dense">
@@ -66,7 +66,7 @@
                     <div class="hstack">
                         <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
                     </div>
-                    <p class="text-muted">No notes added yet.</p>
+                    <p class="text-secondary">No notes added yet.</p>
                     {% if list.owner_cached == user %}
                         <p>
                             <a href="{% url 'core:list-fighter-notes-edit' list.id fighter.id %}"

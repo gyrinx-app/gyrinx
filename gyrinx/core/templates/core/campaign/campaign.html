@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     {{ campaign.name }} - Campaign
 {% endblock head_title %}
@@ -29,14 +29,10 @@
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="mb-0">{{ campaign.name }}</h1>
                 {% if campaign.owner == user %}
-                    <nav class="nav btn-group flex-nowrap ms-md-auto">
-                        <a href="{% url 'core:campaign-edit' campaign.id %}"
-                           class="btn btn-primary btn-sm">
-                            <i class="bi-pencil"></i> Edit
-                        </a>
+                    <div class="ms-md-auto d-flex gap-1 flex-nowrap">
                         {% if campaign.can_start_campaign %}
                             <a href="{% url 'core:campaign-start' campaign.id %}"
-                               class="btn btn-success btn-sm">
+                               class="btn btn-primary btn-sm">
                                 <i class="bi-play-circle"></i> Start
                             </a>
                         {% elif campaign.can_end_campaign %}
@@ -46,73 +42,79 @@
                             </a>
                         {% elif campaign.can_reopen_campaign %}
                             <a href="{% url 'core:campaign-reopen' campaign.id %}"
-                               class="btn btn-success btn-sm">
+                               class="btn btn-primary btn-sm">
                                 <i class="bi-arrow-clockwise"></i> Reopen
                             </a>
                         {% endif %}
-                        <div class="btn-group" role="group">
-                            <button type="button"
-                                    class="btn btn-secondary btn-sm dropdown-toggle"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false"
-                                    aria-label="More options">
-                                <i class="bi-three-dots"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                {% if not campaign.archived %}
-                                    <li>
-                                        <h6 class="dropdown-header">Assets, Resources & Attributes</h6>
-                                    </li>
+                        <nav class="btn-group">
+                            <a href="{% url 'core:campaign-edit' campaign.id %}"
+                               class="btn btn-secondary btn-sm">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                            <div class="btn-group" role="group">
+                                <button type="button"
+                                        class="btn btn-secondary btn-sm dropdown-toggle"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false"
+                                        aria-label="More options">
+                                    <i class="bi-three-dots"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    {% if not campaign.archived %}
+                                        <li>
+                                            <h6 class="dropdown-header">Assets, Resources & Attributes</h6>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:campaign-copy-in' campaign.id %}">
+                                                <i class="bi-box-arrow-in-down"></i> Copy to this Campaign
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:campaign-copy-out' campaign.id %}">
+                                                <i class="bi-box-arrow-up"></i> Copy from this Campaign
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:campaign-attributes' campaign.id %}">
+                                                <i class="bi-tags"></i> Attributes
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:campaign-packs' campaign.id %}">
+                                                <i class="bi-box-seam"></i> Content Packs
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                    {% endif %}
                                     <li>
                                         <a class="dropdown-item"
-                                           href="{% url 'core:campaign-copy-in' campaign.id %}">
-                                            <i class="bi-box-arrow-in-down"></i> Copy to this Campaign
+                                           href="{% url 'core:campaign-archive' campaign.id %}">
+                                            <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
+                                            {% if campaign.archived %}
+                                                Unarchive
+                                            {% else %}
+                                                Archive
+                                            {% endif %}
                                         </a>
                                     </li>
-                                    <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:campaign-copy-out' campaign.id %}">
-                                            <i class="bi-box-arrow-up"></i> Copy from this Campaign
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:campaign-attributes' campaign.id %}">
-                                            <i class="bi-tags"></i> Attributes
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:campaign-packs' campaign.id %}">
-                                            <i class="bi-box-seam"></i> Content Packs
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <hr class="dropdown-divider">
-                                    </li>
-                                {% endif %}
-                                <li>
-                                    <a class="dropdown-item"
-                                       href="{% url 'core:campaign-archive' campaign.id %}">
-                                        <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
-                                        {% if campaign.archived %}
-                                            Unarchive
-                                        {% else %}
-                                            Archive
-                                        {% endif %}
-                                    </a>
-                                </li>
-                            </ul>
-                        </div>
-                    </nav>
+                                </ul>
+                            </div>
+                        </nav>
+                    </div>
                 {% elif user.is_authenticated %}
                     <a href="{% url 'core:campaign-copy-out' campaign.id %}"
-                       class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small ms-md-auto">
+                       class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7 ms-md-auto">
                         <i class="bi-box-arrow-up"></i> Copy from this Campaign
                     </a>
                 {% endif %}
             </div>
-            <div class="d-flex flex-wrap gap-2 text-muted small">
+            <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' campaign.owner.username %}">{{ campaign.owner }}</a></span>
                 {% if campaign.public %}
                     <span data-bs-toggle="tooltip"
@@ -143,7 +145,7 @@
                         <div class="caps-label">Phase</div>
                         <div>{{ campaign.phase }}</div>
                         {% if campaign.phase_notes %}
-                            <div class="text-muted small">{{ campaign.phase_notes|safe_rich_text|safe }}</div>
+                            <div class="text-secondary fs-7">{{ campaign.phase_notes|safe_rich_text|safe }}</div>
                         {% endif %}
                     </div>
                 {% endif %}
@@ -167,12 +169,12 @@
                             </div>
                             {% if is_owner %}
                                 <a href="{% url 'core:campaign-packs' campaign.id %}"
-                                   class="small link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
+                                   class="fs-7 link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
                             {% endif %}
                         {% else %}
-                            <div class="text-muted">None – any gang can join</div>
+                            <div class="text-secondary">None – any gang can join</div>
                             <a href="{% url 'core:campaign-packs' campaign.id %}"
-                               class="small link-primary link-underline-opacity-50 link-underline-opacity-100-hover">Add packs</a>
+                               class="fs-7 link-primary link-underline-opacity-50 link-underline-opacity-100-hover">Add packs</a>
                         {% endif %}
                     </div>
                 {% endif %}
@@ -181,252 +183,264 @@
                 <div class="vstack gap-1 col-md-9">
                     {% if campaign.summary %}<div class="mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>{% endif %}
                     {% if campaign.narrative %}
-                        <div class="text-muted fs-7 mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
+                        <div class="text-secondary fs-7 mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
                     {% endif %}
                 </div>
             {% endif %}
         </div>
         <!-- Gangs -->
         <section>
-            <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                 <h2 class="h5 mb-0">Gangs</h2>
                 <div class="hstack gap-3">
                     {% if attribute_types %}
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
-                           class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Attributes →</a>
+                           class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Manage Attributes →</a>
                     {% endif %}
                     {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
-                            <i class="bi-plus-circle"></i> Add Gangs
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                            <i class="bi-plus-lg"></i> Add Gangs
                         </a>
                     {% endif %}
                 </div>
             </div>
-            {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists %}
+            <div class="px-2">
+                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists %}
+            </div>
         </section>
         <!-- Assets & Resources -->
         <div class="row g-5">
             <!-- Assets -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">
                         Assets
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
+                        <i class="bi-info-circle text-secondary fs-6 ms-1"
                            data-bs-toggle="tooltip"
                            data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-assets' campaign.id %}"
-                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Assets →</a>
+                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Manage Assets →</a>
                 </div>
-                {% if asset_types %}
-                    {% for asset_type in asset_types %}
-                        <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
-                            <div class="caps-label mb-2">{{ asset_type.name_plural }}</div>
-                            {% with assets=asset_type.assets.all %}
-                                {% if assets %}
-                                    <table class="table table-sm table-borderless mb-0 align-middle">
-                                        <tbody>
-                                            {% for asset in assets %}
-                                                <tr>
-                                                    <td class="ps-0">
-                                                        <div class="fw-semibold">{{ asset.name }}</div>
-                                                        {% if asset.properties_with_labels %}
-                                                            <div class="small text-muted">
-                                                                {% for label, value in asset.properties_with_labels %}
-                                                                    {% spaceless %}
-                                                                        <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}
-                                                                            {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
-                                                                        </span>
-                                                                    {% endspaceless %}
-                                                                {% endfor %}
-                                                            </div>
-                                                        {% endif %}
-                                                        {% if asset.sub_asset_counts %}
-                                                            <div class="small text-muted">
-                                                                {% for label, count in asset.sub_asset_counts %}
-                                                                    {% spaceless %}
-                                                                        <span class="{% property_nowrap_class count label %}">{{ count }} {{ label }}
-                                                                            {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
-                                                                        </span>
-                                                                    {% endspaceless %}
-                                                                {% endfor %}
-                                                            </div>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td class="text-end align-top text-nowrap">
-                                                        {% if asset.holder %}
-                                                            <a href="{% url 'core:list' asset.holder.id %}"
-                                                               class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
-                                                        {% else %}
-                                                            <span class="text-muted">Unowned</span>
-                                                        {% endif %}
-                                                        {% if is_owner and not campaign.archived %}
-                                                            <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
-                                                        {% endif %}
-                                                    </td>
-                                                </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                {% else %}
-                                    <p class="text-muted small mb-0">No {{ asset_type.name_plural|lower }} yet.</p>
-                                {% endif %}
-                            {% endwith %}
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-muted small mb-0">
-                        No asset types defined yet.
-                        {% if campaign.owner == user and not campaign.archived %}
-                            <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
-                            or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">add an asset type →</a>
-                        {% elif campaign.owner == user %}
-                            <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
-                        {% endif %}
-                    </p>
-                {% endif %}
+                <div class="px-2">
+                    {% if asset_types %}
+                        {% for asset_type in asset_types %}
+                            <div class="{% if not forloop.first %}border-top pt-3 mt-3{% endif %}">
+                                <div class="caps-label mb-2">{{ asset_type.name_plural }}</div>
+                                {% with assets=asset_type.assets.all %}
+                                    {% if assets %}
+                                        <table class="table table-sm table-borderless mb-0 align-middle">
+                                            <tbody>
+                                                {% for asset in assets %}
+                                                    <tr>
+                                                        <td class="ps-0">
+                                                            <div class="fw-semibold">{{ asset.name }}</div>
+                                                            {% if asset.properties_with_labels %}
+                                                                <div class="fs-7 text-secondary">
+                                                                    {% for label, value in asset.properties_with_labels %}
+                                                                        {% spaceless %}
+                                                                            <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}
+                                                                                {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                                            </span>
+                                                                        {% endspaceless %}
+                                                                    {% endfor %}
+                                                                </div>
+                                                            {% endif %}
+                                                            {% if asset.sub_asset_counts %}
+                                                                <div class="fs-7 text-secondary">
+                                                                    {% for label, count in asset.sub_asset_counts %}
+                                                                        {% spaceless %}
+                                                                            <span class="{% property_nowrap_class count label %}">{{ count }} {{ label }}
+                                                                                {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                                            </span>
+                                                                        {% endspaceless %}
+                                                                    {% endfor %}
+                                                                </div>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-end align-top text-nowrap">
+                                                            {% if asset.holder %}
+                                                                <a href="{% url 'core:list' asset.holder.id %}"
+                                                                   class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
+                                                            {% else %}
+                                                                <span class="text-secondary">Unowned</span>
+                                                            {% endif %}
+                                                            {% if is_owner and not campaign.archived %}
+                                                                <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                                                   class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    {% else %}
+                                        <p class="text-secondary fs-7 mb-0">No {{ asset_type.name_plural|lower }} yet.</p>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-secondary fs-7 mb-0">
+                            No asset types defined yet.
+                            {% if campaign.owner == user and not campaign.archived %}
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
+                                or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">add an asset type →</a>
+                            {% elif campaign.owner == user %}
+                                <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                </div>
             </section>
             <!-- Resources -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">
                         Resources
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
+                        <i class="bi-info-circle text-secondary fs-6 ms-1"
                            data-bs-toggle="tooltip"
                            data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-resources' campaign.id %}"
-                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">Manage Resources →</a>
+                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Manage Resources →</a>
                 </div>
-                {% if resource_types and campaign.has_lists %}
-                    <div class="table-responsive">
-                        <table class="table table-sm table-borderless mb-0 align-middle">
-                            <thead>
-                                <tr>
-                                    <th class="caps-label">Gang</th>
-                                    {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% if grouped_lists %}
-                                    {% for group in grouped_lists %}
-                                        <tr>
-                                            <td colspan="100" class="{% if not forloop.first %}pt-3{% endif %} pb-1">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    {% if group.colour %}
-                                                        <span class="d-inline-block rounded-circle"
-                                                              style="width: 10px;
-                                                                     height: 10px;
-                                                                     background-color: {{ group.colour }}"></span>
-                                                    {% endif %}
-                                                    <strong class="small text-uppercase text-secondary">{{ group.name }}</strong>
-                                                </div>
-                                                <hr class="mt-1 mb-0"
-                                                    {% if group.colour %}style="border-color: {{ group.colour }}; border-width: 2px; opacity: 0.5"{% endif %}>
-                                            </td>
-                                        </tr>
-                                        {% for list in group.lists %}
+                <div class="px-2">
+                    {% if resource_types and campaign.has_lists %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-borderless mb-0 align-middle">
+                                <thead>
+                                    <tr>
+                                        <th class="caps-label">Gang</th>
+                                        {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if grouped_lists %}
+                                        {% for group in grouped_lists %}
+                                            <tr>
+                                                <td colspan="100" class="{% if not forloop.first %}pt-3{% endif %} pb-1">
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        {% if group.colour %}
+                                                            <span class="d-inline-block rounded-circle"
+                                                                  style="width: 10px;
+                                                                         height: 10px;
+                                                                         background-color: {{ group.colour }}"></span>
+                                                        {% endif %}
+                                                        <strong class="fs-7 text-uppercase text-secondary">{{ group.name }}</strong>
+                                                    </div>
+                                                    <hr class="mt-1 mb-0"
+                                                        {% if group.colour %}style="border-color: {{ group.colour }}; border-width: 2px; opacity: 0.5"{% endif %}>
+                                                </td>
+                                            </tr>
+                                            {% for list in group.lists %}
+                                                {% include "core/campaign/includes/resource_row.html" %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    {% else %}
+                                        {% for list in campaign.lists.all %}
                                             {% include "core/campaign/includes/resource_row.html" %}
                                         {% endfor %}
-                                    {% endfor %}
-                                {% else %}
-                                    {% for list in campaign.lists.all %}
-                                        {% include "core/campaign/includes/resource_row.html" %}
-                                    {% endfor %}
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% elif resource_types %}
-                    <p class="text-muted small mb-0">Resource types are defined but no gangs have joined this campaign yet.</p>
-                {% else %}
-                    <p class="text-muted small mb-0">
-                        No resource types defined yet.
-                        {% if campaign.owner == user and not campaign.archived %}
-                            <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
-                            or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">add a resource type →</a>
-                        {% elif campaign.owner == user %}
-                            <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
-                        {% endif %}
-                    </p>
-                {% endif %}
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% elif resource_types %}
+                        <p class="text-secondary fs-7 mb-0">Resource types are defined but no gangs have joined this campaign yet.</p>
+                    {% else %}
+                        <p class="text-secondary fs-7 mb-0">
+                            No resource types defined yet.
+                            {% if campaign.owner == user and not campaign.archived %}
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
+                                or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">add a resource type →</a>
+                            {% elif campaign.owner == user %}
+                                <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                </div>
             </section>
         </div>
         <!-- Battles & Action Log -->
         <div class="row g-5">
             <!-- Battles -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Battle Reports</h2>
                     {% if can_log_actions %}
                         <a href="{% url 'core:battle-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small"><i class="bi-plus-circle"></i> New Battle</a>
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> New Battle</a>
                     {% endif %}
                 </div>
-                {% if recent_battles %}
-                    <div class="vstack gap-2">
-                        {% for battle in recent_battles %}
-                            {% include "core/includes/battle_summary_card.html" %}
-                        {% endfor %}
-                    </div>
-                    {% if campaign.battles.count > battles_limit %}
-                        <a href="{% url 'core:campaign-battles' campaign.id %}" class="small">View all {{ campaign.battles.count }} battles →</a>
-                    {% endif %}
-                {% else %}
-                    <p class="text-muted small mb-0">
-                        No battles reported yet.
-                        {% if can_log_actions %}
-                            <a href="{% url 'core:battle-new' campaign.id %}">Create first battle →</a>
+                <div class="px-2">
+                    {% if recent_battles %}
+                        <div class="vstack gap-2">
+                            {% for battle in recent_battles %}
+                                {% include "core/includes/battle_summary_card.html" %}
+                            {% endfor %}
+                        </div>
+                        {% if campaign.battles.count > battles_limit %}
+                            <a href="{% url 'core:campaign-battles' campaign.id %}" class="fs-7">View all {{ campaign.battles.count }} battles →</a>
                         {% endif %}
-                    </p>
-                {% endif %}
+                    {% else %}
+                        <p class="text-secondary fs-7 mb-0">
+                            No battles reported yet.
+                            {% if can_log_actions %}
+                                <a href="{% url 'core:battle-new' campaign.id %}">Create first battle →</a>
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                </div>
             </section>
             <!-- Action Log -->
             <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">
                         Action Log
-                        <i class="bi-info-circle text-muted fs-6 ms-1"
+                        <i class="bi-info-circle text-secondary fs-6 ms-1"
                            data-bs-toggle="tooltip"
                            data-bs-title="The Action Log tracks all significant events and activities that occur during the campaign."></i>
                     </h2>
                     <div class="hstack gap-3">
                         {% if can_log_actions and not campaign.archived %}
                             <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
-                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small"><i class="bi-plus-circle"></i> Log Action</a>
+                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> Log Action</a>
                         {% endif %}
                         <a href="{% url 'core:campaign-actions' campaign.id %}"
-                           class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
+                           class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">View all →</a>
                     </div>
                 </div>
-                {% with recent_actions=campaign.actions.all|slice:":5" %}
-                    {% if recent_actions %}
-                        <div class="vstack gap-2">
-                            {% for action in recent_actions %}
-                                {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
-                            {% endfor %}
-                        </div>
-                        {% if campaign.actions.count > 5 %}
-                            <a href="{% url 'core:campaign-actions' campaign.id %}"
-                               class="small mt-2 d-inline-block">View all {{ campaign.actions.count }} actions →</a>
+                <div class="px-2">
+                    {% with recent_actions=campaign.actions.all|slice:":5" %}
+                        {% if recent_actions %}
+                            <div class="vstack gap-2">
+                                {% for action in recent_actions %}
+                                    {% include "core/includes/campaign_action_item.html" with action=action campaign=campaign user=user show_truncated=True %}
+                                {% endfor %}
+                            </div>
+                            {% if campaign.actions.count > 5 %}
+                                <a href="{% url 'core:campaign-actions' campaign.id %}"
+                                   class="fs-7 mt-2 d-inline-block">View all {{ campaign.actions.count }} actions →</a>
+                            {% endif %}
+                        {% else %}
+                            <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
                         {% endif %}
-                    {% else %}
-                        <p class="text-muted small mb-0">No actions logged yet.</p>
-                    {% endif %}
-                {% endwith %}
+                    {% endwith %}
+                </div>
             </section>
         </div>
         <!-- Captured Fighters -->
         {% if campaign.is_in_progress %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Captured Fighters</h2>
                     <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
+                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">View all →</a>
                 </div>
-                {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
+                <div class="px-2">
+                    {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
+                </div>
             </section>
         {% endif %}
     </div>

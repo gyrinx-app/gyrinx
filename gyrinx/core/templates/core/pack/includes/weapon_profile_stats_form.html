@@ -23,7 +23,7 @@
                 </div>
             {% endfor %}
             {# djlint:off H021 #}
-            <div class="text-secondary small" data-filter-empty style="display: none;">No matches.</div>
+            <div class="text-secondary fs-7" data-filter-empty style="display: none;">No matches.</div>
         </div>
     </div>
 {% endif %}
@@ -32,7 +32,7 @@
     <div class="d-flex flex-wrap gap-2">
         {% for stat in weapon_stats %}
             <div class="text-center stat-input-cell">
-                <label class="form-label small mb-1">{{ stat.short_name }}</label>
+                <label class="form-label fs-7 mb-1">{{ stat.short_name }}</label>
                 <input type="text"
                        name="wp_{{ stat.field_name }}"
                        value="{{ stat.value|default:'' }}"

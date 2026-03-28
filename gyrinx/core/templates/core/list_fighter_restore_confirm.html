@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Restore Fighter - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
@@ -19,10 +19,11 @@
                 <li>Add {{ fighter_cost }}¢ back to your gang rating</li>
             </ul>
             {% if list.is_campaign_mode %}
-                <div class="alert alert-primary">
-                    <p class="mb-0">
+                <div class="alert alert-primary alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>
                         <strong>Note:</strong> Restoring this fighter will increase your gang rating by {{ fighter_cost }}¢.
-                    </p>
+                    </div>
                 </div>
             {% endif %}
             <div class="mt-3">

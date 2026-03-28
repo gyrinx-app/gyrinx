@@ -1,96 +1,98 @@
-{% load allauth custom_tags humanize %}
+{% load custom_tags humanize %}
 {% if list.is_campaign_mode and list.campaign %}
     <div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
-        <div class="bg-body-secondary rounded px-2 py-1 mb-2">
+        <div class="bg-body-tertiary rounded px-2 py-2 mb-2">
             <h3 class="h5 mb-0">Assets & Resources</h3>
         </div>
-        <div class="vstack gap-3">
-            {% if held_assets %}
-                <div>
-                    <h4 class="caps-label mb-1">Assets</h4>
-                    <div class="vstack gap-1">
-                        {% for asset in held_assets %}
-                            <div class="d-flex align-items-center fs-7">
-                                <div>
-                                    <strong>{{ asset.name }}</strong>
-                                    {% if asset.asset_type.name_singular %}
-                                        <span class="text-muted">({{ asset.asset_type.name_singular }})</span>
+        <div class="px-2">
+            <div class="vstack gap-3">
+                {% if held_assets %}
+                    <div>
+                        <h4 class="caps-label mb-1">Assets</h4>
+                        <div class="vstack gap-1">
+                            {% for asset in held_assets %}
+                                <div class="d-flex align-items-center fs-7">
+                                    <div>
+                                        <strong>{{ asset.name }}</strong>
+                                        {% if asset.asset_type.name_singular %}
+                                            <span class="text-secondary">({{ asset.asset_type.name_singular }})</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if list.campaign.is_pre_campaign %}
+                                        <span class="text-secondary fs-7 ms-auto">Campaign not started</span>
+                                    {% elif not list.campaign.archived and not print %}
+                                        <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                           class="icon-link link-secondary fs-7 ms-auto">
+                                            <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
+                                        </a>
                                     {% endif %}
                                 </div>
-                                {% if list.campaign.is_pre_campaign %}
-                                    <span class="text-muted small ms-auto">Campaign not started</span>
-                                {% elif not list.campaign.archived and not print %}
-                                    <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                       class="icon-link link-secondary small ms-auto">
-                                        <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
-                                    </a>
-                                {% endif %}
-                            </div>
-                        {% endfor %}
+                            {% endfor %}
+                        </div>
                     </div>
-                </div>
-            {% endif %}
-            {% if campaign_resources %}
-                <div>
-                    <h4 class="caps-label mb-1">Resources</h4>
-                    <table class="table table-sm table-borderless mb-0 fs-7">
-                        <tbody>
-                            {% for resource in campaign_resources %}
-                                <tr>
-                                    <td class="ps-0">{{ resource.resource_type.name }}</td>
-                                    <td class="text-end">
-                                        {% if list.campaign.is_pre_campaign %}
-                                            <span class="text-muted">0</span>
-                                        {% else %}
-                                            {{ resource.amount }}
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end pe-0">
-                                        {% if list.campaign.is_pre_campaign %}
-                                            <span class="text-muted small">Campaign not started</span>
-                                        {% elif not list.campaign.archived and not print %}
-                                            <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                               class="icon-link link-secondary small">
-                                                <i class="bi-pencil" aria-hidden="true"></i> Modify
-                                            </a>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% endif %}
-            {% if captured_fighters %}
-                <div>
-                    <h4 class="caps-label mb-1">Captured Fighters</h4>
-                    <table class="table table-sm table-borderless mb-0 fs-7">
-                        <tbody>
-                            {% for capture in captured_fighters %}
-                                <tr>
-                                    <td class="ps-0">
-                                        <strong>{{ capture.fighter.name }}</strong>
-                                        <span class="text-muted">({{ capture.fighter.list.name }})</span>
-                                    </td>
-                                    <td class="text-end pe-0">
-                                        <a href="{% url 'core:fighter-sell-to-guilders' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                           class="link-secondary small">Sell</a>
-                                        ·
-                                        <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                           class="link-secondary small">Ransom</a>
-                                        ·
-                                        <a href="{% url 'core:fighter-release' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                           class="link-secondary small">Release</a>
-                                    </td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% endif %}
-            {% if not campaign_resources and not held_assets and not captured_fighters %}
-                <p class="text-muted small mb-0">No assets, resources, or captured fighters held.</p>
-            {% endif %}
+                {% endif %}
+                {% if campaign_resources %}
+                    <div>
+                        <h4 class="caps-label mb-1">Resources</h4>
+                        <table class="table table-sm table-borderless mb-0 fs-7">
+                            <tbody>
+                                {% for resource in campaign_resources %}
+                                    <tr>
+                                        <td class="ps-0">{{ resource.resource_type.name }}</td>
+                                        <td class="text-end">
+                                            {% if list.campaign.is_pre_campaign %}
+                                                <span class="text-secondary">0</span>
+                                            {% else %}
+                                                {{ resource.amount }}
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end pe-0">
+                                            {% if list.campaign.is_pre_campaign %}
+                                                <span class="text-secondary fs-7">Campaign not started</span>
+                                            {% elif not list.campaign.archived and not print %}
+                                                <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                                   class="icon-link link-secondary fs-7">
+                                                    <i class="bi-pencil" aria-hidden="true"></i> Modify
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+                {% if captured_fighters %}
+                    <div>
+                        <h4 class="caps-label mb-1">Captured Fighters</h4>
+                        <table class="table table-sm table-borderless mb-0 fs-7">
+                            <tbody>
+                                {% for capture in captured_fighters %}
+                                    <tr>
+                                        <td class="ps-0">
+                                            <strong>{{ capture.fighter.name }}</strong>
+                                            <span class="text-secondary">({{ capture.fighter.list.name }})</span>
+                                        </td>
+                                        <td class="text-end pe-0">
+                                            <a href="{% url 'core:fighter-sell-to-guilders' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                               class="link-secondary fs-7">Sell</a>
+                                            ·
+                                            <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                               class="link-secondary fs-7">Ransom</a>
+                                            ·
+                                            <a href="{% url 'core:fighter-release' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                               class="link-secondary fs-7">Release</a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+                {% if not campaign_resources and not held_assets and not captured_fighters %}
+                    <p class="text-secondary fs-7 mb-0">No assets, resources, or captured fighters held.</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 {% endif %}

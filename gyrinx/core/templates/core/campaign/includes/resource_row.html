@@ -12,7 +12,7 @@
                         {% if is_owner or res.list.owner == user %}
                             {% if not campaign.archived %}
                                 <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                   class="link-secondary small ms-1"><i class="bi-pencil"></i></a>
+                                   class="link-secondary fs-7 ms-1"><i class="bi-pencil"></i></a>
                             {% endif %}
                         {% endif %}
                     {% else %}
