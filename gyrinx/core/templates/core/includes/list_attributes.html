@@ -3,75 +3,77 @@
     <div class="bg-body-secondary rounded px-2 py-1 mb-2">
         <h3 class="h5 mb-0">Attributes</h3>
     </div>
-    {% if list.all_attributes %}
-        {% if list.set_attributes %}
-            <table class="table table-sm table-borderless mb-0 fs-7">
-                <tbody>
-                    {% for attribute in list.set_attributes %}
-                        <tr>
-                            <td class="ps-0">{{ attribute.name }}</td>
-                            <td>{{ attribute.assignments|join:", " }}</td>
-                            {% if not print %}
-                                <td class="text-end pe-0">
-                                    {% if list.owner_cached == user and not list.archived %}
-                                        <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
-                                           class="icon-link link-secondary fs-7">
-                                            <i class="bi-pencil" aria-hidden="true"></i>
-                                            Edit
-                                        </a>
-                                    {% endif %}
-                                </td>
+    <div class="px-2">
+        {% if list.all_attributes %}
+            {% if list.set_attributes %}
+                <table class="table table-sm table-borderless mb-0 fs-7">
+                    <tbody>
+                        {% for attribute in list.set_attributes %}
+                            <tr>
+                                <td class="ps-0">{{ attribute.name }}</td>
+                                <td>{{ attribute.assignments|join:", " }}</td>
+                                {% if not print %}
+                                    <td class="text-end pe-0">
+                                        {% if list.owner_cached == user and not list.archived %}
+                                            <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
+                                               class="icon-link link-secondary fs-7">
+                                                <i class="bi-pencil" aria-hidden="true"></i>
+                                                Edit
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+            {% if not print %}
+                {% if list.owner_cached == user and not list.archived %}
+                    <div class="fs-7 text-end {% if list.set_attributes %}mt-1{% endif %}">
+                        {% with unset_count=list.unset_attributes|length %}
+                            {% if unset_count > 0 %}
+                                <span class="text-secondary">+{{ unset_count }} more</span>
+                                <span class="text-secondary mx-1">·</span>
                             {% endif %}
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
-        {% if not print %}
-            {% if list.owner_cached == user and not list.archived %}
-                <div class="fs-7 text-end {% if list.set_attributes %}mt-1{% endif %}">
-                    {% with unset_count=list.unset_attributes|length %}
-                        {% if unset_count > 0 %}
-                            <span class="text-secondary">+{{ unset_count }} more</span>
-                            <span class="text-secondary mx-1">·</span>
-                        {% endif %}
-                    {% endwith %}
-                    <a href="{% url 'core:list-attributes-manage' list.id %}"
-                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
-                        {% if list.set_attributes %}
-                            Manage
-                        {% else %}
-                            Add
-                        {% endif %}
-                    </a>
-                </div>
+                        {% endwith %}
+                        <a href="{% url 'core:list-attributes-manage' list.id %}"
+                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                            {% if list.set_attributes %}
+                                Manage
+                            {% else %}
+                                Add
+                            {% endif %}
+                        </a>
+                    </div>
+                {% elif not list.set_attributes %}
+                    <p class="text-secondary fs-7 mb-0">No attributes set.</p>
+                {% endif %}
             {% elif not list.set_attributes %}
                 <p class="text-secondary fs-7 mb-0">No attributes set.</p>
             {% endif %}
-        {% elif not list.set_attributes %}
-            <p class="text-secondary fs-7 mb-0">No attributes set.</p>
-        {% endif %}
-        {% if list.fighter_type_summary %}
-            <h4 class="caps-label mb-1 mt-3">Fighters</h4>
-            <table class="table table-borderless table-sm mb-0 fs-7">
-                <tbody>
-                    {% for item in list.fighter_type_summary.type_totals %}
+            {% if list.fighter_type_summary %}
+                <h4 class="caps-label mb-1 mt-3">Fighters</h4>
+                <table class="table table-borderless table-sm mb-0 fs-7">
+                    <tbody>
+                        {% for item in list.fighter_type_summary.type_totals %}
+                            <tr>
+                                <td class="ps-0">{{ item.type }}</td>
+                                <td class="text-secondary">{{ item.category }}</td>
+                                <td class="text-end pe-0">{{ item.count }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
                         <tr>
-                            <td class="ps-0">{{ item.type }}</td>
-                            <td class="text-secondary">{{ item.category }}</td>
-                            <td class="text-end pe-0">{{ item.count }}</td>
+                            <td colspan="2" class="ps-0 border-top fw-semibold">Total</td>
+                            <td class="text-end pe-0 border-top fw-semibold">{{ list.fighter_type_summary.total }}</td>
                         </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="2" class="ps-0 border-top fw-semibold">Total</td>
-                        <td class="text-end pe-0 border-top fw-semibold">{{ list.fighter_type_summary.total }}</td>
-                    </tr>
-                </tfoot>
-            </table>
+                    </tfoot>
+                </table>
+            {% endif %}
+        {% else %}
+            <p class="text-secondary fs-7 mb-0">No attributes available.</p>
         {% endif %}
-    {% else %}
-        <p class="text-secondary fs-7 mb-0">No attributes available.</p>
-    {% endif %}
+    </div>
 </div>

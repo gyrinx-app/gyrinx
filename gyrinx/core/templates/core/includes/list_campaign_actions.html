@@ -10,21 +10,23 @@
                 </a>
             {% endif %}
         </div>
-        <p class="text-secondary fs-7 mb-2">
-            From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
-        </p>
-        {% if recent_actions %}
-            <div class="vstack gap-2">
-                {% for action in recent_actions %}
-                    {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
-                {% endfor %}
-            </div>
-            {% if not print %}
-                <a href="{% url 'core:campaign-actions' list.campaign.id %}{% querystring gang=list.id %}"
-                   class="fs-7 mt-2 d-inline-block">View all actions →</a>
+        <div class="px-2">
+            <p class="text-secondary fs-7 mb-2">
+                From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
+            </p>
+            {% if recent_actions %}
+                <div class="vstack gap-2">
+                    {% for action in recent_actions %}
+                        {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
+                    {% endfor %}
+                </div>
+                {% if not print %}
+                    <a href="{% url 'core:campaign-actions' list.campaign.id %}{% querystring gang=list.id %}"
+                       class="fs-7 mt-2 d-inline-block">View all actions →</a>
+                {% endif %}
+            {% else %}
+                <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
             {% endif %}
-        {% else %}
-            <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
-        {% endif %}
+        </div>
     </div>
 {% endif %}
