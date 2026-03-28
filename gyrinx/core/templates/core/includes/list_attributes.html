@@ -29,11 +29,10 @@
         {% endif %}
         {% if not print %}
             {% if list.owner_cached == user and not list.archived %}
-                <div class="fs-7 {% if list.set_attributes %}mt-1{% endif %}">
+                <div class="fs-7 text-end {% if list.set_attributes %}mt-1{% endif %}">
                     {% with unset_count=list.unset_attributes|length %}
                         {% if unset_count > 0 %}
-                            <a href="{% url 'core:list-attributes-manage' list.id %}"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">+{{ unset_count }} more</a>
+                            <span class="text-muted">+{{ unset_count }} more</span>
                             <span class="text-muted mx-1">·</span>
                         {% endif %}
                     {% endwith %}
