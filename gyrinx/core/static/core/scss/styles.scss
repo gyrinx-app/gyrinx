@@ -102,6 +102,11 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 
 [data-bs-theme="dark"] {
     --bs-secondary-color: #{darken($secondary, 5%)};
+
+    // Navbar needs to stand out from the page background in dark mode
+    .navbar.bg-dark {
+        background-color: #{lighten($dark, 5%)} !important;
+    }
 }
 
 // Alerts with icon pinned left, content flowing right.
