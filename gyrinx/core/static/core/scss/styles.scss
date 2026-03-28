@@ -94,6 +94,16 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Custom styles
 //
 
+// Lighten secondary in light mode, darken in dark mode
+:root,
+[data-bs-theme="light"] {
+    --bs-secondary-color: #{lighten($secondary, 15%)};
+}
+
+[data-bs-theme="dark"] {
+    --bs-secondary-color: #{darken($secondary, 5%)};
+}
+
 // Alerts with icon pinned left, content flowing right.
 // Usage: <div class="alert alert-danger alert-icon" role="alert">
 //          <i class="bi-exclamation-triangle"></i>
