@@ -58,6 +58,7 @@ from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment,
     VirtualListFighterEquipmentAssignment,
 )
+from gyrinx.core.models.pack import CustomContentPackItem
 from gyrinx.core.utils import get_return_url, safe_redirect
 from gyrinx.core.views import make_query_params_str
 from gyrinx.core.views.list.common import get_clean_list_or_404
@@ -610,6 +611,16 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 )
             )
 
+    # Build pack content map for visual indicators (single query, no N+1)
+    if packs:
+        pack_content_map = dict(
+            CustomContentPackItem.objects.filter(pack__in=packs, archived=False)
+            .select_related("pack")
+            .values_list("object_id", "pack__name")
+        )
+    else:
+        pack_content_map = {}
+
     context = {
         "fighter": fighter,
         "equipment": equipment,
@@ -623,6 +634,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         "render_preset_mal": render_preset_mal,
         "preset_al": preset_al,
         "preset_mal": preset_mal,
+        "pack_content_map": pack_content_map,
     }
 
     # Add weapons-specific context if needed
