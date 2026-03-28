@@ -1,0 +1,14 @@
+<div class="alert alert-{{ variant }} alert-icon{% if dismissible %} alert-dismissible fade show{% endif %} mb-0"
+     role="alert">
+    <i class="{{ icon_class }}"></i>
+    <div>
+        {% if heading %}<strong>{{ heading }}</strong>{% endif %}
+        {{ message }}
+    </div>
+    {% if dismissible %}
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Close"></button>
+    {% endif %}
+</div>

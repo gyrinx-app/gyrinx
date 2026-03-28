@@ -1,0 +1,11 @@
+{# Empty state component. #}
+{# Required params: message (str) #}
+{# Optional params: action_url (str), action_text (str), inline (bool) #}
+{% if inline %}
+    <span class="text-secondary fst-italic">{{ message }}</span>
+{% else %}
+    <p class="text-secondary mb-0">
+        {{ message }}
+        {% if action_url and action_text %}<a href="{{ action_url }}">{{ action_text }}</a>{% endif %}
+    </p>
+{% endif %}

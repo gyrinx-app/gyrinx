@@ -52,13 +52,13 @@
                                 </td>
                                 <td>
                                     {% if captured.sold_to_guilders %}
-                                        <span class="badge bg-secondary">Sold to Guilders</span>
+                                        <span class="badge text-bg-secondary">Sold to Guilders</span>
                                         {% if captured.ransom_amount %}
                                             <br>
                                             <small>{{ captured.ransom_amount }}¢</small>
                                         {% endif %}
                                     {% else %}
-                                        <span class="badge bg-warning text-dark">Captured</span>
+                                        <span class="badge text-bg-warning">Captured</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ captured.captured_at|date:"M d, Y" }}</td>

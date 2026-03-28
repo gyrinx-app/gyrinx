@@ -12,7 +12,7 @@
             <div class="card-body">
                 <h6 class="card-subtitle mb-2 text-secondary">Current Amount</h6>
                 <p class="mb-0">
-                    <span class="badge bg-primary fs-5">{{ resource.amount }}</span>
+                    <span class="badge text-bg-primary fs-5">{{ resource.amount }}</span>
                 </p>
             </div>
         </div>
@@ -26,7 +26,7 @@
                 <div class="card-body">
                     <h6 class="card-subtitle mb-2 text-secondary">New Amount</h6>
                     <p class="mb-0">
-                        <span class="badge bg-success fs-5" id="new-amount">{{ resource.amount }}</span>
+                        <span class="badge text-bg-success fs-5" id="new-amount">{{ resource.amount }}</span>
                     </p>
                 </div>
             </div>
@@ -56,9 +56,9 @@
                     newAmountSpan.textContent = newAmount;
 
                     if (newAmount < 0) {
-                        newAmountSpan.className = 'badge bg-danger fs-5';
+                        newAmountSpan.className = 'badge text-bg-danger fs-5';
                     } else {
-                        newAmountSpan.className = 'badge bg-success fs-5';
+                        newAmountSpan.className = 'badge text-bg-success fs-5';
                     }
                 } else {
                     previewCard.classList.add('d-none');
