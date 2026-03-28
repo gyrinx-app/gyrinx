@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Archive profile - {{ equipment.name }} - {{ pack.name }}
 {% endblock head_title %}
@@ -10,7 +10,7 @@
         <p>
             Are you sure you want to archive the profile <strong>{{ profile.name }}</strong> from <strong>{{ equipment.name }}</strong>?
         </p>
-        <p class="text-muted small">Archived items can be restored later.</p>
+        <p class="text-secondary fs-7">Archived items can be restored later.</p>
         <form action="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
               method="post">
             {% csrf_token %}

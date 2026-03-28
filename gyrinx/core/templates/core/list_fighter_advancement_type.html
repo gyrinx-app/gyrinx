@@ -1,5 +1,4 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
 {% block head_title %}
     New Advancement - {{ fighter.name }}
 {% endblock head_title %}
@@ -10,17 +9,15 @@
             <h3 class="h5 mb-0">Select Advancement</h3>
         </div>
         {% if campaign_action %}
-            <div class="alert alert-info">
-                <div class="d-flex align-items-center">
-                    <i class="bi-dice-6 fs-3 me-2"></i>
-                    <div>
-                        <strong>Dice Roll:</strong>
-                        {% for result in campaign_action.dice_results %}
-                            {{ result }}
-                            {% if not forloop.last %}+{% endif %}
-                        {% endfor %}
-                        = <strong>{{ campaign_action.dice_total }}</strong>
-                    </div>
+            <div class="alert alert-info alert-icon mb-0" role="alert">
+                <i class="bi-dice-6"></i>
+                <div>
+                    <strong>Dice Roll:</strong>
+                    {% for result in campaign_action.dice_results %}
+                        {{ result }}
+                        {% if not forloop.last %}+{% endif %}
+                    {% endfor %}
+                    = <strong>{{ campaign_action.dice_total }}</strong>
                 </div>
             </div>
         {% endif %}
@@ -30,11 +27,17 @@
             {% csrf_token %}
             {{ form.campaign_action_id }}
             {% if form.non_field_errors %}
-                <div class="alert alert-danger mb-last-0 mb-0">{{ form.non_field_errors }}</div>
+                <div class="alert alert-danger alert-icon mb-last-0 mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>{{ form.non_field_errors }}</div>
+                </div>
             {% endif %}
             <div class="vstack gap-3">
-                <div class="alert alert-secondary mb-0">
-                    Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
+                <div class="alert alert-secondary alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>
+                        Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
+                    </div>
                 </div>
                 <div>
                     <label class="form-label">Advancement</label>

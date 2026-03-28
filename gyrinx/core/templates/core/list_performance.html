@@ -1,10 +1,10 @@
 {% extends "core/layouts/foundation.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     {{ list.name }} | {{ list.owner_cached }}
 {% endblock head_title %}
 {% block base %}
-    <div class="border rounded m-2 mb-3 p-2 mb-last-0 text-muted">
+    <div class="border rounded m-2 mb-3 p-2 mb-last-0 text-secondary">
         Stuff that is not here yet, but could later be optimised:
         <ul>
             <li>
@@ -63,7 +63,7 @@
                             {% if attribute.assignments %}
                                 {{ attribute.assignments|join:", " }}
                             {% else %}
-                                <span class="text-muted">Not set</span>
+                                <span class="text-secondary">Not set</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -71,7 +71,7 @@
             </tbody>
         </table>
     {% else %}
-        <p class="text-muted fs-7 mb-0">No attributes available.</p>
+        <p class="text-secondary fs-7 mb-0">No attributes available.</p>
     {% endif %}
     <h2>List Fighters</h2>
     <table class="table table-sm mb-0 fs-7">
@@ -111,7 +111,7 @@
                             {{ fighter.term_proximal_demonstrative }} is linked
                             to {{ fighter.parent_list_fighter.name }}
                         {% else %}
-                            <span class="text-muted fst-italic">No linked fighter</span>
+                            <span class="text-secondary fst-italic">No linked fighter</span>
                         {% endif %}
                     </td>
                     <td>{{ fighter.has_overridden_cost |yesno:"Cost overridden,No override" }}</td>
@@ -121,7 +121,7 @@
                         {% if fighter.legacy_content_fighter_cached %}
                             {{ fighter.legacy_content_fighter_cached.house.name }}
                         {% else %}
-                            <span class="text-muted fst-italic">No legacy</span>
+                            <span class="text-secondary fst-italic">No legacy</span>
                         {% endif %}
                         / {{ fighter.can_take_legacy |yesno:"Yes,No" }}
                     </td>

@@ -5,11 +5,11 @@ Requires: form with sub_asset_schema_json field
 <div class="mt-4 border-top pt-4">
     <label class="form-label">
         Sub-Asset Types
-        <i class="bi-info-circle text-muted"
+        <i class="bi-info-circle text-secondary"
            data-bs-toggle="tooltip"
            data-bs-title="Define types of sub-assets that can be added to assets of this type (e.g., Structures for Settlements)"></i>
     </label>
-    <small class="form-text text-muted d-block mb-2">Define sub-assets that can be added to assets of this type. Each sub-asset type can have its own properties.</small>
+    <small class="form-text text-secondary d-block mb-2">Define sub-assets that can be added to assets of this type. Each sub-asset type can have its own properties.</small>
     <div id="sub-asset-schema-list" class="vstack gap-3 mb-2">
         <!-- Sub-asset type entries will be added here by JavaScript -->
     </div>
@@ -34,26 +34,26 @@ Requires: form with sub_asset_schema_json field
         </div>
         <div class="row g-2 mb-2">
             <div class="col-md-6">
-                <label class="form-label small">Label (singular)</label>
+                <label class="form-label fs-7">Label (singular)</label>
                 <input type="text"
                        class="form-control form-control-sm sub-asset-label"
                        placeholder="e.g., Structure">
             </div>
             <div class="col-md-6">
-                <label class="form-label small">Label (plural)</label>
+                <label class="form-label fs-7">Label (plural)</label>
                 <input type="text"
                        class="form-control form-control-sm sub-asset-label-plural"
                        placeholder="e.g., Structures">
             </div>
         </div>
         <div class="mb-2">
-            <label class="form-label small">Description (optional)</label>
+            <label class="form-label fs-7">Description (optional)</label>
             <input type="text"
                    class="form-control form-control-sm sub-asset-description"
                    placeholder="e.g., Buildings within the settlement">
         </div>
         <div class="mb-2">
-            <label class="form-label small">Properties</label>
+            <label class="form-label fs-7">Properties</label>
             <div class="sub-asset-properties-list vstack gap-1">
                 <!-- Property rows will be added here -->
             </div>

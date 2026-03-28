@@ -48,7 +48,7 @@ Cases (from weapon-profiles-display-spec.md):
                     {{ profile.name }}
                     {% if profile.cost_display %}({{ profile.cost_display }}){% endif %}
                     {% if can_edit %}
-                        <span class="text-secondary small">· <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
+                        <span class="text-secondary fs-7">· <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
     class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit profile</a></span>
                     {% endif %}
                 {% endif %}
@@ -65,7 +65,7 @@ Cases (from weapon-profiles-display-spec.md):
 {% if can_edit %}
     <tr>
         <td colspan="9">
-            <div class="d-flex gap-1 align-items-center small mb-1">
+            <div class="d-flex gap-1 align-items-center fs-7 mb-1">
                 <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                 <a href="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
                    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Add profile</a>

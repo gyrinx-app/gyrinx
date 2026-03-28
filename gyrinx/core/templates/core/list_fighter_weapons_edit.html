@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Weapons - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
@@ -10,8 +10,9 @@
         <div class="grid">
             {% include "core/includes/fighter_card_gear.html" with list=list fighter=fighter %}
             {% if error_message %}
-                <div class="alert alert-danger g-col-12 mb-0">
-                    <i class="bi-exclamation-triangle"></i> {{ error_message }}
+                <div class="alert alert-danger alert-icon g-col-12 mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>{{ error_message }}</div>
                 </div>
             {% endif %}
             {% url 'core:list-fighter-weapons-edit' list.id fighter.id as filter_action %}

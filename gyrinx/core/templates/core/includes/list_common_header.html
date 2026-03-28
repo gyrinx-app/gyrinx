@@ -1,4 +1,4 @@
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 <div class="hstack gap-2 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} align-items-start align-items-md-center break-inside-avoid">
     <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
         <div class="vstack">
@@ -9,7 +9,7 @@
                     {% list_with_theme list %}
                 {% endif %}
             </h2>
-            <div class="fs-7 text-muted order-1">
+            <div class="fs-7 text-secondary order-1">
                 <i class="bi-person"></i>
                 {% if print %}
                     {{ list.owner_cached }}
@@ -120,7 +120,7 @@
                     <i class="bi-flag text-secondary"></i> No actions
                 </span>
             {% endif %}
-            <span class="text-muted">|</span>
+            <span class="text-secondary">|</span>
             {% if facts %}
                 <span>
                     {% if not list.debug_facts_in_sync %}

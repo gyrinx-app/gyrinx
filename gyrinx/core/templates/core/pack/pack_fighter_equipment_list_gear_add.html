@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Configure equipment list - {{ content_fighter.type }} - {{ pack.name }}
 {% endblock head_title %}
@@ -9,8 +9,9 @@
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <h1 class="h3">Configure equipment list: {{ content_fighter.type }}</h1>
         {% if error_message %}
-            <div class="border border-danger rounded p-2 text-danger">
-                <strong>Error:</strong> {{ error_message }}
+            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>{{ error_message }}</div>
             </div>
         {% endif %}
         <form action="{% url 'core:pack-fighter-equipment-list-gear-add' pack.id pack_item.id %}"
@@ -33,7 +34,7 @@
                            placeholder="Filter weapons...">
                 </div>
                 <div id="zero-cost-warning"
-                     class="bg-warning-subtle text-warning-emphasis rounded p-2 small d-none">
+                     class="bg-warning-subtle text-warning-emphasis rounded p-2 fs-7 d-none">
                     <i class="bi-exclamation-triangle"></i>
                     <span id="zero-cost-warning-text"></span>
                 </div>

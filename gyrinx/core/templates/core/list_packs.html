@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Content Packs - {{ list.name }}
 {% endblock head_title %}
@@ -8,7 +8,7 @@
     {% include "core/includes/back.html" with url=list_url text=list.name %}
     <div class="col-12 col-xl-6 px-0 vstack gap-4">
         <h1 class="h3">Content Packs</h1>
-        <p class="text-muted small">
+        <p class="text-secondary fs-7">
             Content packs add custom fighters, rules, and other content to your list.
             Subscribe to a pack to make its content available when building your list.
         </p>
@@ -26,8 +26,8 @@
                         <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                             <div>
                                 <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
-                                <span class="text-muted small">by {{ pack.owner }}</span>
-                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                                <span class="text-secondary fs-7">by {{ pack.owner }}</span>
+                                {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                             </div>
                             <form method="post"
                                   action="{% url 'core:pack-unsubscribe' pack.id %}"
@@ -41,7 +41,7 @@
                     {% endfor %}
                 </ul>
             {% else %}
-                <p class="text-center text-muted mb-0">No content packs subscribed yet.</p>
+                <p class="text-center text-secondary mb-0">No content packs subscribed yet.</p>
             {% endif %}
         </section>
         <!-- Available packs -->
@@ -81,8 +81,8 @@
                         <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                             <div>
                                 <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
-                                <span class="text-muted small">by {{ pack.owner }}</span>
-                                {% if pack.summary %}<div class="text-muted small">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                                <span class="text-secondary fs-7">by {{ pack.owner }}</span>
+                                {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                             </div>
                             <form method="post" action="{% url 'core:list-packs' list.id %}">
                                 {% csrf_token %}
@@ -94,7 +94,7 @@
                     {% endfor %}
                 </ul>
             {% else %}
-                <p class="text-center text-muted mb-0">
+                <p class="text-center text-secondary mb-0">
                     {% if search_query %}
                         No packs found matching "{{ search_query }}".
                     {% else %}

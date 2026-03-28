@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% comment %}
     Fighter card inner content template - accepts the following parameters:
     - fighter: The fighter object to display
@@ -49,7 +49,7 @@
                     {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         <a href="{% url 'core:list-fighter-rules-edit' list.id fighter.id %}">Add</a>
                     {% else %}
-                        <span class="text-muted fst-italic">None</span>
+                        <span class="text-secondary fst-italic">None</span>
                     {% endif %}
                 </td>
             </tr>
@@ -115,7 +115,7 @@
                         {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <a href="{% url 'core:list-fighter-skills-edit' list.id fighter.id %}">Add</a>
                         {% else %}
-                            <span class="text-muted fst-italic">None</span>
+                            <span class="text-secondary fst-italic">None</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -148,7 +148,7 @@
                         {% if can_edit and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             <a href="{% url 'core:list-fighter-powers-edit' list.id fighter.id %}">Add</a>
                         {% else %}
-                            <span class="text-muted fst-italic">None</span>
+                            <span class="text-secondary fst-italic">None</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -167,7 +167,7 @@
                                     {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                     {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
                                 {% empty %}
-                                    {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
+                                    {% if not can_edit %}<span class="text-secondary fst-italic">None</span>{% endif %}
                                 {% endfor %}
                             {% endspaceless %}
                             {% if not print %}
@@ -200,7 +200,7 @@
                                     {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                                     {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
                                 {% empty %}
-                                    {% if not can_edit %}<span class="text-muted fst-italic">None</span>{% endif %}
+                                    {% if not can_edit %}<span class="text-secondary fst-italic">None</span>{% endif %}
                                 {% endfor %}
                             {% endspaceless %}
                             {% if not print %}
@@ -244,7 +244,7 @@
                     {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         <a href="{% url 'core:list-fighter-gear-edit' list.id fighter.id %}">Add</a>
                     {% else %}
-                        <span class="text-muted fst-italic">None</span>
+                        <span class="text-secondary fst-italic">None</span>
                     {% endif %}
                 </td>
             </tr>
@@ -273,10 +273,10 @@
                         {% if can_edit or is_arbitrator %}
                             <a href="{% url 'core:list-fighter-injuries-edit' list.id fighter.id %}">Add</a>
                         {% else %}
-                            <span class="text-muted fst-italic">None</span>
+                            <span class="text-secondary fst-italic">None</span>
                         {% endif %}
                     {% else %}
-                        <span class="text-muted fst-italic">None</span>
+                        <span class="text-secondary fst-italic">None</span>
                     {% endif %}
                 </td>
             </tr>
@@ -291,7 +291,7 @@
                             {% if can_edit and not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                 <a href="{% url 'core:list-fighter-advancements' list.id fighter.id %}">Add</a>
                             {% else %}
-                                <span class="text-muted fst-italic">None</span>
+                                <span class="text-secondary fst-italic">None</span>
                             {% endif %}
                         {% else %}
                             <span class="badge text-bg-success">{{ advancement_count }}</span>

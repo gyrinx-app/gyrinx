@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     {{ pack.name }}
 {% endblock head_title %}
@@ -62,7 +62,7 @@
                     </nav>
                 {% endif %}
             </div>
-            <div class="d-flex flex-wrap gap-2 text-muted small">
+            <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a></span>
                 {% if pack.listed %}
                     <span data-bs-toggle="tooltip"
@@ -78,7 +78,7 @@
             <div class="vstack gap-1 col-md-9">
                 {% if pack.summary %}<div class="mb-last-0">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
                 {% if pack.description %}
-                    <div class="text-muted fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
+                    <div class="text-secondary fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
                 {% endif %}
             </div>
         {% endif %}
@@ -91,7 +91,7 @@
                         <span class="d-flex gap-2 align-items-center">
                             {% if section.archived_count > 0 %}
                                 <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
-                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Archived ({{ section.archived_count }})</a>
+                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
                             {% endif %}
                             {% if section.can_add %}
                                 <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
@@ -122,7 +122,7 @@
                             {% for house_group in fighters_by_house %}
                                 <div>
                                     {% if house_group.grouper %}
-                                        <div class="text-secondary text-uppercase small mb-1">{{ house_group.grouper }}</div>
+                                        <div class="text-secondary text-uppercase fs-7 mb-1">{{ house_group.grouper }}</div>
                                     {% endif %}
                                     <ul class="list-unstyled mb-0">
                                         {% for entry in house_group.list %}
@@ -130,16 +130,16 @@
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>
                                                         <span class="fw-medium">{{ entry.content_object.type }}</span>
-                                                        <div class="text-secondary small">{{ entry.content_object.get_category_display }}</div>
+                                                        <div class="text-secondary fs-7">{{ entry.content_object.get_category_display }}</div>
                                                     </div>
                                                     {% if can_edit %}
                                                         <span class="d-flex gap-2">
                                                             {% if section.can_add %}
                                                                 <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
                                                             {% endif %}
                                                             <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
+                                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archive</a>
                                                         </span>
                                                     {% endif %}
                                                 </div>
@@ -162,10 +162,10 @@
                                         <span class="d-flex gap-2">
                                             {% if section.can_add %}
                                                 <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
                                             {% endif %}
                                             <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Archive</a>
+                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archive</a>
                                         </span>
                                     {% endif %}
                                 </div>
@@ -183,7 +183,7 @@
                 <h2 class="h5 mb-0">Activity</h2>
                 {% if total_activity_count > 0 %}
                     <a href="{% url 'core:pack-activity' pack.id %}"
-                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">View all →</a>
+                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">View all →</a>
                 {% endif %}
             </div>
             {% if recent_activities %}
@@ -194,10 +194,10 @@
                 </div>
                 {% if total_activity_count > 5 %}
                     <a href="{% url 'core:pack-activity' pack.id %}"
-                       class="small mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
+                       class="fs-7 mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
                 {% endif %}
             {% else %}
-                <p class="text-muted small mb-0">No activity yet.</p>
+                <p class="text-secondary fs-7 mb-0">No activity yet.</p>
             {% endif %}
         </section>
     </div>

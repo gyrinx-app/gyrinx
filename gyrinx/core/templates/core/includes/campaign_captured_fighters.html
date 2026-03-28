@@ -14,7 +14,7 @@
                 <tr>
                     <td class="ps-0">
                         <strong>{{ captured.fighter.name }}</strong>
-                        <span class="text-secondary small d-block">{{ captured.fighter.content_fighter.type }}</span>
+                        <span class="text-secondary fs-7 d-block">{{ captured.fighter.content_fighter.type }}</span>
                     </td>
                     <td>
                         <a href="{% url 'core:list' captured.fighter.list.id %}"
@@ -46,5 +46,5 @@
         </div>
     {% endif %}
 {% else %}
-    <p class="text-muted mb-0 text-center py-3">No fighters have been captured yet.</p>
+    <p class="text-secondary mb-0 text-center py-3">No fighters have been captured yet.</p>
 {% endif %}

@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 <div>
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
@@ -29,11 +29,11 @@
         {% if list.narrative %}
             {{ list.narrative|safe_rich_text|safe }}
         {% elif list.owner_cached == user %}
-            <div class="text-muted fst-italic">
+            <div class="text-secondary fst-italic">
                 No lore added yet. <a href="{% url 'core:list-edit' list.id %}">Add some</a> to tell the story of your gang.
             </div>
         {% else %}
-            <div class="text-muted fst-italic">No lore added yet.</div>
+            <div class="text-secondary fst-italic">No lore added yet.</div>
         {% endif %}
     </div>
     <div class="grid auto-flow-dense">
@@ -72,7 +72,7 @@
                                  class="img-fluid rounded size-em-5">
                         </div>
                     {% endif %}
-                    <p class="text-muted">No lore added yet.</p>
+                    <p class="text-secondary">No lore added yet.</p>
                     {% if list.owner_cached == user %}
                         <p>
                             <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"

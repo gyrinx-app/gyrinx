@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Remove {{ fighter.term_injury_singular }} - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -17,12 +17,14 @@
                     {% endif %}
                     {% if injury.notes %}<em>Notes: {{ injury.notes }}</em>{% endif %}
                 </p>
-                <p class="text-muted mb-0">Received: {{ injury.date_received|date:"M j, Y" }}</p>
+                <p class="text-secondary mb-0">Received: {{ injury.date_received|date:"M j, Y" }}</p>
             </div>
         </div>
-        <div class="border rounded p-2 text-secondary">
-            <i class="bi bi-info-circle me-1"></i>
-            Removing this {{ fighter.term_injury_singular|lower }} will automatically log the recovery to the campaign action log.
+        <div class="alert alert-info alert-icon mb-0" role="alert">
+            <i class="bi-info-circle"></i>
+            <div>
+                Removing this {{ fighter.term_injury_singular|lower }} will automatically log the recovery to the campaign action log.
+            </div>
         </div>
         <form action="{% url 'core:list-fighter-injury-remove' list.id fighter.id injury.id %}"
               method="post">

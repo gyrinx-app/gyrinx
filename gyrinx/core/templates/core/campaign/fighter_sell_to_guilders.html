@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Sell Fighter to Guilders - {{ campaign.name }}
 {% endblock head_title %}
@@ -11,10 +11,12 @@
             <div class="text-secondary">{{ campaign.name }}</div>
         </div>
         {% include "core/campaign/includes/captured_fighter_details.html" with show_capturing_gang_owner_check=True %}
-        <div class="alert alert-warning">
+        <div class="alert alert-warning alert-icon mb-0" role="alert">
             <i class="bi-exclamation-triangle"></i>
-            <strong>Warning:</strong> Selling a fighter to the guilders is permanent. The fighter will be removed from play
-            and cannot be recovered by their original gang.
+            <div>
+                <strong>Warning:</strong> Selling a fighter to the guilders is permanent. The fighter will be removed from play
+                and cannot be recovered by their original gang.
+            </div>
         </div>
         <form method="post">
             {% csrf_token %}

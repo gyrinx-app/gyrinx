@@ -1,4 +1,4 @@
-{% load allauth custom_tags humanize %}
+{% load custom_tags humanize %}
 {% if list.is_campaign_mode and list.campaign %}
     <div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
         <div class="bg-body-secondary rounded px-2 py-1 mb-2">
@@ -14,14 +14,14 @@
                                 <div>
                                     <strong>{{ asset.name }}</strong>
                                     {% if asset.asset_type.name_singular %}
-                                        <span class="text-muted">({{ asset.asset_type.name_singular }})</span>
+                                        <span class="text-secondary">({{ asset.asset_type.name_singular }})</span>
                                     {% endif %}
                                 </div>
                                 {% if list.campaign.is_pre_campaign %}
-                                    <span class="text-muted small ms-auto">Campaign not started</span>
+                                    <span class="text-secondary fs-7 ms-auto">Campaign not started</span>
                                 {% elif not list.campaign.archived and not print %}
                                     <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                       class="icon-link link-secondary small ms-auto">
+                                       class="icon-link link-secondary fs-7 ms-auto">
                                         <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
                                     </a>
                                 {% endif %}
@@ -40,17 +40,17 @@
                                     <td class="ps-0">{{ resource.resource_type.name }}</td>
                                     <td class="text-end">
                                         {% if list.campaign.is_pre_campaign %}
-                                            <span class="text-muted">0</span>
+                                            <span class="text-secondary">0</span>
                                         {% else %}
                                             {{ resource.amount }}
                                         {% endif %}
                                     </td>
                                     <td class="text-end pe-0">
                                         {% if list.campaign.is_pre_campaign %}
-                                            <span class="text-muted small">Campaign not started</span>
+                                            <span class="text-secondary fs-7">Campaign not started</span>
                                         {% elif not list.campaign.archived and not print %}
                                             <a href="{% url 'core:campaign-resource-modify' list.campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                               class="icon-link link-secondary small">
+                                               class="icon-link link-secondary fs-7">
                                                 <i class="bi-pencil" aria-hidden="true"></i> Modify
                                             </a>
                                         {% endif %}
@@ -70,17 +70,17 @@
                                 <tr>
                                     <td class="ps-0">
                                         <strong>{{ capture.fighter.name }}</strong>
-                                        <span class="text-muted">({{ capture.fighter.list.name }})</span>
+                                        <span class="text-secondary">({{ capture.fighter.list.name }})</span>
                                     </td>
                                     <td class="text-end pe-0">
                                         <a href="{% url 'core:fighter-sell-to-guilders' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                           class="link-secondary small">Sell</a>
+                                           class="link-secondary fs-7">Sell</a>
                                         ·
                                         <a href="{% url 'core:fighter-return-to-owner' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                           class="link-secondary small">Ransom</a>
+                                           class="link-secondary fs-7">Ransom</a>
                                         ·
                                         <a href="{% url 'core:fighter-release' list.campaign.id capture.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                           class="link-secondary small">Release</a>
+                                           class="link-secondary fs-7">Release</a>
                                     </td>
                                 </tr>
                             {% endfor %}
@@ -89,7 +89,7 @@
                 </div>
             {% endif %}
             {% if not campaign_resources and not held_assets and not captured_fighters %}
-                <p class="text-muted small mb-0">No assets, resources, or captured fighters held.</p>
+                <p class="text-secondary fs-7 mb-0">No assets, resources, or captured fighters held.</p>
             {% endif %}
         </div>
     </div>

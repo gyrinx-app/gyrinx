@@ -1,16 +1,18 @@
 {# Equipment advancement form partial #}
 {% if form.no_options_error_message %}
-    <div class="alert alert-danger mb-3">
+    <div class="alert alert-danger alert-icon mb-3" role="alert">
         <i class="bi-exclamation-triangle"></i>
-        {{ form.no_options_error_message }}
+        <div>{{ form.no_options_error_message }}</div>
     </div>
 {% elif form.non_field_errors %}
-    <div class="alert alert-danger mb-3">
+    <div class="alert alert-danger alert-icon mb-3" role="alert">
         <i class="bi-exclamation-triangle"></i>
-        {% for error in form.non_field_errors %}
-            {{ error }}
-            {% if not forloop.last %}<br>{% endif %}
-        {% endfor %}
+        <div>
+            {% for error in form.non_field_errors %}
+                {{ error }}
+                {% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+        </div>
     </div>
 {% endif %}
 <div>

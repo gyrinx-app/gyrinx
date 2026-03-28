@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Assign {{ attribute_type.name }} - {{ list.name }}
 {% endblock head_title %}
@@ -12,14 +12,19 @@
                     <h2 class="h5">{{ attribute_type.name }}</h2>
                     <p class="text-secondary mb-3">{{ list.name }}</p>
                     {% if attribute_type.is_single_select %}
-                        <p class="text-muted small">Select one option</p>
+                        <p class="text-secondary fs-7">Select one option</p>
                     {% else %}
-                        <p class="text-muted small">Select multiple options</p>
+                        <p class="text-secondary fs-7">Select multiple options</p>
                     {% endif %}
                     <form method="post">
                         {% csrf_token %}
                         <div class="mb-3">{{ form.values }}</div>
-                        {% if form.errors %}<div class="alert alert-danger">{{ form.errors }}</div>{% endif %}
+                        {% if form.errors %}
+                            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                                <i class="bi-exclamation-triangle"></i>
+                                <div>{{ form.errors }}</div>
+                            </div>
+                        {% endif %}
                         <div class="hstack gap-2">
                             <button type="submit" class="btn btn-primary btn-sm">
                                 <i class="bi-check-lg"></i> Save

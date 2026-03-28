@@ -1,7 +1,7 @@
 {% load custom_tags %}
 <div class="vstack gap-3 mt-3">
     <h2 class="h5 mb-0">Equipment list</h2>
-    <p class="text-secondary small mb-0">Equipment list for this Fighter type.</p>
+    <p class="text-secondary fs-7 mb-0">Equipment list for this Fighter type.</p>
     <!-- Weapons -->
     <div>
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -22,9 +22,9 @@
                             </span>
                             <span>
                                 <a href="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id group.items.0.id %}"
-                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
                                 <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id group.items.0.id %}"
-                                   class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                   class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
                             </span>
                         </div>
                         {% for eli in group.items %}
@@ -35,7 +35,7 @@
                                         <span>(+{{ eli.cost_display }})</span>
                                     </span>
                                     <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
-                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
                                 </div>
                             {% endif %}
                         {% endfor %}
@@ -43,7 +43,7 @@
                 {% endfor %}
             </ul>
         {% else %}
-            <p class="text-secondary small mb-0">No available weapons.</p>
+            <p class="text-secondary fs-7 mb-0">No available weapons.</p>
         {% endif %}
     </div>
     <!-- Gear -->
@@ -66,15 +66,15 @@
                         </span>
                         <span>
                             <a href="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id eli.id %}"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
                             <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
-                               class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                               class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
                         </span>
                     </li>
                 {% endfor %}
             </ul>
         {% else %}
-            <p class="text-secondary small mb-0">No available gear.</p>
+            <p class="text-secondary fs-7 mb-0">No available gear.</p>
         {% endif %}
     </div>
 </div>

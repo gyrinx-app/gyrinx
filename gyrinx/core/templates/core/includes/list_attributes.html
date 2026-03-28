@@ -1,4 +1,4 @@
-{% load allauth custom_tags humanize %}
+{% load custom_tags humanize %}
 <div class="g-col-12 {% if print %}g-col-sm-6 g-col-md-3 g-col-xl-2{% else %}g-col-md-12 g-col-lg-6 g-col-xl-4{% endif %}">
     <div class="bg-body-secondary rounded px-2 py-1 mb-2">
         <h3 class="h5 mb-0">Attributes</h3>
@@ -15,7 +15,7 @@
                                 <td class="text-end pe-0">
                                     {% if list.owner_cached == user and not list.archived %}
                                         <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}"
-                                           class="icon-link link-secondary small">
+                                           class="icon-link link-secondary fs-7">
                                             <i class="bi-pencil" aria-hidden="true"></i>
                                             Edit
                                         </a>
@@ -32,8 +32,8 @@
                 <div class="fs-7 text-end {% if list.set_attributes %}mt-1{% endif %}">
                     {% with unset_count=list.unset_attributes|length %}
                         {% if unset_count > 0 %}
-                            <span class="text-muted">+{{ unset_count }} more</span>
-                            <span class="text-muted mx-1">·</span>
+                            <span class="text-secondary">+{{ unset_count }} more</span>
+                            <span class="text-secondary mx-1">·</span>
                         {% endif %}
                     {% endwith %}
                     <a href="{% url 'core:list-attributes-manage' list.id %}"
@@ -46,10 +46,10 @@
                     </a>
                 </div>
             {% elif not list.set_attributes %}
-                <p class="text-muted small mb-0">No attributes set.</p>
+                <p class="text-secondary fs-7 mb-0">No attributes set.</p>
             {% endif %}
         {% elif not list.set_attributes %}
-            <p class="text-muted small mb-0">No attributes set.</p>
+            <p class="text-secondary fs-7 mb-0">No attributes set.</p>
         {% endif %}
         {% if list.fighter_type_summary %}
             <h4 class="caps-label mb-1 mt-3">Fighters</h4>
@@ -58,7 +58,7 @@
                     {% for item in list.fighter_type_summary.type_totals %}
                         <tr>
                             <td class="ps-0">{{ item.type }}</td>
-                            <td class="text-muted">{{ item.category }}</td>
+                            <td class="text-secondary">{{ item.category }}</td>
                             <td class="text-end pe-0">{{ item.count }}</td>
                         </tr>
                     {% endfor %}
@@ -72,6 +72,6 @@
             </table>
         {% endif %}
     {% else %}
-        <p class="text-muted small mb-0">No attributes available.</p>
+        <p class="text-secondary fs-7 mb-0">No attributes available.</p>
     {% endif %}
 </div>

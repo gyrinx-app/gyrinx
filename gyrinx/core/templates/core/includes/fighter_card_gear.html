@@ -1,4 +1,4 @@
-{% load allauth custom_tags %}
+{% load custom_tags %}
 <div class="card g-col-12 g-col-md-6" id="{{ fighter.id }}">
     <div class="card-header p-2">
         <div class="vstack gap-1">
@@ -98,7 +98,7 @@
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% empty %}
-                                            {% if list.owner_cached != user or print or compact %}<span class="text-muted fst-italic">None</span>{% endif %}
+                                            {% if list.owner_cached != user or print or compact %}<span class="text-secondary fst-italic">None</span>{% endif %}
                                         {% endfor %}
                                         {% if list.owner_cached == user and not print and not compact %}
                                             {% if line.assignments|length > 0 %}
@@ -181,7 +181,7 @@
                                                 {% if not forloop.last %}<span>,</span>{% endif %}
                                             {% endspaceless %}
                                         {% empty %}
-                                            {% if list.owner_cached != user or print or compact %}<span class="text-muted fst-italic">None</span>{% endif %}
+                                            {% if list.owner_cached != user or print or compact %}<span class="text-secondary fst-italic">None</span>{% endif %}
                                         {% endfor %}
                                         {% if list.owner_cached == user and not print and not compact %}
                                             {% if line.assignments|length > 0 %}

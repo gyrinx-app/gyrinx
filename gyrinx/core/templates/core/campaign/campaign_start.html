@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Start Campaign - {{ campaign.name }}
 {% endblock head_title %}
@@ -11,8 +11,11 @@
         <form action="{% url 'core:campaign-start' campaign.id %}" method="post">
             {% csrf_token %}
             <p>Are you sure you want to start this campaign?</p>
-            <div class="alert alert-warning" role="alert">
-                <i class="bi-exclamation-triangle"></i> This action cannot be undone. Once started, the campaign will move from <strong>Pre-Campaign</strong> to <strong>In Progress</strong> status.
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
+                    This action cannot be undone. Once started, the campaign will move from <strong>Pre-Campaign</strong> to <strong>In Progress</strong> status.
+                </div>
             </div>
             <h3 class="h5">Gang credit allocation</h3>
             <div class="vstack gap-2">

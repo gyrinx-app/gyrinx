@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Print Configurations - {{ list.name }}
 {% endblock head_title %}
@@ -16,7 +16,7 @@
                 </a>
             {% endif %}
         </div>
-        <p class="text-muted">
+        <p class="text-secondary">
             Manage print configurations for <strong>{{ list.name }}</strong>.
             Create custom configurations to control which cards and fighters are included when printing.
         </p>
@@ -36,7 +36,7 @@
                             <strong>Default</strong>
                             <span class="badge bg-secondary ms-2">Built-in</span>
                         </td>
-                        <td class="text-muted">All cards and active fighters</td>
+                        <td class="text-secondary">All cards and active fighters</td>
                         <td class="text-end">
                             <a href="{% url 'core:list-print' list.id %}"
                                class="btn btn-primary btn-sm">
@@ -51,7 +51,7 @@
                             <td>
                                 <strong>{{ config.name }}</strong>
                             </td>
-                            <td class="text-muted">{{ config.card_summary }}</td>
+                            <td class="text-secondary">{{ config.card_summary }}</td>
                             <td class="text-end">
                                 <div class="btn-group" role="group">
                                     {% if is_owner %}

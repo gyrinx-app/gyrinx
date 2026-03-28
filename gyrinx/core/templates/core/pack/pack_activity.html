@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Activity - {{ pack.name }}
 {% endblock head_title %}
@@ -8,7 +8,7 @@
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <div>
             <h1 class="h3 mb-0">Activity</h1>
-            <h2 class="h5 text-muted">{{ pack.name }}</h2>
+            <h2 class="h5 text-secondary">{{ pack.name }}</h2>
         </div>
         {% if activities %}
             <div class="list-group list-group-flush">
@@ -18,7 +18,7 @@
             </div>
             {% include "core/includes/pagination.html" %}
         {% else %}
-            <p class="text-muted">No activity yet.</p>
+            <p class="text-secondary">No activity yet.</p>
         {% endif %}
     </div>
 {% endblock content %}

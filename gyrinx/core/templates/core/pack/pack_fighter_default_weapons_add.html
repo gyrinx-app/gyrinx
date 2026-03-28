@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Add default weapon - {{ content_fighter.type }} - {{ pack.name }}
 {% endblock head_title %}
@@ -9,8 +9,9 @@
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <h1 class="h3">Add default weapon: {{ content_fighter.type }}</h1>
         {% if error_message %}
-            <div class="border border-danger rounded p-2 text-danger">
-                <strong>Error:</strong> {{ error_message }}
+            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>{{ error_message }}</div>
             </div>
         {% endif %}
         <!-- Search -->

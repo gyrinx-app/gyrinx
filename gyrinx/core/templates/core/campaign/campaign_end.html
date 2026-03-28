@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     End Campaign - {{ campaign.name }}
 {% endblock head_title %}
@@ -11,8 +11,11 @@
         <form action="{% url 'core:campaign-end' campaign.id %}" method="post">
             {% csrf_token %}
             <p>Are you sure you want to end this campaign?</p>
-            <div class="alert alert-warning" role="alert">
-                <i class="bi-exclamation-triangle"></i> Once ended, the campaign will move from <strong>In Progress</strong> to <strong>Post-Campaign</strong> status. However, you will be able to reopen it later if needed.
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
+                    Once ended, the campaign will move from <strong>In Progress</strong> to <strong>Post-Campaign</strong> status. However, you will be able to reopen it later if needed.
+                </div>
             </div>
             <p>After ending the campaign, you will still be able to:</p>
             <ul>
@@ -27,7 +30,7 @@
                 <li>Add new gangs to the campaign</li>
                 <li>Log new actions</li>
             </ul>
-            <p class="text-muted">
+            <p class="text-secondary">
                 <i class="bi-info-circle"></i> <strong>Note:</strong> If you need to continue the campaign later, you can reopen it from the campaign page.
             </p>
             <div class="mt-3">

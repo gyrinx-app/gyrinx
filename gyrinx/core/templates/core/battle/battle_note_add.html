@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     {% if existing_note %}
         Edit Note
@@ -18,11 +18,12 @@
                 Add Battle Note
             {% endif %}
         </h1>
-        <p class="text-muted">{{ battle.name }}</p>
+        <p class="text-secondary">{{ battle.name }}</p>
         <form method="post"class="vstack gap-3">
             {% if form.non_field_errors %}
-                <div class="alert alert-danger">
-                    <i class="bi-exclamation-triangle"></i> {{ form.non_field_errors }}
+                <div class="alert alert-danger alert-icon mb-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>{{ form.non_field_errors }}</div>
                 </div>
             {% endif %}
             {% csrf_token %}
@@ -30,7 +31,7 @@
             {{ form.media }}
             {{ form }}
             <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-success">
                     <i class="bi-check-circle"></i>
                     {% if existing_note %}
                         Update Note

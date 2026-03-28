@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Campaign Attributes - {{ campaign.name }}
 {% endblock head_title %}
@@ -9,11 +9,11 @@
         <div>
             <h1 class="mb-2">Campaign Attributes</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                <p class="text-muted mb-0">{{ campaign.name }}</p>
+                <p class="text-secondary mb-0">{{ campaign.name }}</p>
                 {% if is_owner and not campaign.archived %}
                     <div class="hstack gap-3 ms-md-auto">
                         <a href="{% url 'core:campaign-attribute-type-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                             <i class="bi-plus-circle"></i> Add Attribute type
                         </a>
                     </div>
@@ -41,9 +41,9 @@
                         {% endfor %}
                     </select>
                     <noscript>
-                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                        <button type="submit" class="btn btn-sm btn-success">Save</button>
                     </noscript>
-                    <span class="text-muted small">Gangs will be visually grouped using this attribute on the Campaign page.</span>
+                    <span class="text-secondary fs-7">Gangs will be visually grouped using this attribute on the Campaign page.</span>
                 </form>
             </section>
         {% endif %}
@@ -54,22 +54,22 @@
                     {% if is_owner and not campaign.archived %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}"
-                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-plus-circle"></i> Add value
                             </a>
                             <a href="{% url 'core:campaign-attribute-type-edit' campaign.id attribute_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-pencil"></i> Edit
                             </a>
                             <a href="{% url 'core:campaign-attribute-type-remove' campaign.id attribute_type.id %}"
-                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-trash"></i> Remove
                             </a>
                         </div>
                     {% endif %}
                 </div>
                 {% if attribute_type.description %}
-                    <div class="text-muted small mb-3 mb-last-0">{{ attribute_type.description }}</div>
+                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ attribute_type.description }}</div>
                 {% endif %}
                 {% with values=attribute_type.values.all %}
                     {% if values %}
@@ -89,11 +89,11 @@
                                         {% if is_owner and not campaign.archived %}
                                             <div class="hstack gap-2">
                                                 <a href="{% url 'core:campaign-attribute-value-edit' campaign.id value.id %}"
-                                                   class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                                   class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                                     <i class="bi-pencil"></i>
                                                 </a>
                                                 <a href="{% url 'core:campaign-attribute-value-remove' campaign.id value.id %}"
-                                                   class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                                   class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                                     <i class="bi-trash"></i>
                                                 </a>
                                             </div>
@@ -135,7 +135,7 @@
                                                             {% endfor %}
                                                         </div>
                                                     {% else %}
-                                                        <span class="text-muted small">Not assigned</span>
+                                                        <span class="text-secondary fs-7">Not assigned</span>
                                                     {% endif %}
                                                 {% endwith %}
                                             </td>
@@ -143,7 +143,7 @@
                                                 {% if not campaign.archived %}
                                                     {% if is_owner or list.id in user_list_ids %}
                                                         <a href="{% url 'core:campaign-list-attribute-assign' campaign.id list.id attribute_type.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                           class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                                                           class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                                             <i class="bi-pencil"></i> Assign
                                                         </a>
                                                     {% endif %}
@@ -155,7 +155,7 @@
                             </table>
                         {% endwith %}
                     {% else %}
-                        <p class="text-muted small mb-0">
+                        <p class="text-secondary fs-7 mb-0">
                             No values have been defined for this attribute yet.
                             {% if is_owner and not campaign.archived %}
                                 <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}">Create first value →</a>
@@ -165,7 +165,7 @@
                 {% endwith %}
             </section>
         {% empty %}
-            <p class="text-muted small mb-0">
+            <p class="text-secondary fs-7 mb-0">
                 No attribute types have been defined for this Campaign yet.
                 {% if is_owner and not campaign.archived %}
                     <a href="{% url 'core:campaign-attribute-type-new' campaign.id %}">Create first Attribute type →</a>

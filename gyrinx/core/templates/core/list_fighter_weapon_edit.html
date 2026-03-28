@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Edit Weapon - {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
@@ -8,8 +8,9 @@
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">Edit: {{ assign.content_equipment.name }} - {{ fighter.fully_qualified_name }}</h1>
         {% if error_message %}
-            <div class="border border-danger rounded p-2 text-danger">
-                <strong>Error:</strong> {{ error_message }}
+            <div class="alert alert-danger alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>{{ error_message }}</div>
             </div>
         {% endif %}
         <!-- Unified Weapon Profiles Table -->
@@ -78,7 +79,7 @@
                                         <i class="bi-dash"></i>
                                         {{ pd.profile.name }}
                                         {% if pd.cost_display != "0¢" and pd.cost_display != "" %}
-                                            <span class="text-muted">({{ pd.cost_display }})</span>
+                                            <span class="text-secondary">({{ pd.cost_display }})</span>
                                         {% endif %}
                                         <a href="{% url 'core:list-fighter-weapon-profile-delete' list.id fighter.id assign.id pd.profile.id %}"
                                            class="btn btn-link btn-sm link-danger icon-link">
@@ -110,7 +111,7 @@
                                         <td>
                                             <i class="bi-dash"></i>
                                             {{ profile.name }}
-                                            <span class="text-muted">(+{{ profile.cost_display }})</span>
+                                            <span class="text-secondary">(+{{ profile.cost_display }})</span>
                                             <form action="{% url 'core:list-fighter-weapon-edit' list.id fighter.id assign.id %}"
                                                   method="post"
                                                   class="d-inline">
@@ -143,7 +144,7 @@
                     </table>
                 </div>
                 {% if not profiles %}
-                    <p class="text-muted mb-0 mt-3 fs-7">No additional weapon profiles available to add.</p>
+                    <p class="text-secondary mb-0 mt-3 fs-7">No additional weapon profiles available to add.</p>
                 {% endif %}
             </div>
             <div class="card-footer fs-7">

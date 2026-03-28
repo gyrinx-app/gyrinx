@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Lists
 {% endblock head_title %}
@@ -62,7 +62,7 @@
                         </div>
                         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                             {% load tz %}
-                            <div class="text-muted small">Last edit: {{ list.modified|timesince }} ago</div>
+                            <div class="text-secondary fs-7">Last edit: {{ list.modified|timesince }} ago</div>
                         </div>
                     </div>
                     <div class="ms-auto d-md-none">

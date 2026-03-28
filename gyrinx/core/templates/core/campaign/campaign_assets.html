@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Campaign Assets - {{ campaign.name }}
 {% endblock head_title %}
@@ -10,7 +10,7 @@
         <div>
             <h1 class="mb-2">Campaign Assets</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                <p class="text-muted mb-0">{{ campaign.name }}</p>
+                <p class="text-secondary mb-0">{{ campaign.name }}</p>
                 {% if is_owner %}
                     <div class="hstack gap-3 ms-md-auto fs-7">
                         <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
@@ -35,16 +35,16 @@
                     {% if is_owner %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
-                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover small">
+                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-plus-circle"></i> Add {{ asset_type.name_singular }}
                             </a>
                             <!-- Expanded links for sm and up -->
                             <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small d-none d-sm-inline">
+                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
                                 <i class="bi-pencil"></i> Edit Type
                             </a>
                             <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
-                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover small d-none d-sm-inline">
+                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
                                 <i class="bi-trash"></i> Remove Type
                             </a>
                             <!-- Dropdown for mobile -->
@@ -74,7 +74,7 @@
                     {% endif %}
                 </div>
                 {% if asset_type.description %}
-                    <div class="text-muted small mb-3 mb-last-0">{{ asset_type.description|safe }}</div>
+                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ asset_type.description|safe }}</div>
                 {% endif %}
                 {% with assets=asset_type.assets.all %}
                     {% if assets %}
@@ -95,9 +95,9 @@
                                     <tr>
                                         <td class="ps-0">
                                             <div class="fw-semibold">{{ asset.name }}</div>
-                                            {% if asset.description %}<div class="small text-muted mb-last-0">{{ asset.description|safe }}</div>{% endif %}
+                                            {% if asset.description %}<div class="fs-7 text-secondary mb-last-0">{{ asset.description|safe }}</div>{% endif %}
                                             {% if asset.properties_with_labels %}
-                                                <div class="small text-muted">
+                                                <div class="fs-7 text-secondary">
                                                     {% for label, value in asset.properties_with_labels %}
                                                         {% spaceless %}
                                                             <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}
@@ -108,7 +108,7 @@
                                                 </div>
                                             {% endif %}
                                             {% if asset.sub_asset_counts %}
-                                                <div class="small text-muted">
+                                                <div class="fs-7 text-secondary">
                                                     {% for label, count in asset.sub_asset_counts %}
                                                         {% spaceless %}
                                                             <span class="{% property_nowrap_class count label %}">{{ count }} {{ label }}
@@ -119,12 +119,12 @@
                                                 </div>
                                             {% endif %}
                                         </td>
-                                        <td class="small">
+                                        <td class="fs-7">
                                             {% if asset.holder %}
                                                 <a href="{% url 'core:list' asset.holder.id %}"
                                                    class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
                                             {% else %}
-                                                <span class="text-muted">Unowned</span>
+                                                <span class="text-secondary">Unowned</span>
                                             {% endif %}
                                         </td>
                                         {% if is_owner and not campaign.archived %}
@@ -132,13 +132,13 @@
                                                 <!-- Expanded links for sm and up -->
                                                 <span class="d-none d-sm-inline">
                                                     <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Transfer</a>
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Transfer</a>
                                                     ·
                                                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover small">Edit</a>
+                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
                                                     ·
                                                     <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
-                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover small">Remove</a>
+                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
                                                 </span>
                                                 <!-- Dropdown for mobile -->
                                                 <div class="dropdown d-sm-none d-inline-block">
@@ -176,7 +176,7 @@
                             </tbody>
                         </table>
                     {% else %}
-                        <p class="text-muted small mb-0">
+                        <p class="text-secondary fs-7 mb-0">
                             No {{ asset_type.name_plural|lower }} have been created yet.
                             {% if is_owner %}
                                 <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}">Add {{ asset_type.name_singular }} →</a>
@@ -186,7 +186,7 @@
                 {% endwith %}
             </section>
         {% empty %}
-            <p class="text-muted small mb-0">
+            <p class="text-secondary fs-7 mb-0">
                 No asset types have been defined for this campaign yet.
                 {% if is_owner %}
                     <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">Create first asset type →</a>

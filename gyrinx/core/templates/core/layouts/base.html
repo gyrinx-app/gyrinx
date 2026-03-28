@@ -162,7 +162,7 @@
                              class="d-inline-block align-text-top me-1">
                         <h2 class="fs-5 mb-0">Gyrinx</h2>
                     </a>
-                    <ul class="list-unstyled small">
+                    <ul class="list-unstyled fs-7">
                         <li class="mb-2">Designed and built in the UK.</li>
                         {% if user.is_staff %}
                             <li class="mb-2">
@@ -206,7 +206,7 @@
                 </div>
                 <div class="col-md-4 mb-3 pt-1">
                     <h3 class="fs-6 mb-3">Help &amp; Documentation</h3>
-                    <ul class="list-unstyled small">
+                    <ul class="list-unstyled fs-7">
                         {% get_root_pages for user as flatpages %}
                         {% if flatpages|length > 0 %}
                             {% for page in flatpages %}

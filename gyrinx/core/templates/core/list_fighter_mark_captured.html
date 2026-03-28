@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Mark as Captured - {{ fighter.fully_qualified_name }} - {{ list.name }}
 {% endblock head_title %}
@@ -10,10 +10,11 @@
         <form action="{% url 'core:list-fighter-mark-captured' list.id fighter.id %}"
               method="post">
             {% csrf_token %}
-            <div class="alert alert-warning">
-                <p class="mb-0">
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
                     <strong>Important:</strong> Once captured, {{ fighter.term_proximal_demonstrative|lower }} will not be able to participate in battles for {{ list.name }} until they are returned or sold to guilders.
-                </p>
+                </div>
             </div>
             <p>
                 You are marking <strong>{{ fighter.name }}</strong> as captured. This will:

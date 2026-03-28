@@ -1,5 +1,4 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth %}
 {% block head_title %}
     Advancement Roll - {{ fighter.name }}
 {% endblock head_title %}
@@ -13,21 +12,30 @@
               class="vstack gap-2"
               aria-label="Roll for advancement form">
             {% csrf_token %}
-            {% if form.non_field_errors %}<div class="alert alert-danger mb-last-0">{{ form.non_field_errors }}</div>{% endif %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-icon mb-last-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>{{ form.non_field_errors }}</div>
+                </div>
+            {% endif %}
             <div class="row g-3">
                 <div class="col-12">
                     <div class="card h-100 shadow-sm">
                         <div class="card-body vstack gap-3">
                             <h4 class="card-title">Roll for random advancement</h4>
                             {% if can_roll_dice %}
-                                <div class="alert alert-info">
+                                <div class="alert alert-info alert-icon mb-0" role="alert">
                                     <i class="bi-info-circle"></i>
-                                    The roll will <em>immediately</em> be added to the campaign action log.
+                                    <div>
+                                        The roll will <em>immediately</em> be added to the campaign action log.
+                                    </div>
                                 </div>
                             {% else %}
-                                <div class="alert alert-warning">
+                                <div class="alert alert-warning alert-icon mb-0" role="alert">
                                     <i class="bi-exclamation-triangle"></i>
-                                    Only Gangers and Exotic Beasts can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must choose manually.
+                                    <div>
+                                        Only Gangers and Exotic Beasts can roll for advancements. {{ fighter.name }} is a {{ fighter_category }} and must choose manually.
+                                    </div>
                                 </div>
                             {% endif %}
                             <div class="vstack gap-2">

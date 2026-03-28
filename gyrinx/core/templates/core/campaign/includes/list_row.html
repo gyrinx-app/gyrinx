@@ -1,9 +1,9 @@
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 <h6 class="mb-1">
     <strong>{% list_with_theme list %}</strong>
     {% if list.content_house %}• {{ list.content_house_name }}{% endif %}
 </h6>
-<p class="mb-0 text-muted small">
+<p class="mb-0 text-secondary fs-7">
     <i class="bi-person"></i> {{ list.owner.username }}
     {% with facts=list.facts_with_fallback %}
         • R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}

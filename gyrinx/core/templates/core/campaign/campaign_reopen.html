@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     Reopen Campaign - {{ campaign.name }}
 {% endblock head_title %}
@@ -11,8 +11,11 @@
         <form action="{% url 'core:campaign-reopen' campaign.id %}" method="post">
             {% csrf_token %}
             <p>Are you sure you want to reopen this campaign?</p>
-            <div class="alert alert-info" role="alert">
-                <i class="bi-info-circle"></i> The campaign will return from <strong>Post-Campaign</strong> to <strong>In Progress</strong> status.
+            <div class="alert alert-info alert-icon mb-0" role="alert">
+                <i class="bi-info-circle"></i>
+                <div>
+                    The campaign will return from <strong>Post-Campaign</strong> to <strong>In Progress</strong> status.
+                </div>
             </div>
             <p>After reopening the campaign, you will be able to:</p>
             <ul>
@@ -20,7 +23,7 @@
                 <li>Modify campaign assets and resources</li>
                 <li>Continue where you left off</li>
             </ul>
-            <p class="text-muted">
+            <p class="text-secondary">
                 <i class="bi-exclamation-circle"></i> <strong>Note:</strong> The existing gangs will remain in the campaign. No new clones will be created.
             </p>
             <div class="mt-3">

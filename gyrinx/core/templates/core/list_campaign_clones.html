@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags color_tags %}
+{% load custom_tags color_tags %}
 {% block head_title %}
     Campaign Versions of {{ list.name }}
 {% endblock head_title %}
@@ -32,7 +32,7 @@
                                     {% if clone.campaign %}
                                         <a href="{% url 'core:campaign' clone.campaign.id %}" class="linked">{{ clone.campaign.name }}</a>
                                     {% else %}
-                                        <span class="text-muted">No campaign</span>
+                                        <span class="text-secondary">No campaign</span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -40,14 +40,14 @@
                                         <a href="{% url 'core:user' clone.campaign.owner.username %}"
                                            class="linked">{{ clone.campaign.owner.username }}</a>
                                     {% else %}
-                                        <span class="text-muted">-</span>
+                                        <span class="text-secondary">-</span>
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if clone.campaign %}
                                         {% include "core/campaign/includes/status.html" with campaign=clone.campaign %}
                                     {% else %}
-                                        <span class="text-muted">-</span>
+                                        <span class="text-secondary">-</span>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -56,7 +56,7 @@
                 </table>
             </div>
         {% else %}
-            <p class="text-muted">This list has no campaign versions.</p>
+            <p class="text-secondary">This list has no campaign versions.</p>
         {% endif %}
     </div>
 {% endblock content %}

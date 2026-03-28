@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load allauth custom_tags %}
+{% load custom_tags %}
 {% block head_title %}
     {{ title }} - {{ list.name }}
 {% endblock head_title %}
@@ -14,12 +14,12 @@
                 <label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
                 {{ form.name.errors }}
                 {{ form.name }}
-                <small class="form-text text-muted">{{ form.name.help_text }}</small>
+                <small class="form-text text-secondary">{{ form.name.help_text }}</small>
             </div>
             <!-- Card Types Section -->
             <div>
                 <h2 class="h5 mb-3">Card Types</h2>
-                <p class="text-muted small mb-3">Select which types of cards to include in the print output.</p>
+                <p class="text-secondary fs-7 mb-3">Select which types of cards to include in the print output.</p>
                 <div class="vstack gap-2">
                     <div class="form-check">
                         {{ form.include_assets }}
@@ -49,7 +49,7 @@
             <!-- Fighter Selection Section -->
             <div>
                 <h2 class="h5 mb-3">Fighter Selection</h2>
-                <p class="text-muted small mb-3">{{ form.included_fighters.help_text }}</p>
+                <p class="text-secondary fs-7 mb-3">{{ form.included_fighters.help_text }}</p>
                 <div class="border rounded p-3 overflow-auto">
                     <div class="vstack gap-2 mb-3 border-bottom pb-3">
                         {% for choice in form.fighter_selection_mode %}
@@ -64,7 +64,7 @@
                             {% for choice in form.included_fighters %}{{ choice }}{% endfor %}
                         </div>
                     {% else %}
-                        <p class="text-muted mb-0" id="no-fighters-message">No fighters available.</p>
+                        <p class="text-secondary mb-0" id="no-fighters-message">No fighters available.</p>
                     {% endif %}
                 </div>
             </div>
@@ -78,11 +78,11 @@
                             aria-expanded="false"
                             aria-controls="blankCardsCollapse">
                         <span class="me-2">Blank Cards</span>
-                        <i class="bi bi-chevron-down ms-auto"
+                        <i class="bi-chevron-down ms-auto"
                            data-gy-collapse-icon="blankCardsCollapse"></i>
                     </button>
                 </h2>
-                <p class="text-muted small mb-0">Add blank cards to fill in at the table (e.g., when gaining new fighters).</p>
+                <p class="text-secondary fs-7 mb-0">Add blank cards to fill in at the table (e.g., when gaining new fighters).</p>
                 <div class="collapse" id="blankCardsCollapse">
                     <div class="vstack gap-3 mt-3">
                         <div>
@@ -91,7 +91,7 @@
                             </label>
                             {{ form.blank_fighter_cards.errors }}
                             {{ form.blank_fighter_cards }}
-                            <small class="form-text text-muted">{{ form.blank_fighter_cards.help_text }}</small>
+                            <small class="form-text text-secondary">{{ form.blank_fighter_cards.help_text }}</small>
                         </div>
                         <div>
                             <label for="{{ form.blank_vehicle_cards.id_for_label }}" class="form-label">
@@ -99,7 +99,7 @@
                             </label>
                             {{ form.blank_vehicle_cards.errors }}
                             {{ form.blank_vehicle_cards }}
-                            <small class="form-text text-muted">{{ form.blank_vehicle_cards.help_text }}</small>
+                            <small class="form-text text-secondary">{{ form.blank_vehicle_cards.help_text }}</small>
                         </div>
                     </div>
                 </div>
