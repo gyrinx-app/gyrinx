@@ -86,6 +86,11 @@
                         {% else %}
                             ({{ fighter.content_fighter_cached.cat }})
                         {% endif %}
+                        {% if fighter.from_pack_name %}
+                            <i class="bi-box-seam text-muted small pack-icon"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="{{ fighter.from_pack_name }}"></i>
+                        {% endif %}
                     {% else %}
                         {{ fighter.content_fighter_cached.type }}
                         {% if fighter.category_override %}
@@ -93,6 +98,7 @@
                         {% else %}
                             ({{ fighter.content_fighter_cached.cat }})
                         {% endif %}
+                        {% if fighter.from_pack_name %}<i class="bi-box-seam text-muted small pack-icon"></i>{% endif %}
                     {% endif %}
                 </div>
             </div>
