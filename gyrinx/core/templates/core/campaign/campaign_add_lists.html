@@ -16,33 +16,33 @@
                 <i class="bi-exclamation-triangle"></i> {{ error_message }}
             </div>
         {% endif %}
-        {% if show_confirmation and list_to_confirm %}
+        {% if show_pack_confirmation and pack_confirm_list %}
             <div class="border border-warning rounded p-3">
                 <h5 class="mb-2">
-                    <i class="bi-exclamation-triangle text-warning"></i> Confirm Add Gang to Active Campaign
+                    <i class="bi-box-seam text-warning"></i> Content Packs Required
                 </h5>
                 <p class="mb-2">
-                    This campaign is currently in progress. Adding
-                    <strong>{% list_with_theme list_to_confirm %}</strong>
-                    will immediately clone it for campaign use.
+                    <strong>{% list_with_theme pack_confirm_list %}</strong>
+                    uses Content Packs not yet added to this Campaign:
                 </p>
+                <ul class="mb-2">
+                    {% for pack in pack_confirm_packs %}<li>{{ pack.name }}</li>{% endfor %}
+                </ul>
                 <p class="text-muted small mb-3">
-                    The gang will be cloned to preserve its current state, and default campaign resources will be allocated to it.
+                    Adding these packs to the Campaign will allow this and other gangs using them to join.
                 </p>
                 <div class="d-flex gap-2">
                     <form method="post"
                           action="{% url 'core:campaign-add-lists' campaign.id %}">
                         {% csrf_token %}
-                        <input type="hidden" name="list_id" value="{{ list_to_confirm.id }}">
-                        <input type="hidden" name="confirm" value="true">
-                        <button type="submit" class="btn btn-warning btn-sm">
-                            <i class="bi-check-circle"></i> Yes, Add Gang
+                        <input type="hidden" name="list_id" value="{{ pack_confirm_list.id }}">
+                        <input type="hidden" name="add_packs" value="true">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi-plus-circle"></i> Add Packs &amp; Gang
                         </button>
                     </form>
                     <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                       class="btn btn-secondary btn-sm">
-                        <i class="bi-x-lg"></i> Cancel
-                    </a>
+                       class="btn btn-secondary btn-sm">Cancel</a>
                 </div>
             </div>
         {% endif %}
