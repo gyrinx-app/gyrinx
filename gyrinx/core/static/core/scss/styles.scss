@@ -99,6 +99,12 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 //          <i class="bi-exclamation-triangle"></i>
 //          <div>Content here</div>
 //        </div>
+// Django's form rendering puts label inside .form-check but without
+// Bootstrap's form-check-label class. This rule adds the cursor styling.
+.form-check > label {
+    @extend .form-check-label;
+}
+
 .alert-icon {
     display: flex;
     align-items: flex-start;
