@@ -162,8 +162,12 @@
                             <div>
                                 {% spaceless %}
                                     {% for pack in campaign_packs %}
-                                        <a href="{% url 'core:pack' pack.id %}"
-                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ pack.name }}</a>
+                                        {% if pack.listed or pack.owner == request.user %}
+                                            <a href="{% url 'core:pack' pack.id %}"
+                                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{{ pack.name }}</a>
+                                        {% else %}
+                                            <span>{{ pack.name }}</span>
+                                        {% endif %}
                                         {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
                                     {% endfor %}
                                 {% endspaceless %}
