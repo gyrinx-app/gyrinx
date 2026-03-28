@@ -6,8 +6,8 @@
 {% block content %}
     {% url 'core:list' list.id as list_url %}
     {% include "core/includes/back.html" with url=list_url text="Back to List" %}
-    <div class="col-lg-8 px-0">
-        <h1>Campaign Versions</h1>
+    <div class="col-12 col-md-8 col-lg-6 px-0">
+        <h1 class="h3">Campaign Versions</h1>
         <p class="text-secondary">
             All campaign versions of <a href="{{ list_url }}" class="linked">{{ list.name }}</a>
         </p>

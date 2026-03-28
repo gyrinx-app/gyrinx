@@ -28,6 +28,8 @@
                 <button type="submit" class="btn btn-success">
                     <i class="bi-heart-pulse"></i> Resurrect Fighter
                 </button>
+                <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
+                   class="btn btn-link">Cancel</a>
             </div>
         </form>
     </div>

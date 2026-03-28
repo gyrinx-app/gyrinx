@@ -5,8 +5,8 @@
 {% block content %}
     {% url 'core:campaign' campaign.id as campaign_url %}
     {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
-    <div class="col-lg-8 px-0">
-        <h1>New Battle</h1>
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">New Battle</h1>
         <p class="text-secondary">Create a new battle report for {{ campaign.name }}</p>
         <form method="post" class="vstack gap-3">
             {% if form.non_field_errors %}
@@ -19,7 +19,7 @@
             {{ form }}
             <div class="hstack gap-3 align-items-center">
                 <button type="submit" class="btn btn-success">Create Battle</button>
-                <a href="{{ campaign_url }}">Cancel</a>
+                <a href="{{ campaign_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>
     </div>

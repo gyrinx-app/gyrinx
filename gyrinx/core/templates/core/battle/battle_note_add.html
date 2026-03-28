@@ -10,8 +10,8 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=return_url text="Back" %}
-    <div class="col-lg-8 px-0">
-        <h1>
+    <div class="col-12 col-md-8 col-lg-6 px-0">
+        <h1 class="h3">
             {% if existing_note %}
                 Edit Battle Note
             {% else %}

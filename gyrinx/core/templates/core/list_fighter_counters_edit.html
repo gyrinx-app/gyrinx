@@ -6,7 +6,7 @@
 {% block content %}
     {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-counter-edit" fighter_url_extra_arg=counter.id %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h2>Edit {{ counter.name }} for {{ fighter.name }}</h2>
+        <h1 class="h3">Edit {{ counter.name }} for {{ fighter.name }}</h1>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             <div>
