@@ -94,8 +94,6 @@
                                                href="{% url 'core:campaign' gang.campaign.id %}">{{ gang.campaign.name }}</a>
                                             <span class="d-inline d-md-none">{{ gang.campaign.name }}</span>
                                         </div>
-                                        {% load tz %}
-                                        <div class="text-secondary fs-7">Last edit: {{ gang.modified|timesince }} ago</div>
                                     </div>
                                     <div class="ms-auto d-md-none">
                                         <a href="{% url 'core:list' gang.id %}" class="p-3 stretched-link">
@@ -110,6 +108,13 @@
                                     <p>You have no Campaign Gangs.</p>
                                 {% endif %}
                             {% endfor %}
+                            {% if campaign_gangs %}
+                                <div class="text-secondary fs-7">
+                                    Showing most recently edited ·
+                                    <a href="{% url 'core:lists' %}?my=1&type=gang"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     <!-- Campaigns column -->
@@ -206,8 +211,6 @@
                                             <div>{{ list.content_house_name }}</div>
                                             <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
                                         </div>
-                                        {% load tz %}
-                                        <div class="text-secondary fs-7">Last edit: {{ list.modified|timesince }} ago</div>
                                     </div>
                                     <div class="ms-auto d-md-none">
                                         <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
@@ -240,6 +243,13 @@
                                     </form>
                                 </div>
                             {% endfor %}
+                            {% if lists %}
+                                <div class="text-secondary fs-7">
+                                    Showing most recently edited ·
+                                    <a href="{% url 'core:lists' %}?my=1&type=list"
+                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
