@@ -18,7 +18,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Principles</h2>
-            <ol class="mb-0 fs-7">
+            <ol class="mb-0">
                 <li>
                     <strong>Dense over spacious</strong> — show more data per screen.
                 </li>
@@ -742,7 +742,7 @@
                 <button type="button" class="btn btn-primary btn-sm">
                     <i class="bi-pencil"></i> Edit
                 </button>
-                <button type="button" class="btn btn-success btn-sm">
+                <button type="button" class="btn btn-primary btn-sm">
                     <i class="bi-plus-lg"></i> Add
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm">Cancel</button>
@@ -751,6 +751,10 @@
                 </button>
                 <button type="button" class="btn btn-outline-secondary btn-sm">Clear</button>
             </div>
+            <p class="text-secondary fs-7 mb-3">
+                Toolbar buttons are always <code>btn-primary</code> or <code>btn-secondary</code>.
+                Never use <code>btn-success</code> in toolbars — lifecycle actions (Start Campaign) should be broken out as a separate primary button.
+            </p>
             <h3 class="h6 caps-label mb-2">Form submit (full size)</h3>
             <div class="d-flex flex-wrap gap-2 mb-4">
                 <button type="button" class="btn btn-success">
@@ -799,11 +803,11 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Page header action</td>
+                        <td>Toolbar / header</td>
                         <td>
                             <code>btn btn-primary btn-sm</code>
                         </td>
-                        <td>Edit (in btn-group with dropdown)</td>
+                        <td>Edit, Add, Start (always primary in toolbars)</td>
                     </tr>
                     <tr>
                         <td>Form submit</td>
@@ -811,13 +815,6 @@
                             <code>btn btn-success</code>
                         </td>
                         <td>Save, Create, Confirm</td>
-                    </tr>
-                    <tr>
-                        <td>Lifecycle</td>
-                        <td>
-                            <code>btn btn-success btn-sm</code> / <code>btn btn-danger btn-sm</code>
-                        </td>
-                        <td>Start Campaign, End Campaign</td>
                     </tr>
                     <tr>
                         <td>Secondary</td>
