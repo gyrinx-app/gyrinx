@@ -1,11 +1,12 @@
+{% load custom_tags %}
 {% if assign.kind == 'default' %}
     <span bs-tooltip
           data-bs-toggle="tooltip"
           class="tooltipped"
-          title="This weapon is assigned to the fighter by default.">
-    {% endif %}
+          title="This weapon is assigned to the fighter by default.">{{ assign.base_name }}</span>
+{% else %}
     {{ assign.base_name }}
-    {% if assign.kind == 'default' %}</span>{% endif %}
+{% endif %}
 {% if assign.has_total_cost_override %}
     <span bs-tooltip
           data-bs-toggle="tooltip"
@@ -15,4 +16,13 @@
     </span>
 {% else %}
     {% if assign.base_cost_int != 0 %}({{ assign.base_cost_display }}){% endif %}
+{% endif %}
+{% if pack_content_map %}
+    {% with assign.equipment.id|pack_name:pack_content_map as pname %}
+        {% if pname %}
+            <i class="bi-box-seam text-muted small pack-icon"
+               data-bs-toggle="tooltip"
+               data-bs-title="{{ pname }}"></i>
+        {% endif %}
+    {% endwith %}
 {% endif %}

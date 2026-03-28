@@ -270,6 +270,31 @@ class ListDetailView(generic.DetailView):
         # Add subscribed packs
         context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
 
+        # Build a mapping of content IDs to pack names for visual indicators.
+        # Single query against CustomContentPackItem — no N+1.
+        subscribed_packs = list_obj.packs.all()
+        if subscribed_packs:
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            pack_content_map = {}
+            for object_id, pname in (
+                CustomContentPackItem.objects.filter(
+                    pack__in=subscribed_packs, archived=False
+                )
+                .select_related("pack")
+                .values_list("object_id", "pack__name")
+            ):
+                pack_content_map.setdefault(object_id, []).append(pname)
+            # Stamp each fighter with the pack name(s) for the template
+            for f in all_fighters:
+                names = pack_content_map.get(f.content_fighter_id, [])
+                f.from_pack_name = ", ".join(names)
+            context["pack_content_map"] = pack_content_map
+        else:
+            for f in all_fighters:
+                f.from_pack_name = ""
+            context["pack_content_map"] = {}
+
         return context
 
 

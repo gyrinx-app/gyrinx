@@ -540,6 +540,21 @@ def plain_text_truncate(value, length=150):
 
 
 @register.filter
+def pack_name(obj_id, pack_content_map):
+    """Get the pack name(s) for a content object ID, or empty string.
+
+    Usage:
+        {% with assign.equipment.id|pack_name:pack_content_map as pname %}
+    """
+    if not pack_content_map or not isinstance(pack_content_map, dict):
+        return ""
+    names = pack_content_map.get(obj_id, [])
+    if isinstance(names, list):
+        return ", ".join(names)
+    return names
+
+
+@register.filter
 def safe_rich_text(value):
     """
     Sanitize and render rich text content safely.

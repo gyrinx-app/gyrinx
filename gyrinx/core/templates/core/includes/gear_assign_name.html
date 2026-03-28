@@ -1,3 +1,4 @@
+{% load custom_tags %}
 {% spaceless %}
     <span>{{ assign.name }}</span>
     {% if assign.active_upgrades_display|length > 0 %}
@@ -7,5 +8,14 @@
             {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
         {% endfor %}
         <span>)</span>
+    {% endif %}
+    {% if pack_content_map %}
+        {% with assign.equipment.id|pack_name:pack_content_map as pname %}
+            {% if pname %}
+                <span>&nbsp;<i class="bi-box-seam text-muted small pack-icon"
+   data-bs-toggle="tooltip"
+   data-bs-title="{{ pname }}"></i></span>
+            {% endif %}
+        {% endwith %}
     {% endif %}
 {% endspaceless %}
