@@ -968,6 +968,34 @@ def test_campaign_packs_hides_subscribed_gangs_from_dropdown(
 
 
 @pytest.mark.django_db
+def test_campaign_packs_my_filter(
+    client, cc_user, make_user, make_campaign, custom_content_group
+):
+    """The 'Your Packs only' filter shows only packs owned by the current user."""
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+
+    campaign = make_campaign("Test Campaign")
+
+    CustomContentPack.objects.create(name="My Pack", owner=cc_user, listed=True)
+    CustomContentPack.objects.create(name="Other Pack", owner=other_user, listed=True)
+
+    client.force_login(cc_user)
+
+    # Without filter — both packs visible
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+    content = response.content.decode()
+    assert "My Pack" in content
+    assert "Other Pack" in content
+
+    # With filter — only my pack visible
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]) + "?my=1")
+    content = response.content.decode()
+    assert "My Pack" in content
+    assert "Other Pack" not in content
+
+
+@pytest.mark.django_db
 def test_campaign_packs_member_does_not_see_add_remove_controls(
     client, cc_user, make_user, make_campaign, content_house, custom_content_group
 ):

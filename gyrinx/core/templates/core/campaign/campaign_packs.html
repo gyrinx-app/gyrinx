@@ -68,8 +68,9 @@
                                     {% endif %}
                                     {% if is_owner and not campaign.archived %}
                                         <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
-                                           class="icon-link link-danger fs-7">
-                                            <i class="bi-trash"></i>
+                                           class="icon-link link-danger fs-7"
+                                           aria-label="Remove {{ pack.name }} from campaign">
+                                            <i class="bi-trash" aria-hidden="true"></i>
                                         </a>
                                     {% endif %}
                                 </div>
@@ -101,6 +102,7 @@
                                    name="q"
                                    class="form-control"
                                    placeholder="Search packs..."
+                                   aria-label="Search packs"
                                    value="{{ search_query }}">
                             <button type="submit" class="btn btn-primary btn-sm">Search</button>
                             {% if search_query or show_my_packs %}
