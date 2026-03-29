@@ -1506,7 +1506,8 @@ def delete_pack_item(request, id, item_id):
                 skill_item._history_user = request.user
                 skill_item.archive()
         entry = _get_entry_for_pack_item(pack_item)
-        return HttpResponseRedirect(_pack_url(pack, entry.slug))
+        fragment = "skill" if entry.slug == "skill-tree" else entry.slug
+        return HttpResponseRedirect(_pack_url(pack, fragment))
 
     return render(
         request,
@@ -2409,7 +2410,7 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
         assignment.delete()
         return HttpResponseRedirect(
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
-            + f"#{pack_item.id}"
+            + "#default-equipment"
         )
 
     return render(
@@ -2643,7 +2644,7 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
         eli.delete()
         return HttpResponseRedirect(
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
-            + f"#{pack_item.id}"
+            + "#equipment-list"
         )
 
     return render(

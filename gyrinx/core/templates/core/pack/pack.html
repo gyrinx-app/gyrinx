@@ -193,7 +193,7 @@
                             {% if section.skill_groups %}
                                 <div class="vstack gap-3">
                                     {% for group in section.skill_groups %}
-                                        <div>
+                                        <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.category.name }}</div>
                                                 <span class="d-flex gap-2 align-items-center">
