@@ -87,6 +87,7 @@
             {% if section.slug == "skill-tree" %}
                 {# Skill trees are rendered within the Skills section below #}
             {% else %}
+                {% if section.slug == "gear" %}<hr class="my-2">{% endif %}
                 <section>
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                         <h2 class="h5 mb-0">{{ section.label }}</h2>

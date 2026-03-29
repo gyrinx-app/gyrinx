@@ -70,6 +70,7 @@ class ContentTypeEntry(NamedTuple):
 
 # Content types that can be added to packs, in display order.
 SUPPORTED_CONTENT_TYPES = [
+    # --- Gang identity ---
     ContentTypeEntry(
         ContentHouse,
         "Houses",
@@ -87,36 +88,12 @@ SUPPORTED_CONTENT_TYPES = [
         "fighter",
     ),
     ContentTypeEntry(
-        ContentEquipment,
-        "Gear",
-        "Custom gear and non-weapon equipment for your Content Pack.",
-        "bi-wrench",
-        ContentGearPackForm,
-        "gear",
-    ),
-    ContentTypeEntry(
-        ContentEquipment,
-        "Weapons",
-        "Custom weapons for your Content Pack.",
-        "bi-crosshair",
-        ContentWeaponPackForm,
-        "weapon",
-    ),
-    ContentTypeEntry(
         ContentRule,
         "Rules",
         "Custom rules for your Content Pack.",
         "bi-journal-text",
         ContentRuleForm,
         "rule",
-    ),
-    ContentTypeEntry(
-        ContentWeaponTrait,
-        "Weapon Traits",
-        "Custom weapon traits for your Content Pack.",
-        "bi-lightning",
-        ContentWeaponTraitPackForm,
-        "weapon-trait",
     ),
     ContentTypeEntry(
         ContentSkillCategory,
@@ -134,7 +111,35 @@ SUPPORTED_CONTENT_TYPES = [
         ContentSkillPackForm,
         "skill",
     ),
+    # --- Equipment ---
+    ContentTypeEntry(
+        ContentEquipment,
+        "Gear",
+        "Custom gear and non-weapon equipment for your Content Pack.",
+        "bi-wrench",
+        ContentGearPackForm,
+        "gear",
+    ),
+    ContentTypeEntry(
+        ContentEquipment,
+        "Weapons",
+        "Custom weapons for your Content Pack.",
+        "bi-crosshair",
+        ContentWeaponPackForm,
+        "weapon",
+    ),
+    ContentTypeEntry(
+        ContentWeaponTrait,
+        "Weapon Traits",
+        "Custom weapon traits for your Content Pack.",
+        "bi-lightning",
+        ContentWeaponTraitPackForm,
+        "weapon-trait",
+    ),
 ]
+
+# Slugs that start the "equipment" group — render a divider before the first one.
+_EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait"}
 
 # Lookup from URL slug to content type entry.
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
