@@ -2623,6 +2623,19 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
         )
 
+    # When removing a base weapon entry (no profile), find sibling
+    # profile-specific entries that will also be removed.
+    sibling_profiles = []
+    if eli.weapon_profile is None:
+        sibling_profiles = list(
+            ContentFighterEquipmentListItem.objects.filter(
+                fighter=content_fighter,
+                equipment=eli.equipment,
+            )
+            .exclude(pk=eli.pk)
+            .select_related("weapon_profile")
+        )
+
     return render(
         request,
         "core/pack/pack_fighter_equipment_list_item_remove.html",
@@ -2631,6 +2644,7 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             "pack_item": pack_item,
             "content_fighter": content_fighter,
             "eli": eli,
+            "sibling_profiles": sibling_profiles,
         },
     )
 

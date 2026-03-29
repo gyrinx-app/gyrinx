@@ -14,6 +14,17 @@
         </strong>
         from the equipment list of <strong>{{ content_fighter.type }}</strong>?
     </p>
+    {% if sibling_profiles %}
+        <p>The following weapon profiles will also be removed:</p>
+        <ul class="mb-0">
+            {% for sibling in sibling_profiles %}
+                <li>
+                    {{ sibling.equipment.name }}
+                    {% if sibling.weapon_profile %}– {{ sibling.weapon_profile.name }}{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
     <form action="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
           method="post">
         {% csrf_token %}
