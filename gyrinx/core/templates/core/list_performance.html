@@ -89,9 +89,8 @@
             <tr>
                 <th>Legacy House / Takes Legacy</th>
                 <th colspan="2">Statline</th>
-                <th></th>
-                <th></th>
-                <th></th>
+                <th>Rules</th>
+                <th>Skills</th>
                 <th></th>
                 <th></th>
                 <th></th>
@@ -130,6 +129,28 @@
                             {% for stat in fighter.statline %}
                                 {{ stat.name }}: {{ stat.value }}
                                 {% if not forloop.last %}|{% endif %}
+                            {% endfor %}
+                        </small>
+                    </td>
+                    <td>
+                        <small>
+                            Rules:
+                            {% for rule in fighter.ruleline %}
+                                {{ rule.value }}
+                                {% if not forloop.last %},{% endif %}
+                            {% empty %}
+                                None
+                            {% endfor %}
+                        </small>
+                    </td>
+                    <td>
+                        <small>
+                            Skills:
+                            {% for skill in fighter.skilline_cached %}
+                                {{ skill }}
+                                {% if not forloop.last %},{% endif %}
+                            {% empty %}
+                                None
                             {% endfor %}
                         </small>
                     </td>
