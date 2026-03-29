@@ -232,11 +232,15 @@ def test_ruleline_excludes_unsubscribed_pack_content(pack_query_test_data):
 
 
 @pytest.mark.django_db
-def test_ruleline_without_packs_still_works(pack_query_test_data):
-    """Without packs parameter, ruleline() still works (uses default manager)."""
+def test_ruleline_without_packs_prefetch_still_includes_pack_content(
+    pack_query_test_data,
+):
+    """Without packs parameter in prefetch, ruleline() must still include
+    pack rules via fallback queries. The list is subscribed to the pack,
+    so pack content should always appear regardless of how the fighter was loaded."""
     gang_list = pack_query_test_data["list"]
 
-    # Load WITHOUT packs — uses default manager (excludes pack content)
+    # Load WITHOUT packs parameter — no pack-aware prefetch
     loaded_list = List.objects.with_related_data(with_fighters=True).get(
         id=gang_list.id
     )
@@ -244,9 +248,27 @@ def test_ruleline_without_packs_still_works(pack_query_test_data):
     rules = fighter.ruleline
     rule_names = [r.value for r in rules]
 
-    # Should include base rules
+    # Must include base rules
     assert "Base Rule 1" in rule_names
     assert "Base Rule 2" in rule_names
 
-    # Pack rules excluded (default manager excludes pack content)
-    assert "Pack Rule 1" not in rule_names
+    # Must ALSO include pack rules (list is subscribed — fallback queries)
+    assert "Pack Rule 1" in rule_names
+
+
+@pytest.mark.django_db
+def test_skilline_without_packs_prefetch_still_includes_pack_content(
+    pack_query_test_data,
+):
+    """Without packs parameter in prefetch, skilline() must still include
+    pack skills via fallback queries."""
+    gang_list = pack_query_test_data["list"]
+
+    loaded_list = List.objects.with_related_data(with_fighters=True).get(
+        id=gang_list.id
+    )
+    fighter = list(loaded_list.listfighter_set.all())[0]
+    skills = fighter.skilline()
+
+    assert "Base Skill 1" in skills
+    assert "Pack Skill 1" in skills

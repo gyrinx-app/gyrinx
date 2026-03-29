@@ -1596,6 +1596,7 @@ class ListFighterQuerySet(models.QuerySet):
             )
             .annotate(
                 prefetched=Value(True),
+                _pack_prefetched=Value(packs is not None),
                 annotated_category_terms=Subquery(
                     ListFighter.objects.sq_category_terms()
                 ),
@@ -2639,6 +2640,21 @@ class ListFighter(AppBase):
             for stat in stats
         ]
 
+    @property
+    def _has_pack_aware_prefetch(self):
+        """Check if this fighter was loaded with pack-aware prefetch data.
+
+        When with_related_data(packs=...) is used, the prefetch stores a
+        _pack_aware marker on the queryset result. When using default manager
+        prefetch (no packs), this marker is absent and we need fallback queries.
+        """
+        # If the fighter has the annotation from with_related_data(), check
+        # whether the prefetch cache was built with pack-aware querysets.
+        # The simplest signal: check if list.packs is non-empty but the
+        # prefetched rules on content_fighter are from the default manager.
+        # We use a flag set during prefetch construction instead.
+        return getattr(self, "_pack_prefetched", False)
+
     @cached_property
     @traced("listfighter_ruleline")
     def ruleline(self):
@@ -2646,17 +2662,23 @@ class ListFighter(AppBase):
         Get the ruleline for this fighter.
 
         Uses prefetched data when available (via pack-aware Prefetch objects
-        set up by with_related_data(packs=...)). Falls back to per-fighter
-        queries when prefetch data is not available.
+        set up by with_related_data(packs=...)). Falls back to with_packs()
+        queries when prefetch data was not pack-aware.
         """
-        # Start with default rules from ContentFighter.
-        # Uses prefetch cache from content_fighter__rules when available.
-        rules = list(self.content_fighter_cached.rules.all())
-        modded = []
+        if self._has_pack_aware_prefetch:
+            # Fast path: read from pack-aware prefetch cache (0 queries)
+            rules = list(self.content_fighter_cached.rules.all())
+            disabled_rules_set = set(self.disabled_rules.all())
+            custom_rules = list(self.custom_rules.all())
+        else:
+            # Fallback: explicit pack-scoped queries
+            packs = self.list.packs.all()
+            rules_qs = ContentRule.objects.with_packs(packs)
+            rules = list(rules_qs.filter(contentfighter=self.content_fighter_cached))
+            disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
+            custom_rules = list(rules_qs.filter(custom_for_fighters=self))
 
-        # Remove disabled rules.
-        # Uses prefetch cache from disabled_rules when available.
-        disabled_rules_set = set(self.disabled_rules.all())
+        modded = []
         rules = [r for r in rules if r not in disabled_rules_set]
 
         # Apply modifications from equipment/items
@@ -2667,9 +2689,8 @@ class ListFighter(AppBase):
             elif mod.mode == "remove" and mod.rule in rules:
                 rules.remove(mod.rule)
 
-        # Add custom rules.
-        # Uses prefetch cache from custom_rules when available.
-        for custom_rule in self.custom_rules.all():
+        # Add custom rules
+        for custom_rule in custom_rules:
             if custom_rule not in rules:
                 rules.append(custom_rule)
                 modded.append(custom_rule)
@@ -2783,21 +2804,26 @@ class ListFighter(AppBase):
         """Get the skilline for this fighter.
 
         Uses prefetched data when available (via pack-aware Prefetch objects
-        set up by with_related_data(packs=...)). Falls back to per-fighter
-        queries when prefetch data is not available.
+        set up by with_related_data(packs=...)). Falls back to with_packs()
+        queries when prefetch data was not pack-aware.
         """
-        # Start with default skills from ContentFighter.
-        # Uses prefetch cache from content_fighter__skills when available.
-        default_skills = list(self.content_fighter_cached.skills.all())
+        if self._has_pack_aware_prefetch:
+            # Fast path: read from pack-aware prefetch cache (0 queries)
+            default_skills = list(self.content_fighter_cached.skills.all())
+            disabled_skills_set = set(self.disabled_skills.all())
+            user_skills = list(self.skills.all())
+        else:
+            # Fallback: explicit pack-scoped queries
+            packs = self.list.packs.all()
+            skills_qs = ContentSkill.objects.with_packs(packs)
+            default_skills = list(
+                skills_qs.filter(contentfighter=self.content_fighter_cached)
+            )
+            disabled_skills_set = set(skills_qs.filter(disabled_for_fighters=self))
+            user_skills = list(skills_qs.filter(listfighter=self))
 
-        # Remove disabled skills.
-        # Uses prefetch cache from disabled_skills when available.
-        disabled_skills_set = set(self.disabled_skills.all())
         default_skills = [s for s in default_skills if s not in disabled_skills_set]
-
-        # Combine with user-added skills.
-        # Uses prefetch cache from skills when available.
-        skills = set(default_skills + list(self.skills.all()))
+        skills = set(default_skills + user_skills)
 
         # Apply modifications from equipment/items
         for mod in self._skillmods:
