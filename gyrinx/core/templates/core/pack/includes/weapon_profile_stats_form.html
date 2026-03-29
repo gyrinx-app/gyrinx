@@ -4,8 +4,7 @@
         <input type="search"
                class="form-control form-control-sm mb-2"
                placeholder="Filter..."
-               data-filter-target="wp_traits_list"
-               oninput="(function(el){ var t=el.value.toLowerCase(); var container=document.getElementById(el.dataset.filterTarget); var items=container.querySelectorAll('[data-filter-label]'); var visible=0; for(var i=0;i&lt;items.length;i++){ var show=items[i].dataset.filterLabel.toLowerCase().indexOf(t)!==-1; items[i].style.display=show?'':'none'; if(show) visible++; } container.querySelector('[data-filter-empty]').style.display=visible===0?'':'none'; })(this)">
+               data-gy-filter-target="wp_traits_list">
         {# djlint:off H021 #}
         <div id="wp_traits_list"
              class="border rounded p-2"
