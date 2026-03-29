@@ -41,13 +41,13 @@
                            placeholder="Filter packs..."
                            value="{{ search_query }}"
                            id="pack-search"
-                           oninput="filterPacks(this.value)">
+                           data-gy-filter-target="pack-list">
                 </div>
                 <!-- Pack list -->
                 <div class="vstack gap-2" id="pack-list">
                     {% for pack in available_packs %}
                         <label class="border rounded p-2 d-flex align-items-start gap-2 pack-item"
-                               data-name="{{ pack.name|lower }}">
+                               data-filter-label="{{ pack.name|lower }}">
                             <input type="checkbox"
                                    name="pack_ids"
                                    value="{{ pack.id }}"
@@ -61,17 +61,10 @@
                             </div>
                         </label>
                     {% endfor %}
+                    {# djlint:off H021 #}
+                    <div class="text-secondary fs-7" data-filter-empty style="display: none;">No matches.</div>
                 </div>
             {% endif %}
         </form>
     </div>
-    <script>
-    function filterPacks(query) {
-        query = query.toLowerCase();
-        document.querySelectorAll('.pack-item').forEach(function(item) {
-            var name = item.getAttribute('data-name');
-            item.style.display = name.includes(query) ? '' : 'none';
-        });
-    }
-    </script>
 {% endblock content %}
