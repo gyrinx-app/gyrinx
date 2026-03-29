@@ -12,10 +12,10 @@
                 <p data-test-id="the-joke" class="text-secondary mb-4">{% random_404_message %}</p>
                 <div class="hstack gap-3 justify-content-center align-items-center">
                     <a href="{% safe_referer '/' %}" class="icon-link">
-                        <i class="bi-chevron-left"></i>Back</a>
+                        <i class="bi-chevron-left" aria-hidden="true"></i>Back</a>
                     or
                     <a href="{% url 'core:index' %}" class="btn btn-primary">
-                        <i class="bi-house-door me-1"></i> Home
+                        <i class="bi-house-door me-1" aria-hidden="true"></i> Home
                     </a>
                 </div>
             </div>

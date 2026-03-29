@@ -1,6 +1,6 @@
 <div class="alert alert-{{ variant }} alert-icon{% if dismissible %} alert-dismissible fade show{% endif %} mb-0"
      role="alert">
-    <i class="{{ icon_class }}"></i>
+    <i class="{{ icon_class }}" aria-hidden="true"></i>
     <div>
         {% if heading %}<strong>{{ heading }}</strong>{% endif %}
         {{ message }}

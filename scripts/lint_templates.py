@@ -104,6 +104,7 @@ def main():
     total_violations = 0
     total_errors = 0
     total_warnings = 0
+    files_scanned = 0
     files_with_violations = 0
 
     for template_dir in TEMPLATE_DIRS:
@@ -114,11 +115,11 @@ def main():
             if should_skip(path):
                 continue
 
+            files_scanned += 1
             violations = lint_file(path)
             if violations:
                 files_with_violations += 1
-                rel_path = path
-                print(f"\n{rel_path}")
+                print(f"\n{path}")
                 for line_num, line, message, severity in violations:
                     marker = "ERROR" if severity == "error" else "WARN "
                     print(f"  {marker} L{line_num}: {message}")
@@ -129,9 +130,7 @@ def main():
                     total_violations += 1
 
     print(f"\n{'=' * 60}")
-    print(
-        f"Files scanned: {sum(1 for d in TEMPLATE_DIRS if d.exists() for _ in d.rglob('*.html'))}"
-    )
+    print(f"Files scanned: {files_scanned}")
     print(f"Files with violations: {files_with_violations}")
     print(
         f"Total violations: {total_violations} ({total_errors} errors, {total_warnings} warnings)"
