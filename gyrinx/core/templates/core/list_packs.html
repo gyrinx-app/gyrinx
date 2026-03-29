@@ -93,12 +93,14 @@
             <div class="px-2">
                 <form method="get" class="mb-3 vstack gap-2">
                     <div class="input-group input-group-sm">
-                        <input type="text"
+                        <span class="input-group-text"><i class="bi-search"></i></span>
+                        <input type="search"
                                name="q"
                                class="form-control"
                                placeholder="Search packs..."
+                               aria-label="Search packs"
                                value="{{ search_query }}">
-                        <button type="submit" class="btn btn-outline-secondary">Search</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Search</button>
                         {% if search_query or show_my_packs %}
                             <a href="{% url 'core:list-packs' list.id %}"
                                class="btn btn-outline-secondary">Clear</a>

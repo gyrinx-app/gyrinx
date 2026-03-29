@@ -23,11 +23,11 @@
             {% endif %}
         </div>
     {% endif %}
-    <div class="col-lg-12 px-0 vstack gap-5">
+    <div class="col-lg-12 px-0 vstack gap-4">
         <!-- Header -->
         <div class="vstack gap-0">
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
-                <h1 class="mb-0">{{ campaign.name }}</h1>
+                <h1 class="h2 mb-0">{{ campaign.name }}</h1>
                 {% if campaign.owner == user %}
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap">
                         {% if campaign.can_start_campaign %}

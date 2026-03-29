@@ -5,11 +5,11 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
-    <div class="col-lg-12 px-0 vstack gap-3">
+    <div class="col-lg-12 px-0 vstack gap-4">
         <div class="vstack gap-0 mb-2">
             <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
                 <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                    <h1 class="mb-0">Battles</h1>
+                    <h1 class="h3 mb-0">Battles</h1>
                 </div>
             </div>
             <div class="text-secondary">{{ campaign.name }}</div>

@@ -5,10 +5,10 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
-    <div class="col-12 px-0 vstack gap-5">
+    <div class="col-12 px-0 vstack gap-4">
         <!-- Header -->
         <div>
-            <h1 class="mb-2">Campaign Assets</h1>
+            <h1 class="h3 mb-2">Campaign Assets</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                 <p class="text-secondary mb-0">{{ campaign.name }}</p>
                 {% if is_owner %}

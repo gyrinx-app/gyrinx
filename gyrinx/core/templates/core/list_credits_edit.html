@@ -8,7 +8,7 @@
         {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
         <div class="row">
             <div class="col-12 col-md-8 col-lg-6">
-                <h2>Edit Credits for {{ list.name }}</h2>
+                <h1 class="h3">Edit Credits for {{ list.name }}</h1>
                 <ul class="fs-5 mb-3 list-group list-group-flush">
                     <li class="list-group-item">
                         <span class="badge text-bg-primary">{{ list.credits_current }}¢</span> Current
@@ -19,9 +19,9 @@
                 </ul>
                 <form method="post">
                     {% csrf_token %}
-                    {{ form.as_div }}
+                    {{ form }}
                     <div class="hstack gap-2 mt-3 align-items-center">
-                        <button type="submit" class="btn btn-success">Update Credits</button>
+                        <button type="submit" class="btn btn-success">Save</button>
                         <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
                     </div>
                 </form>

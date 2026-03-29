@@ -92,6 +92,12 @@ def campaign_packs(request, id):
         if search_query:
             available_packs = available_packs.filter(name__icontains=search_query)
 
+        show_my_packs = request.GET.get("my") == "1"
+        if show_my_packs:
+            available_packs = available_packs.filter(owner=user)
+    else:
+        show_my_packs = False
+
     return render(
         request,
         "core/campaign/campaign_packs.html",
@@ -102,6 +108,7 @@ def campaign_packs(request, id):
             "is_owner": is_owner,
             "user_campaign_lists": user_campaign_lists,
             "search_query": search_query,
+            "show_my_packs": show_my_packs,
         },
     )
 

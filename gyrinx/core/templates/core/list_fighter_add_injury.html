@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back_to_list.html" with list=list %}
-    <div class="col-lg-8 px-0 vstack gap-3">
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Add {{ fighter.term_injury_singular }}: {{ fighter.name }}</h1>
         <p>
             Adding {{ fighter.proximal_demonstrative|lower }}'s {{ fighter.term_injury_singular|lower }} will automatically log this event to the campaign action log.

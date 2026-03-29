@@ -185,20 +185,28 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Page title (index)</td>
+                        <td>Top-level index</td>
                         <td>2.19rem</td>
                         <td>
                             <code>h1</code>
                         </td>
-                        <td>Index page titles</td>
+                        <td>Lists & Gangs, Campaigns, Customisation</td>
                     </tr>
                     <tr>
-                        <td>Page title (sub)</td>
+                        <td>Entity detail</td>
+                        <td>1.75rem</td>
+                        <td>
+                            <code>h1.h2</code>
+                        </td>
+                        <td>Campaign, Pack, Battle, List detail</td>
+                    </tr>
+                    <tr>
+                        <td>Sub-page</td>
                         <td>1.53rem</td>
                         <td>
                             <code>h1.h3</code>
                         </td>
-                        <td>Edit forms, sub-page titles</td>
+                        <td>Edit forms, settings, campaign sub-pages</td>
                     </tr>
                     <tr>
                         <td>Section</td>
@@ -227,13 +235,18 @@
             <h3 class="h6 caps-label mb-2">Heading hierarchy (live)</h3>
             <div class="border rounded p-3 vstack gap-2 mb-4">
                 <div>
-                    <h1 class="mb-0" style="line-height:1.2">h1 — Index page title</h1>
-                    <code class="fs-7 text-secondary">&lt;h1&gt;</code>
+                    <h1 class="mb-0" style="line-height:1.2">h1 — Top-level index</h1>
+                    <code class="fs-7 text-secondary">&lt;h1&gt; — Lists & Gangs, Campaigns, Customisation</code>
                 </div>
                 <hr class="my-1">
                 <div>
-                    <h1 class="h3 mb-0">h1.h3 — Sub-page title</h1>
-                    <code class="fs-7 text-secondary">&lt;h1 class="h3"&gt;</code>
+                    <h1 class="h2 mb-0">h1.h2 — Entity detail</h1>
+                    <code class="fs-7 text-secondary">&lt;h1 class="h2"&gt; — Campaign, Pack, Battle, List detail</code>
+                </div>
+                <hr class="my-1">
+                <div>
+                    <h1 class="h3 mb-0">h1.h3 — Sub-page</h1>
+                    <code class="fs-7 text-secondary">&lt;h1 class="h3"&gt; — Edit forms, settings, campaign sub-pages</code>
                 </div>
                 <hr class="my-1">
                 <div>
@@ -501,18 +514,11 @@
                         <td>fighter-edit, list-edit</td>
                     </tr>
                     <tr>
-                        <td>Index / listing</td>
+                        <td>Index / listing / detail</td>
                         <td>
                             <code>gap-4</code> (1.5rem)
                         </td>
-                        <td>lists, campaigns</td>
-                    </tr>
-                    <tr>
-                        <td>Detail</td>
-                        <td>
-                            <code>gap-5</code> (3rem)
-                        </td>
-                        <td>list detail, campaign detail</td>
+                        <td>lists, campaigns, list detail, campaign detail, pack detail</td>
                     </tr>
                 </tbody>
             </table>
@@ -1068,7 +1074,7 @@
                 <div class="col-lg-12 px-0 vstack gap-4">
                     <div class="vstack gap-0">
                         <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                            <h1 class="mb-0">My Gang</h1>
+                            <h1 class="h2 mb-0">My Gang</h1>
                             <nav class="nav btn-group flex-nowrap ms-md-auto">
                                 <a href="#" class="btn btn-primary btn-sm"><i class="bi-pencil"></i> Edit</a>
                                 <div class="btn-group" role="group">
@@ -1127,7 +1133,7 @@
             <div class="border rounded p-3 mb-4">
                 <div class="vstack gap-0">
                     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                        <h1 class="mb-0">Cawdor Facts</h1>
+                        <h1 class="h2 mb-0">Cawdor Facts</h1>
                         <div class="ms-md-auto d-flex gap-1 flex-nowrap">
                             <a href="#" class="btn btn-primary btn-sm"><i class="bi-person-add"></i> Add fighter</a>
                             <a href="#" class="btn btn-primary btn-sm"><i class="bi-truck"></i> Add vehicle</a>
@@ -1191,133 +1197,151 @@
                     </div>
                 </div>
             </div>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 13. EMPTY STATES -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Empty states</h2>
-            <h3 class="h6 caps-label mb-2">Block empty state</h3>
-            <div class="border rounded p-3 mb-3">
-                <p class="text-secondary mb-0">No fighters yet.</p>
+            <h3 class="h6 caps-label mb-2">Step progress (multi-step flows)</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Use <code>
+                {% verbatim %}
+                    {% include "core/includes/step_progress.html" with step=N total_steps=N title="..." %}
+                {% endverbatim %}
+            </code> for multi-step forms (advancement, vehicle, equipment sell).
+        </p>
+        <div class="border rounded p-3 mb-4">
+            <div class="col-12 col-md-8 col-lg-6">
+                {% include "core/includes/step_progress.html" with step=2 total_steps=3 title="Add Vehicle" subtitle="Select crew" %}
+                <div class="mt-3">
+                    <p class="text-secondary fs-7 mb-0">
+                        Step content goes here. The progress bar, h1.h3 title, and optional h2.h5 subtitle are rendered by the include.
+                    </p>
+                </div>
             </div>
-            <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
-                <thead>
+        </div>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 13. EMPTY STATES -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Empty states</h2>
+        <h3 class="h6 caps-label mb-2">Block empty state</h3>
+        <div class="border rounded p-3 mb-3">
+            <p class="text-secondary mb-0">No fighters yet.</p>
+        </div>
+        <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
+        <table class="table table-sm table-borderless mb-0 fs-7">
+            <thead>
+                <tr>
+                    <th>Fighter</th>
+                    <th>Skill</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Stig</td>
+                    <td>Infiltrate</td>
+                    <td>
+                        <span class="text-secondary fst-italic">None</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 14. LINKS -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Links</h2>
+        <div class="vstack gap-2 mb-4">
+            <div>
+                <a href="#">Default link</a>
+                <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
+            </div>
+            <div>
+                <a href="#" class="linked">Linked style</a>
+                <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
+            </div>
+            <div>
+                <a href="#"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link</a>
+                <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
+            </div>
+            <div>
+                <a href="#"
+                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">Danger link</a>
+                <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
+            </div>
+            <div>
+                <a href="#" class="link-primary">Primary link</a>
+                <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
+            </div>
+            <div>
+                <span class="tooltipped">Tooltipped style</span>
+                <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
+            </div>
+        </div>
+        <p class="text-secondary fs-7 mb-0">
+            All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
+            <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>.
+        </p>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 15. CUSTOM CSS REFERENCE -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Custom CSS reference</h2>
+        <p class="text-secondary fs-7 mb-2">
+            Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
+        </p>
+        <table class="table table-sm table-borderless mb-0 fs-7">
+            <thead>
+                <tr>
+                    <th>Class</th>
+                    <th>Purpose</th>
+                    <th>Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cls, purpose in custom_classes %}
                     <tr>
-                        <th>Fighter</th>
-                        <th>Skill</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Stig</td>
-                        <td>Infiltrate</td>
                         <td>
-                            <span class="text-secondary fst-italic">None</span>
+                            <code>{{ cls }}</code>
+                        </td>
+                        <td>{{ purpose }}</td>
+                        <td>
+                            {% if cls == ".alert-icon" %}
+                                <span class="text-secondary">(see Feedback section)</span>
+                            {% elif cls == ".caps-label" %}
+                                <span class="caps-label">Example</span>
+                            {% elif cls == ".linked" %}
+                                <a href="#" class="linked">linked text</a>
+                            {% elif cls == ".fs-7" %}
+                                <span class="fs-7">compact text</span>
+                            {% elif cls == ".mb-last-0" %}
+                                <span class="text-secondary">(removes last-child margin)</span>
+                            {% elif cls == ".flash-warn" %}
+                                <span class="text-secondary">(see Flash highlight below)</span>
+                            {% elif cls == ".tooltipped" %}
+                                <span class="tooltipped">hover me</span>
+                            {% elif cls == ".table-fixed" %}
+                                <span class="text-secondary">(table-layout: fixed)</span>
+                            {% endif %}
                         </td>
                     </tr>
-                </tbody>
-            </table>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 14. LINKS -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Links</h2>
-            <div class="vstack gap-2 mb-4">
-                <div>
-                    <a href="#">Default link</a>
-                    <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
-                </div>
-                <div>
-                    <a href="#" class="linked">Linked style</a>
-                    <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
-                </div>
-                <div>
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
-                </div>
-                <div>
-                    <a href="#"
-                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">Danger link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
-                </div>
-                <div>
-                    <a href="#" class="link-primary">Primary link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
-                </div>
-                <div>
-                    <span class="tooltipped">Tooltipped style</span>
-                    <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
-                </div>
-            </div>
-            <p class="text-secondary fs-7 mb-0">
-                All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
-                <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>.
-            </p>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 15. CUSTOM CSS REFERENCE -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Custom CSS reference</h2>
-            <p class="text-secondary fs-7 mb-2">
-                Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
-            </p>
-            <table class="table table-sm table-borderless mb-0 fs-7">
-                <thead>
-                    <tr>
-                        <th>Class</th>
-                        <th>Purpose</th>
-                        <th>Preview</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for cls, purpose in custom_classes %}
-                        <tr>
-                            <td>
-                                <code>{{ cls }}</code>
-                            </td>
-                            <td>{{ purpose }}</td>
-                            <td>
-                                {% if cls == ".alert-icon" %}
-                                    <span class="text-secondary">(see Feedback section)</span>
-                                {% elif cls == ".caps-label" %}
-                                    <span class="caps-label">Example</span>
-                                {% elif cls == ".linked" %}
-                                    <a href="#" class="linked">linked text</a>
-                                {% elif cls == ".fs-7" %}
-                                    <span class="fs-7">compact text</span>
-                                {% elif cls == ".mb-last-0" %}
-                                    <span class="text-secondary">(removes last-child margin)</span>
-                                {% elif cls == ".flash-warn" %}
-                                    <span class="text-secondary">(see Flash highlight below)</span>
-                                {% elif cls == ".tooltipped" %}
-                                    <span class="tooltipped">hover me</span>
-                                {% elif cls == ".table-fixed" %}
-                                    <span class="text-secondary">(table-layout: fixed)</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 16. FLASH ANIMATION -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Flash highlight</h2>
-            <div class="flash-warn border rounded p-3">
-                This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
-                Used when returning from add pages to highlight the newly added item.
-            </div>
-        </section>
-    </div>
-    <script>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 16. FLASH ANIMATION -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Flash highlight</h2>
+        <div class="flash-warn border rounded p-3">
+            This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
+            Used when returning from add pages to highlight the newly added item.
+        </div>
+    </section>
+</div>
+<script>
         // Compute and display actual rendered font sizes in pixels.
         document.querySelectorAll("[data-measure]").forEach(function (cell) {
             var row = cell.closest("tr");
@@ -1327,5 +1351,5 @@
                 cell.textContent = Math.round(px * 100) / 100 + "px";
             }
         });
-    </script>
+</script>
 {% endblock content %}

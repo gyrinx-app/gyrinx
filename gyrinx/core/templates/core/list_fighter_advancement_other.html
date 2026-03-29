@@ -38,12 +38,14 @@
                     {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors }}</div>{% endif %}
                 </div>
             </div>
-            <nav class="d-flex gap-2" aria-label="Form navigation">
+            <nav class="hstack gap-3" aria-label="Form navigation">
+                <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}?{% qt request %}"
+                   class="icon-link">
+                    <i class="bi-chevron-left"></i> Back
+                </a>
                 <button type="submit"
                         class="btn btn-primary"
                         aria-describedby="continue-help">Continue</button>
-                <a href="{% url 'core:list-fighter-advancement-type' list.id fighter.id %}?{% qt request %}"
-                   class="btn btn-secondary">Back</a>
                 <span id="continue-help" class="visually-hidden">Continue to the next step of the advancement workflow</span>
             </nav>
         </form>

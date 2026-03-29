@@ -5,27 +5,32 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
-    <div class="col-12 px-0 vstack gap-5">
-        <div>
-            <h1 class="mb-2">Content Packs</h1>
-            <p class="text-secondary mb-0">{{ campaign.name }}</p>
-        </div>
+    <div class="col-12 col-xl-6 px-0 vstack gap-4">
+        <h1 class="h3">Content Packs</h1>
+        <p class="text-secondary fs-7">
+            {% if is_owner %}
+                Gangs joining this Campaign can use content from these packs and the core game content.
+                Add packs below to restrict which packs can be used.
+            {% else %}
+                Content Packs allowed in {{ campaign.name }}.
+            {% endif %}
+        </p>
+        <!-- Allowed packs -->
         <section>
-            <h2 class="h5 mb-3">Allowed Packs</h2>
-            {% if campaign_packs %}
-                <p class="text-secondary fs-7 mb-3">
-                    Gangs joining this Campaign can use content from these packs and the core game content.
-                </p>
-                <div class="row g-2 mb-3">
-                    {% for pack in campaign_packs %}
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <div class="border rounded p-2 d-flex align-items-center justify-content-between">
+            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                <h2 class="h5 mb-0">
+                    Allowed Packs
+                    {% if campaign_packs %}<span class="badge text-bg-primary">{{ campaign_packs|length }}</span>{% endif %}
+                </h2>
+            </div>
+            <div class="px-2">
+                {% if campaign_packs %}
+                    <ul class="list-unstyled mb-0">
+                        {% for pack in campaign_packs %}
+                            <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                 <div>
-                                    <a href="{% url 'core:pack' pack.id %}"
-                                       class="link-underline-opacity-25 link-underline-opacity-100-hover fw-semibold">{{ pack.name }}</a>
-                                    <div class="text-secondary fs-7">
-                                        <i class="bi-person"></i> {{ pack.owner.username }}
-                                    </div>
+                                    <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                    <span class="text-secondary fs-7">by {{ pack.owner.username }}</span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     {% if user_campaign_lists %}
@@ -49,7 +54,7 @@
                                                     {% endfor %}
                                                 {% else %}
                                                     <li>
-                                                        <span class="dropdown-item-text text-secondary fs-7">All Gangs subscribed</span>
+                                                        <span class="dropdown-item-text text-secondary fs-7">All gangs subscribed</span>
                                                     </li>
                                                 {% endif %}
                                                 <li>
@@ -63,75 +68,87 @@
                                     {% endif %}
                                     {% if is_owner and not campaign.archived %}
                                         <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
-                                           class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
-                                            <i class="bi-trash"></i>
+                                           class="icon-link link-danger fs-7"
+                                           aria-label="Remove {{ pack.name }} from campaign">
+                                            <i class="bi-trash" aria-hidden="true"></i>
                                         </a>
                                     {% endif %}
                                 </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <p class="text-secondary fs-7 mb-3">
-                    {% if is_owner %}
-                        No packs configured. Gangs can use any Content Packs they subscribe to, as well as the core game content.
-                        Add packs below to restrict which packs can be used in this Campaign.
-                    {% else %}
-                        No Content Packs configured for this Campaign.
-                    {% endif %}
-                </p>
-            {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-secondary mb-0">
+                        {% if is_owner %}
+                            No packs configured. Any gang can join regardless of their packs.
+                        {% else %}
+                            No Content Packs configured for this Campaign.
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
         </section>
+        <!-- Add packs (owner only) -->
         {% if is_owner and not campaign.archived %}
             <section>
-                <h2 class="h5 mb-3">Add Packs</h2>
-                <form method="get" class="mb-3 col-12 col-md-6 col-lg-4 px-0">
-                    <div class="input-group input-group-sm">
-                        <input type="text"
-                               name="q"
-                               class="form-control"
-                               placeholder="Search packs..."
-                               value="{{ search_query }}">
-                        <button type="submit" class="btn btn-primary">Search</button>
-                        {% if search_query %}
-                            <a href="{% url 'core:campaign-packs' campaign.id %}"
-                               class="btn btn-outline-secondary">Clear</a>
-                        {% endif %}
-                    </div>
-                </form>
-                {% if available_packs %}
-                    <div class="row g-2">
-                        {% for pack in available_packs %}
-                            <div class="col-12 col-md-6 col-lg-4">
-                                <div class="border rounded p-2 d-flex align-items-center justify-content-between">
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                    <h2 class="h5 mb-0">Add Packs</h2>
+                </div>
+                <div class="px-2">
+                    <form method="get" class="mb-3 vstack gap-2">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="bi-search"></i></span>
+                            <input type="search"
+                                   name="q"
+                                   class="form-control"
+                                   placeholder="Search packs..."
+                                   aria-label="Search packs"
+                                   value="{{ search_query }}">
+                            <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                            {% if search_query or show_my_packs %}
+                                <a href="{% url 'core:campaign-packs' campaign.id %}"
+                                   class="btn btn-outline-secondary">Clear</a>
+                            {% endif %}
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input type="hidden" name="my" value="0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   id="my-packs"
+                                   name="my"
+                                   value="1"
+                                   data-gy-toggle-submit
+                                   {% if show_my_packs %}checked{% endif %}>
+                            <label class="form-check-label fs-7 mb-0" for="my-packs">Your Packs only</label>
+                        </div>
+                    </form>
+                    {% if available_packs %}
+                        <ul class="list-unstyled mb-0">
+                            {% for pack in available_packs %}
+                                <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
                                     <div>
-                                        <a href="{% url 'core:pack' pack.id %}"
-                                           class="link-underline-opacity-25 link-underline-opacity-100-hover fw-semibold">{{ pack.name }}</a>
-                                        <div class="text-secondary fs-7">
-                                            <i class="bi-person"></i> {{ pack.owner.username }}
-                                        </div>
+                                        <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
+                                        <span class="text-secondary fs-7">by {{ pack.owner.username }}</span>
                                     </div>
                                     <form method="post"
                                           action="{% url 'core:campaign-pack-add' campaign.id pack.id %}">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi-plus-lg"></i> Add
-                                        </button>
+                                        <button type="submit" class="btn btn-sm btn-primary">Add</button>
                                     </form>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-secondary fs-7 mb-0">
-                        {% if search_query %}
-                            No packs found matching "{{ search_query }}".
-                        {% else %}
-                            No additional packs available.
-                        {% endif %}
-                    </p>
-                {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-secondary mb-0">
+                            {% if search_query %}
+                                No packs found matching "{{ search_query }}".
+                            {% else %}
+                                No additional packs available.
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                </div>
             </section>
         {% endif %}
     </div>

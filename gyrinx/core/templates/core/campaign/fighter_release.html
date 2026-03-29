@@ -5,9 +5,9 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with text="Back" %}
-    <div class="col-lg-8 px-0">
+    <div class="col-12 col-md-8 col-lg-6 px-0">
         <div class="vstack gap-0 mb-3">
-            <h1 class="mb-0">Release Fighter</h1>
+            <h1 class="h3 mb-0">Release Fighter</h1>
             <div class="text-secondary">{{ campaign.name }}</div>
         </div>
         {% include "core/campaign/includes/captured_fighter_details.html" with show_capturing_gang_owner_check=True %}
