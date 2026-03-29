@@ -36,7 +36,7 @@
                                 </div>
                             {% endif %}
                         </div>
-                        {% if pack.summary %}<div class="mb-last-0 text-secondary">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
+                        {% if pack.summary %}<div class="text-secondary">{{ pack.summary|plain_text_truncate:150 }}</div>{% endif %}
                     </div>
                     <div class="ms-auto d-md-none">
                         <a href="{% url 'core:pack' pack.id %}" class="p-3 stretched-link">
