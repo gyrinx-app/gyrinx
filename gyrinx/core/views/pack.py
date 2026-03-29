@@ -2633,7 +2633,7 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
                 equipment=eli.equipment,
             )
             .exclude(pk=eli.pk)
-            .select_related("weapon_profile")
+            .select_related("equipment", "weapon_profile")
         )
 
     return render(
