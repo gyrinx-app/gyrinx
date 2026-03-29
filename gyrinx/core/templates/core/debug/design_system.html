@@ -1197,133 +1197,151 @@
                     </div>
                 </div>
             </div>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 13. EMPTY STATES -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Empty states</h2>
-            <h3 class="h6 caps-label mb-2">Block empty state</h3>
-            <div class="border rounded p-3 mb-3">
-                <p class="text-secondary mb-0">No fighters yet.</p>
+            <h3 class="h6 caps-label mb-2">Step progress (multi-step flows)</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Use <code>
+                {% verbatim %}
+                    {% include "core/includes/step_progress.html" with step=N total_steps=N title="..." %}
+                {% endverbatim %}
+            </code> for multi-step forms (advancement, vehicle, equipment sell).
+        </p>
+        <div class="border rounded p-3 mb-4">
+            <div class="col-12 col-md-8 col-lg-6">
+                {% include "core/includes/step_progress.html" with step=2 total_steps=3 title="Add Vehicle" %}
+                <div class="mt-3">
+                    <p class="text-secondary fs-7 mb-0">
+                        Step content goes here. The progress bar + h1.h3 title are rendered by the include.
+                    </p>
+                </div>
             </div>
-            <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
-                <thead>
+        </div>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 13. EMPTY STATES -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Empty states</h2>
+        <h3 class="h6 caps-label mb-2">Block empty state</h3>
+        <div class="border rounded p-3 mb-3">
+            <p class="text-secondary mb-0">No fighters yet.</p>
+        </div>
+        <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
+        <table class="table table-sm table-borderless mb-0 fs-7">
+            <thead>
+                <tr>
+                    <th>Fighter</th>
+                    <th>Skill</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Stig</td>
+                    <td>Infiltrate</td>
+                    <td>
+                        <span class="text-secondary fst-italic">None</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 14. LINKS -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Links</h2>
+        <div class="vstack gap-2 mb-4">
+            <div>
+                <a href="#">Default link</a>
+                <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
+            </div>
+            <div>
+                <a href="#" class="linked">Linked style</a>
+                <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
+            </div>
+            <div>
+                <a href="#"
+                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link</a>
+                <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
+            </div>
+            <div>
+                <a href="#"
+                   class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">Danger link</a>
+                <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
+            </div>
+            <div>
+                <a href="#" class="link-primary">Primary link</a>
+                <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
+            </div>
+            <div>
+                <span class="tooltipped">Tooltipped style</span>
+                <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
+            </div>
+        </div>
+        <p class="text-secondary fs-7 mb-0">
+            All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
+            <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>.
+        </p>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 15. CUSTOM CSS REFERENCE -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Custom CSS reference</h2>
+        <p class="text-secondary fs-7 mb-2">
+            Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
+        </p>
+        <table class="table table-sm table-borderless mb-0 fs-7">
+            <thead>
+                <tr>
+                    <th>Class</th>
+                    <th>Purpose</th>
+                    <th>Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cls, purpose in custom_classes %}
                     <tr>
-                        <th>Fighter</th>
-                        <th>Skill</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Stig</td>
-                        <td>Infiltrate</td>
                         <td>
-                            <span class="text-secondary fst-italic">None</span>
+                            <code>{{ cls }}</code>
+                        </td>
+                        <td>{{ purpose }}</td>
+                        <td>
+                            {% if cls == ".alert-icon" %}
+                                <span class="text-secondary">(see Feedback section)</span>
+                            {% elif cls == ".caps-label" %}
+                                <span class="caps-label">Example</span>
+                            {% elif cls == ".linked" %}
+                                <a href="#" class="linked">linked text</a>
+                            {% elif cls == ".fs-7" %}
+                                <span class="fs-7">compact text</span>
+                            {% elif cls == ".mb-last-0" %}
+                                <span class="text-secondary">(removes last-child margin)</span>
+                            {% elif cls == ".flash-warn" %}
+                                <span class="text-secondary">(see Flash highlight below)</span>
+                            {% elif cls == ".tooltipped" %}
+                                <span class="tooltipped">hover me</span>
+                            {% elif cls == ".table-fixed" %}
+                                <span class="text-secondary">(table-layout: fixed)</span>
+                            {% endif %}
                         </td>
                     </tr>
-                </tbody>
-            </table>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 14. LINKS -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Links</h2>
-            <div class="vstack gap-2 mb-4">
-                <div>
-                    <a href="#">Default link</a>
-                    <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
-                </div>
-                <div>
-                    <a href="#" class="linked">Linked style</a>
-                    <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
-                </div>
-                <div>
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Secondary link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
-                </div>
-                <div>
-                    <a href="#"
-                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover">Danger link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
-                </div>
-                <div>
-                    <a href="#" class="link-primary">Primary link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
-                </div>
-                <div>
-                    <span class="tooltipped">Tooltipped style</span>
-                    <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
-                </div>
-            </div>
-            <p class="text-secondary fs-7 mb-0">
-                All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
-                <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-25 .link-underline-opacity-100-hover</code>.
-            </p>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 15. CUSTOM CSS REFERENCE -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Custom CSS reference</h2>
-            <p class="text-secondary fs-7 mb-2">
-                Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
-            </p>
-            <table class="table table-sm table-borderless mb-0 fs-7">
-                <thead>
-                    <tr>
-                        <th>Class</th>
-                        <th>Purpose</th>
-                        <th>Preview</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for cls, purpose in custom_classes %}
-                        <tr>
-                            <td>
-                                <code>{{ cls }}</code>
-                            </td>
-                            <td>{{ purpose }}</td>
-                            <td>
-                                {% if cls == ".alert-icon" %}
-                                    <span class="text-secondary">(see Feedback section)</span>
-                                {% elif cls == ".caps-label" %}
-                                    <span class="caps-label">Example</span>
-                                {% elif cls == ".linked" %}
-                                    <a href="#" class="linked">linked text</a>
-                                {% elif cls == ".fs-7" %}
-                                    <span class="fs-7">compact text</span>
-                                {% elif cls == ".mb-last-0" %}
-                                    <span class="text-secondary">(removes last-child margin)</span>
-                                {% elif cls == ".flash-warn" %}
-                                    <span class="text-secondary">(see Flash highlight below)</span>
-                                {% elif cls == ".tooltipped" %}
-                                    <span class="tooltipped">hover me</span>
-                                {% elif cls == ".table-fixed" %}
-                                    <span class="text-secondary">(table-layout: fixed)</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </section>
-        <!-- ============================================================ -->
-        <!-- 16. FLASH ANIMATION -->
-        <!-- ============================================================ -->
-        <section>
-            <h2 class="h4 mb-3">Flash highlight</h2>
-            <div class="flash-warn border rounded p-3">
-                This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
-                Used when returning from add pages to highlight the newly added item.
-            </div>
-        </section>
-    </div>
-    <script>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    <!-- ============================================================ -->
+    <!-- 16. FLASH ANIMATION -->
+    <!-- ============================================================ -->
+    <section>
+        <h2 class="h4 mb-3">Flash highlight</h2>
+        <div class="flash-warn border rounded p-3">
+            This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
+            Used when returning from add pages to highlight the newly added item.
+        </div>
+    </section>
+</div>
+<script>
         // Compute and display actual rendered font sizes in pixels.
         document.querySelectorAll("[data-measure]").forEach(function (cell) {
             var row = cell.closest("tr");
@@ -1333,5 +1351,5 @@
                 cell.textContent = Math.round(px * 100) / 100 + "px";
             }
         });
-    </script>
+</script>
 {% endblock content %}
