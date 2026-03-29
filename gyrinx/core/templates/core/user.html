@@ -10,7 +10,9 @@
             <h1 class="h2 mb-0">{{ profile_user.username }}</h1>
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 <span><i class="bi-clock"></i> Joined {{ profile_user.date_joined|naturaltime }}</span>
-                <span><i class="bi-list-ul"></i> {{ public_lists|length }} public list{{ public_lists|length|pluralize }}</span>
+                <span><i class="bi-list-ul"></i> {{ public_lists|length }} public list{{ public_lists|length|pluralize }}
+                    {% if unlisted_lists %}, {{ unlisted_lists|length }} unlisted{% endif %}
+                </span>
                 {% if profile_user.is_staff %}<span class="badge text-bg-success">Staff</span>{% endif %}
             </div>
         </div>
@@ -18,7 +20,7 @@
         {% if public_lists or is_own_profile %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                    <h2 class="h5 mb-0">Public Lists</h2>
+                    <h2 class="h5 mb-0">Public lists</h2>
                     {% if is_own_profile %}
                         <a href="{% url 'core:lists-new' %}" class="btn btn-primary btn-sm">
                             <i class="bi-plus-lg"></i> Add
@@ -43,6 +45,31 @@
                     {% else %}
                         <p class="text-secondary mb-0">No public lists yet.</p>
                     {% endif %}
+                </div>
+            </section>
+        {% endif %}
+        <!-- Unlisted Lists (only visible to the owner) -->
+        {% if unlisted_lists %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                    <h2 class="h5 mb-0">
+                        <i class="bi-eye-slash"></i> Unlisted
+                    </h2>
+                </div>
+                <div class="px-2">
+                    <ul class="list-unstyled mb-0">
+                        {% for list in unlisted_lists %}
+                            <li class="py-1">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <a href="{% url 'core:list' list.id %}" class="fw-medium">{{ list.name }}</a>
+                                        <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}</span>
+                                    </div>
+                                    <span class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</span>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
                 </div>
             </section>
         {% endif %}

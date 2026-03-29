@@ -50,14 +50,28 @@ def user(request, slug_or_id):
     is_own_profile = request.user.is_authenticated and request.user == profile_user
 
     # --- Public Lists (non-campaign, non-archived) ---
-    public_lists_qs = List.objects.filter(
-        owner=profile_user, status=List.LIST_BUILDING, archived=False
+    public_lists_qs = (
+        List.objects.filter(
+            owner=profile_user, status=List.LIST_BUILDING, archived=False, public=True
+        )
+        .with_latest_actions()
+        .select_related("content_house", "owner")
     )
-    if not is_own_profile:
-        public_lists_qs = public_lists_qs.filter(public=True)
-    public_lists = public_lists_qs.with_latest_actions().select_related(
-        "content_house", "owner"
-    )
+    public_lists = public_lists_qs
+
+    # --- Unlisted Lists (only visible to the owner) ---
+    unlisted_lists = List.objects.none()
+    if is_own_profile:
+        unlisted_lists = (
+            List.objects.filter(
+                owner=profile_user,
+                status=List.LIST_BUILDING,
+                archived=False,
+                public=False,
+            )
+            .with_latest_actions()
+            .select_related("content_house", "owner")
+        )
 
     # --- Campaign Gangs (campaign-mode lists) ---
     campaign_gangs_qs = List.objects.filter(
@@ -104,6 +118,7 @@ def user(request, slug_or_id):
             "profile_user": profile_user,
             "is_own_profile": is_own_profile,
             "public_lists": public_lists,
+            "unlisted_lists": unlisted_lists,
             "campaign_gangs": campaign_gangs,
             "campaigns": campaigns,
             "packs": packs,
