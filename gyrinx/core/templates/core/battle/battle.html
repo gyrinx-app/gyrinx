@@ -10,7 +10,7 @@
         <!-- Header -->
         <div class="vstack gap-0">
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
-                <h1 class="mb-0">{{ battle.name }}</h1>
+                <h1 class="h2 mb-0">{{ battle.name }}</h1>
                 {% if can_edit %}
                     <a href="{% url 'core:battle-edit' battle.id %}"
                        class="btn btn-primary btn-sm ms-md-auto">
