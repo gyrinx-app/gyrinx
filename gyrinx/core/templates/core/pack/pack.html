@@ -7,7 +7,8 @@
     <div class="col-12 col-xl-8 px-0 vstack gap-4">
         <!-- Header -->
         <div class="vstack gap-0">
-            {% include "core/includes/breadcrumb.html" with type="Pack" owner=pack.owner name=pack.name type_url="/packs/" only %}
+            {% url 'core:packs' as packs_url %}
+            {% include "core/includes/breadcrumb.html" with type="Pack" owner=pack.owner name=pack.name type_url=packs_url only %}
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ pack.name }}</h1>
                 {% if can_edit or user_lists or user_campaigns %}

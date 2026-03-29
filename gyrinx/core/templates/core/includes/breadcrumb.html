@@ -17,8 +17,12 @@
     {% endif %}
     <span class="mx-1">/</span>
     {% if campaign %}
-        <a class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
-           href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+        {% if print %}
+            {{ campaign.name }}
+        {% else %}
+            <a class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
+               href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+        {% endif %}
         <span class="mx-1">/</span>
     {% endif %}
     {{ name }}
