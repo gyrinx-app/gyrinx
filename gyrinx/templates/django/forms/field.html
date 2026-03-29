@@ -1,7 +1,9 @@
 {% if field.field.widget.input_type == "checkbox" and not field.use_fieldset %}
     <div class="form-check">
         {{ field }}
-        {% if field.label %}{{ field.label_tag }}{% endif %}
+        {% if field.label %}
+            <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {% endif %}
         {{ field.errors }}
         {% if field.help_text %}
             <div class="helptext form-text"
