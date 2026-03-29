@@ -1098,12 +1098,14 @@ def add_pack_item(request, id, content_type_slug):
                     )
             if "save_and_add_another" in request.POST:
                 messages.success(request, f'{singular_label} "{content_obj}" saved.')
-                return HttpResponseRedirect(
-                    reverse(
-                        "core:pack-add-item",
-                        args=(pack.id, content_type_slug),
-                    )
+                url = reverse(
+                    "core:pack-add-item",
+                    args=(pack.id, content_type_slug),
                 )
+                # Preserve category selection (e.g. skill tree) for the next add
+                if hasattr(content_obj, "category") and content_obj.category_id:
+                    url += f"?category={content_obj.category_id}"
+                return HttpResponseRedirect(url)
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = entry.form_class(**_form_kwargs(entry, pack))
