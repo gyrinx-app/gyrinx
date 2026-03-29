@@ -1,22 +1,6 @@
 {% extends "core/layouts/base.html" %}
 {% load i18n custom_tags %}
 {% block body %}
-    <div class="container my-3 my-md-5">
-        {% if user.is_authenticated %}
-            <div class="dropdown d-lg-none mb-3 order-1">
-                <button class="btn btn-outline-secondary dropdown-toggle"
-                        type="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false">Menu</button>
-                <ul class="dropdown-menu">
-                    {% include "account/snippets/menu.html" with list_a_class="dropdown-item" %}
-                </ul>
-            </div>
-            <ul class="d-none d-lg-flex nav nav-tabs order-2">
-                {% include "account/snippets/menu.html" with list_item_class="nav-item" list_a_class="nav-link" %}
-            </ul>
-        {% endif %}
-    </div>
     <div id="content" class="container my-3 my-md-5">
         {% if messages %}
             <div>
@@ -32,7 +16,9 @@
                 {% endfor %}
             </div>
         {% endif %}
-        {% block content %}
-        {% endblock content %}
+        {% block account_layout %}
+            {% block content %}
+            {% endblock content %}
+        {% endblock account_layout %}
     </div>
 {% endblock body %}
