@@ -542,9 +542,11 @@ class ContentWeaponPackForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Filter to weapon categories only, ordered by group then name.
+        # Filter to weapon categories only (exclude Ammo), ordered by name.
         self.fields["category"].queryset = (
-            ContentEquipmentCategory.objects.filter(group="Weapons & Ammo")
+            ContentEquipmentCategory.objects.filter(group="Weapons & Ammo").exclude(
+                name="Ammo"
+            )
         ).order_by("name")
 
     def clean_name(self):
