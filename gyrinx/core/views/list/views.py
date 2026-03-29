@@ -701,12 +701,16 @@ def new_list_packs(request):
         request.session["new_list_pack_ids"] = pack_ids
         return HttpResponseRedirect(reverse("core:lists-new"))
 
+    # Pre-select a pack if ?pack=<id> is in the query string
+    preselected_pack_id = request.GET.get("pack", "")
+
     return render(
         request,
         "core/list_new_packs.html",
         {
             "available_packs": available_packs,
             "search_query": search_query,
+            "preselected_pack_id": preselected_pack_id,
         },
     )
 
