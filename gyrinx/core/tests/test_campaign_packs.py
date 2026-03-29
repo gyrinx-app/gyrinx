@@ -964,7 +964,7 @@ def test_campaign_packs_hides_subscribed_gangs_from_dropdown(
     response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
 
     content = response.content.decode()
-    assert "All Gangs subscribed" in content
+    assert "All gangs subscribed" in content
 
 
 @pytest.mark.django_db
