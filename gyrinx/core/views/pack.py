@@ -578,6 +578,34 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                             "name",
                         )
                     )
+            # For skill items, group by their skill tree (category).
+            # Include empty skill trees from the "skill-tree" section.
+            if ct_entry.slug == "skill":
+                from collections import OrderedDict
+
+                grouped = OrderedDict()
+                # First, seed with all skill trees in the pack (even those with no skills)
+                tree_items = active_by_slug.get("skill-tree", [])
+                for tree_item in tree_items:
+                    cat = tree_item["content_object"]
+                    grouped[cat.id] = {
+                        "category": cat,
+                        "pack_item": tree_item["pack_item"],
+                        "skills": [],
+                    }
+                # Then add skills under their category
+                for item_data in items:
+                    skill = item_data["content_object"]
+                    cat = skill.category
+                    if cat.id not in grouped:
+                        grouped[cat.id] = {
+                            "category": cat,
+                            "pack_item": None,
+                            "skills": [],
+                        }
+                    grouped[cat.id]["skills"].append(item_data)
+                section["skill_groups"] = list(grouped.values())
+
             content_sections.append(section)
 
         context["content_sections"] = content_sections
@@ -1056,6 +1084,9 @@ def add_pack_item(request, id, content_type_slug):
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = entry.form_class(**_form_kwargs(entry, pack))
+        # Pre-select category from query param (e.g., skill tree → skill)
+        if "category" in request.GET and "category" in form.fields:
+            form.initial["category"] = request.GET["category"]
 
     context = {
         "form": form,
