@@ -213,10 +213,20 @@ class ListDetailView(generic.DetailView):
 
         Uses get_clean_list_or_404 to ensure dirty lists are refreshed
         before display (e.g., after content cost changes).
+
+        Fetches the list's packs first (lightweight query) so that
+        fighter prefetches can use pack-aware querysets, allowing
+        ruleline/skilline to hit the prefetch cache.
         """
+        from gyrinx.core.models.pack import CustomContentPack
+
+        list_id = self.kwargs["id"]
+        packs = CustomContentPack.objects.filter(
+            subscribed_lists__id=list_id, archived=False
+        )
         return get_clean_list_or_404(
-            List.objects.with_related_data(with_fighters=True),
-            id=self.kwargs["id"],
+            List.objects.with_related_data(with_fighters=True, packs=packs),
+            id=list_id,
         )
 
     @traced("ListDetailView_get_context_data")
@@ -319,9 +329,15 @@ class ListPerformanceView(generic.DetailView):
         Uses get_clean_list_or_404 to ensure dirty lists are refreshed
         before display (e.g., after content cost changes).
         """
+        from gyrinx.core.models.pack import CustomContentPack
+
+        list_id = self.kwargs["id"]
+        packs = CustomContentPack.objects.filter(
+            subscribed_lists__id=list_id, archived=False
+        )
         return get_clean_list_or_404(
-            List.objects.with_related_data(with_fighters=True),
-            id=self.kwargs["id"],
+            List.objects.with_related_data(with_fighters=True, packs=packs),
+            id=list_id,
         )
 
     def get_context_data(self, **kwargs):

@@ -133,6 +133,28 @@
                             {% endfor %}
                         </small>
                     </td>
+                    <td>
+                        <small>
+                            Rules:
+                            {% for rule in fighter.ruleline %}
+                                {{ rule.value }}
+                                {% if not forloop.last %},{% endif %}
+                            {% empty %}
+                                None
+                            {% endfor %}
+                        </small>
+                    </td>
+                    <td>
+                        <small>
+                            Skills:
+                            {% for skill in fighter.skilline_cached %}
+                                {{ skill }}
+                                {% if not forloop.last %},{% endif %}
+                            {% empty %}
+                                None
+                            {% endfor %}
+                        </small>
+                    </td>
                 </tr>
             {% empty %}
                 <tr>

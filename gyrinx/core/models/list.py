@@ -126,10 +126,17 @@ class ListQuerySet(models.QuerySet):
             ),
         )
 
-    def with_related_data(self, with_fighters=False):
+    def with_related_data(self, with_fighters=False, packs=None):
         """
         Optimize queries by selecting related content_house and owner,
         and prefetching fighters with their related data.
+
+        Args:
+            with_fighters: If True, prefetch fighters with their related data.
+            packs: Optional queryset of CustomContentPack. When provided,
+                fighter prefetches for skills/rules use with_packs() so that
+                ruleline/skilline can read from the prefetch cache instead
+                of issuing per-fighter queries.
         """
         qs = (
             self.with_latest_actions()
@@ -159,18 +166,24 @@ class ListQuerySet(models.QuerySet):
         )
 
         if with_fighters:
-            qs = qs.with_fighter_data()
+            qs = qs.with_fighter_data(packs=packs)
 
         return qs
 
-    def with_fighter_data(self):
+    def with_fighter_data(self, packs=None):
         """
         Prefetch related fighter data for each list.
+
+        Args:
+            packs: Optional queryset of CustomContentPack for pack-aware
+                skill/rule prefetching.
         """
         return self.prefetch_related(
             Prefetch(
                 "listfighter_set",
-                queryset=ListFighter.objects.with_group_keys().with_related_data(),
+                queryset=ListFighter.objects.with_group_keys().with_related_data(
+                    packs=packs
+                ),
             ),
         )
 
@@ -1487,14 +1500,47 @@ class ListFighterQuerySet(models.QuerySet):
     Custom QuerySet for :model:`content.ListFighter`.
     """
 
-    def with_related_data(self):
+    def with_related_data(self, packs=None):
         """
         Optimize queries by selecting related content_fighter and list,
         and prefetching injuries and equipment assignments.
 
         This is the standard optimization pattern used throughout views
         to reduce N+1 query issues.
+
+        Args:
+            packs: Optional queryset of CustomContentPack. When provided,
+                prefetches for skills/rules use with_packs() so that
+                ruleline/skilline can read from the prefetch cache instead
+                of issuing per-fighter queries.
         """
+        # When packs are provided, use pack-aware querysets for skill/rule
+        # prefetches so that ruleline() and skilline() hit the cache.
+        if packs is not None:
+            skills_qs = ContentSkill.objects.with_packs(packs)
+            rules_qs = ContentRule.objects.with_packs(packs)
+            skill_prefetches = [
+                Prefetch("skills", queryset=skills_qs),
+                Prefetch("disabled_skills", queryset=skills_qs),
+                Prefetch("content_fighter__skills", queryset=skills_qs),
+            ]
+            rule_prefetches = [
+                Prefetch("disabled_rules", queryset=rules_qs),
+                Prefetch("custom_rules", queryset=rules_qs),
+                Prefetch("content_fighter__rules", queryset=rules_qs),
+            ]
+        else:
+            skill_prefetches = [
+                "skills",
+                "disabled_skills",
+                "content_fighter__skills",
+            ]
+            rule_prefetches = [
+                "disabled_rules",
+                "custom_rules",
+                "content_fighter__rules",
+            ]
+
         return (
             self.prefetch_related(None)  # Clear inherited lookups to prevent
             # doubling when called on a cached queryset (e.g. from
@@ -1513,10 +1559,8 @@ class ListFighterQuerySet(models.QuerySet):
             .prefetch_related(
                 "injuries",
                 "counters",
-                "skills",
-                "disabled_skills",
-                "disabled_rules",
-                "custom_rules",
+                *skill_prefetches,
+                *rule_prefetches,
                 "disabled_default_assignments",
                 "advancements",
                 "stat_overrides",
@@ -1532,8 +1576,6 @@ class ListFighterQuerySet(models.QuerySet):
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
                 "listfighterequipmentassignment_set__upgrades_field__modifiers",
                 "content_fighter__counters",
-                "content_fighter__skills",
-                "content_fighter__rules",
                 "content_fighter__house",
                 "content_fighter__house__restricted_equipment_categories",
                 "content_fighter__house__restricted_equipment_categories__restricted_to",
@@ -2602,21 +2644,19 @@ class ListFighter(AppBase):
     def ruleline(self):
         """
         Get the ruleline for this fighter.
-        """
-        # Scope rule queries to the list's subscribed packs.
-        # The default ContentManager excludes pack content, and all_content()
-        # leaks rules from unsubscribed packs. with_packs() includes base-game
-        # rules plus rules from the list's subscribed packs only.
-        packs = self.list.packs.all()
-        rules_qs = ContentRule.objects.with_packs(packs)
 
+        Uses prefetched data when available (via pack-aware Prefetch objects
+        set up by with_related_data(packs=...)). Falls back to per-fighter
+        queries when prefetch data is not available.
+        """
         # Start with default rules from ContentFighter.
-        rules = list(rules_qs.filter(contentfighter=self.content_fighter_cached))
+        # Uses prefetch cache from content_fighter__rules when available.
+        rules = list(self.content_fighter_cached.rules.all())
         modded = []
 
         # Remove disabled rules.
-        # Query disabled_rules through with_packs to include pack rules.
-        disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
+        # Uses prefetch cache from disabled_rules when available.
+        disabled_rules_set = set(self.disabled_rules.all())
         rules = [r for r in rules if r not in disabled_rules_set]
 
         # Apply modifications from equipment/items
@@ -2628,8 +2668,8 @@ class ListFighter(AppBase):
                 rules.remove(mod.rule)
 
         # Add custom rules.
-        # Query through with_packs to include pack rules.
-        for custom_rule in rules_qs.filter(custom_for_fighters=self):
+        # Uses prefetch cache from custom_rules when available.
+        for custom_rule in self.custom_rules.all():
             if custom_rule not in rules:
                 rules.append(custom_rule)
                 modded.append(custom_rule)
@@ -2740,21 +2780,24 @@ class ListFighter(AppBase):
 
     @traced("listfighter_skilline")
     def skilline(self):
-        # Scope skill queries to the list's subscribed packs.
-        packs = self.list.packs.all()
-        skills_qs = ContentSkill.objects.with_packs(packs)
+        """Get the skilline for this fighter.
 
-        # Start with default skills from ContentFighter
-        default_skills = list(
-            skills_qs.filter(contentfighter=self.content_fighter_cached)
-        )
+        Uses prefetched data when available (via pack-aware Prefetch objects
+        set up by with_related_data(packs=...)). Falls back to per-fighter
+        queries when prefetch data is not available.
+        """
+        # Start with default skills from ContentFighter.
+        # Uses prefetch cache from content_fighter__skills when available.
+        default_skills = list(self.content_fighter_cached.skills.all())
 
-        # Remove disabled skills
-        disabled_skills_set = set(skills_qs.filter(disabled_for_fighters=self))
+        # Remove disabled skills.
+        # Uses prefetch cache from disabled_skills when available.
+        disabled_skills_set = set(self.disabled_skills.all())
         default_skills = [s for s in default_skills if s not in disabled_skills_set]
 
-        # Combine with user-added skills
-        skills = set(default_skills + list(skills_qs.filter(listfighter=self)))
+        # Combine with user-added skills.
+        # Uses prefetch cache from skills when available.
+        skills = set(default_skills + list(self.skills.all()))
 
         # Apply modifications from equipment/items
         for mod in self._skillmods:
