@@ -145,6 +145,14 @@ _EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait"}
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
 
 
+def _pack_url(pack, fragment=""):
+    """Build the pack detail URL, optionally with a fragment for scroll position."""
+    url = reverse("core:pack", args=(pack.id,))
+    if fragment:
+        url += f"#{fragment}"
+    return url
+
+
 def _get_pack_for_edit(id, user):
     """Fetch a pack and verify the user can edit it, or raise Http404."""
     pack = get_object_or_404(
@@ -1106,7 +1114,7 @@ def add_pack_item(request, id, content_type_slug):
                 if hasattr(content_obj, "category") and content_obj.category_id:
                     url += f"?category={content_obj.category_id}"
                 return HttpResponseRedirect(url)
-            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+            return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
     else:
         form = entry.form_class(**_form_kwargs(entry, pack))
         # Pre-select category from query param (e.g., skill tree → skill)
@@ -1119,6 +1127,7 @@ def add_pack_item(request, id, content_type_slug):
         "label": singular_label,
         "icon": entry.icon,
         "slug": entry.slug,
+        "back_url": _pack_url(pack, entry.slug),
     }
 
     if is_fighter:
@@ -1204,7 +1213,7 @@ def add_pack_fighter_stats(request, id):
             return HttpResponseRedirect(
                 reverse("core:pack-add-item", args=(pack.id, "fighter"))
             )
-        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+        return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
 
     # Build stat context for the template.
     stat_context = []
@@ -1248,6 +1257,7 @@ def add_pack_fighter_stats(request, id):
         "save_and_add_another": save_and_add_another,
         "house_name": house_name,
         "category_display": category_display,
+        "back_url": _pack_url(pack, "fighter"),
     }
     return render(request, "core/pack/pack_item_add_stats.html", context)
 
@@ -1314,7 +1324,7 @@ def edit_pack_item(request, id, item_id):
                 _update_weapon_profile_stats(
                     standard_profile, request.POST, request.user
                 )
-            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
     else:
         form = entry.form_class(instance=content_obj, **_form_kwargs(entry, pack))
 
@@ -1325,6 +1335,8 @@ def edit_pack_item(request, id, item_id):
         "content_obj": content_obj,
         "label": singular_label,
         "icon": entry.icon,
+        "slug": entry.slug,
+        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
         "is_fighter": is_fighter,
     }
 
@@ -1493,7 +1505,8 @@ def delete_pack_item(request, id, item_id):
             ):
                 skill_item._history_user = request.user
                 skill_item.archive()
-        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+        entry = _get_entry_for_pack_item(pack_item)
+        return HttpResponseRedirect(_pack_url(pack, entry.slug))
 
     return render(
         request,
@@ -1504,6 +1517,8 @@ def delete_pack_item(request, id, item_id):
             "content_obj": content_obj,
             "label": label,
             "icon": icon,
+            "slug": entry.slug,
+            "back_url": _pack_url(pack, f"item-{pack_item.id}"),
         },
     )
 
@@ -1557,7 +1572,7 @@ def restore_pack_item(request, id, item_id):
         if tree_item:
             tree_item._history_user = request.user
             tree_item.unarchive()
-    fallback = reverse("core:pack", args=(pack.id,))
+    fallback = _pack_url(pack, f"item-{pack_item.id}")
     next_url = request.POST.get("next")
     if next_url:
         return safe_redirect(request, next_url, fallback_url=fallback)
@@ -1647,7 +1662,7 @@ def add_weapon_profile(request, id, item_id):
                     owner=request.user,
                 )
                 profile_pack_item.save_with_user(request.user)
-            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
     else:
         form = ContentWeaponProfilePackForm(pack=pack)
 
@@ -1656,6 +1671,8 @@ def add_weapon_profile(request, id, item_id):
         "pack": pack,
         "pack_item": pack_item,
         "equipment": equipment,
+        "slug": "weapon",
+        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
         "weapon_stat_fields": _build_weapon_stat_context(request),
     }
     return render(request, "core/pack/weapon_profile_add.html", context)
@@ -1684,7 +1701,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
                 updated_profile.full_clean()
                 updated_profile.save()
                 form.save_m2m()
-            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
     else:
         form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
 
@@ -1708,6 +1725,8 @@ def edit_weapon_profile(request, id, item_id, profile_id):
         "pack_item": pack_item,
         "equipment": equipment,
         "profile": profile,
+        "slug": "weapon",
+        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
         "weapon_stat_values": weapon_stat_context,
     }
     return render(request, "core/pack/weapon_profile_edit.html", context)
@@ -1754,6 +1773,8 @@ def delete_weapon_profile(request, id, item_id, profile_id):
         "pack_item": pack_item,
         "equipment": equipment,
         "profile": profile,
+        "slug": "weapon",
+        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
     }
     return render(request, "core/pack/weapon_profile_delete.html", context)
 
@@ -2388,6 +2409,7 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
         assignment.delete()
         return HttpResponseRedirect(
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            + f"#{pack_item.id}"
         )
 
     return render(
@@ -2621,6 +2643,7 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
         eli.delete()
         return HttpResponseRedirect(
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            + f"#{pack_item.id}"
         )
 
     return render(

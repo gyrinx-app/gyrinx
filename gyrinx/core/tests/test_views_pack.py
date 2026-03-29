@@ -322,7 +322,7 @@ def test_pack_create_success(client, group_user):
     assert response.status_code == 302
     pack = CustomContentPack.objects.get(name="New Pack")
     assert pack.owner == group_user
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
 
 # --- Pack edit view ---
@@ -617,7 +617,7 @@ def test_add_rule_creates_rule_and_item(client, group_user, pack):
         {"name": "My Custom Rule", "description": "Rule description"},
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     # Verify rule was created
     rule = ContentRule.objects.all_content().get(name="My Custom Rule")
@@ -685,7 +685,7 @@ def test_add_rule_normal_submit_redirects_to_pack(client, group_user, pack):
         {"name": "Normal Rule", "description": "Normal"},
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
 
 @pytest.mark.django_db
@@ -785,7 +785,7 @@ def test_edit_rule_updates_content(client, group_user, pack, pack_rule):
         {"name": "Updated Rule", "description": "Updated description"},
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
     assert rule.name == "Updated Rule"
@@ -823,7 +823,7 @@ def test_delete_rule_archives_item_and_preserves_content(
     client.force_login(group_user)
     response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     pack_rule.refresh_from_db()
     assert pack_rule.archived is True
@@ -870,7 +870,7 @@ def test_add_house_creates_house_and_item(client, group_user, pack):
         {"name": "My Custom House"},
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     house = ContentHouse.objects.all_content().get(name="My Custom House")
     ct = ContentType.objects.get_for_model(ContentHouse)
@@ -969,7 +969,7 @@ def test_edit_house_updates_content(client, group_user, pack, pack_house):
         {"name": "Updated House"},
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     house = ContentHouse.objects.all_content().get(pk=pack_house.object_id)
     assert house.name == "Updated House"
@@ -1006,7 +1006,7 @@ def test_delete_house_archives_item_and_preserves_content(
     client.force_login(group_user)
     response = client.post(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     pack_house.refresh_from_db()
     assert pack_house.archived is True
@@ -1074,7 +1074,7 @@ def test_restore_pack_item(client, group_user, pack, pack_rule):
     # Restore
     response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/restore/")
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     pack_rule.refresh_from_db()
     assert pack_rule.archived is False
@@ -1436,7 +1436,7 @@ def test_add_fighter_creates_fighter_and_statline(
         },
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     # Verify fighter was created
     fighter = ContentFighter.objects.all_content().get(type="Test Champion")
@@ -2310,7 +2310,7 @@ def test_add_gear_creates_item(client, group_user, pack, equipment_category):
         },
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     equip = ContentEquipment.objects.all_content().get(name="Custom Armour")
     assert equip.cost == "25"
@@ -2871,7 +2871,7 @@ def test_add_weapon_creates_item_with_profile(
         },
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}"
+    assert response.url.startswith(f"/pack/{pack.id}")
 
     equip = ContentEquipment.objects.all_content().get(name="Custom Pistol")
     assert equip.is_weapon()
