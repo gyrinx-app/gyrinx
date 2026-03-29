@@ -75,7 +75,7 @@
         </div>
         <!-- Pack info -->
         {% if pack.summary or pack.description %}
-            <div class="vstack gap-1 col-md-9">
+            <div class="vstack gap-1">
                 {% if pack.summary %}<div class="mb-last-0">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
                 {% if pack.description %}
                     <div class="text-secondary fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
