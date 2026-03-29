@@ -464,6 +464,36 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+// Filterable lists: wire up search inputs with data-gy-filter-target
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("[data-gy-filter-target]").forEach((input) => {
+        input.addEventListener("input", () => {
+            const query = input.value.toLowerCase();
+            const container = document.getElementById(
+                input.getAttribute("data-gy-filter-target"),
+            );
+            if (!container) return;
+
+            const items = container.querySelectorAll("[data-filter-label]");
+            let visible = 0;
+
+            items.forEach((item) => {
+                const match = item
+                    .getAttribute("data-filter-label")
+                    .toLowerCase()
+                    .includes(query);
+                item.style.display = match ? "" : "none";
+                if (match) visible++;
+            });
+
+            const emptyMsg = container.querySelector("[data-filter-empty]");
+            if (emptyMsg) {
+                emptyMsg.style.display = visible === 0 ? "" : "none";
+            }
+        });
+    });
+});
+
 // Handle banner dismissal
 document.addEventListener("DOMContentLoaded", () => {
     // Find all elements with data-gy-banner-dismiss attribute
