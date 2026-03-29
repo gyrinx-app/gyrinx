@@ -491,6 +491,43 @@ def test_remove_equipment_list_item_get(
 
 
 @pytest.mark.django_db
+def test_remove_equipment_list_item_shows_sibling_profiles(
+    client, group_user, pack, pack_fighter, base_weapon
+):
+    """Removal confirmation shows weapon profiles that will also be removed."""
+    fighter, pack_item = pack_fighter
+    # Base weapon entry (no profile)
+    eli = ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=base_weapon, cost=0
+    )
+    # Add a non-standard profile entry
+    profile = ContentWeaponProfile.objects.create(
+        equipment=base_weapon,
+        name="Focused beam",
+        range_short="12",
+        range_long="24",
+        accuracy_short="+1",
+        accuracy_long="-",
+        strength="4",
+        armour_piercing="-1",
+        damage="2",
+        ammo="4+",
+        cost=5,
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=fighter, equipment=base_weapon, weapon_profile=profile, cost=5
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-item-remove",
+        args=(pack.id, pack_item.id, eli.id),
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    assert b"Focused beam" in response.content
+
+
+@pytest.mark.django_db
 def test_remove_equipment_list_item_post(
     client, group_user, pack, pack_fighter, base_weapon
 ):
