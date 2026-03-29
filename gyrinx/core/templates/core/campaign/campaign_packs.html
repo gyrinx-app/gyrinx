@@ -103,10 +103,22 @@
                                    placeholder="Search packs..."
                                    value="{{ search_query }}">
                             <button type="submit" class="btn btn-primary btn-sm">Search</button>
-                            {% if search_query %}
+                            {% if search_query or show_my_packs %}
                                 <a href="{% url 'core:campaign-packs' campaign.id %}"
                                    class="btn btn-outline-secondary">Clear</a>
                             {% endif %}
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input type="hidden" name="my" value="0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   id="my-packs"
+                                   name="my"
+                                   value="1"
+                                   data-gy-toggle-submit
+                                   {% if show_my_packs %}checked{% endif %}>
+                            <label class="form-check-label fs-7 mb-0" for="my-packs">Your Packs only</label>
                         </div>
                     </form>
                     {% if available_packs %}
