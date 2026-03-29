@@ -93,7 +93,16 @@
                         <h2 class="h5 mb-0">{{ section.label }}</h2>
                         {% if can_edit %}
                             <span class="d-flex gap-2 align-items-center">
-                                {% if section.archived_count > 0 %}
+                                {% if section.slug == "skill" %}
+                                    {% if section.skill_tree_archived_count > 0 %}
+                                        <a href="{% url 'core:pack-archived-items' pack.id 'skill-tree' %}"
+                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archived trees ({{ section.skill_tree_archived_count }})</a>
+                                    {% endif %}
+                                    {% if section.archived_count > 0 %}
+                                        <a href="{% url 'core:pack-archived-items' pack.id 'skill' %}"
+                                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archived skills ({{ section.archived_count }})</a>
+                                    {% endif %}
+                                {% elif section.archived_count > 0 %}
                                     <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
                                        class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
                                 {% endif %}
@@ -176,6 +185,8 @@
                                                         {% if group.pack_item %}
                                                             <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
                                                                class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit tree</a>
+                                                            <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
+                                                               class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archive tree</a>
                                                         {% endif %}
                                                         <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
                                                            class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Add skill</a>

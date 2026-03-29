@@ -105,7 +105,7 @@ SUPPORTED_CONTENT_TYPES = [
     ),
     ContentTypeEntry(
         ContentSkill,
-        "Skill Trees",
+        "Skills",
         "Custom skills for your Content Pack.",
         "bi-star",
         ContentSkillPackForm,
@@ -610,6 +610,10 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                         }
                     grouped[cat.id]["skills"].append(item_data)
                 section["skill_groups"] = list(grouped.values())
+                # Include archived skill-tree count so the template can show it
+                section["skill_tree_archived_count"] = len(
+                    archived_by_slug.get("skill-tree", [])
+                )
 
             content_sections.append(section)
 
@@ -766,6 +770,20 @@ class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
         context["archived_items"] = archived_items
         context["section_label"] = entry.label
         context["slug"] = slug
+
+        # Group archived skills by their category for the template
+        if slug == "skill":
+            from collections import OrderedDict
+
+            grouped = OrderedDict()
+            for item_data in archived_items:
+                skill = item_data["content_object"]
+                cat = skill.category
+                if cat.id not in grouped:
+                    grouped[cat.id] = {"category": cat, "skills": []}
+                grouped[cat.id]["skills"].append(item_data)
+            context["skill_groups"] = list(grouped.values())
+
         return context
 
 
@@ -1457,6 +1475,22 @@ def delete_pack_item(request, id, item_id):
         _cascade_weapon_profile_pack_items(
             pack, content_obj, request.user, archive=True
         )
+        # Cascade archive to skills when archiving a skill tree.
+        # Use all_content() because the default manager excludes pack skills.
+        if isinstance(content_obj, ContentSkillCategory):
+            skill_ct = ContentType.objects.get_for_model(ContentSkill)
+            skill_ids = set(
+                ContentSkill.objects.all_content()
+                .filter(category=content_obj)
+                .values_list("id", flat=True)
+            )
+            for skill_item in pack.items.filter(
+                content_type=skill_ct,
+                object_id__in=skill_ids,
+                archived=False,
+            ):
+                skill_item._history_user = request.user
+                skill_item.archive()
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
     return render(
@@ -1494,6 +1528,33 @@ def restore_pack_item(request, id, item_id):
     pack_item._history_user = request.user
     pack_item.unarchive()
     _cascade_weapon_profile_pack_items(pack, content_obj, request.user, archive=False)
+    # Cascade restore to skills when restoring a skill tree.
+    # Use all_content() because the default manager excludes pack skills.
+    if isinstance(content_obj, ContentSkillCategory):
+        skill_ct = ContentType.objects.get_for_model(ContentSkill)
+        skill_ids = set(
+            ContentSkill.objects.all_content()
+            .filter(category=content_obj)
+            .values_list("id", flat=True)
+        )
+        for skill_item in pack.items.filter(
+            content_type=skill_ct,
+            object_id__in=skill_ids,
+            archived=True,
+        ):
+            skill_item._history_user = request.user
+            skill_item.unarchive()
+    # Restoring a skill should also restore its parent tree if archived
+    if isinstance(content_obj, ContentSkill):
+        cat_ct = ContentType.objects.get_for_model(ContentSkillCategory)
+        tree_item = pack.items.filter(
+            content_type=cat_ct,
+            object_id=content_obj.category_id,
+            archived=True,
+        ).first()
+        if tree_item:
+            tree_item._history_user = request.user
+            tree_item.unarchive()
     fallback = reverse("core:pack", args=(pack.id,))
     next_url = request.POST.get("next")
     if next_url:

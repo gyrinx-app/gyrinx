@@ -10,7 +10,32 @@
             <h1 class="h3 mb-0">Archived {{ section_label }}</h1>
             <p class="text-secondary mb-0">{{ pack.name }}</p>
         </div>
-        {% if archived_items %}
+        {% if skill_groups %}
+            {# Grouped display for archived skills #}
+            <div class="vstack gap-3">
+                {% for group in skill_groups %}
+                    <div>
+                        <div class="text-secondary text-uppercase fs-7 fw-semibold mb-1">{{ group.category.name }}</div>
+                        <ul class="list-unstyled mb-0">
+                            {% for entry in group.skills %}
+                                <li class="py-1 d-flex justify-content-between align-items-center">
+                                    <span>{{ entry.content_object.name }}</span>
+                                    <form action="{% url 'core:pack-restore-item' pack.id entry.pack_item.id %}"
+                                          method="post"
+                                          class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit"
+                                                class="btn btn-link btn-sm p-0 link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                            Restore
+                                        </button>
+                                    </form>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endfor %}
+            </div>
+        {% elif archived_items %}
             <table class="table table-sm table-borderless mb-0 align-middle">
                 <thead>
                     <tr>
