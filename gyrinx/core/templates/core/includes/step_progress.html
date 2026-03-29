@@ -1,5 +1,8 @@
+{# Step progress bar with title and optional subtitle. #}
+{# Required params: step (int), total_steps (int), title (str) #}
+{# Optional params: subtitle (str) #}
 {% widthratio step total_steps 100 as progress %}
-<div class="progress mb-1"
+<div class="progress mb-2"
      role="progressbar"
      aria-label="Step {{ step }} of {{ total_steps }}"
      aria-valuenow="{{ progress }}"
@@ -10,3 +13,4 @@
     {# djlint:on #}
 </div>
 <h1 class="h3 mb-0">{{ title }}</h1>
+{% if subtitle %}<h2 class="h5 mb-0">{{ subtitle }}</h2>{% endif %}
