@@ -14,7 +14,7 @@
         <div class="container h-100 d-flex align-items-end py-4 z-1">
             <h2 class="h1 fw-light text-light">
                 {% if user.is_authenticated %}
-                    <strong>Welcome</strong> to Gyrinx’s Necromunda tools, <a class="link-light link-underline-opacity-25 link-underline-opacity-100-hover"
+                    <strong>Welcome</strong> to Gyrinx’s Necromunda tools, <a class="link-light link-underline-opacity-50 link-underline-opacity-100-hover"
     href="{% url 'core:user' user.id %}">{{ user.username }}</a>.
                 {% else %}
                     <strong>Gyrinx</strong> is a new set of tools for the Necromunda community.
@@ -47,7 +47,7 @@
                             {% if campaign_gangs %}
                                 <span class="ms-auto fs-7">
                                     <a href="{% url 'core:lists' %}?my=1&type=gang"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Show all</a>
                                 </span>
                             {% endif %}
                         </div>
@@ -112,7 +112,7 @@
                                 <div class="text-secondary fs-7">
                                     Showing most recently edited ·
                                     <a href="{% url 'core:lists' %}?my=1&type=gang"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Show all</a>
                                 </div>
                             {% endif %}
                         </div>
@@ -126,7 +126,7 @@
                                 {% if campaigns %}
                                     ·
                                     <a href="{% url 'core:campaigns' %}?my=1"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Show all</a>
                                 {% endif %}
                             </span>
                         </div>
@@ -192,7 +192,7 @@
                                 {% if lists %}
                                     ·
                                     <a href="{% url 'core:lists' %}?my=1&type=list"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Show all</a>
                                 {% endif %}
                             </span>
                         </div>
@@ -247,7 +247,7 @@
                                 <div class="text-secondary fs-7">
                                     Showing most recently edited ·
                                     <a href="{% url 'core:lists' %}?my=1&type=list"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Show all</a>
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Show all</a>
                                 </div>
                             {% endif %}
                         </div>

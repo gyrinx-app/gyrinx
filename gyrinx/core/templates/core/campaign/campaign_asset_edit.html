@@ -27,7 +27,7 @@
                             <h3 class="h5 mb-0">{{ type_def.label_plural|default:type_def.label }}</h3>
                             {% if not campaign.archived %}
                                 <a href="{% url 'core:campaign-sub-asset-new' campaign.id asset.id type_key %}"
-                                   class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                   class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
                                     <i class="bi-plus-lg"></i> Add {{ type_def.label }}
                                 </a>
                             {% endif %}
@@ -52,9 +52,9 @@
                                             {% if not campaign.archived %}
                                                 <div class="text-nowrap ms-2">
                                                     <a href="{% url 'core:campaign-sub-asset-edit' campaign.id asset.id sub_asset.id %}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
                                                     <a href="{% url 'core:campaign-sub-asset-remove' campaign.id asset.id sub_asset.id %}"
-                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7 ms-2">Remove</a>
+                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7 ms-2">Remove</a>
                                                 </div>
                                             {% endif %}
                                         </div>

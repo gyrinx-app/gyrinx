@@ -217,13 +217,13 @@
                                     {% if assign.is_from_default_assignment or assign.kind == "default" %}
                                         <span bs-tooltip
                                               data-bs-toggle="tooltip"
-                                              class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                              class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
                                               title="This is assigned to the fighter by default.">
                                         {% endif %}
                                         {% if assign.is_linked %}
                                             <span bs-tooltip
                                                   data-bs-toggle="tooltip"
-                                                  class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+                                                  class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
                                                   title="This gear is assigned via the {{ assign.linked_parent.name }} and cannot be removed directly.">
                                             {% endif %}
                                             {% include "core/includes/gear_assign_name.html" with assign=assign %}

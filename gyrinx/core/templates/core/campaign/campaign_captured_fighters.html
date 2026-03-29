@@ -36,7 +36,7 @@
                             <tr>
                                 <td>
                                     <a href="{% url 'core:list' captured.fighter.list.id %}#{{ captured.fighter.id }}"
-                                       class="link-underline-opacity-25 link-underline-opacity-100-hover">
+                                       class="link-underline-opacity-50 link-underline-opacity-100-hover">
                                         <strong>{{ captured.fighter.name }}</strong>
                                     </a>
                                     <br>
@@ -44,11 +44,11 @@
                                 </td>
                                 <td>
                                     <a href="{% url 'core:list' captured.fighter.list.id %}"
-                                       class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme captured.fighter.list %}</a>
+                                       class="link-underline-opacity-50 link-underline-opacity-100-hover">{% list_with_theme captured.fighter.list %}</a>
                                 </td>
                                 <td>
                                     <a href="{% url 'core:list' captured.capturing_list.id %}"
-                                       class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme captured.capturing_list %}</a>
+                                       class="link-underline-opacity-50 link-underline-opacity-100-hover">{% list_with_theme captured.capturing_list %}</a>
                                 </td>
                                 <td>
                                     {% if captured.sold_to_guilders %}

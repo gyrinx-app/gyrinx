@@ -22,9 +22,9 @@
                             </span>
                             <span>
                                 <a href="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id group.items.0.id %}"
-                                   class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
+                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
                                 <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id group.items.0.id %}"
-                                   class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
+                                   class="ms-1 link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                             </span>
                         </div>
                         {% for eli in group.items %}
@@ -35,7 +35,7 @@
                                         <span>(+{{ eli.cost_display }})</span>
                                     </span>
                                     <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
-                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
+                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                                 </div>
                             {% endif %}
                         {% endfor %}
@@ -66,9 +66,9 @@
                         </span>
                         <span>
                             <a href="{% url 'core:pack-fighter-equipment-list-edit' pack.id pack_item.id eli.id %}"
-                               class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
+                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
                             <a href="{% url 'core:pack-fighter-equipment-list-item-remove' pack.id pack_item.id eli.id %}"
-                               class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
+                               class="ms-1 link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                         </span>
                     </li>
                 {% endfor %}

@@ -14,13 +14,13 @@
                 {% if is_owner %}
                     <div class="hstack gap-3 ms-md-auto fs-7">
                         <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover">
+                           class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover">
                             <i class="bi-plus-lg"></i> Add Asset Type
                         </a>
                         or
                         {% if not campaign.archived %}
                             <a href="{% url 'core:campaign-copy-in' campaign.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">
+                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">
                                 <i class="bi-box-arrow-in-down"></i> Copy from another Campaign
                             </a>
                         {% endif %}
@@ -35,16 +35,16 @@
                     {% if is_owner %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
-                               class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                               class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
                                 <i class="bi-plus-lg"></i> Add {{ asset_type.name_singular }}
                             </a>
                             <!-- Expanded links for sm and up -->
                             <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
+                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
                                 <i class="bi-pencil"></i> Edit Type
                             </a>
                             <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
-                               class="icon-link link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
+                               class="icon-link link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
                                 <i class="bi-trash"></i> Remove Type
                             </a>
                             <!-- Dropdown for mobile -->
@@ -122,7 +122,7 @@
                                         <td class="fs-7">
                                             {% if asset.holder %}
                                                 <a href="{% url 'core:list' asset.holder.id %}"
-                                                   class="link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
+                                                   class="link-underline-opacity-50 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
                                             {% else %}
                                                 <span class="text-secondary">Unowned</span>
                                             {% endif %}
@@ -132,13 +132,13 @@
                                                 <!-- Expanded links for sm and up -->
                                                 <span class="d-none d-sm-inline">
                                                     <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Transfer</a>
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Transfer</a>
                                                     ·
                                                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
-                                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
                                                     ·
                                                     <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
-                                                       class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
+                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                                                 </span>
                                                 <!-- Dropdown for mobile -->
                                                 <div class="dropdown d-sm-none d-inline-block">
