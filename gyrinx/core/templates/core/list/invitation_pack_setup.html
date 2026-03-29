@@ -1,0 +1,42 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Content Packs - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 col-xl-6 px-0 vstack gap-3">
+        <h1 class="h3">Content Packs</h1>
+        <p class="text-muted small">
+            {{ campaign.name }} uses the following Content Packs.
+            Select the ones you'd like to add to <strong>{{ list.name }}</strong>.
+        </p>
+        <form method="post"
+              action="{% url 'core:invitation-pack-setup' list.id campaign.id %}"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <div class="vstack gap-2">
+                {% for pack in suggested_packs %}
+                    <label class="border rounded p-2 d-flex align-items-start gap-2"
+                           data-name="{{ pack.name|lower }}">
+                        <input type="checkbox"
+                               name="pack_ids"
+                               value="{{ pack.id }}"
+                               class="form-check-input mt-1"
+                               checked>
+                        <div class="flex-grow-1">
+                            <div class="fw-medium small">{{ pack.name }}</div>
+                            <div class="text-muted small">by {{ pack.owner }}</div>
+                            {% if pack.summary %}<div class="text-muted small mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                        </div>
+                    </label>
+                {% empty %}
+                    <p class="text-muted small mb-0">No additional Content Packs to add.</p>
+                {% endfor %}
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Add selected</button>
+                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Skip</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

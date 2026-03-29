@@ -72,6 +72,14 @@
                                 {% else %}
                                     {{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}
                                 {% endif %}
+                                {% if suggested_campaign_packs_count %}
+                                    · <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
+                                {% endif %}
+                            </div>
+                        {% elif suggested_campaign_packs_count %}
+                            <div>
+                                <i class="bi-box-seam"></i>
+                                <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
                             </div>
                         {% elif list.owner_cached == user and user|in_group:"Custom Content" %}
                             <div>

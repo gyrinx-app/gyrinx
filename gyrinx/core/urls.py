@@ -87,6 +87,11 @@ urlpatterns = [
         name="invitation-decline",
     ),
     path(
+        "list/<id>/campaign/<campaign_id>/packs",
+        list_invitations.invitation_pack_setup,
+        name="invitation-pack-setup",
+    ),
+    path(
         "list/<id>/fighters/new", fighter_crud.new_list_fighter, name="list-fighter-new"
     ),
     path("list/<id>/vehicles/new", vehicle.new_vehicle, name="list-vehicle-new"),

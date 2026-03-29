@@ -1889,10 +1889,20 @@ def list_packs_manage(request, id):
         action = request.POST.get("action")
         if pack_id and is_valid_uuid(pack_id) and action == "add":
             pack = get_object_or_404(CustomContentPack, id=pack_id, archived=False)
-            if pack.listed or pack.owner == request.user:
+            # Allow subscribing if: pack is listed, user owns it, or it's
+            # recommended by a campaign this list is in
+            is_campaign_pack = (
+                lst.get_suggested_campaign_packs().filter(id=pack.id).exists()
+            )
+            if pack.listed or pack.owner == request.user or is_campaign_pack:
                 lst.packs.add(pack)
                 messages.success(request, f"Subscribed to {pack.name}")
+            else:
+                messages.error(request, "You don't have access to this pack.")
         return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
+
+    # Campaign-recommended packs (not yet subscribed by this list)
+    campaign_packs = lst.get_suggested_campaign_packs()
 
     return render(
         request,
@@ -1901,6 +1911,7 @@ def list_packs_manage(request, id):
             "list": lst,
             "subscribed_packs": subscribed_packs,
             "available_packs": available_packs,
+            "campaign_packs": campaign_packs,
             "search_query": search_query,
             "show_my_packs": show_my_packs,
         },
