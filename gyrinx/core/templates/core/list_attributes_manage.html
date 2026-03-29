@@ -20,13 +20,13 @@
                                     {% if attribute.assignments %}
                                         {{ attribute.assignments|join:", " }}
                                     {% else %}
-                                        <span class="text-muted">Not set</span>
+                                        <span class="text-secondary">Not set</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-end pe-0">
                                     {% if not list.archived %}
                                         <a href="{% url 'core:list-attribute-edit' list.id attribute.id %}?return_url={{ manage_url|urlencode }}"
-                                           class="icon-link link-secondary small">
+                                           class="icon-link link-secondary fs-7">
                                             <i class="bi-pencil" aria-hidden="true"></i>
                                             Edit
                                         </a>
@@ -37,7 +37,7 @@
                     </tbody>
                 </table>
             {% else %}
-                <p class="text-muted">No attributes available for this list.</p>
+                <p class="text-secondary">No attributes available for this list.</p>
             {% endif %}
         </div>
     </div>

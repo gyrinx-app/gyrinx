@@ -1,0 +1,22 @@
+{# Alert component with icon pinned left, content flowing right. #}
+{# Required params: variant (success|danger|warning|info|secondary), message #}
+{# Optional params: dismissible (bool), heading (str) #}
+{% with variant=variant|default:"info" %}
+    {% if variant == "success" %}
+        {% with icon_class="bi-check-lg" %}
+            {% include "core/includes/_alert_inner.html" %}
+        {% endwith %}
+    {% elif variant == "danger" %}
+        {% with icon_class="bi-exclamation-triangle" %}
+            {% include "core/includes/_alert_inner.html" %}
+        {% endwith %}
+    {% elif variant == "warning" %}
+        {% with icon_class="bi-exclamation-triangle" %}
+            {% include "core/includes/_alert_inner.html" %}
+        {% endwith %}
+    {% else %}
+        {% with icon_class="bi-info-circle" %}
+            {% include "core/includes/_alert_inner.html" %}
+        {% endwith %}
+    {% endif %}
+{% endwith %}

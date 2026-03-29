@@ -19,7 +19,7 @@
                     <p class="card-text">
                         <i class="bi-dice-6"></i> Rolled {{ action.dice_count }}D6
                         <span class="ms-2">
-                            {% for result in action.dice_results %}<span class="badge bg-secondary ">{{ result }}</span>{% endfor %}
+                            {% for result in action.dice_results %}<span class="badge text-bg-secondary">{{ result }}</span>{% endfor %}
                             = <strong>{{ action.dice_total }}</strong>
                         </span>
                     </p>

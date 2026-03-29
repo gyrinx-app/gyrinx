@@ -14,7 +14,7 @@
                     <a href="{% url 'core:lists-new-packs' %}" class="link-secondary fs-7">Change</a>
                 </div>
                 <div class="d-flex flex-wrap gap-1">
-                    {% for pack in selected_packs %}<span class="badge bg-secondary">{{ pack.name }}</span>{% endfor %}
+                    {% for pack in selected_packs %}<span class="badge text-bg-secondary">{{ pack.name }}</span>{% endfor %}
                 </div>
             </div>
         {% endif %}
