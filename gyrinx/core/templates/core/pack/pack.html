@@ -7,8 +7,8 @@
     <div class="col-12 col-xl-8 px-0 vstack gap-4">
         <!-- Header -->
         <div class="vstack gap-0">
-            {% url 'core:pack' pack.id as pack_url %}
-            {% include "core/includes/breadcrumb.html" with type="Pack" owner=pack.owner name=pack.name name_url=pack_url only %}
+            {% url 'core:packs' as packs_url %}
+            {% include "core/includes/breadcrumb.html" with type="Pack" owner=pack.owner name=pack.name type_url=packs_url only %}
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ pack.name }}</h1>
                 <nav class="d-flex flex-nowrap gap-2 ms-md-auto">
