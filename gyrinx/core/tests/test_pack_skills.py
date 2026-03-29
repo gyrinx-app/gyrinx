@@ -56,17 +56,8 @@ def pack_skill(pack, pack_skill_category):
 
 
 @pytest.mark.django_db
-def test_pack_detail_shows_skill_tree_section(client, group_user, pack):
-    """Pack detail page shows Skill Trees section."""
-    client.force_login(group_user)
-    response = client.get(reverse("core:pack", args=[pack.id]))
-    assert response.status_code == 200
-    assert b"Skill Trees" in response.content
-
-
-@pytest.mark.django_db
 def test_pack_detail_shows_skills_section(client, group_user, pack):
-    """Pack detail page shows Skills section."""
+    """Pack detail page shows Skills section (skill trees are grouped within)."""
     client.force_login(group_user)
     response = client.get(reverse("core:pack", args=[pack.id]))
     assert response.status_code == 200

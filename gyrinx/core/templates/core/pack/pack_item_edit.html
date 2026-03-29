@@ -51,9 +51,9 @@
                                             {% if profile.cost_display %}({{ profile.cost_display }}){% endif %}
                                             <span class="text-secondary fs-7">
                                                 · <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
-    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Edit</a>
+    class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
                                                 · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
-    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover text-danger">Archive</a>
+    class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover text-danger">Archive</a>
                                             </span>
                                         </td>
                                         {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
@@ -71,10 +71,10 @@
                     {% endif %}
                     <div class="d-flex gap-1 align-items-center fs-7">
                         <a href="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
-                           class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Add profile</a>
+                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Add profile</a>
                         {% if archived_profile_count > 0 %}
                             · <a href="{{ archived_profiles_url }}"
-    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">Archived ({{ archived_profile_count }})</a>
+    class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Archived ({{ archived_profile_count }})</a>
                         {% endif %}
                     </div>
                 </div>

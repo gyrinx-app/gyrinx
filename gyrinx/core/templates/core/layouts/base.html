@@ -40,19 +40,16 @@
                            href="{% url 'core:index' %}">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% active_view 'core:lists' %}"
-                           {% active_aria 'core:lists' %}
+                        <a class="nav-link {% active_path '/lists/' '/list/' %}"
                            href="{% url 'core:lists' %}">Lists & Gangs</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% active_view 'core:campaigns' %}"
-                           {% active_aria 'core:campaigns' %}
+                        <a class="nav-link {% active_path '/campaigns/' '/campaign/' '/battle/' %}"
                            href="{% url 'core:campaigns' %}">Campaigns</a>
                     </li>
                     {% if user|in_group:"Custom Content" %}
                         <li class="nav-item">
-                            <a class="nav-link {% active_view 'core:packs' %}"
-                               {% active_aria 'core:packs' %}
+                            <a class="nav-link {% active_path '/packs/' '/pack/' %}"
                                href="{% url 'core:packs' %}">Customisation</a>
                         </li>
                     {% endif %}

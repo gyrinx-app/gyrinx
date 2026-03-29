@@ -101,7 +101,12 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 }
 
 [data-bs-theme="dark"] {
-    --bs-secondary-color: #{darken($secondary, 5%)};
+    --bs-secondary-color: #{lighten($secondary, 10%)};
+
+    .text-secondary,
+    .link-secondary {
+        color: #{lighten($secondary, 10%)} !important;
+    }
 
     // Navbar needs to stand out from the page background in dark mode
     .navbar.bg-dark {

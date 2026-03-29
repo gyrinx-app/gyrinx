@@ -1,0 +1,63 @@
+{% load allauth i18n custom_tags %}
+<nav aria-label="Account settings">
+    <ul class="nav nav-pills flex-column gap-1">
+        {% url 'core:account_home' as account_home_url_ %}
+        {% if account_home_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'core:account_home' %}"
+                   {% active_aria 'core:account_home' %}
+                   href="{{ account_home_url_ }}"><i class="bi-house me-2"></i>{% trans "Overview" %}</a>
+            </li>
+        {% endif %}
+        {% if '@' in user.username %}
+            {% url 'core:change-username' as change_username_url_ %}
+            {% if change_username_url_ %}
+                <li class="nav-item">
+                    <a class="nav-link {% active_view 'core:change-username' %}"
+                       {% active_aria 'core:change-username' %}
+                       href="{{ change_username_url_ }}"><i class="bi-person me-2"></i>{% trans "Change username" %}</a>
+                </li>
+            {% endif %}
+        {% endif %}
+        {% url 'account_email' as email_url_ %}
+        {% if email_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'account_email' %}"
+                   {% active_aria 'account_email' %}
+                   href="{{ email_url_ }}"><i class="bi-envelope me-2"></i>{% trans "Email" %}</a>
+            </li>
+        {% endif %}
+        {% url 'account_change_password' as change_password_url_ %}
+        {% if change_password_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'account_change_password' %}"
+                   {% active_aria 'account_change_password' %}
+                   href="{{ change_password_url_ }}"><i class="bi-key me-2"></i>{% trans "Password" %}</a>
+            </li>
+        {% endif %}
+        {% url 'mfa_index' as mfa_url_ %}
+        {% if mfa_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'mfa_index' %}"
+                   {% active_aria 'mfa_index' %}
+                   href="{{ mfa_url_ }}"><i class="bi-shield-lock me-2"></i>{% trans "Two-factor authentication" %}</a>
+            </li>
+        {% endif %}
+        {% url 'usersessions_list' as usersessions_list_url_ %}
+        {% if usersessions_list_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'usersessions_list' %}"
+                   {% active_aria 'usersessions_list' %}
+                   href="{{ usersessions_list_url_ }}"><i class="bi-display me-2"></i>{% trans "Sessions" %}</a>
+            </li>
+        {% endif %}
+        {% url 'account_logout' as logout_url_ %}
+        {% if logout_url_ %}
+            <li class="nav-item mt-2">
+                <a class="nav-link text-danger {% active_view 'account_logout' %}"
+                   {% active_aria 'account_logout' %}
+                   href="{{ logout_url_ }}"><i class="bi-box-arrow-right me-2"></i>{% trans "Sign out" %}</a>
+            </li>
+        {% endif %}
+    </ul>
+</nav>

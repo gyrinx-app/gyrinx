@@ -41,6 +41,16 @@ def active_view(context: RequestContext, name):
 
 
 @register.simple_tag(takes_context=True)
+def active_path(context: RequestContext, *prefixes):
+    """Return 'active' if the current path starts with any of the given prefixes."""
+    try:
+        path = context.request.path
+        return "active" if any(path.startswith(p) for p in prefixes) else ""
+    except (AttributeError, Resolver404):
+        return ""
+
+
+@register.simple_tag(takes_context=True)
 def active_aria(context: RequestContext, name):
     return 'aria-current="page"' if is_active(context, name) else ""
 

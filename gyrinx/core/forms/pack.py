@@ -395,12 +395,38 @@ class ContentSkillPackForm(forms.ModelForm):
 
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._pack = pack
         if pack is not None:
-            self.fields["category"].queryset = ContentSkillCategory.objects.with_packs(
-                [pack]
-            )
+            qs = ContentSkillCategory.objects.with_packs([pack])
         else:
-            self.fields["category"].queryset = ContentSkillCategory.objects.all()
+            qs = ContentSkillCategory.objects.all()
+        self.fields["category"].queryset = qs
+
+        # Group choices into "Default" (base game) and "Custom" (pack content)
+        if pack is not None:
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            pack_cat_ids = set(
+                CustomContentPackItem.objects.filter(
+                    pack=pack,
+                    content_type__model="contentskillcategory",
+                    archived=False,
+                ).values_list("object_id", flat=True)
+            )
+            default_choices = []
+            custom_choices = []
+            for cat in qs.order_by("name"):
+                choice = (cat.pk, str(cat))
+                if cat.pk in pack_cat_ids:
+                    custom_choices.append(choice)
+                else:
+                    default_choices.append(choice)
+            grouped = [("", "---------")]
+            if custom_choices:
+                grouped.append(("Custom", custom_choices))
+            if default_choices:
+                grouped.append(("Default", default_choices))
+            self.fields["category"].choices = grouped
 
     def clean_name(self):
         value = self.cleaned_data["name"]

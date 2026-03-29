@@ -22,7 +22,7 @@
                                     {% if forloop.first %}
                                         {{ da.equipment.name }}
                                         <a href="{% url 'core:pack-fighter-default-assignment-remove' pack.id pack_item.id da.id %}"
-                                           class="ms-1 link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
+                                           class="ms-1 link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                                     {% elif profile.name %}
                                         <i class="bi-dash"></i> {{ profile.name }}
                                     {% endif %}
@@ -58,7 +58,7 @@
                         class="py-1 d-flex justify-content-between align-items-center {% flash da.id %}">
                         <span>{{ da.equipment.name }}</span>
                         <a href="{% url 'core:pack-fighter-default-assignment-remove' pack.id pack_item.id da.id %}"
-                           class="link-danger link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Remove</a>
+                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                     </li>
                 {% endfor %}
             </ul>

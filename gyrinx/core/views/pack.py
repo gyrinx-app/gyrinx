@@ -20,17 +20,17 @@ from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
-from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
 from gyrinx.content.models.equipment import ContentEquipment
+from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
+from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.statline import (
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
 )
-from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
@@ -51,11 +51,11 @@ from gyrinx.core.models.pack import (
     CustomContentPackItem,
     CustomContentPackPermission,
 )
+from gyrinx.core.utils import safe_redirect
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
 )
-from gyrinx.core.utils import safe_redirect
 from gyrinx.models import is_valid_uuid
 
 
@@ -70,6 +70,7 @@ class ContentTypeEntry(NamedTuple):
 
 # Content types that can be added to packs, in display order.
 SUPPORTED_CONTENT_TYPES = [
+    # --- Gang identity ---
     ContentTypeEntry(
         ContentHouse,
         "Houses",
@@ -87,36 +88,12 @@ SUPPORTED_CONTENT_TYPES = [
         "fighter",
     ),
     ContentTypeEntry(
-        ContentEquipment,
-        "Gear",
-        "Custom gear and non-weapon equipment for your Content Pack.",
-        "bi-wrench",
-        ContentGearPackForm,
-        "gear",
-    ),
-    ContentTypeEntry(
-        ContentEquipment,
-        "Weapons",
-        "Custom weapons for your Content Pack.",
-        "bi-crosshair",
-        ContentWeaponPackForm,
-        "weapon",
-    ),
-    ContentTypeEntry(
         ContentRule,
         "Rules",
         "Custom rules for your Content Pack.",
         "bi-journal-text",
         ContentRuleForm,
         "rule",
-    ),
-    ContentTypeEntry(
-        ContentWeaponTrait,
-        "Weapon Traits",
-        "Custom weapon traits for your Content Pack.",
-        "bi-lightning",
-        ContentWeaponTraitPackForm,
-        "weapon-trait",
     ),
     ContentTypeEntry(
         ContentSkillCategory,
@@ -134,7 +111,35 @@ SUPPORTED_CONTENT_TYPES = [
         ContentSkillPackForm,
         "skill",
     ),
+    # --- Equipment ---
+    ContentTypeEntry(
+        ContentEquipment,
+        "Gear",
+        "Custom gear and non-weapon equipment for your Content Pack.",
+        "bi-wrench",
+        ContentGearPackForm,
+        "gear",
+    ),
+    ContentTypeEntry(
+        ContentEquipment,
+        "Weapons",
+        "Custom weapons for your Content Pack.",
+        "bi-crosshair",
+        ContentWeaponPackForm,
+        "weapon",
+    ),
+    ContentTypeEntry(
+        ContentWeaponTrait,
+        "Weapon Traits",
+        "Custom weapon traits for your Content Pack.",
+        "bi-lightning",
+        ContentWeaponTraitPackForm,
+        "weapon-trait",
+    ),
 ]
+
+# Slugs that start the "equipment" group — render a divider before the first one.
+_EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait"}
 
 # Lookup from URL slug to content type entry.
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
@@ -578,6 +583,38 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
                             "name",
                         )
                     )
+            # For skill items, group by their skill tree (category).
+            # Include empty skill trees from the "skill-tree" section.
+            if ct_entry.slug == "skill":
+                from collections import OrderedDict
+
+                grouped = OrderedDict()
+                # First, seed with all skill trees in the pack (even those with no skills)
+                tree_items = active_by_slug.get("skill-tree", [])
+                for tree_item in tree_items:
+                    cat = tree_item["content_object"]
+                    grouped[cat.id] = {
+                        "category": cat,
+                        "pack_item": tree_item["pack_item"],
+                        "skills": [],
+                    }
+                # Then add skills under their category
+                for item_data in items:
+                    skill = item_data["content_object"]
+                    cat = skill.category
+                    if cat.id not in grouped:
+                        grouped[cat.id] = {
+                            "category": cat,
+                            "pack_item": None,
+                            "skills": [],
+                        }
+                    grouped[cat.id]["skills"].append(item_data)
+                section["skill_groups"] = list(grouped.values())
+                # Include archived skill-tree count so the template can show it
+                section["skill_tree_archived_count"] = len(
+                    archived_by_slug.get("skill-tree", [])
+                )
+
             content_sections.append(section)
 
         context["content_sections"] = content_sections
@@ -733,6 +770,20 @@ class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
         context["archived_items"] = archived_items
         context["section_label"] = entry.label
         context["slug"] = slug
+
+        # Group archived skills by their category for the template
+        if slug == "skill":
+            from collections import OrderedDict
+
+            grouped = OrderedDict()
+            for item_data in archived_items:
+                skill = item_data["content_object"]
+                cat = skill.category
+                if cat.id not in grouped:
+                    grouped[cat.id] = {"category": cat, "skills": []}
+                grouped[cat.id]["skills"].append(item_data)
+            context["skill_groups"] = list(grouped.values())
+
         return context
 
 
@@ -1056,6 +1107,9 @@ def add_pack_item(request, id, content_type_slug):
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = entry.form_class(**_form_kwargs(entry, pack))
+        # Pre-select category from query param (e.g., skill tree → skill)
+        if "category" in request.GET and "category" in form.fields:
+            form.initial["category"] = request.GET["category"]
 
     context = {
         "form": form,
@@ -1421,6 +1475,22 @@ def delete_pack_item(request, id, item_id):
         _cascade_weapon_profile_pack_items(
             pack, content_obj, request.user, archive=True
         )
+        # Cascade archive to skills when archiving a skill tree.
+        # Use all_content() because the default manager excludes pack skills.
+        if isinstance(content_obj, ContentSkillCategory):
+            skill_ct = ContentType.objects.get_for_model(ContentSkill)
+            skill_ids = set(
+                ContentSkill.objects.all_content()
+                .filter(category=content_obj)
+                .values_list("id", flat=True)
+            )
+            for skill_item in pack.items.filter(
+                content_type=skill_ct,
+                object_id__in=skill_ids,
+                archived=False,
+            ):
+                skill_item._history_user = request.user
+                skill_item.archive()
         return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
     return render(
@@ -1458,6 +1528,33 @@ def restore_pack_item(request, id, item_id):
     pack_item._history_user = request.user
     pack_item.unarchive()
     _cascade_weapon_profile_pack_items(pack, content_obj, request.user, archive=False)
+    # Cascade restore to skills when restoring a skill tree.
+    # Use all_content() because the default manager excludes pack skills.
+    if isinstance(content_obj, ContentSkillCategory):
+        skill_ct = ContentType.objects.get_for_model(ContentSkill)
+        skill_ids = set(
+            ContentSkill.objects.all_content()
+            .filter(category=content_obj)
+            .values_list("id", flat=True)
+        )
+        for skill_item in pack.items.filter(
+            content_type=skill_ct,
+            object_id__in=skill_ids,
+            archived=True,
+        ):
+            skill_item._history_user = request.user
+            skill_item.unarchive()
+    # Restoring a skill should also restore its parent tree if archived
+    if isinstance(content_obj, ContentSkill):
+        cat_ct = ContentType.objects.get_for_model(ContentSkillCategory)
+        tree_item = pack.items.filter(
+            content_type=cat_ct,
+            object_id=content_obj.category_id,
+            archived=True,
+        ).first()
+        if tree_item:
+            tree_item._history_user = request.user
+            tree_item.unarchive()
     fallback = reverse("core:pack", args=(pack.id,))
     next_url = request.POST.get("next")
     if next_url:

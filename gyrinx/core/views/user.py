@@ -7,18 +7,33 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.core.forms import UsernameChangeForm
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
+from gyrinx.core.models.pack import CustomContentPack
 
 
 def user(request, slug_or_id):
     """
-    Display a user profile page with public lists.
+    Display a user profile page.
 
     **Context**
 
-    ``user``
+    ``profile_user``
         The requested user object.
+    ``is_own_profile``
+        Whether the viewer is viewing their own profile.
+    ``public_lists``
+        Non-campaign-mode, non-archived lists visible to the viewer.
+    ``campaign_gangs``
+        Campaign-mode lists visible to the viewer.
+    ``campaigns``
+        Campaigns owned by the profile user, visible to the viewer.
+    ``packs``
+        Content packs owned by the profile user (only if user is in
+        "Custom Content" group).
+    ``show_packs``
+        Whether the packs section should be shown.
 
     **Template**
 
@@ -30,14 +45,44 @@ def user(request, slug_or_id):
         query = Q(id=slug_or_id)
     else:
         query = Q(username__iexact=slug_or_id)
-    user = get_object_or_404(User, query)
-    public_lists = (
-        List.objects.filter(
-            owner=user, public=True, status=List.LIST_BUILDING, archived=False
-        )
-        .with_latest_actions()
-        .select_related("content_house", "owner")
+    profile_user = get_object_or_404(User, query)
+
+    is_own_profile = request.user.is_authenticated and request.user == profile_user
+
+    # --- Public Lists (non-campaign, non-archived) ---
+    public_lists_qs = List.objects.filter(
+        owner=profile_user, status=List.LIST_BUILDING, archived=False
     )
+    if not is_own_profile:
+        public_lists_qs = public_lists_qs.filter(public=True)
+    public_lists = public_lists_qs.with_latest_actions().select_related(
+        "content_house", "owner"
+    )
+
+    # --- Campaign Gangs (campaign-mode lists) ---
+    campaign_gangs_qs = List.objects.filter(
+        owner=profile_user, status=List.CAMPAIGN_MODE, archived=False
+    )
+    if not is_own_profile:
+        campaign_gangs_qs = campaign_gangs_qs.filter(public=True)
+    campaign_gangs = campaign_gangs_qs.select_related(
+        "content_house", "owner", "campaign"
+    )
+
+    # --- Campaigns owned by the user ---
+    campaigns_qs = Campaign.objects.filter(owner=profile_user, archived=False)
+    if not is_own_profile:
+        campaigns_qs = campaigns_qs.filter(public=True)
+    campaigns = campaigns_qs
+
+    # --- Packs (only if profile user is in Custom Content group) ---
+    show_packs = profile_user.groups.filter(name="Custom Content").exists()
+    packs = CustomContentPack.objects.none()
+    if show_packs:
+        packs_qs = CustomContentPack.objects.filter(owner=profile_user, archived=False)
+        if not is_own_profile:
+            packs_qs = packs_qs.filter(listed=True)
+        packs = packs_qs
 
     # Log the user profile view
     if request.user.is_authenticated:
@@ -45,17 +90,25 @@ def user(request, slug_or_id):
             user=request.user,
             noun=EventNoun.USER,
             verb=EventVerb.VIEW,
-            object=user,
+            object=profile_user,
             request=request,
-            viewed_user_id=str(user.id),
-            viewed_username=user.username,
+            viewed_user_id=str(profile_user.id),
+            viewed_username=profile_user.username,
             public_lists_count=public_lists.count(),
         )
 
     return render(
         request,
         "core/user.html",
-        {"user": user, "public_lists": public_lists},
+        {
+            "profile_user": profile_user,
+            "is_own_profile": is_own_profile,
+            "public_lists": public_lists,
+            "campaign_gangs": campaign_gangs,
+            "campaigns": campaigns,
+            "packs": packs,
+            "show_packs": show_packs,
+        },
     )
 
 

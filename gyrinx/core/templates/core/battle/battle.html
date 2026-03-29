@@ -31,7 +31,7 @@
                 {% for participant in battle.participants.all %}
                     <div class="d-flex align-items-center gap-1">
                         <a href="{% url 'core:list' participant.id %}"
-                           class="link-underline-opacity-25 link-underline-opacity-100-hover">
+                           class="link-underline-opacity-50 link-underline-opacity-100-hover">
                             {% list_with_theme participant %}
                         </a>
                         {% if participant in battle.winners.all %}
@@ -54,7 +54,7 @@
                 <h2 class="h5 mb-0">Battle Reports</h2>
                 {% if can_add_notes %}
                     <a href="{% url 'core:battle-note-add' battle.id %}?return_url={{ request.get_full_path|urlencode }}"
-                       class="icon-link link-primary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                       class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
                         {% if user_note %}
                             <i class="bi-pencil"></i>
                             Edit my report
@@ -77,7 +77,7 @@
                                 </div>
                                 {% if note.owner == user %}
                                     <a href="{% url 'core:battle-note-add' battle.id %}"
-                                       class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
                                         <i class="bi-pencil"></i> Edit
                                     </a>
                                 {% endif %}

@@ -6,9 +6,11 @@ from django.db.models import Q
 from django.shortcuts import render
 
 from gyrinx.content.models import ContentHouse
+from gyrinx.core.models.battle import Battle
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
-from gyrinx.core.models.list import List
+from gyrinx.core.models.list import List, ListFighter
+from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.tracing import span, traced
 
 
@@ -165,9 +167,51 @@ def index(request):
 @login_required
 def account_home(request):
     """
-    Management page for the user's account.
+    Management page for the user's account with stats dashboard.
 
+    **Context**
+
+    ``stats``
+        Dictionary of user stats (lists, campaigns, fighters, etc.).
+    ``show_packs``
+        Whether the Content Packs stat should be shown.
+
+    **Template**
+
+    :template:`core/account_home.html`
     """
+    user = request.user
+
+    # Gather stats
+    lists_count = List.objects.filter(
+        owner=user, status=List.LIST_BUILDING, archived=False
+    ).count()
+    campaign_gangs_count = List.objects.filter(
+        owner=user, status=List.CAMPAIGN_MODE, archived=False
+    ).count()
+    campaigns_count = Campaign.objects.filter(owner=user, archived=False).count()
+    fighters_count = ListFighter.objects.filter(
+        list__owner=user, list__archived=False, archived=False
+    ).count()
+    battles_count = Battle.objects.filter(campaign__owner=user).count()
+
+    # Content Packs - only if user is in "Custom Content" group
+    show_packs = user.groups.filter(name="Custom Content").exists()
+    packs_count = 0
+    if show_packs:
+        packs_count = CustomContentPack.objects.filter(
+            owner=user, archived=False
+        ).count()
+
+    stats = {
+        "lists_count": lists_count,
+        "campaign_gangs_count": campaign_gangs_count,
+        "campaigns_count": campaigns_count,
+        "fighters_count": fighters_count,
+        "battles_count": battles_count,
+        "packs_count": packs_count,
+    }
+
     # Log the account home view
     log_event(
         user=request.user,
@@ -180,4 +224,8 @@ def account_home(request):
     return render(
         request,
         "core/account_home.html",
+        {
+            "stats": stats,
+            "show_packs": show_packs,
+        },
     )

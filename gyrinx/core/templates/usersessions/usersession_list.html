@@ -20,24 +20,25 @@
             {% element table tags="sessions" %}
                 <thead>
                     <tr>
-                        <th>{% translate "Started At" %}</th>
-                        <th>{% translate "IP Address" %}</th>
+                        <th class="text-nowrap">{% translate "Started At" %}</th>
+                        <th class="text-nowrap">{% translate "IP Address" %}</th>
                         <th>{% translate "Browser" %}</th>
                         {% if show_last_seen_at %}
-                            <th>{% translate "Last seen at" %}</th>
+                            <th class="text-nowrap">{% translate "Last Seen At" %}</th>
                         {% endif %}
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for session in sessions %}
                         <tr>
-                            <td>
+                            <td class="text-nowrap">
                                 <span title="{{ session.created_at }}">{{ session.created_at|naturaltime }}</span>
                             </td>
-                            <td>{{ session.ip }}</td>
+                            <td class="text-nowrap">{{ session.ip }}</td>
                             <td>{{ session.user_agent }}</td>
                             {% if show_last_seen_at %}
-                                <td>
+                                <td class="text-nowrap">
                                     <span title="{{ session.last_seen_at }}">{{ session.last_seen_at|naturaltime }}</span>
                                 </td>
                             {% endif %}
@@ -56,11 +57,11 @@
         {% endslot %}
         {% slot actions %}
             {% if session_count > 1 %}
-                {% element button type="submit" %}
+                {% element button tags="danger" type="submit" %}
                     {% translate "Sign Out Other Sessions" %}
                 {% endelement %}
             {% else %}
-                {% element button type="submit" %}
+                {% element button tags="danger" type="submit" %}
                     {% translate "Sign Out" %}
                 {% endelement %}
             {% endif %}
