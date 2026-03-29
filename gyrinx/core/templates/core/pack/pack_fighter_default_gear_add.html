@@ -15,17 +15,22 @@
             </div>
         {% endif %}
         <!-- Search -->
-        <form method="get" class="d-flex gap-2" id="search">
-            <input type="text"
-                   name="q"
-                   value="{{ search_q }}"
-                   class="form-control form-control-sm"
-                   placeholder="Search gear...">
-            <button type="submit" class="btn btn-secondary btn-sm">Search</button>
-            {% if search_q %}
-                <a href="{% url 'core:pack-fighter-default-gear-add' pack.id pack_item.id %}"
-                   class="btn btn-outline-secondary btn-sm">Clear</a>
-            {% endif %}
+        <form method="get" id="search">
+            <div class="d-flex gap-2 align-items-center">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi-search"></i></span>
+                    <input type="search"
+                           name="q"
+                           value="{{ search_q }}"
+                           class="form-control"
+                           placeholder="Search gear...">
+                    <button type="submit" class="btn btn-primary">Search</button>
+                </div>
+                {% if search_q %}
+                    <a href="{% url 'core:pack-fighter-default-gear-add' pack.id pack_item.id %}"
+                       class="fs-7 text-nowrap">Clear</a>
+                {% endif %}
+            </div>
         </form>
         <!-- Gear by category -->
         <div class="grid">
