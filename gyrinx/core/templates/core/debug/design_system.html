@@ -1091,7 +1091,7 @@
             <div class="border rounded p-3 mb-4">
                 <div class="col-lg-12 px-0 vstack gap-4">
                     <div class="vstack gap-0">
-                        {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" name_url="#" only %}
+                        {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" type_url="/lists/" only %}
                         <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                             <h1 class="h2 mb-0">My Gang</h1>
                             <nav class="nav btn-group flex-nowrap ms-md-auto">
@@ -1151,15 +1151,15 @@
                 Sits above the page title on entity detail pages. Shows <code>owner / type / name</code> with optional campaign link.
                 Use <code>
                 {% verbatim %}
-                    {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" name_url="#" only %}
+                    {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" type_url="/lists/" only %}
                 {% endverbatim %}
             </code>.
         </p>
         <div class="border rounded p-3 mb-4">
             <div class="vstack gap-1">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" name_url="#" only %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=user name="Iron Hounds" name_url="#" campaign=ds_campaign only %}
-                {% include "core/includes/breadcrumb.html" with type="Pack" owner=user name="Scavvy Pack" name_url="#" only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" type_url="/lists/" only %}
+                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=user name="Iron Hounds" type_url="/lists/" campaign=ds_campaign only %}
+                {% include "core/includes/breadcrumb.html" with type="Pack" owner=user name="Scavvy Pack" type_url="/packs/" only %}
                 {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" print=True only %}
             </div>
         </div>
@@ -1171,7 +1171,7 @@
         <p class="text-secondary fs-7 mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
         <div class="border rounded p-3 mb-4">
             <div class="vstack gap-0">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" name_url="#" only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" type_url="/lists/" only %}
                 <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                     <h1 class="h2 mb-0">Cawdor Facts</h1>
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap">
