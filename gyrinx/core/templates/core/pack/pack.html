@@ -104,7 +104,7 @@
                 {# Skill trees are rendered within the Skills section below #}
             {% else %}
                 {% if section.slug == "gear" %}<hr class="my-2">{% endif %}
-                <section>
+                <section id="{{ section.slug }}">
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                         <h2 class="h5 mb-0">{{ section.label }}</h2>
                         {% if can_edit %}
@@ -144,7 +144,7 @@
                                 <table class="table table-sm table-borderless mb-0 fs-7">
                                     {% include "core/includes/weapon_stat_headers.html" %}
                                     {% for entry in section.items %}
-                                        <tbody class="table-group-divider">
+                                        <tbody class="table-group-divider" id="item-{{ entry.pack_item.id }}">
                                             {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit %}
                                         </tbody>
                                     {% endfor %}
@@ -163,7 +163,7 @@
                                             {% endif %}
                                             <ul class="list-unstyled mb-0">
                                                 {% for entry in house_group.list %}
-                                                    <li class="py-1">
+                                                    <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                                         <div class="d-flex justify-content-between align-items-center">
                                                             <div>
                                                                 <span class="fw-medium">{{ entry.content_object.type }}</span>
@@ -193,7 +193,7 @@
                             {% if section.skill_groups %}
                                 <div class="vstack gap-3">
                                     {% for group in section.skill_groups %}
-                                        <div>
+                                        <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
                                                 <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.category.name }}</div>
                                                 <span class="d-flex gap-2 align-items-center">
@@ -212,7 +212,7 @@
                                             {% if group.skills %}
                                                 <ul class="list-unstyled mb-0">
                                                     {% for entry in group.skills %}
-                                                        <li class="py-1">
+                                                        <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                                             <div class="d-flex justify-content-between align-items-center">
                                                                 <span>{{ entry.content_object.name }}</span>
                                                                 {% if can_edit %}
@@ -239,7 +239,7 @@
                         {% elif section.items %}
                             <ul class="list-unstyled mb-0">
                                 {% for entry in section.items %}
-                                    <li class="py-1">
+                                    <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <span>{{ entry.content_object }}</span>
                                             {% if can_edit %}

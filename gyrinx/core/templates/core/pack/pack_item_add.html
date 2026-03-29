@@ -4,7 +4,7 @@
     Add {{ label }} to {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
             <i class="{{ icon }}"></i> Add {{ label }}
@@ -34,7 +34,7 @@
                     <span>or</span>
                     <button type="submit" name="save_and_add_another" class="btn btn-secondary">Add and create another</button>
                 {% endif %}
-                <a href="{% url 'core:pack' pack.id %}" class="btn btn-link">Cancel</a>
+                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>
     </div>
