@@ -1,0 +1,65 @@
+{% extends "core/layouts/base.html" %}
+{% load allauth custom_tags %}
+{% block head_title %}
+    Crew Templates - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <h1 class="h3">Crew Templates</h1>
+            {% if is_owner %}
+                <a href="{% url 'core:crew-template-create' list.id %}"
+                   class="btn btn-primary btn-sm">
+                    <i class="bi-plus"></i>
+                    New Template
+                </a>
+            {% endif %}
+        </div>
+        <p class="text-muted">
+            Manage crew templates for <strong>{{ list.name }}</strong>.
+            Create templates to define how crews are selected from your fighters.
+        </p>
+        {% if crew_templates %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Selection</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for template in crew_templates %}
+                            <tr class="align-middle">
+                                <td>
+                                    <strong>{{ template.name }}</strong>
+                                </td>
+                                <td class="text-muted">{{ template.selection_summary }}</td>
+                                <td class="text-end">
+                                    {% if is_owner %}
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'core:crew-template-edit' list.id template.id %}"
+                                               class="btn btn-outline-secondary btn-sm">
+                                                <i class="bi-pencil"></i>
+                                                Edit
+                                            </a>
+                                            <a href="{% url 'core:crew-template-delete' list.id template.id %}"
+                                               class="btn btn-outline-danger btn-sm">
+                                                <i class="bi-trash"></i>
+                                                Delete
+                                            </a>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted">No crew templates yet. Create one to get started.</p>
+        {% endif %}
+    </div>
+{% endblock content %}
