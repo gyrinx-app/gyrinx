@@ -228,6 +228,19 @@ class TestNewListPacksInterstitial:
         assert response.status_code == 200
         assert b"Content Packs" in response.content
 
+    def test_packs_interstitial_preselects_pack_from_query_param(
+        self, client, cc_user, pack
+    ):
+        """Visiting with ?pack=<id> pre-checks the matching pack checkbox."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs") + f"?pack={pack.id}"
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # The checkbox for this pack should be checked
+        assert f'value="{pack.id}"' in content
+        assert "checked" in content
+
     def test_packs_interstitial_select_packs_then_create(
         self, client, cc_user, content_house, pack
     ):
