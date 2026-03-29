@@ -149,6 +149,13 @@ def debug_design_system(request):
         (".table-fixed", "table-layout: fixed for stat grids"),
     ]
 
+    # Mock campaign for breadcrumb demo (needs .id and .name)
+    from types import SimpleNamespace
+
+    ds_campaign = SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000000", name="Underhive Wars"
+    )
+
     return render(
         request,
         "core/debug/design_system.html",
@@ -160,6 +167,7 @@ def debug_design_system(request):
             "spacing_scale": spacing_scale,
             "page_shells": page_shells,
             "custom_classes": custom_classes,
+            "ds_campaign": ds_campaign,
         },
     )
 
