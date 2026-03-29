@@ -4,8 +4,6 @@
     {{ campaign.name }} - Campaign
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:campaigns' as campaigns_url %}
-    {% include "core/includes/back.html" with url=campaigns_url text="All Campaigns" %}
     {% if campaign.archived %}
         <div class="border rounded p-2 text-secondary mb-3">
             <i class="bi-archive"></i>
