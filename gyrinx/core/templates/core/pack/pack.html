@@ -98,9 +98,11 @@
                                        class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
                                 {% endif %}
                                 {% if section.slug == "skill" %}
+                                    <a href="{% url 'core:pack-add-item' pack.id 'skill' %}"
+                                       class="linked fs-7">Add Skill to existing tree</a>
                                     <a href="{% url 'core:pack-add-item' pack.id 'skill-tree' %}"
                                        class="btn btn-primary btn-sm">
-                                        <i class="bi-plus-lg"></i> Add Skill Tree
+                                        <i class="bi-plus-lg"></i> Add
                                     </a>
                                 {% elif section.can_add %}
                                     <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
@@ -205,7 +207,7 @@
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="text-center text-secondary mb-0">No skills in this Content Pack yet. Add a skill tree first.</p>
+                                <p class="text-secondary mb-0">No skills in this Content Pack yet.</p>
                             {% endif %}
                         {% elif section.items %}
                             <ul class="list-unstyled mb-0">

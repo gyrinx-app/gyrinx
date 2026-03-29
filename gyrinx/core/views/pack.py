@@ -20,17 +20,17 @@ from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
-from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
 from gyrinx.content.models.equipment import ContentEquipment
+from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
+from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.statline import (
     ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
 )
-from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
@@ -51,11 +51,11 @@ from gyrinx.core.models.pack import (
     CustomContentPackItem,
     CustomContentPackPermission,
 )
+from gyrinx.core.utils import safe_redirect
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
 )
-from gyrinx.core.utils import safe_redirect
 from gyrinx.models import is_valid_uuid
 
 
@@ -105,7 +105,7 @@ SUPPORTED_CONTENT_TYPES = [
     ),
     ContentTypeEntry(
         ContentSkill,
-        "Skills",
+        "Skill Trees",
         "Custom skills for your Content Pack.",
         "bi-star",
         ContentSkillPackForm,
