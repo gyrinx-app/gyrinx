@@ -2,22 +2,19 @@
 <div class="hstack gap-2 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} align-items-start align-items-md-center break-inside-avoid">
     <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
         <div class="vstack">
-            <h2 class="mb-0 order-2 h2">
+            {% url 'core:list' list.id as list_url %}
+            {% if list.is_campaign_mode %}
+                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name name_url=list_url campaign=list.campaign print=print %}
+            {% else %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name name_url=list_url print=print %}
+            {% endif %}
+            <h2 class="mb-0 h2">
                 {% if link_list %}
                     <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
                 {% else %}
                     {% list_with_theme list %}
                 {% endif %}
             </h2>
-            <div class="fs-7 text-secondary order-1">
-                <i class="bi-person"></i>
-                {% if print %}
-                    {{ list.owner_cached }}
-                {% else %}
-                    <a class="linked"
-                       href="{% url 'core:user' list.owner_cached.username %}">{{ list.owner_cached }}</a>
-                {% endif %}
-            </div>
         </div>
         <div class="ms-md-auto fs-7 vstack align-items-start align-items-md-end justify-content-center">
             <div>{{ list.content_house_name }}</div>

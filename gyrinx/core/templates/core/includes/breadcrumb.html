@@ -1,0 +1,25 @@
+{# Breadcrumb component — sits above the page title. #}
+{# Required params: type (str), owner (User object), name (str), name_url (str) #}
+{# Optional params: campaign (Campaign object), print (bool) #}
+<div class="fs-7 text-secondary">
+    {% if print %}
+        {{ owner }}
+    {% else %}
+        <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+           href="{% url 'core:user' owner.username %}">{{ owner }}</a>
+    {% endif %}
+    <span class="mx-1">/</span>
+    {{ type }}
+    <span class="mx-1">/</span>
+    {% if print or not name_url %}
+        {{ name }}
+    {% else %}
+        <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+           href="{{ name_url }}">{{ name }}</a>
+    {% endif %}
+    {% if campaign %}
+        ·
+        <a class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover"
+           href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+    {% endif %}
+</div>

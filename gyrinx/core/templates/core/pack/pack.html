@@ -7,6 +7,8 @@
     <div class="col-12 col-xl-8 px-0 vstack gap-4">
         <!-- Header -->
         <div class="vstack gap-0">
+            {% url 'core:pack' pack.id as pack_url %}
+            {% include "core/includes/breadcrumb.html" with type="Pack" owner=pack.owner name=pack.name name_url=pack_url only %}
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ pack.name }}</h1>
                 {% if can_edit or user_lists or user_campaigns %}
@@ -62,7 +64,6 @@
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
-                <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a></span>
                 {% if pack.listed %}
                     <span data-bs-toggle="tooltip"
                           data-bs-title="This Content Pack is visible to all users"><i class="bi-eye"></i> Public</span>
