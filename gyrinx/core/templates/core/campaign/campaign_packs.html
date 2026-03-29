@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
-    <div class="col-12 px-0 vstack gap-5">
+    <div class="col-12 px-0 vstack gap-4">
         <div>
             <h1 class="mb-2">Content Packs</h1>
             <p class="text-secondary mb-0">{{ campaign.name }}</p>
@@ -88,12 +88,13 @@
                 <h2 class="h5 mb-3">Add Packs</h2>
                 <form method="get" class="mb-3 col-12 col-md-6 col-lg-4 px-0">
                     <div class="input-group input-group-sm">
-                        <input type="text"
+                        <span class="input-group-text"><i class="bi-search"></i></span>
+                        <input type="search"
                                name="q"
                                class="form-control"
                                placeholder="Search packs..."
                                value="{{ search_query }}">
-                        <button type="submit" class="btn btn-primary">Search</button>
+                        <button type="submit" class="btn btn-primary btn-sm">Search</button>
                         {% if search_query %}
                             <a href="{% url 'core:campaign-packs' campaign.id %}"
                                class="btn btn-outline-secondary">Clear</a>

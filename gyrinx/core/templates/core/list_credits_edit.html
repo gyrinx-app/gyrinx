@@ -19,9 +19,9 @@
                 </ul>
                 <form method="post">
                     {% csrf_token %}
-                    {{ form.as_div }}
+                    {{ form }}
                     <div class="hstack gap-2 mt-3 align-items-center">
-                        <button type="submit" class="btn btn-success">Update Credits</button>
+                        <button type="submit" class="btn btn-success">Save</button>
                         <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
                     </div>
                 </form>

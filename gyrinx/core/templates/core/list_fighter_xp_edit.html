@@ -17,9 +17,9 @@
         </ul>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
-            {{ form.as_div }}
+            {{ form }}
             <div class="hstack gap-2 mt-3 align-items-center">
-                <button type="submit" class="btn btn-success">Update XP</button>
+                <button type="submit" class="btn btn-success">Save</button>
                 <a href="{% url 'core:list' list.id %}" class="btn btn-link">Cancel</a>
             </div>
         </form>
