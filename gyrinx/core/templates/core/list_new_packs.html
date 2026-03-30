@@ -21,10 +21,16 @@
                     <span class="ms-auto badge text-bg-success">Included</span>
                 </div>
             </div>
-            <!-- Continue button -->
+            <!-- Action buttons -->
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Continue</button>
-                <a href="{% url 'core:lists-new' %}?skip_packs=1" class="btn btn-link">Skip</a>
+                <a href="{% url 'core:lists-new' %}?skip_packs=1"
+                   class="btn btn-secondary btn-sm">Use default content</a>
+                {% if available_packs %}
+                    <button type="submit"
+                            class="btn btn-primary btn-sm"
+                            disabled
+                            id="include-packs-btn">Include selected packs</button>
+                {% endif %}
             </div>
             {% if available_packs %}
                 <!-- Separator -->

@@ -494,6 +494,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+// Content packs: enable "Include selected packs" button when ≥1 pack is checked
+document.addEventListener("DOMContentLoaded", () => {
+    const includePacksBtn = document.getElementById("include-packs-btn");
+    if (!includePacksBtn) return;
+
+    const packCheckboxes = document.querySelectorAll('input[name="pack_ids"]');
+    if (packCheckboxes.length === 0) return;
+
+    const updateButtonState = () => {
+        const anyChecked =
+            document.querySelectorAll('input[name="pack_ids"]:checked').length >
+            0;
+        includePacksBtn.disabled = !anyChecked;
+    };
+
+    packCheckboxes.forEach((cb) => {
+        cb.addEventListener("change", updateButtonState);
+    });
+
+    // Handle preselected packs (e.g. ?pack=<id>)
+    updateButtonState();
+});
+
 // Handle banner dismissal
 document.addEventListener("DOMContentLoaded", () => {
     // Find all elements with data-gy-banner-dismiss attribute
