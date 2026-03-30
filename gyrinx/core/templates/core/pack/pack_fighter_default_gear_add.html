@@ -4,7 +4,7 @@
     Add default gear - {{ content_fighter.type }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% url 'core:pack-item-default-equipment' pack.id pack_item.id as back_url %}
     {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <h1 class="h3">Add default gear: {{ content_fighter.type }}</h1>

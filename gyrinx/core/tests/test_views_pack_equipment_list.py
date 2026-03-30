@@ -136,10 +136,12 @@ def base_gear(gear_category):
 
 
 @pytest.mark.django_db
-def test_edit_page_shows_equipment_list_section(client, group_user, pack, pack_fighter):
+def test_equipment_list_tab_shows_section(client, group_user, pack, pack_fighter):
     fighter, pack_item = pack_fighter
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert b"Equipment list" in response.content
     assert b"Add weapon" in response.content
@@ -147,7 +149,7 @@ def test_edit_page_shows_equipment_list_section(client, group_user, pack, pack_f
 
 
 @pytest.mark.django_db
-def test_edit_page_shows_existing_equipment_list_items(
+def test_equipment_list_tab_shows_existing_items(
     client, group_user, pack, pack_fighter, base_weapon, base_gear
 ):
     fighter, pack_item = pack_fighter
@@ -158,14 +160,16 @@ def test_edit_page_shows_existing_equipment_list_items(
         fighter=fighter, equipment=base_gear, cost=0
     )
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert b"Autogun" in response.content
     assert b"Mesh Armour" in response.content
 
 
 @pytest.mark.django_db
-def test_edit_page_shows_equipment_list_cost(
+def test_equipment_list_tab_shows_cost(
     client, group_user, pack, pack_fighter, base_weapon
 ):
     fighter, pack_item = pack_fighter
@@ -173,7 +177,9 @@ def test_edit_page_shows_equipment_list_cost(
         fighter=fighter, equipment=base_weapon, cost=25
     )
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert "25¢".encode() in response.content
 
@@ -198,7 +204,9 @@ def test_edit_page_shows_paid_profile_when_added(
         cost=15,
     )
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert b"Combi-weapon" in response.content
     assert b"Grenade Launcher" in response.content
@@ -267,7 +275,9 @@ def test_edit_page_shows_pack_weapon_profile_in_equipment_list(
         fighter=fighter, equipment=weapon, weapon_profile=pack_profile, cost=20
     )
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert b"Combat Shotgun" in response.content
     # Simplified display shows profile names for non-standard profiles only.
@@ -693,3 +703,28 @@ def test_non_owner_cannot_edit_item(
     assert response.status_code == 404
     eli.refresh_from_db()
     assert eli.cost == 10
+
+
+# -- Equipment list tab --
+
+
+@pytest.mark.django_db
+def test_equipment_list_tab_requires_login(client, pack, pack_fighter):
+    fighter, pack_item = pack_fighter
+    url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    response = client.get(url)
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
+
+
+@pytest.mark.django_db
+def test_equipment_list_tab_requires_pack_owner(
+    client, pack, pack_fighter, make_user, custom_content_group
+):
+    fighter, pack_item = pack_fighter
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    response = client.get(url)
+    assert response.status_code == 404

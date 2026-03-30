@@ -136,12 +136,12 @@ def base_gear(gear_category):
 
 
 @pytest.mark.django_db
-def test_edit_page_shows_default_equipment_section(
-    client, group_user, pack, pack_fighter
-):
+def test_default_equipment_tab_shows_section(client, group_user, pack, pack_fighter):
     fighter, pack_item = pack_fighter
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert b"Default equipment" in response.content
     assert b"Add weapon" in response.content
@@ -149,7 +149,7 @@ def test_edit_page_shows_default_equipment_section(
 
 
 @pytest.mark.django_db
-def test_edit_page_shows_existing_defaults(
+def test_default_equipment_tab_shows_existing_defaults(
     client, group_user, pack, pack_fighter, base_weapon, base_gear
 ):
     fighter, pack_item = pack_fighter
@@ -160,7 +160,9 @@ def test_edit_page_shows_existing_defaults(
         fighter=fighter, equipment=base_gear, cost=0
     )
     client.force_login(group_user)
-    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    response = client.get(
+        reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
+    )
     assert response.status_code == 200
     assert b"Autogun" in response.content
     assert b"Mesh Armour" in response.content
@@ -376,3 +378,39 @@ def test_non_owner_cannot_remove_assignment(
     response = client.post(url)
     assert response.status_code == 404
     assert ContentFighterDefaultAssignment.objects.filter(pk=assignment.pk).exists()
+
+
+# -- Default equipment tab --
+
+
+@pytest.mark.django_db
+def test_default_equipment_tab_requires_login(client, pack, pack_fighter):
+    fighter, pack_item = pack_fighter
+    url = reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
+    response = client.get(url)
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
+
+
+@pytest.mark.django_db
+def test_default_equipment_tab_requires_pack_owner(
+    client, pack, pack_fighter, make_user, custom_content_group
+):
+    fighter, pack_item = pack_fighter
+    other_user = make_user("other", "password")
+    other_user.groups.add(custom_content_group)
+    client.force_login(other_user)
+    url = reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
+    response = client.get(url)
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_edit_page_shows_tabs_for_fighter(client, group_user, pack, pack_fighter):
+    fighter, pack_item = pack_fighter
+    client.force_login(group_user)
+    response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
+    assert response.status_code == 200
+    assert b"Default equipment" in response.content
+    assert b"Equipment list" in response.content
+    assert b"Details" in response.content

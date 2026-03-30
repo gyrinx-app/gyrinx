@@ -9,6 +9,9 @@
         <h1 class="h3">
             <i class="{{ icon }}"></i> Edit {{ label }}
         </h1>
+        {% if is_fighter %}
+            {% include "core/pack/includes/pack_item_edit_tabs.html" with active_tab="details" %}
+        {% endif %}
         <form action="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
               method="post"
               class="vstack gap-3">
@@ -84,9 +87,5 @@
                 <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>
-        {% if is_fighter %}
-            {% include "core/pack/includes/fighter_default_equipment.html" %}
-            {% include "core/pack/includes/fighter_equipment_list.html" %}
-        {% endif %}
     </div>
 {% endblock content %}
