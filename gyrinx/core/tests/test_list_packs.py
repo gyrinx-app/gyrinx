@@ -196,6 +196,32 @@ class TestNewListPacksInterstitial:
         response = client.get(url)
         assert response.status_code == 200
 
+    def test_cc_user_invalid_packs_param_redirects(
+        self, client, cc_user, content_house
+    ):
+        """CC user with invalid (non-UUID) packs param is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?packs=not-a-uuid"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_cc_user_empty_packs_param_redirects(self, client, cc_user, content_house):
+        """CC user with empty packs param is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?packs="
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_cc_user_skip_packs_zero_redirects(self, client, cc_user, content_house):
+        """CC user with skip_packs=0 is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?skip_packs=0"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
     def test_regular_user_sees_form_directly(self, client, make_user, content_house):
         """Non-CC user goes straight to the new list form."""
         other_user = make_user("regularuser", "password")

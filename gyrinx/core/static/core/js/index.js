@@ -503,20 +503,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (packCheckboxes.length === 0) return;
 
     const arrowIcon = includePacksBtn.querySelector("i");
+    const arrowClone = arrowIcon ? arrowIcon.cloneNode(true) : null;
     const updateButtonState = () => {
         const checkedCount = [...packCheckboxes].filter(
             (cb) => cb.checked,
         ).length;
         includePacksBtn.disabled = checkedCount === 0;
-        // Update text node before the icon
         const label =
             checkedCount > 0
                 ? `Include selected packs (${checkedCount}) `
                 : "Include selected packs ";
-        if (arrowIcon) {
-            arrowIcon.previousSibling.textContent = label;
-        } else {
-            includePacksBtn.textContent = label;
+        includePacksBtn.textContent = label;
+        if (arrowClone) {
+            includePacksBtn.appendChild(arrowClone.cloneNode(true));
         }
     };
 

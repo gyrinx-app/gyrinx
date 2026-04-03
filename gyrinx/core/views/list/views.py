@@ -1,5 +1,7 @@
 """List CRUD views."""
 
+from urllib.parse import urlencode
+
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.cache import cache
@@ -585,22 +587,22 @@ def new_list(request):
     is_cc_user = request.user.groups.filter(name="Custom Content").exists()
 
     if request.method == "POST":
-        pack_ids = request.POST.getlist("packs")
+        raw_pack_ids = request.POST.getlist("packs")
     else:
-        pack_ids = request.GET.getlist("packs")
+        raw_pack_ids = request.GET.getlist("packs")
+    pack_ids = [pid for pid in raw_pack_ids if is_valid_uuid(pid)]
 
-    has_packs_param = "packs" in request.GET or "skip_packs" in request.GET
+    skip_packs = request.GET.get("skip_packs") == "1"
 
     # CC users who haven't visited the interstitial yet get redirected there
-    if request.method == "GET" and is_cc_user and not has_packs_param:
+    if request.method == "GET" and is_cc_user and not skip_packs and not pack_ids:
         return HttpResponseRedirect(reverse("core:lists-new-packs"))
 
     # Resolve selected packs
     selected_packs = CustomContentPack.objects.none()
     if pack_ids:
-        valid_pack_ids = [pid for pid in pack_ids if is_valid_uuid(pid)]
         selected_packs = CustomContentPack.objects.filter(
-            id__in=valid_pack_ids,
+            id__in=pack_ids,
             archived=False,
         ).filter(Q(listed=True) | Q(owner=request.user))
 
@@ -696,22 +698,22 @@ def new_list_packs(request):
     available_packs = available_packs.order_by("name")
 
     if request.method == "POST":
-        pack_ids = request.POST.getlist("pack_ids")
+        raw_ids = request.POST.getlist("pack_ids")
+        sanitised_ids = [pid for pid in raw_ids if is_valid_uuid(pid)]
         # Validate submitted IDs against accessible packs
         valid_ids = set(
             str(pk)
-            for pk in available_packs.filter(id__in=pack_ids).values_list(
+            for pk in available_packs.filter(id__in=sanitised_ids).values_list(
                 "id", flat=True
             )
         )
-        pack_ids = [pid for pid in pack_ids if pid in valid_ids]
+        pack_ids = [pid for pid in sanitised_ids if pid in valid_ids]
         # Redirect with pack IDs as URL params
         url = reverse("core:lists-new")
         if pack_ids:
-            params = "&".join(f"packs={pid}" for pid in pack_ids)
-            url = f"{url}?{params}"
+            url = f"{url}?{urlencode([('packs', pid) for pid in pack_ids], doseq=True)}"
         else:
-            url = f"{url}?skip_packs=1"
+            url = f"{url}?{urlencode({'skip_packs': '1'})}"
         return HttpResponseRedirect(url)
 
     # Pre-select a pack if ?pack=<id> is in the query string
