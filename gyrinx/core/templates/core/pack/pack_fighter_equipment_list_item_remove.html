@@ -30,8 +30,7 @@
         {% csrf_token %}
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-            <a href="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
-               class="btn btn-link btn-sm">Cancel</a>
+            <a href="{{ back_url }}" class="btn btn-link btn-sm">Cancel</a>
         </div>
     </form>
 </div>
