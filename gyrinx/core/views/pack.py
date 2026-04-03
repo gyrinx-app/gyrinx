@@ -1333,6 +1333,7 @@ def edit_pack_item(request, id, item_id):
         "pack": pack,
         "pack_item": pack_item,
         "content_obj": content_obj,
+        "content_fighter": content_obj if is_fighter else None,
         "label": singular_label,
         "icon": entry.icon,
         "slug": entry.slug,
@@ -1340,62 +1341,6 @@ def edit_pack_item(request, id, item_id):
         "is_fighter": is_fighter,
     }
 
-    # Load default equipment assignments for fighter items.
-    if is_fighter:
-        default_assignments = (
-            ContentFighterDefaultAssignment.objects.filter(fighter=content_obj)
-            .select_related("equipment", "equipment__category")
-            .prefetch_related(
-                Prefetch(
-                    "weapon_profiles_field",
-                    queryset=ContentWeaponProfile.objects.with_packs([pack]),
-                ),
-                Prefetch(
-                    "equipment__contentweaponprofile_set",
-                    queryset=ContentWeaponProfile.objects.with_packs([pack]),
-                ),
-            )
-        )
-        context["default_weapon_assigns"] = [
-            da for da in default_assignments if da.is_weapon()
-        ]
-        context["default_gear_assigns"] = [
-            da for da in default_assignments if not da.is_weapon()
-        ]
-
-        # Equipment list items (available equipment for purchase).
-        # Order so base weapon (weapon_profile=NULL) comes first in each group.
-        equipment_list_items = (
-            ContentFighterEquipmentListItem.objects.filter(fighter=content_obj)
-            .select_related("equipment", "equipment__category", "weapon_profile")
-            .order_by(
-                "equipment__name",
-                models.Case(
-                    models.When(weapon_profile__isnull=True, then=0),
-                    default=1,
-                ),
-            )
-        )
-        # Group weapon items by equipment for simplified display.
-        weapon_items = [
-            eli for eli in equipment_list_items if eli.equipment.is_weapon()
-        ]
-        equip_list_weapon_groups = []
-        seen_equipment = {}
-        for eli in weapon_items:
-            eid = eli.equipment_id
-            if eid not in seen_equipment:
-                group = {
-                    "equipment": eli.equipment,
-                    "items": [],
-                }
-                seen_equipment[eid] = group
-                equip_list_weapon_groups.append(group)
-            seen_equipment[eid]["items"].append(eli)
-        context["equip_list_weapon_groups"] = equip_list_weapon_groups
-        context["equip_list_gear"] = [
-            eli for eli in equipment_list_items if not eli.equipment.is_weapon()
-        ]
     # On POST re-render (validation error), use submitted values instead of DB values.
     if stat_values is not None and request.method == "POST":
         for sv in stat_values:
@@ -1459,6 +1404,9 @@ def edit_pack_item(request, id, item_id):
             context["selected_trait_ids"] = set(request.POST.getlist("wp_traits"))
         else:
             context["selected_trait_ids"] = set()
+
+    if is_fighter:
+        context.update(_load_fighter_preview_context(pack, content_obj))
 
     return render(request, "core/pack/pack_item_edit.html", context)
 
@@ -2246,6 +2194,123 @@ def _build_default_equipment_choices(pack, is_weapon, search_query=None):
     return qs
 
 
+def _load_default_equipment_context(pack, content_fighter):
+    """Load default equipment assignments for a fighter, returning context dict."""
+    default_assignments = (
+        ContentFighterDefaultAssignment.objects.filter(fighter=content_fighter)
+        .select_related("equipment", "equipment__category")
+        .prefetch_related(
+            Prefetch(
+                "weapon_profiles_field",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            ),
+            Prefetch(
+                "equipment__contentweaponprofile_set",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            ),
+        )
+    )
+    return {
+        "default_weapon_assigns": [da for da in default_assignments if da.is_weapon()],
+        "default_gear_assigns": [
+            da for da in default_assignments if not da.is_weapon()
+        ],
+    }
+
+
+def _load_equipment_list_context(content_fighter):
+    """Load equipment list items for a fighter, returning context dict."""
+    equipment_list_items = (
+        ContentFighterEquipmentListItem.objects.filter(fighter=content_fighter)
+        .select_related("equipment", "equipment__category", "weapon_profile")
+        .order_by(
+            "equipment__name",
+            models.Case(
+                models.When(weapon_profile__isnull=True, then=0),
+                default=1,
+            ),
+        )
+    )
+    # Group weapon items by equipment for simplified display.
+    weapon_items = [eli for eli in equipment_list_items if eli.equipment.is_weapon()]
+    equip_list_weapon_groups = []
+    seen_equipment = {}
+    for eli in weapon_items:
+        eid = eli.equipment_id
+        if eid not in seen_equipment:
+            group = {
+                "equipment": eli.equipment,
+                "items": [],
+            }
+            seen_equipment[eid] = group
+            equip_list_weapon_groups.append(group)
+        seen_equipment[eid]["items"].append(eli)
+    return {
+        "equip_list_weapon_groups": equip_list_weapon_groups,
+        "equip_list_gear": [
+            eli for eli in equipment_list_items if not eli.equipment.is_weapon()
+        ],
+    }
+
+
+def _load_fighter_preview_context(pack, content_fighter):
+    """Load data for the fighter preview card on edit pages."""
+    statline = content_fighter.statline()
+    rules = list(content_fighter.rules.all())
+    skills = list(content_fighter.skills.all())
+
+    # Default weapon assignments with profiles
+    default_assignments = (
+        ContentFighterDefaultAssignment.objects.filter(fighter=content_fighter)
+        .select_related("equipment", "equipment__category")
+        .prefetch_related(
+            Prefetch(
+                "weapon_profiles_field",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            ),
+            Prefetch(
+                "equipment__contentweaponprofile_set",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            ),
+        )
+    )
+    preview_weapons = [da for da in default_assignments if da.is_weapon()]
+    preview_gear = [da for da in default_assignments if not da.is_weapon()]
+
+    return {
+        "preview_statline": statline,
+        "preview_rules": rules,
+        "preview_skills": skills,
+        "preview_weapons": preview_weapons,
+        "preview_gear": preview_gear,
+    }
+
+
+@login_required
+@group_membership_required(["Custom Content"])
+def pack_item_equipment(request, id, item_id):
+    """Combined equipment tab for a fighter in a pack."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    entry = _get_entry_for_pack_item(pack_item)
+    singular_label = entry.label.rstrip("s")
+
+    context = {
+        "pack": pack,
+        "pack_item": pack_item,
+        "content_fighter": content_fighter,
+        "label": singular_label,
+        "icon": entry.icon,
+        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
+    }
+    context.update(_load_default_equipment_context(pack, content_fighter))
+    context.update(_load_equipment_list_context(content_fighter))
+    context.update(_load_fighter_preview_context(pack, content_fighter))
+
+    return render(request, "core/pack/pack_item_equipment.html", context)
+
+
 @login_required
 @group_membership_required(["Custom Content"])
 @transaction.atomic
@@ -2291,7 +2356,10 @@ def add_pack_fighter_default_weapon(request, id, item_id):
                 )
                 assignment.weapon_profiles_field.set(valid_profiles)
 
-            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            url = reverse(
+                "core:pack-item-default-equipment",
+                args=(pack.id, pack_item.id),
+            )
             return HttpResponseRedirect(f"{url}?flash={assignment.id}#{assignment.id}")
 
     search_q = request.GET.get("q", "").strip()
@@ -2364,7 +2432,10 @@ def add_pack_fighter_default_gear(request, id, item_id):
             assignment._history_user = request.user
             assignment.save()
 
-            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            url = reverse(
+                "core:pack-item-default-equipment",
+                args=(pack.id, pack_item.id),
+            )
             return HttpResponseRedirect(f"{url}?flash={assignment.id}#{assignment.id}")
 
     search_q = request.GET.get("q", "").strip()
@@ -2409,8 +2480,7 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
         assignment._history_user = request.user
         assignment.delete()
         return HttpResponseRedirect(
-            reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
-            + "#default-equipment"
+            reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
         )
 
     return render(
@@ -2508,7 +2578,7 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
                 f"{', '.join(skipped)} already in the available equipment list."
             )
         elif last_id:
-            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
             return HttpResponseRedirect(f"{url}?flash={last_id}#{last_id}")
 
     equipment = _build_default_equipment_choices(pack, is_weapon=True)
@@ -2592,7 +2662,7 @@ def add_pack_fighter_equipment_list_gear(request, id, item_id):
                 f"{', '.join(skipped)} already in the available equipment list."
             )
         elif last_id:
-            url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+            url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
             return HttpResponseRedirect(f"{url}?flash={last_id}#{last_id}")
 
     equipment = _build_default_equipment_choices(pack, is_weapon=False)
@@ -2643,8 +2713,7 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
         eli._history_user = request.user
         eli.delete()
         return HttpResponseRedirect(
-            reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
-            + "#equipment-list"
+            reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
         )
 
     # When removing a base weapon entry (no profile), find sibling
@@ -2717,7 +2786,7 @@ def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             item._history_user = request.user
             item.save()
 
-        url = reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
+        url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
         return HttpResponseRedirect(f"{url}?flash={eli.id}#{eli.id}")
 
     return render(

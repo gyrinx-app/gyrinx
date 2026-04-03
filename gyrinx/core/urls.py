@@ -788,6 +788,22 @@ urlpatterns = [
         name="pack-edit-item",
     ),
     path(
+        "pack/<id>/item/<item_id>/equipment/",
+        pack_views.pack_item_equipment,
+        name="pack-item-equipment",
+    ),
+    # Aliases for backwards compatibility (redirects from old bookmarks, etc.)
+    path(
+        "pack/<id>/item/<item_id>/default-equipment/",
+        pack_views.pack_item_equipment,
+        name="pack-item-default-equipment",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/equipment-list/",
+        pack_views.pack_item_equipment,
+        name="pack-item-equipment-list",
+    ),
+    path(
         "pack/<id>/item/<item_id>/delete/",
         pack_views.delete_pack_item,
         name="pack-delete-item",

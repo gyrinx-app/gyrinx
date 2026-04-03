@@ -4,7 +4,7 @@
     Remove from equipment list - {{ content_fighter.type }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% url 'core:pack-item-equipment-list' pack.id pack_item.id as back_url %}
     {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Remove from equipment list</h1>
@@ -30,8 +30,7 @@
         {% csrf_token %}
         <div class="d-flex gap-2">
             <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-            <a href="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
-               class="btn btn-link btn-sm">Cancel</a>
+            <a href="{{ back_url }}" class="btn btn-link btn-sm">Cancel</a>
         </div>
     </form>
 </div>
