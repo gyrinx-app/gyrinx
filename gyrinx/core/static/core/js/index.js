@@ -482,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     .getAttribute("data-filter-label")
                     .toLowerCase()
                     .includes(query);
-                item.style.display = match ? "" : "none";
+                item.classList.toggle("d-none", !match);
                 if (match) visible++;
             });
 
@@ -492,6 +492,39 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
     });
+});
+
+// Content packs: enable "Include selected packs" button when ≥1 pack is checked
+document.addEventListener("DOMContentLoaded", () => {
+    const includePacksBtn = document.getElementById("include-packs-btn");
+    if (!includePacksBtn) return;
+
+    const packCheckboxes = document.querySelectorAll('input[name="pack_ids"]');
+    if (packCheckboxes.length === 0) return;
+
+    const arrowIcon = includePacksBtn.querySelector("i");
+    const arrowClone = arrowIcon ? arrowIcon.cloneNode(true) : null;
+    const updateButtonState = () => {
+        const checkedCount = [...packCheckboxes].filter(
+            (cb) => cb.checked,
+        ).length;
+        includePacksBtn.disabled = checkedCount === 0;
+        const label =
+            checkedCount > 0
+                ? `Include selected packs (${checkedCount}) `
+                : "Include selected packs ";
+        includePacksBtn.textContent = label;
+        if (arrowClone) {
+            includePacksBtn.appendChild(arrowClone.cloneNode(true));
+        }
+    };
+
+    packCheckboxes.forEach((cb) => {
+        cb.addEventListener("change", updateButtonState);
+    });
+
+    // Set initial state (disabled unless packs are preselected)
+    updateButtonState();
 });
 
 // Handle banner dismissal

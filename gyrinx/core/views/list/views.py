@@ -1,5 +1,7 @@
 """List CRUD views."""
 
+from urllib.parse import urlencode
+
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.cache import cache
@@ -11,7 +13,7 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx import messages
-from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.forms.list import CloneListForm, EditListForm, NewListForm
 from gyrinx.core.handlers.list import handle_list_clone, handle_list_creation
@@ -583,29 +585,24 @@ def new_list(request):
     from gyrinx.core.models.pack import CustomContentPack
 
     is_cc_user = request.user.groups.filter(name="Custom Content").exists()
-    session_pack_ids = request.session.get("new_list_pack_ids")
+
+    if request.method == "POST":
+        raw_pack_ids = request.POST.getlist("packs")
+    else:
+        raw_pack_ids = request.GET.getlist("packs")
+    pack_ids = [pid for pid in raw_pack_ids if is_valid_uuid(pid)]
+
+    skip_packs = request.GET.get("skip_packs") == "1"
 
     # CC users who haven't visited the interstitial yet get redirected there
-    if (
-        request.method == "GET"
-        and is_cc_user
-        and session_pack_ids is None
-        and request.GET.get("skip_packs") != "1"
-    ):
+    if request.method == "GET" and is_cc_user and not skip_packs and not pack_ids:
         return HttpResponseRedirect(reverse("core:lists-new-packs"))
 
-    # If skip_packs=1, store empty list so redirect doesn't loop
-    if request.GET.get("skip_packs") == "1" and session_pack_ids is None:
-        request.session["new_list_pack_ids"] = []
-        session_pack_ids = []
-
-    # Resolve selected packs from session
+    # Resolve selected packs
     selected_packs = CustomContentPack.objects.none()
-    pack_ids = session_pack_ids or []
     if pack_ids:
-        valid_pack_ids = [pid for pid in pack_ids if is_valid_uuid(pid)]
         selected_packs = CustomContentPack.objects.filter(
-            id__in=valid_pack_ids,
+            id__in=pack_ids,
             archived=False,
         ).filter(Q(listed=True) | Q(owner=request.user))
 
@@ -628,9 +625,6 @@ def new_list(request):
             if selected_packs:
                 result.lst.packs.set(selected_packs)
 
-            # Clear session key
-            request.session.pop("new_list_pack_ids", None)
-
             # Log the list creation event (HTTP-specific)
             log_event(
                 user=request.user,
@@ -652,10 +646,23 @@ def new_list(request):
             pack_ids=pack_ids,
         )
 
+    # Build "Change" URL that preserves current pack selection
+    change_packs_url = reverse("core:lists-new-packs")
+    if pack_ids:
+        change_packs_url += "?" + urlencode(
+            [("pack", pid) for pid in pack_ids], doseq=True
+        )
+
     return render(
         request,
         "core/list_new.html",
-        {"form": form, "houses": houses, "selected_packs": list(selected_packs)},
+        {
+            "form": form,
+            "houses": houses,
+            "selected_packs": list(selected_packs),
+            "pack_ids": pack_ids,
+            "change_packs_url": change_packs_url,
+        },
     )
 
 
@@ -676,33 +683,98 @@ def new_list_packs(request):
 
     from gyrinx.core.models.pack import CustomContentPack
 
-    available_packs = (
-        CustomContentPack.objects.filter(archived=False)
-        .filter(Q(listed=True) | Q(owner=request.user))
-        .select_related("owner")
-        .order_by("name")
+    # All packs the user can access (for POST validation)
+    accessible_packs = CustomContentPack.objects.filter(archived=False).filter(
+        Q(listed=True) | Q(owner=request.user)
     )
 
-    search_query = request.GET.get("q", "").strip()
-    if search_query:
-        available_packs = available_packs.filter(name__icontains=search_query)
-
     if request.method == "POST":
-        pack_ids = request.POST.getlist("pack_ids")
-        # Validate submitted IDs against accessible packs
+        raw_ids = request.POST.getlist("pack_ids")
+        sanitised_ids = [pid for pid in raw_ids if is_valid_uuid(pid)]
+        # Validate against all accessible packs, not just the filtered view
         valid_ids = set(
             str(pk)
-            for pk in available_packs.filter(id__in=pack_ids).values_list(
+            for pk in accessible_packs.filter(id__in=sanitised_ids).values_list(
                 "id", flat=True
             )
         )
-        pack_ids = [pid for pid in pack_ids if pid in valid_ids]
-        # Store selected pack IDs in session (may be empty list if none selected)
-        request.session["new_list_pack_ids"] = pack_ids
-        return HttpResponseRedirect(reverse("core:lists-new"))
+        pack_ids = [pid for pid in sanitised_ids if pid in valid_ids]
+        # Redirect with pack IDs as URL params
+        url = reverse("core:lists-new")
+        if pack_ids:
+            url = f"{url}?{urlencode([('packs', pid) for pid in pack_ids], doseq=True)}"
+        else:
+            url = f"{url}?{urlencode({'skip_packs': '1'})}"
+        return HttpResponseRedirect(url)
 
-    # Pre-select a pack if ?pack=<id> is in the query string
-    preselected_pack_id = request.GET.get("pack", "")
+    # Display filtering for GET requests
+    available_packs = accessible_packs.select_related("owner")
+
+    # "Your Packs Only" toggle (default on)
+    show_my_packs = request.GET.get("my", "1")
+    if show_my_packs == "1":
+        available_packs = available_packs.filter(owner=request.user)
+
+    # Search
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        search_vector = SearchVector("name", "summary", "owner__username")
+        search_q = SearchQuery(search_query)
+        available_packs = available_packs.annotate(search=search_vector).filter(
+            search=search_q
+        )
+
+    available_packs = available_packs.prefetch_related("items__content_type").order_by(
+        "name"
+    )
+
+    # Build content preview for each pack
+    from django.contrib.contenttypes.models import ContentType
+
+    house_ct = ContentType.objects.get_for_model(ContentHouse)
+    fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+
+    # Evaluate queryset so we can attach preview data to each pack
+    available_packs = list(available_packs)
+    for pack in available_packs:
+        active_items = [i for i in pack.items.all() if not i.archived]
+        counts = {}
+        object_ids_by_ct = {}
+        for item in active_items:
+            ct_id = item.content_type_id
+            counts[ct_id] = counts.get(ct_id, 0) + 1
+            object_ids_by_ct.setdefault(ct_id, []).append(item.object_id)
+
+        preview_parts = []
+        for ct, label in [
+            (house_ct, "house"),
+            (fighter_ct, "fighter"),
+            (equipment_ct, "item"),
+        ]:
+            count = counts.get(ct.id, 0)
+            if count > 0:
+                # Fetch names for this content type
+                model_class = ct.model_class()
+                ids = object_ids_by_ct[ct.id][:5]
+                names = list(
+                    model_class.objects.all_content()
+                    .filter(pk__in=ids)
+                    .values_list("type" if ct == fighter_ct else "name", flat=True)
+                )
+                suffix = f" +{count - len(names)}" if count > len(names) else ""
+                plural = label + ("s" if count != 1 else "")
+                preview_parts.append(
+                    {
+                        "label": f"{count} {plural}",
+                        "names": names,
+                        "suffix": suffix,
+                    }
+                )
+        pack.content_preview = preview_parts
+
+    # Pre-select packs from ?pack=<id> query params
+    preselected_pack_ids = set(request.GET.getlist("pack"))
 
     return render(
         request,
@@ -710,7 +782,7 @@ def new_list_packs(request):
         {
             "available_packs": available_packs,
             "search_query": search_query,
-            "preselected_pack_id": preselected_pack_id,
+            "preselected_pack_ids": preselected_pack_ids,
         },
     )
 

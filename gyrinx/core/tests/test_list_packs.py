@@ -178,15 +178,12 @@ class TestNewListPacksInterstitial:
         assert response.status_code == 302
         assert response.url == reverse("core:lists-new-packs")
 
-    def test_cc_user_with_session_packs_sees_form(
+    def test_cc_user_with_url_packs_sees_form(
         self, client, cc_user, content_house, pack
     ):
-        """CC user with packs in session sees the new list form."""
+        """CC user with packs in URL sees the new list form."""
         client.force_login(cc_user)
-        session = client.session
-        session["new_list_pack_ids"] = [str(pack.id)]
-        session.save()
-        url = reverse("core:lists-new")
+        url = reverse("core:lists-new") + f"?packs={pack.id}"
         response = client.get(url)
         assert response.status_code == 200
         assert b"Content Packs" in response.content
@@ -198,6 +195,32 @@ class TestNewListPacksInterstitial:
         url = reverse("core:lists-new") + "?skip_packs=1"
         response = client.get(url)
         assert response.status_code == 200
+
+    def test_cc_user_invalid_packs_param_redirects(
+        self, client, cc_user, content_house
+    ):
+        """CC user with invalid (non-UUID) packs param is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?packs=not-a-uuid"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_cc_user_empty_packs_param_redirects(self, client, cc_user, content_house):
+        """CC user with empty packs param is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?packs="
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_cc_user_skip_packs_zero_redirects(self, client, cc_user, content_house):
+        """CC user with skip_packs=0 is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?skip_packs=0"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
 
     def test_regular_user_sees_form_directly(self, client, make_user, content_house):
         """Non-CC user goes straight to the new list form."""
@@ -244,22 +267,24 @@ class TestNewListPacksInterstitial:
     def test_packs_interstitial_select_packs_then_create(
         self, client, cc_user, content_house, pack
     ):
-        """Selecting packs stores them in session, then creating list attaches them."""
+        """Selecting packs redirects with URL params, then creating list attaches them."""
         client.force_login(cc_user)
         # Step 1: Select packs on interstitial
         url = reverse("core:lists-new-packs")
         response = client.post(url, {"pack_ids": [str(pack.id)]})
         assert response.status_code == 302
-        assert response.url == reverse("core:lists-new")
+        assert f"packs={pack.id}" in response.url
 
-        # Verify session has pack IDs
-        assert client.session["new_list_pack_ids"] == [str(pack.id)]
-
-        # Step 2: Create the list
+        # Step 2: Create the list with packs in POST data
         url = reverse("core:lists-new")
         response = client.post(
             url,
-            {"name": "New List", "content_house": content_house.id, "public": True},
+            {
+                "name": "New List",
+                "content_house": content_house.id,
+                "public": True,
+                "packs": [str(pack.id)],
+            },
         )
         assert response.status_code == 302
 
@@ -267,17 +292,13 @@ class TestNewListPacksInterstitial:
         lst = List.objects.get(name="New List")
         assert pack in lst.packs.all()
 
-        # Verify session key was cleared
-        assert "new_list_pack_ids" not in client.session
-
     def test_packs_interstitial_skip(self, client, cc_user, content_house):
-        """Skipping packs stores empty list and allows list creation."""
+        """Submitting with no packs redirects with skip_packs=1."""
         client.force_login(cc_user)
         url = reverse("core:lists-new-packs")
         response = client.post(url)
         assert response.status_code == 302
-        # Session should have empty list
-        assert client.session["new_list_pack_ids"] == []
+        assert "skip_packs=1" in response.url
 
     def test_pack_house_appears_in_dropdown(self, client, cc_user, pack):
         """Pack house appears in the House dropdown on the new list form."""
@@ -310,11 +331,7 @@ class TestNewListPacksInterstitial:
         )
 
         client.force_login(cc_user)
-        session = client.session
-        session["new_list_pack_ids"] = [str(pack.id)]
-        session.save()
-
-        url = reverse("core:lists-new")
+        url = reverse("core:lists-new") + f"?packs={pack.id}"
         response = client.get(url)
         assert response.status_code == 200
         assert b"Pack-Only House" in response.content

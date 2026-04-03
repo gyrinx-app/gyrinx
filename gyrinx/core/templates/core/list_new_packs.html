@@ -1,71 +1,80 @@
 {% extends "core/layouts/base.html" %}
 {% load custom_tags %}
 {% block head_title %}
-    Content Packs
+    Add Content Packs?
 {% endblock head_title %}
 {% block content %}
-    <div class="col-12 col-xl-6 px-0 vstack gap-3">
-        <h1 class="h3">Content Packs</h1>
+    {% url 'core:lists' as lists_url %}
+    {% include "core/includes/breadcrumb.html" with type="Lists" owner=request.user name="New" type_url=lists_url only %}
+    <div class="col-12 col-xl-8 px-0 vstack gap-3">
+        <h1 class="h3">Add Content Packs?</h1>
+        <!-- Default game content -->
+        <div class="border rounded p-3">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi-book fs-5"></i>
+                <div>
+                    <div class="fw-medium">Default Game Content</div>
+                    <div class="text-secondary fs-7">Standard fighters, equipment, and rules from the core rulebooks.</div>
+                </div>
+                <a href="{% url 'core:lists-new' %}?skip_packs=1"
+                   class="btn btn-primary ms-auto">Use default content <i class="bi-arrow-right"></i></a>
+            </div>
+        </div>
+        <!-- Separator -->
+        <div class="d-flex align-items-center gap-3">
+            <hr class="flex-grow-1">
+            <span class="text-secondary fs-7">Optionally add content packs</span>
+            <hr class="flex-grow-1">
+        </div>
+        <!-- Submit button + Filter bar -->
+        <div class="d-flex flex-column flex-xl-row-reverse gap-3 align-items-xl-start">
+            <button type="submit"
+                    form="pack-form"
+                    class="btn btn-primary align-self-end flex-shrink-0"
+                    id="include-packs-btn"
+                    disabled>
+                Include selected packs <i class="bi-arrow-right"></i>
+            </button>
+            <div class="grid flex-grow-1">
+                {% url 'core:lists-new-packs' as action %}
+                {% include "core/includes/packs_filter.html" with action=action %}
+            </div>
+        </div>
+        <!-- Pack list (form wraps only the checkboxes) -->
         <form method="post"
               action="{% url 'core:lists-new-packs' %}"
-              class="vstack gap-3">
+              id="pack-form">
             {% csrf_token %}
-            <!-- Default game content -->
-            <div class="border rounded p-2 bg-body-secondary">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi-book fs-5"></i>
-                    <div>
-                        <div class="fw-medium">Default Game Content</div>
-                        <div class="text-secondary fs-7">Standard fighters, equipment, and rules from the core rulebooks.</div>
-                    </div>
-                    <span class="ms-auto badge text-bg-success">Included</span>
-                </div>
-            </div>
-            <!-- Continue button -->
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Continue</button>
-                <a href="{% url 'core:lists-new' %}?skip_packs=1" class="btn btn-link">Skip</a>
-            </div>
-            {% if available_packs %}
-                <!-- Separator -->
-                <div class="d-flex align-items-center gap-3">
-                    <hr class="flex-grow-1">
-                    <span class="text-secondary fs-7">Optionally add content packs</span>
-                    <hr class="flex-grow-1">
-                </div>
-                <!-- Search -->
-                <div class="input-group input-group-sm">
-                    <input type="text"
-                           name="q"
-                           class="form-control"
-                           placeholder="Filter packs..."
-                           value="{{ search_query }}"
-                           id="pack-search"
-                           data-gy-filter-target="pack-list">
-                </div>
-                <!-- Pack list -->
-                <div class="vstack gap-2" id="pack-list">
-                    {% for pack in available_packs %}
-                        <label class="border rounded p-2 d-flex align-items-start gap-2 pack-item"
-                               data-filter-label="{{ pack.name|lower }}">
-                            <input type="checkbox"
-                                   name="pack_ids"
-                                   value="{{ pack.id }}"
-                                   class="form-check-input mt-1"
-                                   {% if pack.id|stringformat:"s" == preselected_pack_id %}checked{% endif %}>
-                            <div class="flex-grow-1">
-                                <div class="fw-medium fs-7">{{ pack.name }}</div>
-                                <div class="text-secondary fs-7">by {{ pack.owner }}</div>
-                                {% if pack.summary %}
-                                    <div class="text-secondary fs-7 mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>
-                                {% endif %}
+            <div class="vstack gap-2" id="pack-list">
+                {% for pack in available_packs %}
+                    <label class="border rounded p-2 d-flex align-items-start gap-2 pack-item">
+                        <input type="checkbox"
+                               name="pack_ids"
+                               value="{{ pack.id }}"
+                               class="form-check-input mt-1"
+                               {% if pack.id|stringformat:"s" in preselected_pack_ids %}checked{% endif %}>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div>
+                                <span class="fw-medium">{{ pack.name }}</span>
+                                <span class="text-secondary">· {{ pack.owner }}</span>
                             </div>
-                        </label>
-                    {% endfor %}
-                    {# djlint:off H021 #}
-                    <div class="text-secondary fs-7" data-filter-empty style="display: none;">No matches.</div>
-                </div>
-            {% endif %}
+                            {% if pack.summary %}<div class="text-secondary mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                            {% if pack.content_preview %}
+                                <div class="text-secondary fs-7 mt-1 text-truncate">
+                                    {% for part in pack.content_preview %}
+                                        <span>{{ part.names|join:", " }}
+                                            {% if part.suffix %}, …{% endif %}
+                                        </span>
+                                        {% if not forloop.last %}<span class="mx-1">·</span>{% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </label>
+                {% empty %}
+                    <div class="text-secondary fs-7">No content packs found.</div>
+                {% endfor %}
+            </div>
         </form>
     </div>
 {% endblock content %}
