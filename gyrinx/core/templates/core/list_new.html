@@ -22,6 +22,7 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
+            {% for pid in pack_ids %}<input type="hidden" name="packs" value="{{ pid }}">{% endfor %}
             {{ form.media }}
             {{ form }}
             <div class="mt-3">

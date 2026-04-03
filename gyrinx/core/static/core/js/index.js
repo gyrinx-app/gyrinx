@@ -482,7 +482,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     .getAttribute("data-filter-label")
                     .toLowerCase()
                     .includes(query);
-                item.style.display = match ? "" : "none";
+                item.classList.toggle("d-none", !match);
                 if (match) visible++;
             });
 
@@ -502,9 +502,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const packCheckboxes = document.querySelectorAll('input[name="pack_ids"]');
     if (packCheckboxes.length === 0) return;
 
+    const arrowIcon = includePacksBtn.querySelector("i");
     const updateButtonState = () => {
-        const anyChecked = [...packCheckboxes].some((cb) => cb.checked);
-        includePacksBtn.disabled = !anyChecked;
+        const checkedCount = [...packCheckboxes].filter(
+            (cb) => cb.checked,
+        ).length;
+        includePacksBtn.disabled = checkedCount === 0;
+        // Update text node before the icon
+        const label =
+            checkedCount > 0
+                ? `Include selected packs (${checkedCount}) `
+                : "Include selected packs ";
+        if (arrowIcon) {
+            arrowIcon.previousSibling.textContent = label;
+        } else {
+            includePacksBtn.textContent = label;
+        }
     };
 
     packCheckboxes.forEach((cb) => {

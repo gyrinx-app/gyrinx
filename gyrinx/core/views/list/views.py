@@ -583,25 +583,20 @@ def new_list(request):
     from gyrinx.core.models.pack import CustomContentPack
 
     is_cc_user = request.user.groups.filter(name="Custom Content").exists()
-    session_pack_ids = request.session.get("new_list_pack_ids")
+
+    if request.method == "POST":
+        pack_ids = request.POST.getlist("packs")
+    else:
+        pack_ids = request.GET.getlist("packs")
+
+    has_packs_param = "packs" in request.GET or "skip_packs" in request.GET
 
     # CC users who haven't visited the interstitial yet get redirected there
-    if (
-        request.method == "GET"
-        and is_cc_user
-        and session_pack_ids is None
-        and request.GET.get("skip_packs") != "1"
-    ):
+    if request.method == "GET" and is_cc_user and not has_packs_param:
         return HttpResponseRedirect(reverse("core:lists-new-packs"))
 
-    # If skip_packs=1, clear any previously selected packs
-    if request.GET.get("skip_packs") == "1":
-        request.session["new_list_pack_ids"] = []
-        session_pack_ids = []
-
-    # Resolve selected packs from session
+    # Resolve selected packs
     selected_packs = CustomContentPack.objects.none()
-    pack_ids = session_pack_ids or []
     if pack_ids:
         valid_pack_ids = [pid for pid in pack_ids if is_valid_uuid(pid)]
         selected_packs = CustomContentPack.objects.filter(
@@ -628,9 +623,6 @@ def new_list(request):
             if selected_packs:
                 result.lst.packs.set(selected_packs)
 
-            # Clear session key
-            request.session.pop("new_list_pack_ids", None)
-
             # Log the list creation event (HTTP-specific)
             log_event(
                 user=request.user,
@@ -655,7 +647,12 @@ def new_list(request):
     return render(
         request,
         "core/list_new.html",
-        {"form": form, "houses": houses, "selected_packs": list(selected_packs)},
+        {
+            "form": form,
+            "houses": houses,
+            "selected_packs": list(selected_packs),
+            "pack_ids": pack_ids,
+        },
     )
 
 
@@ -676,16 +673,27 @@ def new_list_packs(request):
 
     from gyrinx.core.models.pack import CustomContentPack
 
-    available_packs = (
-        CustomContentPack.objects.filter(archived=False)
-        .filter(Q(listed=True) | Q(owner=request.user))
-        .select_related("owner")
-        .order_by("name")
+    available_packs = CustomContentPack.objects.filter(archived=False).select_related(
+        "owner"
     )
 
+    # "Your Packs Only" toggle (default on)
+    show_my_packs = request.GET.get("my", "1")
+    if show_my_packs == "1":
+        available_packs = available_packs.filter(owner=request.user)
+    else:
+        available_packs = available_packs.filter(Q(listed=True) | Q(owner=request.user))
+
+    # Search
     search_query = request.GET.get("q", "").strip()
     if search_query:
-        available_packs = available_packs.filter(name__icontains=search_query)
+        search_vector = SearchVector("name", "summary", "owner__username")
+        search_q = SearchQuery(search_query)
+        available_packs = available_packs.annotate(search=search_vector).filter(
+            search=search_q
+        )
+
+    available_packs = available_packs.order_by("name")
 
     if request.method == "POST":
         pack_ids = request.POST.getlist("pack_ids")
@@ -697,9 +705,14 @@ def new_list_packs(request):
             )
         )
         pack_ids = [pid for pid in pack_ids if pid in valid_ids]
-        # Store selected pack IDs in session (may be empty list if none selected)
-        request.session["new_list_pack_ids"] = pack_ids
-        return HttpResponseRedirect(reverse("core:lists-new"))
+        # Redirect with pack IDs as URL params
+        url = reverse("core:lists-new")
+        if pack_ids:
+            params = "&".join(f"packs={pid}" for pid in pack_ids)
+            url = f"{url}?{params}"
+        else:
+            url = f"{url}?skip_packs=1"
+        return HttpResponseRedirect(url)
 
     # Pre-select a pack if ?pack=<id> is in the query string
     preselected_pack_id = request.GET.get("pack", "")
