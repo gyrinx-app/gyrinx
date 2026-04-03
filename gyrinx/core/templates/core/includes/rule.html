@@ -5,7 +5,7 @@
             <span bs-tooltip
                   data-bs-toggle="tooltip"
                   class="tooltipped"
-                  title="Added by equipment, accessories or upgrades">{{ rule.value }}</span>
+                  title="{{ rule.source_label }}">{{ rule.value }}</span>
         {% else %}
             <span>{% ref rule.value value=rule.value %}</span>
         {% endif %}

@@ -2678,14 +2678,15 @@ class ListFighter(AppBase):
             disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
             custom_rules = list(rules_qs.filter(custom_for_fighters=self))
 
-        modded = []
+        equipment_modded = set()
+        user_modded = set()
         rules = [r for r in rules if r not in disabled_rules_set]
 
         # Apply modifications from equipment/items
         for mod in self._rulemods:
             if mod.mode == "add" and mod.rule not in rules:
                 rules.append(mod.rule)
-                modded.append(mod.rule)
+                equipment_modded.add(mod.rule)
             elif mod.mode == "remove" and mod.rule in rules:
                 rules.remove(mod.rule)
 
@@ -2693,9 +2694,24 @@ class ListFighter(AppBase):
         for custom_rule in custom_rules:
             if custom_rule not in rules:
                 rules.append(custom_rule)
-                modded.append(custom_rule)
+                user_modded.add(custom_rule)
 
-        return [RulelineDisplay(rule.name, rule in modded) for rule in rules]
+        def _make_display(rule):
+            if rule in equipment_modded:
+                return RulelineDisplay(
+                    rule.name,
+                    modded=True,
+                    source=RulelineDisplay.SOURCE_EQUIPMENT,
+                )
+            elif rule in user_modded:
+                return RulelineDisplay(
+                    rule.name,
+                    modded=True,
+                    source=RulelineDisplay.SOURCE_USER,
+                )
+            return RulelineDisplay(rule.name)
+
+        return [_make_display(rule) for rule in rules]
 
     # Assignments
 
