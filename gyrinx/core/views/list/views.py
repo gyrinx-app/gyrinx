@@ -594,8 +594,8 @@ def new_list(request):
     ):
         return HttpResponseRedirect(reverse("core:lists-new-packs"))
 
-    # If skip_packs=1, store empty list so redirect doesn't loop
-    if request.GET.get("skip_packs") == "1" and session_pack_ids is None:
+    # If skip_packs=1, clear any previously selected packs
+    if request.GET.get("skip_packs") == "1":
         request.session["new_list_pack_ids"] = []
         session_pack_ids = []
 

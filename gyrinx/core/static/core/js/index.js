@@ -503,9 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (packCheckboxes.length === 0) return;
 
     const updateButtonState = () => {
-        const anyChecked =
-            document.querySelectorAll('input[name="pack_ids"]:checked').length >
-            0;
+        const anyChecked = [...packCheckboxes].some((cb) => cb.checked);
         includePacksBtn.disabled = !anyChecked;
     };
 
@@ -513,7 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cb.addEventListener("change", updateButtonState);
     });
 
-    // Handle preselected packs (e.g. ?pack=<id>)
+    // Set initial state (disabled unless packs are preselected)
     updateButtonState();
 });
 
