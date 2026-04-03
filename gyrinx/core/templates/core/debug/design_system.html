@@ -1286,7 +1286,88 @@
     </table>
 </section>
 <!-- ============================================================ -->
-<!-- 14. LINKS -->
+<!-- 14. COMMA-SEPARATED LISTS (SPACELESS) -->
+<!-- ============================================================ -->
+<section>
+    <h2 class="h4 mb-3">Comma-separated lists (spaceless)</h2>
+    <p class="text-secondary fs-7 mb-3">
+        When rendering items inline without unwanted whitespace (rules, skills, injuries on fighter cards),
+        use <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> with
+        <code>&lt;span&gt;</code> wrappers and a comma separator. Without this pattern, Django templates
+        insert whitespace between tags, producing <code>item1 , item2</code> instead of <code>item1,&nbsp;item2</code>.
+    </p>
+    <h3 class="h6 caps-label mb-2">Live example</h3>
+    <div class="border rounded p-3 mb-3 fs-7">
+        <table class="table table-sm table-borderless mb-0">
+            <tr>
+                <th class="text-secondary" style="width: 80px">Rules</th>
+                <td>
+                    {% spaceless %}
+                        <span>Backstab</span><span>,&nbsp;</span><span>Infiltrate</span><span>,&nbsp;</span><span class="text-warning">Gang Fighter (Ganger)</span>
+                    {% endspaceless %}
+                    <a href="#" class="linked fs-7">Edit</a>
+                </td>
+            </tr>
+            <tr>
+                <th class="text-secondary">Skills</th>
+                <td>
+                    {% spaceless %}
+                        <span>Nerves of Steel</span><span>,&nbsp;</span><span>Spring Up</span>
+                    {% endspaceless %}
+                    <a href="#" class="linked fs-7">Edit</a>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <h3 class="h6 caps-label mb-2">Template pattern</h3>
+    <pre class="border rounded p-2 fs-7 mb-3"><code>{% templatetag openblock %} spaceless {% templatetag closeblock %}
+    {% templatetag openblock %} for item in items {% templatetag closeblock %}
+        &lt;span&gt;{% templatetag openvariable %} item {% templatetag closevariable %}&lt;/span&gt;
+        {% templatetag openblock %} if not forloop.last {% templatetag closeblock %}&lt;span&gt;,&amp;nbsp;&lt;/span&gt;{% templatetag openblock %} endif {% templatetag closeblock %}
+    {% templatetag openblock %} endfor {% templatetag closeblock %}
+{% templatetag openblock %} endspaceless {% templatetag closeblock %}</code></pre>
+    <h3 class="h6 caps-label mb-2">Rules</h3>
+    <table class="table table-sm table-borderless mb-0 fs-7">
+        <thead>
+            <tr>
+                <th>Rule</th>
+                <th>Why</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    Wrap each item in <code>&lt;span&gt;</code>
+                </td>
+                <td>
+                    <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> collapses whitespace between tags
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Separator: <code>&lt;span&gt;,&amp;nbsp;&lt;/span&gt;</code>
+                </td>
+                <td>
+                    <code>&amp;nbsp;</code> prevents line breaks mid-list
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Guard: <code>{% templatetag openblock %} if not forloop.last {% templatetag closeblock %}</code>
+                </td>
+                <td>No trailing comma</td>
+            </tr>
+            <tr>
+                <td>
+                    "Edit" link goes <em>outside</em> <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code>
+                </td>
+                <td>Normal whitespace before the link is fine</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+<!-- ============================================================ -->
+<!-- 15. LINKS -->
 <!-- ============================================================ -->
 <section>
     <h2 class="h4 mb-3">Links</h2>
@@ -1325,7 +1406,129 @@
     </p>
 </section>
 <!-- ============================================================ -->
-<!-- 15. CUSTOM CSS REFERENCE -->
+<!-- 16. INLINE ACTION MENUS -->
+<!-- ============================================================ -->
+<section>
+    <h2 class="h4 mb-3">Inline action menus</h2>
+    <p class="text-secondary fs-7 mb-3">
+        Contextual action links shown below equipment, weapons, and gear on fighter cards.
+        The <code>bi-arrow-90deg-up</code> icon visually connects the menu to the item above.
+        In templates, links are separated by the <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> tag (requires <code>{% templatetag openblock %} load custom_tags {% templatetag closeblock %}</code>), which renders as <code>&amp;nbsp;·&amp;nbsp;</code>. The live examples below use the literal character.
+    </p>
+    <h3 class="h6 caps-label mb-2">Weapon menu (table row)</h3>
+    <p class="text-secondary fs-7 mb-2">
+        Used inside weapon stat tables. The menu occupies a full-width <code>&lt;td&gt;</code> with <code>colspan</code> matching the table's column count (e.g. <code>colspan="9"</code> for the standard weapon table).
+    </p>
+    <div class="border rounded p-3 mb-3">
+        <table class="table table-sm table-borderless mb-0 fs-7">
+            <tbody>
+                <tr>
+                    <td>Lasgun</td>
+                    <td class="text-center">24"</td>
+                    <td class="text-center">48"</td>
+                    <td class="text-center">4</td>
+                    <td class="text-center">-1</td>
+                    <td class="text-center">1</td>
+                </tr>
+                <tr>
+                    <td colspan="6" class="text-end">
+                        <div class="d-flex flex-wrap">
+                            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
+                            <a href="#" class="link-secondary">Edit</a>
+                            &nbsp;·&nbsp;
+                            <a href="#" class="link-secondary">Accessories</a>
+                            &nbsp;·&nbsp;
+                            <a href="#" class="link-secondary">Cost</a>
+                            &nbsp;·&nbsp;
+                            <a href="#" class="link-secondary">Reassign</a>
+                            &nbsp;·&nbsp;
+                            <a href="#" class="link-danger">Delete</a>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <h3 class="h6 caps-label mb-2">Gear menu (inline)</h3>
+    <p class="text-secondary fs-7 mb-2">Used inline after gear item names. No table wrapper.</p>
+    <div class="border rounded p-3 mb-3 fs-7">
+        <div>Mesh Armour (15¢)</div>
+        <div>
+            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
+            <a href="#" class="link-secondary">Cost</a>
+            &nbsp;·&nbsp;
+            <a href="#" class="link-secondary">Reassign</a>
+            &nbsp;·&nbsp;
+            <a href="#" class="link-danger">Delete</a>
+        </div>
+    </div>
+    <h3 class="h6 caps-label mb-2">Default equipment menu (inline)</h3>
+    <p class="text-secondary fs-7 mb-2">Used for default (template-provided) equipment. Fewer actions available.</p>
+    <div class="border rounded p-3 mb-3 fs-7">
+        <div>Fighting Knife (default)</div>
+        <div>
+            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
+            <a href="#" class="link-secondary">Modify from default</a>
+            &nbsp;·&nbsp;
+            <a href="#" class="link-danger">Delete</a>
+        </div>
+    </div>
+    <h3 class="h6 caps-label mb-2">Rules</h3>
+    <table class="table table-sm table-borderless mb-0 fs-7">
+        <thead>
+            <tr>
+                <th>Element</th>
+                <th>Classes / pattern</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Arrow icon</td>
+                <td>
+                    <code>bi-arrow-90deg-up text-secondary me-1</code>
+                </td>
+            </tr>
+            <tr>
+                <td>Action link</td>
+                <td>
+                    <code>link-secondary</code> (edit, cost, reassign, accessories)
+                </td>
+            </tr>
+            <tr>
+                <td>Destructive link</td>
+                <td>
+                    <code>link-danger</code> (delete, archive)
+                </td>
+            </tr>
+            <tr>
+                <td>Sell link</td>
+                <td>
+                    <code>link-warning</code> (stash sell actions)
+                </td>
+            </tr>
+            <tr>
+                <td>Separator</td>
+                <td>
+                    <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> renders <code>&amp;nbsp;·&amp;nbsp;</code>
+                </td>
+            </tr>
+            <tr>
+                <td>Wrapper (table)</td>
+                <td>
+                    <code>d-flex flex-wrap</code> inside full-width <code>&lt;td&gt;</code>
+                </td>
+            </tr>
+            <tr>
+                <td>Wrapper (inline)</td>
+                <td>
+                    <code>&lt;br&gt;</code> before icon (in real templates), or a <code>&lt;div&gt;</code> wrapper
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+<!-- ============================================================ -->
+<!-- 17. CUSTOM CSS REFERENCE -->
 <!-- ============================================================ -->
 <section>
     <h2 class="h4 mb-3">Custom CSS reference</h2>
@@ -1372,7 +1575,7 @@
     </table>
 </section>
 <!-- ============================================================ -->
-<!-- 16. FLASH ANIMATION -->
+<!-- 18. FLASH ANIMATION -->
 <!-- ============================================================ -->
 <section>
     <h2 class="h4 mb-3">Flash highlight</h2>

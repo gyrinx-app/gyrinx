@@ -312,9 +312,91 @@ For inline empty values in table cells: `<span class="text-secondary fst-italic"
 
 ---
 
+## Comma-Separated Lists (spaceless)
+
+When rendering a list of items inline without unwanted whitespace (e.g., rules, skills, injuries on fighter cards), use `{% spaceless %}` with `<span>` wrappers and a comma separator:
+
+```html
+{% spaceless %}
+    {% for item in items %}
+        <span>{{ item }}</span>
+        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+    {% endfor %}
+{% endspaceless %}
+```
+
+**Why this pattern exists:** Django templates insert whitespace between tags. Without `{% spaceless %}` and `<span>` wrappers, you get `item1 , item2` instead of `item1,&nbsp;item2`. The `&nbsp;` after the comma prevents line breaks mid-list.
+
+**Rules:**
+
+- Wrap each item in `<span>` so `{% spaceless %}` can collapse the surrounding whitespace
+- Wrap the comma+space in `<span>,&nbsp;</span>` — not a bare comma
+- Use `{% if not forloop.last %}` to skip the trailing separator
+- The entire block must be inside `{% spaceless %}...{% endspaceless %}`
+- An optional "Edit" link can follow *outside* the `{% spaceless %}` block
+
+---
+
 ## Confirmation Pages
 
 Pattern: back link, `alert-warning alert-icon` explaining consequences, form with confirm button (`btn-danger`) and cancel link.
+
+---
+
+## Inline Action Menus
+
+Contextual action links shown below equipment, weapons, and gear on fighter cards. The `bi-arrow-90deg-up` icon visually connects the menu to the item above. Links are separated by the `{% dot %}` tag (`&nbsp;·&nbsp;`). Requires `{% load custom_tags %}` in the template.
+
+### Weapon menu (table row)
+
+Inside weapon stat tables, the menu occupies a full-width `<td>` with `colspan` matching the table's column count (e.g., `colspan="9"` for the standard weapon table):
+
+```html
+{% load custom_tags %}
+<tr>
+    <td colspan="9" class="text-end">
+        <div class="d-flex flex-wrap">
+            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
+            <a href="..." class="link-secondary">Edit</a>
+            {% dot %}
+            <a href="..." class="link-secondary">Accessories</a>
+            {% dot %}
+            <a href="..." class="link-secondary">Cost</a>
+            {% dot %}
+            <a href="..." class="link-secondary">Reassign</a>
+            {% dot %}
+            <a href="..." class="link-danger">Delete</a>
+        </div>
+    </td>
+</tr>
+```
+
+### Gear / default equipment menu (inline)
+
+A `<br>` before the icon in real templates, or a `<div>` wrapper:
+
+```html
+{% load custom_tags %}
+<br>
+<i class="bi-arrow-90deg-up text-secondary me-1"></i>
+<a href="..." class="link-secondary">Cost</a>
+{% dot %}
+<a href="..." class="link-secondary">Reassign</a>
+{% dot %}
+<a href="..." class="link-danger">Delete</a>
+```
+
+### Rules
+
+| Element | Classes / pattern |
+|---------|------------------|
+| Arrow icon | `bi-arrow-90deg-up text-secondary me-1` |
+| Action link | `link-secondary` (edit, cost, reassign, accessories) |
+| Destructive link | `link-danger` (delete, archive) |
+| Sell link | `link-warning` (stash sell actions) |
+| Separator | `{% dot %}` renders `&nbsp;·&nbsp;` (requires `{% load custom_tags %}`) |
+| Wrapper (table) | `d-flex flex-wrap` inside full-width `<td>` |
+| Wrapper (inline) | `<br>` before icon (in real templates), or a `<div>` wrapper |
 
 ---
 
