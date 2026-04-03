@@ -683,35 +683,18 @@ def new_list_packs(request):
 
     from gyrinx.core.models.pack import CustomContentPack
 
-    available_packs = CustomContentPack.objects.filter(archived=False).select_related(
-        "owner"
+    # All packs the user can access (for POST validation)
+    accessible_packs = CustomContentPack.objects.filter(archived=False).filter(
+        Q(listed=True) | Q(owner=request.user)
     )
-
-    # "Your Packs Only" toggle (default on)
-    show_my_packs = request.GET.get("my", "1")
-    if show_my_packs == "1":
-        available_packs = available_packs.filter(owner=request.user)
-    else:
-        available_packs = available_packs.filter(Q(listed=True) | Q(owner=request.user))
-
-    # Search
-    search_query = request.GET.get("q", "").strip()
-    if search_query:
-        search_vector = SearchVector("name", "summary", "owner__username")
-        search_q = SearchQuery(search_query)
-        available_packs = available_packs.annotate(search=search_vector).filter(
-            search=search_q
-        )
-
-    available_packs = available_packs.order_by("name")
 
     if request.method == "POST":
         raw_ids = request.POST.getlist("pack_ids")
         sanitised_ids = [pid for pid in raw_ids if is_valid_uuid(pid)]
-        # Validate submitted IDs against accessible packs
+        # Validate against all accessible packs, not just the filtered view
         valid_ids = set(
             str(pk)
-            for pk in available_packs.filter(id__in=sanitised_ids).values_list(
+            for pk in accessible_packs.filter(id__in=sanitised_ids).values_list(
                 "id", flat=True
             )
         )
@@ -723,6 +706,25 @@ def new_list_packs(request):
         else:
             url = f"{url}?{urlencode({'skip_packs': '1'})}"
         return HttpResponseRedirect(url)
+
+    # Display filtering for GET requests
+    available_packs = accessible_packs.select_related("owner")
+
+    # "Your Packs Only" toggle (default on)
+    show_my_packs = request.GET.get("my", "1")
+    if show_my_packs == "1":
+        available_packs = available_packs.filter(owner=request.user)
+
+    # Search
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        search_vector = SearchVector("name", "summary", "owner__username")
+        search_q = SearchQuery(search_query)
+        available_packs = available_packs.annotate(search=search_vector).filter(
+            search=search_q
+        )
+
+    available_packs = available_packs.order_by("name")
 
     # Pre-select packs from ?pack=<id> query params
     preselected_pack_ids = set(request.GET.getlist("pack"))
