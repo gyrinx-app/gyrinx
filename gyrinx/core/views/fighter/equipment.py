@@ -7,8 +7,8 @@ from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db import models, transaction
+from django.db.models import Case, Prefetch, Q, Value, When
 from django.http import HttpResponseRedirect, QueryDict
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -361,13 +361,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         equipment = equipment.filter(category_id__in=cats)
 
     # Apply search filter if provided
-    if request.GET.get("q"):
+    # Note: distinct() for search deduplication is applied later, after the
+    # is_on_equipment_list annotation, so distinct fields match the final ordering.
+    is_search = bool(request.GET.get("q"))
+    if is_search:
         search_query = SearchQuery(request.GET.get("q", ""))
-        equipment = (
-            equipment.annotate(search=search_vector)
-            .filter(search=search_query)
-            .distinct("category__name", "name", "id")
-        )
+        equipment = equipment.annotate(search=search_vector).filter(search=search_query)
 
     # Check if the house has can_buy_any flag
     house_can_buy_any = lst.content_house.can_buy_any
@@ -525,6 +524,23 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         # Re-apply cost filter after re-annotation
         if mc is not None:
             equipment = equipment.filter(cost_for_fighter__lte=mc)
+
+    # Annotate equipment with whether it's on the fighter's equipment list
+    # so that default/base versions sort before trading post variants.
+    equipment = equipment.annotate(
+        is_on_equipment_list=Case(
+            When(id__in=equipment_list_ids, then=Value(0)),
+            default=Value(1),
+            output_field=models.IntegerField(),
+        ),
+    ).order_by("is_on_equipment_list", "category__name", "name", "id")
+
+    # Search joins across weapon profiles/traits, which can produce duplicate
+    # equipment rows. Deduplicate using the same fields as the ordering.
+    if is_search:
+        equipment = equipment.distinct(
+            "is_on_equipment_list", "category__name", "name", "id"
+        )
 
     # Create assignment objects
     assigns = []
