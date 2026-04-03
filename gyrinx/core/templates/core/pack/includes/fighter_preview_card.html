@@ -1,0 +1,147 @@
+{% load custom_tags %}
+{% comment %}
+    Fighter preview card for content pack edit pages.
+    Shows a read-only preview of the content fighter: name, category, stats,
+    rules, skills, and default equipment.
+
+    Context:
+    - content_fighter: The ContentFighter object (or content_obj on the edit page)
+    - preview_statline: list of stat dicts from content_fighter.statline()
+    - preview_rules: list of ContentRule objects
+    - preview_skills: list of ContentSkill objects
+    - preview_weapons: list of ContentFighterDefaultAssignment (weapons)
+    - preview_gear: list of ContentFighterDefaultAssignment (gear)
+{% endcomment %}
+<div class="card">
+    <div class="card-header p-2">
+        <div class="hstack align-items-start">
+            <div class="vstack gap-1">
+                <h3 class="h5 mb-0">{{ content_fighter.type }}</h3>
+                <div class="text-secondary fs-7">
+                    {{ content_fighter.get_category_display }}
+                    {% if content_fighter.house %}· {{ content_fighter.house.name }}{% endif %}
+                </div>
+            </div>
+            <div class="ms-auto">
+                <span class="badge text-bg-primary">{% credits content_fighter.base_cost %}</span>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <!-- Stats -->
+        {% if preview_statline %}
+            <table class="table table-sm table-borderless table-fixed mb-0">
+                <thead>
+                    <tr>
+                        {% for stat in preview_statline %}
+                            <th class="text-center border-bottom fs-7 {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}"
+                                scope="col">{{ stat.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        {% for stat in preview_statline %}
+                            <td class="text-center fs-7 {% if stat.highlight %}bg-warning-subtle{% endif %} {{ stat.classes }}">
+                                {{ stat.value }}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        {% endif %}
+        <!-- Details -->
+        {% if preview_statline %}
+            <table class="table table-sm table-borderless table-fixed mb-0">
+                <tbody class="table-group-divider">
+                    <!-- Rules -->
+                    <tr class="fs-7">
+                        <th scope="row" class="w-25">Rules</th>
+                        <td>
+                            {% if preview_rules %}
+                                {% for rule in preview_rules %}
+                                    {{ rule.name }}
+                                    {% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-secondary fst-italic">None</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <!-- Skills -->
+                    {% if not content_fighter.hide_skills %}
+                        <tr class="fs-7">
+                            <th scope="row">Skills</th>
+                            <td>
+                                {% if preview_skills %}
+                                    {% for skill in preview_skills %}
+                                        {{ skill.name }}
+                                        {% if not forloop.last %},{% endif %}
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-secondary fst-italic">None</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                    <!-- Gear -->
+                    <tr class="fs-7">
+                        <th scope="row">Gear</th>
+                        <td>
+                            {% if preview_gear %}
+                                {% for da in preview_gear %}
+                                    {{ da.equipment.name }}
+                                    {% if not forloop.last %},{% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-secondary fst-italic">None</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        {% endif %}
+        <!-- Weapons -->
+        {% if preview_weapons %}
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
+                {% for da in preview_weapons %}
+                    <tbody class="table-group-divider">
+                        {% for profile in da.all_profiles %}
+                            <tr class="align-top">
+                                <td rowspan="{% if profile.traitline_cached|length > 0 %}2{% else %}1{% endif %}">
+                                    {% if forloop.first %}
+                                        {{ da.equipment.name }}
+                                    {% elif profile.name %}
+                                        <i class="bi-dash"></i> {{ profile.name }}
+                                    {% endif %}
+                                </td>
+                                {% include "core/includes/list_fighter_weapon_profile_statline.html" with profile=profile %}
+                            </tr>
+                            {% if profile.traitline_cached|length > 0 %}
+                                <tr>
+                                    <td colspan="8">{{ profile.traitline_cached|join:", " }}</td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                {% endfor %}
+            </table>
+        {% elif preview_statline %}
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead class="table-group-divider">
+                    <tr>
+                        <th scope="col">Weapons</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <span class="text-secondary fst-italic">None</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</div>

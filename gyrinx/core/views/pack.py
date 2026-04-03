@@ -1333,6 +1333,7 @@ def edit_pack_item(request, id, item_id):
         "pack": pack,
         "pack_item": pack_item,
         "content_obj": content_obj,
+        "content_fighter": content_obj if is_fighter else None,
         "label": singular_label,
         "icon": entry.icon,
         "slug": entry.slug,
@@ -1403,6 +1404,9 @@ def edit_pack_item(request, id, item_id):
             context["selected_trait_ids"] = set(request.POST.getlist("wp_traits"))
         else:
             context["selected_trait_ids"] = set()
+
+    if is_fighter:
+        context.update(_load_fighter_preview_context(pack, content_obj))
 
     return render(request, "core/pack/pack_item_edit.html", context)
 
@@ -2249,6 +2253,39 @@ def _load_equipment_list_context(content_fighter):
     }
 
 
+def _load_fighter_preview_context(pack, content_fighter):
+    """Load data for the fighter preview card on edit pages."""
+    statline = content_fighter.statline()
+    rules = list(content_fighter.rules.all())
+    skills = list(content_fighter.skills.all())
+
+    # Default weapon assignments with profiles
+    default_assignments = (
+        ContentFighterDefaultAssignment.objects.filter(fighter=content_fighter)
+        .select_related("equipment", "equipment__category")
+        .prefetch_related(
+            Prefetch(
+                "weapon_profiles_field",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            ),
+            Prefetch(
+                "equipment__contentweaponprofile_set",
+                queryset=ContentWeaponProfile.objects.with_packs([pack]),
+            ),
+        )
+    )
+    preview_weapons = [da for da in default_assignments if da.is_weapon()]
+    preview_gear = [da for da in default_assignments if not da.is_weapon()]
+
+    return {
+        "preview_statline": statline,
+        "preview_rules": rules,
+        "preview_skills": skills,
+        "preview_weapons": preview_weapons,
+        "preview_gear": preview_gear,
+    }
+
+
 @login_required
 @group_membership_required(["Custom Content"])
 def pack_item_equipment(request, id, item_id):
@@ -2269,6 +2306,7 @@ def pack_item_equipment(request, id, item_id):
     }
     context.update(_load_default_equipment_context(pack, content_fighter))
     context.update(_load_equipment_list_context(content_fighter))
+    context.update(_load_fighter_preview_context(pack, content_fighter))
 
     return render(request, "core/pack/pack_item_equipment.html", context)
 
