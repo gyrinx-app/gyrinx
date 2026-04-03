@@ -2837,9 +2837,9 @@ def pack_weapon(pack, group_user, weapon_category):
 
 @pytest.mark.django_db
 def test_add_weapon_form_loads(client, group_user, pack, weapon_category):
-    """Test that the add weapon form page loads."""
+    """Test that the add weapon form page loads (single mode via query param)."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
     assert response.status_code == 200
     assert b"Add Weapon" in response.content
     assert b"Weapon stats" in response.content
@@ -3294,7 +3294,7 @@ def test_weapon_category_only_shows_weapons(client, group_user, pack, weapon_cat
     )
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
     assert response.status_code == 200
     # Weapon categories should appear.
     assert b"Pistols" in response.content
@@ -3322,6 +3322,262 @@ def test_weapon_shows_in_weapon_section_not_gear(
     # Autopistol should appear after the Weapons heading.
     autopistol_pos = content.find("Test Autopistol")
     assert autopistol_pos > weapon_section_start
+
+
+# --- Weapon profile mode selection tests ---
+
+
+@pytest.mark.django_db
+def test_weapon_mode_select_page_loads(client, group_user, pack):
+    """GET /pack/<id>/add/weapon/ redirects to mode selection."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    assert response.status_code == 302
+    assert f"/pack/{pack.id}/add/weapon/mode/" in response.url
+
+
+@pytest.mark.django_db
+def test_weapon_mode_select_page_renders(client, group_user, pack):
+    """Mode selection page renders with both options."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon/mode/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Single profile" in content
+    assert "Multiple profiles" in content
+    assert "profile_mode=single" in content
+    assert "profile_mode=multi" in content
+
+
+@pytest.mark.django_db
+def test_weapon_invalid_profile_mode_redirects(
+    client, group_user, pack, weapon_category
+):
+    """Invalid profile_mode redirects to mode selection."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=invalid")
+    assert response.status_code == 302
+    assert f"/pack/{pack.id}/add/weapon/mode/" in response.url
+
+
+@pytest.mark.django_db
+def test_add_weapon_multi_mode_form_loads(client, group_user, pack, weapon_category):
+    """Multi mode form loads with two profile name inputs and stat fields."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=multi")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert 'name="wp1_name"' in content
+    assert 'name="wp2_name"' in content
+    assert 'name="wp1_range_short"' in content
+    assert 'name="wp2_range_short"' in content
+    assert 'name="profile_mode" value="multi"' in content
+
+
+@pytest.mark.django_db
+def test_add_weapon_multi_creates_two_named_profiles(
+    client, group_user, pack, weapon_category
+):
+    """Multi mode creates two named profiles and no standard profile."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        {
+            "name": "Combi-Weapon",
+            "category": str(weapon_category.pk),
+            "cost": "20",
+            "rarity": "C",
+            "profile_mode": "multi",
+            "wp1_name": "Bolter",
+            "wp1_range_short": '12"',
+            "wp1_range_long": '24"',
+            "wp1_strength": "4",
+            "wp1_damage": "1",
+            "wp1_ammo": "6+",
+            "wp2_name": "Melta",
+            "wp2_range_short": '6"',
+            "wp2_range_long": '12"',
+            "wp2_strength": "8",
+            "wp2_damage": "2",
+            "wp2_ammo": "4+",
+        },
+    )
+    assert response.status_code == 302
+
+    equip = ContentEquipment.objects.all_content().get(name="Combi-Weapon")
+    assert equip.is_weapon()
+
+    profiles = ContentWeaponProfile.objects.all_content().filter(equipment=equip)
+    assert profiles.count() == 2
+    names = set(profiles.values_list("name", flat=True))
+    assert names == {"Bolter", "Melta"}
+
+    # No standard (unnamed) profile should exist.
+    assert not profiles.filter(name="").exists()
+
+    # Both profiles should have pack items.
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    for profile in profiles:
+        assert CustomContentPackItem.objects.filter(
+            pack=pack, content_type=profile_ct, object_id=profile.pk
+        ).exists()
+
+
+@pytest.mark.django_db
+def test_add_weapon_multi_requires_profile_names(
+    client, group_user, pack, weapon_category
+):
+    """Multi mode rejects submission when profile names are blank."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        {
+            "name": "Combi-Weapon",
+            "category": str(weapon_category.pk),
+            "cost": "20",
+            "rarity": "C",
+            "profile_mode": "multi",
+            "wp1_name": "",
+            "wp2_name": "",
+        },
+    )
+    # Should re-render the form with errors, not redirect.
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Profile 1 name is required" in content
+    assert "Profile 2 name is required" in content
+
+
+@pytest.mark.django_db
+def test_add_weapon_multi_save_and_add_another(
+    client, group_user, pack, weapon_category
+):
+    """'Add and create another' in weapon mode returns to mode selection."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        {
+            "name": "Combi-Weapon",
+            "category": str(weapon_category.pk),
+            "cost": "20",
+            "rarity": "C",
+            "profile_mode": "multi",
+            "wp1_name": "Bolter",
+            "wp1_range_short": '12"',
+            "wp1_strength": "4",
+            "wp1_damage": "1",
+            "wp2_name": "Melta",
+            "wp2_range_short": '6"',
+            "wp2_strength": "8",
+            "wp2_damage": "2",
+            "save_and_add_another": "1",
+        },
+    )
+    assert response.status_code == 302
+    assert f"/pack/{pack.id}/add/weapon/mode/" in response.url
+
+
+@pytest.mark.django_db
+def test_edit_weapon_multi_profile_no_inline_stats(
+    client, group_user, pack, weapon_category
+):
+    """Edit page for a multi-profile weapon has no inline standard stat editor."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    # Create a weapon with two named profiles (no standard).
+    equip = ContentEquipment.objects.all_content().create(
+        name="Combi-Gun", category=weapon_category, cost="20", rarity="C"
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=equip.pk, owner=group_user
+    )
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    for name in ("Bolter", "Melta"):
+        p = ContentWeaponProfile.objects.create(
+            equipment=equip, name=name, cost=0, strength="4"
+        )
+        CustomContentPackItem.objects.create(
+            pack=pack, content_type=profile_ct, object_id=p.pk, owner=group_user
+        )
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{item.id}/edit/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Should NOT show the inline standard profile stat editor.
+    assert 'name="wp_range_short"' not in content
+    # Should show named profiles.
+    assert "Bolter" in content
+    assert "Melta" in content
+
+
+@pytest.mark.django_db
+def test_cannot_archive_last_two_named_profiles(
+    client, group_user, pack, weapon_category
+):
+    """Archiving is blocked when only 2 named profiles remain (no standard)."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = ContentEquipment.objects.all_content().create(
+        name="Combi-Gun", category=weapon_category, cost="20", rarity="C"
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=equip.pk, owner=group_user
+    )
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profiles = []
+    for name in ("Bolter", "Melta"):
+        p = ContentWeaponProfile.objects.create(
+            equipment=equip, name=name, cost=0, strength="4"
+        )
+        CustomContentPackItem.objects.create(
+            pack=pack, content_type=profile_ct, object_id=p.pk, owner=group_user
+        )
+        profiles.append(p)
+
+    client.force_login(group_user)
+    # Trying to delete either profile should 404.
+    response = client.post(
+        f"/pack/{pack.id}/item/{item.id}/profile/{profiles[0].id}/delete/"
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_can_archive_named_profile_when_more_than_two(
+    client, group_user, pack, weapon_category
+):
+    """Archiving is allowed when more than 2 named profiles exist (no standard)."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = ContentEquipment.objects.all_content().create(
+        name="Combi-Gun", category=weapon_category, cost="20", rarity="C"
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=equip.pk, owner=group_user
+    )
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profiles = []
+    for name in ("Bolter", "Melta", "Grenade"):
+        p = ContentWeaponProfile.objects.create(
+            equipment=equip, name=name, cost=0, strength="4"
+        )
+        CustomContentPackItem.objects.create(
+            pack=pack, content_type=profile_ct, object_id=p.pk, owner=group_user
+        )
+        profiles.append(p)
+
+    client.force_login(group_user)
+    # With 3 profiles, archiving one should be allowed.
+    response = client.post(
+        f"/pack/{pack.id}/item/{item.id}/profile/{profiles[0].id}/delete/"
+    )
+    assert response.status_code == 302
 
 
 # --- PackListsView tests ---
@@ -3649,7 +3905,7 @@ def test_custom_trait_visible_in_weapon_profile_form(
     pack_trait = ContentWeaponTrait.objects.all_content().get(name="Pack Trait")
 
     # Load the add weapon form — both traits should be in the picker.
-    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
     content = response.content.decode()
     assert str(base_trait.pk) in content
     assert str(pack_trait.pk) in content

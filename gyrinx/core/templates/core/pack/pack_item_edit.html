@@ -47,7 +47,7 @@
                         {% if weapon_stat_values %}
                             {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_values %}
                         {% endif %}
-                        {% if weapon_stat_values %}
+                        {% if weapon_stat_values or has_named_profiles %}
                             <div>
                                 <label class="form-label">Profiles</label>
                                 {% if named_profiles %}
@@ -63,8 +63,10 @@
                                                         <span class="text-secondary fs-7">
                                                             · <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
     class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
-                                                            · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
+                                                            {% if can_archive_profiles %}
+                                                                · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
     class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover text-danger">Archive</a>
+                                                            {% endif %}
                                                         </span>
                                                     </td>
                                                     {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
@@ -111,7 +113,7 @@
                 {% if weapon_stat_values %}
                     {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_values %}
                 {% endif %}
-                {% if weapon_stat_values %}
+                {% if weapon_stat_values or has_named_profiles %}
                     <div>
                         <label class="form-label">Profiles</label>
                         {% if named_profiles %}
@@ -127,8 +129,10 @@
                                                 <span class="text-secondary fs-7">
                                                     · <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
     class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
-                                                    · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
+                                                    {% if can_archive_profiles %}
+                                                        · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
     class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover text-danger">Archive</a>
+                                                    {% endif %}
                                                 </span>
                                             </td>
                                             {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}

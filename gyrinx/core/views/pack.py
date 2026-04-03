@@ -805,6 +805,9 @@ class AddFighterFlowParams(BaseModel):
     rule_ids: list[uuid.UUID] = []
 
 
+WEAPON_PROFILE_MODES = {"single", "multi"}
+
+
 def _get_statline_type_for_category(category):
     """Look up the ContentStatlineType for a fighter category.
 
@@ -981,8 +984,11 @@ _WEAPON_PROFILE_STAT_FIELDS = [
 ]
 
 
-def _build_weapon_stat_context(request):
-    """Build template context for weapon profile stat input fields."""
+def _build_weapon_stat_context(request, prefix="wp"):
+    """Build template context for weapon profile stat input fields.
+
+    The *prefix* controls which POST keys are read (e.g. ``wp``, ``wp1``, ``wp2``).
+    """
     stat_context = []
     for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
         entry_dict = {
@@ -991,7 +997,7 @@ def _build_weapon_stat_context(request):
             "placeholder": placeholder,
         }
         if request.method == "POST":
-            entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
+            entry_dict["value"] = request.POST.get(f"{prefix}_{field_name}", "")
         stat_context.append(entry_dict)
     return stat_context
 
@@ -1028,6 +1034,40 @@ def _create_standard_weapon_profile(equipment, post_data, user, pack):
     return profile
 
 
+def _create_named_weapon_profiles(equipment, post_data, user, pack):
+    """Create two named weapon profiles from prefixed POST data.
+
+    Reads fields with ``wp1_`` and ``wp2_`` prefixes.  Each profile gets its
+    own name, stat values, traits and a ``CustomContentPackItem`` linking it
+    to the pack.
+    """
+    ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profiles = []
+    for prefix in ("wp1", "wp2"):
+        name = (post_data.get(f"{prefix}_name", "") or "").strip()
+        profile = ContentWeaponProfile(
+            equipment=equipment,
+            name=name,
+            cost=0,
+        )
+        for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+            raw = post_data.get(f"{prefix}_{field_name}", "") or ""
+            setattr(profile, field_name, raw.strip())
+        profile._history_user = user
+        profile.full_clean()
+        profile.save()
+
+        trait_ids = post_data.getlist(f"{prefix}_traits")
+        profile.traits.set(trait_ids)
+
+        pack_item = CustomContentPackItem(
+            pack=pack, content_type=ct, object_id=profile.pk, owner=user
+        )
+        pack_item.save_with_user(user)
+        profiles.append(profile)
+    return profiles
+
+
 def _update_weapon_profile_stats(profile, post_data, user):
     """Update weapon profile stat values from POST data."""
     changed = False
@@ -1054,11 +1094,27 @@ def _update_weapon_profile_stats(profile, post_data, user):
 
 @login_required
 @group_membership_required(["Custom Content"])
+def add_pack_weapon_mode(request, id):
+    """Step 1 of the add-weapon flow: choose single or multi-profile mode."""
+    pack = _get_pack_for_edit(id, request.user)
+    context = {
+        "pack": pack,
+        "back_url": _pack_url(pack, "weapon"),
+        "add_weapon_url": reverse("core:pack-add-item", args=(pack.id, "weapon")),
+    }
+    return render(request, "core/pack/pack_weapon_mode_select.html", context)
+
+
+@login_required
+@group_membership_required(["Custom Content"])
 def add_pack_item(request, id, content_type_slug):
     """Add a new content item to a pack.
 
     For fighters this is Step 1 of a two-step flow: basic info is collected
     here and the user is redirected to Step 2 for stat entry.
+
+    For weapons the user first selects a profile mode (single/multi) via
+    ``add_pack_weapon_mode``, then arrives here with ``?profile_mode=…``.
     """
     pack = _get_pack_for_edit(id, request.user)
     entry = _get_content_type_entry(content_type_slug)
@@ -1066,9 +1122,35 @@ def add_pack_item(request, id, content_type_slug):
     is_fighter = entry.model_class is ContentFighter
     is_weapon = content_type_slug == "weapon"
 
+    # Weapons require a profile mode — redirect to mode selection if missing.
+    if is_weapon and "profile_mode" not in request.GET and request.method != "POST":
+        return HttpResponseRedirect(
+            reverse("core:pack-add-weapon-mode", args=(pack.id,))
+        )
+
+    # Resolve the weapon profile mode from GET (initial load) or POST (re-render).
+    profile_mode = "single"
+    if is_weapon:
+        profile_mode = request.POST.get("profile_mode") or request.GET.get(
+            "profile_mode", "single"
+        )
+        if profile_mode not in WEAPON_PROFILE_MODES:
+            return HttpResponseRedirect(
+                reverse("core:pack-add-weapon-mode", args=(pack.id,))
+            )
+
     if request.method == "POST":
         form = entry.form_class(request.POST, **_form_kwargs(entry, pack))
-        if form.is_valid():
+
+        # Validate multi-mode profile names before attempting to save.
+        wp_name_errors = []
+        if is_weapon and profile_mode == "multi":
+            for i, prefix in enumerate(("wp1", "wp2"), 1):
+                name = (request.POST.get(f"{prefix}_name", "") or "").strip()
+                if not name:
+                    wp_name_errors.append(f"Profile {i} name is required.")
+
+        if form.is_valid() and not wp_name_errors:
             if is_fighter:
                 # Redirect to Step 2 with form data in query params.
                 params = AddFighterFlowParams(
@@ -1101,20 +1183,32 @@ def add_pack_item(request, id, content_type_slug):
                 )
                 item.save_with_user(user=request.user)
                 if is_weapon:
-                    _create_standard_weapon_profile(
-                        content_obj, request.POST, request.user, pack
-                    )
+                    if profile_mode == "multi":
+                        _create_named_weapon_profiles(
+                            content_obj, request.POST, request.user, pack
+                        )
+                    else:
+                        _create_standard_weapon_profile(
+                            content_obj, request.POST, request.user, pack
+                        )
             if "save_and_add_another" in request.POST:
                 messages.success(request, f'{singular_label} "{content_obj}" saved.')
-                url = reverse(
-                    "core:pack-add-item",
-                    args=(pack.id, content_type_slug),
-                )
-                # Preserve category selection (e.g. skill tree) for the next add
-                if hasattr(content_obj, "category") and content_obj.category_id:
-                    url += f"?category={content_obj.category_id}"
+                if is_weapon:
+                    # Return to mode selection for the next weapon.
+                    url = reverse("core:pack-add-weapon-mode", args=(pack.id,))
+                else:
+                    url = reverse(
+                        "core:pack-add-item",
+                        args=(pack.id, content_type_slug),
+                    )
+                    # Preserve category selection (e.g. skill tree → skill)
+                    if hasattr(content_obj, "category") and content_obj.category_id:
+                        url += f"?category={content_obj.category_id}"
                 return HttpResponseRedirect(url)
             return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
+        elif wp_name_errors:
+            for err in wp_name_errors:
+                form.add_error(None, err)
     else:
         form = entry.form_class(**_form_kwargs(entry, pack))
         # Pre-select category from query param (e.g., skill tree → skill)
@@ -1137,16 +1231,39 @@ def add_pack_item(request, id, content_type_slug):
         context["next_step_button"] = "Next →"
 
     if is_weapon:
-        context["next_step_hint"] = (
-            "You can add more weapon stat profiles after saving."
-        )
-        context["weapon_stat_fields"] = _build_weapon_stat_context(request)
-        context["weapon_traits"] = ContentWeaponTrait.objects.with_packs([pack])
-        context["selected_trait_ids"] = (
-            set(request.POST.getlist("wp_traits"))
-            if request.method == "POST"
-            else set()
-        )
+        context["profile_mode"] = profile_mode
+        weapon_traits = ContentWeaponTrait.objects.with_packs([pack])
+        context["weapon_traits"] = weapon_traits
+        if profile_mode == "multi":
+            context["weapon_stat_fields_1"] = _build_weapon_stat_context(
+                request, prefix="wp1"
+            )
+            context["weapon_stat_fields_2"] = _build_weapon_stat_context(
+                request, prefix="wp2"
+            )
+            context["selected_trait_ids_1"] = (
+                set(request.POST.getlist("wp1_traits"))
+                if request.method == "POST"
+                else set()
+            )
+            context["selected_trait_ids_2"] = (
+                set(request.POST.getlist("wp2_traits"))
+                if request.method == "POST"
+                else set()
+            )
+            context["wp1_name"] = (
+                request.POST.get("wp1_name", "") if request.method == "POST" else ""
+            )
+            context["wp2_name"] = (
+                request.POST.get("wp2_name", "") if request.method == "POST" else ""
+            )
+        else:
+            context["weapon_stat_fields"] = _build_weapon_stat_context(request)
+            context["selected_trait_ids"] = (
+                set(request.POST.getlist("wp_traits"))
+                if request.method == "POST"
+                else set()
+            )
 
     return render(request, "core/pack/pack_item_add.html", context)
 
@@ -1349,21 +1466,23 @@ def edit_pack_item(request, id, item_id):
         context["stat_values"] = stat_values
 
     if is_weapon:
-        # Build weapon stat context from existing profile or empty.
-        weapon_stat_context = []
-        for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
-            entry_dict = {
-                "field_name": field_name,
-                "short_name": short_name,
-                "placeholder": placeholder,
-            }
-            if request.method == "POST":
-                entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
-            elif standard_profile:
-                entry_dict["value"] = getattr(standard_profile, field_name, "")
-            stat_context_entry = entry_dict
-            weapon_stat_context.append(stat_context_entry)
-        context["weapon_stat_values"] = weapon_stat_context
+        # Build weapon stat context for the standard profile inline editor.
+        # Only shown when a standard (unnamed) profile exists.
+        if standard_profile:
+            weapon_stat_context = []
+            for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
+                entry_dict = {
+                    "field_name": field_name,
+                    "short_name": short_name,
+                    "placeholder": placeholder,
+                }
+                if request.method == "POST":
+                    entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
+                else:
+                    entry_dict["value"] = getattr(standard_profile, field_name, "")
+                weapon_stat_context.append(entry_dict)
+            context["weapon_stat_values"] = weapon_stat_context
+
         # Named profiles for inline display on the edit page.
         named_profiles = (
             ContentWeaponProfile.objects.with_packs([pack])
@@ -1378,6 +1497,15 @@ def edit_pack_item(request, id, item_id):
             .order_by("name")
         )
         context["named_profiles"] = named_profiles
+        context["has_named_profiles"] = named_profiles.exists()
+
+        # Determine whether named profiles can be archived.
+        # Multi-profile weapons (no standard) require at least 2 active named profiles.
+        if standard_profile:
+            context["can_archive_profiles"] = True
+        else:
+            context["can_archive_profiles"] = named_profiles.count() > 2
+
         profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
         profile_ids = (
             ContentWeaponProfile.objects.all_content()
@@ -1699,6 +1827,23 @@ def delete_weapon_profile(request, id, item_id, profile_id):
     # Standard (unnamed) profiles cannot be deleted.
     if not profile.name:
         raise Http404
+
+    # For multi-profile weapons (no standard profile), enforce a minimum of 2
+    # active named profiles — the last two cannot be archived.
+    has_standard = (
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=equipment, name="")
+        .exists()
+    )
+    if not has_standard:
+        active_named_count = (
+            ContentWeaponProfile.objects.with_packs([pack])
+            .filter(equipment=equipment)
+            .exclude(name="")
+            .count()
+        )
+        if active_named_count <= 2:
+            raise Http404
 
     # Look up the profile's pack item.
     profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
