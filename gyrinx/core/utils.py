@@ -19,8 +19,8 @@ def search_queryset(queryset, query, fields):
 
     Args:
         queryset: The Django queryset to filter.
-        query: The search string (already stripped). If empty/None, the
-            queryset is returned unchanged.
+        query: The search string. Stripped internally; if empty/None after
+            stripping, the queryset is returned unchanged.
         fields: An iterable of field lookup strings to search across
             (e.g. ["name", "summary", "owner__username"]).
 
@@ -36,8 +36,12 @@ def search_queryset(queryset, query, fields):
             ["name", "summary", "owner__username"],
         )
     """
+    query = (query or "").strip()
     if not query:
         return queryset
+
+    if not fields:
+        raise ValueError("search_queryset() requires at least one field")
 
     # Build icontains fallback: OR across all fields
     icontains_q = Q()
