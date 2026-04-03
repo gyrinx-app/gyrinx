@@ -1,0 +1,81 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Add weapon to {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 px-0 vstack gap-3">
+        <h1 class="h3">
+            <i class="bi-crosshair"></i> Add weapon
+        </h1>
+        <p class="mb-0">Does this weapon come with multiple profiles or ammo by default?</p>
+        <div class="row g-3">
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="border rounded p-3 vstack gap-2 h-100">
+                    <strong>Single profile</strong>
+                    <p class="text-secondary mb-0 fs-7">One standard statline with no profile name.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-borderless fs-7 mb-0">
+                            {% include "core/includes/weapon_stat_headers.html" %}
+                            <tbody class="table-group-divider">
+                                <tr>
+                                    <td class="text-center">
+                                        <strong>Example</strong>
+                                    </td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center border-start">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center border-start">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <a href="{{ add_weapon_url }}?profile_mode=single"
+                       class="btn btn-primary mt-auto">Single profile <i class="bi-arrow-right"></i></a>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="border rounded p-3 vstack gap-2 h-100">
+                    <strong>Multiple profiles</strong>
+                    <p class="text-secondary mb-0 fs-7">Two or more named profiles (e.g. special ammo types).</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-borderless fs-7 mb-0">
+                            {% include "core/includes/weapon_stat_headers.html" with first_col="Example" %}
+                            <tbody class="table-group-divider">
+                                <tr>
+                                    <td class="text-secondary fst-italic">Profile 1</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center border-start">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center border-start">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-secondary fst-italic">Profile 2</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center border-start">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center border-start">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                    <td class="text-center">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <a href="{{ add_weapon_url }}?profile_mode=multi"
+                       class="btn btn-primary mt-auto">Multiple profiles <i class="bi-arrow-right"></i></a>
+                </div>
+            </div>
+        </div>
+        <p class="text-secondary">You can add further, costed special profiles or ammo later.</p>
+    </div>
+{% endblock content %}

@@ -1,45 +1,47 @@
-{% if weapon_traits %}
+{% with wp_prefix=prefix|default:"wp" %}
     <div>
-        <label class="form-label">Traits</label>
-        <input type="search"
-               class="form-control form-control-sm mb-2"
-               placeholder="Filter..."
-               data-gy-filter-target="wp_traits_list">
-        {# djlint:off H021 #}
-        <div id="wp_traits_list"
-             class="border rounded p-2"
-             style="max-height: 16rem;
-                    overflow-y: auto">
-            {% for trait in weapon_traits %}
-                <div class="mb-1" data-filter-label="{{ trait.name }}">
-                    <input type="checkbox"
-                           name="wp_traits"
-                           value="{{ trait.pk }}"
-                           id="wp_traits_{{ forloop.counter }}"
-                           class="form-check-input"
-                           {% if trait.pk|stringformat:"s" in selected_trait_ids %}checked{% endif %}>
-                    <label for="wp_traits_{{ forloop.counter }}">{{ trait.name }}</label>
+        <label class="form-label">Statline</label>
+        <div class="d-flex flex-wrap gap-2">
+            {% for stat in weapon_stats %}
+                <div class="text-center stat-input-cell">
+                    <label class="form-label fs-7 mb-1">{{ stat.short_name }}</label>
+                    <input type="text"
+                           name="{{ wp_prefix }}_{{ stat.field_name }}"
+                           value="{{ stat.value|default:'' }}"
+                           class="form-control form-control-sm text-center"
+                           placeholder="{{ stat.placeholder }}"
+                           maxlength="12">
                 </div>
             {% endfor %}
-            {# djlint:off H021 #}
-            <div class="text-secondary fs-7" data-filter-empty style="display: none;">No matches.</div>
         </div>
+        <div class="form-text">Set each stat value, or leave blank for unset.</div>
     </div>
-{% endif %}
-<div>
-    <label class="form-label">Weapon stats</label>
-    <div class="d-flex flex-wrap gap-2">
-        {% for stat in weapon_stats %}
-            <div class="text-center stat-input-cell">
-                <label class="form-label fs-7 mb-1">{{ stat.short_name }}</label>
-                <input type="text"
-                       name="wp_{{ stat.field_name }}"
-                       value="{{ stat.value|default:'' }}"
-                       class="form-control form-control-sm text-center"
-                       placeholder="{{ stat.placeholder }}"
-                       maxlength="12">
+    {% if weapon_traits %}
+        <div>
+            <label class="form-label">Traits</label>
+            <input type="search"
+                   class="form-control form-control-sm mb-2"
+                   placeholder="Filter..."
+                   data-gy-filter-target="{{ wp_prefix }}_traits_list">
+            {# djlint:off H021 #}
+            <div id="{{ wp_prefix }}_traits_list"
+                 class="border rounded p-2"
+                 style="max-height: 16rem;
+                        overflow-y: auto">
+                {% for trait in weapon_traits %}
+                    <div class="mb-1" data-filter-label="{{ trait.name }}">
+                        <input type="checkbox"
+                               name="{{ wp_prefix }}_traits"
+                               value="{{ trait.pk }}"
+                               id="{{ wp_prefix }}_traits_{{ forloop.counter }}"
+                               class="form-check-input"
+                               {% if trait.pk|stringformat:"s" in selected_trait_ids %}checked{% endif %}>
+                        <label for="{{ wp_prefix }}_traits_{{ forloop.counter }}">{{ trait.name }}</label>
+                    </div>
+                {% endfor %}
+                {# djlint:off H021 #}
+                <div class="text-secondary fs-7" data-filter-empty style="display: none;">No matches.</div>
             </div>
-        {% endfor %}
-    </div>
-    <div class="form-text">Set each stat value, or leave blank for unset.</div>
-</div>
+        </div>
+    {% endif %}
+{% endwith %}

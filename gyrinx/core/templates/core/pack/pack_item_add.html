@@ -14,7 +14,38 @@
               class="vstack gap-3">
             {% csrf_token %}
             {{ form }}
-            {% if weapon_stat_fields %}
+            {% if profile_mode == "multi" %}
+                <input type="hidden" name="profile_mode" value="multi">
+                <div>
+                    <div class="bg-body-tertiary rounded px-2 py-2 mb-2">
+                        <h2 class="h5 mb-0">Profile 1</h2>
+                    </div>
+                    <div class="px-2 vstack gap-3">
+                        <input type="text"
+                               name="wp1_name"
+                               value="{{ wp1_name|default:'' }}"
+                               class="form-control"
+                               placeholder="Name (e.g. melee)"
+                               required>
+                        {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_1 prefix="wp1" selected_trait_ids=selected_trait_ids_1 %}
+                    </div>
+                </div>
+                <div>
+                    <div class="bg-body-tertiary rounded px-2 py-2 mb-2">
+                        <h2 class="h5 mb-0">Profile 2</h2>
+                    </div>
+                    <div class="px-2 vstack gap-3">
+                        <input type="text"
+                               name="wp2_name"
+                               value="{{ wp2_name|default:'' }}"
+                               class="form-control"
+                               placeholder="Name (e.g. ranged)"
+                               required>
+                        {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_2 prefix="wp2" selected_trait_ids=selected_trait_ids_2 %}
+                    </div>
+                </div>
+            {% elif weapon_stat_fields %}
+                <input type="hidden" name="profile_mode" value="single">
                 {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields %}
             {% endif %}
             {% if next_step_hint %}

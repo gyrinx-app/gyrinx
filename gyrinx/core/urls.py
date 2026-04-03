@@ -778,6 +778,11 @@ urlpatterns = [
         name="pack-add-item",
     ),
     path(
+        "pack/<id>/add/weapon/mode/",
+        pack_views.add_pack_weapon_mode,
+        name="pack-add-weapon-mode",
+    ),
+    path(
         "pack/<id>/add/fighter/stats/",
         pack_views.add_pack_fighter_stats,
         name="pack-add-fighter-stats",
