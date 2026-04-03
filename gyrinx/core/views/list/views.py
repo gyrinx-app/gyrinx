@@ -3,7 +3,6 @@
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Q
@@ -26,6 +25,7 @@ from gyrinx.core.utils import (
     get_list_held_assets,
     get_list_recent_campaign_actions,
     safe_redirect,
+    search_queryset,
 )
 from gyrinx.core.views.list.common import get_clean_list_or_404
 from gyrinx.models import is_valid_uuid
@@ -107,14 +107,10 @@ class ListsListView(generic.ListView):
         # Apply search filter
         search_query = self.request.GET.get("q")
         if search_query:
-            search_vector = SearchVector(
-                "name", "content_house__name", "owner__username"
-            )
-            search_q = SearchQuery(search_query)
-            queryset = queryset.annotate(search=search_vector).filter(
-                Q(search=search_q)
-                | Q(name__icontains=search_query)
-                | Q(content_house__name__icontains=search_query)
+            queryset = search_queryset(
+                queryset,
+                search_query,
+                ["name", "content_house__name", "owner__username"],
             )
 
         # Save queryset before house filter so get_context_data can derive
@@ -718,10 +714,8 @@ def new_list_packs(request):
     # Search
     search_query = request.GET.get("q", "").strip()
     if search_query:
-        search_vector = SearchVector("name", "summary", "owner__username")
-        search_q = SearchQuery(search_query)
-        available_packs = available_packs.annotate(search=search_vector).filter(
-            search=search_q
+        available_packs = search_queryset(
+            available_packs, search_query, ["name", "summary", "owner__username"]
         )
 
     available_packs = available_packs.prefetch_related("items__content_type").order_by(

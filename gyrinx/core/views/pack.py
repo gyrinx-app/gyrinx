@@ -8,7 +8,6 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Prefetch
@@ -19,6 +18,7 @@ from django.views import generic
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
+from gyrinx.core.utils import search_queryset
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import ContentEquipment
 from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
@@ -486,10 +486,8 @@ class PacksView(GroupMembershipRequiredMixin, generic.ListView):
         # Search
         q = self.request.GET.get("q", "").strip()
         if q:
-            search_vector = SearchVector("name", "summary", "owner__username")
-            search_query = SearchQuery(q)
-            queryset = queryset.annotate(search=search_vector).filter(
-                search=search_query
+            queryset = search_queryset(
+                queryset, q, ["name", "summary", "owner__username"]
             )
 
         return queryset.order_by("name")
@@ -1945,12 +1943,8 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
         # Search filter
         search_query = self.request.GET.get("q")
         if search_query:
-            search_vector = SearchVector("name", "content_house__name")
-            search_q = SearchQuery(search_query)
-            queryset = queryset.annotate(search=search_vector).filter(
-                models.Q(search=search_q)
-                | models.Q(name__icontains=search_query)
-                | models.Q(content_house__name__icontains=search_query)
+            queryset = search_queryset(
+                queryset, search_query, ["name", "content_house__name"]
             )
 
         # Save before house filter for deriving house dropdown (includes all
@@ -2097,7 +2091,9 @@ def list_packs_manage(request, id):
 
     search_query = request.GET.get("q", "").strip()
     if search_query:
-        available_packs = available_packs.filter(name__icontains=search_query)
+        available_packs = search_queryset(
+            available_packs, search_query, ["name", "summary", "owner__username"]
+        )
 
     if request.method == "POST":
         pack_id = request.POST.get("pack_id")
@@ -2319,9 +2315,7 @@ def _build_default_equipment_choices(pack, is_weapon, search_query=None):
         qs = qs.non_weapons().exclude(category__group__in=["Weapons & Ammo", "Other"])
 
     if search_query:
-        qs = qs.annotate(
-            search=SearchVector("name", "category__name"),
-        ).filter(search=SearchQuery(search_query))
+        qs = search_queryset(qs, search_query, ["name", "category__name"])
 
     # Use an explicit Prefetch so that weapon profiles from the pack are
     # included — the default manager on ContentWeaponProfile excludes

@@ -1,9 +1,10 @@
 """Home and dashboard views."""
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Q
 from django.shortcuts import render
+
+from gyrinx.core.utils import search_queryset
 
 from gyrinx.content.models import ContentHouse
 from gyrinx.core.models.battle import Battle
@@ -60,12 +61,10 @@ def index(request):
             # Apply search filter for lists
             search_query = request.GET.get("q")
             if search_query:
-                search_vector = SearchVector("name", "content_house__name")
-                search_q = SearchQuery(search_query)
-                lists_queryset = lists_queryset.annotate(search=search_vector).filter(
-                    Q(search=search_q)
-                    | Q(name__icontains=search_query)
-                    | Q(content_house__name__icontains=search_query)
+                lists_queryset = search_queryset(
+                    lists_queryset,
+                    search_query,
+                    ["name", "content_house__name"],
                 )
 
             # Order by modified and limit to 5
@@ -87,17 +86,10 @@ def index(request):
             # Apply search filter for campaign gangs
             search_gangs_query = request.GET.get("q_gangs")
             if search_gangs_query:
-                search_vector = SearchVector(
-                    "name", "content_house__name", "campaign__name"
-                )
-                search_q = SearchQuery(search_gangs_query)
-                campaign_gangs_queryset = campaign_gangs_queryset.annotate(
-                    search=search_vector
-                ).filter(
-                    Q(search=search_q)
-                    | Q(name__icontains=search_gangs_query)
-                    | Q(content_house__name__icontains=search_gangs_query)
-                    | Q(campaign__name__icontains=search_gangs_query)
+                campaign_gangs_queryset = search_queryset(
+                    campaign_gangs_queryset,
+                    search_gangs_query,
+                    ["name", "content_house__name", "campaign__name"],
                 )
 
             campaign_gangs = campaign_gangs_queryset.order_by("-modified")[:5]
@@ -114,11 +106,9 @@ def index(request):
             # Apply search filter for campaigns
             search_campaigns_query = request.GET.get("q_campaigns")
             if search_campaigns_query:
-                search_vector = SearchVector("name")
-                search_q = SearchQuery(search_campaigns_query)
-                campaigns_queryset = campaigns_queryset.annotate(
-                    search=search_vector
-                ).filter(Q(search=search_q) | Q(name__icontains=search_campaigns_query))
+                campaigns_queryset = search_queryset(
+                    campaigns_queryset, search_campaigns_query, ["name"]
+                )
 
             campaigns = campaigns_queryset.order_by("-created")
 

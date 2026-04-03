@@ -1,7 +1,6 @@
 """Fighter psyker powers views."""
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -10,6 +9,7 @@ from gyrinx.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentPsykerPower,
 )
+from gyrinx.core.utils import search_queryset
 from gyrinx.core.models.events import EventVerb
 from gyrinx.core.models.list import ListFighterPsykerPowerAssignment
 
@@ -171,9 +171,8 @@ def edit_list_fighter_powers(request, id, fighter_id):
 
     # Apply search filter only for the available powers grid
     if params["search_query"]:
-        filtered_powers = powers.filter(
-            Q(name__icontains=params["search_query"])
-            | Q(discipline__name__icontains=params["search_query"])
+        filtered_powers = search_queryset(
+            powers, params["search_query"], ["name", "discipline__name"]
         )
         assigns = build_virtual_psyker_power_assignments(filtered_powers, fighter)
     else:

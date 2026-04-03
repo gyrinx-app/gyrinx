@@ -2,9 +2,61 @@
 Utility functions for the core app.
 """
 
+from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db.models import Q
 from django.http import HttpResponseRedirect
 from django.utils.http import url_has_allowed_host_and_scheme
+
+
+def search_queryset(queryset, query, fields):
+    """
+    Apply a combined full-text and substring search to a queryset.
+
+    Uses PostgreSQL full-text search (SearchVector + SearchQuery) for
+    word-level matching, combined with icontains fallback on every field
+    so that partial/substring queries (e.g. "scav" matching "scavvies")
+    also return results.
+
+    Args:
+        queryset: The Django queryset to filter.
+        query: The search string. Stripped internally; if empty/None after
+            stripping, the queryset is returned unchanged.
+        fields: An iterable of field lookup strings to search across
+            (e.g. ["name", "summary", "owner__username"]).
+
+    Returns:
+        The filtered queryset (with .distinct() applied when full-text
+        search annotation is used, to avoid duplicates).
+
+    Example::
+
+        qs = search_queryset(
+            Pack.objects.all(),
+            request.GET.get("q", "").strip(),
+            ["name", "summary", "owner__username"],
+        )
+    """
+    query = (query or "").strip()
+    if not query:
+        return queryset
+
+    if not fields:
+        raise ValueError("search_queryset() requires at least one field")
+
+    # Build icontains fallback: OR across all fields
+    icontains_q = Q()
+    for field in fields:
+        icontains_q |= Q(**{f"{field}__icontains": query})
+
+    # Full-text search via SearchVector + SearchQuery
+    search_vector = SearchVector(*fields)
+    search_q = SearchQuery(query)
+
+    return (
+        queryset.annotate(search=search_vector)
+        .filter(Q(search=search_q) | icontains_q)
+        .distinct()
+    )
 
 
 def safe_redirect(request, url, fallback_url="/"):

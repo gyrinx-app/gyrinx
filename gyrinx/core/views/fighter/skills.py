@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.core.utils import search_queryset
 from gyrinx.content.models import ContentSkill, ContentSkillCategory
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List, ListFighter
@@ -170,7 +171,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
         # Apply search filter
         if search_query:
-            cat_skills_qs = cat_skills_qs.filter(name__icontains=search_query)
+            cat_skills_qs = search_queryset(cat_skills_qs, search_query, ["name"])
 
         if cat_skills_qs.exists():
             all_categories.append(
@@ -193,7 +194,7 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
         # Apply search filter
         if search_query:
-            cat_skills_qs = cat_skills_qs.filter(name__icontains=search_query)
+            cat_skills_qs = search_queryset(cat_skills_qs, search_query, ["name"])
 
         if cat_skills_qs.exists():
             all_categories.append(

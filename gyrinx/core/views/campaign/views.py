@@ -1,11 +1,11 @@
 """Campaign list and detail views."""
 
-from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.db import models
 from django.shortcuts import get_object_or_404
 from django.views import generic
 
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignAsset
+from gyrinx.core.utils import search_queryset
 from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import CapturedFighter
 
@@ -69,9 +69,9 @@ class Campaigns(generic.ListView):
         # Apply search filter
         search_query = self.request.GET.get("q")
         if search_query:
-            search_vector = SearchVector("name", "narrative", "owner__username")
-            search_q = SearchQuery(search_query)
-            queryset = queryset.annotate(search=search_vector).filter(search=search_q)
+            queryset = search_queryset(
+                queryset, search_query, ["name", "narrative", "owner__username"]
+            )
 
         return queryset.order_by("name")
 
