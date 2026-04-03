@@ -679,6 +679,7 @@ def test_upgrade_fighter_stat_mod(
         RulelineDisplay(
             value="Add Me",
             modded=True,
+            source=RulelineDisplay.SOURCE_EQUIPMENT,
         )
     ]
     assert fighter.skilline() == [
@@ -732,6 +733,7 @@ def test_equipment_fighter_stat_mod(
         RulelineDisplay(
             value="Add Me",
             modded=True,
+            source=RulelineDisplay.SOURCE_EQUIPMENT,
         )
     ]
 

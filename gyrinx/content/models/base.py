@@ -93,8 +93,23 @@ class Content(Base):
 class RulelineDisplay:
     """A dataclass for displaying rules in a consistent format."""
 
+    # Source constants
+    SOURCE_DEFAULT = "default"
+    SOURCE_EQUIPMENT = "equipment"
+    SOURCE_USER = "user"
+
     value: str
     modded: bool = False
+    source: str = SOURCE_DEFAULT
+
+    @property
+    def source_label(self):
+        """Human-readable label for the source of this rule."""
+        labels = {
+            self.SOURCE_EQUIPMENT: "Added by equipment, accessories or upgrades",
+            self.SOURCE_USER: "Added by user edit",
+        }
+        return labels.get(self.source, "")
 
 
 @dataclass

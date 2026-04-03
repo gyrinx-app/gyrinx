@@ -99,11 +99,12 @@ def test_list_fighter_ruleline_includes_custom_rules(client):
     assert "Default Rule" in ruleline_names
     assert "Custom Rule" in ruleline_names
 
-    # Custom rule should be marked as modded
+    # Custom rule should be marked as modded with user source
     custom_rule_display = next(
         r for r in list_fighter.ruleline if r.value == "Custom Rule"
     )
     assert custom_rule_display.modded
+    assert custom_rule_display.source == "user"
 
 
 @pytest.mark.django_db
