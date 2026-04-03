@@ -53,11 +53,21 @@
                                value="{{ pack.id }}"
                                class="form-check-input mt-1"
                                {% if pack.id|stringformat:"s" in preselected_pack_ids %}checked{% endif %}>
-                        <div class="flex-grow-1">
-                            <div class="fw-medium fs-7">{{ pack.name }}</div>
-                            <div class="text-secondary fs-7">by {{ pack.owner }}</div>
-                            {% if pack.summary %}
-                                <div class="text-secondary fs-7 mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div>
+                                <span class="fw-medium">{{ pack.name }}</span>
+                                <span class="text-secondary">· {{ pack.owner }}</span>
+                            </div>
+                            {% if pack.summary %}<div class="text-secondary mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                            {% if pack.content_preview %}
+                                <div class="text-secondary fs-7 mt-1 text-truncate">
+                                    {% for part in pack.content_preview %}
+                                        <span>{{ part.names|join:", " }}
+                                            {% if part.suffix %}, …{% endif %}
+                                        </span>
+                                        {% if not forloop.last %}<span class="mx-1">·</span>{% endif %}
+                                    {% endfor %}
+                                </div>
                             {% endif %}
                         </div>
                     </label>

@@ -51,14 +51,18 @@ class NewListForm(forms.ModelForm):
             house_ct = ContentType.objects.get_for_model(ContentHouse)
             direct_house_ids = set(
                 CustomContentPackItem.objects.filter(
-                    pack_id__in=pack_ids, content_type=house_ct
+                    pack_id__in=pack_ids,
+                    content_type=house_ct,
+                    archived=False,
                 ).values_list("object_id", flat=True)
             )
 
             # 2. Houses from fighters in the packs
             fighter_ct = ContentType.objects.get_for_model(ContentFighter)
             pack_fighter_ids = CustomContentPackItem.objects.filter(
-                pack_id__in=pack_ids, content_type=fighter_ct
+                pack_id__in=pack_ids,
+                content_type=fighter_ct,
+                archived=False,
             ).values_list("object_id", flat=True)
             fighter_house_ids = set(
                 ContentFighter.objects.all_content()
@@ -68,14 +72,15 @@ class NewListForm(forms.ModelForm):
                 .distinct()
             )
 
-            pack_house_ids = direct_house_ids | fighter_house_ids
+            all_pack_house_ids = direct_house_ids | fighter_house_ids
 
             # Use all_content() to bypass pack filtering for these houses
             pack_houses = ContentHouse.objects.all_content().filter(
-                id__in=pack_house_ids, generic=False
+                id__in=all_pack_house_ids, generic=False
             )
             base_qs = (base_qs | pack_houses).distinct()
-            self._pack_house_ids = set(str(h) for h in pack_house_ids)
+            # Only houses explicitly added to the pack get the "Content Pack" label
+            self._pack_house_ids = set(str(h) for h in direct_house_ids)
         else:
             self._pack_house_ids = set()
 

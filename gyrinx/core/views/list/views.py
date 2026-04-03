@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx import messages
-from gyrinx.content.models import ContentFighter, ContentHouse
+from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
 from gyrinx.core.context_processors import BANNER_CACHE_KEY
 from gyrinx.core.forms.list import CloneListForm, EditListForm, NewListForm
 from gyrinx.core.handlers.list import handle_list_clone, handle_list_creation
@@ -724,7 +724,54 @@ def new_list_packs(request):
             search=search_q
         )
 
-    available_packs = available_packs.order_by("name")
+    available_packs = available_packs.prefetch_related("items__content_type").order_by(
+        "name"
+    )
+
+    # Build content preview for each pack
+    from django.contrib.contenttypes.models import ContentType
+
+    house_ct = ContentType.objects.get_for_model(ContentHouse)
+    fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+
+    # Evaluate queryset so we can attach preview data to each pack
+    available_packs = list(available_packs)
+    for pack in available_packs:
+        active_items = [i for i in pack.items.all() if not i.archived]
+        counts = {}
+        object_ids_by_ct = {}
+        for item in active_items:
+            ct_id = item.content_type_id
+            counts[ct_id] = counts.get(ct_id, 0) + 1
+            object_ids_by_ct.setdefault(ct_id, []).append(item.object_id)
+
+        preview_parts = []
+        for ct, label in [
+            (house_ct, "house"),
+            (fighter_ct, "fighter"),
+            (equipment_ct, "item"),
+        ]:
+            count = counts.get(ct.id, 0)
+            if count > 0:
+                # Fetch names for this content type
+                model_class = ct.model_class()
+                ids = object_ids_by_ct[ct.id][:5]
+                names = list(
+                    model_class.objects.all_content()
+                    .filter(pk__in=ids)
+                    .values_list("type" if ct == fighter_ct else "name", flat=True)
+                )
+                suffix = f" +{count - len(names)}" if count > len(names) else ""
+                plural = label + ("s" if count != 1 else "")
+                preview_parts.append(
+                    {
+                        "label": f"{count} {plural}",
+                        "names": names,
+                        "suffix": suffix,
+                    }
+                )
+        pack.content_preview = preview_parts
 
     # Pre-select packs from ?pack=<id> query params
     preselected_pack_ids = set(request.GET.getlist("pack"))
