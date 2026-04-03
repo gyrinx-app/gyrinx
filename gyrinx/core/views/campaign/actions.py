@@ -4,7 +4,6 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -12,6 +11,7 @@ from django.utils import timezone
 from django.views import generic
 
 from gyrinx import messages
+from gyrinx.core.utils import search_queryset
 from gyrinx.core.forms.campaign import CampaignActionForm, CampaignActionOutcomeForm
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
@@ -221,9 +221,11 @@ class CampaignActionList(generic.ListView):
         # Apply text search filter if provided
         search_query = self.request.GET.get("q", "").strip()
         if search_query:
-            actions = actions.annotate(
-                search=SearchVector("description", "outcome", "user__username")
-            ).filter(search=SearchQuery(search_query))
+            actions = search_queryset(
+                actions,
+                search_query,
+                ["description", "outcome", "user__username"],
+            )
 
         # Apply gang filter if provided
         gang_id = self.request.GET.get("gang")

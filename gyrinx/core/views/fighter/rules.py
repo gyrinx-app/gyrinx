@@ -4,12 +4,12 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.core.utils import search_queryset
 from gyrinx.content.models import ContentRule
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List, ListFighter
@@ -79,7 +79,7 @@ def edit_list_fighter_rules(request, id, fighter_id):
     available_rules: QuerySetOf[ContentRule] = rules_qs
 
     if search_query:
-        available_rules = available_rules.filter(Q(name__icontains=search_query))
+        available_rules = search_queryset(available_rules, search_query, ["name"])
 
     # Exclude those already in custom rules
     available_rules = available_rules.exclude(

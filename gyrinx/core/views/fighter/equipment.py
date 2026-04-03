@@ -5,7 +5,6 @@ from collections import defaultdict
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
-from django.contrib.postgres.search import SearchQuery, SearchVector
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Prefetch, Q
@@ -14,6 +13,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.core.utils import search_queryset
 from gyrinx.content.models import (
     ContentAvailabilityPreset,
     ContentEquipment,
@@ -243,12 +243,12 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 fighter.equipment_list_fighter, expansion_inputs
             )
         )
-        search_vector = SearchVector(
+        search_fields = [
             "name",
             "category__name",
             "contentweaponprofile__name",
             "contentweaponprofile__traits__name",
-        )
+        ]
     else:
         equipment = (
             ContentEquipment.objects.with_packs(packs)
@@ -257,7 +257,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
                 fighter.equipment_list_fighter, expansion_inputs
             )
         )
-        search_vector = SearchVector("name", "category__name")
+        search_fields = ["name", "category__name"]
 
     # Get categories for this equipment type
     categories = (
@@ -362,12 +362,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     # Apply search filter if provided
     if request.GET.get("q"):
-        search_query = SearchQuery(request.GET.get("q", ""))
-        equipment = (
-            equipment.annotate(search=search_vector)
-            .filter(search=search_query)
-            .distinct("category__name", "name", "id")
-        )
+        equipment = search_queryset(equipment, request.GET.get("q", ""), search_fields)
 
     # Check if the house has can_buy_any flag
     house_can_buy_any = lst.content_house.can_buy_any
