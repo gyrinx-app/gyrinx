@@ -646,6 +646,13 @@ def new_list(request):
             pack_ids=pack_ids,
         )
 
+    # Build "Change" URL that preserves current pack selection
+    change_packs_url = reverse("core:lists-new-packs")
+    if pack_ids:
+        change_packs_url += "?" + urlencode(
+            [("pack", pid) for pid in pack_ids], doseq=True
+        )
+
     return render(
         request,
         "core/list_new.html",
@@ -654,6 +661,7 @@ def new_list(request):
             "houses": houses,
             "selected_packs": list(selected_packs),
             "pack_ids": pack_ids,
+            "change_packs_url": change_packs_url,
         },
     )
 
@@ -716,8 +724,8 @@ def new_list_packs(request):
             url = f"{url}?{urlencode({'skip_packs': '1'})}"
         return HttpResponseRedirect(url)
 
-    # Pre-select a pack if ?pack=<id> is in the query string
-    preselected_pack_id = request.GET.get("pack", "")
+    # Pre-select packs from ?pack=<id> query params
+    preselected_pack_ids = set(request.GET.getlist("pack"))
 
     return render(
         request,
@@ -725,7 +733,7 @@ def new_list_packs(request):
         {
             "available_packs": available_packs,
             "search_query": search_query,
-            "preselected_pack_id": preselected_pack_id,
+            "preselected_pack_ids": preselected_pack_ids,
         },
     )
 

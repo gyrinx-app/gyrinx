@@ -9,12 +9,17 @@
         <h1 class="h3">Create a new List</h1>
         {% if selected_packs %}
             <div class="border rounded p-3">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="fw-medium">Content Packs</span>
-                    <a href="{% url 'core:lists-new-packs' %}" class="link-secondary fs-7">Change</a>
-                </div>
-                <div class="d-flex flex-wrap gap-1">
-                    {% for pack in selected_packs %}<span class="badge text-bg-secondary">{{ pack.name }}</span>{% endfor %}
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="fw-medium"><i class="bi-box-seam"></i> Content Packs</span>
+                        <span class="text-secondary fs-7 ms-1">
+                            {% for pack in selected_packs %}
+                                {{ pack.name }}
+                                {% if not forloop.last %},{% endif %}
+                            {% endfor %}
+                        </span>
+                    </div>
+                    <a href="{{ change_packs_url }}" class="link-secondary fs-7">Change</a>
                 </div>
             </div>
         {% endif %}
