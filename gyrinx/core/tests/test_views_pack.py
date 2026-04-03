@@ -2842,7 +2842,7 @@ def test_add_weapon_form_loads(client, group_user, pack, weapon_category):
     response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
     assert response.status_code == 200
     assert b"Add Weapon" in response.content
-    assert b"Weapon stats" in response.content
+    assert b"Statline" in response.content
 
 
 @pytest.mark.django_db
@@ -2934,7 +2934,7 @@ def test_edit_weapon_form_loads(client, group_user, pack, pack_weapon):
     response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
     assert response.status_code == 200
     assert b"Edit Weapon" in response.content
-    assert b"Weapon stats" in response.content
+    assert b"Statline" in response.content
 
 
 @pytest.mark.django_db

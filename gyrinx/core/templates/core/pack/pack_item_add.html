@@ -27,7 +27,7 @@
                                class="form-control"
                                placeholder="Name (e.g. melee)"
                                required>
-                        {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_1 prefix="wp1" selected_trait_ids=selected_trait_ids_1 stats_label="Profile 1 stats" %}
+                        {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_1 prefix="wp1" selected_trait_ids=selected_trait_ids_1 %}
                     </div>
                 </div>
                 <div>
@@ -41,7 +41,7 @@
                                class="form-control"
                                placeholder="Name (e.g. ranged)"
                                required>
-                        {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_2 prefix="wp2" selected_trait_ids=selected_trait_ids_2 stats_label="Profile 2 stats" %}
+                        {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_2 prefix="wp2" selected_trait_ids=selected_trait_ids_2 %}
                     </div>
                 </div>
             {% elif weapon_stat_fields %}

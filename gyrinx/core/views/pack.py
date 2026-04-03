@@ -1497,14 +1497,15 @@ def edit_pack_item(request, id, item_id):
             .order_by("name")
         )
         context["named_profiles"] = named_profiles
-        context["has_named_profiles"] = named_profiles.exists()
+        named_profile_count = named_profiles.count()
+        context["has_named_profiles"] = named_profile_count > 0
 
         # Determine whether named profiles can be archived.
         # Multi-profile weapons (no standard) require at least 2 active named profiles.
         if standard_profile:
             context["can_archive_profiles"] = True
         else:
-            context["can_archive_profiles"] = named_profiles.count() > 2
+            context["can_archive_profiles"] = named_profile_count > 2
 
         profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
         profile_ids = (
