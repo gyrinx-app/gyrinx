@@ -345,13 +345,14 @@ Pattern: back link, `alert-warning alert-icon` explaining consequences, form wit
 
 ## Inline Action Menus
 
-Contextual action links shown below equipment, weapons, and gear on fighter cards. The `bi-arrow-90deg-up` icon visually connects the menu to the item above. Links are separated by the `{% dot %}` tag (`&nbsp;·&nbsp;`).
+Contextual action links shown below equipment, weapons, and gear on fighter cards. The `bi-arrow-90deg-up` icon visually connects the menu to the item above. Links are separated by the `{% dot %}` tag (`&nbsp;·&nbsp;`). Requires `{% load custom_tags %}` in the template.
 
 ### Weapon menu (table row)
 
-Inside weapon stat tables, the menu occupies a full-width `<td>` with `colspan`:
+Inside weapon stat tables, the menu occupies a full-width `<td>` with `colspan` matching the table's column count (e.g., `colspan="9"` for the standard weapon table):
 
 ```html
+{% load custom_tags %}
 <tr>
     <td colspan="9" class="text-end">
         <div class="d-flex flex-wrap">
@@ -372,9 +373,10 @@ Inside weapon stat tables, the menu occupies a full-width `<td>` with `colspan`:
 
 ### Gear / default equipment menu (inline)
 
-No table wrapper. A `<br>` before the icon:
+A `<br>` before the icon in real templates, or a `<div>` wrapper:
 
 ```html
+{% load custom_tags %}
 <br>
 <i class="bi-arrow-90deg-up text-secondary me-1"></i>
 <a href="..." class="link-secondary">Cost</a>
@@ -392,9 +394,9 @@ No table wrapper. A `<br>` before the icon:
 | Action link | `link-secondary` (edit, cost, reassign, accessories) |
 | Destructive link | `link-danger` (delete, archive) |
 | Sell link | `link-warning` (stash sell actions) |
-| Separator | `{% dot %}` renders `&nbsp;·&nbsp;` |
+| Separator | `{% dot %}` renders `&nbsp;·&nbsp;` (requires `{% load custom_tags %}`) |
 | Wrapper (table) | `d-flex flex-wrap` inside full-width `<td>` |
-| Wrapper (inline) | No wrapper — `<br>` before icon |
+| Wrapper (inline) | `<br>` before icon (in real templates), or a `<div>` wrapper |
 
 ---
 

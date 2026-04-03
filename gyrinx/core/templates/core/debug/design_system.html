@@ -1413,11 +1413,11 @@
     <p class="text-secondary fs-7 mb-3">
         Contextual action links shown below equipment, weapons, and gear on fighter cards.
         The <code>bi-arrow-90deg-up</code> icon visually connects the menu to the item above.
-        Links are separated by the <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> tag (<code>&amp;nbsp;·&amp;nbsp;</code>).
+        In templates, links are separated by the <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> tag (requires <code>{% templatetag openblock %} load custom_tags {% templatetag closeblock %}</code>), which renders as <code>&amp;nbsp;·&amp;nbsp;</code>. The live examples below use the literal character.
     </p>
     <h3 class="h6 caps-label mb-2">Weapon menu (table row)</h3>
     <p class="text-secondary fs-7 mb-2">
-        Used inside weapon stat tables. The menu occupies a full-width <code>&lt;td&gt;</code> with <code>colspan</code>.
+        Used inside weapon stat tables. The menu occupies a full-width <code>&lt;td&gt;</code> with <code>colspan</code> matching the table's column count (e.g. <code>colspan="9"</code> for the standard weapon table).
     </p>
     <div class="border rounded p-3 mb-3">
         <table class="table table-sm table-borderless mb-0 fs-7">
@@ -1521,7 +1521,7 @@
             <tr>
                 <td>Wrapper (inline)</td>
                 <td>
-                    No wrapper needed — <code>&lt;br&gt;</code> before icon
+                    <code>&lt;br&gt;</code> before icon (in real templates), or a <code>&lt;div&gt;</code> wrapper
                 </td>
             </tr>
         </tbody>
