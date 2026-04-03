@@ -411,6 +411,5 @@ def test_edit_page_shows_tabs_for_fighter(client, group_user, pack, pack_fighter
     client.force_login(group_user)
     response = client.get(reverse("core:pack-edit-item", args=(pack.id, pack_item.id)))
     assert response.status_code == 200
-    assert b"Default equipment" in response.content
-    assert b"Equipment list" in response.content
+    assert b"Equipment" in response.content
     assert b"Details" in response.content

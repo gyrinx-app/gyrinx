@@ -2251,38 +2251,26 @@ def _load_equipment_list_context(content_fighter):
 
 @login_required
 @group_membership_required(["Custom Content"])
-def pack_item_default_equipment(request, id, item_id):
-    """Default equipment tab for a fighter in a pack."""
+def pack_item_equipment(request, id, item_id):
+    """Combined equipment tab for a fighter in a pack."""
     pack = _get_pack_for_edit(id, request.user)
     pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    entry = _get_entry_for_pack_item(pack_item)
+    singular_label = entry.label.rstrip("s")
 
     context = {
         "pack": pack,
         "pack_item": pack_item,
         "content_fighter": content_fighter,
+        "label": singular_label,
+        "icon": entry.icon,
         "back_url": _pack_url(pack, f"item-{pack_item.id}"),
     }
     context.update(_load_default_equipment_context(pack, content_fighter))
-
-    return render(request, "core/pack/pack_item_default_equipment.html", context)
-
-
-@login_required
-@group_membership_required(["Custom Content"])
-def pack_item_equipment_list(request, id, item_id):
-    """Equipment list tab for a fighter in a pack."""
-    pack = _get_pack_for_edit(id, request.user)
-    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
-
-    context = {
-        "pack": pack,
-        "pack_item": pack_item,
-        "content_fighter": content_fighter,
-        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
-    }
     context.update(_load_equipment_list_context(content_fighter))
 
-    return render(request, "core/pack/pack_item_equipment_list.html", context)
+    return render(request, "core/pack/pack_item_equipment.html", context)
 
 
 @login_required

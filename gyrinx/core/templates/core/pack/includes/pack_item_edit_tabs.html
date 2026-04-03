@@ -4,11 +4,7 @@
            class="nav-link{% if active_tab == 'details' %} active{% endif %}">Details</a>
     </li>
     <li class="nav-item">
-        <a href="{% url 'core:pack-item-default-equipment' pack.id pack_item.id %}"
-           class="nav-link{% if active_tab == 'default-equipment' %} active{% endif %}">Default equipment</a>
-    </li>
-    <li class="nav-item">
-        <a href="{% url 'core:pack-item-equipment-list' pack.id pack_item.id %}"
-           class="nav-link{% if active_tab == 'equipment-list' %} active{% endif %}">Equipment list</a>
+        <a href="{% url 'core:pack-item-equipment' pack.id pack_item.id %}"
+           class="nav-link{% if active_tab == 'equipment' %} active{% endif %}">Equipment</a>
     </li>
 </ul>

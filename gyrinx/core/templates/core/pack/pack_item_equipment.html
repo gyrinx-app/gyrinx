@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load custom_tags %}
 {% block head_title %}
-    Default equipment - {{ content_fighter.type }} - {{ pack.name }}
+    Edit {{ content_fighter.type }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=back_url text=pack.name %}
@@ -9,7 +9,8 @@
         <h1 class="h3">
             <i class="bi-person"></i> Edit {{ content_fighter.type }}
         </h1>
-        {% include "core/pack/includes/pack_item_edit_tabs.html" with active_tab="default-equipment" %}
+        {% include "core/pack/includes/pack_item_edit_tabs.html" with active_tab="equipment" %}
         {% include "core/pack/includes/fighter_default_equipment.html" %}
+        {% include "core/pack/includes/fighter_equipment_list.html" %}
     </div>
 {% endblock content %}
