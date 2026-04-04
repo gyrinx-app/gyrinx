@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
 from django.db import models, transaction
 from django.db.models import Exists, OuterRef, Prefetch
@@ -1718,27 +1719,54 @@ def add_weapon_profile(request, id, item_id):
     if request.method == "POST":
         form = ContentWeaponProfilePackForm(request.POST, pack=pack)
         if form.is_valid():
-            with transaction.atomic():
-                profile = form.save(commit=False)
-                profile.equipment = equipment
-                profile._history_user = request.user
-                # Set stat values from inline fields.
-                for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
-                    raw = request.POST.get(f"wp_{field_name}", "") or ""
-                    setattr(profile, field_name, raw.strip())
-                profile.full_clean()
-                profile.save()
-                form.save_m2m()
-                # Create pack item so the profile is scoped to this pack.
-                ct = ContentType.objects.get_for_model(ContentWeaponProfile)
-                profile_pack_item = CustomContentPackItem(
-                    pack=pack,
-                    content_type=ct,
-                    object_id=profile.pk,
-                    owner=request.user,
-                )
-                profile_pack_item.save_with_user(request.user)
-            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+            profile = form.save(commit=False)
+            profile.equipment = equipment
+            profile._history_user = request.user
+            # Set stat values from inline fields.
+            for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+                raw = request.POST.get(f"wp_{field_name}", "") or ""
+                setattr(profile, field_name, raw.strip())
+
+            # Check for duplicate (equipment, name) before saving.
+            profile_name = profile.name.strip()
+            duplicate_exists = (
+                ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name=profile_name)
+                .exists()
+            )
+            if duplicate_exists:
+                if profile_name == "":
+                    msg = "This weapon already has a standard (unnamed) profile."
+                else:
+                    msg = f'A profile named "{profile_name}" already exists for this weapon.'
+                form.add_error("name", msg)
+            else:
+                try:
+                    with transaction.atomic():
+                        profile.full_clean()
+                        profile.save()
+                        form.save_m2m()
+                        # Create pack item so the profile is scoped to this pack.
+                        ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+                        profile_pack_item = CustomContentPackItem(
+                            pack=pack,
+                            content_type=ct,
+                            object_id=profile.pk,
+                            owner=request.user,
+                        )
+                        profile_pack_item.save_with_user(request.user)
+                    return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+                except DjangoValidationError as e:
+                    # Convert model validation errors to form errors.
+                    if hasattr(e, "message_dict"):
+                        for field, messages_list in e.message_dict.items():
+                            for message in messages_list:
+                                form.add_error(
+                                    field if field != "__all__" else None,
+                                    message,
+                                )
+                    else:
+                        form.add_error(None, e.message)
     else:
         form = ContentWeaponProfilePackForm(pack=pack)
 
@@ -1768,16 +1796,43 @@ def edit_weapon_profile(request, id, item_id, profile_id):
     if request.method == "POST":
         form = ContentWeaponProfilePackForm(request.POST, instance=profile, pack=pack)
         if form.is_valid():
-            with transaction.atomic():
-                updated_profile = form.save(commit=False)
-                updated_profile._history_user = request.user
-                for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
-                    raw = request.POST.get(f"wp_{field_name}", "") or ""
-                    setattr(updated_profile, field_name, raw.strip())
-                updated_profile.full_clean()
-                updated_profile.save()
-                form.save_m2m()
-            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+            updated_profile = form.save(commit=False)
+            updated_profile._history_user = request.user
+            for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+                raw = request.POST.get(f"wp_{field_name}", "") or ""
+                setattr(updated_profile, field_name, raw.strip())
+
+            # Check for duplicate (equipment, name) excluding this profile.
+            profile_name = updated_profile.name.strip()
+            duplicate_exists = (
+                ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name=profile_name)
+                .exclude(pk=profile.pk)
+                .exists()
+            )
+            if duplicate_exists:
+                if profile_name == "":
+                    msg = "This weapon already has a standard (unnamed) profile."
+                else:
+                    msg = f'A profile named "{profile_name}" already exists for this weapon.'
+                form.add_error("name", msg)
+            else:
+                try:
+                    with transaction.atomic():
+                        updated_profile.full_clean()
+                        updated_profile.save()
+                        form.save_m2m()
+                    return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+                except DjangoValidationError as e:
+                    if hasattr(e, "message_dict"):
+                        for field, messages_list in e.message_dict.items():
+                            for message in messages_list:
+                                form.add_error(
+                                    field if field != "__all__" else None,
+                                    message,
+                                )
+                    else:
+                        form.add_error(None, e.message)
     else:
         form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
 
