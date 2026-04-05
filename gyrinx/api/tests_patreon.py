@@ -144,7 +144,7 @@ def test_pledge_delete_also_sets_former():
     )
 
     payload = _make_payload("pledgegone@example.com", "Pledge Gone")
-    process_patreon_webhook(payload, "pledge:delete")
+    process_patreon_webhook(payload, "members:pledge:delete")
 
     profile = UserProfile.objects.get(user=user)
     assert profile.patreon_status == PatreonStatus.FORMER

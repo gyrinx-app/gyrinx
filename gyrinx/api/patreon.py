@@ -7,7 +7,7 @@ from gyrinx.core.models.auth import PatreonStatus, UserProfile
 
 logger = logging.getLogger(__name__)
 
-DELETE_EVENTS = {"members:delete", "pledge:delete"}
+DELETE_EVENTS = {"members:delete", "members:pledge:delete"}
 
 PATREON_STATUS_MAP = {
     "active_patron": PatreonStatus.ACTIVE,
