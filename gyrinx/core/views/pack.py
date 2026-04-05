@@ -3010,6 +3010,7 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
 
         profile_ids = set(request.POST.getlist("profiles"))
         skipped = []
+        added = []
         last_id = None
 
         for equipment in selected_equipment:
@@ -3035,6 +3036,7 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
             item._history_user = request.user
             item.save()
             last_id = item.id
+            added.append(equipment)
 
             # Create entries for selected non-standard profiles of this weapon.
             if profile_ids:
@@ -3066,7 +3068,7 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
                 f"{', '.join(skipped)} already in the available equipment list."
             )
         elif last_id:
-            for eq in selected_equipment:
+            for eq in added:
                 log_event(
                     user=request.user,
                     noun=EventNoun.CONTENT_PACK,
@@ -3133,6 +3135,7 @@ def add_pack_fighter_equipment_list_gear(request, id, item_id):
         selected_equipment = available_qs.filter(pk__in=equipment_ids)
 
         skipped = []
+        added = []
         last_id = None
 
         for equipment in selected_equipment:
@@ -3157,13 +3160,14 @@ def add_pack_fighter_equipment_list_gear(request, id, item_id):
             item._history_user = request.user
             item.save()
             last_id = item.id
+            added.append(equipment)
 
         if skipped and not last_id:
             error_message = (
                 f"{', '.join(skipped)} already in the available equipment list."
             )
         elif last_id:
-            for eq in selected_equipment:
+            for eq in added:
                 log_event(
                     user=request.user,
                     noun=EventNoun.CONTENT_PACK,
