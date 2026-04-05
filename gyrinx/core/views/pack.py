@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import Exists, OuterRef, Prefetch
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -19,7 +19,6 @@ from django.views import generic
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
-from gyrinx.core.utils import search_queryset
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import ContentEquipment
 from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
@@ -52,7 +51,7 @@ from gyrinx.core.models.pack import (
     CustomContentPackItem,
     CustomContentPackPermission,
 )
-from gyrinx.core.utils import safe_redirect
+from gyrinx.core.utils import safe_redirect, search_queryset
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
@@ -1729,6 +1728,7 @@ def add_weapon_profile(request, id, item_id):
 
             # Check for duplicate (equipment, name) before saving.
             profile_name = profile.name.strip()
+            has_error = False
             duplicate_exists = (
                 ContentWeaponProfile.objects.all_content()
                 .filter(equipment=equipment, name=profile_name)
@@ -1736,11 +1736,30 @@ def add_weapon_profile(request, id, item_id):
             )
             if duplicate_exists:
                 if profile_name == "":
-                    msg = "This weapon already has a standard (unnamed) profile."
+                    msg = "This weapon already has a standard (free) profile with no name."
                 else:
                     msg = f'A profile named "{profile_name}" already exists for this weapon.'
                 form.add_error("name", msg)
-            else:
+                has_error = True
+
+            # A weapon with an unnamed standard profile should not gain
+            # additional zero-cost profiles — they would both be "standard".
+            if (
+                not has_error
+                and profile_name != ""
+                and profile.cost == 0
+                and ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name="")
+                .exists()
+            ):
+                form.add_error(
+                    "cost",
+                    "This weapon already has an unnamed standard (free) profile. "
+                    "Additional profiles must have a non-zero cost.",
+                )
+                has_error = True
+
+            if not has_error:
                 try:
                     with transaction.atomic():
                         profile.full_clean()
@@ -1767,6 +1786,11 @@ def add_weapon_profile(request, id, item_id):
                                 )
                     else:
                         form.add_error(None, e.message)
+                except IntegrityError:
+                    form.add_error(
+                        "name",
+                        "A profile with this name already exists for this weapon.",
+                    )
     else:
         form = ContentWeaponProfilePackForm(pack=pack)
 
@@ -1804,6 +1828,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
 
             # Check for duplicate (equipment, name) excluding this profile.
             profile_name = updated_profile.name.strip()
+            has_error = False
             duplicate_exists = (
                 ContentWeaponProfile.objects.all_content()
                 .filter(equipment=equipment, name=profile_name)
@@ -1812,11 +1837,33 @@ def edit_weapon_profile(request, id, item_id, profile_id):
             )
             if duplicate_exists:
                 if profile_name == "":
-                    msg = "This weapon already has a standard (unnamed) profile."
+                    msg = (
+                        "This weapon already has a standard free profile with no name."
+                    )
                 else:
                     msg = f'A profile named "{profile_name}" already exists for this weapon.'
                 form.add_error("name", msg)
-            else:
+                has_error = True
+
+            # A weapon with an unnamed standard profile should not gain
+            # additional zero-cost profiles — they would both be "standard".
+            if (
+                not has_error
+                and profile_name != ""
+                and updated_profile.cost == 0
+                and ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name="")
+                .exclude(pk=profile.pk)
+                .exists()
+            ):
+                form.add_error(
+                    "cost",
+                    "This weapon already has an unnamed standard profile. "
+                    "Additional profiles must have a non-zero cost.",
+                )
+                has_error = True
+
+            if not has_error:
                 try:
                     with transaction.atomic():
                         updated_profile.full_clean()
@@ -1833,6 +1880,11 @@ def edit_weapon_profile(request, id, item_id, profile_id):
                                 )
                     else:
                         form.add_error(None, e.message)
+                except IntegrityError:
+                    form.add_error(
+                        "name",
+                        "A profile with this name already exists for this weapon.",
+                    )
     else:
         form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
 
