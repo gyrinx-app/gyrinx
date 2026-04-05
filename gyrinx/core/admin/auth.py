@@ -207,7 +207,7 @@ def add_profiles_to_group(modeladmin, request, queryset):
         group_name = request.POST.get("group")
         try:
             group = Group.objects.get(name=group_name)
-            users = User.objects.filter(userprofile__pk__in=selected)
+            users = User.objects.filter(profile__pk__in=selected)
             already_in = set(
                 group.user_set.filter(id__in=users).values_list("id", flat=True)
             )
@@ -228,7 +228,7 @@ def add_profiles_to_group(modeladmin, request, queryset):
         return None
 
     # Build a user queryset for display in the template.
-    users_qs = User.objects.filter(userprofile__pk__in=selected).order_by("username")
+    users_qs = User.objects.filter(profile__pk__in=selected).order_by("username")
 
     context = {
         **modeladmin.admin_site.each_context(request),
