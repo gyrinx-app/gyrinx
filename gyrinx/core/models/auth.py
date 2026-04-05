@@ -6,6 +6,12 @@ from simple_history.models import HistoricalRecords
 from gyrinx.models import Base
 
 
+class PatreonStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    FORMER = "former", "Former"
+    DECLINED = "declined", "Declined"
+
+
 class UserProfile(Base):
     """
     UserProfile stores additional information about users.
@@ -20,6 +26,30 @@ class UserProfile(Base):
         null=True,
         blank=True,
         help_text="When the user agreed to the Terms of Service",
+    )
+    patreon_status = models.CharField(
+        max_length=20,
+        choices=PatreonStatus.choices,
+        blank=True,
+        default="",
+        help_text="Current Patreon membership status",
+    )
+    patreon_tier = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Patreon tier title (e.g. Scummer)",
+    )
+    patreon_member_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Patreon member UUID for deduplication",
+    )
+    patreon_email = models.EmailField(
+        blank=True,
+        default="",
+        help_text="Email address from Patreon webhook",
     )
 
     history = HistoricalRecords()
