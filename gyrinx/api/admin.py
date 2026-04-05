@@ -18,9 +18,8 @@ def payload(key, description=None):
     def _payload(obj):
         curr = obj.payload
         for segment in segments:
-            if segment not in curr:
+            if not isinstance(curr, dict) or segment not in curr:
                 return None
-
             curr = curr.get(segment, {})
         return curr
 
