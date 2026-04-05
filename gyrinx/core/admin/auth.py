@@ -199,27 +199,52 @@ def remove_users_from_group(modeladmin, request, queryset):
     )
 
 
-@admin.action(description="Add selected users to Custom Content group")
-def add_to_custom_content_group(modeladmin, request, queryset):
-    group = Group.objects.get(name="Custom Content")
-    added = 0
-    skipped = 0
-    for profile in queryset.select_related("user"):
-        if group.user_set.filter(id=profile.user_id).exists():
-            skipped += 1
-        else:
-            group.user_set.add(profile.user)
-            added += 1
-    modeladmin.message_user(
-        request,
-        f"Added {added} user(s) to Custom Content group ({skipped} already in group).",
-        messages.SUCCESS if added else messages.INFO,
-    )
+@admin.action(description="Add selected users to group")
+def add_profiles_to_group(modeladmin, request, queryset):
+    selected = queryset.values_list("pk", flat=True)
+
+    if request.POST.get("post") == "yes":
+        group_name = request.POST.get("group")
+        try:
+            group = Group.objects.get(name=group_name)
+            users = User.objects.filter(userprofile__pk__in=selected)
+            already_in = set(
+                group.user_set.filter(id__in=users).values_list("id", flat=True)
+            )
+            to_add = users.exclude(id__in=already_in)
+            count = to_add.count()
+            if count:
+                group.user_set.add(*to_add)
+            modeladmin.message_user(
+                request,
+                f"Added {count} user(s) to {group.name}"
+                f" ({len(already_in)} already in group).",
+                messages.SUCCESS if count else messages.INFO,
+            )
+        except Group.DoesNotExist:
+            modeladmin.message_user(
+                request, "The selected group does not exist.", messages.ERROR
+            )
+        return None
+
+    # Build a user queryset for display in the template.
+    users_qs = User.objects.filter(userprofile__pk__in=selected).order_by("username")
+
+    context = {
+        **modeladmin.admin_site.each_context(request),
+        "title": "Add users to group",
+        "subtitle": "Select a group to add the selected users to",
+        "queryset": users_qs,
+        "groups": Group.objects.order_by("name"),
+        "action_name": "add_profiles_to_group",
+        "selected": selected,
+    }
+    return render(request, "core/admin/add_users_to_group.html", context)
 
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    actions = [add_to_custom_content_group]
+    actions = [add_profiles_to_group]
     list_display = [
         "user",
         "user_email",
