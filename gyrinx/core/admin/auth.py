@@ -201,9 +201,22 @@ def remove_users_from_group(modeladmin, request, queryset):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ["user", "user__email", "tos_agreed_at"]
+    list_display = [
+        "user",
+        "user__email",
+        "tos_agreed_at",
+        "patreon_status",
+        "patreon_tier",
+    ]
     search_fields = ["user__username", "user__email"]
-    readonly_fields = ["tos_agreed_at"]
+    readonly_fields = [
+        "tos_agreed_at",
+        "patreon_status",
+        "patreon_tier",
+        "patreon_member_id",
+        "patreon_email",
+    ]
+    list_filter = ["patreon_status"]
 
     def has_add_permission(self, request):
         return False
