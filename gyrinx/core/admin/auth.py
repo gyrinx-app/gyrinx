@@ -199,8 +199,27 @@ def remove_users_from_group(modeladmin, request, queryset):
     )
 
 
+@admin.action(description="Add selected users to Custom Content group")
+def add_to_custom_content_group(modeladmin, request, queryset):
+    group = Group.objects.get(name="Custom Content")
+    added = 0
+    skipped = 0
+    for profile in queryset.select_related("user"):
+        if group.user_set.filter(id=profile.user_id).exists():
+            skipped += 1
+        else:
+            group.user_set.add(profile.user)
+            added += 1
+    modeladmin.message_user(
+        request,
+        f"Added {added} user(s) to Custom Content group ({skipped} already in group).",
+        messages.SUCCESS if added else messages.INFO,
+    )
+
+
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
+    actions = [add_to_custom_content_group]
     list_display = [
         "user",
         "user_email",
