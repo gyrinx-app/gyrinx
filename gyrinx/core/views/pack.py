@@ -2079,7 +2079,7 @@ def delete_weapon_profile(request, id, item_id, profile_id):
             pack_id=str(pack.id),
             content_type="weapon_profile",
             weapon_name=str(equipment),
-            profile_name=profile.name,
+            profile_name=profile.name or "(Standard)",
         )
         return HttpResponseRedirect(
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
@@ -2230,6 +2230,18 @@ class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
         return context
 
 
+_RETURN_URL_TO_SOURCE = {
+    "pack-lists": "pack_lists",
+    "campaign-packs": "campaign_packs",
+    "list": "list_manage",
+}
+
+
+def _pack_subscription_source(return_url):
+    """Map a return_url form value to a canonical analytics source name."""
+    return _RETURN_URL_TO_SOURCE.get(return_url, "pack_detail")
+
+
 @login_required
 @group_membership_required(["Custom Content"])
 def subscribe_pack(request, id):
@@ -2249,7 +2261,7 @@ def subscribe_pack(request, id):
     lst.packs.add(pack)
 
     return_url = request.POST.get("return_url", "")
-    source = return_url or "pack_detail"
+    source = _pack_subscription_source(return_url)
     log_event(
         user=request.user,
         noun=EventNoun.CONTENT_PACK,
@@ -2292,7 +2304,7 @@ def unsubscribe_pack(request, id):
     lst.packs.remove(pack)
 
     return_url = request.POST.get("return_url", "")
-    source = return_url or "pack_detail"
+    source = _pack_subscription_source(return_url)
     log_event(
         user=request.user,
         noun=EventNoun.CONTENT_PACK,
