@@ -204,9 +204,9 @@ def add_profiles_to_group(modeladmin, request, queryset):
     selected = queryset.values_list("pk", flat=True)
 
     if request.POST.get("post") == "yes":
-        group_name = request.POST.get("group")
+        group_pk = request.POST.get("group")
         try:
-            group = Group.objects.get(name=group_name)
+            group = Group.objects.get(pk=group_pk)
             users = User.objects.filter(profile__pk__in=selected)
             already_in = set(
                 group.user_set.filter(id__in=users).values_list("id", flat=True)
