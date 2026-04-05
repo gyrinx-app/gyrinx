@@ -91,8 +91,8 @@ def test_list_fighter_ruleline_includes_custom_rules(client):
     list_fighter.custom_rules.add(custom_rule)
 
     # Clear the cached property
-    if hasattr(list_fighter, "_ruleline"):
-        del list_fighter._ruleline
+    if hasattr(list_fighter, "ruleline"):
+        delattr(list_fighter, "ruleline")
 
     # Both rules should be present
     ruleline_names = [r.value for r in list_fighter.ruleline]
