@@ -1736,7 +1736,7 @@ def add_weapon_profile(request, id, item_id):
             )
             if duplicate_exists:
                 if profile_name == "":
-                    msg = "This weapon already has a standard (free) profile with no name."
+                    msg = "This weapon already has a standard (unnamed) profile."
                 else:
                     msg = f'A profile named "{profile_name}" already exists for this weapon.'
                 form.add_error("name", msg)
@@ -1754,7 +1754,7 @@ def add_weapon_profile(request, id, item_id):
             ):
                 form.add_error(
                     "cost",
-                    "This weapon already has an unnamed standard (free) profile. "
+                    "This weapon already has an unnamed standard profile. "
                     "Additional profiles must have a non-zero cost.",
                 )
                 has_error = True
@@ -1786,11 +1786,14 @@ def add_weapon_profile(request, id, item_id):
                                 )
                     else:
                         form.add_error(None, e.message)
-                except IntegrityError:
-                    form.add_error(
-                        "name",
-                        "A profile with this name already exists for this weapon.",
-                    )
+                except IntegrityError as e:
+                    if "equipment_id" in str(e).lower() or "name" in str(e).lower():
+                        form.add_error(
+                            "name",
+                            "A profile with this name already exists for this weapon.",
+                        )
+                    else:
+                        raise
     else:
         form = ContentWeaponProfilePackForm(pack=pack)
 
@@ -1837,9 +1840,7 @@ def edit_weapon_profile(request, id, item_id, profile_id):
             )
             if duplicate_exists:
                 if profile_name == "":
-                    msg = (
-                        "This weapon already has a standard free profile with no name."
-                    )
+                    msg = "This weapon already has a standard (unnamed) profile."
                 else:
                     msg = f'A profile named "{profile_name}" already exists for this weapon.'
                 form.add_error("name", msg)
@@ -1880,11 +1881,14 @@ def edit_weapon_profile(request, id, item_id, profile_id):
                                 )
                     else:
                         form.add_error(None, e.message)
-                except IntegrityError:
-                    form.add_error(
-                        "name",
-                        "A profile with this name already exists for this weapon.",
-                    )
+                except IntegrityError as e:
+                    if "equipment_id" in str(e).lower() or "name" in str(e).lower():
+                        form.add_error(
+                            "name",
+                            "A profile with this name already exists for this weapon.",
+                        )
+                    else:
+                        raise
     else:
         form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
 
