@@ -155,8 +155,9 @@ def hook_patreon(request):
             from gyrinx.api.patreon import process_patreon_webhook
 
             process_patreon_webhook(payload, event)
-        except Exception as e:
-            logger.error(f"Error processing Patreon webhook: {e}")
+        except Exception:
+            logger.exception("Error processing Patreon webhook")
+            return HttpResponse(status=500)
 
         return HttpResponse(status=204)
 
