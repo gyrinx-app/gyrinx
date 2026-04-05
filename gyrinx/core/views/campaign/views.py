@@ -1,6 +1,7 @@
 """Campaign list and detail views."""
 
 from django.db import models
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.views import generic
 
@@ -35,8 +36,10 @@ class Campaigns(generic.ListView):
                 # Show campaigns where user is owner
                 queryset = queryset.filter(owner=self.request.user)
             else:
-                # Only show public campaigns if explicitly requested
-                queryset = queryset.filter(public=True)
+                # Show public campaigns plus private campaigns the user participates in
+                queryset = queryset.filter(
+                    Q(public=True) | Q(lists__owner=self.request.user)
+                ).distinct()
         else:
             # For unauthenticated users, only show public campaigns
             queryset = queryset.filter(public=True)
