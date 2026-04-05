@@ -156,8 +156,11 @@ def hook_patreon(request):
 
             process_patreon_webhook(payload, event)
         except Exception:
+            # Log with full stack trace but still return 204 — the webhook
+            # payload is already persisted and can be reprocessed via the
+            # admin backfill action.  Returning 500 would cause Patreon to
+            # retry, creating duplicate WebhookRequest rows.
             logger.exception("Error processing Patreon webhook")
-            return HttpResponse(status=500)
 
         return HttpResponse(status=204)
 

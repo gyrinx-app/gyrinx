@@ -27,12 +27,20 @@ def _extract_tier_title(payload):
     if not tiers_data:
         return ""
 
-    tier_ids = {t["id"] for t in tiers_data if t.get("type") == "tier"}
+    tier_ids = {
+        t.get("id")
+        for t in tiers_data
+        if isinstance(t, dict) and t.get("type") == "tier" and t.get("id")
+    }
     if not tier_ids:
         return ""
 
     for item in payload.get("included", []):
-        if item.get("type") == "tier" and item.get("id") in tier_ids:
+        if (
+            isinstance(item, dict)
+            and item.get("type") == "tier"
+            and item.get("id") in tier_ids
+        ):
             return item.get("attributes", {}).get("title", "")
 
     return ""
@@ -75,7 +83,7 @@ def process_patreon_webhook(payload, event):
 
     user = _find_user_by_email(email)
     if not user:
-        logger.info("Patreon webhook: no user match for %s", email)
+        logger.info("Patreon webhook: no user match for member %s", member_id)
         return {"matched": False, "user": None, "email": email}
 
     profile, _ = UserProfile.objects.get_or_create(user=user)
@@ -85,5 +93,7 @@ def process_patreon_webhook(payload, event):
     profile.patreon_email = email
     profile.save()
 
-    logger.info("Patreon webhook: matched %s to user %s", email, user.username)
+    logger.info(
+        "Patreon webhook: matched member %s to user %s", member_id, user.username
+    )
     return {"matched": True, "user": user.username, "email": email}

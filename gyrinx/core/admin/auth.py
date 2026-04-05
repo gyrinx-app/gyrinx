@@ -203,7 +203,7 @@ def remove_users_from_group(modeladmin, request, queryset):
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = [
         "user",
-        "user__email",
+        "user_email",
         "tos_agreed_at",
         "patreon_status",
         "patreon_tier",
@@ -217,6 +217,10 @@ class UserProfileAdmin(admin.ModelAdmin):
         "patreon_email",
     ]
     list_filter = ["patreon_status"]
+
+    @admin.display(description="Email")
+    def user_email(self, obj):
+        return obj.user.email
 
     def has_add_permission(self, request):
         return False
