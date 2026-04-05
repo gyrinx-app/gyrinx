@@ -3030,6 +3030,138 @@ def test_add_weapon_profile(client, group_user, pack, pack_weapon):
 
 
 @pytest.mark.django_db
+def test_add_weapon_profile_duplicate_standard(client, group_user, pack, pack_weapon):
+    """Adding a second unnamed (standard) profile returns a form error, not a 500."""
+    client.force_login(group_user)
+
+    # The pack_weapon fixture already has a standard (unnamed) profile.
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        {
+            "name": "",
+            "cost": "0",
+            "rarity": "C",
+            "wp_range_short": '8"',
+            "wp_strength": "3",
+            "wp_damage": "1",
+        },
+    )
+    # Should re-render the form with an error, not crash.
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "already has a standard (unnamed) profile" in content
+
+
+@pytest.mark.django_db
+def test_add_weapon_profile_duplicate_named(client, group_user, pack, pack_weapon):
+    """Adding a profile with a duplicate name returns a form error, not a 500."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    client.force_login(group_user)
+
+    # Add a named profile first.
+    equip = pack_weapon.content_object
+    ContentWeaponProfile.objects.create(
+        equipment=equip, name="Overcharge", cost=10, strength="5"
+    )
+
+    # Try to add another profile with the same name.
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        {
+            "name": "Overcharge",
+            "cost": "15",
+            "rarity": "C",
+            "wp_strength": "6",
+        },
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Overcharge" in content
+    assert "already exists" in content
+
+
+@pytest.mark.django_db
+def test_edit_weapon_profile_rename_to_existing_name(
+    client, group_user, pack, pack_weapon
+):
+    """Renaming a profile to an existing name returns a form error, not a 500."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    ContentWeaponProfile.objects.create(
+        equipment=equip, name="Burst", cost=5, strength="4"
+    )
+    overcharge = ContentWeaponProfile.objects.create(
+        equipment=equip, name="Overcharge", cost=10, strength="6"
+    )
+
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{overcharge.id}/edit/",
+        {
+            "name": "Burst",
+            "cost": "10",
+            "rarity": "C",
+            "wp_strength": "6",
+        },
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "already exists" in content
+
+
+@pytest.mark.django_db
+def test_edit_weapon_profile_rename_to_empty_with_standard(
+    client, group_user, pack, pack_weapon
+):
+    """Renaming a named profile to empty when a standard profile exists returns an error."""
+    from gyrinx.content.models.weapon import ContentWeaponProfile
+
+    equip = pack_weapon.content_object
+    # pack_weapon already has a standard (unnamed) profile.
+    named = ContentWeaponProfile.objects.create(
+        equipment=equip, name="Burst", cost=5, strength="4"
+    )
+
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{named.id}/edit/",
+        {
+            "name": "",
+            "cost": "0",
+            "rarity": "C",
+            "wp_strength": "4",
+        },
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "already has a standard (unnamed) profile" in content
+
+
+@pytest.mark.django_db
+def test_add_weapon_profile_named_zero_cost_blocked_with_standard(
+    client, group_user, pack, pack_weapon
+):
+    """Adding a named zero-cost profile is blocked when an unnamed standard profile exists."""
+    client.force_login(group_user)
+
+    # pack_weapon already has a standard (unnamed) profile.
+    response = client.post(
+        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        {
+            "name": "Rapid Fire",
+            "cost": "0",
+            "rarity": "C",
+            "wp_strength": "4",
+        },
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "already has an unnamed standard profile" in content
+
+
+@pytest.mark.django_db
 def test_edit_weapon_profile(client, group_user, pack, pack_weapon):
     """Test editing a named weapon profile."""
     from gyrinx.content.models.weapon import ContentWeaponProfile

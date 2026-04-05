@@ -8,8 +8,9 @@ from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import Exists, OuterRef, Prefetch
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
@@ -18,7 +19,6 @@ from django.views import generic
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
-from gyrinx.core.utils import search_queryset
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import ContentEquipment
 from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
@@ -51,7 +51,7 @@ from gyrinx.core.models.pack import (
     CustomContentPackItem,
     CustomContentPackPermission,
 )
-from gyrinx.core.utils import safe_redirect
+from gyrinx.core.utils import safe_redirect, search_queryset
 from gyrinx.core.views.auth import (
     GroupMembershipRequiredMixin,
     group_membership_required,
@@ -1718,27 +1718,82 @@ def add_weapon_profile(request, id, item_id):
     if request.method == "POST":
         form = ContentWeaponProfilePackForm(request.POST, pack=pack)
         if form.is_valid():
-            with transaction.atomic():
-                profile = form.save(commit=False)
-                profile.equipment = equipment
-                profile._history_user = request.user
-                # Set stat values from inline fields.
-                for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
-                    raw = request.POST.get(f"wp_{field_name}", "") or ""
-                    setattr(profile, field_name, raw.strip())
-                profile.full_clean()
-                profile.save()
-                form.save_m2m()
-                # Create pack item so the profile is scoped to this pack.
-                ct = ContentType.objects.get_for_model(ContentWeaponProfile)
-                profile_pack_item = CustomContentPackItem(
-                    pack=pack,
-                    content_type=ct,
-                    object_id=profile.pk,
-                    owner=request.user,
+            profile = form.save(commit=False)
+            profile.equipment = equipment
+            profile._history_user = request.user
+            # Set stat values from inline fields.
+            for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+                raw = request.POST.get(f"wp_{field_name}", "") or ""
+                setattr(profile, field_name, raw.strip())
+
+            # Check for duplicate (equipment, name) before saving.
+            profile_name = profile.name.strip()
+            has_error = False
+            duplicate_exists = (
+                ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name=profile_name)
+                .exists()
+            )
+            if duplicate_exists:
+                if profile_name == "":
+                    msg = "This weapon already has a standard (unnamed) profile."
+                else:
+                    msg = f'A profile named "{profile_name}" already exists for this weapon.'
+                form.add_error("name", msg)
+                has_error = True
+
+            # A weapon with an unnamed standard profile should not gain
+            # additional zero-cost profiles — they would both be "standard".
+            if (
+                not has_error
+                and profile_name != ""
+                and profile.cost == 0
+                and ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name="")
+                .exists()
+            ):
+                form.add_error(
+                    "cost",
+                    "This weapon already has an unnamed standard profile. "
+                    "Additional profiles must have a non-zero cost.",
                 )
-                profile_pack_item.save_with_user(request.user)
-            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+                has_error = True
+
+            if not has_error:
+                try:
+                    with transaction.atomic():
+                        profile.full_clean()
+                        profile.save()
+                        form.save_m2m()
+                        # Create pack item so the profile is scoped to this pack.
+                        ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+                        profile_pack_item = CustomContentPackItem(
+                            pack=pack,
+                            content_type=ct,
+                            object_id=profile.pk,
+                            owner=request.user,
+                        )
+                        profile_pack_item.save_with_user(request.user)
+                    return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+                except DjangoValidationError as e:
+                    # Convert model validation errors to form errors.
+                    if hasattr(e, "message_dict"):
+                        for field, messages_list in e.message_dict.items():
+                            for message in messages_list:
+                                form.add_error(
+                                    field if field != "__all__" else None,
+                                    message,
+                                )
+                    else:
+                        form.add_error(None, e.message)
+                except IntegrityError as e:
+                    if "equipment_id" in str(e).lower() or "name" in str(e).lower():
+                        form.add_error(
+                            "name",
+                            "A profile with this name already exists for this weapon.",
+                        )
+                    else:
+                        raise
     else:
         form = ContentWeaponProfilePackForm(pack=pack)
 
@@ -1768,16 +1823,72 @@ def edit_weapon_profile(request, id, item_id, profile_id):
     if request.method == "POST":
         form = ContentWeaponProfilePackForm(request.POST, instance=profile, pack=pack)
         if form.is_valid():
-            with transaction.atomic():
-                updated_profile = form.save(commit=False)
-                updated_profile._history_user = request.user
-                for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
-                    raw = request.POST.get(f"wp_{field_name}", "") or ""
-                    setattr(updated_profile, field_name, raw.strip())
-                updated_profile.full_clean()
-                updated_profile.save()
-                form.save_m2m()
-            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+            updated_profile = form.save(commit=False)
+            updated_profile._history_user = request.user
+            for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+                raw = request.POST.get(f"wp_{field_name}", "") or ""
+                setattr(updated_profile, field_name, raw.strip())
+
+            # Check for duplicate (equipment, name) excluding this profile.
+            profile_name = updated_profile.name.strip()
+            has_error = False
+            duplicate_exists = (
+                ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name=profile_name)
+                .exclude(pk=profile.pk)
+                .exists()
+            )
+            if duplicate_exists:
+                if profile_name == "":
+                    msg = "This weapon already has a standard (unnamed) profile."
+                else:
+                    msg = f'A profile named "{profile_name}" already exists for this weapon.'
+                form.add_error("name", msg)
+                has_error = True
+
+            # A weapon with an unnamed standard profile should not gain
+            # additional zero-cost profiles — they would both be "standard".
+            if (
+                not has_error
+                and profile_name != ""
+                and updated_profile.cost == 0
+                and ContentWeaponProfile.objects.all_content()
+                .filter(equipment=equipment, name="")
+                .exclude(pk=profile.pk)
+                .exists()
+            ):
+                form.add_error(
+                    "cost",
+                    "This weapon already has an unnamed standard profile. "
+                    "Additional profiles must have a non-zero cost.",
+                )
+                has_error = True
+
+            if not has_error:
+                try:
+                    with transaction.atomic():
+                        updated_profile.full_clean()
+                        updated_profile.save()
+                        form.save_m2m()
+                    return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+                except DjangoValidationError as e:
+                    if hasattr(e, "message_dict"):
+                        for field, messages_list in e.message_dict.items():
+                            for message in messages_list:
+                                form.add_error(
+                                    field if field != "__all__" else None,
+                                    message,
+                                )
+                    else:
+                        form.add_error(None, e.message)
+                except IntegrityError as e:
+                    if "equipment_id" in str(e).lower() or "name" in str(e).lower():
+                        form.add_error(
+                            "name",
+                            "A profile with this name already exists for this weapon.",
+                        )
+                    else:
+                        raise
     else:
         form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
 
