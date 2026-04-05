@@ -30,6 +30,7 @@ class EventNoun(models.TextChoices):
     CAMPAIGN_ASSET = "campaign_asset", "Campaign Asset"
     BANNER = "banner", "Banner"
     PRINT_CONFIG = "print_config", "Print Config"
+    CONTENT_PACK = "content_pack", "Content Pack"
 
 
 class EventVerb(models.TextChoices):

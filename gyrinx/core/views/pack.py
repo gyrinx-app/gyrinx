@@ -45,6 +45,7 @@ from gyrinx.core.forms.pack import (
     PackForm,
 )
 from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import (
     CustomContentPack,
@@ -667,6 +668,15 @@ def new_pack(request):
             pack = form.save(commit=False)
             pack.owner = request.user
             pack.save()
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.CREATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+            )
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = PackForm(
@@ -695,6 +705,15 @@ def edit_pack(request, id):
             form.fields.pop("listed", None)
         if form.is_valid():
             form.save()
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.UPDATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+            )
             return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
     else:
         form = PackForm(instance=pack)
@@ -1189,6 +1208,17 @@ def add_pack_item(request, id, content_type_slug):
                         _create_standard_weapon_profile(
                             content_obj, request.POST, request.user, pack
                         )
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.CREATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type=content_type_slug,
+                item_name=str(content_obj),
+            )
             if "save_and_add_another" in request.POST:
                 messages.success(request, f'{singular_label} "{content_obj}" saved.')
                 if is_weapon:
@@ -1323,6 +1353,18 @@ def add_pack_fighter_stats(request, id):
                 fighter, stat_definitions, request.POST, category=params.category
             )
 
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.CREATE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="fighter",
+            item_name=str(fighter),
+        )
+
         if "save_and_add_another" in request.POST:
             messages.success(request, f'Fighter "{fighter}" saved.')
             return HttpResponseRedirect(
@@ -1439,6 +1481,17 @@ def edit_pack_item(request, id, item_id):
                 _update_weapon_profile_stats(
                     standard_profile, request.POST, request.user
                 )
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.UPDATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type=entry.slug,
+                item_name=str(content_obj),
+            )
             return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
     else:
         form = entry.form_class(instance=content_obj, **_form_kwargs(entry, pack))
@@ -1580,6 +1633,17 @@ def delete_pack_item(request, id, item_id):
             ):
                 skill_item._history_user = request.user
                 skill_item.archive()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.ARCHIVE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type=entry.slug,
+            item_name=str(content_obj),
+        )
         entry = _get_entry_for_pack_item(pack_item)
         fragment = "skill" if entry.slug == "skill-tree" else entry.slug
         return HttpResponseRedirect(_pack_url(pack, fragment))
@@ -1648,6 +1712,19 @@ def restore_pack_item(request, id, item_id):
         if tree_item:
             tree_item._history_user = request.user
             tree_item.unarchive()
+    entry = _get_entry_for_pack_item(pack_item)
+    log_event(
+        user=request.user,
+        noun=EventNoun.CONTENT_PACK,
+        verb=EventVerb.RESTORE,
+        object=pack,
+        request=request,
+        pack_name=pack.name,
+        pack_id=str(pack.id),
+        content_type=entry.slug,
+        item_name=str(content_obj),
+    )
+
     fallback = _pack_url(pack, f"item-{pack_item.id}")
     next_url = request.POST.get("next")
     if next_url:
@@ -1774,6 +1851,18 @@ def add_weapon_profile(request, id, item_id):
                             owner=request.user,
                         )
                         profile_pack_item.save_with_user(request.user)
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.CONTENT_PACK,
+                        verb=EventVerb.CREATE,
+                        object=pack,
+                        request=request,
+                        pack_name=pack.name,
+                        pack_id=str(pack.id),
+                        content_type="weapon_profile",
+                        weapon_name=str(equipment),
+                        profile_name=profile.name or "(Standard)",
+                    )
                     return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
                 except DjangoValidationError as e:
                     # Convert model validation errors to form errors.
@@ -1870,6 +1959,18 @@ def edit_weapon_profile(request, id, item_id, profile_id):
                         updated_profile.full_clean()
                         updated_profile.save()
                         form.save_m2m()
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.CONTENT_PACK,
+                        verb=EventVerb.UPDATE,
+                        object=pack,
+                        request=request,
+                        pack_name=pack.name,
+                        pack_id=str(pack.id),
+                        content_type="weapon_profile",
+                        weapon_name=str(equipment),
+                        profile_name=updated_profile.name or "(Standard)",
+                    )
                     return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
                 except DjangoValidationError as e:
                     if hasattr(e, "message_dict"):
@@ -1968,6 +2069,18 @@ def delete_weapon_profile(request, id, item_id, profile_id):
     if request.method == "POST":
         profile_pack_item._history_user = request.user
         profile_pack_item.archive()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.ARCHIVE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="weapon_profile",
+            weapon_name=str(equipment),
+            profile_name=profile.name,
+        )
         return HttpResponseRedirect(
             reverse("core:pack-edit-item", args=(pack.id, pack_item.id))
         )
@@ -2135,9 +2248,22 @@ def subscribe_pack(request, id):
     lst = get_object_or_404(List, id=list_id, owner=request.user)
     lst.packs.add(pack)
 
-    messages.success(request, f"Subscribed {lst.name} to {pack.name}")
-
     return_url = request.POST.get("return_url", "")
+    source = return_url or "pack_detail"
+    log_event(
+        user=request.user,
+        noun=EventNoun.CONTENT_PACK,
+        verb=EventVerb.JOIN,
+        object=pack,
+        request=request,
+        pack_name=pack.name,
+        pack_id=str(pack.id),
+        list_name=lst.name,
+        list_id=str(lst.id),
+        source=source,
+    )
+
+    messages.success(request, f"Subscribed {lst.name} to {pack.name}")
     if return_url == "pack-lists":
         return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
     if return_url == "campaign-packs":
@@ -2165,8 +2291,22 @@ def unsubscribe_pack(request, id):
     lst = get_object_or_404(List, id=list_id, owner=request.user)
     lst.packs.remove(pack)
 
-    # Redirect back to where the user came from
     return_url = request.POST.get("return_url", "")
+    source = return_url or "pack_detail"
+    log_event(
+        user=request.user,
+        noun=EventNoun.CONTENT_PACK,
+        verb=EventVerb.LEAVE,
+        object=pack,
+        request=request,
+        pack_name=pack.name,
+        pack_id=str(pack.id),
+        list_name=lst.name,
+        list_id=str(lst.id),
+        source=source,
+    )
+
+    # Redirect back to where the user came from
     if return_url == "list":
         messages.success(request, f"Unsubscribed from {pack.name}")
         return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
@@ -2218,6 +2358,18 @@ def list_packs_manage(request, id):
             )
             if pack.listed or pack.owner == request.user or is_campaign_pack:
                 lst.packs.add(pack)
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CONTENT_PACK,
+                    verb=EventVerb.JOIN,
+                    object=pack,
+                    request=request,
+                    pack_name=pack.name,
+                    pack_id=str(pack.id),
+                    list_name=lst.name,
+                    list_id=str(lst.id),
+                    source="list_manage",
+                )
                 messages.success(request, f"Subscribed to {pack.name}")
             else:
                 messages.error(request, "You don't have access to this pack.")
@@ -2298,6 +2450,19 @@ def subscribe_pack_campaign(request, id):
         return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
     campaign.packs.add(pack)
 
+    log_event(
+        user=request.user,
+        noun=EventNoun.CONTENT_PACK,
+        verb=EventVerb.JOIN,
+        object=pack,
+        request=request,
+        pack_name=pack.name,
+        pack_id=str(pack.id),
+        campaign_name=campaign.name,
+        campaign_id=str(campaign.id),
+        source="pack_detail",
+    )
+
     messages.success(request, f"Added {pack.name} to {campaign.name}")
     return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
 
@@ -2317,6 +2482,19 @@ def unsubscribe_pack_campaign(request, id):
 
     campaign = get_object_or_404(Campaign, id=campaign_id, owner=request.user)
     campaign.packs.remove(pack)
+
+    log_event(
+        user=request.user,
+        noun=EventNoun.CONTENT_PACK,
+        verb=EventVerb.LEAVE,
+        object=pack,
+        request=request,
+        pack_name=pack.name,
+        pack_id=str(pack.id),
+        campaign_name=campaign.name,
+        campaign_id=str(campaign.id),
+        source="pack_detail",
+    )
 
     messages.success(request, f"Removed {pack.name} from {campaign.name}")
     return HttpResponseRedirect(reverse("core:pack-campaigns", args=(pack.id,)))
@@ -2364,6 +2542,17 @@ def pack_permissions(request, id):
                             role="editor",
                             owner=request.user,
                         )
+                        log_event(
+                            user=request.user,
+                            noun=EventNoun.CONTENT_PACK,
+                            verb=EventVerb.ADD,
+                            object=pack,
+                            request=request,
+                            pack_name=pack.name,
+                            pack_id=str(pack.id),
+                            content_type="permission",
+                            username=username,
+                        )
                         messages.success(request, f"Added {username} as an editor.")
                         return HttpResponseRedirect(
                             reverse("core:pack-permissions", args=(pack.id,))
@@ -2377,6 +2566,17 @@ def pack_permissions(request, id):
                 )
                 removed_username = perm.user.username
                 perm.delete()
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CONTENT_PACK,
+                    verb=EventVerb.REMOVE,
+                    object=pack,
+                    request=request,
+                    pack_name=pack.name,
+                    pack_id=str(pack.id),
+                    content_type="permission",
+                    username=removed_username,
+                )
                 messages.success(request, f"Removed {removed_username} as an editor.")
                 return HttpResponseRedirect(
                     reverse("core:pack-permissions", args=(pack.id,))
@@ -2607,6 +2807,18 @@ def add_pack_fighter_default_weapon(request, id, item_id):
                 )
                 assignment.weapon_profiles_field.set(valid_profiles)
 
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.ASSIGN,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type="default_assignment",
+                fighter_name=content_fighter.type,
+                equipment_name=str(equipment),
+            )
             url = reverse(
                 "core:pack-item-default-equipment",
                 args=(pack.id, pack_item.id),
@@ -2683,6 +2895,18 @@ def add_pack_fighter_default_gear(request, id, item_id):
             assignment._history_user = request.user
             assignment.save()
 
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.ASSIGN,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type="default_assignment",
+                fighter_name=content_fighter.type,
+                equipment_name=str(equipment),
+            )
             url = reverse(
                 "core:pack-item-default-equipment",
                 args=(pack.id, pack_item.id),
@@ -2728,8 +2952,21 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
     )
 
     if request.method == "POST":
+        equipment_name = str(assignment.equipment)
         assignment._history_user = request.user
         assignment.delete()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.UNASSIGN,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="default_assignment",
+            fighter_name=content_fighter.type,
+            equipment_name=equipment_name,
+        )
         return HttpResponseRedirect(
             reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
         )
@@ -2829,6 +3066,19 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
                 f"{', '.join(skipped)} already in the available equipment list."
             )
         elif last_id:
+            for eq in selected_equipment:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CONTENT_PACK,
+                    verb=EventVerb.ADD,
+                    object=pack,
+                    request=request,
+                    pack_name=pack.name,
+                    pack_id=str(pack.id),
+                    content_type="equipment_list_item",
+                    fighter_name=content_fighter.type,
+                    equipment_name=str(eq),
+                )
             url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
             return HttpResponseRedirect(f"{url}?flash={last_id}#{last_id}")
 
@@ -2913,6 +3163,19 @@ def add_pack_fighter_equipment_list_gear(request, id, item_id):
                 f"{', '.join(skipped)} already in the available equipment list."
             )
         elif last_id:
+            for eq in selected_equipment:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CONTENT_PACK,
+                    verb=EventVerb.ADD,
+                    object=pack,
+                    request=request,
+                    pack_name=pack.name,
+                    pack_id=str(pack.id),
+                    content_type="equipment_list_item",
+                    fighter_name=content_fighter.type,
+                    equipment_name=str(eq),
+                )
             url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
             return HttpResponseRedirect(f"{url}?flash={last_id}#{last_id}")
 
@@ -2961,8 +3224,21 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             for s in siblings:
                 s._history_user = request.user
                 s.delete()
+        equipment_name = str(eli.equipment)
         eli._history_user = request.user
         eli.delete()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.REMOVE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="equipment_list_item",
+            fighter_name=content_fighter.type,
+            equipment_name=equipment_name,
+        )
         return HttpResponseRedirect(
             reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
         )
@@ -3037,6 +3313,18 @@ def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             item._history_user = request.user
             item.save()
 
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.UPDATE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="equipment_list_item",
+            fighter_name=content_fighter.type,
+            equipment_name=str(eli.equipment),
+        )
         url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
         return HttpResponseRedirect(f"{url}?flash={eli.id}#{eli.id}")
 
