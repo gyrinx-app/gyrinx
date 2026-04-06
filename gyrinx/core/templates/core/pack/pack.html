@@ -241,7 +241,12 @@
                                 {% for entry in section.items %}
                                     <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                         <div class="d-flex justify-content-between align-items-center">
-                                            <span>{{ entry.content_object }}</span>
+                                            <div>
+                                                <span>{{ entry.content_object }}</span>
+                                                {% if section.slug == "rule" and entry.content_object.description %}
+                                                    <div class="text-secondary fs-7">{{ entry.content_object.description }}</div>
+                                                {% endif %}
+                                            </div>
                                             {% if can_edit %}
                                                 <span class="d-flex gap-2">
                                                     {% if section.can_add %}
