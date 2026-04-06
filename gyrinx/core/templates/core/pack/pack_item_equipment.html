@@ -11,13 +11,13 @@
         </h1>
         {% include "core/pack/includes/pack_item_edit_tabs.html" with active_tab="equipment" %}
     </div>
-    <div class="row px-0">
+    <div class="row">
         <!-- Preview card (mobile: first, desktop: right column) -->
         <div class="col-12 col-xl-5 order-xl-last mb-3 mb-xl-0 ps-xl-4">
             {% include "core/pack/includes/fighter_preview_card.html" %}
         </div>
         <!-- Content (mobile: second, desktop: left column) -->
-        <div class="col-12 col-xl-7 px-0">
+        <div class="col-12 col-xl-7">
             {% include "core/pack/includes/fighter_default_equipment.html" %}
             {% include "core/pack/includes/fighter_equipment_list.html" %}
         </div>
