@@ -214,7 +214,12 @@
                                                     {% for entry in group.skills %}
                                                         <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                                             <div class="d-flex justify-content-between align-items-center">
-                                                                <span>{{ entry.content_object.name }}</span>
+                                                                <div>
+                                                                    <span>{{ entry.content_object.name }}</span>
+                                                                    {% if entry.content_object.description %}
+                                                                        <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
+                                                                    {% endif %}
+                                                                </div>
                                                                 {% if can_edit %}
                                                                     <span class="d-flex gap-2">
                                                                         <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
@@ -244,7 +249,7 @@
                                             <div>
                                                 <span>{{ entry.content_object }}</span>
                                                 {% if section.slug == "rule" and entry.content_object.description %}
-                                                    <div class="text-secondary fs-7">{{ entry.content_object.description }}</div>
+                                                    <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
                                                 {% endif %}
                                             </div>
                                             {% if can_edit %}

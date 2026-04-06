@@ -379,18 +379,21 @@ class ContentSkillPackForm(forms.ModelForm):
 
     class Meta:
         model = ContentSkill
-        fields = ["name", "category"]
+        fields = ["name", "category", "description"]
         labels = {
             "name": "Name",
             "category": "Skill tree",
+            "description": "Description",
         }
         help_texts = {
             "name": "The name of the skill.",
             "category": "The skill tree this skill belongs to.",
+            "description": "Optional description of what this skill does.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-select"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
     def __init__(self, *args, pack=None, **kwargs):

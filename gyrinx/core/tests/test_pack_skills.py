@@ -231,3 +231,99 @@ def test_pack_skill_category_in_primary_categories(
 
     primary_cats = lf.get_primary_skill_categories()
     assert pack_skill_category in primary_cats
+
+
+# -- Skill description --
+
+
+@pytest.mark.django_db
+def test_create_pack_skill_with_description(
+    client, group_user, pack, pack_skill_category
+):
+    """Can create a skill with a description."""
+    client.force_login(group_user)
+    url = reverse("core:pack-add-item", args=[pack.id, "skill"])
+    response = client.post(
+        url,
+        {
+            "name": "Described Skill",
+            "category": str(pack_skill_category.pk),
+            "description": "This skill lets you do something cool.",
+        },
+    )
+    assert response.status_code == 302
+    skill = ContentSkill.objects.all_content().get(name="Described Skill")
+    assert skill.description == "This skill lets you do something cool."
+
+
+@pytest.mark.django_db
+def test_skill_description_shown_on_pack_detail(
+    client, group_user, pack, pack_skill_category
+):
+    """Skill description appears on the pack detail page."""
+    skill = ContentSkill.objects.create(
+        name="Visible Skill",
+        category=pack_skill_category,
+        description="A detailed explanation.",
+    )
+    ct = ContentType.objects.get_for_model(ContentSkill)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=skill.pk, owner=pack.owner
+    )
+
+    client.force_login(group_user)
+    response = client.get(reverse("core:pack", args=[pack.id]))
+    content = response.content.decode()
+    assert "Visible Skill" in content
+    assert "A detailed explanation." in content
+
+
+@pytest.mark.django_db
+def test_skill_without_description_no_empty_div(
+    client, group_user, pack, pack_skill_category
+):
+    """Skills without descriptions don't render an empty description div."""
+    skill = ContentSkill.objects.create(
+        name="No Desc Skill",
+        category=pack_skill_category,
+        description="",
+    )
+    ct = ContentType.objects.get_for_model(ContentSkill)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=skill.pk, owner=pack.owner
+    )
+
+    client.force_login(group_user)
+    response = client.get(reverse("core:pack", args=[pack.id]))
+    content = response.content.decode()
+    assert "No Desc Skill" in content
+    # No description div should be rendered near the skill name.
+    no_desc_pos = content.find("No Desc Skill")
+    snippet = content[no_desc_pos : no_desc_pos + 200]
+    assert 'class="text-secondary fs-7"' not in snippet
+
+
+@pytest.mark.django_db
+def test_edit_skill_description(client, group_user, pack, pack_skill_category):
+    """Can edit a skill's description."""
+    skill = ContentSkill.objects.create(
+        name="Editable Skill", category=pack_skill_category, description="Old desc."
+    )
+    ct = ContentType.objects.get_for_model(ContentSkill)
+    pack_item = CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=skill.pk, owner=pack.owner
+    )
+
+    client.force_login(group_user)
+    url = reverse("core:pack-edit-item", args=[pack.id, pack_item.id])
+    response = client.post(
+        url,
+        {
+            "name": "Editable Skill",
+            "category": str(pack_skill_category.pk),
+            "description": "New desc.",
+        },
+    )
+    assert response.status_code == 302
+    skill.refresh_from_db()
+    assert skill.description == "New desc."

@@ -39,6 +39,7 @@ class ContentSkill(Content):
     """
 
     name = models.CharField(max_length=255, db_index=True)
+    description = models.TextField(blank=True)
     category = models.ForeignKey(
         ContentSkillCategory,
         on_delete=models.CASCADE,
