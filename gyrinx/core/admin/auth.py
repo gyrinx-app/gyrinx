@@ -248,11 +248,17 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_display = [
         "user",
         "user_email",
+        "patreon_email",
         "tos_agreed_at",
         "patreon_status",
         "patreon_tier",
     ]
-    search_fields = ["user__username", "user__email"]
+    search_fields = [
+        "user__username",
+        "user__email",
+        "patreon_email",
+        "patreon_member_id",
+    ]
     readonly_fields = [
         "tos_agreed_at",
         "patreon_status",
@@ -260,7 +266,7 @@ class UserProfileAdmin(admin.ModelAdmin):
         "patreon_member_id",
         "patreon_email",
     ]
-    list_filter = ["patreon_status"]
+    list_filter = ["patreon_status", "patreon_tier"]
 
     @admin.display(description="Email")
     def user_email(self, obj):

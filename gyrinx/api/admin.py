@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib import admin, messages
+from django.db.models import Q
 
 from gyrinx.api.models import WebhookRequest
 from gyrinx.api.patreon import process_patreon_webhook
@@ -57,7 +58,13 @@ def match_patreon_webhooks(modeladmin, request, queryset):
 class WebhookRequestAdmin(admin.ModelAdmin):
     actions = [match_patreon_webhooks]
     search_fields = ["source", "event"]
-    list_display = ["source", "event", "created"]
+    list_display = [
+        "source",
+        "event",
+        payload("data.attributes.email", "Email"),
+        payload("data.attributes.full_name", "Name"),
+        "created",
+    ]
     readonly_fields = [
         "source",
         "event",
@@ -68,3 +75,15 @@ class WebhookRequestAdmin(admin.ModelAdmin):
         "created",
     ]
     list_filter = ["source", "event"]
+
+    def get_search_results(self, request, queryset, search_term):
+        queryset, use_distinct = super().get_search_results(
+            request, queryset, search_term
+        )
+        if search_term:
+            json_q = Q(payload__data__attributes__email__icontains=search_term) | Q(
+                payload__data__attributes__full_name__icontains=search_term
+            )
+            queryset |= self.model.objects.filter(json_q)
+            use_distinct = True
+        return queryset, use_distinct
