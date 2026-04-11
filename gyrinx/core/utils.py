@@ -25,8 +25,8 @@ def search_queryset(queryset, query, fields):
             (e.g. ["name", "summary", "owner__username"]).
 
     Returns:
-        The filtered queryset (with .distinct() applied when full-text
-        search annotation is used, to avoid duplicates).
+        The filtered queryset, deduplicated via a PK subquery so that
+        reverse-FK and M2M search fields don't produce duplicate rows.
 
     Example::
 
@@ -52,11 +52,20 @@ def search_queryset(queryset, query, fields):
     search_vector = SearchVector(*fields)
     search_q = SearchQuery(query)
 
-    return (
+    # Use a subquery to find matching PKs, then filter the original queryset.
+    # This avoids duplicates from JOINs created by SearchVector on related
+    # fields (e.g. reverse FK or M2M lookups like contentweaponprofile__name
+    # or contentweaponprofile__traits__name). With the annotation approach,
+    # DISTINCT is ineffective because the tsvector varies per joined row.
+    # Clear any inherited ordering so DISTINCT applies only to the PK column.
+    matching_pks = (
         queryset.annotate(search=search_vector)
         .filter(Q(search=search_q) | icontains_q)
+        .order_by()
+        .values_list("pk", flat=True)
         .distinct()
     )
+    return queryset.filter(pk__in=matching_pks)
 
 
 def safe_redirect(request, url, fallback_url="/"):
