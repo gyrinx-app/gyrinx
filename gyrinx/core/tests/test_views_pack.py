@@ -1555,13 +1555,14 @@ def test_add_fighter_with_rules(
 def test_add_fighter_excludes_special_categories(
     client, group_user, pack, fighter_statline_type
 ):
-    """Test that STASH, VEHICLE, GANG_TERRAIN are not in the category choices."""
+    """Test that STASH, VEHICLE, GANG_TERRAIN, EXOTIC_BEAST are not in the category choices."""
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/add/fighter/")
     content = response.content.decode()
     assert "STASH" not in content
     assert "VEHICLE" not in content
     assert "GANG_TERRAIN" not in content
+    assert "EXOTIC_BEAST" not in content
     # Normal categories should be present
     assert "LEADER" in content
     assert "GANGER" in content

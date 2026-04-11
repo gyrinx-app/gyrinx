@@ -2,13 +2,13 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
 
-from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
 from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
+from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 from gyrinx.forms import group_select
@@ -19,6 +19,7 @@ _EXCLUDED_FIGHTER_CATEGORIES = {
     FighterCategoryChoices.STASH,
     FighterCategoryChoices.VEHICLE,
     FighterCategoryChoices.GANG_TERRAIN,
+    FighterCategoryChoices.EXOTIC_BEAST,
 }
 
 
@@ -582,8 +583,8 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
             "traits": "Traits",
         }
         help_texts = {
-            "name": "Leave blank for the standard profile. Named profiles represent alternate fire modes.",
-            "cost": "The credit cost. Standard (unnamed) profiles must have zero cost.",
+            "name": "e.g. ranged, melee, gas shells...",
+            "cost": "The credit cost. If free, the other free profiles must be named.",
             "rarity": "The availability of this profile.",
             "rarity_roll": "The roll required to find this profile (e.g. 7, 10).",
         }
