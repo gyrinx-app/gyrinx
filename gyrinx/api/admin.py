@@ -24,6 +24,8 @@ def payload(key, description=None):
             curr = curr.get(segment, {})
         return curr
 
+    # Give each callable a unique name to avoid Django admin collisions.
+    _payload.__name__ = f"payload_{'_'.join(segments)}"
     return _payload
 
 
