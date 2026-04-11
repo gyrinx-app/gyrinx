@@ -30,8 +30,7 @@ def user(request, slug_or_id):
     ``campaigns``
         Campaigns owned by the profile user, visible to the viewer.
     ``packs``
-        Content packs owned by the profile user (only if user is in
-        "Custom Content" group).
+        Content packs owned by the profile user.
     ``show_packs``
         Whether the packs section should be shown.
 
@@ -89,14 +88,12 @@ def user(request, slug_or_id):
         campaigns_qs = campaigns_qs.filter(public=True)
     campaigns = campaigns_qs
 
-    # --- Packs (only if profile user is in Custom Content group) ---
-    show_packs = profile_user.groups.filter(name="Custom Content").exists()
-    packs = CustomContentPack.objects.none()
-    if show_packs:
-        packs_qs = CustomContentPack.objects.filter(owner=profile_user, archived=False)
-        if not is_own_profile:
-            packs_qs = packs_qs.filter(listed=True)
-        packs = packs_qs
+    # --- Packs ---
+    show_packs = True
+    packs_qs = CustomContentPack.objects.filter(owner=profile_user, archived=False)
+    if not is_own_profile:
+        packs_qs = packs_qs.filter(listed=True)
+    packs = packs_qs
 
     # Log the user profile view
     if request.user.is_authenticated:

@@ -25,8 +25,8 @@ def test_csrf_failure_redirects_with_message(client: Client):
     user = User.objects.create_user(username="testuser", password="password")
     client.force_login(user)
 
-    # Get the form page
-    response = client.get(form_url)
+    # Get the form page (skip_packs=1 to bypass pack interstitial redirect)
+    response = client.get(form_url + "?skip_packs=1")
     assert response.status_code == 200
 
     # Now post without CSRF token (simulating expired token)

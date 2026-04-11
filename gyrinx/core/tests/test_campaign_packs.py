@@ -156,20 +156,10 @@ def test_campaign_packs_view_requires_login(client, make_campaign):
 
 
 @pytest.mark.django_db
-def test_campaign_packs_view_requires_custom_content_group(client, user, make_campaign):
-    """Pack management view requires Custom Content group membership."""
-    campaign = make_campaign("Test Campaign")
-
-    client.force_login(user)
-    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
-
-    # group_membership_required returns 404 for users without the group
-    assert response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_campaign_packs_view_accessible_with_group(client, cc_user, make_campaign):
-    """Pack management view is accessible to Custom Content group members."""
+def test_campaign_packs_view_accessible_to_authenticated_user(
+    client, cc_user, make_campaign
+):
+    """Pack management view is accessible to authenticated users."""
     campaign = make_campaign("Test Campaign")
 
     client.force_login(cc_user)
@@ -876,11 +866,10 @@ def test_pack_filter_shown_when_campaign_has_packs(
 
 @pytest.mark.django_db
 def test_campaign_packs_page_accessible_to_member(
-    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+    client, cc_user, make_user, make_campaign, content_house
 ):
     """A campaign member (non-owner) can access the campaign packs page."""
     member = make_user("member", "password")
-    member.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
     member_list = List.objects.create(
@@ -902,11 +891,10 @@ def test_campaign_packs_page_accessible_to_member(
 
 @pytest.mark.django_db
 def test_campaign_packs_page_404_for_non_member(
-    client, cc_user, make_user, make_campaign, custom_content_group
+    client, cc_user, make_user, make_campaign
 ):
     """A user with no gang in the campaign gets 404."""
     stranger = make_user("stranger", "password")
-    stranger.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
 
@@ -918,11 +906,10 @@ def test_campaign_packs_page_404_for_non_member(
 
 @pytest.mark.django_db
 def test_campaign_packs_member_sees_add_to_dropdown(
-    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+    client, cc_user, make_user, make_campaign, content_house
 ):
     """A member sees the 'Add to...' dropdown with their unsubscribed gangs."""
     member = make_user("member", "password")
-    member.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
     gang = List.objects.create(
@@ -946,11 +933,10 @@ def test_campaign_packs_member_sees_add_to_dropdown(
 
 @pytest.mark.django_db
 def test_campaign_packs_hides_subscribed_gangs_from_dropdown(
-    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+    client, cc_user, make_user, make_campaign, content_house
 ):
     """Gangs already subscribed to a pack are hidden from the dropdown."""
     member = make_user("member", "password")
-    member.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
     gang = List.objects.create(
@@ -972,12 +958,9 @@ def test_campaign_packs_hides_subscribed_gangs_from_dropdown(
 
 
 @pytest.mark.django_db
-def test_campaign_packs_my_filter(
-    client, cc_user, make_user, make_campaign, custom_content_group
-):
+def test_campaign_packs_my_filter(client, cc_user, make_user, make_campaign):
     """The 'Your Packs only' filter shows only packs owned by the current user."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
 
@@ -1001,11 +984,10 @@ def test_campaign_packs_my_filter(
 
 @pytest.mark.django_db
 def test_campaign_packs_member_does_not_see_add_remove_controls(
-    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+    client, cc_user, make_user, make_campaign, content_house
 ):
     """A non-owner member should not see the 'Add Packs' section or remove links."""
     member = make_user("member", "password")
-    member.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
     gang = List.objects.create(
@@ -1028,11 +1010,10 @@ def test_campaign_packs_member_does_not_see_add_remove_controls(
 
 @pytest.mark.django_db
 def test_campaign_packs_subscribe_from_dropdown(
-    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+    client, cc_user, make_user, make_campaign, content_house
 ):
     """Subscribing a gang via the dropdown redirects back to campaign packs."""
     member = make_user("member", "password")
-    member.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
     gang = List.objects.create(
@@ -1062,11 +1043,10 @@ def test_campaign_packs_subscribe_from_dropdown(
 
 @pytest.mark.django_db
 def test_campaign_packs_dropdown_shows_other_link(
-    client, cc_user, make_user, make_campaign, content_house, custom_content_group
+    client, cc_user, make_user, make_campaign, content_house
 ):
     """The dropdown always includes an 'Other...' link to the pack's lists page."""
     member = make_user("member", "password")
-    member.groups.add(custom_content_group)
 
     campaign = make_campaign("Test Campaign")
     gang = List.objects.create(

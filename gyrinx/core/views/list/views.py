@@ -279,12 +279,7 @@ class ListDetailView(generic.DetailView):
         context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
 
         # Suggested campaign packs (for the "X suggested" indicator)
-        # Only show if user is in the Custom Content group (list-packs page requires it)
-        if (
-            self.request.user.is_authenticated
-            and list_obj.owner == self.request.user
-            and self.request.user.groups.filter(name="Custom Content").exists()
-        ):
+        if self.request.user.is_authenticated and list_obj.owner == self.request.user:
             suggested = list_obj.get_suggested_campaign_packs()
             context["suggested_campaign_packs_count"] = suggested.count()
 
@@ -562,8 +557,8 @@ def new_list(request):
     """
     Create a new :model:`core.List` owned by the current user.
 
-    For Custom Content users, redirects to pack selection interstitial first
-    unless packs have already been selected (stored in session) or skipped.
+    Redirects to pack selection interstitial first unless packs have already
+    been selected (stored in session) or skipped.
 
     **Context**
 
@@ -580,8 +575,6 @@ def new_list(request):
     """
     from gyrinx.core.models.pack import CustomContentPack
 
-    is_cc_user = request.user.groups.filter(name="Custom Content").exists()
-
     if request.method == "POST":
         raw_pack_ids = request.POST.getlist("packs")
     else:
@@ -590,8 +583,8 @@ def new_list(request):
 
     skip_packs = request.GET.get("skip_packs") == "1"
 
-    # CC users who haven't visited the interstitial yet get redirected there
-    if request.method == "GET" and is_cc_user and not skip_packs and not pack_ids:
+    # Users who haven't visited the interstitial yet get redirected there
+    if request.method == "GET" and not skip_packs and not pack_ids:
         return HttpResponseRedirect(reverse("core:lists-new-packs"))
 
     # Resolve selected packs
@@ -667,16 +660,12 @@ def new_list_packs(request):
     """
     Interstitial page for selecting content packs before creating a new list.
 
-    Only available to users in the Custom Content group.
     Stores selected pack IDs in session, then redirects to the new list form.
 
     **Template**
 
     :template:`core/list_new_packs.html`
     """
-    if not request.user.groups.filter(name="Custom Content").exists():
-        return HttpResponseRedirect(reverse("core:lists-new") + "?skip_packs=1")
-
     from gyrinx.core.models.pack import CustomContentPack
 
     # All packs the user can access (for POST validation)
@@ -820,15 +809,13 @@ def edit_list(request, id):
     else:
         form = EditListForm(instance=list_)
 
-    has_custom_content = request.user.groups.filter(name="Custom Content").exists()
-
     return render(
         request,
         "core/list_edit.html",
         {
             "form": form,
             "error_message": error_message,
-            "has_custom_content": has_custom_content,
+            "has_custom_content": True,
         },
     )
 
