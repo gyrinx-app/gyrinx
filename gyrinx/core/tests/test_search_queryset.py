@@ -87,3 +87,128 @@ def test_no_duplicates():
     results = search_queryset(ContentHouse.objects.all(), "test", ["name"])
     # Should be exactly 1, not duplicated
     assert results.count() == 1
+
+
+@pytest.mark.django_db
+def test_no_duplicates_with_reverse_fk_fields():
+    """Searching across reverse FK fields must not produce duplicate results.
+
+    When search_fields include reverse-FK lookups like
+    ``contentweaponprofile__name``, the SQL JOINs multiply rows.  Each
+    weapon profile contributes a different tsvector annotation, so
+    ``SELECT DISTINCT`` over the annotated queryset sees every row as
+    unique — returning the same equipment multiple times.
+
+    This test creates one piece of equipment with several weapon
+    profiles and asserts that searching returns it exactly once.
+    """
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentWeaponProfile,
+    )
+
+    category = ContentEquipmentCategory.objects.create(
+        name="Test Weapons", group="Weapons & Ammo"
+    )
+    shotgun = ContentEquipment.objects.create(
+        name="Shotgun", category=category, cost="20"
+    )
+    # Create multiple weapon profiles — these generate the JOINs that
+    # cause duplicate rows when searching by contentweaponprofile__name.
+    for profile_name in ["Short Range", "Long Range", "Template"]:
+        ContentWeaponProfile.objects.create(
+            equipment=shotgun, name=profile_name, cost=0
+        )
+
+    results = search_queryset(
+        ContentEquipment.objects.all(),
+        "shotgun",
+        ["name", "category__name", "contentweaponprofile__name"],
+    )
+    assert list(results.values_list("id", flat=True)).count(shotgun.id) == 1
+    assert results.count() == 1
+
+
+@pytest.mark.django_db
+def test_no_duplicates_with_m2m_through_reverse_fk():
+    """Searching across M2M fields via a reverse FK must not duplicate results.
+
+    This is the more extreme variant: ``contentweaponprofile__traits__name``
+    traverses a reverse FK **and** an M2M, producing a Cartesian product
+    of profiles × traits in the JOIN.  A weapon with 3 profiles each
+    having 4 traits should still appear exactly once in search results.
+    """
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentWeaponProfile,
+        ContentWeaponTrait,
+    )
+
+    category = ContentEquipmentCategory.objects.create(
+        name="Test Heavy Weapons", group="Weapons & Ammo"
+    )
+    launcher = ContentEquipment.objects.create(
+        name="Grenade Launcher", category=category, cost="55"
+    )
+
+    traits = [
+        ContentWeaponTrait.objects.create(name=name)
+        for name in ['Blast (3")', "Knockback", "Rapid Fire (1)", "Scarce"]
+    ]
+
+    # Create 3 profiles, each with all 4 traits → 3×4 = 12 joined rows
+    for profile_name in ["Frag", "Krak", "Smoke"]:
+        profile = ContentWeaponProfile.objects.create(
+            equipment=launcher, name=profile_name, cost=0
+        )
+        profile.traits.set(traits)
+
+    results = search_queryset(
+        ContentEquipment.objects.all(),
+        "grenade",
+        [
+            "name",
+            "category__name",
+            "contentweaponprofile__name",
+            "contentweaponprofile__traits__name",
+        ],
+    )
+    assert list(results.values_list("id", flat=True)).count(launcher.id) == 1
+    assert results.count() == 1
+
+
+@pytest.mark.django_db
+def test_search_across_related_fields_still_finds_matches():
+    """Searching by a trait name still returns the correct equipment."""
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentWeaponProfile,
+        ContentWeaponTrait,
+    )
+
+    category = ContentEquipmentCategory.objects.create(
+        name="Test Pistols", group="Weapons & Ammo"
+    )
+    pistol = ContentEquipment.objects.create(
+        name="Stub Gun", category=category, cost="5"
+    )
+    profile = ContentWeaponProfile.objects.create(equipment=pistol, name="", cost=0)
+    knockback = ContentWeaponTrait.objects.create(name="Knockback Test")
+    profile.traits.add(knockback)
+
+    # Searching by trait name should still return the equipment
+    results = search_queryset(
+        ContentEquipment.objects.all(),
+        "knockback",
+        [
+            "name",
+            "category__name",
+            "contentweaponprofile__name",
+            "contentweaponprofile__traits__name",
+        ],
+    )
+    assert results.count() == 1
+    assert results.first().id == pistol.id
