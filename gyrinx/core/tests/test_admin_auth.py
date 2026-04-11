@@ -6,7 +6,12 @@ from django.contrib.admin.sites import AdminSite
 from allauth.account.models import EmailAddress
 from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
-from gyrinx.core.admin.auth import EmailAddressAdmin, show_verification_links
+from gyrinx.core.admin.auth import (
+    EmailAddressAdmin,
+    UserProfileAdmin,
+    show_verification_links,
+)
+from gyrinx.core.models.auth import UserProfile
 
 
 @pytest.mark.django_db
@@ -142,3 +147,53 @@ def test_email_address_admin_prevents_manual_addition():
     request.user = User.objects.create_superuser("admin", "admin@test.com", "password")
 
     assert not admin_instance.has_add_permission(request)
+
+
+@pytest.mark.django_db
+def test_user_profile_admin_search_by_patreon_email():
+    """Test that UserProfileAdmin can search by patreon_email."""
+    user = User.objects.create_user(
+        username="patron1", email="django@example.com", password="password"
+    )
+    profile = UserProfile.objects.create(
+        user=user,
+        patreon_email="patron@patreon.example.com",
+        patreon_member_id="abc123",
+    )
+
+    site = AdminSite()
+    admin_instance = UserProfileAdmin(UserProfile, site)
+    factory = RequestFactory()
+    request = factory.get("/admin/")
+    request.user = User.objects.create_superuser("admin", "admin@test.com", "password")
+
+    # Search by patreon_email
+    qs = UserProfile.objects.all()
+    result_qs, use_distinct = admin_instance.get_search_results(
+        request, qs, "patron@patreon"
+    )
+    assert profile in result_qs
+
+    # Search by patreon_member_id
+    result_qs, use_distinct = admin_instance.get_search_results(request, qs, "abc123")
+    assert profile in result_qs
+
+    # Search by Django email still works
+    result_qs, use_distinct = admin_instance.get_search_results(
+        request, qs, "django@example"
+    )
+    assert profile in result_qs
+
+
+@pytest.mark.django_db
+def test_user_profile_admin_has_patreon_tier_filter():
+    """Test that UserProfileAdmin has patreon_tier in list_filter."""
+    admin_instance = UserProfileAdmin(UserProfile, AdminSite())
+    assert "patreon_tier" in admin_instance.list_filter
+
+
+@pytest.mark.django_db
+def test_user_profile_admin_displays_patreon_email():
+    """Test that UserProfileAdmin shows patreon_email in list_display."""
+    admin_instance = UserProfileAdmin(UserProfile, AdminSite())
+    assert "patreon_email" in admin_instance.list_display
