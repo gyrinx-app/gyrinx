@@ -1297,7 +1297,29 @@ def test_archived_items_page_requires_ownership(
 @pytest.fixture
 def fighter_statline_type():
     """Create the Fighter ContentStatlineType with standard stats."""
-    statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
+    statline_type, _ = ContentStatlineType.objects.get_or_create(
+        name="Fighter",
+        defaults={
+            "default_for_categories": [
+                "LEADER",
+                "CHAMPION",
+                "GANGER",
+                "JUVE",
+                "SPECIALIST",
+                "PROSPECT",
+            ]
+        },
+    )
+    if not statline_type.default_for_categories:
+        statline_type.default_for_categories = [
+            "LEADER",
+            "CHAMPION",
+            "GANGER",
+            "JUVE",
+            "SPECIALIST",
+            "PROSPECT",
+        ]
+        statline_type.save()
 
     # (field_name, short_name, full_name, position, is_inches, is_target)
     stat_defs = [
