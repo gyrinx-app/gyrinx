@@ -77,6 +77,7 @@ class WebhookRequestAdmin(admin.ModelAdmin):
     list_filter = ["source", "event"]
 
     def get_search_results(self, request, queryset, search_term):
+        base_queryset = queryset
         queryset, use_distinct = super().get_search_results(
             request, queryset, search_term
         )
@@ -84,6 +85,6 @@ class WebhookRequestAdmin(admin.ModelAdmin):
             json_q = Q(payload__data__attributes__email__icontains=search_term) | Q(
                 payload__data__attributes__full_name__icontains=search_term
             )
-            queryset |= self.model.objects.filter(json_q)
+            queryset |= base_queryset.filter(json_q)
             use_distinct = True
         return queryset, use_distinct

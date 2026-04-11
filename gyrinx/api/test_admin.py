@@ -23,7 +23,9 @@ def admin_request():
 def test_webhook_admin_search_by_email(webhook_admin, admin_request):
     """Test that WebhookRequestAdmin can search by email in the JSON payload."""
     admin_request.user = User.objects.create_superuser(
-        "admin", "admin@test.com", "password"
+        "admin",
+        "admin@test.com",
+        "password",  # nosec B106
     )
 
     wh = WebhookRequest.objects.create(
@@ -62,7 +64,9 @@ def test_webhook_admin_search_by_email(webhook_admin, admin_request):
 def test_webhook_admin_search_by_name(webhook_admin, admin_request):
     """Test that WebhookRequestAdmin can search by full_name in the JSON payload."""
     admin_request.user = User.objects.create_superuser(
-        "admin", "admin@test.com", "password"
+        "admin",
+        "admin@test.com",
+        "password",  # nosec B106
     )
 
     wh = WebhookRequest.objects.create(
@@ -89,7 +93,9 @@ def test_webhook_admin_search_still_works_for_source_and_event(
 ):
     """Test that the default source/event search still works."""
     admin_request.user = User.objects.create_superuser(
-        "admin", "admin@test.com", "password"
+        "admin",
+        "admin@test.com",
+        "password",  # nosec B106
     )
 
     wh = WebhookRequest.objects.create(
