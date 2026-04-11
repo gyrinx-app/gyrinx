@@ -279,6 +279,13 @@ class ContentFighterPackForm(forms.ModelForm):
             for field_name in ["override_statline", "statline_type"]:
                 self.fields.pop(field_name, None)
 
+    def clean(self):
+        cleaned = super().clean()
+        # Server-side enforcement: ignore statline_type unless override is checked.
+        if not cleaned.get("override_statline"):
+            cleaned["statline_type"] = None
+        return cleaned
+
     def clean_type(self):
         value = self.cleaned_data["type"]
         qs = ContentFighter.objects.filter(type__iexact=value)

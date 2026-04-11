@@ -1329,11 +1329,23 @@ def add_pack_fighter_stats(request, id):
             reverse("core:pack-add-item", args=(pack.id, "fighter"))
         )
 
-    # Resolve statline type override if provided.
+    # Resolve statline type override if provided, validating it against
+    # the same allowed set that Step 1 offers.
     statline_type_override = None
     if params.statline_type_id:
+        from gyrinx.core.forms.pack import _EXCLUDED_FIGHTER_CATEGORIES
+        from gyrinx.models import FighterCategoryChoices as FCC
+
+        allowed_categories = {
+            v for v, _ in FCC.choices if v not in _EXCLUDED_FIGHTER_CATEGORIES
+        }
+        allowed_ids = [
+            st.pk
+            for st in ContentStatlineType.objects.all()
+            if set(st.default_for_categories) & allowed_categories
+        ]
         statline_type_override = ContentStatlineType.objects.filter(
-            pk=params.statline_type_id
+            pk=params.statline_type_id, pk__in=allowed_ids
         ).first()
 
     save_and_add_another = request.GET.get("save_and_add_another") == "1"
