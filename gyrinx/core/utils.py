@@ -57,10 +57,12 @@ def search_queryset(queryset, query, fields):
     # fields (e.g. reverse FK or M2M lookups like contentweaponprofile__name
     # or contentweaponprofile__traits__name). With the annotation approach,
     # DISTINCT is ineffective because the tsvector varies per joined row.
+    # Clear any inherited ordering so DISTINCT applies only to the PK column.
     matching_pks = (
         queryset.annotate(search=search_vector)
         .filter(Q(search=search_q) | icontains_q)
-        .values("pk")
+        .order_by()
+        .values_list("pk", flat=True)
         .distinct()
     )
     return queryset.filter(pk__in=matching_pks)
