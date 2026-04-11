@@ -76,3 +76,24 @@
         </form>
     </div>
 {% endblock content %}
+{% block extra_script %}
+    <script>
+        (function () {
+            const checkbox = document.getElementById("id_override_statline");
+            const select = document.getElementById("id_statline_type");
+            if (!checkbox || !select) return;
+
+            function toggle() {
+                if (checkbox.checked) {
+                    select.removeAttribute("disabled");
+                } else {
+                    select.setAttribute("disabled", "disabled");
+                    select.value = "";
+                }
+            }
+
+            checkbox.addEventListener("change", toggle);
+            toggle();
+        })();
+    </script>
+{% endblock extra_script %}

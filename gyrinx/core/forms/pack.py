@@ -5,6 +5,7 @@ from django.db.models import Case, When
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
+from gyrinx.content.models.statline import ContentStatlineType
 from gyrinx.content.models.metadata import ContentRule
 from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
 from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
@@ -63,6 +64,26 @@ class ContentFighterPackForm(forms.ModelForm):
     to include both base library content and pack-specific content.
     """
 
+    override_statline = forms.BooleanField(
+        required=False,
+        label="Override default statline for this Category?",
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_override_statline"}
+        ),
+    )
+    statline_type = forms.ModelChoiceField(
+        queryset=ContentStatlineType.objects.none(),
+        required=False,
+        label="Statline type",
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+                "disabled": "disabled",
+                "id": "id_statline_type",
+            }
+        ),
+    )
+
     class Meta:
         model = ContentFighter
         fields = [
@@ -119,6 +140,35 @@ class ContentFighterPackForm(forms.ModelForm):
             for value, label in FighterCategoryChoices.choices
             if value not in _EXCLUDED_FIGHTER_CATEGORIES
         ]
+
+        # Populate statline type choices filtered to types relevant to
+        # the categories available in this form.
+        allowed_categories = {
+            value
+            for value, _ in FighterCategoryChoices.choices
+            if value not in _EXCLUDED_FIGHTER_CATEGORIES
+        }
+        relevant_ids = [
+            st.pk
+            for st in ContentStatlineType.objects.all()
+            if set(st.default_for_categories) & allowed_categories
+        ]
+        self.fields["statline_type"].queryset = ContentStatlineType.objects.filter(
+            pk__in=relevant_ids
+        )
+        self.fields["statline_type"].empty_label = "Default"
+        # Remove disabled attr when override is checked so the value submits.
+        if self.data.get("override_statline"):
+            del self.fields["statline_type"].widget.attrs["disabled"]
+
+        # Place the override/statline fields right after category.
+        field_order = list(self.fields.keys())
+        cat_idx = field_order.index("category") + 1
+        for name in ("override_statline", "statline_type"):
+            field_order.remove(name)
+        field_order.insert(cat_idx, "override_statline")
+        field_order.insert(cat_idx + 1, "statline_type")
+        self.order_fields(field_order)
 
         # House is required for pack fighters.
         self.fields["house"].required = True
@@ -224,6 +274,10 @@ class ContentFighterPackForm(forms.ModelForm):
                 "secondary_skill_categories",
             ]:
                 del self.fields[field_name]
+        else:
+            # Override statline is only relevant during creation.
+            for field_name in ["override_statline", "statline_type"]:
+                self.fields.pop(field_name, None)
 
     def clean_type(self):
         value = self.cleaned_data["type"]

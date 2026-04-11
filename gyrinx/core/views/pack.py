@@ -820,6 +820,7 @@ class AddFighterFlowParams(BaseModel):
     house_id: uuid.UUID
     base_cost: int
     rule_ids: list[uuid.UUID] = []
+    statline_type_id: uuid.UUID | None = None
 
 
 WEAPON_PROFILE_MODES = {"single", "multi"}
@@ -844,9 +845,11 @@ def _get_statline_type_for_category(category):
     )
 
 
-def _get_fighter_stat_definitions(category=None):
+def _get_fighter_stat_definitions(category=None, statline_type_override=None):
     """Load the stat definitions for a fighter category's statline type."""
-    if category:
+    if statline_type_override:
+        statline_type = statline_type_override
+    elif category:
         statline_type = _get_statline_type_for_category(category)
     else:
         statline_type = ContentStatlineType.objects.get(name="Fighter")
@@ -916,9 +919,13 @@ def _stat_placeholder(content_stat):
     return "3"
 
 
-def _create_fighter_statline(fighter, stat_definitions, post_data, category=None):
+def _create_fighter_statline(
+    fighter, stat_definitions, post_data, category=None, statline_type_override=None
+):
     """Create a ContentStatline and populate stat values from POST data."""
-    if category:
+    if statline_type_override:
+        statline_type = statline_type_override
+    elif category:
         statline_type = _get_statline_type_for_category(category)
     else:
         statline_type = ContentStatlineType.objects.get(name="Fighter")
@@ -1170,14 +1177,16 @@ def add_pack_item(request, id, content_type_slug):
         if form.is_valid() and not wp_name_errors:
             if is_fighter:
                 # Redirect to Step 2 with form data in query params.
+                statline_type = form.cleaned_data.get("statline_type")
                 params = AddFighterFlowParams(
                     type=form.cleaned_data["type"],
                     category=form.cleaned_data["category"],
                     house_id=form.cleaned_data["house"].pk,
                     base_cost=form.cleaned_data["base_cost"],
                     rule_ids=[r.pk for r in form.cleaned_data.get("rules", [])],
+                    statline_type_id=statline_type.pk if statline_type else None,
                 )
-                query_data = params.model_dump(mode="json")
+                query_data = params.model_dump(mode="json", exclude_none=True)
                 if "save_and_add_another" in request.POST:
                     query_data["save_and_add_another"] = "1"
                 qs = urlencode(query_data, doseq=True)
@@ -1305,12 +1314,14 @@ def add_pack_fighter_stats(request, id):
     # Parse flow params from query string.
     try:
         rule_ids = request.GET.getlist("rule_ids")
+        statline_type_id = request.GET.get("statline_type_id") or None
         params = AddFighterFlowParams(
             type=request.GET["type"],
             category=request.GET["category"],
             house_id=request.GET["house_id"],
             base_cost=request.GET["base_cost"],
             rule_ids=rule_ids,
+            statline_type_id=statline_type_id,
         )
     except (KeyError, ValidationError):
         # Invalid or missing params — redirect back to Step 1.
@@ -1318,8 +1329,17 @@ def add_pack_fighter_stats(request, id):
             reverse("core:pack-add-item", args=(pack.id, "fighter"))
         )
 
+    # Resolve statline type override if provided.
+    statline_type_override = None
+    if params.statline_type_id:
+        statline_type_override = ContentStatlineType.objects.filter(
+            pk=params.statline_type_id
+        ).first()
+
     save_and_add_another = request.GET.get("save_and_add_another") == "1"
-    stat_definitions = _get_fighter_stat_definitions(category=params.category)
+    stat_definitions = _get_fighter_stat_definitions(
+        category=params.category, statline_type_override=statline_type_override
+    )
 
     if request.method == "POST":
         # Re-validate fighter data via the same form used in Step 1.
@@ -1350,7 +1370,11 @@ def add_pack_fighter_stats(request, id):
             )
             item.save_with_user(user=request.user)
             _create_fighter_statline(
-                fighter, stat_definitions, request.POST, category=params.category
+                fighter,
+                stat_definitions,
+                request.POST,
+                category=params.category,
+                statline_type_override=statline_type_override,
             )
 
         log_event(
@@ -1385,7 +1409,7 @@ def add_pack_fighter_stats(request, id):
         )
 
     # Build the query string for the back button / form action.
-    query_data = params.model_dump(mode="json")
+    query_data = params.model_dump(mode="json", exclude_none=True)
     if save_and_add_another:
         query_data["save_and_add_another"] = "1"
     qs = urlencode(query_data, doseq=True)
