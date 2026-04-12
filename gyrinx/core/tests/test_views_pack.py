@@ -1861,6 +1861,23 @@ def test_edit_fighter_form_preselects_pack_rules(
     assert str(rule.pk) in {str(v) for v in rules_value}
 
 
+@pytest.mark.django_db
+def test_edit_fighter_preview_card_shows_pack_rules(
+    client, group_user, pack, pack_fighter, pack_rule
+):
+    """Test that pack rules appear in the fighter preview card context."""
+    fighter = pack_fighter.content_object
+    rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
+    fighter.rules.add(rule)
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
+    assert response.status_code == 200
+
+    preview_rules = response.context["preview_rules"]
+    assert rule in preview_rules
+
+
 # --- Editor Permissions ---
 
 
