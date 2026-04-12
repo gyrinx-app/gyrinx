@@ -16,10 +16,13 @@ Cases (from weapon-profiles-display-spec.md):
                 {% if weapon.cost_display %}({{ weapon.cost_display }}){% endif %}
             </td>
             {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+            {% if show_al %}
+                <td class="text-center border-start">{{ weapon.rarity }}{% firstof weapon.rarity_roll "" %}</td>
+            {% endif %}
         </tr>
         {% if profile.traitline|length > 0 %}
             <tr>
-                <td colspan="8">{{ profile.traitline|join:", " }}</td>
+                <td colspan="{% if show_al %}9{% else %}8{% endif %}">{{ profile.traitline|join:", " }}</td>
             </tr>
         {% endif %}
     {% endwith %}
@@ -28,7 +31,7 @@ Cases (from weapon-profiles-display-spec.md):
     {% with profiles.0 as first_profile %}
         {% if first_profile.name %}
             <tr class="align-bottom">
-                <td colspan="9">
+                <td colspan="{% if show_al %}10{% else %}9{% endif %}">
                     {{ weapon }}
                     {% if weapon.cost_display %}({{ weapon.cost_display }}){% endif %}
                 </td>
@@ -54,17 +57,24 @@ Cases (from weapon-profiles-display-spec.md):
                 {% endif %}
             </td>
             {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+            {% if show_al %}
+                {% if forloop.first %}
+                    <td class="text-center border-start">{{ weapon.rarity }}{% firstof weapon.rarity_roll "" %}</td>
+                {% else %}
+                    <td class="text-center border-start"></td>
+                {% endif %}
+            {% endif %}
         </tr>
         {% if profile.traitline|length > 0 %}
             <tr>
-                <td colspan="8">{{ profile.traitline|join:", " }}</td>
+                <td colspan="{% if show_al %}9{% else %}8{% endif %}">{{ profile.traitline|join:", " }}</td>
             </tr>
         {% endif %}
     {% endfor %}
 {% endif %}
 {% if can_edit %}
     <tr>
-        <td colspan="9">
+        <td colspan="{% if show_al %}10{% else %}9{% endif %}">
             <div class="d-flex gap-1 align-items-center fs-7 mb-1">
                 <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                 <a href="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
