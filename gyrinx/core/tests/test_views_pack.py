@@ -1,5 +1,4 @@
 import pytest
-from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 
@@ -19,15 +18,8 @@ from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
 
 @pytest.fixture
-def custom_content_group():
-    group, _ = Group.objects.get_or_create(name="Custom Content")
-    return group
-
-
-@pytest.fixture
-def group_user(user, custom_content_group):
-    """A user who is in the Custom Content group."""
-    user.groups.add(custom_content_group)
+def group_user(user):
+    """A user for pack operations (group membership no longer required)."""
     return user
 
 
@@ -46,24 +38,14 @@ def pack(group_user):
 
 
 @pytest.mark.django_db
-def test_customisation_link_visible_for_group_members(client, group_user):
-    """Test that the Customisation link is visible for group members."""
-    client.force_login(group_user)
+def test_customisation_link_visible_for_authenticated_users(client, user):
+    """Test that the Customisation link is visible for authenticated users."""
+    client.force_login(user)
     response = client.get("/")
 
     assert response.status_code == 200
     assert b'href="/packs/"' in response.content
     assert b">Customisation</a>" in response.content
-
-
-@pytest.mark.django_db
-def test_customisation_link_hidden_for_non_members(client, user):
-    """Test that the Customisation link is hidden for non-members."""
-    client.force_login(user)
-    response = client.get("/")
-
-    assert response.status_code == 200
-    assert b'href="/packs/"' not in response.content
 
 
 @pytest.mark.django_db
@@ -73,43 +55,6 @@ def test_customisation_link_hidden_for_anonymous(client):
 
     assert response.status_code == 200
     assert b'href="/packs/"' not in response.content
-
-
-# --- View access gating ---
-
-
-@pytest.mark.django_db
-def test_packs_index_requires_group(client, user):
-    """Test that the packs index returns 404 for non-group members."""
-    client.force_login(user)
-    response = client.get("/packs/")
-    assert response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_pack_detail_requires_group(client, pack, make_user):
-    """Test that the pack detail returns 404 for non-group members."""
-    non_member = make_user("nonmember", "password")
-    client.force_login(non_member)
-    response = client.get(f"/pack/{pack.id}")
-    assert response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_pack_create_requires_group(client, user):
-    """Test that creating a pack returns 404 for non-group members."""
-    client.force_login(user)
-    response = client.get("/packs/new/")
-    assert response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_pack_edit_requires_group(client, pack, make_user):
-    """Test that editing a pack returns 404 for non-group members."""
-    non_member = make_user("nonmember", "password")
-    client.force_login(non_member)
-    response = client.get(f"/pack/{pack.id}/edit/")
-    assert response.status_code == 404
 
 
 # --- Pack index view ---
@@ -133,12 +78,9 @@ def test_packs_index_shows_own_packs(client, group_user, pack):
 
 
 @pytest.mark.django_db
-def test_packs_index_hides_other_users_packs(
-    client, group_user, custom_content_group, make_user
-):
+def test_packs_index_hides_other_users_packs(client, group_user, make_user):
     """Test that the index doesn't show other users' packs by default."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
     client.force_login(group_user)
     response = client.get("/packs/")
@@ -147,12 +89,9 @@ def test_packs_index_hides_other_users_packs(
 
 
 @pytest.mark.django_db
-def test_packs_index_shows_listed_packs_when_my_off(
-    client, group_user, custom_content_group, make_user
-):
+def test_packs_index_shows_listed_packs_when_my_off(client, group_user, make_user):
     """Test that toggling off 'your packs' shows listed packs."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
     client.force_login(group_user)
     response = client.get("/packs/?my=0")
@@ -161,9 +100,7 @@ def test_packs_index_shows_listed_packs_when_my_off(
 
 
 @pytest.mark.django_db
-def test_packs_index_shows_own_packs_when_my_off(
-    client, group_user, custom_content_group, make_user
-):
+def test_packs_index_shows_own_packs_when_my_off(client, group_user, make_user):
     """Test that toggling off 'your packs' still shows the user's own packs."""
     # Create an unlisted pack owned by the current user
     CustomContentPack.objects.create(
@@ -171,7 +108,6 @@ def test_packs_index_shows_own_packs_when_my_off(
     )
     # Create a listed pack from another user
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
 
     # Create an unlisted pack from another user shared via permission
@@ -235,12 +171,9 @@ def test_pack_detail_shows_edit_for_owner(client, group_user, pack):
 
 
 @pytest.mark.django_db
-def test_pack_detail_hides_edit_for_non_owner(
-    client, group_user, pack, custom_content_group, make_user
-):
+def test_pack_detail_hides_edit_for_non_owner(client, group_user, pack, make_user):
     """Test that the edit button is hidden for non-owners."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}")
     assert response.status_code == 200
@@ -268,15 +201,12 @@ def test_unlisted_pack_visible_to_owner(client, group_user):
 
 
 @pytest.mark.django_db
-def test_unlisted_pack_hidden_from_others(
-    client, group_user, custom_content_group, make_user
-):
+def test_unlisted_pack_hidden_from_others(client, group_user, make_user):
     """Test that an unlisted pack returns 404 for non-owners."""
     unlisted = CustomContentPack.objects.create(
         name="Secret Pack", listed=False, owner=group_user
     )
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{unlisted.id}")
     assert response.status_code == 404
@@ -284,12 +214,13 @@ def test_unlisted_pack_hidden_from_others(
 
 @pytest.mark.django_db
 def test_unlisted_pack_hidden_from_anonymous(client, group_user):
-    """Test that an unlisted pack returns 404 for anonymous users."""
+    """Test that an unlisted pack redirects anonymous users to login."""
     unlisted = CustomContentPack.objects.create(
         name="Secret Pack", listed=False, owner=group_user
     )
     response = client.get(f"/pack/{unlisted.id}")
-    assert response.status_code == 404
+    assert response.status_code == 302
+    assert "/accounts/login/" in response.url
 
 
 # --- Pack create view ---
@@ -336,10 +267,9 @@ def test_pack_edit_requires_login(client, pack):
 
 
 @pytest.mark.django_db
-def test_pack_edit_requires_ownership(client, pack, custom_content_group, make_user):
+def test_pack_edit_requires_ownership(client, pack, make_user):
     """Test that only the owner can edit a pack."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/edit/")
     assert response.status_code == 404
@@ -489,24 +419,21 @@ def test_pack_activity_page_loads(client, group_user, pack):
 
 
 @pytest.mark.django_db
-def test_pack_activity_page_requires_group(client, pack, make_user):
-    """Test that the activity page requires group membership."""
-    non_member = make_user("nonmember", "password")
-    client.force_login(non_member)
+def test_pack_activity_page_accessible_to_authenticated_user(client, pack, make_user):
+    """Test that the activity page is accessible to any authenticated user."""
+    other_user = make_user("otheruser", "password")
+    client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/activity/")
-    assert response.status_code == 404
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db
-def test_pack_activity_page_respects_visibility(
-    client, group_user, custom_content_group, make_user
-):
+def test_pack_activity_page_respects_visibility(client, group_user, make_user):
     """Test that the activity page respects pack visibility rules."""
     unlisted = CustomContentPack.objects.create(
         name="Secret Pack", listed=False, owner=group_user
     )
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{unlisted.id}/activity/")
     assert response.status_code == 404
@@ -708,20 +635,10 @@ def test_add_rule_requires_login(client, pack):
 
 
 @pytest.mark.django_db
-def test_add_rule_requires_ownership(client, pack, custom_content_group, make_user):
+def test_add_rule_requires_ownership(client, pack, make_user):
     """Test that only the pack owner can add rules."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/add/rule/")
-    assert response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_add_rule_requires_group(client, pack, make_user):
-    """Test that adding a rule requires Custom Content group."""
-    non_member = make_user("nonmember", "password")
-    client.force_login(non_member)
     response = client.get(f"/pack/{pack.id}/add/rule/")
     assert response.status_code == 404
 
@@ -745,12 +662,9 @@ def test_pack_detail_shows_add_rule_button(client, group_user, pack):
 
 
 @pytest.mark.django_db
-def test_pack_detail_hides_add_button_for_non_owner(
-    client, pack, custom_content_group, make_user
-):
+def test_pack_detail_hides_add_button_for_non_owner(client, pack, make_user):
     """Test that the Add button is hidden for non-owners."""
     other_user = make_user("viewer", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}")
     assert response.status_code == 200
@@ -793,12 +707,9 @@ def test_edit_rule_updates_content(client, group_user, pack, pack_rule):
 
 
 @pytest.mark.django_db
-def test_edit_rule_requires_ownership(
-    client, pack, pack_rule, custom_content_group, make_user
-):
+def test_edit_rule_requires_ownership(client, pack, pack_rule, make_user):
     """Test that only the pack owner can edit rules."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
     assert response.status_code == 404
@@ -833,12 +744,9 @@ def test_delete_rule_archives_item_and_preserves_content(
 
 
 @pytest.mark.django_db
-def test_delete_rule_requires_ownership(
-    client, pack, pack_rule, custom_content_group, make_user
-):
+def test_delete_rule_requires_ownership(client, pack, pack_rule, make_user):
     """Test that only the pack owner can delete rules."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 404
@@ -899,20 +807,10 @@ def test_add_house_requires_login(client, pack):
 
 
 @pytest.mark.django_db
-def test_add_house_requires_ownership(client, pack, custom_content_group, make_user):
+def test_add_house_requires_ownership(client, pack, make_user):
     """Test that only the pack owner can add houses."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/add/house/")
-    assert response.status_code == 404
-
-
-@pytest.mark.django_db
-def test_add_house_requires_group(client, pack, make_user):
-    """Test that adding a house requires Custom Content group."""
-    non_member = make_user("nonmember", "password")
-    client.force_login(non_member)
     response = client.get(f"/pack/{pack.id}/add/house/")
     assert response.status_code == 404
 
@@ -976,12 +874,9 @@ def test_edit_house_updates_content(client, group_user, pack, pack_house):
 
 
 @pytest.mark.django_db
-def test_edit_house_requires_ownership(
-    client, pack, pack_house, custom_content_group, make_user
-):
+def test_edit_house_requires_ownership(client, pack, pack_house, make_user):
     """Test that only the pack owner can edit houses."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/edit/")
     assert response.status_code == 404
@@ -1015,12 +910,9 @@ def test_delete_house_archives_item_and_preserves_content(
 
 
 @pytest.mark.django_db
-def test_delete_house_requires_ownership(
-    client, pack, pack_house, custom_content_group, make_user
-):
+def test_delete_house_requires_ownership(client, pack, pack_house, make_user):
     """Test that only the pack owner can delete houses."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.post(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
     assert response.status_code == 404
@@ -1082,16 +974,13 @@ def test_restore_pack_item(client, group_user, pack, pack_rule):
 
 
 @pytest.mark.django_db
-def test_restore_requires_ownership(
-    client, pack, pack_rule, custom_content_group, make_user
-):
+def test_restore_requires_ownership(client, pack, pack_rule, make_user):
     """Test that only the pack owner can restore items."""
     # Archive first (directly, since we need it archived)
     pack_rule._history_user = pack.owner
     pack_rule.archive()
 
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/restore/")
     assert response.status_code == 404
@@ -1277,15 +1166,12 @@ def test_archived_items_page_loads(client, group_user, pack, pack_rule):
 
 
 @pytest.mark.django_db
-def test_archived_items_page_requires_ownership(
-    client, pack, pack_rule, custom_content_group, make_user
-):
+def test_archived_items_page_requires_ownership(client, pack, pack_rule, make_user):
     """Test that only the pack owner can view archived items."""
     pack_rule._history_user = pack.owner
     pack_rule.archive()
 
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/archived/rule/")
     assert response.status_code == 404
@@ -1979,10 +1865,9 @@ def test_edit_fighter_form_preselects_pack_rules(
 
 
 @pytest.fixture
-def editor_user(custom_content_group, make_user):
-    """A second user in the Custom Content group to be used as an editor."""
+def editor_user(make_user):
+    """A second user to be used as an editor."""
     editor = make_user("editor", "password")
-    editor.groups.add(custom_content_group)
     return editor
 
 
@@ -2013,18 +1898,18 @@ def test_can_edit_returns_true_for_editor(pack_with_editor, editor_user):
 
 
 @pytest.mark.django_db
-def test_can_edit_returns_false_for_non_editor(pack, custom_content_group, make_user):
+def test_can_edit_returns_false_for_non_editor(pack, make_user):
     """Test that can_edit returns False for a non-editor user."""
     other = make_user("other", "password")
-    other.groups.add(custom_content_group)
+
     assert pack.can_edit(other) is False
 
 
 @pytest.mark.django_db
-def test_can_view_returns_true_for_listed_pack(pack, custom_content_group, make_user):
+def test_can_view_returns_true_for_listed_pack(pack, make_user):
     """Test that can_view returns True for any user on a listed pack."""
     other = make_user("other", "password")
-    other.groups.add(custom_content_group)
+
     assert pack.can_view(other) is True
 
 
@@ -2057,12 +1942,11 @@ def test_can_view_returns_true_for_unlisted_pack_editor(
 @pytest.mark.django_db
 def test_can_view_returns_false_for_unlisted_pack_non_editor(
     group_user,
-    custom_content_group,
     make_user,
 ):
     """Test that can_view returns False for a non-editor on an unlisted pack."""
     other = make_user("other", "password")
-    other.groups.add(custom_content_group)
+
     unlisted = CustomContentPack.objects.create(
         name="Unlisted", listed=False, owner=group_user
     )
@@ -2175,7 +2059,6 @@ def test_editor_can_see_unlisted_pack(
     client,
     editor_user,
     group_user,
-    custom_content_group,
 ):
     """Test that an editor can view an unlisted pack."""
     from gyrinx.core.models.pack import CustomContentPackPermission
@@ -2262,12 +2145,11 @@ def test_permissions_page_loads_for_owner(client, group_user, pack):
 def test_permissions_page_404_for_non_owner(
     client,
     pack,
-    custom_content_group,
     make_user,
 ):
     """Test that the permissions page returns 404 for non-owners."""
     other = make_user("other", "password")
-    other.groups.add(custom_content_group)
+
     client.force_login(other)
     response = client.get(f"/pack/{pack.id}/permissions/")
     assert response.status_code == 404
@@ -2342,19 +2224,6 @@ def test_permissions_add_owner_as_editor(client, group_user, pack):
     )
     assert response.status_code == 200
     assert b"already has full access" in response.content
-
-
-@pytest.mark.django_db
-def test_permissions_add_non_group_user(client, group_user, pack, make_user):
-    """Test that adding a user not in the Custom Content group shows an error."""
-    make_user("regular", "password")
-    client.force_login(group_user)
-    response = client.post(
-        f"/pack/{pack.id}/permissions/",
-        {"action": "add", "username": "regular"},
-    )
-    assert response.status_code == 200
-    assert b"not in the Custom Content group" in response.content
 
 
 # --- My Packs index shows editor packs ---
@@ -2460,10 +2329,9 @@ def test_add_gear_requires_login(client, pack):
 
 
 @pytest.mark.django_db
-def test_add_gear_requires_ownership(client, pack, custom_content_group, make_user):
+def test_add_gear_requires_ownership(client, pack, make_user):
     """Test that only pack editors can add gear."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/add/gear/")
     assert response.status_code == 404
@@ -2524,12 +2392,9 @@ def test_edit_gear_without_changing_name(
 
 
 @pytest.mark.django_db
-def test_edit_gear_requires_ownership(
-    client, pack, pack_equipment, custom_content_group, make_user
-):
+def test_edit_gear_requires_ownership(client, pack, pack_equipment, make_user):
     """Test that only pack editors can edit gear."""
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
     assert response.status_code == 404

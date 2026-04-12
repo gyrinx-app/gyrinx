@@ -6,7 +6,7 @@ Content Packs are user-created collections of custom game content. They allow us
 
 The content pack system is designed around a key principle: pack content is hidden from normal queries by default. When a user browses fighters, equipment, or other content in the application, they only see the official base content. Pack content only appears when a user explicitly opts in to a specific pack. This keeps the default experience clean while still allowing custom content to coexist in the same database.
 
-Content packs are a gated feature. Only users who belong to the "Custom Content" user group can access the packs interface, create packs, or browse community packs. This allows you to control the rollout of custom content functionality.
+Content packs are available to all authenticated users. Any logged-in user can access the packs interface, create packs, and browse community packs.
 
 ## Key Concepts
 
@@ -15,8 +15,6 @@ Content packs are a gated feature. Only users who belong to the "Custom Content"
 **Pack content** is any content item that has been added to at least one content pack. Pack content is automatically excluded from normal content queries throughout the application.
 
 **Listed vs unlisted** packs control public visibility. A listed pack appears in search results and the community packs index. An unlisted pack can still be shared via its direct URL, but it will not show up when other users browse packs.
-
-**The "Custom Content" group** is a Django auth group. Users must be members of this group to access any pack-related pages. If a user who is not in this group tries to visit a pack URL, they receive a 404 response.
 
 **Content types** refer to the different kinds of game content that can be included in a pack. Currently, the supported content type is Houses (`ContentHouse`). The system is built using Django's `ContentType` framework, so extending it to additional content models is straightforward.
 
@@ -112,7 +110,7 @@ This column also appears as a read-only field on each content item's detail/edit
 
 ### The Customisation page
 
-Users in the "Custom Content" group access content packs through the Customisation page at `/packs/`. This page shows a searchable, paginated list of content packs.
+Authenticated users access content packs through the Customisation page at `/packs/`. This page shows a searchable, paginated list of content packs.
 
 By default, authenticated users see only their own packs (the "My packs only" toggle is on). Turning the toggle off shows all publicly listed packs from the community. Full-text search covers pack names, summaries, and author usernames.
 
@@ -151,14 +149,6 @@ Activity is paginated at 50 entries per page.
 When users build lists and add fighters or equipment, they interact with the normal content queries that exclude pack content by default. Pack content does not appear in fighter selection dropdowns, equipment lists, or any other content-driven interface unless the application explicitly uses `with_packs()` to include specific packs.
 
 ## Common Admin Tasks
-
-### Adding a user to the Custom Content group
-
-Before a user can create or browse content packs, they must be a member of the "Custom Content" Django auth group. To add a user:
-
-1. Navigate to the user's record in the Django admin under Authentication and Authorization > Users
-2. In the Groups section, add the "Custom Content" group
-3. Save the user record
 
 ### Creating a pack via the admin
 

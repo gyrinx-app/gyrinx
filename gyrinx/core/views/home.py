@@ -185,13 +185,9 @@ def account_home(request):
     ).count()
     battles_count = Battle.objects.filter(campaign__owner=user).count()
 
-    # Content Packs - only if user is in "Custom Content" group
-    show_packs = user.groups.filter(name="Custom Content").exists()
-    packs_count = 0
-    if show_packs:
-        packs_count = CustomContentPack.objects.filter(
-            owner=user, archived=False
-        ).count()
+    # Content Packs
+    show_packs = True
+    packs_count = CustomContentPack.objects.filter(owner=user, archived=False).count()
 
     stats = {
         "lists_count": lists_count,

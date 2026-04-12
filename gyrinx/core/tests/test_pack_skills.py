@@ -1,7 +1,6 @@
 """Tests for custom skills in content packs."""
 
 import pytest
-from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
@@ -12,14 +11,8 @@ from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
 
 @pytest.fixture
-def custom_content_group():
-    group, _ = Group.objects.get_or_create(name="Custom Content")
-    return group
-
-
-@pytest.fixture
-def group_user(user, custom_content_group):
-    user.groups.add(custom_content_group)
+def group_user(user):
+    """A user for pack operations (group membership no longer required)."""
     return user
 
 

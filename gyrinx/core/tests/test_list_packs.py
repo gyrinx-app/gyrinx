@@ -68,19 +68,6 @@ class TestPackSubscriptionViews:
         lst.refresh_from_db()
         assert pack not in lst.packs.all()
 
-    def test_subscribe_requires_custom_content_group(
-        self, client, make_user, pack, content_house
-    ):
-        """Users not in Custom Content group get 404."""
-        other_user = make_user("otheruser", "password")
-        client.force_login(other_user)
-        lst = List.objects.create(
-            name="Other List", content_house=content_house, owner=other_user
-        )
-        url = reverse("core:pack-subscribe", args=(pack.id,))
-        response = client.post(url, {"list_id": str(lst.id)})
-        assert response.status_code == 404
-
     def test_subscribe_requires_post(self, client, cc_user, pack):
         client.force_login(cc_user)
         url = reverse("core:pack-subscribe", args=(pack.id,))
@@ -126,18 +113,6 @@ class TestListPacksManageView:
         assert response.status_code == 302
         lst.refresh_from_db()
         assert pack in lst.packs.all()
-
-    def test_manage_packs_requires_custom_content_group(
-        self, client, make_user, content_house
-    ):
-        other_user = make_user("otheruser2", "password")
-        client.force_login(other_user)
-        lst = List.objects.create(
-            name="Other List", content_house=content_house, owner=other_user
-        )
-        url = reverse("core:list-packs", args=(lst.id,))
-        response = client.get(url)
-        assert response.status_code == 404
 
     def test_manage_packs_search(self, client, cc_user, make_list, pack):
         client.force_login(cc_user)
@@ -222,26 +197,16 @@ class TestNewListPacksInterstitial:
         assert response.status_code == 302
         assert "/packs" in response.url
 
-    def test_regular_user_sees_form_directly(self, client, make_user, content_house):
-        """Non-CC user goes straight to the new list form."""
+    def test_user_redirected_to_packs_interstitial(
+        self, client, make_user, content_house
+    ):
+        """Any authenticated user is redirected to pack interstitial."""
         other_user = make_user("regularuser", "password")
         client.force_login(other_user)
         url = reverse("core:lists-new")
         response = client.get(url)
-        assert response.status_code == 200
-
-    def test_regular_user_creates_list_directly(self, client, make_user, content_house):
-        """Non-CC user creates list and goes to list detail."""
-        other_user = make_user("regularuser", "password")
-        client.force_login(other_user)
-        url = reverse("core:lists-new")
-        response = client.post(
-            url,
-            {"name": "New List", "content_house": content_house.id, "public": True},
-        )
         assert response.status_code == 302
-        # Should redirect to list detail, not packs
-        assert "/packs" not in response.url
+        assert response.url == reverse("core:lists-new-packs")
 
     def test_packs_interstitial_page(self, client, cc_user, pack):
         """Interstitial page shows available packs."""
@@ -336,15 +301,6 @@ class TestNewListPacksInterstitial:
         assert response.status_code == 200
         assert b"Pack-Only House" in response.content
         assert b"Content Pack" in response.content
-
-    def test_non_cc_user_redirected_away(self, client, make_user, content_house):
-        """Non-CC user at interstitial is redirected to lists-new."""
-        other_user = make_user("regularuser2", "password")
-        client.force_login(other_user)
-        url = reverse("core:lists-new-packs")
-        response = client.get(url)
-        assert response.status_code == 302
-        assert "skip_packs=1" in response.url
 
 
 @pytest.mark.django_db
@@ -482,7 +438,7 @@ class TestListDetailShowsPacks:
     def test_list_detail_shows_add_pack_link_for_cc_owner(
         self, client, cc_user, make_list
     ):
-        """Owner in Custom Content group sees 'Add Content Pack' when no packs."""
+        """Owner sees 'Add Content Pack' when no packs."""
         client.force_login(cc_user)
         lst = make_list("Test List")
         url = reverse("core:list", args=(lst.id,))
@@ -490,13 +446,13 @@ class TestListDetailShowsPacks:
         assert response.status_code == 200
         assert b"Add Content Pack" in response.content
 
-    def test_list_detail_hides_add_pack_link_for_non_cc_owner(
+    def test_list_detail_shows_add_pack_link_for_any_owner(
         self, client, user, make_list
     ):
-        """Owner NOT in Custom Content group does not see 'Add Content Pack'."""
+        """Any authenticated owner sees 'Add Content Pack' when no packs."""
         client.force_login(user)
         lst = make_list("Test List")
         url = reverse("core:list", args=(lst.id,))
         response = client.get(url)
         assert response.status_code == 200
-        assert b"Add Content Pack" not in response.content
+        assert b"Add Content Pack" in response.content

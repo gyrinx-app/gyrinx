@@ -1,7 +1,6 @@
 """Tests for pack fighter default equipment views."""
 
 import pytest
-from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
@@ -12,14 +11,8 @@ from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
 
 @pytest.fixture
-def custom_content_group():
-    group, _ = Group.objects.get_or_create(name="Custom Content")
-    return group
-
-
-@pytest.fixture
-def group_user(user, custom_content_group):
-    user.groups.add(custom_content_group)
+def group_user(user):
+    """A user for pack operations (group membership no longer required)."""
     return user
 
 
@@ -335,12 +328,9 @@ def test_remove_default_assignment_post(
 
 
 @pytest.mark.django_db
-def test_non_owner_cannot_access_add_weapon(
-    client, make_user, pack, pack_fighter, custom_content_group
-):
+def test_non_owner_cannot_access_add_weapon(client, make_user, pack, pack_fighter):
     fighter, pack_item = pack_fighter
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     url = reverse("core:pack-fighter-default-weapon-add", args=(pack.id, pack_item.id))
     response = client.get(url)
@@ -348,12 +338,9 @@ def test_non_owner_cannot_access_add_weapon(
 
 
 @pytest.mark.django_db
-def test_non_owner_cannot_access_add_gear(
-    client, make_user, pack, pack_fighter, custom_content_group
-):
+def test_non_owner_cannot_access_add_gear(client, make_user, pack, pack_fighter):
     fighter, pack_item = pack_fighter
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     url = reverse("core:pack-fighter-default-gear-add", args=(pack.id, pack_item.id))
     response = client.get(url)
@@ -362,14 +349,13 @@ def test_non_owner_cannot_access_add_gear(
 
 @pytest.mark.django_db
 def test_non_owner_cannot_remove_assignment(
-    client, make_user, pack, pack_fighter, base_weapon, custom_content_group
+    client, make_user, pack, pack_fighter, base_weapon
 ):
     fighter, pack_item = pack_fighter
     assignment = ContentFighterDefaultAssignment.objects.create(
         fighter=fighter, equipment=base_weapon, cost=0
     )
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     url = reverse(
         "core:pack-fighter-default-assignment-remove",
@@ -394,11 +380,10 @@ def test_default_equipment_tab_requires_login(client, pack, pack_fighter):
 
 @pytest.mark.django_db
 def test_default_equipment_tab_requires_pack_owner(
-    client, pack, pack_fighter, make_user, custom_content_group
+    client, pack, pack_fighter, make_user
 ):
     fighter, pack_item = pack_fighter
     other_user = make_user("other", "password")
-    other_user.groups.add(custom_content_group)
     client.force_login(other_user)
     url = reverse("core:pack-item-default-equipment", args=(pack.id, pack_item.id))
     response = client.get(url)

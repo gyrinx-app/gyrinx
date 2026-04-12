@@ -7,6 +7,7 @@ from typing import NamedTuple
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
@@ -53,10 +54,6 @@ from gyrinx.core.models.pack import (
     CustomContentPackPermission,
 )
 from gyrinx.core.utils import safe_redirect, search_queryset
-from gyrinx.core.views.auth import (
-    GroupMembershipRequiredMixin,
-    group_membership_required,
-)
 from gyrinx.models import is_valid_uuid
 
 
@@ -456,33 +453,28 @@ def _get_pack_activity(pack, limit=None):
     return combined
 
 
-class PacksView(GroupMembershipRequiredMixin, generic.ListView):
+class PacksView(LoginRequiredMixin, generic.ListView):
     template_name = "core/pack/packs.html"
     context_object_name = "packs"
-    required_groups = ["Custom Content"]
     paginate_by = 20
 
     def get_queryset(self):
         queryset = CustomContentPack.objects.all().select_related("owner")
 
-        # Default to user's own packs if authenticated
-        if self.request.user.is_authenticated:
-            has_permission = CustomContentPackPermission.objects.filter(
-                pack=OuterRef("pk"), user=self.request.user
+        has_permission = CustomContentPackPermission.objects.filter(
+            pack=OuterRef("pk"), user=self.request.user
+        )
+        show_my_packs = self.request.GET.get("my", "1")
+        if show_my_packs == "1":
+            queryset = queryset.filter(
+                models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
             )
-            show_my_packs = self.request.GET.get("my", "1")
-            if show_my_packs == "1":
-                queryset = queryset.filter(
-                    models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
-                )
-            else:
-                queryset = queryset.filter(
-                    models.Q(listed=True)
-                    | models.Q(owner=self.request.user)
-                    | models.Q(Exists(has_permission))
-                )
         else:
-            queryset = queryset.filter(listed=True)
+            queryset = queryset.filter(
+                models.Q(listed=True)
+                | models.Q(owner=self.request.user)
+                | models.Q(Exists(has_permission))
+            )
 
         # Search
         q = self.request.GET.get("q", "").strip()
@@ -494,10 +486,9 @@ class PacksView(GroupMembershipRequiredMixin, generic.ListView):
         return queryset.order_by("name")
 
 
-class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
+class PackDetailView(LoginRequiredMixin, generic.DetailView):
     template_name = "core/pack/pack.html"
     context_object_name = "pack"
-    required_groups = ["Custom Content"]
 
     def get_object(self):
         pack = get_object_or_404(
@@ -659,7 +650,6 @@ class PackDetailView(GroupMembershipRequiredMixin, generic.DetailView):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def new_pack(request):
     """Create a new content pack owned by the current user."""
     if request.method == "POST":
@@ -693,7 +683,6 @@ def new_pack(request):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def edit_pack(request, id):
     """Edit an existing content pack (owner or editor)."""
     pack = _get_pack_for_edit(id, request.user)
@@ -727,11 +716,10 @@ def edit_pack(request, id):
     )
 
 
-class PackActivityView(GroupMembershipRequiredMixin, generic.TemplateView):
+class PackActivityView(LoginRequiredMixin, generic.TemplateView):
     """Display full activity history for a pack."""
 
     template_name = "core/pack/pack_activity.html"
-    required_groups = ["Custom Content"]
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -758,12 +746,11 @@ class PackActivityView(GroupMembershipRequiredMixin, generic.TemplateView):
         return context
 
 
-class PackArchivedItemsView(GroupMembershipRequiredMixin, generic.DetailView):
+class PackArchivedItemsView(LoginRequiredMixin, generic.DetailView):
     """Display archived items for a pack section."""
 
     template_name = "core/pack/pack_archived.html"
     context_object_name = "pack"
-    required_groups = ["Custom Content"]
 
     def get_object(self):
         pack = get_object_or_404(
@@ -1117,7 +1104,6 @@ def _update_weapon_profile_stats(profile, post_data, user):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def add_pack_weapon_mode(request, id):
     """Step 1 of the add-weapon flow: choose single or multi-profile mode."""
     pack = _get_pack_for_edit(id, request.user)
@@ -1130,7 +1116,6 @@ def add_pack_weapon_mode(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def add_pack_item(request, id, content_type_slug):
     """Add a new content item to a pack.
 
@@ -1306,7 +1291,6 @@ def add_pack_item(request, id, content_type_slug):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def add_pack_fighter_stats(request, id):
     """Step 2 of the add-fighter flow: enter stat values."""
     pack = _get_pack_for_edit(id, request.user)
@@ -1456,7 +1440,6 @@ def add_pack_fighter_stats(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def edit_pack_item(request, id, item_id):
     """Edit a content item in a pack."""
     pack = _get_pack_for_edit(id, request.user)
@@ -1628,7 +1611,6 @@ def edit_pack_item(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def delete_pack_item(request, id, item_id):
     """Archive a content item from a pack (soft-delete)."""
     pack = _get_pack_for_edit(id, request.user)
@@ -1700,7 +1682,6 @@ def delete_pack_item(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def restore_pack_item(request, id, item_id):
     """Restore an archived content item in a pack."""
     if request.method != "POST":
@@ -1823,7 +1804,6 @@ def _get_weapon_and_pack(pack_id, item_id, user):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def add_weapon_profile(request, id, item_id):
     """Add an additional weapon profile to a weapon in a pack."""
     pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
@@ -1935,7 +1915,6 @@ def add_weapon_profile(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def edit_weapon_profile(request, id, item_id, profile_id):
     """Edit a weapon profile on a weapon in a pack."""
     pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
@@ -2057,7 +2036,6 @@ def edit_weapon_profile(request, id, item_id, profile_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def delete_weapon_profile(request, id, item_id, profile_id):
     """Archive a weapon profile's pack item (soft-delete from the pack).
 
@@ -2133,7 +2111,6 @@ def delete_weapon_profile(request, id, item_id, profile_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def archived_weapon_profiles(request, id, item_id):
     """Display archived weapon profiles for a weapon pack item."""
     pack, pack_item, equipment = _get_weapon_and_pack(id, item_id, request.user)
@@ -2168,12 +2145,11 @@ def archived_weapon_profiles(request, id, item_id):
     )
 
 
-class PackListsView(GroupMembershipRequiredMixin, generic.ListView):
+class PackListsView(LoginRequiredMixin, generic.ListView):
     """Manage which of the user's lists are subscribed to a content pack."""
 
     template_name = "core/pack/pack_lists.html"
     context_object_name = "lists"
-    required_groups = ["Custom Content"]
     paginate_by = 10
 
     def get_queryset(self):
@@ -2279,7 +2255,6 @@ def _pack_subscription_source(return_url):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def subscribe_pack(request, id):
     """Subscribe one of the user's lists to a content pack."""
     if request.method != "POST":
@@ -2324,7 +2299,6 @@ def subscribe_pack(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def unsubscribe_pack(request, id):
     """Unsubscribe a list from a content pack."""
     if request.method != "POST":
@@ -2367,7 +2341,6 @@ def unsubscribe_pack(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def list_packs_manage(request, id):
     """Manage content pack subscriptions for a list."""
     lst = get_object_or_404(List, id=id, owner=request.user)
@@ -2441,7 +2414,6 @@ def list_packs_manage(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def pack_campaigns(request, id):
     """Manage which of the user's campaigns are subscribed to a content pack."""
     pack = get_object_or_404(
@@ -2478,7 +2450,6 @@ def pack_campaigns(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def subscribe_pack_campaign(request, id):
     """Subscribe one of the user's campaigns to a content pack."""
     if request.method != "POST":
@@ -2516,7 +2487,6 @@ def subscribe_pack_campaign(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def unsubscribe_pack_campaign(request, id):
     """Remove a content pack from a campaign."""
     if request.method != "POST":
@@ -2549,7 +2519,6 @@ def unsubscribe_pack_campaign(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def pack_permissions(request, id):
     """Manage editor permissions for a pack (owner only)."""
     pack = get_object_or_404(
@@ -2579,8 +2548,6 @@ def pack_permissions(request, id):
                 else:
                     if target_user == pack.owner:
                         error = "The owner already has full access."
-                    elif not target_user.groups.filter(name="Custom Content").exists():
-                        error = f'"{username}" is not in the Custom Content group.'
                     elif pack.permissions.filter(user=target_user).exists():
                         error = f'"{username}" is already an editor.'
                     else:
@@ -2786,7 +2753,6 @@ def _load_fighter_preview_context(pack, content_fighter):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def pack_item_equipment(request, id, item_id):
     """Combined equipment tab for a fighter in a pack."""
     pack = _get_pack_for_edit(id, request.user)
@@ -2811,7 +2777,6 @@ def pack_item_equipment(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def add_pack_fighter_default_weapon(request, id, item_id):
     """Add a default weapon to a pack fighter."""
@@ -2908,7 +2873,6 @@ def add_pack_fighter_default_weapon(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def add_pack_fighter_default_gear(request, id, item_id):
     """Add default gear to a pack fighter."""
@@ -2986,7 +2950,6 @@ def add_pack_fighter_default_gear(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
     """Remove a default equipment assignment from a pack fighter."""
@@ -3037,7 +3000,6 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def add_pack_fighter_equipment_list_weapon(request, id, item_id):
     """Add available weapons to a pack fighter's equipment list (bulk)."""
@@ -3163,7 +3125,6 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def add_pack_fighter_equipment_list_gear(request, id, item_id):
     """Add available gear to a pack fighter's equipment list (bulk)."""
@@ -3252,7 +3213,6 @@ def add_pack_fighter_equipment_list_gear(request, id, item_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
     """Remove an equipment list item from a pack fighter."""
@@ -3322,7 +3282,6 @@ def remove_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 @transaction.atomic
 def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
     """Edit cost of equipment list items for a pack fighter."""

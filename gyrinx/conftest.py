@@ -587,27 +587,17 @@ def stash_fighter_type(content_house, make_content_fighter):
 
 
 @pytest.fixture
-def custom_content_group():
-    """Create the Custom Content group."""
-    from django.contrib.auth.models import Group
-
-    group, _ = Group.objects.get_or_create(name="Custom Content")
-    return group
-
-
-@pytest.fixture
-def cc_user(user, custom_content_group):
-    """A user in the Custom Content group."""
-    user.groups.add(custom_content_group)
+def cc_user(user):
+    """A user for content pack operations (group membership no longer required)."""
     return user
 
 
 @pytest.fixture
-def make_pack(cc_user):
+def make_pack(user):
     """Factory fixture to create CustomContentPack objects."""
 
     def make_pack_(name="Test Pack", **kwargs):
-        kwargs = {"owner": cc_user, "listed": True, **kwargs}
+        kwargs = {"owner": user, "listed": True, **kwargs}
         return CustomContentPack.objects.create(name=name, **kwargs)
 
     return make_pack_

@@ -9,7 +9,6 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
-from gyrinx.core.views.auth import group_membership_required
 from gyrinx.core.views.list.common import get_clean_list_or_404
 
 
@@ -128,7 +127,6 @@ def accept_invitation(request, id, invitation_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def invitation_pack_setup(request, id, campaign_id):
     """Show campaign packs for subscription after accepting an invitation."""
     lst = get_clean_list_or_404(List, id=id, owner=request.user)

@@ -9,11 +9,9 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.pack import CustomContentPack
-from gyrinx.core.views.auth import group_membership_required
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def campaign_packs(request, id):
     """
     Manage content packs for a campaign.
@@ -114,7 +112,6 @@ def campaign_packs(request, id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def campaign_pack_add(request, id, pack_id):
     """Add a pack to the campaign's allowed packs."""
     if request.method != "POST":
@@ -138,7 +135,6 @@ def campaign_pack_add(request, id, pack_id):
 
 
 @login_required
-@group_membership_required(["Custom Content"])
 def campaign_pack_remove(request, id, pack_id):
     """Remove a pack from the campaign's allowed packs."""
     campaign = get_object_or_404(Campaign, id=id, owner=request.user)

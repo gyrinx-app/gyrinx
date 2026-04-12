@@ -1,24 +1,10 @@
 """Tests for the invitation pack setup flow."""
 
 import pytest
-from django.contrib.auth.models import Group
 from django.urls import reverse
 
 from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.pack import CustomContentPack
-
-
-@pytest.fixture
-def custom_content_group():
-    group, _ = Group.objects.get_or_create(name="Custom Content")
-    return group
-
-
-@pytest.fixture
-def cc_user(user, custom_content_group):
-    """User in the Custom Content group."""
-    user.groups.add(custom_content_group)
-    return user
 
 
 @pytest.mark.django_db
@@ -92,10 +78,10 @@ def test_pack_setup_subscribes_packs(client, cc_user, make_campaign, make_list):
 
 
 @pytest.mark.django_db
-def test_pack_setup_requires_custom_content_group(
+def test_pack_setup_accessible_to_authenticated_user(
     client, user, make_campaign, make_list
 ):
-    """Pack setup page requires Custom Content group membership."""
+    """Pack setup page is accessible to any authenticated user."""
     campaign = make_campaign("Test Campaign")
     lst = make_list("Test List")
     campaign.lists.add(lst)
@@ -105,7 +91,7 @@ def test_pack_setup_requires_custom_content_group(
         reverse("core:invitation-pack-setup", args=[lst.id, campaign.id])
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db
