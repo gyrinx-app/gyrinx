@@ -511,9 +511,9 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
         # Batch-resolve GenericFK content objects to avoid N+1 queries.
         # Group items by content_type and bulk-fetch per type with
         # type-specific select_related/prefetch_related.
-        items = list(pack.items.all())
+        pack_items = list(pack.items.all())
         items_by_ct = defaultdict(list)
-        for item in items:
+        for item in pack_items:
             items_by_ct[item.content_type_id].append(item)
 
         equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
@@ -524,7 +524,7 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
         for ct_id, ct_items in items_by_ct.items():
             ct = ContentType.objects.get_for_id(ct_id)
             model = ct.model_class()
-            object_ids = [item.object_id for item in ct_items]
+            object_ids = list({item.object_id for item in ct_items})
             # Use all_content() to include pack-owned content that the
             # default ContentManager would exclude. Fall back to .all()
             # for models that don't use ContentManager.
@@ -582,7 +582,7 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
         # Group items by slug, splitting active/archived.
         active_by_slug = defaultdict(list)
         archived_by_slug = defaultdict(list)
-        for item in items:
+        for item in pack_items:
             content_obj = content_objects_map.get(
                 (item.content_type_id, item.object_id)
             )
