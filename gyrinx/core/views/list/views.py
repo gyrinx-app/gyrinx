@@ -558,7 +558,7 @@ def new_list(request):
     Create a new :model:`core.List` owned by the current user.
 
     Redirects to pack selection interstitial first unless packs have already
-    been selected (stored in session) or skipped.
+    been selected (passed via query parameters) or skipped with ``skip_packs=1``.
 
     **Context**
 
@@ -660,7 +660,8 @@ def new_list_packs(request):
     """
     Interstitial page for selecting content packs before creating a new list.
 
-    Stores selected pack IDs in session, then redirects to the new list form.
+    On POST, validates selected pack IDs and redirects to the new list form
+    with pack IDs encoded as query parameters, or ``skip_packs=1`` if none selected.
 
     **Template**
 
@@ -815,7 +816,6 @@ def edit_list(request, id):
         {
             "form": form,
             "error_message": error_message,
-            "has_custom_content": True,
         },
     )
 

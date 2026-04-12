@@ -461,24 +461,20 @@ class PacksView(LoginRequiredMixin, generic.ListView):
     def get_queryset(self):
         queryset = CustomContentPack.objects.all().select_related("owner")
 
-        # Default to user's own packs if authenticated
-        if self.request.user.is_authenticated:
-            has_permission = CustomContentPackPermission.objects.filter(
-                pack=OuterRef("pk"), user=self.request.user
+        has_permission = CustomContentPackPermission.objects.filter(
+            pack=OuterRef("pk"), user=self.request.user
+        )
+        show_my_packs = self.request.GET.get("my", "1")
+        if show_my_packs == "1":
+            queryset = queryset.filter(
+                models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
             )
-            show_my_packs = self.request.GET.get("my", "1")
-            if show_my_packs == "1":
-                queryset = queryset.filter(
-                    models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
-                )
-            else:
-                queryset = queryset.filter(
-                    models.Q(listed=True)
-                    | models.Q(owner=self.request.user)
-                    | models.Q(Exists(has_permission))
-                )
         else:
-            queryset = queryset.filter(listed=True)
+            queryset = queryset.filter(
+                models.Q(listed=True)
+                | models.Q(owner=self.request.user)
+                | models.Q(Exists(has_permission))
+            )
 
         # Search
         q = self.request.GET.get("q", "").strip()
