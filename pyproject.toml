@@ -37,7 +37,8 @@ exclude_dirs = [
     "*/tests/*",
     "scripts/test.sh",
     # Python... in node_modules?
-    "node_modules"
+    "node_modules",
+    ".claude/worktrees"
 ]
 skips = [
     "B101",  # assert_used - we use assert in tests

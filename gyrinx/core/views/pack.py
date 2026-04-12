@@ -554,6 +554,31 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
                         "default_assignments",
                         queryset=ContentFighterDefaultAssignment.objects.select_related(
                             "equipment",
+                            "equipment__category",
+                        ).prefetch_related(
+                            Prefetch(
+                                "weapon_profiles_field",
+                                queryset=ContentWeaponProfile.objects.with_packs(
+                                    [pack]
+                                ).prefetch_related(
+                                    Prefetch(
+                                        "traits",
+                                        queryset=ContentWeaponTrait.objects.all_content(),
+                                    )
+                                ),
+                            ),
+                            Prefetch(
+                                "equipment__contentweaponprofile_set",
+                                queryset=ContentWeaponProfile.objects.with_packs(
+                                    [pack]
+                                ).prefetch_related(
+                                    Prefetch(
+                                        "traits",
+                                        queryset=ContentWeaponTrait.objects.all_content(),
+                                    )
+                                ),
+                            ),
+                            "weapon_accessories_field__modifiers",
                         ),
                     ),
                 )
@@ -622,17 +647,17 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
 
             for entry_data in fighter_entries:
                 cf = entry_data["content_object"]
-                entry_data["statline"] = cf.statline()
+                entry_data["preview_statline"] = cf.statline()
                 # Use prefetched pack-aware rules/skills.
-                entry_data["fighter_rules"] = list(cf.rules.all())
-                entry_data["fighter_skills"] = list(cf.skills.all())
+                entry_data["preview_rules"] = list(cf.rules.all())
+                entry_data["preview_skills"] = list(cf.skills.all())
                 das = list(cf.default_assignments.all())
-                weapons = [da for da in das if da.equipment_id in weapon_equipment_ids]
-                gear = [da for da in das if da.equipment_id not in weapon_equipment_ids]
-                names = [da.equipment.name for da in weapons] + [
-                    da.equipment.name for da in gear
+                entry_data["preview_weapons"] = [
+                    da for da in das if da.equipment_id in weapon_equipment_ids
                 ]
-                entry_data["default_equipment_names"] = ", ".join(names)
+                entry_data["preview_gear"] = [
+                    da for da in das if da.equipment_id not in weapon_equipment_ids
+                ]
 
         # Sort fighter items by house name for grouped display.
         fighter_entries.sort(

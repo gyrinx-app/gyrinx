@@ -19,6 +19,7 @@ screenshots/
 .claude/settings.local.json
 .claude/memory.local.json
 .claude/test-plans/
+.claude/worktrees/
 CLAUDE.local.md
 media/
 # Ignore the latest content data export file

@@ -11,23 +11,40 @@
     - preview_skills: list of ContentSkill objects
     - preview_weapons: list of ContentFighterDefaultAssignment (weapons)
     - preview_gear: list of ContentFighterDefaultAssignment (gear)
+    Optional:
+    - fighter_edit_url: URL for edit link (shows Edit/Archive actions when set)
+    - fighter_archive_url: URL for archive link
+    - fighter_can_add: whether the edit link should be shown (section.can_add)
+    - fighter_equipment_url: URL for equipment tab edit link
 {% endcomment %}
 <div class="card">
     <div class="card-header p-2">
         <div class="hstack align-items-start">
-            <div class="vstack gap-1">
-                <h3 class="h5 mb-0">{{ content_fighter.type }}</h3>
-                <div class="text-secondary fs-7">
-                    {{ content_fighter.get_category_display }}
-                    {% if content_fighter.house %}· {{ content_fighter.house.name }}{% endif %}
-                </div>
-            </div>
+            <h3 class="h5 mb-0">{{ content_fighter.type }}</h3>
             <div class="ms-auto">
                 <span class="badge text-bg-primary">{% credits content_fighter.base_cost %}</span>
             </div>
         </div>
+        <div class="hstack gap-2 align-items-baseline">
+            <span class="text-secondary fs-7">
+                {{ content_fighter.get_category_display }}
+                {% if content_fighter.house %}· {{ content_fighter.house.name }}{% endif %}
+            </span>
+            {% if fighter_edit_url or fighter_archive_url %}
+                <span class="d-flex gap-2 flex-shrink-0 ms-auto">
+                    {% if fighter_can_add and fighter_edit_url %}
+                        <a href="{{ fighter_edit_url }}"
+                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                    {% endif %}
+                    {% if fighter_archive_url %}
+                        <a href="{{ fighter_archive_url }}"
+                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                    {% endif %}
+                </span>
+            {% endif %}
+        </div>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-0 p-sm-2 pt-2">
         <!-- Stats -->
         {% if preview_statline %}
             <table class="table table-sm table-borderless table-fixed mb-0">
@@ -90,7 +107,13 @@
                     {% endif %}
                     <!-- Gear -->
                     <tr class="fs-7">
-                        <th scope="row">Gear</th>
+                        <th scope="row">
+                            Gear
+                            {% if fighter_equipment_url %}
+                                <a href="{{ fighter_equipment_url }}"
+                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                            {% endif %}
+                        </th>
                         <td>
                             {% if preview_gear %}
                                 {% for da in preview_gear %}
@@ -108,7 +131,25 @@
         <!-- Weapons -->
         {% if preview_weapons %}
             <table class="table table-sm table-borderless mb-0 fs-7">
-                {% include "core/includes/weapon_stat_headers.html" with first_col="Weapons" %}
+                <thead class="table-group-divider">
+                    <tr>
+                        <th scope="col">
+                            Weapons
+                            {% if fighter_equipment_url %}
+                                <a href="{{ fighter_equipment_url }}"
+                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                            {% endif %}
+                        </th>
+                        <th class="text-center" scope="col">S</th>
+                        <th class="text-center" scope="col">L</th>
+                        <th class="text-center border-start" scope="col">S</th>
+                        <th class="text-center" scope="col">L</th>
+                        <th class="text-center border-start" scope="col">Str</th>
+                        <th class="text-center" scope="col">Ap</th>
+                        <th class="text-center" scope="col">D</th>
+                        <th class="text-center" scope="col">Am</th>
+                    </tr>
+                </thead>
                 {% for da in preview_weapons %}
                     <tbody class="table-group-divider">
                         {% for profile in da.all_profiles %}
@@ -135,7 +176,13 @@
             <table class="table table-sm table-borderless mb-0 fs-7">
                 <thead class="table-group-divider">
                     <tr>
-                        <th scope="col">Weapons</th>
+                        <th scope="col">
+                            Weapons
+                            {% if fighter_equipment_url %}
+                                <a href="{{ fighter_equipment_url }}"
+                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                            {% endif %}
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
