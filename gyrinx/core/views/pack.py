@@ -610,15 +610,20 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
             for entry_data in fighter_entries:
                 cf = entry_data["content_object"]
                 entry_data["statline"] = cf.statline()
-                entry_data["fighter_skills"] = list(cf.skills.all())
-                entry_data["fighter_rules"] = list(cf.rules.all())
+                # Use with_packs() to include pack-owned rules/skills.
+                entry_data["fighter_rules"] = list(
+                    ContentRule.objects.with_packs([pack]).filter(contentfighter=cf)
+                )
+                entry_data["fighter_skills"] = list(
+                    ContentSkill.objects.with_packs([pack]).filter(contentfighter=cf)
+                )
                 das = list(cf.default_assignments.all())
-                entry_data["default_weapons"] = [
-                    da for da in das if da.equipment_id in weapon_equipment_ids
+                weapons = [da for da in das if da.equipment_id in weapon_equipment_ids]
+                gear = [da for da in das if da.equipment_id not in weapon_equipment_ids]
+                names = [da.equipment.name for da in weapons] + [
+                    da.equipment.name for da in gear
                 ]
-                entry_data["default_gear"] = [
-                    da for da in das if da.equipment_id not in weapon_equipment_ids
-                ]
+                entry_data["default_equipment_names"] = ", ".join(names)
 
         # Sort fighter items by house name for grouped display.
         fighter_entries.sort(

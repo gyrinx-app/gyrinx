@@ -184,43 +184,22 @@
                                                             {% endif %}
                                                         </div>
                                                         {% if entry.statline %}
-                                                            <div class="fs-7 text-secondary mt-1 font-monospace">
+                                                            <div class="fs-7 text-secondary mt-1">
                                                                 {% for stat in entry.statline %}
                                                                     {{ stat.name }}&nbsp;{{ stat.value }}
-                                                                    {% if not forloop.last %}{% endif %}
+                                                                    {% if not forloop.last %}·{% endif %}
                                                                 {% endfor %}
                                                             </div>
                                                         {% endif %}
-                                                        {% if entry.fighter_rules or entry.fighter_skills %}
+                                                        {% if entry.fighter_rules or entry.fighter_skills or entry.default_equipment_names %}
                                                             <div class="fs-7 text-secondary">
-                                                                {% if entry.fighter_rules %}
-                                                                    Rules:
-                                                                    {% for rule in entry.fighter_rules %}
-                                                                        {{ rule.name }}
-                                                                        {% if not forloop.last %},{% endif %}
-                                                                    {% endfor %}
-                                                                {% endif %}
+                                                                {% if entry.fighter_rules %}{{ entry.fighter_rules|join_names }}{% endif %}
                                                                 {% if entry.fighter_rules and entry.fighter_skills %}·{% endif %}
-                                                                {% if entry.fighter_skills %}
-                                                                    Skills:
-                                                                    {% for skill in entry.fighter_skills %}
-                                                                        {{ skill.name }}
-                                                                        {% if not forloop.last %},{% endif %}
-                                                                    {% endfor %}
+                                                                {% if entry.fighter_skills %}{{ entry.fighter_skills|join_names }}{% endif %}
+                                                                {% if entry.default_equipment_names %}
+                                                                    {% if entry.fighter_rules or entry.fighter_skills %}·{% endif %}
+                                                                    {{ entry.default_equipment_names }}
                                                                 {% endif %}
-                                                            </div>
-                                                        {% endif %}
-                                                        {% if entry.default_weapons or entry.default_gear %}
-                                                            <div class="fs-7 text-secondary">
-                                                                Equipment:
-                                                                {% for da in entry.default_weapons %}
-                                                                    {{ da.equipment.name }}
-                                                                    {% if not forloop.last or entry.default_gear %},{% endif %}
-                                                                {% endfor %}
-                                                                {% for da in entry.default_gear %}
-                                                                    {{ da.equipment.name }}
-                                                                    {% if not forloop.last %},{% endif %}
-                                                                {% endfor %}
                                                             </div>
                                                         {% endif %}
                                                     </div>
