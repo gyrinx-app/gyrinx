@@ -59,10 +59,12 @@
                         <th scope="row" class="w-25">Rules</th>
                         <td>
                             {% if preview_rules %}
-                                {% for rule in preview_rules %}
-                                    {{ rule.name }}
-                                    {% if not forloop.last %},{% endif %}
-                                {% endfor %}
+                                {% spaceless %}
+                                    {% for rule in preview_rules %}
+                                        <span>{{ rule.name }}</span>
+                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                    {% endfor %}
+                                {% endspaceless %}
                             {% else %}
                                 <span class="text-secondary fst-italic">None</span>
                             {% endif %}
@@ -74,10 +76,12 @@
                             <th scope="row">Skills</th>
                             <td>
                                 {% if preview_skills %}
-                                    {% for skill in preview_skills %}
-                                        {{ skill.name }}
-                                        {% if not forloop.last %},{% endif %}
-                                    {% endfor %}
+                                    {% spaceless %}
+                                        {% for skill in preview_skills %}
+                                            <span>{{ skill.name }}</span>
+                                            {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                        {% endfor %}
+                                    {% endspaceless %}
                                 {% else %}
                                     <span class="text-secondary fst-italic">None</span>
                                 {% endif %}

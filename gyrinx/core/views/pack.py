@@ -2722,8 +2722,14 @@ def _load_equipment_list_context(content_fighter):
 def _load_fighter_preview_context(pack, content_fighter):
     """Load data for the fighter preview card on edit pages."""
     statline = content_fighter.statline()
-    rules = list(content_fighter.rules.all())
-    skills = list(content_fighter.skills.all())
+    # Query from the ContentRule/ContentSkill side with with_packs() to
+    # include pack content — the default M2M manager excludes it.
+    rules = list(
+        ContentRule.objects.with_packs([pack]).filter(contentfighter=content_fighter)
+    )
+    skills = list(
+        ContentSkill.objects.with_packs([pack]).filter(contentfighter=content_fighter)
+    )
 
     # Default weapon assignments with profiles
     default_assignments = (
