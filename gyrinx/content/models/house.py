@@ -19,6 +19,7 @@ class ContentHouse(Content):
 
     help_text = "The Content House identifies the house or faction of a fighter."
     name = models.CharField(max_length=255, db_index=True)
+    description = models.TextField(blank=True)
     skill_categories = models.ManyToManyField(
         "ContentSkillCategory",
         blank=True,

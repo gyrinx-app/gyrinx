@@ -372,6 +372,7 @@ class ContentEquipment(FighterCostMixin, Content):
     """
 
     name = models.CharField(max_length=255, db_index=True)
+    description = models.TextField(blank=True)
     category = models.ForeignKey(
         ContentEquipmentCategory,
         on_delete=models.CASCADE,
