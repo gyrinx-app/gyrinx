@@ -96,8 +96,10 @@ def test_list_view_only_shows_set_attributes(client, user, make_list):
     # But "Not set" should not appear since we hide unset attributes
     assert "Not set" not in content
 
-    # Should show "+1 more" link
-    assert "+1 more" in content
+    # Should show "Add Alignment" link for the unset attribute
+    assert "Add" in content
+    assert "Alignment" in content
+    assert reverse("core:list-attribute-edit", args=[lst.id, alignment.id]) in content
 
 
 @pytest.mark.django_db
