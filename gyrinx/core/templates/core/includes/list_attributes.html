@@ -31,20 +31,30 @@
             {% if not print %}
                 {% if list.owner_cached == user and not list.archived %}
                     <div class="fs-7 text-end {% if list.set_attributes %}mt-1{% endif %}">
-                        {% with unset_count=list.unset_attributes|length %}
+                        {% with unset=list.unset_attributes unset_count=list.unset_attributes|length %}
                             {% if unset_count > 0 %}
-                                <span class="text-secondary">+{{ unset_count }} more</span>
+                                <span class="text-secondary">
+                                    {% spaceless %}
+                                        <span>Add&nbsp;</span>
+                                        {% for attr in unset|slice:":3" %}
+                                            {% if not forloop.first %}
+                                                {% if forloop.last and unset_count <= 3 %}
+                                                    <span>&nbsp;or&nbsp;</span>
+                                                {% else %}
+                                                    <span>,&nbsp;</span>
+                                                {% endif %}
+                                            {% endif %}
+                                            <a href="{% url 'core:list-attribute-edit' list.id attr.id %}"
+                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ attr.name }}</a>
+                                        {% endfor %}
+                                        {% if unset_count > 3 %}<span>&nbsp;or {{ unset_count|add:"-3" }} more...</span>{% endif %}
+                                    {% endspaceless %}
+                                </span>
                                 <span class="text-secondary mx-1">·</span>
                             {% endif %}
                         {% endwith %}
                         <a href="{% url 'core:list-attributes-manage' list.id %}"
-                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">
-                            {% if list.set_attributes %}
-                                Manage
-                            {% else %}
-                                Add
-                            {% endif %}
-                        </a>
+                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Manage</a>
                     </div>
                 {% elif not list.set_attributes %}
                     <p class="text-secondary fs-7 mb-0">No attributes set.</p>
