@@ -159,9 +159,9 @@
                                     {% for house_group in fighters_by_house %}
                                         <div>
                                             {% if house_group.grouper %}<div class="caps-label mb-2">{{ house_group.grouper }}</div>{% endif %}
-                                            <div class="vstack gap-3">
+                                            <div class="row g-3">
                                                 {% for entry in house_group.list %}
-                                                    <div id="item-{{ entry.pack_item.id }}">
+                                                    <div id="item-{{ entry.pack_item.id }}" class="col-12 col-lg-6">
                                                         {% with content_fighter=entry.content_object preview_statline=entry.preview_statline preview_rules=entry.preview_rules preview_skills=entry.preview_skills preview_weapons=entry.preview_weapons preview_gear=entry.preview_gear %}
                                                             {% if can_edit %}
                                                                 {% url 'core:pack-edit-item' pack.id entry.pack_item.id as edit_url %}
