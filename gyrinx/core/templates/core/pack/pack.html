@@ -220,14 +220,14 @@
                                                 <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.category.name }}</div>
                                                 <span class="d-flex gap-2 align-items-center">
                                                     {% if can_edit %}
+                                                        <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
+                                                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add skill</a>
                                                         {% if group.pack_item %}
                                                             <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
                                                                class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit tree</a>
                                                             <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
                                                                class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive tree</a>
                                                         {% endif %}
-                                                        <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
-                                                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add skill</a>
                                                     {% endif %}
                                                 </span>
                                             </div>
