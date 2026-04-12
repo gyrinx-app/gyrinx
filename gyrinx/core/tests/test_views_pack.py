@@ -149,6 +149,62 @@ def test_packs_index_search(client, group_user):
     assert b"Beta Pack" not in response.content
 
 
+# --- Featured packs ---
+
+
+@pytest.mark.django_db
+def test_packs_index_shows_featured_packs(client, group_user, make_user):
+    """Test that featured+listed packs appear on the index when not searching."""
+    other_user = make_user("other", "password")
+    CustomContentPack.objects.create(
+        name="Featured Pack",
+        summary="A featured pack",
+        listed=True,
+        featured=True,
+        owner=other_user,
+    )
+    client.force_login(group_user)
+    response = client.get("/packs/")
+    assert response.status_code == 200
+    assert b"Featured Pack" in response.content
+
+
+@pytest.mark.django_db
+def test_packs_index_hides_featured_packs_during_search(client, group_user, make_user):
+    """Test that featured packs are hidden when a search query is active."""
+    other_user = make_user("other", "password")
+    CustomContentPack.objects.create(
+        name="Featured Pack",
+        summary="A featured pack",
+        listed=True,
+        featured=True,
+        owner=other_user,
+    )
+    client.force_login(group_user)
+    response = client.get("/packs/?q=something")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Featured" not in content or "Featured Pack" not in content
+
+
+@pytest.mark.django_db
+def test_featured_pack_description_falls_back_to_summary(client, group_user, make_user):
+    """Test that featured_description falls back to summary when blank."""
+    other_user = make_user("other", "password")
+    CustomContentPack.objects.create(
+        name="Fallback Pack",
+        summary="The summary text",
+        featured_description="",
+        listed=True,
+        featured=True,
+        owner=other_user,
+    )
+    client.force_login(group_user)
+    response = client.get("/packs/")
+    assert response.status_code == 200
+    assert b"The summary text" in response.content
+
+
 # --- Pack detail view ---
 
 
