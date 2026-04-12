@@ -33,9 +33,21 @@
                     <div class="fs-7 text-end {% if list.set_attributes %}mt-1{% endif %}">
                         {% with unset=list.unset_attributes unset_count=list.unset_attributes|length %}
                             {% if unset_count > 0 %}
-                                {# djlint:off #}
-                                <span class="text-secondary">Add {% for attr in unset|slice:":3" %}{% if not forloop.first %}{% if forloop.last and unset_count <= 3 %} or {% else %}, {% endif %}{% endif %}<a href="{% url 'core:list-attribute-edit' list.id attr.id %}" class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ attr.name }}</a>{% endfor %}{% if unset_count > 3 %} or {{ unset_count|add:"-3" }} more...{% endif %}</span>
-                                {# djlint:on #}
+                                <span class="text-secondary">
+                                    Add
+                                    {% for attr in unset|slice:":3" %}
+                                        {% if not forloop.first %}
+                                            {% if forloop.last and unset_count <= 3 %}
+                                                or
+                                            {% else %}
+                                                ,
+                                            {% endif %}
+                                        {% endif %}
+                                        <a href="{% url 'core:list-attribute-edit' list.id attr.id %}"
+                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ attr.name }}</a>
+                                    {% endfor %}
+                                    {% if unset_count > 3 %}or {{ unset_count|add:"-3" }} more...{% endif %}
+                                </span>
                                 <span class="text-secondary mx-1">·</span>
                             {% endif %}
                         {% endwith %}

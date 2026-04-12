@@ -96,10 +96,10 @@ def test_list_view_only_shows_set_attributes(client, user, make_list):
     # But "Not set" should not appear since we hide unset attributes
     assert "Not set" not in content
 
-    # Should show "Add Alignment" link for the unset attribute
-    assert "Add" in content
-    assert "Alignment" in content
-    assert reverse("core:list-attribute-edit", args=[lst.id, alignment.id]) in content
+    # Should show "Add Alignment" with a link to edit that attribute
+    edit_url = reverse("core:list-attribute-edit", args=[lst.id, alignment.id])
+    assert edit_url in content
+    assert f">{alignment.name}</a>" in content
 
 
 @pytest.mark.django_db
@@ -113,9 +113,50 @@ def test_list_view_shows_manage_link(client, user, make_list):
     response = client.get(reverse("core:list", args=[lst.id]))
     content = response.content.decode()
 
-    # When no attributes are set, should show "Add" link
+    # When no attributes are set, should show "Add" preview and "Manage" link
     assert "Add" in content
+    assert "Alignment" in content
     assert reverse("core:list-attributes-manage", args=[lst.id]) in content
+
+
+@pytest.mark.django_db
+def test_list_view_shows_or_n_more_for_many_unset_attributes(client, user, make_list):
+    """Test that >3 unset attributes shows 'or N more...' after the first 3."""
+    client.force_login(user)
+    lst = make_list("Test Gang")
+
+    # Alphabetical order: Affiliation, Allegiance, Alignment, Alliance
+    for name in ["Affiliation", "Alignment", "Alliance", "Allegiance"]:
+        ContentAttribute.objects.create(name=name, is_single_select=True)
+
+    response = client.get(reverse("core:list", args=[lst.id]))
+    content = response.content.decode()
+
+    # First 3 alphabetically should be linked
+    assert "Affiliation" in content
+    assert "Allegiance" in content
+    assert "Alignment" in content
+    # 4th (Alliance) should be counted in "or N more..."
+    assert "or 1 more..." in content
+
+
+@pytest.mark.django_db
+def test_list_view_shows_separator_for_two_unset_attributes(client, user, make_list):
+    """Test that exactly 2 unset attributes shows 'or' separator."""
+    client.force_login(user)
+    lst = make_list("Test Gang")
+
+    ContentAttribute.objects.create(name="Alignment", is_single_select=True)
+    ContentAttribute.objects.create(name="Alliance", is_single_select=True)
+
+    response = client.get(reverse("core:list", args=[lst.id]))
+    content = response.content.decode()
+
+    assert "Add" in content
+    assert "Alignment" in content
+    assert "Alliance" in content
+    # Should use "or" separator, not comma
+    assert "or" in content
 
 
 @pytest.mark.django_db
