@@ -490,8 +490,8 @@ class TestPackDetailFighterDisplay:
         response = client.get(url)
         assert response.status_code == 200
         content = response.content.decode()
-        # pack_fighter has base_cost=50
-        assert "50" in content
+        # pack_fighter has base_cost=50, rendered via {% credits %} formatter.
+        assert "50¢" in content
 
     def test_fighter_skills_shown(
         self, client, cc_user, pack, pack_fighter, make_content_skill

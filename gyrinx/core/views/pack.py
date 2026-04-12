@@ -526,15 +526,28 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
             model = ct.model_class()
             object_ids = [item.object_id for item in ct_items]
             # Use all_content() to include pack-owned content that the
-            # default ContentManager would exclude.
-            qs = model.objects.all_content().filter(id__in=object_ids)
+            # default ContentManager would exclude. Fall back to .all()
+            # for models that don't use ContentManager.
+            manager = model._default_manager
+            base_qs = (
+                manager.all_content()
+                if hasattr(manager, "all_content")
+                else manager.all()
+            )
+            qs = base_qs.filter(id__in=object_ids)
 
             if ct_id == fighter_ct.id:
                 qs = qs.select_related(
                     "house", "custom_statline", "custom_statline__statline_type"
                 ).prefetch_related(
-                    "rules",
-                    "skills",
+                    Prefetch(
+                        "rules",
+                        queryset=ContentRule.objects.with_packs([pack]),
+                    ),
+                    Prefetch(
+                        "skills",
+                        queryset=ContentSkill.objects.with_packs([pack]),
+                    ),
                     "custom_statline__stats__statline_type_stat",
                     "custom_statline__statline_type__stats",
                     Prefetch(
@@ -610,13 +623,9 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
             for entry_data in fighter_entries:
                 cf = entry_data["content_object"]
                 entry_data["statline"] = cf.statline()
-                # Use with_packs() to include pack-owned rules/skills.
-                entry_data["fighter_rules"] = list(
-                    ContentRule.objects.with_packs([pack]).filter(contentfighter=cf)
-                )
-                entry_data["fighter_skills"] = list(
-                    ContentSkill.objects.with_packs([pack]).filter(contentfighter=cf)
-                )
+                # Use prefetched pack-aware rules/skills.
+                entry_data["fighter_rules"] = list(cf.rules.all())
+                entry_data["fighter_skills"] = list(cf.skills.all())
                 das = list(cf.default_assignments.all())
                 weapons = [da for da in das if da.equipment_id in weapon_equipment_ids]
                 gear = [da for da in das if da.equipment_id not in weapon_equipment_ids]

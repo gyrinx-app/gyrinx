@@ -161,9 +161,9 @@
                                             {% if house_group.grouper %}
                                                 <div class="text-secondary text-uppercase fs-7 mb-1">{{ house_group.grouper }}</div>
                                             {% endif %}
-                                            <div class="vstack gap-2">
+                                            <ul class="list-unstyled vstack gap-2 mb-0">
                                                 {% for entry in house_group.list %}
-                                                    <div class="py-1" id="item-{{ entry.pack_item.id }}">
+                                                    <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                                         <div class="d-flex justify-content-between align-items-start">
                                                             <div>
                                                                 <span class="fw-medium">{{ entry.content_object.type }}</span>
@@ -202,9 +202,9 @@
                                                                 {% endif %}
                                                             </div>
                                                         {% endif %}
-                                                    </div>
+                                                    </li>
                                                 {% endfor %}
-                                            </div>
+                                            </ul>
                                         </div>
                                     {% endfor %}
                                 </div>
