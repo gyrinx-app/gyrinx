@@ -696,10 +696,24 @@ def new_list_packs(request):
     # Display filtering for GET requests
     available_packs = accessible_packs.select_related("owner")
 
+    # Pre-select packs from ?pack=<id> query params (e.g. from "Use in new List"
+    # button on a pack detail page).  Parse early so the "Your Packs Only" filter
+    # can include them.
+    preselected_pack_ids = set(request.GET.getlist("pack"))
+    valid_preselected_ids = [pid for pid in preselected_pack_ids if is_valid_uuid(pid)]
+
     # "Your Packs Only" toggle (default on)
     show_my_packs = request.GET.get("my", "1")
     if show_my_packs == "1":
-        available_packs = available_packs.filter(owner=request.user)
+        if valid_preselected_ids:
+            # Always include pre-selected packs so they remain visible even
+            # when the "Your Packs Only" filter is active.  This ensures that
+            # clicking "Use in new List" on another user's pack shows it.
+            available_packs = available_packs.filter(
+                Q(owner=request.user) | Q(id__in=valid_preselected_ids)
+            )
+        else:
+            available_packs = available_packs.filter(owner=request.user)
 
     # Search
     search_query = request.GET.get("q", "").strip()
@@ -756,9 +770,6 @@ def new_list_packs(request):
                     }
                 )
         pack.content_preview = preview_parts
-
-    # Pre-select packs from ?pack=<id> query params
-    preselected_pack_ids = set(request.GET.getlist("pack"))
 
     return render(
         request,
