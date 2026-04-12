@@ -265,6 +265,45 @@ class TestNewListPacksInterstitial:
         assert response.status_code == 302
         assert "skip_packs=1" in response.url
 
+    def test_packs_interstitial_shows_other_users_preselected_pack(
+        self, client, make_user, make_pack
+    ):
+        """A pack owned by another user appears when pre-selected via ?pack=<id>.
+
+        Regression test for #1699: clicking "Use in new List" on another user's
+        pack should show it on the interstitial even though "Your Packs Only"
+        defaults to on.
+        """
+        viewer = make_user("viewer", "password")
+        pack_owner = make_user("packowner", "password")
+        other_pack = make_pack("Other Pack", owner=pack_owner, listed=True)
+
+        client.force_login(viewer)
+        url = reverse("core:lists-new-packs") + f"?pack={other_pack.id}"
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # The other user's pack must be visible and pre-checked
+        assert other_pack.name in content
+        assert f'value="{other_pack.id}"' in content
+        assert "checked" in content
+
+    def test_packs_interstitial_other_user_pack_not_shown_without_preselect(
+        self, client, make_user, make_pack
+    ):
+        """Without ?pack=<id>, another user's pack is hidden by default filter."""
+        viewer = make_user("viewer", "password")
+        pack_owner = make_user("packowner", "password")
+        other_pack = make_pack("Other Pack", owner=pack_owner, listed=True)
+
+        client.force_login(viewer)
+        url = reverse("core:lists-new-packs")
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # Without pre-selection, "Your Packs Only" hides other user's packs
+        assert other_pack.name not in content
+
     def test_pack_house_appears_in_dropdown(self, client, cc_user, pack):
         """Pack house appears in the House dropdown on the new list form."""
         # Create a house that only exists inside the pack
