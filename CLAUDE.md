@@ -176,19 +176,17 @@ pytest
 pytest -n auto  # Uses all CPU cores
 pytest -n 4     # Uses 4 workers
 
-# Run tests with database reuse for faster execution
-pytest --reuse-db
-
-# Combine parallel execution with database reuse
-pytest -n auto --reuse-db
-
 # Collect static files before running tests (required for templates with static assets)
 manage collectstatic --noinput
 
-# Refresh test database after adding new migrations
-# Use this when you see errors like "column X does not exist" in tests
-pytest --create-db --migrations path/to/test_file.py
+# After adding new migrations, use --migrations to apply them to the test database
+pytest -n auto --migrations
 ```
+
+**IMPORTANT for Claude:** `pyproject.toml` addopts already includes `--reuse-db -n auto --nomigrations`.
+When you've added new migrations, just run `pytest -n auto --migrations` — that's all you need.
+Do NOT use `--create-db`, do NOT use `--reuse-db` (it's already the default), and do NOT try
+to disable xdist. Just `pytest -n auto --migrations`.
 
 ### Frontend Development
 

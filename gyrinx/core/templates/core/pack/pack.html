@@ -240,7 +240,7 @@
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
                                                 <span>{{ entry.content_object }}</span>
-                                                {% if section.slug == "rule" or section.slug == "weapon-trait" %}
+                                                {% if section.slug == "rule" or section.slug == "weapon-trait" or section.slug == "house" or section.slug == "gear" %}
                                                     {% if entry.content_object.description %}
                                                         <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
                                                     {% endif %}

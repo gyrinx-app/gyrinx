@@ -301,15 +301,18 @@ class ContentFighterPackForm(forms.ModelForm):
 class ContentHouseForm(forms.ModelForm):
     class Meta:
         model = ContentHouse
-        fields = ["name"]
+        fields = ["name", "description"]
         labels = {
             "name": "Name",
+            "description": "Description",
         }
         help_texts = {
             "name": "The name of the house or faction.",
+            "description": "Lore or background for this house.",
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
     def clean_name(self):
@@ -514,9 +517,10 @@ class ContentGearPackForm(forms.ModelForm):
 
     class Meta:
         model = ContentEquipment
-        fields = ["name", "category", "cost", "rarity", "rarity_roll"]
+        fields = ["name", "description", "category", "cost", "rarity", "rarity_roll"]
         labels = {
             "name": "Name",
+            "description": "Description",
             "category": "Category",
             "cost": "Cost",
             "rarity": "Availability",
@@ -524,6 +528,7 @@ class ContentGearPackForm(forms.ModelForm):
         }
         help_texts = {
             "name": "The name of the gear.",
+            "description": "Flavour text or rules for this gear.",
             "category": "The gear category (e.g. Armour, Personal Equipment).",
             "cost": "The credit cost at the Trading Post.",
             "rarity": "The availability of this gear.",
@@ -531,6 +536,7 @@ class ContentGearPackForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "category": forms.Select(attrs={"class": "form-select"}),
             "cost": forms.TextInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
