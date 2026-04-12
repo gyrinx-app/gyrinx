@@ -35,7 +35,7 @@
                     disabled>
                 Include selected packs <i class="bi-arrow-right"></i>
             </button>
-            <div class="grid flex-grow-1">
+            <div class="flex-grow-1">
                 {% url 'core:lists-new-packs' as action %}
                 {% include "core/includes/packs_filter.html" with action=action %}
             </div>

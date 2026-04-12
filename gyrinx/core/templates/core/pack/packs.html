@@ -15,39 +15,60 @@
                 {% endif %}
             </p>
         </div>
-        <div class="grid">
-            {% url 'core:packs' as action %}
-            {% include "core/includes/packs_filter.html" with action=action %}
-        </div>
-        <div class="vstack gap-4">
-            {% for pack in packs %}
-                <div class="hstack gap-3 position-relative">
-                    <div class="d-flex flex-column gap-1">
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
-                            <h2 class="mb-0 h5">
-                                <a href="{% url 'core:pack' pack.id %}">{{ pack.name }}</a>
-                            </h2>
-                            <div>
-                                <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a>
-                            </div>
-                            {% if not pack.listed %}
-                                <div>
-                                    <span class="badge text-bg-secondary">Unlisted</span>
+        <div class="row g-4">
+            <div class="col-12 col-xl-8 order-2 order-xl-1">
+                <div class="vstack gap-4">
+                    {% url 'core:packs' as action %}
+                    {% include "core/includes/packs_filter.html" with action=action %}
+                    {% for pack in packs %}
+                        <div class="hstack gap-3 position-relative">
+                            <div class="d-flex flex-column gap-1">
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                                    <h2 class="mb-0 h5">
+                                        <a href="{% url 'core:pack' pack.id %}">{{ pack.name }}</a>
+                                    </h2>
+                                    <div>
+                                        <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a>
+                                    </div>
+                                    {% if not pack.listed %}
+                                        <div>
+                                            <span class="badge text-bg-secondary">Unlisted</span>
+                                        </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
+                                {% if pack.summary %}<div class="text-secondary">{{ pack.summary|plain_text_truncate:150 }}</div>{% endif %}
+                            </div>
+                            <div class="ms-auto d-md-none">
+                                <a href="{% url 'core:pack' pack.id %}" class="p-3 stretched-link">
+                                    <i class="bi-chevron-right"></i>
+                                </a>
+                            </div>
                         </div>
-                        {% if pack.summary %}<div class="text-secondary">{{ pack.summary|plain_text_truncate:150 }}</div>{% endif %}
-                    </div>
-                    <div class="ms-auto d-md-none">
-                        <a href="{% url 'core:pack' pack.id %}" class="p-3 stretched-link">
-                            <i class="bi-chevron-right"></i>
-                        </a>
+                    {% empty %}
+                        <div class="py-2">No content packs available.</div>
+                    {% endfor %}
+                    {% include "core/includes/pagination.html" %}
+                </div>
+            </div>
+            {% if featured_packs %}
+                <div class="col-12 col-xl-4 order-1 order-xl-2">
+                    <div class="caps-label mb-2">Featured</div>
+                    <div class="vstack gap-2">
+                        {% for pack in featured_packs %}
+                            <a href="{% url 'core:pack' pack.id %}"
+                               class="border rounded p-3 d-flex align-items-center gap-3 text-decoration-none">
+                                <div class="flex-grow-1">
+                                    <h2 class="h4 mb-1">{{ pack.name }}</h2>
+                                    {% with pack.featured_description|default:pack.summary as desc %}
+                                        {% if desc %}<p class="text-secondary mb-0">{{ desc|plain_text_truncate:150 }}</p>{% endif %}
+                                    {% endwith %}
+                                </div>
+                                <i class="bi-chevron-right flex-shrink-0"></i>
+                            </a>
+                        {% endfor %}
                     </div>
                 </div>
-            {% empty %}
-                <div class="py-2">No content packs available.</div>
-            {% endfor %}
-            {% include "core/includes/pagination.html" %}
+            {% endif %}
         </div>
     </div>
 {% endblock content %}

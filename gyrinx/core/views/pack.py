@@ -485,6 +485,24 @@ class PacksView(LoginRequiredMixin, generic.ListView):
 
         return queryset.order_by("name")
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        q = self.request.GET.get("q", "").strip()
+        if not q:
+            # Pick up to 3 random featured packs, then sort by newest first
+            featured_ids = list(
+                CustomContentPack.objects.filter(featured=True, listed=True)
+                .order_by("?")
+                .values_list("id", flat=True)[:3]
+            )
+            if featured_ids:
+                context["featured_packs"] = (
+                    CustomContentPack.objects.filter(id__in=featured_ids)
+                    .select_related("owner")
+                    .order_by("-created")
+                )
+        return context
+
 
 class PackDetailView(LoginRequiredMixin, generic.DetailView):
     template_name = "core/pack/pack.html"
