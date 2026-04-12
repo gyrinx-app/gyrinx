@@ -34,7 +34,7 @@ Google Cloud has emerged as a mature and easy to use cloud provider that gives d
 
 ### Docker
 
-Using Docker to run Gyrinx locally, and in particular using Docker Compose standardises our use of container deployment and makes it easy for other non-core developers to spin up Gyrinx and make contributions. We should always aim to have new functionality work in Docker from the start so that it can be developed on locally. This also stands us in good stead for deployment of the application as containerised environments are fairly replicable locally and into the cloud.
+Docker is used for production deployment (via Cloud Run) and in CI. For local development, we use Homebrew-installed PostgreSQL directly rather than Docker Compose, which avoids Docker resource limits and enables per-worktree database isolation. Each git worktree gets its own database forked from a shared template, making parallel development fast and frictionless. Docker Compose remains available for analytics database setup and as a fallback.
 
 ## Tools
 

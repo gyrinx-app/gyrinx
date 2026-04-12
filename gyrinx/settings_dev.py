@@ -26,6 +26,13 @@ CSRF_COOKIE_SECURE = False
 # Allow local hosts for development
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
+# Per-worktree dynamic CSRF origins — DJANGO_PORT is set by dev.sh / session hook
+_dev_port = os.getenv("DJANGO_PORT", "8000")
+CSRF_TRUSTED_ORIGINS = [
+    f"http://localhost:{_dev_port}",
+    f"http://127.0.0.1:{_dev_port}",
+]
+
 # Feature flags for development
 FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
