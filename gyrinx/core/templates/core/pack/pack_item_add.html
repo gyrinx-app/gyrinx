@@ -44,13 +44,19 @@
                         {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields_2 prefix="wp2" selected_trait_ids=selected_trait_ids_2 %}
                     </div>
                 </div>
+                <div class="alert alert-info alert-icon mb-0" role="alert">
+                    <i class="bi-info-circle" aria-hidden="true"></i>
+                    <div>
+                        <p class="mb-0">You can add further profiles or special ammo later.</p>
+                    </div>
+                </div>
             {% elif weapon_stat_fields %}
                 <input type="hidden" name="profile_mode" value="single">
                 {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields %}
             {% endif %}
             {% if next_step_hint %}
                 <div class="alert alert-info alert-icon mb-0 mt-3" role="alert">
-                    <i class="bi-info-circle"></i>
+                    <i class="bi-info-circle" aria-hidden="true"></i>
                     <div>{{ next_step_hint }}</div>
                 </div>
             {% endif %}
@@ -70,3 +76,24 @@
         </form>
     </div>
 {% endblock content %}
+{% block extra_script %}
+    <script>
+        (function () {
+            const checkbox = document.getElementById("id_override_statline");
+            const select = document.getElementById("id_statline_type");
+            if (!checkbox || !select) return;
+
+            function toggle() {
+                if (checkbox.checked) {
+                    select.removeAttribute("disabled");
+                } else {
+                    select.setAttribute("disabled", "disabled");
+                    select.value = "";
+                }
+            }
+
+            checkbox.addEventListener("change", toggle);
+            toggle();
+        })();
+    </script>
+{% endblock extra_script %}

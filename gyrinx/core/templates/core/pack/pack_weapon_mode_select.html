@@ -9,6 +9,7 @@
             <i class="bi-crosshair"></i> Add weapon
         </h1>
         <p class="mb-0">Does this weapon come with multiple profiles or ammo by default?</p>
+        <p class="text-secondary">You can add further free or costed profiles or special ammo later.</p>
         <div class="row g-3">
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="border rounded p-3 vstack gap-2 h-100">
@@ -19,8 +20,8 @@
                             {% include "core/includes/weapon_stat_headers.html" %}
                             <tbody class="table-group-divider">
                                 <tr>
-                                    <td class="text-center">
-                                        <strong>Example</strong>
+                                    <td class="text-start">
+                                        <strong>Example Weapon</strong>
                                     </td>
                                     <td class="text-center">-</td>
                                     <td class="text-center">-</td>
@@ -41,10 +42,10 @@
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="border rounded p-3 vstack gap-2 h-100">
                     <strong>Multiple profiles</strong>
-                    <p class="text-secondary mb-0 fs-7">Two or more named profiles (e.g. special ammo types).</p>
+                    <p class="text-secondary mb-0 fs-7">Two or more named profiles (e.g. ranged and melee).</p>
                     <div class="table-responsive">
                         <table class="table table-sm table-borderless fs-7 mb-0">
-                            {% include "core/includes/weapon_stat_headers.html" with first_col="Example" %}
+                            {% include "core/includes/weapon_stat_headers.html" with first_col="Example Weapon" %}
                             <tbody class="table-group-divider">
                                 <tr>
                                     <td class="text-secondary fst-italic">Profile 1</td>
@@ -76,6 +77,5 @@
                 </div>
             </div>
         </div>
-        <p class="text-secondary">You can add further, costed special profiles or ammo later.</p>
     </div>
 {% endblock content %}

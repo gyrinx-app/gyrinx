@@ -1297,7 +1297,29 @@ def test_archived_items_page_requires_ownership(
 @pytest.fixture
 def fighter_statline_type():
     """Create the Fighter ContentStatlineType with standard stats."""
-    statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
+    statline_type, _ = ContentStatlineType.objects.get_or_create(
+        name="Fighter",
+        defaults={
+            "default_for_categories": [
+                "LEADER",
+                "CHAMPION",
+                "GANGER",
+                "JUVE",
+                "SPECIALIST",
+                "PROSPECT",
+            ]
+        },
+    )
+    if not statline_type.default_for_categories:
+        statline_type.default_for_categories = [
+            "LEADER",
+            "CHAMPION",
+            "GANGER",
+            "JUVE",
+            "SPECIALIST",
+            "PROSPECT",
+        ]
+        statline_type.save()
 
     # (field_name, short_name, full_name, position, is_inches, is_target)
     stat_defs = [
@@ -1555,16 +1577,106 @@ def test_add_fighter_with_rules(
 def test_add_fighter_excludes_special_categories(
     client, group_user, pack, fighter_statline_type
 ):
-    """Test that STASH, VEHICLE, GANG_TERRAIN are not in the category choices."""
+    """Test that STASH, VEHICLE, GANG_TERRAIN, EXOTIC_BEAST are not in the category choices."""
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/add/fighter/")
     content = response.content.decode()
     assert "STASH" not in content
     assert "VEHICLE" not in content
     assert "GANG_TERRAIN" not in content
+    assert "EXOTIC_BEAST" not in content
     # Normal categories should be present
     assert "LEADER" in content
     assert "GANGER" in content
+
+
+@pytest.mark.django_db
+def test_add_fighter_statline_type_excludes_vehicle(
+    client, group_user, pack, fighter_statline_type
+):
+    """Test that Vehicle statline type is not available when VEHICLE category is excluded."""
+    ContentStatlineType.objects.get_or_create(
+        name="Vehicle", defaults={"default_for_categories": ["VEHICLE"]}
+    )
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    content = response.content.decode()
+    assert ">Vehicle<" not in content
+    assert ">Fighter<" in content
+
+
+@pytest.mark.django_db
+def test_add_fighter_statline_override(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that override_statline + statline_type passes through to step 2."""
+    # Create a Crew statline type with different stats.
+    crew_type, _ = ContentStatlineType.objects.get_or_create(
+        name="Crew", defaults={"default_for_categories": ["CREW"]}
+    )
+    if not crew_type.default_for_categories:
+        crew_type.default_for_categories = ["CREW"]
+        crew_type.save()
+    stat, _ = ContentStat.objects.get_or_create(
+        field_name="movement",
+        defaults={"short_name": "M", "full_name": "Movement", "is_inches": True},
+    )
+    ContentStatlineTypeStat.objects.get_or_create(
+        statline_type=crew_type, stat=stat, defaults={"position": 1}
+    )
+
+    client.force_login(group_user)
+
+    # Step 1: POST with override_statline checked and Crew selected.
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Crew Fighter",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+            "override_statline": "on",
+            "statline_type": str(crew_type.pk),
+        },
+    )
+    assert response.status_code == 302
+    step2_url = response.url
+    assert f"statline_type_id={crew_type.pk}" in step2_url
+
+    # Step 2: GET should show the Crew statline fields.
+    response = client.get(step2_url)
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Crew type has only Movement; Fighter statline has 12 stats.
+    assert "stat_movement" in content
+    assert "stat_weapon_skill" not in content
+
+    # Step 2: POST to create the fighter.
+    response = client.post(step2_url, {"stat_movement": "5"})
+    assert response.status_code == 302
+
+    fighter = ContentFighter.objects.all_content().get(type="Crew Fighter")
+    assert fighter.custom_statline.statline_type == crew_type
+
+
+@pytest.mark.django_db
+def test_add_fighter_default_statline_no_override(
+    client, group_user, pack, fighter_statline_type, content_house
+):
+    """Test that without override, no statline_type_id is in the URL."""
+    client.force_login(group_user)
+
+    response = client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Normal Fighter",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "50",
+        },
+    )
+    assert response.status_code == 302
+    assert "statline_type_id" not in response.url
 
 
 @pytest.mark.django_db
