@@ -622,6 +622,46 @@ def test_rename_list_and_change_properties(client, user, make_list):
 
 
 @pytest.mark.django_db
+def test_edit_list_with_return_url(client, user, make_list):
+    """Test that edit_list redirects to return_url when provided."""
+    lst = make_list("Test Gang")
+    client.force_login(user)
+
+    about_url = reverse("core:list-about", args=[lst.id])
+    edit_url = reverse("core:list-edit", args=[lst.id])
+
+    # GET with return_url should render the form
+    response = client.get(f"{edit_url}?return_url={about_url}")
+    assert response.status_code == 200
+
+    # POST with return_url should redirect to the lore page
+    response = client.post(
+        edit_url,
+        {"name": "Updated Gang", "return_url": about_url},
+    )
+    assert response.status_code == 302
+    assert about_url in response.url
+
+
+@pytest.mark.django_db
+def test_edit_list_rejects_unsafe_return_url(client, user, make_list):
+    """Test that edit_list falls back to default for unsafe return_url."""
+    lst = make_list("Test Gang")
+    client.force_login(user)
+
+    edit_url = reverse("core:list-edit", args=[lst.id])
+    default_url = reverse("core:list", args=[lst.id])
+
+    # POST with external return_url should fall back to default
+    response = client.post(
+        edit_url,
+        {"name": "Updated Gang", "return_url": "https://evil.com/"},
+    )
+    assert response.status_code == 302
+    assert default_url in response.url
+
+
+@pytest.mark.django_db
 def test_non_public_lists_visibility(client, user, make_user):
     """Test that non-public lists are not visible on the home page."""
     other_user = make_user("otheruser", "password")

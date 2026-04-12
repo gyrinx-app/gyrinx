@@ -30,7 +30,7 @@
             {{ list.narrative|safe_rich_text|safe }}
         {% elif list.owner_cached == user %}
             <div class="text-secondary fst-italic">
-                No lore added yet. <a href="{% url 'core:list-edit' list.id %}">Add some</a> to tell the story of your gang.
+                No lore added yet. <a href="{% url 'core:list-edit' list.id %}?return_url={% url 'core:list-about' list.id %}">Add some</a> to tell the story of your gang.
             </div>
         {% else %}
             <div class="text-secondary fst-italic">No lore added yet.</div>
