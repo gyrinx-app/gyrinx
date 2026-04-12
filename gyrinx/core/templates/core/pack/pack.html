@@ -166,7 +166,8 @@
                                                             {% if can_edit %}
                                                                 {% url 'core:pack-edit-item' pack.id entry.pack_item.id as edit_url %}
                                                                 {% url 'core:pack-delete-item' pack.id entry.pack_item.id as archive_url %}
-                                                                {% include "core/pack/includes/fighter_preview_card.html" with fighter_edit_url=edit_url fighter_archive_url=archive_url fighter_can_add=section.can_add %}
+                                                                {% url 'core:pack-item-equipment' pack.id entry.pack_item.id as equipment_url %}
+                                                                {% include "core/pack/includes/fighter_preview_card.html" with fighter_edit_url=edit_url fighter_archive_url=archive_url fighter_can_add=section.can_add fighter_equipment_url=equipment_url %}
                                                             {% else %}
                                                                 {% include "core/pack/includes/fighter_preview_card.html" %}
                                                             {% endif %}
