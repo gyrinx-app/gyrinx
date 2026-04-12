@@ -93,6 +93,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
+          # Use a PAT so that pushes trigger CI workflows (the default
+          # GITHUB_TOKEN suppresses events from bot accounts).
+          github_token: ${{ secrets.CLAUDE_PAT }}
+
           # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
             actions: read
