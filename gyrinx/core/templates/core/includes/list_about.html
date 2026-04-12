@@ -15,11 +15,11 @@
         {% endfor %}
     </nav>
     <div id="list-overview" class="mb-4">
-        <div class="hstack">
+        <div class="hstack align-items-start">
             <h3 class="h4" id="about-list">Overview</h3>
             {% if list.owner_cached == user %}
-                <div class="ms-auto">
-                    <a href="{% url 'core:list-edit' list.id %}"
+                <div class="ms-auto flex-shrink-0">
+                    <a href="{% url 'core:list-edit' list.id %}?return_url={% url 'core:list-about' list.id %}"
                        class="btn btn-outline-secondary btn-sm">
                         <i class="bi-pencil"></i> Edit
                     </a>
@@ -40,11 +40,14 @@
         {% for fighter in list.active_fighters %}
             {% if fighter.narrative %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
-                    <div class="hstack">
-                        <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
+                    <div class="hstack align-items-start">
+                        <div>
+                            <h3 class="h4 mb-0">{{ fighter.name }}</h3>
+                            <div class="text-secondary">{{ fighter.content_fighter_cached.name }}</div>
+                        </div>
                         {% if list.owner_cached == user %}
-                            <div class="ms-auto">
-                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
+                            <div class="ms-auto flex-shrink-0">
+                                <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={% url 'core:list-about' list.id %}%23about-{{ fighter.id }}"
                                    class="btn btn-outline-secondary btn-sm">
                                     <i class="bi-pencil"></i> Edit
                                 </a>
@@ -62,8 +65,9 @@
                 </div>
             {% else %}
                 <div class="g-col-12 g-col-md-6" id="about-{{ fighter.id }}">
-                    <div class="hstack">
-                        <h3 class="h4">{{ fighter.fully_qualified_name }}</h3>
+                    <div>
+                        <h3 class="h4 mb-0">{{ fighter.name }}</h3>
+                        <div class="text-secondary">{{ fighter.content_fighter_cached.name }}</div>
                     </div>
                     {% if fighter.image %}
                         <div class="mb-2">
@@ -75,7 +79,7 @@
                     <p class="text-secondary">No lore added yet.</p>
                     {% if list.owner_cached == user %}
                         <p>
-                            <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}"
+                            <a href="{% url 'core:list-fighter-narrative-edit' list.id fighter.id %}?return_url={% url 'core:list-about' list.id %}%23about-{{ fighter.id }}"
                                class="btn btn-outline-secondary btn-sm">
                                 <i class="bi-plus"></i> Add lore for {{ fighter.name }}
                             </a>

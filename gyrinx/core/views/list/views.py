@@ -24,6 +24,7 @@ from gyrinx.core.utils import (
     get_list_campaign_resources,
     get_list_held_assets,
     get_list_recent_campaign_actions,
+    get_return_url,
     safe_redirect,
     search_queryset,
 )
@@ -800,6 +801,9 @@ def edit_list(request, id):
     """
     list_ = get_object_or_404(List, id=id, owner=request.user)
 
+    default_url = reverse("core:list", args=(list_.id,))
+    return_url = get_return_url(request, default_url)
+
     error_message = None
     if request.method == "POST":
         form = EditListForm(request.POST, instance=list_)
@@ -817,7 +821,7 @@ def edit_list(request, id):
                 list_name=updated_list.name,
             )
 
-            return HttpResponseRedirect(reverse("core:list", args=(list_.id,)))
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = EditListForm(instance=list_)
 
@@ -827,6 +831,7 @@ def edit_list(request, id):
         {
             "form": form,
             "error_message": error_message,
+            "return_url": return_url,
         },
     )
 
