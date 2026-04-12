@@ -18,10 +18,18 @@ __all__ = [
 
 @admin.register(CustomContentPack)
 class CustomContentPackAdmin(BaseAdmin):
-    list_display = ["name", "listed", "owner", "created"]
+    list_display = ["name", "listed", "featured", "owner", "created"]
     search_fields = ["name", "owner__username"]
-    list_filter = ["listed", "created"]
-    fields = ["name", "summary", "description", "listed", "owner"]
+    list_filter = ["listed", "featured", "created"]
+    fields = [
+        "name",
+        "summary",
+        "description",
+        "listed",
+        "featured",
+        "featured_description",
+        "owner",
+    ]
 
 
 @admin.register(CustomContentPackItem)

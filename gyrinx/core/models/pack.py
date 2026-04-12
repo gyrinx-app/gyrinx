@@ -29,6 +29,14 @@ class CustomContentPack(AppBase):
         default=False,
         help_text="Whether this content pack is publicly listed.",
     )
+    featured = models.BooleanField(
+        default=False,
+        help_text="Whether this content pack is featured on the Customisation page.",
+    )
+    featured_description = models.TextField(
+        blank=True,
+        help_text="A short description shown when this pack is featured.",
+    )
 
     history = HistoricalRecords()
 
