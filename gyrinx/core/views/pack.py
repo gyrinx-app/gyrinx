@@ -508,37 +508,134 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
         context["is_owner"] = user.is_authenticated and user == pack.owner
         context["can_edit"] = pack.can_edit(user)
 
-        # Group prefetched items by slug, splitting active/archived.
-        # For ContentEquipment, disambiguate gear vs weapons.
+        # Batch-resolve GenericFK content objects to avoid N+1 queries.
+        # Group items by content_type and bulk-fetch per type with
+        # type-specific select_related/prefetch_related.
+        pack_items = list(pack.items.all())
+        items_by_ct = defaultdict(list)
+        for item in pack_items:
+            items_by_ct[item.content_type_id].append(item)
+
         equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+        fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+        skill_ct = ContentType.objects.get_for_model(ContentSkill)
+
+        content_objects_map = {}
+        for ct_id, ct_items in items_by_ct.items():
+            ct = ContentType.objects.get_for_id(ct_id)
+            model = ct.model_class()
+            object_ids = list({item.object_id for item in ct_items})
+            # Use all_content() to include pack-owned content that the
+            # default ContentManager would exclude. Fall back to .all()
+            # for models that don't use ContentManager.
+            manager = model._default_manager
+            base_qs = (
+                manager.all_content()
+                if hasattr(manager, "all_content")
+                else manager.all()
+            )
+            qs = base_qs.filter(id__in=object_ids)
+
+            if ct_id == fighter_ct.id:
+                qs = qs.select_related(
+                    "house", "custom_statline", "custom_statline__statline_type"
+                ).prefetch_related(
+                    Prefetch(
+                        "rules",
+                        queryset=ContentRule.objects.with_packs([pack]),
+                    ),
+                    Prefetch(
+                        "skills",
+                        queryset=ContentSkill.objects.with_packs([pack]),
+                    ),
+                    "custom_statline__stats__statline_type_stat",
+                    "custom_statline__statline_type__stats",
+                    Prefetch(
+                        "default_assignments",
+                        queryset=ContentFighterDefaultAssignment.objects.select_related(
+                            "equipment",
+                        ),
+                    ),
+                )
+            elif ct_id == equipment_ct.id:
+                qs = qs.annotate(
+                    has_weapon_profiles=Exists(
+                        ContentWeaponProfile.objects.all_content().filter(
+                            equipment=OuterRef("pk")
+                        )
+                    )
+                )
+            elif ct_id == skill_ct.id:
+                qs = qs.select_related("category")
+
+            for obj in qs:
+                content_objects_map[(ct_id, obj.id)] = obj
+
+        # Pre-compute content_type_id → slug mapping for non-equipment types.
+        ct_slug_map = {}
+        for entry in SUPPORTED_CONTENT_TYPES:
+            if entry.model_class != ContentEquipment:
+                ct_slug_map.setdefault(
+                    ContentType.objects.get_for_model(entry.model_class).id, entry.slug
+                )
+
+        # Group items by slug, splitting active/archived.
         active_by_slug = defaultdict(list)
         archived_by_slug = defaultdict(list)
-        for item in pack.items.all():
-            if item.content_object is not None:
-                entry_data = {"pack_item": item, "content_object": item.content_object}
-                # Determine slug for equipment items.
-                if item.content_type_id == equipment_ct.id:
-                    slug = "weapon" if item.content_object.is_weapon() else "gear"
-                else:
-                    slug = None
-                    for e in SUPPORTED_CONTENT_TYPES:
-                        if (
-                            ContentType.objects.get_for_model(e.model_class).id
-                            == item.content_type_id
-                        ):
-                            slug = e.slug
-                            break
-                    if slug is None:
-                        continue
+        for item in pack_items:
+            content_obj = content_objects_map.get(
+                (item.content_type_id, item.object_id)
+            )
+            if content_obj is None:
+                continue
+            entry_data = {"pack_item": item, "content_object": content_obj}
+            if item.content_type_id == equipment_ct.id:
+                slug = "weapon" if content_obj.is_weapon() else "gear"
+            else:
+                slug = ct_slug_map.get(item.content_type_id)
+                if slug is None:
+                    continue
 
-                if item.archived:
-                    archived_by_slug[slug].append(entry_data)
-                else:
-                    active_by_slug[slug].append(entry_data)
+            if item.archived:
+                archived_by_slug[slug].append(entry_data)
+            else:
+                active_by_slug[slug].append(entry_data)
+
+        # Pre-compute fighter preview data (statline, skills, rules, default equipment).
+        fighter_entries = active_by_slug.get("fighter", [])
+        if fighter_entries:
+            # Batch-determine which default equipment IDs are weapons.
+            all_equipment_ids = set()
+            for entry_data in fighter_entries:
+                for da in entry_data["content_object"].default_assignments.all():
+                    all_equipment_ids.add(da.equipment_id)
+            weapon_equipment_ids = (
+                set(
+                    ContentWeaponProfile.objects.all_content()
+                    .filter(equipment_id__in=all_equipment_ids)
+                    .values_list("equipment_id", flat=True)
+                    .distinct()
+                )
+                if all_equipment_ids
+                else set()
+            )
+
+            for entry_data in fighter_entries:
+                cf = entry_data["content_object"]
+                entry_data["statline"] = cf.statline()
+                # Use prefetched pack-aware rules/skills.
+                entry_data["fighter_rules"] = list(cf.rules.all())
+                entry_data["fighter_skills"] = list(cf.skills.all())
+                das = list(cf.default_assignments.all())
+                weapons = [da for da in das if da.equipment_id in weapon_equipment_ids]
+                gear = [da for da in das if da.equipment_id not in weapon_equipment_ids]
+                names = [da.equipment.name for da in weapons] + [
+                    da.equipment.name for da in gear
+                ]
+                entry_data["default_equipment_names"] = ", ".join(names)
 
         # Sort fighter items by house name for grouped display.
-        fighter_items = active_by_slug.get("fighter", [])
-        fighter_items.sort(
+        fighter_entries.sort(
             key=lambda e: (
                 str(e["content_object"].house) if e["content_object"].house else "",
             )

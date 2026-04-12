@@ -97,6 +97,15 @@ def get_item(obj, key):
         return None
 
 
+@register.filter
+def join_names(items, attr="name"):
+    """Join a list of objects by an attribute, comma-separated.
+
+    Usage: {{ rules|join_names }} or {{ items|join_names:"type" }}
+    """
+    return ", ".join(str(getattr(item, attr, item)) for item in items)
+
+
 @register.simple_tag
 def qt(request, **kwargs):
     updated = request.GET.copy()
