@@ -1,9 +1,11 @@
 """Tests for list pack subscription functionality."""
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter, ContentHouse, ContentRule
+from gyrinx.content.models.weapon import ContentWeaponTrait
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
@@ -456,3 +458,140 @@ class TestListDetailShowsPacks:
         response = client.get(url)
         assert response.status_code == 200
         assert b"Add Content Pack" in response.content
+
+
+@pytest.mark.django_db
+class TestPackDetailFighterDisplay:
+    """Test that pack detail page shows fighter stats, skills, rules, and equipment."""
+
+    def test_fighter_statline_shown(self, client, cc_user, pack, pack_fighter):
+        """Fighter stat values should be visible on the pack detail page."""
+        pack_fighter.movement = '5"'
+        pack_fighter.weapon_skill = "4+"
+        pack_fighter.ballistic_skill = "5+"
+        pack_fighter.strength = "3"
+        pack_fighter.toughness = "3"
+        pack_fighter.wounds = "1"
+        pack_fighter.save()
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert '5"' in content
+        assert "4+" in content
+        assert "5+" in content
+
+    def test_fighter_base_cost_shown(self, client, cc_user, pack, pack_fighter):
+        """Fighter base cost should be visible on the pack detail page."""
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # pack_fighter has base_cost=50
+        assert "50" in content
+
+    def test_fighter_skills_shown(
+        self, client, cc_user, pack, pack_fighter, make_content_skill
+    ):
+        """Fighter skills should be listed on the pack detail page."""
+        skill = make_content_skill("Parry", "Combat")
+        pack_fighter.skills.add(skill)
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Parry" in response.content
+
+    def test_fighter_rules_shown(self, client, cc_user, pack, pack_fighter):
+        """Fighter rules should be listed on the pack detail page."""
+        rule = ContentRule.objects.create(name="Gang Fighter (Ganger)")
+        pack_fighter.rules.add(rule)
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Gang Fighter (Ganger)" in response.content
+
+    def test_fighter_default_equipment_shown(
+        self, client, cc_user, pack, pack_fighter, make_equipment
+    ):
+        """Fighter default equipment should be listed on the pack detail page."""
+        from gyrinx.content.models.default_assignment import (
+            ContentFighterDefaultAssignment,
+        )
+
+        gear = make_equipment("Flak Armour", category="Armour")
+        ContentFighterDefaultAssignment.objects.create(
+            fighter=pack_fighter,
+            equipment=gear,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Flak Armour" in response.content
+
+    def test_non_owner_sees_fighter_stats(self, client, make_user, pack, pack_fighter):
+        """Non-owner should also see fighter stats on the pack detail page."""
+        pack_fighter.movement = '4"'
+        pack_fighter.save()
+
+        other_user = make_user("other", "password")
+        client.force_login(other_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b'4"' in response.content
+
+
+@pytest.mark.django_db
+class TestPackDetailWeaponTraitDescriptions:
+    """Test that weapon trait descriptions are shown on the pack detail page."""
+
+    def test_weapon_trait_description_shown(self, client, cc_user, pack):
+        """Weapon trait descriptions should appear below the trait name."""
+        trait = ContentWeaponTrait.objects.create(
+            name="Blaze",
+            description="After being hit, roll a D6. On a 4+, the target is set ablaze.",
+        )
+        ct = ContentType.objects.get_for_model(ContentWeaponTrait)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ct,
+            object_id=trait.pk,
+            owner=cc_user,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Blaze" in content
+        assert "set ablaze" in content
+
+    def test_weapon_trait_without_description(self, client, cc_user, pack):
+        """Weapon traits without descriptions should still render without error."""
+        trait = ContentWeaponTrait.objects.create(
+            name="Knockback",
+            description="",
+        )
+        ct = ContentType.objects.get_for_model(ContentWeaponTrait)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ct,
+            object_id=trait.pk,
+            owner=cc_user,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Knockback" in response.content
