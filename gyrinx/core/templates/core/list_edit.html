@@ -11,6 +11,7 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
+            <input type="hidden" name="return_url" value="{{ return_url }}">
             {{ form.media }}
             {{ form }}
             <div class="mt-3">
