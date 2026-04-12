@@ -11,23 +11,39 @@
     - preview_skills: list of ContentSkill objects
     - preview_weapons: list of ContentFighterDefaultAssignment (weapons)
     - preview_gear: list of ContentFighterDefaultAssignment (gear)
+    Optional:
+    - fighter_edit_url: URL for edit link (shows Edit/Archive actions when set)
+    - fighter_archive_url: URL for archive link
+    - fighter_can_add: whether the edit link should be shown (section.can_add)
 {% endcomment %}
 <div class="card">
     <div class="card-header p-2">
         <div class="hstack align-items-start">
-            <div class="vstack gap-1">
-                <h3 class="h5 mb-0">{{ content_fighter.type }}</h3>
-                <div class="text-secondary fs-7">
-                    {{ content_fighter.get_category_display }}
-                    {% if content_fighter.house %}· {{ content_fighter.house.name }}{% endif %}
-                </div>
-            </div>
+            <h3 class="h5 mb-0">{{ content_fighter.type }}</h3>
             <div class="ms-auto">
                 <span class="badge text-bg-primary">{% credits content_fighter.base_cost %}</span>
             </div>
         </div>
+        <div class="hstack gap-2 align-items-baseline">
+            <span class="text-secondary fs-7">
+                {{ content_fighter.get_category_display }}
+                {% if content_fighter.house %}· {{ content_fighter.house.name }}{% endif %}
+            </span>
+            {% if fighter_edit_url or fighter_archive_url %}
+                <span class="d-flex gap-2 flex-shrink-0 ms-auto">
+                    {% if fighter_can_add and fighter_edit_url %}
+                        <a href="{{ fighter_edit_url }}"
+                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                    {% endif %}
+                    {% if fighter_archive_url %}
+                        <a href="{{ fighter_archive_url }}"
+                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                    {% endif %}
+                </span>
+            {% endif %}
+        </div>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-0 p-sm-2 pt-2">
         <!-- Stats -->
         {% if preview_statline %}
             <table class="table table-sm table-borderless table-fixed mb-0">
