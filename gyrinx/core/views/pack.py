@@ -560,12 +560,22 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
                                 "weapon_profiles_field",
                                 queryset=ContentWeaponProfile.objects.with_packs(
                                     [pack]
+                                ).prefetch_related(
+                                    Prefetch(
+                                        "traits",
+                                        queryset=ContentWeaponTrait.objects.all_content(),
+                                    )
                                 ),
                             ),
                             Prefetch(
                                 "equipment__contentweaponprofile_set",
                                 queryset=ContentWeaponProfile.objects.with_packs(
                                     [pack]
+                                ).prefetch_related(
+                                    Prefetch(
+                                        "traits",
+                                        queryset=ContentWeaponTrait.objects.all_content(),
+                                    )
                                 ),
                             ),
                         ),
