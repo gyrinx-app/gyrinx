@@ -578,6 +578,7 @@ class PackDetailView(LoginRequiredMixin, generic.DetailView):
                                     )
                                 ),
                             ),
+                            "weapon_accessories_field__modifiers",
                         ),
                     ),
                 )
