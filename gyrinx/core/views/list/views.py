@@ -692,7 +692,7 @@ def new_list_packs(request):
             url = f"{url}?{urlencode([('packs', pid) for pid in pack_ids], doseq=True)}"
         else:
             url = f"{url}?{urlencode({'skip_packs': '1'})}"
-        return HttpResponseRedirect(url)
+        return safe_redirect(request, url, fallback_url=reverse("core:lists-new"))
 
     # Display filtering for GET requests
     available_packs = accessible_packs.select_related("owner")
