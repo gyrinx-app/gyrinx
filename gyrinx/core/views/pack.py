@@ -453,28 +453,33 @@ def _get_pack_activity(pack, limit=None):
     return combined
 
 
-class PacksView(LoginRequiredMixin, generic.ListView):
+class PacksView(generic.ListView):
     template_name = "core/pack/packs.html"
     context_object_name = "packs"
     paginate_by = 20
 
     def get_queryset(self):
         queryset = CustomContentPack.objects.all().select_related("owner")
+        user = self.request.user
 
-        has_permission = CustomContentPackPermission.objects.filter(
-            pack=OuterRef("pk"), user=self.request.user
-        )
-        show_my_packs = self.request.GET.get("my", "1")
-        if show_my_packs == "1":
-            queryset = queryset.filter(
-                models.Q(owner=self.request.user) | models.Q(Exists(has_permission))
-            )
+        if not user.is_authenticated:
+            # Anonymous users only see listed (public) packs
+            queryset = queryset.filter(listed=True)
         else:
-            queryset = queryset.filter(
-                models.Q(listed=True)
-                | models.Q(owner=self.request.user)
-                | models.Q(Exists(has_permission))
+            has_permission = CustomContentPackPermission.objects.filter(
+                pack=OuterRef("pk"), user=user
             )
+            show_my_packs = self.request.GET.get("my", "1")
+            if show_my_packs == "1":
+                queryset = queryset.filter(
+                    models.Q(owner=user) | models.Q(Exists(has_permission))
+                )
+            else:
+                queryset = queryset.filter(
+                    models.Q(listed=True)
+                    | models.Q(owner=user)
+                    | models.Q(Exists(has_permission))
+                )
 
         # Search
         q = self.request.GET.get("q", "").strip()
@@ -504,7 +509,7 @@ class PacksView(LoginRequiredMixin, generic.ListView):
         return context
 
 
-class PackDetailView(LoginRequiredMixin, generic.DetailView):
+class PackDetailView(generic.DetailView):
     template_name = "core/pack/pack.html"
     context_object_name = "pack"
 
