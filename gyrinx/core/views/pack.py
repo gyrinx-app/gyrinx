@@ -459,7 +459,9 @@ class PacksView(generic.ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = CustomContentPack.objects.all().select_related("owner")
+        queryset = CustomContentPack.objects.filter(archived=False).select_related(
+            "owner"
+        )
         user = self.request.user
 
         if not user.is_authenticated:
@@ -515,9 +517,9 @@ class PackDetailView(generic.DetailView):
 
     def get_object(self):
         pack = get_object_or_404(
-            CustomContentPack.objects.select_related("owner").prefetch_related(
-                "items__content_type"
-            ),
+            CustomContentPack.objects.filter(archived=False)
+            .select_related("owner")
+            .prefetch_related("items__content_type"),
             id=self.kwargs["id"],
         )
         _check_pack_visible(pack, self.request.user)
