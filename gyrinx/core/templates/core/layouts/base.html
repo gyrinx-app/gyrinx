@@ -47,12 +47,10 @@
                         <a class="nav-link {% active_path '/campaigns/' '/campaign/' '/battle/' %}"
                            href="{% url 'core:campaigns' %}">Campaigns</a>
                     </li>
-                    {% if user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link {% active_path '/packs/' '/pack/' %}"
-                               href="{% url 'core:packs' %}">Customisation</a>
-                        </li>
-                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link {% active_path '/packs/' '/pack/' %}"
+                           href="{% url 'core:packs' %}">Customisation</a>
+                    </li>
                     {% get_page_by_url '/help/' as help_page %}
                     {% if help_page %}
                         <li class="nav-item">

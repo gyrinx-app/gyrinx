@@ -49,15 +49,34 @@ def test_customisation_link_visible_for_authenticated_users(client, user):
 
 
 @pytest.mark.django_db
-def test_customisation_link_hidden_for_anonymous(client):
-    """Test that the Customisation link is hidden for anonymous users."""
+def test_customisation_link_visible_for_anonymous(client):
+    """Test that the Customisation link is visible for anonymous users."""
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b'href="/packs/"' not in response.content
+    assert b'href="/packs/"' in response.content
+    assert b">Customisation</a>" in response.content
 
 
 # --- Pack index view ---
+
+
+@pytest.mark.django_db
+def test_packs_index_loads_for_anonymous(client, pack):
+    """Test that the packs index page loads for anonymous users."""
+    response = client.get("/packs/")
+    assert response.status_code == 200
+    # Anonymous users see listed packs
+    assert b"Test Pack" in response.content
+
+
+@pytest.mark.django_db
+def test_packs_index_hides_unlisted_from_anonymous(client, group_user):
+    """Test that anonymous users don't see unlisted packs."""
+    CustomContentPack.objects.create(name="Secret Pack", listed=False, owner=group_user)
+    response = client.get("/packs/")
+    assert response.status_code == 200
+    assert b"Secret Pack" not in response.content
 
 
 @pytest.mark.django_db
@@ -209,6 +228,33 @@ def test_featured_pack_description_falls_back_to_summary(client, group_user, mak
 
 
 @pytest.mark.django_db
+def test_pack_detail_loads_for_anonymous(client, pack):
+    """Test that the pack detail page loads for anonymous users (listed pack)."""
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Test Pack" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_hides_buttons_for_anonymous(client, pack):
+    """Test that action buttons are hidden for anonymous users."""
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Use in new List" not in response.content
+    assert b"bi-pencil" not in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_unlisted_returns_404_for_anonymous(client, group_user):
+    """Test that an unlisted pack returns 404 for anonymous users."""
+    unlisted = CustomContentPack.objects.create(
+        name="Secret Pack", listed=False, owner=group_user
+    )
+    response = client.get(f"/pack/{unlisted.id}")
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
 def test_pack_detail_loads(client, group_user, pack):
     """Test that the pack detail page loads."""
     client.force_login(group_user)
@@ -270,13 +316,12 @@ def test_unlisted_pack_hidden_from_others(client, group_user, make_user):
 
 @pytest.mark.django_db
 def test_unlisted_pack_hidden_from_anonymous(client, group_user):
-    """Test that an unlisted pack redirects anonymous users to login."""
+    """Test that an unlisted pack returns 404 for anonymous users."""
     unlisted = CustomContentPack.objects.create(
         name="Secret Pack", listed=False, owner=group_user
     )
     response = client.get(f"/pack/{unlisted.id}")
-    assert response.status_code == 302
-    assert "/accounts/login/" in response.url
+    assert response.status_code == 404
 
 
 # --- Pack create view ---
