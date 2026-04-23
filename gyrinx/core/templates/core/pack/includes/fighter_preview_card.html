@@ -116,10 +116,12 @@
                         </th>
                         <td>
                             {% if preview_gear %}
-                                {% for da in preview_gear %}
-                                    {{ da.equipment.name }}
-                                    {% if not forloop.last %},{% endif %}
-                                {% endfor %}
+                                {% spaceless %}
+                                    {% for da in preview_gear %}
+                                        <span>{{ da.equipment.name }}</span>
+                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                    {% endfor %}
+                                {% endspaceless %}
                             {% else %}
                                 <span class="text-secondary fst-italic">None</span>
                             {% endif %}
