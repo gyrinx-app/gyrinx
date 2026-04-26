@@ -165,6 +165,39 @@ def test_pack_accessory_not_duplicated_in_available_when_attached(
 
 
 @pytest.mark.django_db
+def test_pack_accessory_can_be_deleted_from_weapon(
+    client, user, make_list, make_list_fighter, pack, pack_accessory
+):
+    """The accessory-delete view must find pack-scoped accessories. Without
+    .all_content() the default manager 404s and the user can't remove them."""
+    client.force_login(user)
+    lst = make_list("Delete Test")
+    lst.packs.add(pack)
+    fighter = make_list_fighter(lst, "Deleter")
+    weapon = _make_weapon_with_profile("Test Pistol Del", "Test Pistols Del")
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=weapon
+    )
+    assignment.weapon_accessories_field.add(pack_accessory)
+
+    url = reverse(
+        "core:list-fighter-weapon-accessory-delete",
+        args=(lst.id, fighter.id, assignment.id, pack_accessory.id),
+    )
+    # GET the confirmation page first (this is what 404s before the fix).
+    response = client.get(url)
+    assert response.status_code == 200
+
+    # Then POST to actually delete.
+    response = client.post(url)
+    assert response.status_code in (302, 303)
+    attached = ContentWeaponAccessory.objects.all_content().filter(
+        weapon_accessories=assignment
+    )
+    assert pack_accessory not in attached
+
+
+@pytest.mark.django_db
 def test_pack_accessory_clones_with_assignment(
     user, make_list, make_list_fighter, pack, pack_accessory
 ):

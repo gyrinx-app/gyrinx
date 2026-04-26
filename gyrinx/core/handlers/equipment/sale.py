@@ -138,9 +138,14 @@ def handle_equipment_sale(
         # Remove individual profiles
         for profile in profiles_to_remove:
             assignment.weapon_profiles_field.remove(profile)
-        # Remove individual accessories
+        # Remove individual accessories. Bypass M2M .remove() — it filters
+        # via the target's default manager, which excludes pack content and
+        # silently no-ops on pack accessories.
         for accessory in accessories_to_remove:
-            assignment.weapon_accessories_field.remove(accessory)
+            assignment.weapon_accessories_field.through.objects.filter(
+                listfighterequipmentassignment=assignment,
+                contentweaponaccessory=accessory,
+            ).delete()
 
     # Build description from sale items
     description_parts = []

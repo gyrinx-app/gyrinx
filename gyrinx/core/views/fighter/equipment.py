@@ -1332,8 +1332,12 @@ def delete_list_fighter_weapon_accessory(
         pk=assign_id,
         list_fighter=fighter,
     )
+    # Use all_content() so pack-scoped accessories already attached to the
+    # assignment can be looked up — the default manager would 404 them.
     accessory = get_object_or_404(
-        ContentWeaponAccessory,
+        ContentWeaponAccessory.objects.all_content().filter(
+            weapon_accessories=assignment
+        ),
         pk=accessory_id,
     )
 
