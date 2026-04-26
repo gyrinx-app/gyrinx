@@ -8,7 +8,11 @@ from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.statline import ContentStatlineType
 from gyrinx.content.models.metadata import ContentRule
 from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
-from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
+from gyrinx.content.models.weapon import (
+    ContentWeaponAccessory,
+    ContentWeaponProfile,
+    ContentWeaponTrait,
+)
 from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
@@ -409,6 +413,229 @@ class ContentWeaponTraitPackForm(forms.ModelForm):
                     "A weapon trait with this name already exists in this Content Pack."
                 )
         return value
+
+
+class ContentWeaponAccessoryPackForm(forms.ModelForm):
+    """Form for adding/editing weapon accessories in a content pack.
+
+    Includes a synthetic mod picker (weapon stat mods + weapon trait mods)
+    that find-or-creates ``ContentModStat`` and ``ContentModTrait`` rows in
+    the base library and attaches them to the accessory's ``modifiers`` M2M.
+    """
+
+    STAT_FIELD_KEYS = [
+        ("strength", "Strength"),
+        ("range_short", "Range (short)"),
+        ("range_long", "Range (long)"),
+        ("accuracy_short", "Accuracy (short)"),
+        ("accuracy_long", "Accuracy (long)"),
+        ("armour_piercing", "Armour piercing"),
+        ("damage", "Damage"),
+        ("ammo", "Ammo"),
+    ]
+    STAT_MODE_CHOICES = [
+        ("", "None"),
+        ("improve", "Improve"),
+        ("worsen", "Worsen"),
+        ("set", "Set"),
+    ]
+    TRAIT_MODE_CHOICES = [
+        ("", "None"),
+        ("add", "Add"),
+        ("remove", "Remove"),
+    ]
+
+    class Meta:
+        model = ContentWeaponAccessory
+        fields = ["name", "description", "cost", "rarity", "rarity_roll"]
+        labels = {
+            "name": "Name",
+            "description": "Description",
+            "cost": "Cost",
+            "rarity": "Availability",
+            "rarity_roll": "Availability level",
+        }
+        help_texts = {
+            "name": "The name of the accessory (e.g. 'Telescopic sight').",
+            "description": "Flavour text or rules for this accessory.",
+            "cost": "The credit cost at the Trading Post.",
+            "rarity": "The availability of this accessory.",
+            "rarity_roll": "The roll required to find this accessory (e.g. 7, 10).",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "cost": forms.NumberInput(attrs={"class": "form-control"}),
+            "rarity": forms.Select(attrs={"class": "form-select"}),
+            "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
+        }
+
+    @property
+    def standard_fields(self):
+        """Iterate the bound fields for the regular ModelForm fields only."""
+        for name in self.Meta.fields:
+            yield self[name]
+
+    @property
+    def stat_mod_rows(self):
+        """Per-stat groupings of (mode, value) bound fields for the picker."""
+        return [
+            {
+                "stat": stat_key,
+                "label": stat_label,
+                "mode_field": self[f"stat_mod_{stat_key}_mode"],
+                "value_field": self[f"stat_mod_{stat_key}_value"],
+            }
+            for stat_key, stat_label in self.STAT_FIELD_KEYS
+        ]
+
+    @property
+    def trait_mod_rows(self):
+        """Per-trait bound fields for the trait picker."""
+        return [
+            {
+                "trait": trait,
+                "field": self[f"trait_mod_{trait.pk}"],
+            }
+            for trait in self._traits
+        ]
+
+    @property
+    def any_trait_mod_set(self):
+        """True if any trait mod has a current value (initial or submitted)."""
+        return any(self[f"trait_mod_{trait.pk}"].value() for trait in self._traits)
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pack = pack
+
+        for stat_key, stat_label in self.STAT_FIELD_KEYS:
+            self.fields[f"stat_mod_{stat_key}_mode"] = forms.ChoiceField(
+                choices=self.STAT_MODE_CHOICES,
+                required=False,
+                label=stat_label,
+                widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+            )
+            self.fields[f"stat_mod_{stat_key}_value"] = forms.CharField(
+                required=False,
+                max_length=5,
+                label=f"{stat_label} value",
+                widget=forms.TextInput(
+                    attrs={"class": "form-control form-control-sm", "size": "5"}
+                ),
+            )
+
+        if pack is not None:
+            traits = ContentWeaponTrait.objects.with_packs([pack])
+        else:
+            traits = ContentWeaponTrait.objects.all_content()
+        self._traits = list(traits.order_by("name"))
+        for trait in self._traits:
+            self.fields[f"trait_mod_{trait.pk}"] = forms.ChoiceField(
+                choices=self.TRAIT_MODE_CHOICES,
+                required=False,
+                label=str(trait),
+                widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+            )
+
+        if self.instance.pk and not self.is_bound:
+            self._populate_initial_mods()
+
+    def _populate_initial_mods(self):
+        from gyrinx.content.models.modifier import ContentModStat, ContentModTrait
+
+        for mod in self.instance.modifiers.all():
+            if isinstance(mod, ContentModStat):
+                self.initial[f"stat_mod_{mod.stat}_mode"] = mod.mode
+                self.initial[f"stat_mod_{mod.stat}_value"] = mod.value
+            elif isinstance(mod, ContentModTrait):
+                key = f"trait_mod_{mod.trait_id}"
+                if key in self.fields:
+                    self.initial[key] = mod.mode
+
+    def clean(self):
+        cleaned = super().clean()
+        for stat_key, stat_label in self.STAT_FIELD_KEYS:
+            mode = cleaned.get(f"stat_mod_{stat_key}_mode")
+            value = (cleaned.get(f"stat_mod_{stat_key}_value") or "").strip()
+            # Normalise the cleaned value so " 1 " and "1" dedupe in get_or_create.
+            cleaned[f"stat_mod_{stat_key}_value"] = value
+            if mode and not value:
+                self.add_error(
+                    f"stat_mod_{stat_key}_value",
+                    f"A value is required when a mode is selected for {stat_label}.",
+                )
+            elif value and not mode:
+                self.add_error(
+                    f"stat_mod_{stat_key}_mode",
+                    f"Choose a mode for the {stat_label} value, or clear the value.",
+                )
+            elif mode in {"improve", "worsen"} and value:
+                # ContentModStat.apply() does int(self.value) for improve/worsen,
+                # so reject non-integer values here rather than letting them blow
+                # up at runtime when the mod is applied to a weapon profile.
+                try:
+                    int(value)
+                except (TypeError, ValueError):
+                    self.add_error(
+                        f"stat_mod_{stat_key}_value",
+                        f"Enter an integer for {stat_label} when using {mode}.",
+                    )
+        return cleaned
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentWeaponAccessory.objects.filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A weapon accessory with this name already exists in the content library."
+            )
+        if self._pack is not None:
+            from django.contrib.contenttypes.models import ContentType
+
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            accessory_ct = ContentType.objects.get_for_model(ContentWeaponAccessory)
+            pack_accessory_ids = CustomContentPackItem.objects.filter(
+                pack=self._pack, content_type=accessory_ct, archived=False
+            ).values_list("object_id", flat=True)
+            qs = ContentWeaponAccessory.objects.all_content().filter(
+                pk__in=pack_accessory_ids, name__iexact=value
+            )
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "A weapon accessory with this name already exists in this Content Pack."
+                )
+        return value
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        self._save_mods(self.instance)
+
+    def _save_mods(self, instance):
+        from gyrinx.content.models.modifier import ContentModStat, ContentModTrait
+
+        mods = []
+        for stat_key, _ in self.STAT_FIELD_KEYS:
+            mode = self.cleaned_data.get(f"stat_mod_{stat_key}_mode")
+            value = self.cleaned_data.get(f"stat_mod_{stat_key}_value")
+            if mode and value:
+                mod, _created = ContentModStat.objects.get_or_create(
+                    stat=stat_key, mode=mode, value=value
+                )
+                mods.append(mod)
+        for trait in self._traits:
+            mode = self.cleaned_data.get(f"trait_mod_{trait.pk}")
+            if mode:
+                mod, _created = ContentModTrait.objects.get_or_create(
+                    trait=trait, mode=mode
+                )
+                mods.append(mod)
+        instance.modifiers.set(mods)
 
 
 class ContentSkillCategoryPackForm(forms.ModelForm):

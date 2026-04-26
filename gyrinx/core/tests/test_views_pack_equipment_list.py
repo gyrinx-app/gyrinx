@@ -708,3 +708,224 @@ def test_equipment_list_tab_requires_pack_owner(client, pack, pack_fighter, make
     url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
     response = client.get(url)
     assert response.status_code == 404
+
+
+# -- Weapon accessory equipment list --
+
+
+@pytest.fixture
+def base_accessory():
+    from gyrinx.content.models.weapon import ContentWeaponAccessory
+
+    return ContentWeaponAccessory.objects.create(name="Iron Sight", cost=10)
+
+
+@pytest.fixture
+def pack_scoped_accessory(pack):
+    from gyrinx.content.models.weapon import ContentWeaponAccessory
+
+    accessory = ContentWeaponAccessory.objects.create(name="Pack Scope", cost=20)
+    ct = ContentType.objects.get_for_model(accessory)
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=accessory.pk, owner=pack.owner
+    )
+    return accessory
+
+
+@pytest.mark.django_db
+def test_equipment_list_tab_shows_accessories_section(
+    client, group_user, pack, pack_fighter
+):
+    """The Equipment list tab renders an Accessories section with an Add button."""
+    fighter, pack_item = pack_fighter
+    client.force_login(group_user)
+    url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+    response = client.get(url)
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Weapon accessories" in content
+    assert "Add accessories" in content
+
+
+@pytest.mark.django_db
+def test_add_accessory_get_lists_pool(
+    client, group_user, pack, pack_fighter, base_accessory, pack_scoped_accessory
+):
+    """The add-accessory page lists base + pack-scoped accessories."""
+    fighter, pack_item = pack_fighter
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-add", args=(pack.id, pack_item.id)
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Iron Sight" in content
+    assert "Pack Scope" in content
+
+
+@pytest.mark.django_db
+def test_add_accessory_post_creates_row(
+    client, group_user, pack, pack_fighter, base_accessory
+):
+    from gyrinx.content.models.equipment_list import (
+        ContentFighterEquipmentListWeaponAccessory,
+    )
+
+    fighter, pack_item = pack_fighter
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-add", args=(pack.id, pack_item.id)
+    )
+    response = client.post(
+        url,
+        {
+            "accessory": [str(base_accessory.id)],
+            f"cost_{base_accessory.id}": "5",
+        },
+    )
+    assert response.status_code == 302
+    row = ContentFighterEquipmentListWeaponAccessory.objects.get(
+        fighter=fighter, weapon_accessory=base_accessory
+    )
+    assert row.cost == 5
+
+
+@pytest.mark.django_db
+def test_add_accessory_skips_duplicate(
+    client, group_user, pack, pack_fighter, base_accessory
+):
+    from gyrinx.content.models.equipment_list import (
+        ContentFighterEquipmentListWeaponAccessory,
+    )
+
+    fighter, pack_item = pack_fighter
+    ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter, weapon_accessory=base_accessory, cost=8
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-add", args=(pack.id, pack_item.id)
+    )
+    response = client.post(
+        url,
+        {
+            "accessory": [str(base_accessory.id)],
+            f"cost_{base_accessory.id}": "1",
+        },
+    )
+    # Form re-renders with an error message; original row is untouched.
+    assert response.status_code == 200
+    assert b"already in the available equipment list" in response.content
+    assert (
+        ContentFighterEquipmentListWeaponAccessory.objects.filter(
+            fighter=fighter, weapon_accessory=base_accessory
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_edit_accessory_updates_cost(
+    client, group_user, pack, pack_fighter, base_accessory
+):
+    from gyrinx.content.models.equipment_list import (
+        ContentFighterEquipmentListWeaponAccessory,
+    )
+
+    fighter, pack_item = pack_fighter
+    row = ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter, weapon_accessory=base_accessory, cost=10
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-edit",
+        args=(pack.id, pack_item.id, row.id),
+    )
+    response = client.post(url, {"cost": "3"})
+    assert response.status_code == 302
+    row.refresh_from_db()
+    assert row.cost == 3
+
+
+@pytest.mark.django_db
+def test_remove_accessory_deletes_row(
+    client, group_user, pack, pack_fighter, base_accessory
+):
+    from gyrinx.content.models.equipment_list import (
+        ContentFighterEquipmentListWeaponAccessory,
+    )
+
+    fighter, pack_item = pack_fighter
+    row = ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter, weapon_accessory=base_accessory, cost=10
+    )
+    client.force_login(group_user)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-remove",
+        args=(pack.id, pack_item.id, row.id),
+    )
+    response = client.post(url)
+    assert response.status_code == 302
+    assert not ContentFighterEquipmentListWeaponAccessory.objects.filter(
+        pk=row.id
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_remove_accessory_other_user_404s(
+    client, pack, pack_fighter, base_accessory, make_user
+):
+    from gyrinx.content.models.equipment_list import (
+        ContentFighterEquipmentListWeaponAccessory,
+    )
+
+    fighter, pack_item = pack_fighter
+    row = ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter, weapon_accessory=base_accessory, cost=10
+    )
+    other = make_user("other2", "password")
+    client.force_login(other)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-remove",
+        args=(pack.id, pack_item.id, row.id),
+    )
+    response = client.post(url)
+    assert response.status_code == 404
+    assert ContentFighterEquipmentListWeaponAccessory.objects.filter(pk=row.id).exists()
+
+
+@pytest.mark.django_db
+def test_add_accessory_other_user_404s(client, pack, pack_fighter, make_user):
+    fighter, pack_item = pack_fighter
+    other = make_user("other3", "password")
+    client.force_login(other)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-add", args=(pack.id, pack_item.id)
+    )
+    assert client.get(url).status_code == 404
+    assert client.post(url, {"accessory": []}).status_code == 404
+
+
+@pytest.mark.django_db
+def test_edit_accessory_other_user_404s(
+    client, pack, pack_fighter, base_accessory, make_user
+):
+    from gyrinx.content.models.equipment_list import (
+        ContentFighterEquipmentListWeaponAccessory,
+    )
+
+    fighter, pack_item = pack_fighter
+    row = ContentFighterEquipmentListWeaponAccessory.objects.create(
+        fighter=fighter, weapon_accessory=base_accessory, cost=10
+    )
+    other = make_user("other4", "password")
+    client.force_login(other)
+    url = reverse(
+        "core:pack-fighter-equipment-list-accessory-edit",
+        args=(pack.id, pack_item.id, row.id),
+    )
+    assert client.get(url).status_code == 404
+    assert client.post(url, {"cost": "99"}).status_code == 404
+    row.refresh_from_db()
+    assert row.cost == 10

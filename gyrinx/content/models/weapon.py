@@ -82,6 +82,13 @@ class ContentWeaponTrait(Content):
                 {"name": "A base weapon trait with this name already exists."}
             )
 
+    def save(self, *args, **kwargs):
+        # Run full_clean so direct ORM writes (objects.create, fixtures, data
+        # migrations) also enforce base-only name uniqueness. ModelForm flows
+        # already trigger this via form.is_valid().
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
 
@@ -416,7 +423,12 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
     Represents an accessory that can be associated with a weapon.
     """
 
-    name = models.CharField(max_length=255, unique=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(
+        blank=True,
+        default="",
+        help_text="An optional description of what this accessory does.",
+    )
     cost = models.IntegerField(
         default=0,
         help_text="The credit cost of the weapon accessory at the Trading Post. This cost can be "
@@ -454,6 +466,46 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
     )
 
     history = HistoricalRecords()
+
+    def validate_unique(self, exclude=None):
+        """Enforce name uniqueness for base (non-pack) accessories at model level.
+
+        Pack-scoped accessories may share names across packs, but base-library
+        accessories must have unique names.
+        """
+        super().validate_unique(exclude=exclude)
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        if not self.name:
+            return
+
+        accessory_ct = ContentType.objects.get_for_model(type(self))
+        is_pack_accessory = (
+            self.pk
+            and CustomContentPackItem.objects.filter(
+                content_type=accessory_ct, object_id=self.pk
+            ).exists()
+        )
+        if is_pack_accessory:
+            return
+
+        qs = type(self).objects.filter(name__iexact=self.name)
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+        if qs.exists():
+            raise ValidationError(
+                {"name": "A base weapon accessory with this name already exists."}
+            )
+
+    def save(self, *args, **kwargs):
+        # Run full_clean so direct ORM writes (objects.create, fixtures, data
+        # migrations) also enforce base-only name uniqueness. ModelForm flows
+        # already trigger this via form.is_valid().
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

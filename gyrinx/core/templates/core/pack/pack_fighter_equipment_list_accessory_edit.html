@@ -1,0 +1,29 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Edit accessory cost - {{ content_fighter.type }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack-item-equipment-list' pack.id pack_item.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Edit accessory cost</h1>
+        <form action="{% url 'core:pack-fighter-equipment-list-accessory-edit' pack.id pack_item.id row.id %}"
+              method="post">
+            {% csrf_token %}
+            <div class="d-flex align-items-center gap-3">
+                <label for="cost" class="form-label mb-0 flex-grow-1">{{ row.weapon_accessory.name }}</label>
+                <input type="number"
+                       name="cost"
+                       id="cost"
+                       value="{{ row.cost }}"
+                       min="0"
+                       class="form-control form-control-sm text-center w-em-5">
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success">Save</button>
+                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

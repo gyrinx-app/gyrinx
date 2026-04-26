@@ -22,7 +22,10 @@ from pydantic import BaseModel, ValidationError
 from gyrinx import messages
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import ContentEquipment
-from gyrinx.content.models.equipment_list import ContentFighterEquipmentListItem
+from gyrinx.content.models.equipment_list import (
+    ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListWeaponAccessory,
+)
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
 from gyrinx.content.models.metadata import ContentRule
@@ -32,7 +35,11 @@ from gyrinx.content.models.statline import (
     ContentStatlineStat,
     ContentStatlineType,
 )
-from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
+from gyrinx.content.models.weapon import (
+    ContentWeaponAccessory,
+    ContentWeaponProfile,
+    ContentWeaponTrait,
+)
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
     ContentGearPackForm,
@@ -40,6 +47,7 @@ from gyrinx.core.forms.pack import (
     ContentRuleForm,
     ContentSkillCategoryPackForm,
     ContentSkillPackForm,
+    ContentWeaponAccessoryPackForm,
     ContentWeaponPackForm,
     ContentWeaponProfilePackForm,
     ContentWeaponTraitPackForm,
@@ -134,10 +142,15 @@ SUPPORTED_CONTENT_TYPES = [
         ContentWeaponTraitPackForm,
         "weapon-trait",
     ),
+    ContentTypeEntry(
+        ContentWeaponAccessory,
+        "Weapon Accessories",
+        "Custom weapon accessories for your Content Pack.",
+        "bi-tools",
+        ContentWeaponAccessoryPackForm,
+        "weapon-accessory",
+    ),
 ]
-
-# Slugs that start the "equipment" group — render a divider before the first one.
-_EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait"}
 
 # Lookup from URL slug to content type entry.
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
@@ -159,6 +172,20 @@ def _get_pack_for_edit(id, user):
     if not pack.can_edit(user):
         raise Http404
     return pack
+
+
+def _singularize_label(label):
+    """Convert a plural section label to its singular form.
+
+    Handles the common English cases needed by ``ContentTypeEntry`` labels.
+    Dumb ``rstrip("s")`` produces "Accessorie" for "Accessories", so we look
+    for an ``ies`` suffix first.
+    """
+    if label.endswith("ies"):
+        return label[:-3] + "y"
+    if label.endswith("s") and not label.endswith("ss"):
+        return label[:-1]
+    return label
 
 
 def _check_pack_visible(pack, user):
@@ -603,7 +630,12 @@ class PackDetailView(generic.DetailView):
                                     )
                                 ),
                             ),
-                            "weapon_accessories_field__modifiers",
+                            Prefetch(
+                                "weapon_accessories_field",
+                                queryset=ContentWeaponAccessory.objects.with_packs(
+                                    [pack]
+                                ).prefetch_related("modifiers"),
+                            ),
                         ),
                     ),
                 )
@@ -1124,6 +1156,7 @@ def _form_kwargs(entry, pack):
     if entry.form_class in (
         ContentFighterPackForm,
         ContentWeaponTraitPackForm,
+        ContentWeaponAccessoryPackForm,
         ContentSkillPackForm,
     ):
         return {"pack": pack}
@@ -1274,7 +1307,7 @@ def add_pack_item(request, id, content_type_slug):
     """
     pack = _get_pack_for_edit(id, request.user)
     entry = _get_content_type_entry(content_type_slug)
-    singular_label = entry.label.rstrip("s")
+    singular_label = _singularize_label(entry.label)
     is_fighter = entry.model_class is ContentFighter
     is_weapon = content_type_slug == "weapon"
 
@@ -1605,7 +1638,7 @@ def edit_pack_item(request, id, item_id):
     if entry.form_class is None:
         raise Http404
 
-    singular_label = entry.label.rstrip("s")
+    singular_label = _singularize_label(entry.label)
     is_fighter = entry.model_class is ContentFighter
     is_weapon = entry.slug == "weapon"
 
@@ -1773,7 +1806,7 @@ def delete_pack_item(request, id, item_id):
         raise Http404
 
     entry = _get_entry_for_pack_item(pack_item)
-    label = entry.label.rstrip("s")
+    label = _singularize_label(entry.label)
     icon = entry.icon
 
     if request.method == "POST":
@@ -2866,6 +2899,18 @@ def _load_equipment_list_context(content_fighter):
     }
 
 
+def _load_equipment_list_accessory_context(content_fighter):
+    """Load weapon-accessory equipment-list rows for a fighter."""
+    rows = (
+        ContentFighterEquipmentListWeaponAccessory.objects.filter(
+            fighter=content_fighter
+        )
+        .select_related("weapon_accessory")
+        .order_by("weapon_accessory__name")
+    )
+    return {"equip_list_accessories": list(rows)}
+
+
 def _load_fighter_preview_context(pack, content_fighter):
     """Load data for the fighter preview card on edit pages."""
     statline = content_fighter.statline()
@@ -2912,7 +2957,7 @@ def pack_item_equipment(request, id, item_id):
     pack_item, content_fighter = _get_pack_fighter(pack, item_id)
 
     entry = _get_entry_for_pack_item(pack_item)
-    singular_label = entry.label.rstrip("s")
+    singular_label = _singularize_label(entry.label)
 
     context = {
         "pack": pack,
@@ -2924,6 +2969,7 @@ def pack_item_equipment(request, id, item_id):
     }
     context.update(_load_default_equipment_context(pack, content_fighter))
     context.update(_load_equipment_list_context(content_fighter))
+    context.update(_load_equipment_list_accessory_context(content_fighter))
     context.update(_load_fighter_preview_context(pack, content_fighter))
 
     return render(request, "core/pack/pack_item_equipment.html", context)
@@ -3501,5 +3547,185 @@ def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             "content_fighter": content_fighter,
             "eli": eli,
             "group_items": group_items,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def add_pack_fighter_equipment_list_accessory(request, id, item_id):
+    """Add weapon accessories to a pack fighter's equipment list (bulk)."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    error_message = None
+
+    available_qs = ContentWeaponAccessory.objects.with_packs([pack]).order_by("name")
+
+    if request.method == "POST":
+        accessory_ids = [
+            aid for aid in request.POST.getlist("accessory") if is_valid_uuid(aid)
+        ]
+        if not accessory_ids:
+            raise Http404
+
+        selected = available_qs.filter(pk__in=accessory_ids)
+
+        skipped = []
+        added = []
+        last_id = None
+
+        for accessory in selected:
+            cost_str = request.POST.get(f"cost_{accessory.pk}", "")
+            try:
+                cost = max(0, int(cost_str))
+            except (ValueError, TypeError):
+                cost = accessory.cost
+
+            if ContentFighterEquipmentListWeaponAccessory.objects.filter(
+                fighter=content_fighter, weapon_accessory=accessory
+            ).exists():
+                skipped.append(accessory.name)
+                continue
+
+            row = ContentFighterEquipmentListWeaponAccessory(
+                fighter=content_fighter,
+                weapon_accessory=accessory,
+                cost=cost,
+            )
+            row._history_user = request.user
+            row.save()
+            last_id = row.id
+            added.append(accessory)
+
+        if skipped and not last_id:
+            error_message = (
+                f"{', '.join(skipped)} already in the available equipment list."
+            )
+        elif last_id:
+            for acc in added:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CONTENT_PACK,
+                    verb=EventVerb.ADD,
+                    object=pack,
+                    request=request,
+                    pack_name=pack.name,
+                    pack_id=str(pack.id),
+                    content_type="equipment_list_accessory",
+                    fighter_name=content_fighter.type,
+                    accessory_name=str(acc),
+                )
+            url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+            return HttpResponseRedirect(f"{url}?flash={last_id}#acc-{last_id}")
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_accessory_add.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "accessories": list(available_qs),
+            "error_message": error_message,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def edit_pack_fighter_equipment_list_accessory(request, id, item_id, acc_eli_id):
+    """Edit cost of a weapon-accessory equipment-list row."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    row = get_object_or_404(
+        ContentFighterEquipmentListWeaponAccessory.objects.select_related(
+            "weapon_accessory"
+        ),
+        pk=acc_eli_id,
+        fighter=content_fighter,
+    )
+
+    if request.method == "POST":
+        cost_str = request.POST.get("cost", "")
+        try:
+            row.cost = max(0, int(cost_str))
+        except (ValueError, TypeError):
+            # Best-effort parse — invalid input leaves the existing cost untouched.
+            pass
+        row._history_user = request.user
+        row.save()
+
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.UPDATE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="equipment_list_accessory",
+            fighter_name=content_fighter.type,
+            accessory_name=str(row.weapon_accessory),
+        )
+        url = reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+        return HttpResponseRedirect(f"{url}?flash={row.id}#acc-{row.id}")
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_accessory_edit.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "row": row,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def remove_pack_fighter_equipment_list_accessory(request, id, item_id, acc_eli_id):
+    """Remove a weapon-accessory equipment-list row."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+
+    row = get_object_or_404(
+        ContentFighterEquipmentListWeaponAccessory.objects.select_related(
+            "weapon_accessory"
+        ),
+        pk=acc_eli_id,
+        fighter=content_fighter,
+    )
+
+    if request.method == "POST":
+        accessory_name = str(row.weapon_accessory)
+        row._history_user = request.user
+        row.delete()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.REMOVE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="equipment_list_accessory",
+            fighter_name=content_fighter.type,
+            accessory_name=accessory_name,
+        )
+        return HttpResponseRedirect(
+            reverse("core:pack-item-equipment-list", args=(pack.id, pack_item.id))
+        )
+
+    return render(
+        request,
+        "core/pack/pack_fighter_equipment_list_accessory_remove.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "row": row,
         },
     )

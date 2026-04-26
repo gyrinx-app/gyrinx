@@ -109,7 +109,14 @@
                   method="post"
                   class="vstack gap-3">
                 {% csrf_token %}
-                {{ form }}
+                {% if slug == "weapon-accessory" %}
+                    {{ form.non_field_errors }}
+                    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+                    {% for field in form.standard_fields %}<div>{{ field.as_field_group }}</div>{% endfor %}
+                    {% include "core/pack/includes/_accessory_mods_picker.html" with form=form %}
+                {% else %}
+                    {{ form }}
+                {% endif %}
                 {% if weapon_stat_values %}
                     {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_values %}
                 {% endif %}

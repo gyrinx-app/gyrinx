@@ -246,7 +246,12 @@ def handle_equipment_component_removal(
     elif component_type == "profile":
         assignment.weapon_profiles_field.remove(component)
     elif component_type == "accessory":
-        assignment.weapon_accessories_field.remove(component)
+        # Bypass M2M .remove() — it filters via the target's default manager,
+        # which excludes pack content and silently no-ops on pack accessories.
+        assignment.weapon_accessories_field.through.objects.filter(
+            listfighterequipmentassignment=assignment,
+            contentweaponaccessory=component,
+        ).delete()
 
     # Build description
     if component_cost < 0:

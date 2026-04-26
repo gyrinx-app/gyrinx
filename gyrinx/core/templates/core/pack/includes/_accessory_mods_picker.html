@@ -1,0 +1,129 @@
+{% comment %}
+Picker for the synthetic stat-mod and trait-mod fields on
+ContentWeaponAccessoryPackForm. Expects:
+
+    form  — bound ContentWeaponAccessoryPackForm
+
+The form exposes ``stat_mod_rows`` and ``trait_mod_rows`` iterables for
+template rendering.
+{% endcomment %}
+<div class="vstack gap-3" data-accessory-mods-picker>
+    <details class="border rounded p-2" open>
+        <summary class="fw-semibold">Weapon stat modifiers</summary>
+        <div class="text-secondary fs-7 mb-2 mt-1">Pick at most one modifier per stat. Leave the mode as "None" to skip.</div>
+        <div class="vstack gap-2">
+            {% for row in form.stat_mod_rows %}
+                <div class="row g-2 align-items-center mod-row" data-mod-row>
+                    <label class="col-4 col-sm-3 mb-0 fs-7"
+                           for="{{ row.mode_field.id_for_label }}">{{ row.label }}</label>
+                    <div class="col-4 col-sm-3">{{ row.mode_field }}</div>
+                    <div class="col-4 col-sm-3">{{ row.value_field }}</div>
+                </div>
+                {% if row.mode_field.errors %}<div class="text-danger fs-7 ms-1">{{ row.mode_field.errors|join:" " }}</div>{% endif %}
+                {% if row.value_field.errors %}
+                    <div class="text-danger fs-7 ms-1">{{ row.value_field.errors|join:" " }}</div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </details>
+    <details class="border rounded p-2"
+             {% if form.any_trait_mod_set %}open{% endif %}>
+        <summary class="fw-semibold">Weapon trait modifiers</summary>
+        <div class="text-secondary fs-7 mb-2 mt-1">Add or remove a weapon trait when this accessory is equipped.</div>
+        {% if form.trait_mod_rows %}
+            <input type="search"
+                   class="form-control form-control-sm mb-2"
+                   placeholder="Filter traits…"
+                   data-trait-filter
+                   aria-label="Filter weapon traits">
+            <div class="vstack gap-2" data-trait-list>
+                {% for row in form.trait_mod_rows %}
+                    <div class="row g-2 align-items-center mod-row"
+                         data-mod-row
+                         data-trait-row>
+                        <label class="col-6 mb-0 fs-7" for="{{ row.field.id_for_label }}">{{ row.trait.name }}</label>
+                        <div class="col-6">{{ row.field }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="text-secondary fs-7 mt-2 d-none" data-trait-empty>No traits match.</div>
+        {% else %}
+            <p class="text-secondary mb-0 fs-7">No weapon traits available.</p>
+        {% endif %}
+    </details>
+</div>
+<style>
+    [data-accessory-mods-picker] .mod-row {
+        border-radius: 0.25rem;
+        padding: 0.125rem 0.25rem;
+        transition: background-color 200ms ease;
+        /* Neutralise Bootstrap's .row gutter trick (negative margin-top on
+           the row + positive margin-top on each col). Without this the
+           highlight bg looks top-heavy because the row's negative offset
+           lives outside its background box. */
+        margin-top: 0;
+    }
+    [data-accessory-mods-picker] .mod-row > * {
+        margin-top: 0;
+    }
+    [data-accessory-mods-picker] .mod-row.mod-row-modified {
+        background-color: var(--bs-warning-bg-subtle, #fff3cd);
+        font-weight: 600;
+    }
+    [data-accessory-mods-picker] .mod-row.mod-row-flash {
+        animation: mod-row-flash 600ms ease-in-out;
+    }
+    @keyframes mod-row-flash {
+        0% { background-color: #ffe082; }
+        100% { background-color: var(--bs-warning-bg-subtle, #fff3cd); }
+    }
+</style>
+<script>
+    (function () {
+        const root = document.querySelector("[data-accessory-mods-picker]");
+        if (!root) return;
+
+        function rowIsModified(row) {
+            const select = row.querySelector("select");
+            return !!(select && select.value !== "");
+        }
+
+        function applyState(row, flash) {
+            const modified = rowIsModified(row);
+            row.classList.toggle("mod-row-modified", modified);
+            if (flash && modified) {
+                row.classList.remove("mod-row-flash");
+                void row.offsetWidth;
+                row.classList.add("mod-row-flash");
+            }
+        }
+
+        // Initial state.
+        root.querySelectorAll("[data-mod-row]").forEach((row) => applyState(row, false));
+
+        // Update on change.
+        root.addEventListener("change", (e) => {
+            if (!e.target.matches("select")) return;
+            const row = e.target.closest("[data-mod-row]");
+            if (row) applyState(row, true);
+        });
+
+        // Trait filter.
+        const filter = root.querySelector("[data-trait-filter]");
+        const empty = root.querySelector("[data-trait-empty]");
+        if (filter) {
+            filter.addEventListener("input", (e) => {
+                const q = e.target.value.trim().toLowerCase();
+                let visible = 0;
+                root.querySelectorAll("[data-trait-row]").forEach((row) => {
+                    const label = row.querySelector("label");
+                    const text = label ? label.textContent.toLowerCase() : "";
+                    const match = !q || text.includes(q);
+                    row.classList.toggle("d-none", !match);
+                    if (match) visible += 1;
+                });
+                if (empty) empty.classList.toggle("d-none", visible > 0 || !q);
+            });
+        }
+    })();
+</script>
