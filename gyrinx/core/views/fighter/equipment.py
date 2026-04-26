@@ -1032,7 +1032,7 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     # Get accessories already on the weapon. Use ``all_content`` so that
     # pack-scoped accessories already attached to the assignment are recognised
     # (the default M2M manager would exclude them).
-    existing_accessory_ids = list(
+    existing_accessory_ids = set(
         ContentWeaponAccessory.objects.all_content()
         .filter(weapon_accessories=assignment)
         .values_list("id", flat=True)
@@ -1786,11 +1786,11 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 }
             )
 
-        # Add all accessories. Use all_content() so pack-scoped accessories
-        # already attached to the assignment are included.
-        for accessory in ContentWeaponAccessory.objects.all_content().filter(
-            weapon_accessories=assignment
-        ):
+        # Add all accessories. The assignment is fetched with a pack-aware
+        # prefetch on weapon_accessories_field, so .all() here returns
+        # pack-scoped accessories from the prefetch cache without an extra
+        # query.
+        for accessory in assignment.weapon_accessories_field.all():
             items_to_sell.append(
                 {
                     "type": "accessory",

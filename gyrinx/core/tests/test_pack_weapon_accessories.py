@@ -160,7 +160,9 @@ def test_pack_accessory_not_duplicated_in_available_when_attached(
     )
     response = client.get(url + "?filter=all")
     content = response.content.decode()
-    available_section = content[content.find("Available Accessories") :]
+    available_idx = content.find("Available Accessories")
+    assert available_idx >= 0
+    available_section = content[available_idx:]
     assert "Pack Sight" not in available_section
 
 
@@ -438,6 +440,53 @@ def test_add_accessory_with_trait_mod(client, user, pack):
 
 
 @pytest.mark.django_db
+def test_add_accessory_rejects_non_integer_value_for_improve(client, user, pack):
+    """Improve/worsen modes must have integer values — anything else would
+    crash in ContentModStat.apply() at runtime."""
+    client.force_login(user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon-accessory/",
+        {
+            "name": "Bad Mod",
+            "description": "",
+            "cost": "5",
+            "rarity": "C",
+            "rarity_roll": "",
+            "stat_mod_damage_mode": "improve",
+            "stat_mod_damage_value": "S+1",
+        },
+    )
+    assert response.status_code == 200
+    assert b"integer" in response.content.lower()
+    assert (
+        not ContentWeaponAccessory.objects.all_content().filter(name="Bad Mod").exists()
+    )
+
+
+@pytest.mark.django_db
+def test_stat_mod_value_whitespace_dedups(client, user, pack):
+    """' 1 ' and '1' should produce a single ContentModStat row after strip()."""
+    client.force_login(user)
+    for value in ("1", " 1 "):
+        response = client.post(
+            f"/pack/{pack.id}/add/weapon-accessory/",
+            {
+                "name": f"Acc {value}",
+                "description": "",
+                "cost": "5",
+                "rarity": "C",
+                "rarity_roll": "",
+                "stat_mod_damage_mode": "improve",
+                "stat_mod_damage_value": value,
+            },
+        )
+        assert response.status_code == 302
+
+    rows = ContentModStat.objects.filter(stat="damage", mode="improve", value="1")
+    assert rows.count() == 1
+
+
+@pytest.mark.django_db
 def test_mod_dedup_across_accessories(client, user, pack):
     """Two accessories with the same stat mod share a single ContentModStat row."""
     client.force_login(user)
@@ -488,7 +537,9 @@ def test_edit_view_opens_trait_collapsible_when_trait_mod_set(client, user, pack
     # Locate the "Weapon trait modifiers" details element and verify it has
     # the open attribute.
     trait_section_idx = content.find("Weapon trait modifiers")
+    assert trait_section_idx >= 0
     details_open_idx = content.rfind("<details", 0, trait_section_idx)
+    assert details_open_idx >= 0
     details_tag = content[details_open_idx:trait_section_idx]
     assert "open" in details_tag
 
@@ -501,7 +552,9 @@ def test_add_view_trait_collapsible_closed_by_default(client, user, pack):
     response = client.get(f"/pack/{pack.id}/add/weapon-accessory/")
     content = response.content.decode()
     trait_section_idx = content.find("Weapon trait modifiers")
+    assert trait_section_idx >= 0
     details_open_idx = content.rfind("<details", 0, trait_section_idx)
+    assert details_open_idx >= 0
     details_tag = content[details_open_idx:trait_section_idx]
     assert "open" not in details_tag
 
@@ -512,7 +565,7 @@ def test_edit_accessory_preserves_mods_and_can_remove(client, user, pack):
     client.force_login(user)
 
     # Create the accessory with a stat mod.
-    client.post(
+    create_response = client.post(
         f"/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Editable Accessory",
@@ -524,6 +577,7 @@ def test_edit_accessory_preserves_mods_and_can_remove(client, user, pack):
             "stat_mod_ammo_value": "5+",
         },
     )
+    assert create_response.status_code == 302
     accessory = ContentWeaponAccessory.objects.all_content().get(
         name="Editable Accessory"
     )

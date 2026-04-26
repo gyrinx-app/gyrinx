@@ -557,7 +557,9 @@ class ContentWeaponAccessoryPackForm(forms.ModelForm):
         cleaned = super().clean()
         for stat_key, stat_label in self.STAT_FIELD_KEYS:
             mode = cleaned.get(f"stat_mod_{stat_key}_mode")
-            value = cleaned.get(f"stat_mod_{stat_key}_value")
+            value = (cleaned.get(f"stat_mod_{stat_key}_value") or "").strip()
+            # Normalise the cleaned value so " 1 " and "1" dedupe in get_or_create.
+            cleaned[f"stat_mod_{stat_key}_value"] = value
             if mode and not value:
                 self.add_error(
                     f"stat_mod_{stat_key}_value",
@@ -568,6 +570,17 @@ class ContentWeaponAccessoryPackForm(forms.ModelForm):
                     f"stat_mod_{stat_key}_mode",
                     f"Choose a mode for the {stat_label} value, or clear the value.",
                 )
+            elif mode in {"improve", "worsen"} and value:
+                # ContentModStat.apply() does int(self.value) for improve/worsen,
+                # so reject non-integer values here rather than letting them blow
+                # up at runtime when the mod is applied to a weapon profile.
+                try:
+                    int(value)
+                except (TypeError, ValueError):
+                    self.add_error(
+                        f"stat_mod_{stat_key}_value",
+                        f"Enter an integer for {stat_label} when using {mode}.",
+                    )
         return cleaned
 
     def clean_name(self):

@@ -152,9 +152,6 @@ SUPPORTED_CONTENT_TYPES = [
     ),
 ]
 
-# Slugs that start the "equipment" group — render a divider before the first one.
-_EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait", "weapon-accessory"}
-
 # Lookup from URL slug to content type entry.
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
 
@@ -635,9 +632,9 @@ class PackDetailView(generic.DetailView):
                             ),
                             Prefetch(
                                 "weapon_accessories_field",
-                                queryset=ContentWeaponAccessory.objects.all_content().prefetch_related(
-                                    "modifiers"
-                                ),
+                                queryset=ContentWeaponAccessory.objects.with_packs(
+                                    [pack]
+                                ).prefetch_related("modifiers"),
                             ),
                         ),
                     ),
@@ -3655,6 +3652,7 @@ def edit_pack_fighter_equipment_list_accessory(request, id, item_id, acc_eli_id)
         try:
             row.cost = max(0, int(cost_str))
         except (ValueError, TypeError):
+            # Best-effort parse — invalid input leaves the existing cost untouched.
             pass
         row._history_user = request.user
         row.save()
