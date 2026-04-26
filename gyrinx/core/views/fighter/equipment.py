@@ -949,7 +949,10 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     # Handle adding a new accessory
     if request.method == "POST" and "accessory_id" in request.POST:
         accessory_id = request.POST.get("accessory_id")
-        accessory = get_object_or_404(ContentWeaponAccessory, pk=accessory_id)
+        accessory = get_object_or_404(
+            ContentWeaponAccessory.objects.with_packs(lst.packs.all()),
+            pk=accessory_id,
+        )
 
         try:
             # Call handler to handle business logic (credit spending, actions)
@@ -1001,7 +1004,8 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     filter_mode = request.GET.get("filter", "equipment-list")
     search_query = request.GET.get("q", "")
 
-    # Build the accessories queryset
+    # Build the accessories queryset (pack-aware)
+    accessible_accessories = ContentWeaponAccessory.objects.with_packs(lst.packs.all())
     if filter_mode == "equipment-list":
         # Get accessories from equipment list
         equipment_list_accessories = (
@@ -1010,12 +1014,11 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
             ).values_list("weapon_accessory_id", flat=True)
         )
 
-        accessories_qs = ContentWeaponAccessory.objects.filter(
+        accessories_qs = accessible_accessories.filter(
             id__in=equipment_list_accessories
         ).with_cost_for_fighter(fighter.content_fighter)
     else:
-        # Get all accessories
-        accessories_qs = ContentWeaponAccessory.objects.all().with_cost_for_fighter(
+        accessories_qs = accessible_accessories.with_cost_for_fighter(
             fighter.content_fighter
         )
 
@@ -1026,9 +1029,13 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     # Order by name
     accessories_qs = accessories_qs.order_by("name")
 
-    # Get accessories already on the weapon
-    existing_accessory_ids = assignment.weapon_accessories_field.values_list(
-        "id", flat=True
+    # Get accessories already on the weapon. Use ``all_content`` so that
+    # pack-scoped accessories already attached to the assignment are recognised
+    # (the default M2M manager would exclude them).
+    existing_accessory_ids = list(
+        ContentWeaponAccessory.objects.all_content()
+        .filter(weapon_accessories=assignment)
+        .values_list("id", flat=True)
     )
 
     # Prepare accessories for display
@@ -1709,7 +1716,14 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
             ListFighterEquipmentAssignment.objects.select_related(
                 "content_equipment", "list_fighter"
             ).prefetch_related(
-                "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
+                "weapon_profiles_field",
+                # Use all_content() so pack-scoped accessories are not hidden
+                # by the default M2M manager.
+                Prefetch(
+                    "weapon_accessories_field",
+                    queryset=ContentWeaponAccessory.objects.all_content(),
+                ),
+                "upgrades_field",
             ),
             pk=assign_id,
             list_fighter=fighter,
@@ -1768,8 +1782,11 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 }
             )
 
-        # Add all accessories
-        for accessory in assignment.weapon_accessories_field.all():
+        # Add all accessories. Use all_content() so pack-scoped accessories
+        # already attached to the assignment are included.
+        for accessory in ContentWeaponAccessory.objects.all_content().filter(
+            weapon_accessories=assignment
+        ):
             items_to_sell.append(
                 {
                     "type": "accessory",
@@ -1795,9 +1812,11 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 )
 
         for accessory_id in sell_accessories:
-            accessory = assignment.weapon_accessories_field.filter(
-                id=accessory_id
-            ).first()
+            accessory = (
+                ContentWeaponAccessory.objects.all_content()
+                .filter(weapon_accessories=assignment, id=accessory_id)
+                .first()
+            )
             if accessory:
                 items_to_sell.append(
                     {
@@ -1948,9 +1967,11 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                             profiles_to_remove.append(profile)
 
                     for accessory_id in request.session.get("sell_accessories", []):
-                        accessory = assignment.weapon_accessories_field.filter(
-                            id=accessory_id
-                        ).first()
+                        accessory = (
+                            ContentWeaponAccessory.objects.all_content()
+                            .filter(weapon_accessories=assignment, id=accessory_id)
+                            .first()
+                        )
                         if accessory:
                             accessories_to_remove.append(accessory)
 

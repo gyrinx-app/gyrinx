@@ -460,12 +460,19 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         inst: ListFighterEquipmentAssignment | None = kwargs.get("instance", None)
         if inst is not None:
-            # Create new field with assignment instance
+            # Pack-aware queryset so subscribed pack accessories appear and
+            # already-attached pack accessories are recognised as initial
+            # values (the default M2M manager would silently exclude them).
+            packs = inst.list_fighter.list.packs.all()
+            choices_qs = ContentWeaponAccessory.objects.with_packs(
+                packs
+            ).with_cost_for_fighter(inst.list_fighter.content_fighter)
+            initial_qs = ContentWeaponAccessory.objects.all_content().filter(
+                weapon_accessories=inst
+            )
             self.fields["weapon_accessories_field"] = ListFighterWeaponAccessoryField(
                 label="Accessories",
-                queryset=ContentWeaponAccessory.objects.with_cost_for_fighter(
-                    inst.list_fighter.content_fighter
-                ).all(),
+                queryset=choices_qs,
                 widget=BsCheckboxSelectMultiple(
                     attrs={"class": "form-check-input"},
                 ),
@@ -473,10 +480,7 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
                 required=False,
                 assignment=inst,
             )
-            # Set initial value
-            self.fields[
-                "weapon_accessories_field"
-            ].initial = inst.weapon_accessories_field.all()
+            self.fields["weapon_accessories_field"].initial = initial_qs
 
     class Meta:
         model = ListFighterEquipmentAssignment

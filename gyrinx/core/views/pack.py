@@ -32,7 +32,11 @@ from gyrinx.content.models.statline import (
     ContentStatlineStat,
     ContentStatlineType,
 )
-from gyrinx.content.models.weapon import ContentWeaponProfile, ContentWeaponTrait
+from gyrinx.content.models.weapon import (
+    ContentWeaponAccessory,
+    ContentWeaponProfile,
+    ContentWeaponTrait,
+)
 from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
     ContentGearPackForm,
@@ -40,6 +44,7 @@ from gyrinx.core.forms.pack import (
     ContentRuleForm,
     ContentSkillCategoryPackForm,
     ContentSkillPackForm,
+    ContentWeaponAccessoryPackForm,
     ContentWeaponPackForm,
     ContentWeaponProfilePackForm,
     ContentWeaponTraitPackForm,
@@ -134,10 +139,18 @@ SUPPORTED_CONTENT_TYPES = [
         ContentWeaponTraitPackForm,
         "weapon-trait",
     ),
+    ContentTypeEntry(
+        ContentWeaponAccessory,
+        "Weapon Accessories",
+        "Custom weapon accessories for your Content Pack.",
+        "bi-tools",
+        ContentWeaponAccessoryPackForm,
+        "weapon-accessory",
+    ),
 ]
 
 # Slugs that start the "equipment" group — render a divider before the first one.
-_EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait"}
+_EQUIPMENT_SLUGS = {"gear", "weapon", "weapon-trait", "weapon-accessory"}
 
 # Lookup from URL slug to content type entry.
 _CONTENT_TYPE_BY_SLUG = {entry.slug: entry for entry in SUPPORTED_CONTENT_TYPES}
@@ -159,6 +172,20 @@ def _get_pack_for_edit(id, user):
     if not pack.can_edit(user):
         raise Http404
     return pack
+
+
+def _singularize_label(label):
+    """Convert a plural section label to its singular form.
+
+    Handles the common English cases needed by ``ContentTypeEntry`` labels.
+    Dumb ``rstrip("s")`` produces "Accessorie" for "Accessories", so we look
+    for an ``ies`` suffix first.
+    """
+    if label.endswith("ies"):
+        return label[:-3] + "y"
+    if label.endswith("s") and not label.endswith("ss"):
+        return label[:-1]
+    return label
 
 
 def _check_pack_visible(pack, user):
@@ -603,7 +630,12 @@ class PackDetailView(generic.DetailView):
                                     )
                                 ),
                             ),
-                            "weapon_accessories_field__modifiers",
+                            Prefetch(
+                                "weapon_accessories_field",
+                                queryset=ContentWeaponAccessory.objects.all_content().prefetch_related(
+                                    "modifiers"
+                                ),
+                            ),
                         ),
                     ),
                 )
@@ -1124,6 +1156,7 @@ def _form_kwargs(entry, pack):
     if entry.form_class in (
         ContentFighterPackForm,
         ContentWeaponTraitPackForm,
+        ContentWeaponAccessoryPackForm,
         ContentSkillPackForm,
     ):
         return {"pack": pack}
@@ -1274,7 +1307,7 @@ def add_pack_item(request, id, content_type_slug):
     """
     pack = _get_pack_for_edit(id, request.user)
     entry = _get_content_type_entry(content_type_slug)
-    singular_label = entry.label.rstrip("s")
+    singular_label = _singularize_label(entry.label)
     is_fighter = entry.model_class is ContentFighter
     is_weapon = content_type_slug == "weapon"
 
@@ -1605,7 +1638,7 @@ def edit_pack_item(request, id, item_id):
     if entry.form_class is None:
         raise Http404
 
-    singular_label = entry.label.rstrip("s")
+    singular_label = _singularize_label(entry.label)
     is_fighter = entry.model_class is ContentFighter
     is_weapon = entry.slug == "weapon"
 
@@ -1773,7 +1806,7 @@ def delete_pack_item(request, id, item_id):
         raise Http404
 
     entry = _get_entry_for_pack_item(pack_item)
-    label = entry.label.rstrip("s")
+    label = _singularize_label(entry.label)
     icon = entry.icon
 
     if request.method == "POST":
@@ -2912,7 +2945,7 @@ def pack_item_equipment(request, id, item_id):
     pack_item, content_fighter = _get_pack_fighter(pack, item_id)
 
     entry = _get_entry_for_pack_item(pack_item)
-    singular_label = entry.label.rstrip("s")
+    singular_label = _singularize_label(entry.label)
 
     context = {
         "pack": pack,

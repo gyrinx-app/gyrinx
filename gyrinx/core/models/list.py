@@ -1572,7 +1572,15 @@ class ListFighterQuerySet(models.QuerySet):
                     "listfighterequipmentassignment_set__weapon_profiles_field",
                     queryset=ContentWeaponProfile.objects.all_content(),
                 ),
-                "listfighterequipmentassignment_set__weapon_accessories_field__modifiers",
+                # Use all_content() so pack-scoped accessories are visible
+                # through this prefetch — the default M2M manager would
+                # exclude them, hiding them on display surfaces.
+                Prefetch(
+                    "listfighterequipmentassignment_set__weapon_accessories_field",
+                    queryset=ContentWeaponAccessory.objects.all_content().prefetch_related(
+                        "modifiers"
+                    ),
+                ),
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
                 "listfighterequipmentassignment_set__upgrades_field__modifiers",
                 "content_fighter__counters",
@@ -3750,7 +3758,14 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
         return self.select_related(
             "content_equipment", "list_fighter"
         ).prefetch_related(
-            "weapon_profiles_field", "weapon_accessories_field", "upgrades_field"
+            "weapon_profiles_field",
+            # Use all_content() so pack-scoped accessories are not hidden
+            # by the default M2M manager.
+            Prefetch(
+                "weapon_accessories_field",
+                queryset=ContentWeaponAccessory.objects.all_content(),
+            ),
+            "upgrades_field",
         )
 
     def create_with_facts(self, user=None, **kwargs):
@@ -4532,7 +4547,11 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         for profile in self.weapon_profiles_field.all():
             clone.weapon_profiles_field.add(profile)
 
-        for accessory in self.weapon_accessories_field.all():
+        # Use all_content() so pack-scoped accessories are copied too — the
+        # default M2M manager would silently drop them.
+        for accessory in ContentWeaponAccessory.objects.all_content().filter(
+            weapon_accessories=self
+        ):
             clone.weapon_accessories_field.add(accessory)
 
         for upgrade in self.upgrades_field.all():

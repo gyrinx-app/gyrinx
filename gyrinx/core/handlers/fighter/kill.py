@@ -8,6 +8,7 @@ from django.db import transaction
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
+from gyrinx.content.models import ContentWeaponAccessory
 from gyrinx.core.models.list import (
     List,
     ListFighter,
@@ -107,10 +108,15 @@ def handle_fighter_kill(
                 new_assignment.weapon_profiles_field.set(
                     assignment.weapon_profiles_field.all()
                 )
-            if assignment.weapon_accessories_field.exists():
-                new_assignment.weapon_accessories_field.set(
-                    assignment.weapon_accessories_field.all()
+            # Use all_content() so pack-scoped accessories transfer too — the
+            # default M2M manager would silently exclude them.
+            pack_aware_accessories = (
+                ContentWeaponAccessory.objects.all_content().filter(
+                    weapon_accessories=assignment
                 )
+            )
+            if pack_aware_accessories.exists():
+                new_assignment.weapon_accessories_field.set(pack_aware_accessories)
             if assignment.upgrades_field.exists():
                 new_assignment.upgrades_field.set(assignment.upgrades_field.all())
 

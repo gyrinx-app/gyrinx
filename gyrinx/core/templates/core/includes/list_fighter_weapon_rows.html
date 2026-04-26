@@ -99,6 +99,15 @@
                 {% if not assign.has_total_cost_override %}
                     {% if ad.cost_int != 0 %}({{ ad.cost_display }}){% endif %}
                 {% endif %}
+                {% if pack_content_map %}
+                    {% with ad.accessory.id|pack_name:pack_content_map as pname %}
+                        {% if pname %}
+                            <i class="bi-dot fs-7 text-secondary pack-icon"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="Added by {{ pname }}"></i>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
                 {% if mode == 'edit' and assign.kind == 'assigned' %}
                     <a href="{% url 'core:list-fighter-weapon-accessory-delete' list.id fighter.id assign.id ad.accessory.id %}?return_url={{ request.get_full_path|urlencode }}"
                        class="ms-auto link-danger">Delete</a>

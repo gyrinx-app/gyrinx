@@ -148,6 +148,15 @@
                                             {% if not assign.has_total_cost_override %}
                                                 {% if ad.cost_int != 0 %}({{ ad.cost_display }}){% endif %}
                                             {% endif %}
+                                            {% if pack_content_map %}
+                                                {% with ad.accessory.id|pack_name:pack_content_map as pname %}
+                                                    {% if pname %}
+                                                        <i class="bi-dot fs-7 text-secondary pack-icon"
+                                                           data-bs-toggle="tooltip"
+                                                           data-bs-title="Added by {{ pname }}"></i>
+                                                    {% endif %}
+                                                {% endwith %}
+                                            {% endif %}
                                         {% endfor %}
                                     {% endif %}
                                     {% comment %} Show upgrades {% endcomment %}
