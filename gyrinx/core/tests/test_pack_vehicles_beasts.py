@@ -252,8 +252,18 @@ def test_exotic_beast_statline_auto_selected(
 def test_create_vehicle_fails_if_no_statline_type_exists(
     client, user, pack, content_house, vehicles_category
 ):
-    """If the DB has no ContentStatlineType for VEHICLE, submission fails clearly
-    (no silent fallback to default fighter stats)."""
+    """If the DB has no ContentStatlineType for VEHICLE, the create flow
+    must NOT silently create a fighter at all (let alone with the wrong
+    fallback Fighter statline). Drives both Step 1 and Step 2 so the
+    assertion isn't vacuous — the previous version of this test only
+    POSTed Step 1 (which never creates a fighter) and would pass even
+    if Step 2 silently fell back.
+
+    NOTE: today Step 2 raises ContentStatlineType.DoesNotExist → 500.
+    That's a loud failure mode, which is fine for correctness; the UX
+    gap (form-level error) is a separate follow-up.
+    """
+    # Deliberately do NOT include vehicle_statline_type fixture.
     client.force_login(user)
     _step1_post(
         client,
@@ -263,14 +273,26 @@ def test_create_vehicle_fails_if_no_statline_type_exists(
         house=str(content_house.pk),
         base_cost="100",
     )
-    # Either the form rejects (status 200 with error) OR it redirects but
-    # leaves no statline → in either case the fighter MUST NOT be created
-    # with a default fighter statline.
-    assert (
-        not ContentFighter.objects.all_content()
-        .filter(type="Bare Vehicle", custom_statline__statline_type__name="Fighter")
-        .exists()
-    )
+    # Step 2 — the request will 500 because no Vehicle statline type exists.
+    # Use raise_request_exception=False so the test client returns the 500
+    # response instead of re-raising the exception.
+    client.raise_request_exception = False
+    try:
+        _step2_post(
+            client,
+            pack,
+            {
+                "type": "Bare Vehicle",
+                "category": "VEHICLE",
+                "house_id": str(content_house.pk),
+                "base_cost": "100",
+            },
+        )
+    finally:
+        client.raise_request_exception = True
+
+    # No "Bare Vehicle" ContentFighter must have been created.
+    assert not ContentFighter.objects.all_content().filter(type="Bare Vehicle").exists()
 
 
 # --- Equipment + bridge auto-creation -----------------------------------------
@@ -724,3 +746,95 @@ def test_pack_detail_shows_inline_equipment_note_on_vehicle_fighter(
     # Look for an inline note marker near the fighter name.
     snippet = content[idx : idx + 800]
     assert "Available as equipment" in snippet or "150¢" in snippet
+
+
+# --- Archive / restore cascade ------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_archiving_pack_vehicle_cascades_to_companion_equipment(
+    client, user, pack, content_house, vehicle_statline_type, vehicles_category
+):
+    """Archiving a pack vehicle/beast fighter must also archive its companion
+    equipment's pack item. Otherwise the companion stays purchasable while
+    the source fighter is hidden."""
+    client.force_login(user)
+    fighter = _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Mauler",
+        category="VEHICLE",
+        base_cost=150,
+        house_id=content_house.pk,
+    )
+    fighter_pack_item = CustomContentPackItem.objects.get(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=fighter.pk,
+    )
+    companion = ContentEquipment.objects.all_content().get(
+        auto_companion_for_fighter=fighter
+    )
+    companion_pack_item = CustomContentPackItem.objects.get(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentEquipment),
+        object_id=companion.pk,
+    )
+    assert not companion_pack_item.archived
+
+    response = client.post(
+        reverse("core:pack-delete-item", args=(pack.id, fighter_pack_item.id))
+    )
+    assert response.status_code == 302
+
+    fighter_pack_item.refresh_from_db()
+    companion_pack_item.refresh_from_db()
+    assert fighter_pack_item.archived
+    assert companion_pack_item.archived
+
+
+@pytest.mark.django_db
+def test_restoring_pack_vehicle_cascades_to_companion_equipment(
+    client, user, pack, content_house, vehicle_statline_type, vehicles_category
+):
+    """Restoring a previously-archived pack vehicle fighter must also restore
+    its companion equipment's pack item."""
+    client.force_login(user)
+    fighter = _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Mauler",
+        category="VEHICLE",
+        base_cost=150,
+        house_id=content_house.pk,
+    )
+    fighter_pack_item = CustomContentPackItem.objects.get(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=fighter.pk,
+    )
+    companion = ContentEquipment.objects.all_content().get(
+        auto_companion_for_fighter=fighter
+    )
+    companion_pack_item = CustomContentPackItem.objects.get(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentEquipment),
+        object_id=companion.pk,
+    )
+
+    # Archive both via the cascade.
+    client.post(reverse("core:pack-delete-item", args=(pack.id, fighter_pack_item.id)))
+    fighter_pack_item.refresh_from_db()
+    companion_pack_item.refresh_from_db()
+    assert fighter_pack_item.archived and companion_pack_item.archived
+
+    # Now restore the fighter pack item — companion should follow.
+    response = client.post(
+        reverse("core:pack-restore-item", args=(pack.id, fighter_pack_item.id))
+    )
+    assert response.status_code == 302
+
+    fighter_pack_item.refresh_from_db()
+    companion_pack_item.refresh_from_db()
+    assert not fighter_pack_item.archived
+    assert not companion_pack_item.archived

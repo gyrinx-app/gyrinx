@@ -1582,19 +1582,24 @@ def test_add_fighter_excludes_special_categories(
 
 
 @pytest.mark.django_db
-def test_add_fighter_statline_type_includes_vehicle(
-    client, group_user, pack, fighter_statline_type
-):
+def test_add_fighter_statline_type_includes_vehicle(pack, fighter_statline_type):
     """The Vehicle statline type IS available now that VEHICLE is a permitted
-    pack-fighter category."""
+    pack-fighter category.
+
+    Inspects the form's queryset directly rather than scraping rendered HTML
+    — "Vehicle" also appears as a category option, so a substring search on
+    the page would pass even if the statline-type dropdown regressed.
+    """
+    from gyrinx.core.forms.pack import ContentFighterPackForm
+
     ContentStatlineType.objects.get_or_create(
         name="Vehicle", defaults={"default_for_categories": ["VEHICLE"]}
     )
-    client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/")
-    content = response.content.decode()
-    assert ">Vehicle<" in content
-    assert ">Fighter<" in content
+
+    form = ContentFighterPackForm(pack=pack)
+    statline_type_names = {st.name for st in form.fields["statline_type"].queryset}
+    assert "Vehicle" in statline_type_names
+    assert "Fighter" in statline_type_names
 
 
 @pytest.mark.django_db

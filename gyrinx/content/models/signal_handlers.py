@@ -19,8 +19,9 @@ from gyrinx.models import format_cost_display
 from gyrinx.tracing import traced
 
 from .equipment import (
+    AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY,
     ContentEquipment,
-    ContentEquipmentFighterProfile,
+    ContentEquipmentCategory,
     ContentEquipmentUpgrade,
 )
 from .equipment_list import (
@@ -524,26 +525,45 @@ def create_fighter_cost_action(sender, instance, created, **kwargs):
 )
 @traced("signal_content_fighter_sync_auto_equipment_cost")
 def sync_auto_equipment_cost(sender, instance, created, **kwargs):
-    """Keep a vehicle/exotic-beast pack fighter's linked equipment in sync.
+    """Keep a vehicle/exotic-beast pack fighter's companion equipment in sync.
 
-    When a pack-defined VEHICLE / EXOTIC_BEAST fighter is saved, the
-    companion equipment row (created by the pack flow) must mirror the
-    fighter's ``type`` and ``base_cost`` so list-buyers see the right name
-    and price. Only acts when a bridge already exists — creation of the
-    initial equipment + bridge is owned by the pack create flow.
+    When a VEHICLE / EXOTIC_BEAST pack fighter is saved, the companion
+    equipment row (created by the pack flow) must mirror the fighter's
+    ``type``, ``base_cost`` and ``category`` (in case the user converted
+    between VEHICLE and EXOTIC_BEAST).
+
+    Looks up via the canonical ``auto_companion_for_fighter`` FK so the
+    target is unambiguous. Short-circuits for non-auto-equipment categories
+    so a category change away (e.g. VEHICLE → GANGER) leaves the
+    companion alone — see #1725-related discussion in the PR for the
+    follow-up form-level guard.
     """
-    bridge = ContentEquipmentFighterProfile.objects.filter(
-        content_fighter=instance
-    ).first()
-    if bridge is None:
+    if instance.category not in AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY:
         return
-    equipment = bridge.equipment
+
+    equipment = (
+        ContentEquipment.objects.all_content()
+        .filter(auto_companion_for_fighter=instance)
+        .first()
+    )
+    if equipment is None:
+        # No companion yet — the create flow owns initial creation.
+        return
+
+    cat_name, cat_group = AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY[instance.category]
+    target_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name=cat_name, defaults={"group": cat_group}
+    )
+
     changed = False
     if equipment.name != instance.type:
         equipment.name = instance.type
         changed = True
     if equipment.cost != str(instance.base_cost):
         equipment.cost = str(instance.base_cost)
+        changed = True
+    if equipment.category_id != target_category.pk:
+        equipment.category = target_category
         changed = True
     if changed:
         equipment.save()
