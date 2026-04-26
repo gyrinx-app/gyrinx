@@ -20,10 +20,17 @@ from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 
 # Fighter categories excluded from pack creation.
+# STASH is auto-managed (one per gang); GANG_TERRAIN has its own territory
+# mechanics out of scope for pack support.
 _EXCLUDED_FIGHTER_CATEGORIES = {
     FighterCategoryChoices.STASH,
-    FighterCategoryChoices.VEHICLE,
     FighterCategoryChoices.GANG_TERRAIN,
+}
+
+# Categories whose fighters are spawned via a ContentEquipmentFighterProfile
+# bridge — the pack flow auto-creates the equipment + bridge + pack item.
+_AUTO_EQUIPMENT_FIGHTER_CATEGORIES = {
+    FighterCategoryChoices.VEHICLE,
     FighterCategoryChoices.EXOTIC_BEAST,
 }
 

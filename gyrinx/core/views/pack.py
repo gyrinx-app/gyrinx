@@ -21,7 +21,11 @@ from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
-from gyrinx.content.models.equipment import ContentEquipment
+from gyrinx.content.models.equipment import (
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentEquipmentFighterProfile,
+)
 from gyrinx.content.models.equipment_list import (
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
@@ -62,7 +66,7 @@ from gyrinx.core.models.pack import (
     CustomContentPackPermission,
 )
 from gyrinx.core.utils import safe_redirect, search_queryset
-from gyrinx.models import is_valid_uuid
+from gyrinx.models import FighterCategoryChoices, is_valid_uuid
 
 
 class ContentTypeEntry(NamedTuple):
@@ -683,6 +687,33 @@ class PackDetailView(generic.DetailView):
             else:
                 active_by_slug[slug].append(entry_data)
 
+        # Build a map of equipment_id → (auto_fighter, profile_id) for any
+        # ContentEquipmentFighterProfile bridges that touch equipment in this
+        # pack. Used below to:
+        #   - mark gear/weapon entries that are auto-generated (so the
+        #     template can suppress edit/archive links)
+        #   - annotate fighter entries with their linked auto-equipment so
+        #     the fighter card can render "Available as equipment X for Y¢".
+        pack_equipment_ids = {
+            e["content_object"].id
+            for e in active_by_slug.get("gear", []) + active_by_slug.get("weapon", [])
+        }
+        auto_equipment_by_fighter_id = {}
+        auto_equipment_ids = set()
+        if pack_equipment_ids:
+            for bridge in ContentEquipmentFighterProfile.objects.filter(
+                equipment_id__in=pack_equipment_ids
+            ).select_related("equipment", "content_fighter"):
+                auto_equipment_by_fighter_id[bridge.content_fighter_id] = (
+                    bridge.equipment
+                )
+                auto_equipment_ids.add(bridge.equipment_id)
+        for slug in ("gear", "weapon"):
+            for entry_data in active_by_slug.get(slug, []):
+                entry_data["is_auto_equipment"] = (
+                    entry_data["content_object"].id in auto_equipment_ids
+                )
+
         # Pre-compute fighter preview data (statline, skills, rules, default equipment).
         fighter_entries = active_by_slug.get("fighter", [])
         if fighter_entries:
@@ -715,6 +746,10 @@ class PackDetailView(generic.DetailView):
                 entry_data["preview_gear"] = [
                     da for da in das if da.equipment_id not in weapon_equipment_ids
                 ]
+                # Vehicle/exotic-beast pack fighters expose their auto-created
+                # purchase equipment so the fighter card can show
+                # "Available as equipment X for Y¢".
+                entry_data["auto_equipment"] = auto_equipment_by_fighter_id.get(cf.id)
 
         # Sort fighter items by house name for grouped display.
         fighter_entries.sort(
@@ -1108,6 +1143,82 @@ def _create_fighter_statline(
             value=value,
         )
     return statline
+
+
+# Mapping from auto-equipment fighter category to (equipment category name,
+# equipment category group). The categories must already exist in the DB —
+# they are seeded by base content fixtures.
+_AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY = {
+    FighterCategoryChoices.VEHICLE: ("Vehicles", "Vehicle & Mount"),
+    FighterCategoryChoices.EXOTIC_BEAST: ("Status Items", "Gear"),
+}
+
+
+def _ensure_auto_equipment_for_fighter(fighter, pack, user):
+    """Ensure a vehicle/beast pack fighter has its companion equipment.
+
+    For VEHICLE / EXOTIC_BEAST pack fighters we automatically create:
+    - a ``ContentEquipment`` row (named after the fighter, sensibly
+      categorised, priced from ``fighter.base_cost``)
+    - a ``ContentEquipmentFighterProfile`` bridge linking the equipment
+      to the fighter so the existing post-save signal can spawn a child
+      ``ListFighter`` when the equipment is purchased
+    - a ``CustomContentPackItem`` registering the equipment as part of
+      ``pack``
+
+    Idempotent: safe to call on an existing fighter — re-syncs name + cost.
+    Returns the equipment row, or ``None`` if the fighter category isn't
+    one of the auto-equipment categories.
+    """
+    mapping = _AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY.get(fighter.category)
+    if mapping is None:
+        return None
+
+    cat_name, cat_group = mapping
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name=cat_name, defaults={"group": cat_group}
+    )
+
+    bridge = ContentEquipmentFighterProfile.objects.filter(
+        content_fighter=fighter
+    ).first()
+    if bridge is not None:
+        # Existing — keep the equipment in sync with the fighter.
+        equipment = bridge.equipment
+        changed = False
+        if equipment.name != fighter.type:
+            equipment.name = fighter.type
+            changed = True
+        if equipment.cost != str(fighter.base_cost):
+            equipment.cost = str(fighter.base_cost)
+            changed = True
+        if equipment.category_id != category.pk:
+            equipment.category = category
+            changed = True
+        if changed:
+            equipment._history_user = user
+            equipment.save()
+        return equipment
+
+    # Create the equipment, bridge, and pack item.
+    equipment = ContentEquipment(
+        name=fighter.type,
+        category=category,
+        cost=str(fighter.base_cost),
+    )
+    equipment._history_user = user
+    equipment.save()
+
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=equipment, content_fighter=fighter
+    )
+
+    eq_ct = ContentType.objects.get_for_model(ContentEquipment)
+    pack_item = CustomContentPackItem(
+        pack=pack, content_type=eq_ct, object_id=equipment.pk, owner=user
+    )
+    pack_item.save_with_user(user=user)
+    return equipment
 
 
 def _update_fighter_stats(fighter, post_data):
@@ -1552,6 +1663,9 @@ def add_pack_fighter_stats(request, id):
                 category=params.category,
                 statline_type_override=statline_type_override,
             )
+            # For VEHICLE / EXOTIC_BEAST: also create the companion equipment
+            # + bridge + pack item so list-buyers can purchase and spawn it.
+            _ensure_auto_equipment_for_fighter(fighter, pack, request.user)
 
         log_event(
             user=request.user,

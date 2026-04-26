@@ -18,7 +18,11 @@ from gyrinx.content.signals import get_new_cost, get_old_cost
 from gyrinx.models import format_cost_display
 from gyrinx.tracing import traced
 
-from .equipment import ContentEquipment, ContentEquipmentUpgrade
+from .equipment import (
+    ContentEquipment,
+    ContentEquipmentFighterProfile,
+    ContentEquipmentUpgrade,
+)
 from .equipment_list import (
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListUpgrade,
@@ -511,6 +515,38 @@ def create_fighter_cost_action(sender, instance, created, **kwargs):
         return
     _create_content_cost_change_actions(instance)
     instance._cost_changed = False
+
+
+@receiver(
+    post_save,
+    sender=ContentFighter,
+    dispatch_uid="content_fighter_sync_auto_equipment_cost",
+)
+@traced("signal_content_fighter_sync_auto_equipment_cost")
+def sync_auto_equipment_cost(sender, instance, created, **kwargs):
+    """Keep a vehicle/exotic-beast pack fighter's linked equipment in sync.
+
+    When a pack-defined VEHICLE / EXOTIC_BEAST fighter is saved, the
+    companion equipment row (created by the pack flow) must mirror the
+    fighter's ``type`` and ``base_cost`` so list-buyers see the right name
+    and price. Only acts when a bridge already exists — creation of the
+    initial equipment + bridge is owned by the pack create flow.
+    """
+    bridge = ContentEquipmentFighterProfile.objects.filter(
+        content_fighter=instance
+    ).first()
+    if bridge is None:
+        return
+    equipment = bridge.equipment
+    changed = False
+    if equipment.name != instance.type:
+        equipment.name = instance.type
+        changed = True
+    if equipment.cost != str(instance.base_cost):
+        equipment.cost = str(instance.base_cost)
+        changed = True
+    if changed:
+        equipment.save()
 
 
 @receiver(
