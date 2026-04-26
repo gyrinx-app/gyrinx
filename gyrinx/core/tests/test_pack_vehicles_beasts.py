@@ -511,7 +511,7 @@ def test_subscribed_list_can_buy_pack_exotic_beast_via_equipment(
 
 
 @pytest.mark.django_db
-def test_default_assignment_picker_shows_pack_vehicle(
+def test_default_assignment_picker_excludes_pack_vehicle(
     client,
     user,
     pack,
@@ -520,8 +520,14 @@ def test_default_assignment_picker_shows_pack_vehicle(
     vehicle_statline_type,
     vehicles_category,
 ):
-    """The pack-fighter default-equipment add view must list vehicle/beast
-    equipment so pack authors can default-equip them."""
+    """Until issue #1725 lands, fighter-linked equipment (vehicles / exotic
+    beasts) must NOT appear in the pack-fighter default-equipment picker.
+
+    Otherwise pack authors could silently configure a default that only
+    materialises for newly-hired list-fighters in subscribed gangs —
+    existing list-fighters of that type would not retroactively receive
+    the child fighter.
+    """
     client.force_login(user)
     # Create a pack vehicle (auto-makes the equipment)
     _create_pack_fighter_full(
@@ -556,15 +562,69 @@ def test_default_assignment_picker_shows_pack_vehicle(
         object_id=ganger.pk,
     )
 
-    # The default-gear add view (which is the picker for non-weapon
-    # default equipment) should list "Goliath Mauler" as an available
-    # default for this ganger.
     url = reverse(
         "core:pack-fighter-default-gear-add", args=(pack.id, ganger_pack_item.id)
     )
     response = client.get(url)
     assert response.status_code == 200
-    assert b"Goliath Mauler" in response.content
+    assert b"Goliath Mauler" not in response.content
+
+
+@pytest.mark.django_db
+def test_default_assignment_post_rejects_pack_vehicle(
+    client,
+    user,
+    pack,
+    content_house,
+    fighter_statline_type,
+    vehicle_statline_type,
+    vehicles_category,
+):
+    """Defence in depth: even with a fabricated POST, the default-equipment
+    handler 404s when the equipment is fighter-linked."""
+    client.force_login(user)
+    _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Mauler",
+        category="VEHICLE",
+        base_cost=150,
+        house_id=content_house.pk,
+    )
+    vehicle_equipment = ContentEquipment.objects.all_content().get(
+        name="Goliath Mauler"
+    )
+
+    client.post(
+        f"/pack/{pack.id}/add/fighter/",
+        {
+            "type": "Goliath Ganger",
+            "category": "GANGER",
+            "house": str(content_house.pk),
+            "base_cost": "60",
+        },
+    )
+    client.post(
+        f"/pack/{pack.id}/add/fighter/stats/"
+        f"?type=Goliath+Ganger&category=GANGER"
+        f"&house_id={content_house.pk}&base_cost=60",
+        {},
+    )
+    ganger = ContentFighter.objects.all_content().get(type="Goliath Ganger")
+    ganger_pack_item = CustomContentPackItem.objects.get(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=ganger.pk,
+    )
+
+    url = reverse(
+        "core:pack-fighter-default-gear-add", args=(pack.id, ganger_pack_item.id)
+    )
+    response = client.post(url, {"content_equipment": str(vehicle_equipment.id)})
+    assert response.status_code == 404
+    assert not ContentFighterDefaultAssignment.objects.filter(
+        fighter=ganger, equipment=vehicle_equipment
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -579,7 +639,14 @@ def test_default_vehicle_assignment_spawns_child_when_fighter_hired(
     make_list,
 ):
     """When a pack fighter has a default vehicle assignment, hiring that
-    fighter on a subscribed list automatically spawns the child vehicle."""
+    fighter on a subscribed list automatically spawns the child vehicle.
+
+    The pack default-equipment picker currently blocks creation of such
+    defaults via the UI (see issue #1725 for the retroactive-propagation
+    follow-up). This test creates the default via the ORM directly to
+    document the underlying mechanism — once propagation lands, the UI
+    block lifts and this is the expected user-facing behaviour.
+    """
     client.force_login(user)
     vehicle_fighter = _create_pack_fighter_full(
         client,
