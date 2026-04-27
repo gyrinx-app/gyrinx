@@ -432,6 +432,77 @@ def test_editing_pack_vehicle_base_cost_updates_equipment_cost(
 
 
 @pytest.mark.django_db
+def test_subscribed_list_vehicle_crew_view_resolves_pack_vehicle(
+    client,
+    user,
+    pack,
+    content_house,
+    vehicle_statline_type,
+    vehicles_category,
+    make_list,
+):
+    """Regression: the vehicle_crew view must look up the pack-scoped
+    vehicle equipment via ``with_packs`` — without that, the default
+    ContentEquipment manager 404s on a pack vehicle."""
+    client.force_login(user)
+    _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Mauler",
+        category="VEHICLE",
+        base_cost=150,
+        house_id=content_house.pk,
+    )
+    vehicle_equipment = ContentEquipment.objects.all_content().get(
+        name="Goliath Mauler"
+    )
+
+    lst = make_list("Crew Test", content_house=content_house)
+    lst.packs.add(pack)
+
+    url = reverse("core:list-vehicle-crew", args=(lst.id,))
+    response = client.get(
+        f"{url}?action=select_crew&vehicle_equipment_id={vehicle_equipment.id}"
+    )
+    assert response.status_code == 200, response.content
+
+
+@pytest.mark.django_db
+def test_subscribed_list_vehicle_confirm_view_resolves_pack_vehicle(
+    client,
+    user,
+    pack,
+    content_house,
+    vehicle_statline_type,
+    vehicles_category,
+    make_list,
+):
+    """Regression: the vehicle_confirm view (add-to-stash branch) must
+    look up the pack-scoped vehicle equipment via ``with_packs``."""
+    client.force_login(user)
+    _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Mauler",
+        category="VEHICLE",
+        base_cost=150,
+        house_id=content_house.pk,
+    )
+    vehicle_equipment = ContentEquipment.objects.all_content().get(
+        name="Goliath Mauler"
+    )
+
+    lst = make_list("Confirm Test", content_house=content_house)
+    lst.packs.add(pack)
+
+    url = reverse("core:list-vehicle-confirm", args=(lst.id,))
+    response = client.get(
+        f"{url}?action=add_to_stash&vehicle_equipment_id={vehicle_equipment.id}"
+    )
+    assert response.status_code == 200, response.content
+
+
+@pytest.mark.django_db
 def test_subscribed_list_can_buy_pack_vehicle(
     client,
     user,
