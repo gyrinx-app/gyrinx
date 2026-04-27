@@ -688,13 +688,14 @@ class PackDetailView(generic.DetailView):
             else:
                 active_by_slug[slug].append(entry_data)
 
-        # Build a map of equipment_id → (auto_fighter, profile_id) for any
-        # ContentEquipmentFighterProfile bridges that touch equipment in this
-        # pack. Used below to:
-        #   - mark gear/weapon entries that are auto-generated (so the
-        #     template can suppress edit/archive links)
-        #   - annotate fighter entries with their linked auto-equipment so
-        #     the fighter card can render "Available as equipment X for Y¢".
+        # Build two maps from the auto_companion_for_fighter FK:
+        #   - auto_equipment_by_fighter_id: fighter_id → ContentEquipment
+        #     (so the fighter card can render "Available as equipment X")
+        #   - auto_equipment_ids: set of equipment ids
+        #     (so gear/weapon entries can be marked is_auto_equipment, which
+        #     suppresses Edit/Archive links in the template)
+        # Keyed off the FK rather than "any ContentEquipmentFighterProfile bridge"
+        # so manually-authored equipment with a bridge isn't mis-classified.
         pack_equipment_ids = {
             e["content_object"].id
             for e in active_by_slug.get("gear", []) + active_by_slug.get("weapon", [])

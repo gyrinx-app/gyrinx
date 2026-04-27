@@ -153,5 +153,10 @@ Each step gets a commit. Red → green; never green-on-green.
   follow. CASCADE on `ContentEquipmentFighterProfile.equipment` is set,
   so deleting the equipment cascades the bridge. Need to delete the
   equipment when the fighter is deleted (or rely on `Content` archiving).
-- Migration risk: zero — we're not changing any schema. All net-new
-  records follow existing schemas.
+- Migration: initial implementation didn't touch the schema, but PR
+  feedback round 1 added an `auto_companion_for_fighter` OneToOneField
+  on `ContentEquipment` (migration 0163) as the canonical link between
+  a pack vehicle/beast fighter and its companion equipment. The FK is
+  nullable; existing rows are unaffected. Hard-delete cascades the
+  companion via `on_delete=CASCADE`. Archive/restore cascades via an
+  explicit hook in `delete_pack_item` / `restore_pack_item`.
