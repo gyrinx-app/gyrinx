@@ -147,10 +147,10 @@ class CrewSelectionForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         if list_instance and vehicle_equipment:
-            # Get valid crew members for this vehicle
-            # For now, use the available_for_house method to get crew options
-            # This includes fighters from the house and generic houses, excluding exotic beasts and stash
-            queryset = ContentFighter.objects.available_for_house(
+            # Get valid crew members for this vehicle. Pack-aware so
+            # pack-defined crew fighters appear for subscribed lists.
+            packs = list_instance.packs.all()
+            queryset = ContentFighter.objects.with_packs(packs).available_for_house(
                 list_instance.content_house
             )
 

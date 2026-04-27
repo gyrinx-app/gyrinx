@@ -503,6 +503,58 @@ def test_subscribed_list_vehicle_confirm_view_resolves_pack_vehicle(
 
 
 @pytest.mark.django_db
+def test_crew_selection_form_includes_pack_crew(
+    client,
+    user,
+    pack,
+    content_house,
+    fighter_statline_type,
+    vehicle_statline_type,
+    vehicles_category,
+    make_list,
+):
+    """The crew-type selector on the vehicle purchase flow must include
+    CREW fighters defined in subscribed packs."""
+    from gyrinx.core.forms.vehicle import CrewSelectionForm
+
+    client.force_login(user)
+    # Create the vehicle (auto-creates the equipment).
+    _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Mauler",
+        category="VEHICLE",
+        base_cost=150,
+        house_id=content_house.pk,
+    )
+    vehicle_equipment = ContentEquipment.objects.all_content().get(
+        name="Goliath Mauler"
+    )
+    # Create a pack-scoped CREW fighter that should appear in the picker.
+    crew_statline, _ = ContentStatlineType.objects.get_or_create(
+        name="Crew", defaults={"default_for_categories": ["CREW"]}
+    )
+    if "CREW" not in (crew_statline.default_for_categories or []):
+        crew_statline.default_for_categories = ["CREW"]
+        crew_statline.save()
+    _create_pack_fighter_full(
+        client,
+        pack,
+        type_="Goliath Wheelman",
+        category="CREW",
+        base_cost=40,
+        house_id=content_house.pk,
+    )
+
+    lst = make_list("Crew Pack Test", content_house=content_house)
+    lst.packs.add(pack)
+
+    form = CrewSelectionForm(list_instance=lst, vehicle_equipment=vehicle_equipment)
+    crew_names = {cf.type for cf in form.fields["crew_fighter"].queryset}
+    assert "Goliath Wheelman" in crew_names
+
+
+@pytest.mark.django_db
 def test_subscribed_list_can_buy_pack_vehicle(
     client,
     user,
