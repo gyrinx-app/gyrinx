@@ -33,6 +33,17 @@ from gyrinx.models import (
 
 from .base import Content, ContentManager, ContentQuerySet
 
+
+# Pack VEHICLE / EXOTIC_BEAST fighters are accompanied by an auto-created
+# ContentEquipment (see ``_ensure_auto_equipment_for_fighter`` in views/pack.py
+# and ``sync_auto_equipment_cost`` in signal_handlers.py). The mapping below
+# resolves the target ContentEquipmentCategory per fighter category. Both
+# categories are seeded by base content.
+AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY = {
+    FighterCategoryChoices.VEHICLE: ("Vehicles", "Vehicle & Mount"),
+    FighterCategoryChoices.EXOTIC_BEAST: ("Status Items", "Gear"),
+}
+
 if TYPE_CHECKING:
     from .weapon import ContentWeaponProfile
 
@@ -431,6 +442,20 @@ class ContentEquipment(FighterCostMixin, Content):
         "ContentMod",
         blank=True,
         help_text="Modifiers to apply to the fighter's statline and traits.",
+    )
+
+    auto_companion_for_fighter = models.OneToOneField(
+        "ContentFighter",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="auto_companion_equipment",
+        help_text=(
+            "Set only by the pack vehicle/exotic-beast auto-create flow. "
+            "This equipment is the read-only companion that lets list-buyers "
+            "purchase the linked fighter. Manually-authored equipment must "
+            "leave this NULL."
+        ),
     )
 
     history = HistoricalRecords()

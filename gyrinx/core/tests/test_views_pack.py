@@ -1564,32 +1564,42 @@ def test_add_fighter_with_rules(
 def test_add_fighter_excludes_special_categories(
     client, group_user, pack, fighter_statline_type
 ):
-    """Test that STASH, VEHICLE, GANG_TERRAIN, EXOTIC_BEAST are not in the category choices."""
+    """Test that STASH and GANG_TERRAIN are not in the category choices.
+
+    VEHICLE and EXOTIC_BEAST ARE permitted — they get an auto-created
+    companion equipment item.
+    """
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/add/fighter/")
     content = response.content.decode()
     assert "STASH" not in content
-    assert "VEHICLE" not in content
     assert "GANG_TERRAIN" not in content
-    assert "EXOTIC_BEAST" not in content
-    # Normal categories should be present
+    # Permitted categories should be present
     assert "LEADER" in content
     assert "GANGER" in content
+    assert "VEHICLE" in content
+    assert "EXOTIC_BEAST" in content
 
 
 @pytest.mark.django_db
-def test_add_fighter_statline_type_excludes_vehicle(
-    client, group_user, pack, fighter_statline_type
-):
-    """Test that Vehicle statline type is not available when VEHICLE category is excluded."""
+def test_add_fighter_statline_type_includes_vehicle(pack, fighter_statline_type):
+    """The Vehicle statline type IS available now that VEHICLE is a permitted
+    pack-fighter category.
+
+    Inspects the form's queryset directly rather than scraping rendered HTML
+    — "Vehicle" also appears as a category option, so a substring search on
+    the page would pass even if the statline-type dropdown regressed.
+    """
+    from gyrinx.core.forms.pack import ContentFighterPackForm
+
     ContentStatlineType.objects.get_or_create(
         name="Vehicle", defaults={"default_for_categories": ["VEHICLE"]}
     )
-    client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/")
-    content = response.content.decode()
-    assert ">Vehicle<" not in content
-    assert ">Fighter<" in content
+
+    form = ContentFighterPackForm(pack=pack)
+    statline_type_names = {st.name for st in form.fields["statline_type"].queryset}
+    assert "Vehicle" in statline_type_names
+    assert "Fighter" in statline_type_names
 
 
 @pytest.mark.django_db

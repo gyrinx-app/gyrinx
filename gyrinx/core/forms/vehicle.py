@@ -64,8 +64,14 @@ class VehicleSelectionForm(forms.Form):
         )
 
         if list_instance:
-            # Get equipment-fighter profiles for vehicles available to this list's house
-            available_fighters = ContentFighter.objects.available_for_house(
+            # Pack-aware: include base library + content from packs the list
+            # is subscribed to. Without this, pack-defined vehicles (and
+            # their equipment items) are filtered out by the default
+            # ContentManager.
+            packs = list_instance.packs.all()
+            available_fighters = ContentFighter.objects.with_packs(
+                packs
+            ).available_for_house(
                 list_instance.content_house,
                 include=[FighterCategoryChoices.VEHICLE],
             )
@@ -76,7 +82,8 @@ class VehicleSelectionForm(forms.Form):
 
             # Get equipment with prefetched fighter profiles
             queryset = (
-                ContentEquipment.objects.filter(id__in=vehicle_equipment_ids)
+                ContentEquipment.objects.with_packs(packs)
+                .filter(id__in=vehicle_equipment_ids)
                 .select_related("category")
                 .prefetch_related(
                     "contentequipmentfighterprofile_set__content_fighter__house"
@@ -140,10 +147,10 @@ class CrewSelectionForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         if list_instance and vehicle_equipment:
-            # Get valid crew members for this vehicle
-            # For now, use the available_for_house method to get crew options
-            # This includes fighters from the house and generic houses, excluding exotic beasts and stash
-            queryset = ContentFighter.objects.available_for_house(
+            # Get valid crew members for this vehicle. Pack-aware so
+            # pack-defined crew fighters appear for subscribed lists.
+            packs = list_instance.packs.all()
+            queryset = ContentFighter.objects.with_packs(packs).available_for_house(
                 list_instance.content_house
             )
 

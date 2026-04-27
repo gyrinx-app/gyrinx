@@ -29,6 +29,9 @@
             <span class="text-secondary fs-7">
                 {{ content_fighter.get_category_display }}
                 {% if content_fighter.house %}· {{ content_fighter.house.name }}{% endif %}
+                {% if auto_equipment %}
+                    · Available as equipment "{{ auto_equipment.name }}" for {{ auto_equipment.cost_display }}
+                {% endif %}
             </span>
             {% if fighter_edit_url or fighter_archive_url %}
                 <span class="d-flex gap-2 flex-shrink-0 ms-auto">

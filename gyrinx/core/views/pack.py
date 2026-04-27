@@ -21,7 +21,12 @@ from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
-from gyrinx.content.models.equipment import ContentEquipment
+from gyrinx.content.models.equipment import (
+    AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY,
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentEquipmentFighterProfile,
+)
 from gyrinx.content.models.equipment_list import (
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListWeaponAccessory,
@@ -62,7 +67,7 @@ from gyrinx.core.models.pack import (
     CustomContentPackPermission,
 )
 from gyrinx.core.utils import safe_redirect, search_queryset
-from gyrinx.models import is_valid_uuid
+from gyrinx.models import FighterCategoryChoices, is_valid_uuid
 
 
 class ContentTypeEntry(NamedTuple):
@@ -683,6 +688,40 @@ class PackDetailView(generic.DetailView):
             else:
                 active_by_slug[slug].append(entry_data)
 
+        # Build two maps from the auto_companion_for_fighter FK:
+        #   - auto_equipment_by_fighter_id: fighter_id → ContentEquipment
+        #     (so the fighter card can render "Available as equipment X")
+        #   - auto_equipment_ids: set of equipment ids
+        #     (so gear/weapon entries can be marked is_auto_equipment, which
+        #     suppresses Edit/Archive links in the template)
+        # Keyed off the FK rather than "any ContentEquipmentFighterProfile bridge"
+        # so manually-authored equipment with a bridge isn't mis-classified.
+        pack_equipment_ids = {
+            e["content_object"].id
+            for e in active_by_slug.get("gear", []) + active_by_slug.get("weapon", [])
+        }
+        auto_equipment_by_fighter_id = {}
+        auto_equipment_ids = set()
+        if pack_equipment_ids:
+            # Use the canonical auto-companion FK rather than "any bridge"
+            # so manually-authored equipment with a ContentEquipmentFighterProfile
+            # is NOT mis-classified as auto-equipment.
+            for eq in (
+                ContentEquipment.objects.all_content()
+                .filter(
+                    id__in=pack_equipment_ids,
+                    auto_companion_for_fighter__isnull=False,
+                )
+                .select_related("auto_companion_for_fighter")
+            ):
+                auto_equipment_by_fighter_id[eq.auto_companion_for_fighter_id] = eq
+                auto_equipment_ids.add(eq.id)
+        for slug in ("gear", "weapon"):
+            for entry_data in active_by_slug.get(slug, []):
+                entry_data["is_auto_equipment"] = (
+                    entry_data["content_object"].id in auto_equipment_ids
+                )
+
         # Pre-compute fighter preview data (statline, skills, rules, default equipment).
         fighter_entries = active_by_slug.get("fighter", [])
         if fighter_entries:
@@ -715,6 +754,10 @@ class PackDetailView(generic.DetailView):
                 entry_data["preview_gear"] = [
                     da for da in das if da.equipment_id not in weapon_equipment_ids
                 ]
+                # Vehicle/exotic-beast pack fighters expose their auto-created
+                # purchase equipment so the fighter card can show
+                # "Available as equipment X for Y¢".
+                entry_data["auto_equipment"] = auto_equipment_by_fighter_id.get(cf.id)
 
         # Sort fighter items by house name for grouped display.
         fighter_entries.sort(
@@ -995,13 +1038,24 @@ WEAPON_PROFILE_MODES = {"single", "multi"}
 def _get_statline_type_for_category(category):
     """Look up the ContentStatlineType for a fighter category.
 
-    Falls back to the "Fighter" type if no specific mapping exists.
+    Falls back to the "Fighter" type if no specific mapping exists, EXCEPT
+    for auto-equipment categories (VEHICLE, EXOTIC_BEAST) where a wrong-fit
+    fallback would silently produce nonsense statlines on the auto-created
+    companion equipment. For those, raise ContentStatlineType.DoesNotExist
+    so the create flow surfaces a loud failure instead.
 
     Raises ValueError if multiple types are configured for the same category.
     """
     qs = ContentStatlineType.objects.filter(default_for_categories__contains=category)
     count = qs.count()
     if count == 0:
+        if category in AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY:
+            raise ContentStatlineType.DoesNotExist(
+                f"No ContentStatlineType configured for {category!r}. "
+                f"Auto-equipment fighter categories require an explicit "
+                f"matching ContentStatlineType — silently falling back to "
+                f"the Fighter statline would produce wrong stats."
+            )
         return ContentStatlineType.objects.get(name="Fighter")
     if count == 1:
         return qs.first()
@@ -1108,6 +1162,90 @@ def _create_fighter_statline(
             value=value,
         )
     return statline
+
+
+def _ensure_auto_equipment_for_fighter(fighter, pack, user):
+    """Ensure a vehicle/beast pack fighter has its companion equipment.
+
+    For VEHICLE / EXOTIC_BEAST pack fighters we automatically create:
+    - a ``ContentEquipment`` row (named after the fighter, sensibly
+      categorised, priced from ``fighter.base_cost``) with the
+      ``auto_companion_for_fighter`` FK pointing at the fighter
+    - a ``ContentEquipmentFighterProfile`` bridge linking the equipment
+      to the fighter so the existing post-save signal can spawn a child
+      ``ListFighter`` when the equipment is purchased
+    - a ``CustomContentPackItem`` registering the equipment as part of
+      ``pack``
+
+    The ``auto_companion_for_fighter`` FK is the canonical key — lookups
+    are deterministic and ``OneToOneField`` enforces 1:1 at the DB level.
+
+    Idempotent: safe to call on an existing fighter — re-syncs name, cost,
+    and category. Re-registers the pack item if it's missing. Returns the
+    equipment row, or ``None`` if the fighter category isn't one of the
+    auto-equipment categories.
+    """
+    mapping = AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY.get(fighter.category)
+    if mapping is None:
+        return None
+
+    cat_name, cat_group = mapping
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name=cat_name, defaults={"group": cat_group}
+    )
+    eq_ct = ContentType.objects.get_for_model(ContentEquipment)
+
+    # Deterministic lookup via the FK.
+    equipment = (
+        ContentEquipment.objects.all_content()
+        .filter(auto_companion_for_fighter=fighter)
+        .first()
+    )
+
+    if equipment is not None:
+        # Re-sync drift (name, cost, category).
+        changed = False
+        if equipment.name != fighter.type:
+            equipment.name = fighter.type
+            changed = True
+        if equipment.cost != str(fighter.base_cost):
+            equipment.cost = str(fighter.base_cost)
+            changed = True
+        if equipment.category_id != category.pk:
+            equipment.category = category
+            changed = True
+        if changed:
+            equipment._history_user = user
+            equipment.save()
+        # Defensive: re-register the pack item if it's gone missing.
+        if not CustomContentPackItem.objects.filter(
+            pack=pack, content_type=eq_ct, object_id=equipment.pk
+        ).exists():
+            pack_item = CustomContentPackItem(
+                pack=pack, content_type=eq_ct, object_id=equipment.pk, owner=user
+            )
+            pack_item.save_with_user(user=user)
+        return equipment
+
+    # Create the equipment (with FK), bridge, and pack item.
+    equipment = ContentEquipment(
+        name=fighter.type,
+        category=category,
+        cost=str(fighter.base_cost),
+        auto_companion_for_fighter=fighter,
+    )
+    equipment._history_user = user
+    equipment.save()
+
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=equipment, content_fighter=fighter
+    )
+
+    pack_item = CustomContentPackItem(
+        pack=pack, content_type=eq_ct, object_id=equipment.pk, owner=user
+    )
+    pack_item.save_with_user(user=user)
+    return equipment
 
 
 def _update_fighter_stats(fighter, post_data):
@@ -1552,6 +1690,9 @@ def add_pack_fighter_stats(request, id):
                 category=params.category,
                 statline_type_override=statline_type_override,
             )
+            # For VEHICLE / EXOTIC_BEAST: also create the companion equipment
+            # + bridge + pack item so list-buyers can purchase and spawn it.
+            _ensure_auto_equipment_for_fighter(fighter, pack, request.user)
 
         log_event(
             user=request.user,
@@ -1592,7 +1733,6 @@ def add_pack_fighter_stats(request, id):
 
     # Resolve display values for the summary.
     from gyrinx.content.models.house import ContentHouse
-    from gyrinx.models import FighterCategoryChoices
 
     house_name = ""
     try:
@@ -1815,6 +1955,23 @@ def delete_pack_item(request, id, item_id):
         _cascade_weapon_profile_pack_items(
             pack, content_obj, request.user, archive=True
         )
+        # Cascade archive to the auto-companion equipment when archiving a
+        # pack vehicle/exotic-beast fighter. Otherwise the companion stays
+        # purchasable while the source fighter is hidden — confusing.
+        if isinstance(content_obj, ContentFighter):
+            companion = (
+                ContentEquipment.objects.all_content()
+                .filter(auto_companion_for_fighter=content_obj)
+                .first()
+            )
+            if companion is not None:
+                eq_ct = ContentType.objects.get_for_model(ContentEquipment)
+                companion_pack_item = pack.items.filter(
+                    content_type=eq_ct, object_id=companion.pk, archived=False
+                ).first()
+                if companion_pack_item is not None:
+                    companion_pack_item._history_user = request.user
+                    companion_pack_item.archive()
         # Cascade archive to skills when archiving a skill tree.
         # Use all_content() because the default manager excludes pack skills.
         if isinstance(content_obj, ContentSkillCategory):
@@ -1882,6 +2039,22 @@ def restore_pack_item(request, id, item_id):
     pack_item._history_user = request.user
     pack_item.unarchive()
     _cascade_weapon_profile_pack_items(pack, content_obj, request.user, archive=False)
+    # Cascade restore to the auto-companion equipment when restoring a
+    # pack vehicle/exotic-beast fighter. Mirrors the archive cascade above.
+    if isinstance(content_obj, ContentFighter):
+        companion = (
+            ContentEquipment.objects.all_content()
+            .filter(auto_companion_for_fighter=content_obj)
+            .first()
+        )
+        if companion is not None:
+            eq_ct = ContentType.objects.get_for_model(ContentEquipment)
+            companion_pack_item = pack.items.filter(
+                content_type=eq_ct, object_id=companion.pk, archived=True
+            ).first()
+            if companion_pack_item is not None:
+                companion_pack_item._history_user = request.user
+                companion_pack_item.unarchive()
     # Cascade restore to skills when restoring a skill tree.
     # Use all_content() because the default manager excludes pack skills.
     if isinstance(content_obj, ContentSkillCategory):
@@ -2807,18 +2980,30 @@ def _get_pack_fighter(pack, item_id):
     return pack_item, content_fighter
 
 
-def _build_default_equipment_choices(pack, is_weapon, search_query=None):
+def _build_default_equipment_choices(
+    pack, is_weapon, search_query=None, exclude_fighter_linked=False
+):
     """Build equipment choices for the default equipment picker.
 
     Returns a queryset of ContentEquipment filtered to the same category
     groups that pack creators can use when adding gear/weapons, with
     weapon profiles correctly loaded (including pack profiles).
+
+    ``exclude_fighter_linked`` filters out equipment with a
+    ``ContentEquipmentFighterProfile`` (i.e. vehicle / exotic-beast
+    spawners). The pack-fighter default-assignment picker passes True so
+    pack authors can't silently configure a default that would only
+    apply to gangs hired AFTER the change. See issue #1725 for the
+    follow-up retroactive-propagation work that will lift this block.
     """
     qs = ContentEquipment.objects.with_packs([pack])
     if is_weapon:
         qs = qs.weapons().filter(category__group="Weapons & Ammo")
     else:
         qs = qs.non_weapons().exclude(category__group__in=["Weapons & Ammo", "Other"])
+
+    if exclude_fighter_linked:
+        qs = qs.filter(contentequipmentfighterprofile__isnull=True)
 
     if search_query:
         qs = search_queryset(qs, search_query, ["name", "category__name"])
@@ -2990,7 +3175,9 @@ def add_pack_fighter_default_weapon(request, id, item_id):
             raise Http404
 
         equipment = get_object_or_404(
-            _build_default_equipment_choices(pack, is_weapon=True),
+            _build_default_equipment_choices(
+                pack, is_weapon=True, exclude_fighter_linked=True
+            ),
             pk=equipment_id,
         )
 
@@ -3039,7 +3226,10 @@ def add_pack_fighter_default_weapon(request, id, item_id):
 
     search_q = request.GET.get("q", "").strip()
     equipment = _build_default_equipment_choices(
-        pack, is_weapon=True, search_query=search_q or None
+        pack,
+        is_weapon=True,
+        search_query=search_q or None,
+        exclude_fighter_linked=True,
     )
 
     # Group by category.
@@ -3086,7 +3276,9 @@ def add_pack_fighter_default_gear(request, id, item_id):
             raise Http404
 
         equipment = get_object_or_404(
-            _build_default_equipment_choices(pack, is_weapon=False),
+            _build_default_equipment_choices(
+                pack, is_weapon=False, exclude_fighter_linked=True
+            ),
             pk=equipment_id,
         )
 
@@ -3126,7 +3318,10 @@ def add_pack_fighter_default_gear(request, id, item_id):
 
     search_q = request.GET.get("q", "").strip()
     equipment = _build_default_equipment_choices(
-        pack, is_weapon=False, search_query=search_q or None
+        pack,
+        is_weapon=False,
+        search_query=search_q or None,
+        exclude_fighter_linked=True,
     )
 
     # Group by category.

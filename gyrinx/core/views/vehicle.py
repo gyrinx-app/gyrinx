@@ -128,8 +128,11 @@ def vehicle_crew(request, id):
         messages.error(request, "Vehicle not selected.")
         return redirect("core:list-vehicle-select", id=lst.id)
 
+    # Pack-aware lookup so a vehicle defined in a pack the list is
+    # subscribed to is found, not just base library content.
     vehicle_equipment = get_object_or_404(
-        ContentEquipment, id=params.vehicle_equipment_id
+        ContentEquipment.objects.with_packs(lst.packs.all()),
+        id=params.vehicle_equipment_id,
     )
 
     if request.method == "POST":
@@ -195,8 +198,11 @@ def vehicle_confirm(request, id):
         messages.error(request, "Missing required information.")
         return redirect("core:list-vehicle-select", id=lst.id)
 
+    # Pack-aware lookup so a vehicle defined in a pack the list is
+    # subscribed to is found, not just base library content.
     vehicle_equipment = get_object_or_404(
-        ContentEquipment, id=params.vehicle_equipment_id
+        ContentEquipment.objects.with_packs(lst.packs.all()),
+        id=params.vehicle_equipment_id,
     )
 
     # Get the vehicle fighter profile
@@ -214,7 +220,11 @@ def vehicle_confirm(request, id):
 
     crew_fighter = None
     if params.action == "select_crew":
-        crew_fighter = get_object_or_404(ContentFighter, id=params.crew_fighter_id)
+        # Pack-aware so pack-defined crew fighters resolve.
+        crew_fighter = get_object_or_404(
+            ContentFighter.objects.with_packs(lst.packs.all()),
+            id=params.crew_fighter_id,
+        )
 
     if request.method == "POST":
         form = VehicleConfirmationForm(request.POST)

@@ -18,7 +18,12 @@ from gyrinx.content.signals import get_new_cost, get_old_cost
 from gyrinx.models import format_cost_display
 from gyrinx.tracing import traced
 
-from .equipment import ContentEquipment, ContentEquipmentUpgrade
+from .equipment import (
+    AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY,
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentEquipmentUpgrade,
+)
 from .equipment_list import (
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListUpgrade,
@@ -511,6 +516,57 @@ def create_fighter_cost_action(sender, instance, created, **kwargs):
         return
     _create_content_cost_change_actions(instance)
     instance._cost_changed = False
+
+
+@receiver(
+    post_save,
+    sender=ContentFighter,
+    dispatch_uid="content_fighter_sync_auto_equipment_cost",
+)
+@traced("signal_content_fighter_sync_auto_equipment_cost")
+def sync_auto_equipment_cost(sender, instance, created, **kwargs):
+    """Keep a vehicle/exotic-beast pack fighter's companion equipment in sync.
+
+    When a VEHICLE / EXOTIC_BEAST pack fighter is saved, the companion
+    equipment row (created by the pack flow) must mirror the fighter's
+    ``type``, ``base_cost`` and ``category`` (in case the user converted
+    between VEHICLE and EXOTIC_BEAST).
+
+    Looks up via the canonical ``auto_companion_for_fighter`` FK so the
+    target is unambiguous. Short-circuits for non-auto-equipment categories
+    so a category change away (e.g. VEHICLE → GANGER) leaves the
+    companion alone — see #1725-related discussion in the PR for the
+    follow-up form-level guard.
+    """
+    if instance.category not in AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY:
+        return
+
+    equipment = (
+        ContentEquipment.objects.all_content()
+        .filter(auto_companion_for_fighter=instance)
+        .first()
+    )
+    if equipment is None:
+        # No companion yet — the create flow owns initial creation.
+        return
+
+    cat_name, cat_group = AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY[instance.category]
+    target_category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name=cat_name, defaults={"group": cat_group}
+    )
+
+    changed = False
+    if equipment.name != instance.type:
+        equipment.name = instance.type
+        changed = True
+    if equipment.cost != str(instance.base_cost):
+        equipment.cost = str(instance.base_cost)
+        changed = True
+    if equipment.category_id != target_category.pk:
+        equipment.category = target_category
+        changed = True
+    if changed:
+        equipment.save()
 
 
 @receiver(

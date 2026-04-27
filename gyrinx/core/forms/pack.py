@@ -20,11 +20,13 @@ from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 
 # Fighter categories excluded from pack creation.
+# STASH is auto-managed (one per gang); GANG_TERRAIN has its own territory
+# mechanics out of scope for pack support. VEHICLE and EXOTIC_BEAST ARE
+# permitted — the pack create flow auto-spawns a companion ContentEquipment
+# for them; see ``_ensure_auto_equipment_for_fighter`` in views/pack.py.
 _EXCLUDED_FIGHTER_CATEGORIES = {
     FighterCategoryChoices.STASH,
-    FighterCategoryChoices.VEHICLE,
     FighterCategoryChoices.GANG_TERRAIN,
-    FighterCategoryChoices.EXOTIC_BEAST,
 }
 
 
