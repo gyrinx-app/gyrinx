@@ -92,8 +92,8 @@ SUPPORTED_CONTENT_TYPES = [
     ),
     ContentTypeEntry(
         ContentFighter,
-        "Fighters",
-        "Custom fighters for your Content Pack.",
+        "Fighters & Vehicles",
+        "Custom fighters, vehicles, and exotic beasts for your Content Pack.",
         "bi-person",
         ContentFighterPackForm,
         "fighter",

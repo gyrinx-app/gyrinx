@@ -29,6 +29,25 @@
                 </dd>
             </dl>
         </div>
+        {% if params.category == "VEHICLE" %}
+            <div class="alert alert-info alert-icon mb-0" role="alert">
+                <i class="bi-info-circle" aria-hidden="true"></i>
+                <div>
+                    Saving will also create a matching equipment entry under
+                    <strong>Vehicles</strong> so subscribed lists can buy this Vehicle.
+                    The cost stays in sync with the fighter's base cost.
+                </div>
+            </div>
+        {% elif params.category == "EXOTIC_BEAST" %}
+            <div class="alert alert-info alert-icon mb-0" role="alert">
+                <i class="bi-info-circle" aria-hidden="true"></i>
+                <div>
+                    Saving will also create a matching equipment entry under
+                    <strong>Status Items</strong> so subscribed Fighters can buy this Exotic Beast.
+                    The cost stays in sync with the fighter's base cost.
+                </div>
+            </div>
+        {% endif %}
         <form action="{% url 'core:pack-add-fighter-stats' pack.id %}?{{ query_string }}"
               method="post"
               class="vstack gap-3">

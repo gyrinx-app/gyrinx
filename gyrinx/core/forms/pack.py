@@ -776,10 +776,12 @@ class ContentGearPackForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Filter to gear categories only (exclude weapons), ordered by group then name.
+        # "Vehicles" is also excluded — pack vehicles are auto-created from
+        # VEHICLE fighters, so users should never pick it manually.
         self.fields["category"].queryset = (
             ContentEquipmentCategory.objects.exclude(
                 group__in=["Weapons & Ammo", "Other"]
-            )
+            ).exclude(name="Vehicles")
         ).order_by(
             Case(
                 *[
