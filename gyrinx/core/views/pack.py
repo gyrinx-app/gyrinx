@@ -1499,28 +1499,11 @@ def add_pack_item(request, id, content_type_slug):
 
             # Non-fighter types: create directly.
             try:
+                content_obj = form.save(commit=False)
+                content_obj._history_user = request.user
                 with transaction.atomic():
-                    content_obj = form.save(commit=False)
-                    content_obj._history_user = request.user
                     content_obj.save()
                     form.save_m2m()
-                    ct = ContentType.objects.get_for_model(entry.model_class)
-                    item = CustomContentPackItem(
-                        pack=pack,
-                        content_type=ct,
-                        object_id=content_obj.pk,
-                        owner=request.user,
-                    )
-                    item.save_with_user(user=request.user)
-                    if is_weapon:
-                        if profile_mode == "multi":
-                            _create_named_weapon_profiles(
-                                content_obj, request.POST, request.user, pack
-                            )
-                        else:
-                            _create_standard_weapon_profile(
-                                content_obj, request.POST, request.user, pack
-                            )
             except IntegrityError as e:
                 if "name" in str(e).lower():
                     form.add_error(
@@ -1530,6 +1513,23 @@ def add_pack_item(request, id, content_type_slug):
                 else:
                     raise
             else:
+                ct = ContentType.objects.get_for_model(entry.model_class)
+                item = CustomContentPackItem(
+                    pack=pack,
+                    content_type=ct,
+                    object_id=content_obj.pk,
+                    owner=request.user,
+                )
+                item.save_with_user(user=request.user)
+                if is_weapon:
+                    if profile_mode == "multi":
+                        _create_named_weapon_profiles(
+                            content_obj, request.POST, request.user, pack
+                        )
+                    else:
+                        _create_standard_weapon_profile(
+                            content_obj, request.POST, request.user, pack
+                        )
                 log_event(
                     user=request.user,
                     noun=EventNoun.CONTENT_PACK,
