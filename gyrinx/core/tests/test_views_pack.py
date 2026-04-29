@@ -4295,3 +4295,90 @@ def test_add_fighter_step2_uses_category_statline(
     assert "stat_ballistic_skill" in content
     assert "stat_leadership" in content
     assert "stat_movement" not in content
+
+
+@pytest.mark.django_db
+def test_add_weapon_duplicate_name_integrity_error(
+    client, group_user, pack, weapon_category
+):
+    """Duplicate weapon name + category returns a form error, not a 500.
+
+    The form's ``clean_name`` catches most duplicates, but a race condition
+    (e.g. double-submit) can bypass it. The DB unique constraint then fires
+    an ``IntegrityError`` which must be caught gracefully.
+    """
+    from unittest.mock import patch
+
+    # Create a weapon in the same category first.
+    ContentEquipment.objects.all_content().create(
+        name="Londaxi Maimer",
+        category=weapon_category,
+        cost="30",
+        rarity="R",
+    )
+
+    client.force_login(group_user)
+
+    # Patch clean_name to bypass form-level validation so the DB constraint fires.
+    with patch(
+        "gyrinx.core.forms.pack.ContentWeaponPackForm.clean_name",
+        lambda self: self.cleaned_data["name"],
+    ):
+        response = client.post(
+            f"/pack/{pack.id}/add/weapon/",
+            {
+                "name": "Londaxi Maimer",
+                "category": str(weapon_category.pk),
+                "cost": "30",
+                "rarity": "R",
+                "wp_range_short": '8"',
+                "wp_strength": "4",
+                "wp_damage": "2",
+            },
+        )
+
+    # Should re-render the form with an error, not crash with a 500.
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "already exists" in content
+
+
+@pytest.mark.django_db
+def test_add_gear_duplicate_name_integrity_error(
+    client, group_user, pack, equipment_category
+):
+    """Duplicate gear name + category returns a form error, not a 500.
+
+    Same race-condition defence as the weapon test above, but for gear items.
+    """
+    from unittest.mock import patch
+
+    # Create gear in the same category first.
+    ContentEquipment.objects.all_content().create(
+        name="Duplicate Armour",
+        category=equipment_category,
+        cost="20",
+        rarity="C",
+    )
+
+    client.force_login(group_user)
+
+    # Patch clean_name to bypass form-level validation so the DB constraint fires.
+    with patch(
+        "gyrinx.core.forms.pack.ContentGearPackForm.clean_name",
+        lambda self: self.cleaned_data["name"],
+    ):
+        response = client.post(
+            f"/pack/{pack.id}/add/gear/",
+            {
+                "name": "Duplicate Armour",
+                "category": str(equipment_category.pk),
+                "cost": "20",
+                "rarity": "C",
+            },
+        )
+
+    # Should re-render the form with an error, not crash with a 500.
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "already exists" in content

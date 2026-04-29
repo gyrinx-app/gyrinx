@@ -1498,54 +1498,66 @@ def add_pack_item(request, id, content_type_slug):
                 )
 
             # Non-fighter types: create directly.
-            with transaction.atomic():
-                content_obj = form.save(commit=False)
-                content_obj._history_user = request.user
-                content_obj.save()
-                form.save_m2m()
-                ct = ContentType.objects.get_for_model(entry.model_class)
-                item = CustomContentPackItem(
-                    pack=pack,
-                    content_type=ct,
-                    object_id=content_obj.pk,
-                    owner=request.user,
-                )
-                item.save_with_user(user=request.user)
-                if is_weapon:
-                    if profile_mode == "multi":
-                        _create_named_weapon_profiles(
-                            content_obj, request.POST, request.user, pack
-                        )
-                    else:
-                        _create_standard_weapon_profile(
-                            content_obj, request.POST, request.user, pack
-                        )
-            log_event(
-                user=request.user,
-                noun=EventNoun.CONTENT_PACK,
-                verb=EventVerb.CREATE,
-                object=pack,
-                request=request,
-                pack_name=pack.name,
-                pack_id=str(pack.id),
-                content_type=content_type_slug,
-                item_name=str(content_obj),
-            )
-            if "save_and_add_another" in request.POST:
-                messages.success(request, f'{singular_label} "{content_obj}" saved.')
-                if is_weapon:
-                    # Return to mode selection for the next weapon.
-                    url = reverse("core:pack-add-weapon-mode", args=(pack.id,))
-                else:
-                    url = reverse(
-                        "core:pack-add-item",
-                        args=(pack.id, content_type_slug),
+            try:
+                with transaction.atomic():
+                    content_obj = form.save(commit=False)
+                    content_obj._history_user = request.user
+                    content_obj.save()
+                    form.save_m2m()
+                    ct = ContentType.objects.get_for_model(entry.model_class)
+                    item = CustomContentPackItem(
+                        pack=pack,
+                        content_type=ct,
+                        object_id=content_obj.pk,
+                        owner=request.user,
                     )
-                    # Preserve category selection (e.g. skill tree → skill)
-                    if hasattr(content_obj, "category") and content_obj.category_id:
-                        url += f"?category={content_obj.category_id}"
-                return HttpResponseRedirect(url)
-            return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
+                    item.save_with_user(user=request.user)
+                    if is_weapon:
+                        if profile_mode == "multi":
+                            _create_named_weapon_profiles(
+                                content_obj, request.POST, request.user, pack
+                            )
+                        else:
+                            _create_standard_weapon_profile(
+                                content_obj, request.POST, request.user, pack
+                            )
+            except IntegrityError as e:
+                if "name" in str(e).lower():
+                    form.add_error(
+                        "name",
+                        "An item with this name already exists in this category.",
+                    )
+                else:
+                    raise
+            else:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.CONTENT_PACK,
+                    verb=EventVerb.CREATE,
+                    object=pack,
+                    request=request,
+                    pack_name=pack.name,
+                    pack_id=str(pack.id),
+                    content_type=content_type_slug,
+                    item_name=str(content_obj),
+                )
+                if "save_and_add_another" in request.POST:
+                    messages.success(
+                        request, f'{singular_label} "{content_obj}" saved.'
+                    )
+                    if is_weapon:
+                        # Return to mode selection for the next weapon.
+                        url = reverse("core:pack-add-weapon-mode", args=(pack.id,))
+                    else:
+                        url = reverse(
+                            "core:pack-add-item",
+                            args=(pack.id, content_type_slug),
+                        )
+                        # Preserve category selection (e.g. skill tree → skill)
+                        if hasattr(content_obj, "category") and content_obj.category_id:
+                            url += f"?category={content_obj.category_id}"
+                    return HttpResponseRedirect(url)
+                return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
         elif wp_name_errors:
             for err in wp_name_errors:
                 form.add_error(None, err)
