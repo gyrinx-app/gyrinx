@@ -927,6 +927,9 @@ class PackDetailView(generic.DetailView):
                         }
                     grouped[disc.id]["powers"].append(item_data)
                 section["power_groups"] = list(grouped.values())
+                section["discipline_archived_count"] = len(
+                    archived_by_slug.get("psyker-discipline", [])
+                )
 
             content_sections.append(section)
 
@@ -1660,6 +1663,9 @@ def add_pack_item(request, id, content_type_slug):
         # Pre-select category from query param (e.g., skill tree → skill)
         if "category" in request.GET and "category" in form.fields:
             form.initial["category"] = request.GET["category"]
+        # Pre-select discipline from query param (e.g., psyker discipline → power)
+        if "discipline" in request.GET and "discipline" in form.fields:
+            form.initial["discipline"] = request.GET["discipline"]
 
     context = {
         "form": form,
@@ -2138,7 +2144,11 @@ def delete_pack_item(request, id, item_id):
             item_name=str(content_obj),
         )
         entry = _get_entry_for_pack_item(pack_item)
-        fragment = "skill" if entry.slug == "skill-tree" else entry.slug
+        fragment = entry.slug
+        if fragment == "skill-tree":
+            fragment = "skill"
+        elif fragment == "psyker-discipline":
+            fragment = "psyker-power"
         return HttpResponseRedirect(_pack_url(pack, fragment))
 
     return render(
@@ -3295,12 +3305,32 @@ def _load_fighter_preview_context(pack, content_fighter):
     preview_weapons = [da for da in default_assignments if da.is_weapon()]
     preview_gear = [da for da in default_assignments if not da.is_weapon()]
 
+    # Psyker preview — pack-aware so we see assignments authored in this pack.
+    preview_disciplines = [
+        da.discipline
+        for da in (
+            ContentFighterPsykerDisciplineAssignment.objects.with_packs([pack])
+            .filter(fighter=content_fighter)
+            .select_related("discipline")
+        )
+    ]
+    preview_default_powers = [
+        dp.psyker_power
+        for dp in (
+            ContentFighterPsykerPowerDefaultAssignment.objects.with_packs([pack])
+            .filter(fighter=content_fighter)
+            .select_related("psyker_power")
+        )
+    ]
+
     return {
         "preview_statline": statline,
         "preview_rules": rules,
         "preview_skills": skills,
         "preview_weapons": preview_weapons,
         "preview_gear": preview_gear,
+        "preview_disciplines": preview_disciplines,
+        "preview_default_powers": preview_default_powers,
     }
 
 

@@ -15,7 +15,8 @@
         <div class="row">
             <!-- Preview card (mobile: first, desktop: right column) -->
             <div class="col-12 col-xl-5 order-xl-last mb-3 mb-xl-0 ps-xl-4">
-                {% include "core/pack/includes/fighter_preview_card.html" %}
+                {% url 'core:pack-fighter-default-psyker-powers' pack.id pack_item.id as psyker_url %}
+                {% include "core/pack/includes/fighter_preview_card.html" with content_fighter=content_obj fighter_psyker_url=psyker_url %}
             </div>
             <!-- Form (mobile: second, desktop: left column) -->
             <div class="col-12 col-xl-7">

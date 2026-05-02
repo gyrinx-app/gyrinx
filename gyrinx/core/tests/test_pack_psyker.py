@@ -138,19 +138,45 @@ def pack_non_psyker_fighter(pack, pack_owner, content_house):
 
 
 @pytest.mark.django_db
-def test_pack_detail_shows_psyker_disciplines_section(client, pack_owner, pack):
-    client.force_login(pack_owner)
-    response = client.get(reverse("core:pack", args=[pack.id]))
-    assert response.status_code == 200
-    assert b"Psyker Disciplines" in response.content
-
-
-@pytest.mark.django_db
 def test_pack_detail_shows_psyker_powers_section(client, pack_owner, pack):
+    """The merged section header reads "Psyker Powers" — disciplines are
+    rendered as group headers within this section, not as a separate
+    section."""
     client.force_login(pack_owner)
     response = client.get(reverse("core:pack", args=[pack.id]))
     assert response.status_code == 200
     assert b"Psyker Powers" in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_does_not_show_separate_disciplines_section(
+    client, pack_owner, pack
+):
+    """The dedicated "Psyker Disciplines" section header is suppressed —
+    disciplines render inline inside the Psyker Powers section."""
+    client.force_login(pack_owner)
+    response = client.get(reverse("core:pack", args=[pack.id]))
+    assert response.status_code == 200
+    body = response.content.decode()
+    # Section header (h2) should not exist for disciplines.
+    assert ">Psyker Disciplines<" not in body
+
+
+@pytest.mark.django_db
+def test_pack_detail_renders_discipline_group_headers(
+    client, pack_owner, pack, pack_discipline, pack_power
+):
+    """Each pack-authored discipline appears as a group header inside the
+    Psyker Powers section (mirrors skill trees)."""
+    client.force_login(pack_owner)
+    response = client.get(reverse("core:pack", args=[pack.id]))
+    body = response.content.decode()
+    assert "Pack Pyromancy" in body
+    assert "Pack Inferno" in body
+    # Discipline-level Edit / Archive controls live in the merged section.
+    assert "Edit discipline" in body
+    assert "Archive discipline" in body
+    assert "Add power" in body
 
 
 @pytest.mark.django_db
@@ -732,6 +758,52 @@ def test_default_powers_add_403_for_non_owner(
         .filter(fighter=pack_psyker_fighter, psyker_power=pack_power)
         .exists()
     )
+
+
+# --- Fighter preview card on edit page ----------------------------------------
+
+
+@pytest.mark.django_db
+def test_pack_fighter_edit_card_shows_assigned_disciplines_and_default_powers(
+    client, pack_owner, pack, pack_psyker_fighter, pack_discipline, pack_power
+):
+    """The preview card on the pack-fighter edit page must show the
+    same psyker information as the card on the pack detail page."""
+    ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=pack_psyker_fighter, psyker_power=pack_power
+    )
+    client.force_login(pack_owner)
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+    )
+    response = client.get(reverse("core:pack-edit-item", args=[pack.id, pack_item.id]))
+    body = response.content.decode()
+    assert "Pack Pyromancy" in body  # discipline name in card
+    assert "Pack Inferno" in body  # default power name in card
+
+
+@pytest.mark.django_db
+def test_fighter_card_psyker_link_text_is_edit(
+    client, pack_owner, pack, pack_psyker_fighter
+):
+    """The psyker link in the fighter preview card reads "Edit"."""
+    client.force_login(pack_owner)
+    response = client.get(reverse("core:pack", args=[pack.id]))
+    body = response.content.decode()
+    # Card row label is "Psyker"; link text is "Edit".
+    assert "Default powers</a>" not in body  # old wording is gone
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+    )
+    psyker_url = reverse(
+        "core:pack-fighter-default-psyker-powers", args=[pack.id, pack_item.id]
+    )
+    assert f'href="{psyker_url}"' in body
 
 
 # --- Description rendering ----------------------------------------------------

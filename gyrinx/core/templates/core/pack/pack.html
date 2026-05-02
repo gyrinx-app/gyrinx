@@ -104,6 +104,8 @@
         {% for section in content_sections %}
             {% if section.slug == "skill-tree" %}
                 {# Skill trees are rendered within the Skills section below #}
+            {% elif section.slug == "psyker-discipline" %}
+                {# Psyker disciplines are rendered within the Psyker Powers section below #}
             {% else %}
                 {% if section.slug == "gear" %}<hr class="my-2">{% endif %}
                 <section id="{{ section.slug }}">
@@ -120,6 +122,15 @@
                                         <a href="{% url 'core:pack-archived-items' pack.id 'skill' %}"
                                            class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived skills ({{ section.archived_count }})</a>
                                     {% endif %}
+                                {% elif section.slug == "psyker-power" %}
+                                    {% if section.discipline_archived_count > 0 %}
+                                        <a href="{% url 'core:pack-archived-items' pack.id 'psyker-discipline' %}"
+                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived disciplines ({{ section.discipline_archived_count }})</a>
+                                    {% endif %}
+                                    {% if section.archived_count > 0 %}
+                                        <a href="{% url 'core:pack-archived-items' pack.id 'psyker-power' %}"
+                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived powers ({{ section.archived_count }})</a>
+                                    {% endif %}
                                 {% elif section.archived_count > 0 %}
                                     <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
                                        class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
@@ -128,6 +139,13 @@
                                     <a href="{% url 'core:pack-add-item' pack.id 'skill' %}"
                                        class="linked fs-7">Add Skill to existing tree</a>
                                     <a href="{% url 'core:pack-add-item' pack.id 'skill-tree' %}"
+                                       class="btn btn-primary btn-sm">
+                                        <i class="bi-plus-lg"></i> Add
+                                    </a>
+                                {% elif section.slug == "psyker-power" %}
+                                    <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}"
+                                       class="linked fs-7">Add Power to existing discipline</a>
+                                    <a href="{% url 'core:pack-add-item' pack.id 'psyker-discipline' %}"
                                        class="btn btn-primary btn-sm">
                                         <i class="bi-plus-lg"></i> Add
                                     </a>
@@ -240,10 +258,28 @@
                             {% if section.power_groups %}
                                 <div class="vstack gap-3">
                                     {% for group in section.power_groups %}
-                                        <div>
+                                        <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.discipline.name }}</div>
+                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">
+                                                    {{ group.discipline.name }}
+                                                    {% if group.discipline.generic %}<span class="text-secondary fs-7">· generic</span>{% endif %}
+                                                </div>
+                                                <span class="d-flex gap-2 align-items-center">
+                                                    {% if can_edit %}
+                                                        <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}?discipline={{ group.discipline.id }}"
+                                                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add power</a>
+                                                        {% if group.pack_item %}
+                                                            <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
+                                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit discipline</a>
+                                                            <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
+                                                               class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive discipline</a>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                </span>
                                             </div>
+                                            {% if group.discipline.description %}
+                                                <div class="text-secondary fs-7 mb-1">{{ group.discipline.description|linebreaksbr }}</div>
+                                            {% endif %}
                                             {% if group.powers %}
                                                 <ul class="list-unstyled mb-0">
                                                     {% for entry in group.powers %}
@@ -274,7 +310,7 @@
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="text-secondary mb-0">No psyker powers in this Content Pack yet.</p>
+                                <p class="text-secondary mb-0">No psyker disciplines in this Content Pack yet.</p>
                             {% endif %}
                         {% elif section.items %}
                             <ul class="list-unstyled mb-0">
