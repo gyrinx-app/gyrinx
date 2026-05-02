@@ -115,8 +115,8 @@ class ContentFighterPackForm(forms.ModelForm):
         help_texts = {
             "type": "The fighter's name (e.g. 'Gang Leader').",
             "category": "The fighter's category.",
-            "house": "The house or faction this fighter belongs to.",
-            "base_cost": "The credit cost to hire this fighter.",
+            "house": "The house or faction this fighter or vehicle belongs to.",
+            "base_cost": "The credit cost to hire this fighter or vehicle.",
         }
         widgets = {
             "type": forms.TextInput(attrs={"class": "form-control"}),
