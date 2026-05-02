@@ -143,18 +143,24 @@ def get_fighter_powers(fighter: ListFighter, show_restricted: bool = False):
     # Get available disciplines including equipment modifications
     available_disciplines = fighter.get_available_psyker_disciplines()
 
+    # Pack-aware: include disciplines/powers from packs the list subscribes to.
+    packs = fighter.list.packs.all()
+
     # Build the disciplines query
     if show_restricted:
         # Show all disciplines when restricted is enabled
-        disciplines_query = ContentPsykerDiscipline.objects.all()
+        disciplines_query = ContentPsykerDiscipline.objects.with_packs(packs)
     else:
         # Default behavior: only show assigned or generic disciplines
-        disciplines_query = ContentPsykerDiscipline.objects.filter(
-            Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True)
-        ).distinct()
+        disciplines_query = (
+            ContentPsykerDiscipline.objects.with_packs(packs)
+            .filter(Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True))
+            .distinct()
+        )
 
     powers = (
-        ContentPsykerPower.objects.filter(
+        ContentPsykerPower.objects.with_packs(packs)
+        .filter(
             # Get powers via disciplines
             Q(discipline__in=disciplines_query)
             # ...and get powers that are assigned to this fighter by default
@@ -172,7 +178,8 @@ def get_fighter_powers(fighter: ListFighter, show_restricted: bool = False):
                 ).values("psyker_power_id")
             ),
             assigned_default=Exists(
-                ContentFighterPsykerPowerDefaultAssignment.objects.filter(
+                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(packs)
+                .filter(
                     fighter=fighter.content_fighter_cached,
                     psyker_power=OuterRef("pk"),
                 )
@@ -180,11 +187,13 @@ def get_fighter_powers(fighter: ListFighter, show_restricted: bool = False):
                 .values("psyker_power_id")
             ),
             disabled_default=Exists(
-                ContentFighterPsykerPowerDefaultAssignment.objects.filter(
+                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(packs)
+                .filter(
                     fighter=fighter.content_fighter_cached,
                     psyker_power=OuterRef("pk"),
                     id__in=disabled_defaults,
-                ).values("psyker_power_id")
+                )
+                .values("psyker_power_id")
             ),
         )
     )

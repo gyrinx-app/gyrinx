@@ -164,12 +164,13 @@
                                             <div class="row g-3">
                                                 {% for entry in house_group.list %}
                                                     <div id="item-{{ entry.pack_item.id }}" class="col-12 col-lg-6">
-                                                        {% with content_fighter=entry.content_object preview_statline=entry.preview_statline preview_rules=entry.preview_rules preview_skills=entry.preview_skills preview_weapons=entry.preview_weapons preview_gear=entry.preview_gear auto_equipment=entry.auto_equipment %}
+                                                        {% with content_fighter=entry.content_object preview_statline=entry.preview_statline preview_rules=entry.preview_rules preview_skills=entry.preview_skills preview_weapons=entry.preview_weapons preview_gear=entry.preview_gear preview_disciplines=entry.preview_disciplines preview_default_powers=entry.preview_default_powers auto_equipment=entry.auto_equipment %}
                                                             {% if can_edit %}
                                                                 {% url 'core:pack-edit-item' pack.id entry.pack_item.id as edit_url %}
                                                                 {% url 'core:pack-delete-item' pack.id entry.pack_item.id as archive_url %}
                                                                 {% url 'core:pack-item-equipment' pack.id entry.pack_item.id as equipment_url %}
-                                                                {% include "core/pack/includes/fighter_preview_card.html" with fighter_edit_url=edit_url fighter_archive_url=archive_url fighter_can_add=section.can_add fighter_equipment_url=equipment_url %}
+                                                                {% url 'core:pack-fighter-default-psyker-powers' pack.id entry.pack_item.id as psyker_url %}
+                                                                {% include "core/pack/includes/fighter_preview_card.html" with fighter_edit_url=edit_url fighter_archive_url=archive_url fighter_can_add=section.can_add fighter_equipment_url=equipment_url fighter_psyker_url=psyker_url %}
                                                             {% else %}
                                                                 {% include "core/pack/includes/fighter_preview_card.html" %}
                                                             {% endif %}
@@ -235,6 +236,46 @@
                             {% else %}
                                 <p class="text-secondary mb-0">No skills in this Content Pack yet.</p>
                             {% endif %}
+                        {% elif section.slug == "psyker-power" %}
+                            {% if section.power_groups %}
+                                <div class="vstack gap-3">
+                                    {% for group in section.power_groups %}
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.discipline.name }}</div>
+                                            </div>
+                                            {% if group.powers %}
+                                                <ul class="list-unstyled mb-0">
+                                                    {% for entry in group.powers %}
+                                                        <li class="py-1" id="item-{{ entry.pack_item.id }}">
+                                                            <div class="d-flex justify-content-between align-items-center">
+                                                                <div>
+                                                                    <span>{{ entry.content_object.name }}</span>
+                                                                    {% if entry.content_object.description %}
+                                                                        <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
+                                                                    {% endif %}
+                                                                </div>
+                                                                {% if can_edit %}
+                                                                    <span class="d-flex gap-2">
+                                                                        <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                        <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                                                                    </span>
+                                                                {% endif %}
+                                                            </div>
+                                                        </li>
+                                                    {% endfor %}
+                                                </ul>
+                                            {% else %}
+                                                <p class="text-secondary fs-7 mb-0">No powers in this discipline yet.</p>
+                                            {% endif %}
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-secondary mb-0">No psyker powers in this Content Pack yet.</p>
+                            {% endif %}
                         {% elif section.items %}
                             <ul class="list-unstyled mb-0">
                                 {% for entry in section.items %}
@@ -245,7 +286,7 @@
                                                 {% if section.slug == "weapon-accessory" %}
                                                     <span class="text-secondary fs-7">({{ entry.content_object.cost }}¢)</span>
                                                 {% endif %}
-                                                {% if section.slug == "rule" or section.slug == "weapon-trait" or section.slug == "house" or section.slug == "gear" or section.slug == "weapon-accessory" %}
+                                                {% if section.slug == "rule" or section.slug == "weapon-trait" or section.slug == "house" or section.slug == "gear" or section.slug == "weapon-accessory" or section.slug == "psyker-discipline" %}
                                                     {% if entry.content_object.description %}
                                                         <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
                                                     {% endif %}

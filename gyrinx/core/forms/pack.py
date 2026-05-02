@@ -5,6 +5,10 @@ from django.db.models import Case, When
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
+from gyrinx.content.models.psyker import (
+    ContentPsykerDiscipline,
+    ContentPsykerPower,
+)
 from gyrinx.content.models.statline import ContentStatlineType
 from gyrinx.content.models.metadata import ContentRule
 from gyrinx.content.models.skill import ContentSkill, ContentSkillCategory
@@ -139,6 +143,7 @@ class ContentFighterPackForm(forms.ModelForm):
 
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._pack = pack
 
         # Filter category choices.
         self.fields["category"].choices = [("", "---------")] + [
@@ -285,6 +290,47 @@ class ContentFighterPackForm(forms.ModelForm):
             for field_name in ["override_statline", "statline_type"]:
                 self.fields.pop(field_name, None)
 
+            # Psyker discipline picker. Only non-generic disciplines are
+            # shown — generic disciplines are pooled and cannot be assigned
+            # to a fighter (see ContentFighterPsykerDisciplineAssignment.clean).
+            from gyrinx.content.models.psyker import (
+                ContentFighterPsykerDisciplineAssignment,
+                ContentPsykerDiscipline,
+            )
+
+            if pack is not None:
+                disc_qs = ContentPsykerDiscipline.objects.with_packs([pack]).filter(
+                    generic=False
+                )
+            else:
+                disc_qs = ContentPsykerDiscipline.objects.filter(generic=False)
+            self.fields["psyker_disciplines"] = forms.ModelMultipleChoiceField(
+                queryset=disc_qs.order_by("name"),
+                required=False,
+                widget=BsCheckboxSelectMultipleCompact(
+                    attrs={"class": "form-check-input"}
+                ),
+                label="Psyker disciplines",
+                help_text=(
+                    "Disciplines this fighter has access to. Generic "
+                    "disciplines are not shown — they are available to any "
+                    "psyker by default."
+                ),
+            )
+            # Pre-select disciplines this fighter is currently assigned to —
+            # but only those visible through the field's pack-scoped queryset,
+            # so disciplines/assignments authored in OTHER packs don't leak
+            # into this pack's editing UI.
+            current = (
+                ContentFighterPsykerDisciplineAssignment.objects.all_content()
+                .filter(
+                    fighter=self.instance,
+                    discipline__in=self.fields["psyker_disciplines"].queryset,
+                )
+                .values_list("discipline_id", flat=True)
+            )
+            self.initial["psyker_disciplines"] = list(current)
+
     def clean(self):
         cleaned = super().clean()
         # Server-side enforcement: ignore statline_type unless override is checked.
@@ -302,6 +348,62 @@ class ContentFighterPackForm(forms.ModelForm):
                 "A fighter with this name already exists in the content library."
             )
         return value
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        self._sync_psyker_disciplines()
+
+    def _sync_psyker_disciplines(self):
+        """Reconcile ContentFighterPsykerDisciplineAssignment rows + their
+        CustomContentPackItem entries with the form's selected disciplines.
+
+        Only assignments whose discipline is in the form's pack-scoped
+        queryset are touched, so other packs' assignments on the same
+        fighter aren't mutated by this pack's editor.
+        """
+        if "psyker_disciplines" not in self.fields:
+            return
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.content.models.psyker import (
+            ContentFighterPsykerDisciplineAssignment,
+        )
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        scope_qs = self.fields["psyker_disciplines"].queryset
+        selected = set(self.cleaned_data.get("psyker_disciplines", []))
+        existing = {
+            a.discipline_id: a
+            for a in ContentFighterPsykerDisciplineAssignment.objects.all_content().filter(
+                fighter=self.instance,
+                discipline__in=scope_qs,
+            )
+        }
+        selected_ids = {d.id for d in selected}
+
+        # Remove assignments that were unchecked.
+        ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
+        for disc_id, assignment in existing.items():
+            if disc_id not in selected_ids:
+                CustomContentPackItem.objects.filter(
+                    content_type=ct, object_id=assignment.pk
+                ).delete()
+                assignment.delete()
+
+        # Create new assignments + register pack items.
+        for discipline in selected:
+            if discipline.id in existing:
+                continue
+            assignment = ContentFighterPsykerDisciplineAssignment.objects.create(
+                fighter=self.instance, discipline=discipline
+            )
+            if self._pack is not None:
+                CustomContentPackItem.objects.create(
+                    pack=self._pack,
+                    content_type=ct,
+                    object_id=assignment.pk,
+                    owner=self._pack.owner,
+                )
 
 
 class ContentHouseForm(forms.ModelForm):
@@ -913,3 +1015,115 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
                 .queryset.filter(pk__in=instance_trait_ids)
                 .values_list("pk", flat=True)
             )
+
+
+class ContentPsykerDisciplinePackForm(forms.ModelForm):
+    """Form for adding/editing psyker disciplines in a content pack."""
+
+    class Meta:
+        model = ContentPsykerDiscipline
+        fields = ["name", "generic", "description"]
+        labels = {
+            "name": "Name",
+            "generic": "Available to all psykers?",
+            "description": "Description",
+        }
+        help_texts = {
+            "name": "The name of the discipline (e.g. 'Biomancy').",
+            "generic": (
+                "If checked, any psyker fighter can use powers from this "
+                "discipline. Unchecked disciplines must be explicitly assigned "
+                "to fighters."
+            ),
+            "description": "Optional flavour text or rules summary.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "generic": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentPsykerDiscipline.objects.all_content().filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "A psyker discipline with this name already exists in the content "
+                "library."
+            )
+        return value
+
+
+class ContentPsykerPowerPackForm(forms.ModelForm):
+    """Form for adding/editing psyker powers in a content pack."""
+
+    class Meta:
+        model = ContentPsykerPower
+        fields = ["name", "discipline", "description"]
+        labels = {
+            "name": "Name",
+            "discipline": "Discipline",
+            "description": "Description",
+        }
+        help_texts = {
+            "name": "The name of the power (e.g. 'Mind Bolt').",
+            "discipline": "The discipline this power belongs to.",
+            "description": "Optional flavour text or rules for this power.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "discipline": forms.Select(attrs={"class": "form-select"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pack = pack
+        if pack is not None:
+            qs = ContentPsykerDiscipline.objects.with_packs([pack])
+        else:
+            qs = ContentPsykerDiscipline.objects.all()
+        self.fields["discipline"].queryset = qs
+
+        # Group choices into "Custom" (pack content) and "Default" (base game).
+        if pack is not None:
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            pack_disc_ids = set(
+                CustomContentPackItem.objects.filter(
+                    pack=pack,
+                    content_type__model="contentpsykerdiscipline",
+                    archived=False,
+                ).values_list("object_id", flat=True)
+            )
+            default_choices = []
+            custom_choices = []
+            for disc in qs.order_by("name"):
+                choice = (disc.pk, str(disc))
+                if disc.pk in pack_disc_ids:
+                    custom_choices.append(choice)
+                else:
+                    default_choices.append(choice)
+            grouped = [("", "---------")]
+            if custom_choices:
+                grouped.append(("Custom", custom_choices))
+            if default_choices:
+                grouped.append(("Default", default_choices))
+            self.fields["discipline"].choices = grouped
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        discipline = self.cleaned_data.get("discipline")
+        if discipline:
+            qs = ContentPsykerPower.objects.all_content().filter(
+                name__iexact=value, discipline=discipline
+            )
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "A psyker power with this name already exists in this discipline."
+                )
+        return value

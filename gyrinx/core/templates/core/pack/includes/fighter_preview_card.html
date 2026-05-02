@@ -108,6 +108,38 @@
                             </td>
                         </tr>
                     {% endif %}
+                    {% if content_fighter.is_psyker %}
+                        <tr class="fs-7">
+                            <th scope="row">
+                                Psyker
+                                {% if fighter_psyker_url %}
+                                    <a href="{{ fighter_psyker_url }}"
+                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Default powers</a>
+                                {% endif %}
+                            </th>
+                            <td>
+                                {% if preview_disciplines %}
+                                    {% spaceless %}
+                                        {% for disc in preview_disciplines %}
+                                            <span>{{ disc.name }}</span>
+                                            {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                        {% endfor %}
+                                    {% endspaceless %}
+                                {% else %}
+                                    <span class="text-secondary fst-italic">No disciplines assigned</span>
+                                {% endif %}
+                                {% if preview_default_powers %}
+                                    <div class="text-secondary mt-1">
+                                        Default powers:
+                                        {% for power in preview_default_powers %}
+                                            {{ power.name }}
+                                            {% if not forloop.last %},{% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endif %}
                     <!-- Gear -->
                     <tr class="fs-7">
                         <th scope="row">

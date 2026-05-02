@@ -2491,13 +2491,25 @@ class ListFighter(AppBase):
     def get_available_psyker_disciplines(self):
         """
         Get available psyker disciplines for this fighter, including equipment modifications.
+
+        Pack-aware: discipline assignments authored in packs the list
+        subscribes to are also visible. The reverse-FK
+        ``content_fighter.psyker_disciplines.all()`` would otherwise hit the
+        default Content manager and exclude pack-authored rows.
         """
         from gyrinx.content.models import ContentModPsykerDisciplineAccess
+        from gyrinx.content.models.psyker import (
+            ContentFighterPsykerDisciplineAssignment,
+        )
 
-        # Start with base disciplines from ContentFighter
-        # Access the psyker_disciplines through the assignment model
-        base_assignments = self.content_fighter.psyker_disciplines.all()
-        disciplines = set(assignment.discipline for assignment in base_assignments)
+        base_assignments = (
+            ContentFighterPsykerDisciplineAssignment.objects.with_packs(
+                self.list.packs.all()
+            )
+            .filter(fighter=self.content_fighter)
+            .select_related("discipline")
+        )
+        disciplines = {assignment.discipline for assignment in base_assignments}
 
         # Apply equipment modifications
         for mod in self._mods:
@@ -3242,8 +3254,20 @@ class ListFighter(AppBase):
 
     @traced("listfighter_psyker_default_powers")
     def psyker_default_powers(self):
-        default_powers = self.content_fighter_cached.default_psyker_powers.exclude(
-            Q(pk__in=self.disabled_pskyer_default_powers.all())
+        # Pack-aware: a pack-authored ContentFighterPsykerPowerDefaultAssignment
+        # would be hidden by the default ContentManager via the reverse FK,
+        # so we go through the model with `with_packs(...)` instead.
+        from gyrinx.content.models.psyker import (
+            ContentFighterPsykerPowerDefaultAssignment,
+        )
+
+        default_powers = (
+            ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
+                self.list.packs.all()
+            )
+            .filter(fighter=self.content_fighter_cached)
+            .exclude(Q(pk__in=self.disabled_pskyer_default_powers.all()))
+            .select_related("psyker_power", "psyker_power__discipline")
         )
         return [
             VirtualListFighterPsykerPowerAssignment.from_default_assignment(p, self)
@@ -5209,9 +5233,21 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
                 }
             )
 
-        if self.list_fighter.content_fighter.default_psyker_powers.filter(
-            psyker_power=self.psyker_power
-        ).exists():
+        # Pack-aware: catch pack-authored default assignments too.
+        from gyrinx.content.models.psyker import (
+            ContentFighterPsykerPowerDefaultAssignment,
+        )
+
+        if (
+            ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
+                self.list_fighter.list.packs.all()
+            )
+            .filter(
+                fighter=self.list_fighter.content_fighter,
+                psyker_power=self.psyker_power,
+            )
+            .exists()
+        ):
             raise ValidationError(
                 {
                     "psyker_power": "You can't assign a psyker power that is already assigned by default."

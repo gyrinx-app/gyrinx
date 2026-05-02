@@ -1,0 +1,76 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Default psyker powers - {{ content_fighter.type }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack-edit-item' pack.id pack_item.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text=content_fighter.type %}
+    <div class="col-12 col-xl-8 px-0 vstack gap-3">
+        <h1 class="h3">Default psyker powers: {{ content_fighter.type }}</h1>
+        <p class="text-secondary">
+            Powers added here will be assigned by default to any fighter of this
+            type when the fighter is hired into a subscribed list.
+        </p>
+        <!-- Current default powers -->
+        <section>
+            <h2 class="h5">Current defaults</h2>
+            {% if current %}
+                <ul class="list-unstyled mb-0">
+                    {% for assign in current %}
+                        <li class="py-1">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span>{{ assign.psyker_power.name }}</span>
+                                    <span class="text-secondary fs-7">({{ assign.psyker_power.discipline.name }})</span>
+                                </div>
+                                <form action="{% url 'core:pack-fighter-default-psyker-power-remove' pack.id pack_item.id assign.id %}"
+                                      method="post"
+                                      class="m-0">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-link btn-sm link-danger link-underline-opacity-50 link-underline-opacity-100-hover p-0">
+                                        Remove
+                                    </button>
+                                </form>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-secondary mb-0">No default powers yet.</p>
+            {% endif %}
+        </section>
+        <!-- Add power -->
+        <section>
+            <h2 class="h5">Add a default power</h2>
+            {% if available %}
+                <form action="{% url 'core:pack-fighter-default-psyker-power-add' pack.id pack_item.id %}"
+                      method="post"
+                      class="vstack gap-2">
+                    {% csrf_token %}
+                    <select name="psyker_power" class="form-select" required>
+                        <option value="">Select a power…</option>
+                        {% regroup available by discipline as discipline_groups %}
+                        {% for disc_group in discipline_groups %}
+                            <optgroup label="{{ disc_group.grouper.name }}">
+                                {% for power in disc_group.list %}<option value="{{ power.id }}">{{ power.name }}</option>{% endfor %}
+                            </optgroup>
+                        {% endfor %}
+                    </select>
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi-plus"></i> Add default power
+                        </button>
+                    </div>
+                </form>
+            {% else %}
+                <p class="text-secondary mb-0">
+                    No accessible powers. Assign a non-generic discipline to this
+                    fighter first, or create a generic discipline with at least
+                    one power.
+                </p>
+            {% endif %}
+        </section>
+    </div>
+{% endblock content %}
