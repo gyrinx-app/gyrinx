@@ -113,10 +113,10 @@ class ContentFighterPackForm(forms.ModelForm):
             "rules": "Rules",
         }
         help_texts = {
-            "type": "The fighter's name (e.g. 'Gang Leader').",
-            "category": "The fighter's category.",
-            "house": "The house or faction this fighter belongs to.",
-            "base_cost": "The credit cost to hire this fighter.",
+            "type": "The name of this fighter or vehicle (e.g. 'Gang Leader', 'Goliath Mauler').",
+            "category": "The category for this fighter or vehicle.",
+            "house": "The house or faction this fighter or vehicle belongs to.",
+            "base_cost": "The credit cost to hire this fighter or vehicle.",
         }
         widgets = {
             "type": forms.TextInput(attrs={"class": "form-control"}),

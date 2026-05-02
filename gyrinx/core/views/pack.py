@@ -77,6 +77,11 @@ class ContentTypeEntry(NamedTuple):
     icon: str
     form_class: type | None
     slug: str
+    # Override for the singular form used in titles like "Add {label}".
+    # If unset, ``_singularize_label`` strips a trailing "s" / "ies" from
+    # ``label`` — which doesn't work for compound labels like
+    # "Fighters & Vehicles".
+    singular_label: str | None = None
 
 
 # Content types that can be added to packs, in display order.
@@ -97,6 +102,7 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-person",
         ContentFighterPackForm,
         "fighter",
+        singular_label="Fighter or Vehicle",
     ),
     ContentTypeEntry(
         ContentRule,
@@ -179,13 +185,24 @@ def _get_pack_for_edit(id, user):
     return pack
 
 
-def _singularize_label(label):
+def _singularize_label(label_or_entry):
     """Convert a plural section label to its singular form.
 
-    Handles the common English cases needed by ``ContentTypeEntry`` labels.
-    Dumb ``rstrip("s")`` produces "Accessorie" for "Accessories", so we look
-    for an ``ies`` suffix first.
+    Accepts either a label string or a ``ContentTypeEntry``. When given an
+    entry that defines ``singular_label``, the override is returned; this
+    avoids breaking compound labels like "Fighters & Vehicles" that don't
+    singularise mechanically.
+
+    Otherwise: handle the common English cases needed by ``ContentTypeEntry``
+    labels. Dumb ``rstrip("s")`` produces "Accessorie" for "Accessories", so
+    we look for an ``ies`` suffix first.
     """
+    if isinstance(label_or_entry, ContentTypeEntry):
+        if label_or_entry.singular_label:
+            return label_or_entry.singular_label
+        label = label_or_entry.label
+    else:
+        label = label_or_entry
     if label.endswith("ies"):
         return label[:-3] + "y"
     if label.endswith("s") and not label.endswith("ss"):
@@ -1445,7 +1462,7 @@ def add_pack_item(request, id, content_type_slug):
     """
     pack = _get_pack_for_edit(id, request.user)
     entry = _get_content_type_entry(content_type_slug)
-    singular_label = _singularize_label(entry.label)
+    singular_label = _singularize_label(entry)
     is_fighter = entry.model_class is ContentFighter
     is_weapon = content_type_slug == "weapon"
 
@@ -1790,7 +1807,7 @@ def edit_pack_item(request, id, item_id):
     if entry.form_class is None:
         raise Http404
 
-    singular_label = _singularize_label(entry.label)
+    singular_label = _singularize_label(entry)
     is_fighter = entry.model_class is ContentFighter
     is_weapon = entry.slug == "weapon"
 
@@ -1958,7 +1975,7 @@ def delete_pack_item(request, id, item_id):
         raise Http404
 
     entry = _get_entry_for_pack_item(pack_item)
-    label = _singularize_label(entry.label)
+    label = _singularize_label(entry)
     icon = entry.icon
 
     if request.method == "POST":
@@ -3154,7 +3171,7 @@ def pack_item_equipment(request, id, item_id):
     pack_item, content_fighter = _get_pack_fighter(pack, item_id)
 
     entry = _get_entry_for_pack_item(pack_item)
-    singular_label = _singularize_label(entry.label)
+    singular_label = _singularize_label(entry)
 
     context = {
         "pack": pack,
