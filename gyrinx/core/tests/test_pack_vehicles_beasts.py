@@ -961,3 +961,23 @@ def test_restoring_pack_vehicle_cascades_to_companion_equipment(
     companion_pack_item.refresh_from_db()
     assert not fighter_pack_item.archived
     assert not companion_pack_item.archived
+
+
+# --- Singular label override --------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_add_fighter_page_uses_singular_label_override(client, user, pack):
+    """The "Fighters & Vehicles" section can't mechanically singularise.
+
+    Without the ``singular_label`` override on ``ContentTypeEntry``, the
+    add-page title would render as "Add Fighters & Vehicle" (the dumb
+    "-s" stripper trims the trailing "s"). The override should produce
+    "Add Fighter or Vehicle" instead.
+    """
+    client.force_login(user)
+    response = client.get(reverse("core:pack-add-item", args=(pack.id, "fighter")))
+    assert response.status_code == 200
+    body = response.content.decode()
+    assert "Add Fighter or Vehicle" in body
+    assert "Add Fighters & Vehicle" not in body
