@@ -574,6 +574,7 @@ def test_unsubscribed_list_hides_pack_power_in_powers_edit(
     client.force_login(user)
     url = reverse("core:list-fighter-powers-edit", args=[lst.id, lf.id])
     response = client.get(url)
+    assert response.status_code == 200
     # Either pack power is hidden, or the page renders without it.
     assert b"Pack Inferno" not in response.content
 
