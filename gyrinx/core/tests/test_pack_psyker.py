@@ -787,6 +787,24 @@ def test_pack_fighter_edit_card_shows_assigned_disciplines_and_default_powers(
 
 
 @pytest.mark.django_db
+def test_pack_fighter_edit_card_links_to_equipment_tab(
+    client, pack_owner, pack, pack_psyker_fighter
+):
+    """The preview card on the pack-fighter edit page must surface a link
+    to the equipment tab (Gear / Weapons "Edit" link), so users can find
+    the equipment management UI from the fighter edit page."""
+    client.force_login(pack_owner)
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+    )
+    response = client.get(reverse("core:pack-edit-item", args=[pack.id, pack_item.id]))
+    body = response.content.decode()
+    equipment_url = reverse("core:pack-item-equipment", args=[pack.id, pack_item.id])
+    assert f'href="{equipment_url}"' in body
+
+
+@pytest.mark.django_db
 def test_fighter_card_psyker_link_text_is_edit(
     client, pack_owner, pack, pack_psyker_fighter
 ):

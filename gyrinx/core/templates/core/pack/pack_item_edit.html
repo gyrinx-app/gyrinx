@@ -16,7 +16,8 @@
             <!-- Preview card (mobile: first, desktop: right column) -->
             <div class="col-12 col-xl-5 order-xl-last mb-3 mb-xl-0 ps-xl-4">
                 {% url 'core:pack-fighter-default-psyker-powers' pack.id pack_item.id as psyker_url %}
-                {% include "core/pack/includes/fighter_preview_card.html" with content_fighter=content_obj fighter_psyker_url=psyker_url %}
+                {% url 'core:pack-item-equipment' pack.id pack_item.id as equipment_url %}
+                {% include "core/pack/includes/fighter_preview_card.html" with content_fighter=content_obj fighter_psyker_url=psyker_url fighter_equipment_url=equipment_url %}
             </div>
             <!-- Form (mobile: second, desktop: left column) -->
             <div class="col-12 col-xl-7">
