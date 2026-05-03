@@ -858,6 +858,22 @@ urlpatterns = [
         pack_views.remove_pack_fighter_default_assignment,
         name="pack-fighter-default-assignment-remove",
     ),
+    # Pack fighter default psyker powers
+    path(
+        "pack/<id>/item/<item_id>/default-psyker-powers/",
+        pack_views.pack_fighter_default_psyker_powers,
+        name="pack-fighter-default-psyker-powers",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/default-psyker-powers/add/",
+        pack_views.add_pack_fighter_default_psyker_power,
+        name="pack-fighter-default-psyker-power-add",
+    ),
+    path(
+        "pack/<id>/item/<item_id>/default-psyker-powers/<assignment_id>/remove/",
+        pack_views.remove_pack_fighter_default_psyker_power,
+        name="pack-fighter-default-psyker-power-remove",
+    ),
     # Equipment list (available equipment)
     path(
         "pack/<id>/item/<item_id>/equipment-list/weapons/add/",

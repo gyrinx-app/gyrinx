@@ -40,6 +40,12 @@ from gyrinx.content.models.statline import (
     ContentStatlineStat,
     ContentStatlineType,
 )
+from gyrinx.content.models.psyker import (
+    ContentFighterPsykerDisciplineAssignment,
+    ContentFighterPsykerPowerDefaultAssignment,
+    ContentPsykerDiscipline,
+    ContentPsykerPower,
+)
 from gyrinx.content.models.weapon import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -49,6 +55,8 @@ from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
     ContentGearPackForm,
     ContentHouseForm,
+    ContentPsykerDisciplinePackForm,
+    ContentPsykerPowerPackForm,
     ContentRuleForm,
     ContentSkillCategoryPackForm,
     ContentSkillPackForm,
@@ -127,6 +135,24 @@ SUPPORTED_CONTENT_TYPES = [
         "bi-star",
         ContentSkillPackForm,
         "skill",
+    ),
+    ContentTypeEntry(
+        ContentPsykerDiscipline,
+        "Psyker Disciplines",
+        "Custom psyker disciplines for your Content Pack.",
+        "bi-stars",
+        ContentPsykerDisciplinePackForm,
+        "psyker-discipline",
+        singular_label="Psyker Discipline",
+    ),
+    ContentTypeEntry(
+        ContentPsykerPower,
+        "Psyker Powers",
+        "Custom psyker powers for your Content Pack.",
+        "bi-magic",
+        ContentPsykerPowerPackForm,
+        "psyker-power",
+        singular_label="Psyker Power",
     ),
     # --- Equipment ---
     ContentTypeEntry(
@@ -758,6 +784,24 @@ class PackDetailView(generic.DetailView):
                 else set()
             )
 
+            # Pack-aware psyker discipline + default-power lookups so the
+            # fighter card on the pack edit page reflects pack-authored rows.
+            fighter_ids = [e["content_object"].id for e in fighter_entries]
+            disciplines_by_fighter = {fid: [] for fid in fighter_ids}
+            for da in (
+                ContentFighterPsykerDisciplineAssignment.objects.with_packs([pack])
+                .filter(fighter_id__in=fighter_ids)
+                .select_related("discipline")
+            ):
+                disciplines_by_fighter[da.fighter_id].append(da.discipline)
+            default_powers_by_fighter = {fid: [] for fid in fighter_ids}
+            for dp in (
+                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs([pack])
+                .filter(fighter_id__in=fighter_ids)
+                .select_related("psyker_power")
+            ):
+                default_powers_by_fighter[dp.fighter_id].append(dp.psyker_power)
+
             for entry_data in fighter_entries:
                 cf = entry_data["content_object"]
                 entry_data["preview_statline"] = cf.statline()
@@ -771,6 +815,12 @@ class PackDetailView(generic.DetailView):
                 entry_data["preview_gear"] = [
                     da for da in das if da.equipment_id not in weapon_equipment_ids
                 ]
+                entry_data["preview_disciplines"] = disciplines_by_fighter.get(
+                    cf.id, []
+                )
+                entry_data["preview_default_powers"] = default_powers_by_fighter.get(
+                    cf.id, []
+                )
                 # Vehicle/exotic-beast pack fighters expose their auto-created
                 # purchase equipment so the fighter card can show
                 # "Available as equipment X for Y¢".
@@ -850,6 +900,35 @@ class PackDetailView(generic.DetailView):
                 # Include archived skill-tree count so the template can show it
                 section["skill_tree_archived_count"] = len(
                     archived_by_slug.get("skill-tree", [])
+                )
+
+            # Group psyker powers by discipline for display, mirroring skills.
+            if ct_entry.slug == "psyker-power":
+                from collections import OrderedDict
+
+                grouped = OrderedDict()
+                # Seed with disciplines authored in the pack (even empty ones).
+                discipline_items = active_by_slug.get("psyker-discipline", [])
+                for disc_item in discipline_items:
+                    disc = disc_item["content_object"]
+                    grouped[disc.id] = {
+                        "discipline": disc,
+                        "pack_item": disc_item["pack_item"],
+                        "powers": [],
+                    }
+                for item_data in items:
+                    power = item_data["content_object"]
+                    disc = power.discipline
+                    if disc.id not in grouped:
+                        grouped[disc.id] = {
+                            "discipline": disc,
+                            "pack_item": None,
+                            "powers": [],
+                        }
+                    grouped[disc.id]["powers"].append(item_data)
+                section["power_groups"] = list(grouped.values())
+                section["discipline_archived_count"] = len(
+                    archived_by_slug.get("psyker-discipline", [])
                 )
 
             content_sections.append(section)
@@ -1313,6 +1392,7 @@ def _form_kwargs(entry, pack):
         ContentWeaponTraitPackForm,
         ContentWeaponAccessoryPackForm,
         ContentSkillPackForm,
+        ContentPsykerPowerPackForm,
     ):
         return {"pack": pack}
     return {}
@@ -1583,6 +1663,9 @@ def add_pack_item(request, id, content_type_slug):
         # Pre-select category from query param (e.g., skill tree → skill)
         if "category" in request.GET and "category" in form.fields:
             form.initial["category"] = request.GET["category"]
+        # Pre-select discipline from query param (e.g., psyker discipline → power)
+        if "discipline" in request.GET and "discipline" in form.fields:
+            form.initial["discipline"] = request.GET["discipline"]
 
     context = {
         "form": form,
@@ -2017,6 +2100,54 @@ def delete_pack_item(request, id, item_id):
             ):
                 skill_item._history_user = request.user
                 skill_item.archive()
+        # Cascade archive to powers, fighter-discipline assignments, and
+        # default-power assignments when archiving a psyker discipline.
+        # Otherwise subscribed lists keep seeing orphaned powers, stale
+        # discipline assignments, or pack-default powers.
+        if isinstance(content_obj, ContentPsykerDiscipline):
+            power_ct = ContentType.objects.get_for_model(ContentPsykerPower)
+            power_ids = set(
+                ContentPsykerPower.objects.all_content()
+                .filter(discipline=content_obj)
+                .values_list("id", flat=True)
+            )
+            for power_item in pack.items.filter(
+                content_type=power_ct,
+                object_id__in=power_ids,
+                archived=False,
+            ):
+                power_item._history_user = request.user
+                power_item.archive()
+            default_power_ct = ContentType.objects.get_for_model(
+                ContentFighterPsykerPowerDefaultAssignment
+            )
+            default_power_ids = set(
+                ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
+                .filter(psyker_power_id__in=power_ids)
+                .values_list("id", flat=True)
+            )
+            for dp_item in pack.items.filter(
+                content_type=default_power_ct,
+                object_id__in=default_power_ids,
+                archived=False,
+            ):
+                dp_item._history_user = request.user
+                dp_item.archive()
+            assignment_ct = ContentType.objects.get_for_model(
+                ContentFighterPsykerDisciplineAssignment
+            )
+            assignment_ids = set(
+                ContentFighterPsykerDisciplineAssignment.objects.all_content()
+                .filter(discipline=content_obj)
+                .values_list("id", flat=True)
+            )
+            for a_item in pack.items.filter(
+                content_type=assignment_ct,
+                object_id__in=assignment_ids,
+                archived=False,
+            ):
+                a_item._history_user = request.user
+                a_item.archive()
         log_event(
             user=request.user,
             noun=EventNoun.CONTENT_PACK,
@@ -2029,7 +2160,11 @@ def delete_pack_item(request, id, item_id):
             item_name=str(content_obj),
         )
         entry = _get_entry_for_pack_item(pack_item)
-        fragment = "skill" if entry.slug == "skill-tree" else entry.slug
+        fragment = entry.slug
+        if fragment == "skill-tree":
+            fragment = "skill"
+        elif fragment == "psyker-discipline":
+            fragment = "psyker-power"
         return HttpResponseRedirect(_pack_url(pack, fragment))
 
     return render(
@@ -2111,6 +2246,53 @@ def restore_pack_item(request, id, item_id):
         if tree_item:
             tree_item._history_user = request.user
             tree_item.unarchive()
+    # Cascade restore to powers, fighter-discipline assignments, and
+    # default-power assignments when restoring a psyker discipline
+    # (mirrors the archive cascade above).
+    if isinstance(content_obj, ContentPsykerDiscipline):
+        power_ct = ContentType.objects.get_for_model(ContentPsykerPower)
+        power_ids = set(
+            ContentPsykerPower.objects.all_content()
+            .filter(discipline=content_obj)
+            .values_list("id", flat=True)
+        )
+        for power_item in pack.items.filter(
+            content_type=power_ct,
+            object_id__in=power_ids,
+            archived=True,
+        ):
+            power_item._history_user = request.user
+            power_item.unarchive()
+        default_power_ct = ContentType.objects.get_for_model(
+            ContentFighterPsykerPowerDefaultAssignment
+        )
+        default_power_ids = set(
+            ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
+            .filter(psyker_power_id__in=power_ids)
+            .values_list("id", flat=True)
+        )
+        for dp_item in pack.items.filter(
+            content_type=default_power_ct,
+            object_id__in=default_power_ids,
+            archived=True,
+        ):
+            dp_item._history_user = request.user
+            dp_item.unarchive()
+        assignment_ct = ContentType.objects.get_for_model(
+            ContentFighterPsykerDisciplineAssignment
+        )
+        assignment_ids = set(
+            ContentFighterPsykerDisciplineAssignment.objects.all_content()
+            .filter(discipline=content_obj)
+            .values_list("id", flat=True)
+        )
+        for a_item in pack.items.filter(
+            content_type=assignment_ct,
+            object_id__in=assignment_ids,
+            archived=True,
+        ):
+            a_item._history_user = request.user
+            a_item.unarchive()
     entry = _get_entry_for_pack_item(pack_item)
     log_event(
         user=request.user,
@@ -3155,12 +3337,32 @@ def _load_fighter_preview_context(pack, content_fighter):
     preview_weapons = [da for da in default_assignments if da.is_weapon()]
     preview_gear = [da for da in default_assignments if not da.is_weapon()]
 
+    # Psyker preview — pack-aware so we see assignments authored in this pack.
+    preview_disciplines = [
+        da.discipline
+        for da in (
+            ContentFighterPsykerDisciplineAssignment.objects.with_packs([pack])
+            .filter(fighter=content_fighter)
+            .select_related("discipline")
+        )
+    ]
+    preview_default_powers = [
+        dp.psyker_power
+        for dp in (
+            ContentFighterPsykerPowerDefaultAssignment.objects.with_packs([pack])
+            .filter(fighter=content_fighter)
+            .select_related("psyker_power")
+        )
+    ]
+
     return {
         "preview_statline": statline,
         "preview_rules": rules,
         "preview_skills": skills,
         "preview_weapons": preview_weapons,
         "preview_gear": preview_gear,
+        "preview_disciplines": preview_disciplines,
+        "preview_default_powers": preview_default_powers,
     }
 
 
@@ -3414,6 +3616,174 @@ def remove_pack_fighter_default_assignment(request, id, item_id, assignment_id):
             "content_fighter": content_fighter,
             "assignment": assignment,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Default psyker powers for pack fighters
+# ---------------------------------------------------------------------------
+
+
+def _require_psyker_pack_fighter(pack, item_id):
+    """Resolve pack item + fighter, raising 404 if the fighter is not a psyker."""
+    pack_item, content_fighter = _get_pack_fighter(pack, item_id)
+    if not content_fighter.is_psyker:
+        raise Http404("Pack fighter is not a psyker.")
+    return pack_item, content_fighter
+
+
+def _accessible_psyker_powers(pack, content_fighter):
+    """Powers from disciplines this fighter can access (assigned + generic),
+    pack-aware so newly-authored pack disciplines/powers are visible."""
+    assigned_disc_ids = list(
+        ContentFighterPsykerDisciplineAssignment.objects.with_packs([pack])
+        .filter(fighter=content_fighter)
+        .values_list("discipline_id", flat=True)
+    )
+    return (
+        ContentPsykerPower.objects.with_packs([pack])
+        .filter(
+            models.Q(discipline_id__in=assigned_disc_ids)
+            | models.Q(discipline__generic=True)
+        )
+        .select_related("discipline")
+        .order_by("discipline__name", "name")
+    )
+
+
+@login_required
+def pack_fighter_default_psyker_powers(request, id, item_id):
+    """List + add UI for default psyker powers on a pack fighter."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _require_psyker_pack_fighter(pack, item_id)
+
+    current = (
+        ContentFighterPsykerPowerDefaultAssignment.objects.with_packs([pack])
+        .filter(fighter=content_fighter)
+        .select_related("psyker_power", "psyker_power__discipline")
+    )
+    available = _accessible_psyker_powers(pack, content_fighter).exclude(
+        id__in=[c.psyker_power_id for c in current]
+    )
+    return render(
+        request,
+        "core/pack/pack_fighter_default_psyker_powers.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
+            "content_fighter": content_fighter,
+            "current": current,
+            "available": available,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def add_pack_fighter_default_psyker_power(request, id, item_id):
+    """Create a default psyker power assignment + register it as a pack item."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _require_psyker_pack_fighter(pack, item_id)
+
+    if request.method != "POST":
+        return HttpResponseRedirect(
+            reverse(
+                "core:pack-fighter-default-psyker-powers", args=(pack.id, pack_item.id)
+            )
+        )
+
+    power_id = request.POST.get("psyker_power")
+    if not power_id or not is_valid_uuid(power_id):
+        raise Http404
+    power = get_object_or_404(
+        _accessible_psyker_powers(pack, content_fighter), pk=power_id
+    )
+
+    # The (fighter, psyker_power) row is globally unique. Reuse it if it
+    # exists in any pack (or base content), then ensure THIS pack has a
+    # link to it. Both halves are idempotent.
+    assignment = (
+        ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
+        .filter(fighter=content_fighter, psyker_power=power)
+        .first()
+    )
+    if assignment is None:
+        assignment = ContentFighterPsykerPowerDefaultAssignment(
+            fighter=content_fighter, psyker_power=power
+        )
+        assignment._history_user = request.user
+        assignment.save()
+    ct = ContentType.objects.get_for_model(ContentFighterPsykerPowerDefaultAssignment)
+    CustomContentPackItem.objects.get_or_create(
+        pack=pack,
+        content_type=ct,
+        object_id=assignment.pk,
+        defaults={"owner": request.user},
+    )
+    log_event(
+        user=request.user,
+        noun=EventNoun.CONTENT_PACK,
+        verb=EventVerb.ASSIGN,
+        object=pack,
+        request=request,
+        pack_name=pack.name,
+        pack_id=str(pack.id),
+        content_type="default_psyker_power",
+        fighter_name=content_fighter.type,
+        power_name=power.name,
+    )
+    return HttpResponseRedirect(
+        reverse("core:pack-fighter-default-psyker-powers", args=(pack.id, pack_item.id))
+    )
+
+
+@login_required
+@transaction.atomic
+def remove_pack_fighter_default_psyker_power(request, id, item_id, assignment_id):
+    """Remove a default psyker power assignment + its pack item."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item, content_fighter = _require_psyker_pack_fighter(pack, item_id)
+
+    assignment = get_object_or_404(
+        ContentFighterPsykerPowerDefaultAssignment.objects.with_packs([pack]),
+        pk=assignment_id,
+        fighter=content_fighter,
+    )
+    if request.method == "POST":
+        ct = ContentType.objects.get_for_model(
+            ContentFighterPsykerPowerDefaultAssignment
+        )
+        # Drop only this pack's link. Delete the shared assignment row
+        # only when no other pack still references it.
+        CustomContentPackItem.objects.filter(
+            pack=pack, content_type=ct, object_id=assignment.pk
+        ).delete()
+        power_name = assignment.psyker_power.name
+        if not CustomContentPackItem.objects.filter(
+            content_type=ct, object_id=assignment.pk
+        ).exists():
+            assignment._history_user = request.user
+            assignment.delete()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.UNASSIGN,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="default_psyker_power",
+            fighter_name=content_fighter.type,
+            power_name=power_name,
+        )
+        return HttpResponseRedirect(
+            reverse(
+                "core:pack-fighter-default-psyker-powers",
+                args=(pack.id, pack_item.id),
+            )
+        )
+    return HttpResponseRedirect(
+        reverse("core:pack-fighter-default-psyker-powers", args=(pack.id, pack_item.id))
     )
 
 

@@ -25,6 +25,7 @@ class ContentPsykerDiscipline(Content):
         default=False,
         help_text="If checked, this discipline can be used by any psyker.",
     )
+    description = models.TextField(blank=True)
     history = HistoricalRecords()
 
     def __str__(self):
@@ -47,6 +48,7 @@ class ContentPsykerPower(Content):
         on_delete=models.CASCADE,
         related_name="powers",
     )
+    description = models.TextField(blank=True)
     history = HistoricalRecords()
 
     def __str__(self):
