@@ -824,6 +824,295 @@ def test_fighter_card_psyker_link_text_is_edit(
     assert f'href="{psyker_url}"' in body
 
 
+# --- Multi-pack scoping (same content registered in two packs) ---------------
+
+
+@pytest.fixture
+def other_pack(pack_owner):
+    """A second pack used to verify cross-pack isolation."""
+    return CustomContentPack.objects.create(
+        name="Other Psyker Pack", owner=pack_owner, listed=True
+    )
+
+
+@pytest.mark.django_db
+def test_unchecking_discipline_does_not_remove_assignment_from_other_pack(
+    client, pack_owner, pack, other_pack, pack_psyker_fighter, pack_discipline
+):
+    """If two packs both register the same fighter+discipline assignment,
+    one pack unchecking the discipline must not remove the other pack's
+    link OR delete the shared assignment row."""
+    assignment = ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    a_ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
+    pack_a_link = CustomContentPackItem.objects.create(
+        pack=pack, content_type=a_ct, object_id=assignment.pk, owner=pack_owner
+    )
+    pack_b_link = CustomContentPackItem.objects.create(
+        pack=other_pack, content_type=a_ct, object_id=assignment.pk, owner=pack_owner
+    )
+    # Register the discipline in `other_pack` too so it's pack-visible there.
+    d_ct = ContentType.objects.get_for_model(ContentPsykerDiscipline)
+    CustomContentPackItem.objects.create(
+        pack=other_pack,
+        content_type=d_ct,
+        object_id=pack_discipline.pk,
+        owner=pack_owner,
+    )
+
+    # Now uncheck the discipline on PACK A.
+    client.force_login(pack_owner)
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+        pack=pack,
+    )
+    response = client.post(
+        reverse("core:pack-edit-item", args=[pack.id, pack_item.id]),
+        {
+            "type": pack_psyker_fighter.type,
+            "category": pack_psyker_fighter.category,
+            "house": str(pack_psyker_fighter.house_id),
+            "base_cost": str(pack_psyker_fighter.base_cost),
+            "psyker_disciplines": [],
+        },
+    )
+    assert response.status_code == 302
+    # Pack A's link is gone …
+    assert not CustomContentPackItem.objects.filter(pk=pack_a_link.pk).exists()
+    # … but pack B's link remains, and the shared assignment row is untouched.
+    assert CustomContentPackItem.objects.filter(pk=pack_b_link.pk).exists()
+    assert (
+        ContentFighterPsykerDisciplineAssignment.objects.all_content()
+        .filter(pk=assignment.pk)
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_checking_discipline_reuses_assignment_from_other_pack(
+    client, pack_owner, pack, other_pack, pack_psyker_fighter, pack_discipline
+):
+    """If pack B already created the assignment row, pack A should reuse
+    it (linking via a new CustomContentPackItem) rather than crashing on
+    the (fighter, discipline) unique constraint."""
+    assignment = ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    a_ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
+    CustomContentPackItem.objects.create(
+        pack=other_pack, content_type=a_ct, object_id=assignment.pk, owner=pack_owner
+    )
+    client.force_login(pack_owner)
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+        pack=pack,
+    )
+    response = client.post(
+        reverse("core:pack-edit-item", args=[pack.id, pack_item.id]),
+        {
+            "type": pack_psyker_fighter.type,
+            "category": pack_psyker_fighter.category,
+            "house": str(pack_psyker_fighter.house_id),
+            "base_cost": str(pack_psyker_fighter.base_cost),
+            "psyker_disciplines": [str(pack_discipline.pk)],
+        },
+    )
+    assert response.status_code == 302, response.content[:500]
+    # Same assignment row, but now also linked to pack A.
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=a_ct, object_id=assignment.pk
+    ).exists()
+    # Only one assignment row exists.
+    assert (
+        ContentFighterPsykerDisciplineAssignment.objects.all_content()
+        .filter(fighter=pack_psyker_fighter, discipline=pack_discipline)
+        .count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_remove_default_power_does_not_delete_other_pack_link(
+    client,
+    pack_owner,
+    pack,
+    other_pack,
+    pack_psyker_fighter,
+    pack_discipline,
+    pack_power,
+):
+    """Removing a default power from pack A must not touch pack B's link
+    or delete the shared assignment row."""
+    ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    assignment = ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=pack_psyker_fighter, psyker_power=pack_power
+    )
+    dp_ct = ContentType.objects.get_for_model(
+        ContentFighterPsykerPowerDefaultAssignment
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=dp_ct, object_id=assignment.pk, owner=pack_owner
+    )
+    pack_b_link = CustomContentPackItem.objects.create(
+        pack=other_pack, content_type=dp_ct, object_id=assignment.pk, owner=pack_owner
+    )
+
+    client.force_login(pack_owner)
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+        pack=pack,
+    )
+    response = client.post(
+        reverse(
+            "core:pack-fighter-default-psyker-power-remove",
+            args=[pack.id, pack_item.id, assignment.pk],
+        )
+    )
+    assert response.status_code == 302
+    assert CustomContentPackItem.objects.filter(pk=pack_b_link.pk).exists()
+    assert (
+        ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
+        .filter(pk=assignment.pk)
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_add_default_power_when_assignment_exists_in_other_pack(
+    client,
+    pack_owner,
+    pack,
+    other_pack,
+    pack_psyker_fighter,
+    pack_discipline,
+    pack_power,
+):
+    """If pack B already authored the (fighter, power) default, adding it
+    in pack A should reuse the row (no IntegrityError) and create a new
+    CustomContentPackItem for pack A."""
+    ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    assignment = ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=pack_psyker_fighter, psyker_power=pack_power
+    )
+    dp_ct = ContentType.objects.get_for_model(
+        ContentFighterPsykerPowerDefaultAssignment
+    )
+    CustomContentPackItem.objects.create(
+        pack=other_pack, content_type=dp_ct, object_id=assignment.pk, owner=pack_owner
+    )
+    client.force_login(pack_owner)
+    pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentFighter),
+        object_id=pack_psyker_fighter.pk,
+        pack=pack,
+    )
+    response = client.post(
+        reverse(
+            "core:pack-fighter-default-psyker-power-add", args=[pack.id, pack_item.id]
+        ),
+        {"psyker_power": str(pack_power.pk)},
+    )
+    assert response.status_code == 302, response.content[:500]
+    assert CustomContentPackItem.objects.filter(
+        pack=pack, content_type=dp_ct, object_id=assignment.pk
+    ).exists()
+
+
+# --- Disabled defaults pack-aware ---------------------------------------------
+
+
+@pytest.mark.django_db
+def test_disabled_pack_default_power_excluded_from_default_powers(
+    user, pack, pack_psyker_fighter, pack_discipline, pack_power, content_house
+):
+    """Disabling a pack-authored default power on a list fighter must
+    actually remove it from ``psyker_default_powers()``. The disabled set
+    is read through the default ContentManager which would otherwise
+    silently exclude pack-authored rows."""
+    ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    default_assignment = ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=pack_psyker_fighter, psyker_power=pack_power
+    )
+    a_ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
+    da = ContentFighterPsykerDisciplineAssignment.objects.all_content().get(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=a_ct, object_id=da.pk, owner=pack.owner
+    )
+    dp_ct = ContentType.objects.get_for_model(
+        ContentFighterPsykerPowerDefaultAssignment
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=dp_ct,
+        object_id=default_assignment.pk,
+        owner=pack.owner,
+    )
+
+    lst, lf = _make_subscribed_list(user, content_house, pack, pack_psyker_fighter)
+    # Sanity: power appears as a default before disabling.
+    assert any("Pack Inferno" in p.name() for p in lf.psyker_default_powers())
+    # Disable the pack-authored default.
+    lf.disabled_pskyer_default_powers.add(default_assignment)
+    # Now it must NOT come back as a default.
+    assert not any("Pack Inferno" in p.name() for p in lf.psyker_default_powers())
+
+
+# --- Discipline cascade reaches default-power assignments ---------------------
+
+
+@pytest.mark.django_db
+def test_archiving_discipline_cascades_to_default_power_assignments(
+    client,
+    pack_owner,
+    pack,
+    pack_psyker_fighter,
+    pack_discipline,
+    pack_power,
+):
+    """Archiving a pack discipline must also archive
+    ContentFighterPsykerPowerDefaultAssignment pack items whose power
+    belongs to that discipline."""
+    ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    default_assignment = ContentFighterPsykerPowerDefaultAssignment.objects.create(
+        fighter=pack_psyker_fighter, psyker_power=pack_power
+    )
+    dp_ct = ContentType.objects.get_for_model(
+        ContentFighterPsykerPowerDefaultAssignment
+    )
+    dp_pack_item = CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=dp_ct,
+        object_id=default_assignment.pk,
+        owner=pack_owner,
+    )
+    discipline_pack_item = CustomContentPackItem.objects.get(
+        content_type=ContentType.objects.get_for_model(ContentPsykerDiscipline),
+        object_id=pack_discipline.pk,
+    )
+
+    client.force_login(pack_owner)
+    response = client.post(
+        reverse("core:pack-delete-item", args=(pack.id, discipline_pack_item.id))
+    )
+    assert response.status_code == 302
+    dp_pack_item.refresh_from_db()
+    assert dp_pack_item.archived
+
+
 # --- Description rendering ----------------------------------------------------
 
 

@@ -2100,9 +2100,10 @@ def delete_pack_item(request, id, item_id):
             ):
                 skill_item._history_user = request.user
                 skill_item.archive()
-        # Cascade archive to powers + fighter-discipline assignments when
-        # archiving a psyker discipline. Otherwise subscribed lists keep
-        # seeing orphaned powers and stale assignments.
+        # Cascade archive to powers, fighter-discipline assignments, and
+        # default-power assignments when archiving a psyker discipline.
+        # Otherwise subscribed lists keep seeing orphaned powers, stale
+        # discipline assignments, or pack-default powers.
         if isinstance(content_obj, ContentPsykerDiscipline):
             power_ct = ContentType.objects.get_for_model(ContentPsykerPower)
             power_ids = set(
@@ -2117,6 +2118,21 @@ def delete_pack_item(request, id, item_id):
             ):
                 power_item._history_user = request.user
                 power_item.archive()
+            default_power_ct = ContentType.objects.get_for_model(
+                ContentFighterPsykerPowerDefaultAssignment
+            )
+            default_power_ids = set(
+                ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
+                .filter(psyker_power_id__in=power_ids)
+                .values_list("id", flat=True)
+            )
+            for dp_item in pack.items.filter(
+                content_type=default_power_ct,
+                object_id__in=default_power_ids,
+                archived=False,
+            ):
+                dp_item._history_user = request.user
+                dp_item.archive()
             assignment_ct = ContentType.objects.get_for_model(
                 ContentFighterPsykerDisciplineAssignment
             )
@@ -2230,8 +2246,9 @@ def restore_pack_item(request, id, item_id):
         if tree_item:
             tree_item._history_user = request.user
             tree_item.unarchive()
-    # Cascade restore to powers + fighter-discipline assignments when
-    # restoring a psyker discipline (mirrors the archive cascade above).
+    # Cascade restore to powers, fighter-discipline assignments, and
+    # default-power assignments when restoring a psyker discipline
+    # (mirrors the archive cascade above).
     if isinstance(content_obj, ContentPsykerDiscipline):
         power_ct = ContentType.objects.get_for_model(ContentPsykerPower)
         power_ids = set(
@@ -2246,6 +2263,21 @@ def restore_pack_item(request, id, item_id):
         ):
             power_item._history_user = request.user
             power_item.unarchive()
+        default_power_ct = ContentType.objects.get_for_model(
+            ContentFighterPsykerPowerDefaultAssignment
+        )
+        default_power_ids = set(
+            ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
+            .filter(psyker_power_id__in=power_ids)
+            .values_list("id", flat=True)
+        )
+        for dp_item in pack.items.filter(
+            content_type=default_power_ct,
+            object_id__in=default_power_ids,
+            archived=True,
+        ):
+            dp_item._history_user = request.user
+            dp_item.unarchive()
         assignment_ct = ContentType.objects.get_for_model(
             ContentFighterPsykerDisciplineAssignment
         )
@@ -3667,27 +3699,26 @@ def add_pack_fighter_default_psyker_power(request, id, item_id):
         _accessible_psyker_powers(pack, content_fighter), pk=power_id
     )
 
-    # Idempotent: do nothing if already assigned.
-    if (
-        ContentFighterPsykerPowerDefaultAssignment.objects.with_packs([pack])
+    # The (fighter, psyker_power) row is globally unique. Reuse it if it
+    # exists in any pack (or base content), then ensure THIS pack has a
+    # link to it. Both halves are idempotent.
+    assignment = (
+        ContentFighterPsykerPowerDefaultAssignment.objects.all_content()
         .filter(fighter=content_fighter, psyker_power=power)
-        .exists()
-    ):
-        return HttpResponseRedirect(
-            reverse(
-                "core:pack-fighter-default-psyker-powers",
-                args=(pack.id, pack_item.id),
-            )
-        )
-
-    assignment = ContentFighterPsykerPowerDefaultAssignment(
-        fighter=content_fighter, psyker_power=power
+        .first()
     )
-    assignment._history_user = request.user
-    assignment.save()
+    if assignment is None:
+        assignment = ContentFighterPsykerPowerDefaultAssignment(
+            fighter=content_fighter, psyker_power=power
+        )
+        assignment._history_user = request.user
+        assignment.save()
     ct = ContentType.objects.get_for_model(ContentFighterPsykerPowerDefaultAssignment)
-    CustomContentPackItem.objects.create(
-        pack=pack, content_type=ct, object_id=assignment.pk, owner=request.user
+    CustomContentPackItem.objects.get_or_create(
+        pack=pack,
+        content_type=ct,
+        object_id=assignment.pk,
+        defaults={"owner": request.user},
     )
     log_event(
         user=request.user,
@@ -3722,12 +3753,17 @@ def remove_pack_fighter_default_psyker_power(request, id, item_id, assignment_id
         ct = ContentType.objects.get_for_model(
             ContentFighterPsykerPowerDefaultAssignment
         )
+        # Drop only this pack's link. Delete the shared assignment row
+        # only when no other pack still references it.
         CustomContentPackItem.objects.filter(
-            content_type=ct, object_id=assignment.pk
+            pack=pack, content_type=ct, object_id=assignment.pk
         ).delete()
         power_name = assignment.psyker_power.name
-        assignment._history_user = request.user
-        assignment.delete()
+        if not CustomContentPackItem.objects.filter(
+            content_type=ct, object_id=assignment.pk
+        ).exists():
+            assignment._history_user = request.user
+            assignment.delete()
         log_event(
             user=request.user,
             noun=EventNoun.CONTENT_PACK,

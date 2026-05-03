@@ -3261,12 +3261,18 @@ class ListFighter(AppBase):
             ContentFighterPsykerPowerDefaultAssignment,
         )
 
+        # Read disabled IDs through the M2M through-table — `.all()` would
+        # go through the target's ContentManager and silently exclude
+        # pack-authored disabled rows.
+        disabled_pks = self.disabled_pskyer_default_powers.through.objects.filter(
+            listfighter=self
+        ).values("contentfighterpsykerpowerdefaultassignment_id")
         default_powers = (
             ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
                 self.list.packs.all()
             )
             .filter(fighter=self.content_fighter_cached)
-            .exclude(Q(pk__in=self.disabled_pskyer_default_powers.all()))
+            .exclude(pk__in=disabled_pks)
             .select_related("psyker_power", "psyker_power__discipline")
         )
         return [

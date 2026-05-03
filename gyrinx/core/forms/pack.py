@@ -357,9 +357,11 @@ class ContentFighterPackForm(forms.ModelForm):
         """Reconcile ContentFighterPsykerDisciplineAssignment rows + their
         CustomContentPackItem entries with the form's selected disciplines.
 
-        Only assignments whose discipline is in the form's pack-scoped
-        queryset are touched, so other packs' assignments on the same
-        fighter aren't mutated by this pack's editor.
+        Pack-scoped throughout: only the current pack's links are mutated.
+        The same ``ContentFighterPsykerDisciplineAssignment`` row CAN be
+        registered to multiple packs (see
+        ``test_pack_item_in_multiple_packs``); this pack's editor must not
+        delete or claim other packs' links.
         """
         if "psyker_disciplines" not in self.fields:
             return
@@ -370,40 +372,62 @@ class ContentFighterPackForm(forms.ModelForm):
         )
         from gyrinx.core.models.pack import CustomContentPackItem
 
-        scope_qs = self.fields["psyker_disciplines"].queryset
-        selected = set(self.cleaned_data.get("psyker_disciplines", []))
-        existing = {
-            a.discipline_id: a
-            for a in ContentFighterPsykerDisciplineAssignment.objects.all_content().filter(
-                fighter=self.instance,
-                discipline__in=scope_qs,
+        if self._pack is None:
+            return
+
+        ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
+
+        # Assignments registered TO THIS PACK (via CustomContentPackItem with
+        # pack=self._pack), keyed by discipline_id.
+        pack_links = {
+            link.object_id: link
+            for link in CustomContentPackItem.objects.filter(
+                pack=self._pack, content_type=ct, archived=False
             )
         }
+        existing_assignments = {
+            a.discipline_id: a
+            for a in ContentFighterPsykerDisciplineAssignment.objects.all_content().filter(
+                fighter=self.instance, pk__in=pack_links.keys()
+            )
+        }
+        selected = set(self.cleaned_data.get("psyker_disciplines", []))
         selected_ids = {d.id for d in selected}
 
-        # Remove assignments that were unchecked.
-        ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
-        for disc_id, assignment in existing.items():
-            if disc_id not in selected_ids:
-                CustomContentPackItem.objects.filter(
-                    content_type=ct, object_id=assignment.pk
-                ).delete()
+        # Uncheck → drop only THIS pack's link. Delete the assignment row
+        # only if no other pack still references it.
+        for disc_id, assignment in existing_assignments.items():
+            if disc_id in selected_ids:
+                continue
+            link = pack_links.get(assignment.pk)
+            if link is not None:
+                link.delete()
+            other_links_exist = CustomContentPackItem.objects.filter(
+                content_type=ct, object_id=assignment.pk
+            ).exists()
+            if not other_links_exist:
                 assignment.delete()
 
-        # Create new assignments + register pack items.
+        # Add → reuse an existing assignment row (could already be registered
+        # to a different pack) or create one; then ensure THIS pack has a link.
         for discipline in selected:
-            if discipline.id in existing:
+            if discipline.id in existing_assignments:
                 continue
-            assignment = ContentFighterPsykerDisciplineAssignment.objects.create(
-                fighter=self.instance, discipline=discipline
+            assignment = (
+                ContentFighterPsykerDisciplineAssignment.objects.all_content()
+                .filter(fighter=self.instance, discipline=discipline)
+                .first()
             )
-            if self._pack is not None:
-                CustomContentPackItem.objects.create(
-                    pack=self._pack,
-                    content_type=ct,
-                    object_id=assignment.pk,
-                    owner=self._pack.owner,
+            if assignment is None:
+                assignment = ContentFighterPsykerDisciplineAssignment.objects.create(
+                    fighter=self.instance, discipline=discipline
                 )
+            CustomContentPackItem.objects.get_or_create(
+                pack=self._pack,
+                content_type=ct,
+                object_id=assignment.pk,
+                defaults={"owner": self._pack.owner},
+            )
 
 
 class ContentHouseForm(forms.ModelForm):
