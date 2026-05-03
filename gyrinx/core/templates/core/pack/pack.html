@@ -260,10 +260,7 @@
                                     {% for group in section.power_groups %}
                                         <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">
-                                                    {{ group.discipline.name }}
-                                                    {% if group.discipline.generic %}<span class="text-secondary fs-7">· generic</span>{% endif %}
-                                                </div>
+                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.discipline.name }}</div>
                                                 <span class="d-flex gap-2 align-items-center">
                                                     {% if can_edit %}
                                                         <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}?discipline={{ group.discipline.id }}"
@@ -277,8 +274,14 @@
                                                     {% endif %}
                                                 </span>
                                             </div>
-                                            {% if group.discipline.description %}
-                                                <div class="text-secondary fs-7 mb-1">{{ group.discipline.description|linebreaksbr }}</div>
+                                            {% if group.discipline.generic or group.discipline.description %}
+                                                <div class="text-secondary fs-7 mb-1">
+                                                    {% if group.discipline.generic %}
+                                                        Available to all psykers
+                                                        {% if group.discipline.description %}·{% endif %}
+                                                    {% endif %}
+                                                    {% if group.discipline.description %}{{ group.discipline.description|linebreaksbr }}{% endif %}
+                                                </div>
                                             {% endif %}
                                             {% if group.powers %}
                                                 <ul class="list-unstyled mb-0">
