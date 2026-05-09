@@ -168,7 +168,7 @@ SUPPORTED_CONTENT_TYPES = [
     ),
     ContentTypeEntry(
         ContentAttributeValue,
-        "Gang Attribute Values",
+        "Gang Attribute",
         "Custom values for gang attributes in your Content Pack.",
         "bi-bookmark",
         ContentAttributeValuePackForm,

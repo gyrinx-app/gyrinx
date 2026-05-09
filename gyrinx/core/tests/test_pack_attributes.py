@@ -39,7 +39,7 @@ def test_pack_detail_shows_attributes_section(client, user, pack):
     client.force_login(user)
     response = client.get(reverse("core:pack", args=[pack.id]))
     assert response.status_code == 200
-    assert b"Gang Attribute Values" in response.content
+    assert b"Gang Attribute" in response.content
 
 
 @pytest.mark.django_db
