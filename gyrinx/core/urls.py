@@ -843,6 +843,38 @@ urlpatterns = [
         pack_views.archived_weapon_profiles,
         name="pack-archived-weapon-profiles",
     ),
+    # Customise an existing (library) weapon — add pack-scoped profiles
+    # without owning the equipment row.
+    path(
+        "pack/<id>/customise-weapon/",
+        pack_views.customise_weapon_picker,
+        name="pack-customise-weapon-picker",
+    ),
+    path(
+        "pack/<id>/customise-weapon/<equipment_id>/",
+        pack_views.customise_weapon,
+        name="pack-customise-weapon",
+    ),
+    path(
+        "pack/<id>/customise-weapon/<equipment_id>/profile/add/",
+        pack_views.add_customised_weapon_profile,
+        name="pack-customise-weapon-profile-add",
+    ),
+    path(
+        "pack/<id>/customise-weapon/<equipment_id>/profile/<profile_id>/edit/",
+        pack_views.edit_customised_weapon_profile,
+        name="pack-customise-weapon-profile-edit",
+    ),
+    path(
+        "pack/<id>/customise-weapon/<equipment_id>/profile/<profile_id>/delete/",
+        pack_views.delete_customised_weapon_profile,
+        name="pack-customise-weapon-profile-delete",
+    ),
+    path(
+        "pack/<id>/customise-weapon/<equipment_id>/archived-profiles/",
+        pack_views.archived_customised_weapon_profiles,
+        name="pack-customise-weapon-archived-profiles",
+    ),
     path(
         "pack/<id>/item/<item_id>/default-equipment/weapons/add/",
         pack_views.add_pack_fighter_default_weapon,

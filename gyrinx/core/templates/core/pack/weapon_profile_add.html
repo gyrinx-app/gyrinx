@@ -9,9 +9,7 @@
         <h1 class="h3">
             <i class="bi-crosshair"></i> Add profile to {{ equipment.name }}
         </h1>
-        <form action="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
-              method="post"
-              class="vstack gap-3">
+        <form action="{{ form_action_url }}" method="post" class="vstack gap-3">
             {% csrf_token %}
             {{ form }}
             {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_fields %}

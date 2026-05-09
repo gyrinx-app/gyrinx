@@ -149,6 +149,15 @@
                                        class="btn btn-primary btn-sm">
                                         <i class="bi-plus-lg"></i> Add
                                     </a>
+                                {% elif section.slug == "weapon" %}
+                                    <a href="{% url 'core:pack-customise-weapon-picker' pack.id %}"
+                                       class="linked fs-7">Customise existing weapon</a>
+                                    {% if section.can_add %}
+                                        <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
+                                           class="btn btn-primary btn-sm">
+                                            <i class="bi-plus-lg"></i> Add
+                                        </a>
+                                    {% endif %}
                                 {% elif section.can_add %}
                                     <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
                                        class="btn btn-primary btn-sm">
@@ -164,8 +173,9 @@
                                 <table class="table table-sm table-borderless mb-0 fs-7">
                                     {% include "core/includes/weapon_stat_headers.html" with show_al=True %}
                                     {% for entry in section.items %}
-                                        <tbody class="table-group-divider" id="item-{{ entry.pack_item.id }}">
-                                            {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit show_al=True %}
+                                        <tbody class="table-group-divider"
+                                               {% if entry.pack_item %} id="item-{{ entry.pack_item.id }}"{% else %} id="weapon-{{ entry.content_object.id }}"{% endif %}>
+                                            {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit show_al=True is_customised=entry.is_customised show_actions_row=True %}
                                         </tbody>
                                     {% endfor %}
                                 </table>

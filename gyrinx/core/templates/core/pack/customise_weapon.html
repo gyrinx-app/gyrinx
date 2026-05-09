@@ -1,0 +1,54 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Customise {{ equipment.name }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 col-lg-8 col-xl-6 px-0 vstack gap-4">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi-crosshair"></i> Customise {{ equipment.name }}
+            </h1>
+            <p class="text-secondary mb-0">
+                Add new profiles (e.g. special ammo) to this weapon. The weapon itself
+                isn't modified — your changes are scoped to this Content Pack.
+            </p>
+        </div>
+        <div>
+            <div class="d-flex justify-content-between align-items-baseline mb-2">
+                <h2 class="h5 mb-0">Profiles</h2>
+                {% if archived_pack_profile_count > 0 %}
+                    <a href="{% url 'core:pack-customise-weapon-archived-profiles' pack.id equipment.id %}"
+                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived profiles ({{ archived_pack_profile_count }})</a>
+                {% endif %}
+            </div>
+            {% if profiles %}
+                <table class="table table-sm table-borderless mb-0 fs-7">
+                    {% include "core/includes/weapon_stat_headers.html" with show_al=True %}
+                    <tbody class="table-group-divider">
+                        {% include "core/pack/includes/weapon_profiles_display.html" with profiles=profiles weapon=equipment can_edit=True show_al=True is_customised=True show_actions_row=False %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="text-secondary mb-0">No profiles yet.</p>
+            {% endif %}
+            {% if pack_profile_count == 0 %}<p class="text-secondary fs-7 mt-2 mb-0">No customisations yet.</p>{% endif %}
+        </div>
+        <div>
+            <h2 class="h5 mb-2">Add</h2>
+            <div class="row g-3">
+                <div class="col-12 col-md-6 col-lg-4">
+                    <a href="{% url 'core:pack-customise-weapon-profile-add' pack.id equipment.id %}"
+                       class="border rounded p-3 d-flex flex-column gap-1 text-decoration-none h-100">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi-plus-lg"></i>
+                            <span class="h6 mb-0">New profile</span>
+                        </div>
+                        <span class="text-secondary fs-7">Add a special-ammo or alternate profile to this weapon.</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

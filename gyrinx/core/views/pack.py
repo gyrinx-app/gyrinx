@@ -933,6 +933,83 @@ class PackDetailView(generic.DetailView):
 
             content_sections.append(section)
 
+        # Surface library weapons that have pack-scoped profiles attached
+        # (i.e. customised existing weapons) — they aren't pack items themselves
+        # so the equipment-driven loop above misses them.
+        profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+        pack_profile_ids = list(
+            CustomContentPackItem.objects.filter(
+                pack=pack, content_type=profile_ct, archived=False
+            ).values_list("object_id", flat=True)
+        )
+        owned_equipment_ids = {
+            item.object_id
+            for item in pack_items
+            if item.content_type_id == equipment_ct.id and not item.archived
+        }
+        if pack_profile_ids:
+            pack_profile_id_set = set(pack_profile_ids)
+            customised_equipment_ids = (
+                set(
+                    ContentWeaponProfile.objects.all_content()
+                    .filter(pk__in=pack_profile_ids)
+                    .values_list("equipment_id", flat=True)
+                    .distinct()
+                )
+                - owned_equipment_ids
+            )
+
+            if customised_equipment_ids:
+                customised_weapons = list(
+                    ContentEquipment.objects.with_packs([pack])
+                    .filter(id__in=customised_equipment_ids)
+                    .select_related("category")
+                    .order_by("category__name", "name")
+                )
+                weapon_section = next(
+                    (s for s in content_sections if s["slug"] == "weapon"), None
+                )
+                if weapon_section is not None:
+                    # Bulk-fetch all profiles for all customised weapons in
+                    # one query, then group in Python — avoids an N+1 across
+                    # customised weapons. Reuse pack_profile_id_set to mark
+                    # pack-scoped rows without another CustomContentPackItem
+                    # query per weapon.
+                    profiles_by_equipment = defaultdict(list)
+                    for p in (
+                        ContentWeaponProfile.objects.with_packs([pack])
+                        .filter(equipment_id__in=customised_equipment_ids)
+                        .prefetch_related(
+                            Prefetch(
+                                "traits",
+                                queryset=ContentWeaponTrait.objects.all_content(),
+                            )
+                        )
+                    ):
+                        p.is_pack_scoped = p.pk in pack_profile_id_set
+                        profiles_by_equipment[p.equipment_id].append(p)
+
+                    customised_entries = []
+                    for eq in customised_weapons:
+                        profiles = profiles_by_equipment.get(eq.id, [])
+                        profiles.sort(
+                            key=lambda p: (
+                                2 if p.is_pack_scoped else (0 if not p.name else 1),
+                                p.name or "",
+                            )
+                        )
+                        customised_entries.append(
+                            {
+                                "pack_item": None,
+                                "content_object": eq,
+                                "profiles": profiles,
+                                "is_customised": True,
+                                "is_auto_equipment": False,
+                            }
+                        )
+                    weapon_section["items"].extend(customised_entries)
+                    weapon_section["count"] = len(weapon_section["items"])
+
         context["content_sections"] = content_sections
         all_activities = _get_pack_activity(pack)
         context["recent_activities"] = all_activities[:5]
@@ -2473,6 +2550,9 @@ def add_weapon_profile(request, id, item_id):
         "equipment": equipment,
         "slug": "weapon",
         "back_url": _pack_url(pack, f"item-{pack_item.id}"),
+        "form_action_url": reverse(
+            "core:pack-add-weapon-profile", args=(pack.id, pack_item.id)
+        ),
         "weapon_stat_fields": _build_weapon_stat_context(request),
     }
     return render(request, "core/pack/weapon_profile_add.html", context)
@@ -2594,6 +2674,14 @@ def edit_weapon_profile(request, id, item_id, profile_id):
         "profile": profile,
         "slug": "weapon",
         "back_url": _pack_url(pack, f"item-{pack_item.id}"),
+        "form_action_url": reverse(
+            "core:pack-edit-weapon-profile",
+            args=(pack.id, pack_item.id, profile.id),
+        ),
+        "delete_url": reverse(
+            "core:pack-delete-weapon-profile",
+            args=(pack.id, pack_item.id, profile.id),
+        ),
         "weapon_stat_values": weapon_stat_context,
     }
     return render(request, "core/pack/weapon_profile_edit.html", context)
@@ -2670,6 +2758,10 @@ def delete_weapon_profile(request, id, item_id, profile_id):
         "profile": profile,
         "slug": "weapon",
         "back_url": _pack_url(pack, f"item-{pack_item.id}"),
+        "form_action_url": reverse(
+            "core:pack-delete-weapon-profile",
+            args=(pack.id, pack_item.id, profile.id),
+        ),
     }
     return render(request, "core/pack/weapon_profile_delete.html", context)
 
@@ -2705,6 +2797,430 @@ def archived_weapon_profiles(request, id, item_id):
             "back_url": edit_url,
             "back_text": str(equipment),
             "restore_next": edit_url,
+        },
+    )
+
+
+# --- Customise existing (library) weapons ---------------------------------
+#
+# These views support adding pack-scoped weapon profiles to library
+# weapons that are NOT owned by the pack. The pack only owns the new
+# CustomContentPackItem rows for the profiles it adds.
+
+
+def _get_pack_and_existing_weapon(pack_id, equipment_id, user):
+    """Fetch a pack and an existing (library) weapon, verifying user can edit pack.
+
+    The equipment is looked up via ``with_packs([pack])`` so pack-scoped
+    custom weapons are also valid targets — though the typical use case is
+    a library weapon. Non-weapon equipment is rejected.
+    """
+    pack = _get_pack_for_edit(pack_id, user)
+    equipment = get_object_or_404(
+        ContentEquipment.objects.with_packs([pack]),
+        id=equipment_id,
+    )
+    if not equipment.is_weapon():
+        raise Http404
+    return pack, equipment
+
+
+def _customise_weapon_back_url(pack, equipment):
+    return reverse("core:pack-customise-weapon", args=(pack.id, equipment.id))
+
+
+def _equipment_already_in_pack(pack, equipment):
+    """Return True if the given equipment is itself a pack item in this pack."""
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+    return CustomContentPackItem.objects.filter(
+        pack=pack,
+        content_type=equipment_ct,
+        object_id=equipment.pk,
+        archived=False,
+    ).exists()
+
+
+@login_required
+def customise_weapon_picker(request, id):
+    """Searchable picker of library weapons to customise with new profiles."""
+    pack = _get_pack_for_edit(id, request.user)
+
+    # Library weapons only — pack-owned weapons are managed via the regular
+    # weapon flow. ``ContentEquipmentManager.get_queryset`` already excludes
+    # pack content.
+    weapons_qs = (
+        ContentEquipment.objects.weapons()
+        .select_related("category")
+        .order_by("category__name", "name")
+    )
+
+    q = request.GET.get("q", "").strip()
+    if q:
+        weapons_qs = search_queryset(weapons_qs, q, ["name", "category__name"])
+
+    paginator = Paginator(weapons_qs, 25)
+    page_number = request.GET.get("page", 1)
+    page = paginator.get_page(page_number)
+
+    context = {
+        "pack": pack,
+        "weapons": page.object_list,
+        "page_obj": page,
+        "paginator": paginator,
+        "is_paginated": page.has_other_pages(),
+        "search_query": q,
+        "back_url": _pack_url(pack),
+    }
+    return render(request, "core/pack/customise_weapon_picker.html", context)
+
+
+@login_required
+def customise_weapon(request, id, equipment_id):
+    """Show pack-scoped profiles for a library weapon and let the user add more."""
+    pack, equipment = _get_pack_and_existing_weapon(id, equipment_id, request.user)
+
+    if _equipment_already_in_pack(pack, equipment):
+        # The weapon is owned by the pack — manage profiles via the regular
+        # flow. Filter on archived=False because the unique constraint on
+        # CustomContentPackItem only applies to active rows; an archived row
+        # could otherwise be returned and produce a dead anchor.
+        equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+        owning_item = CustomContentPackItem.objects.get(
+            pack=pack,
+            content_type=equipment_ct,
+            object_id=equipment.pk,
+            archived=False,
+        )
+        return HttpResponseRedirect(_pack_url(pack, f"item-{owning_item.id}"))
+
+    profiles_qs = (
+        ContentWeaponProfile.objects.with_packs([pack])
+        .filter(equipment=equipment)
+        .prefetch_related(
+            Prefetch(
+                "traits",
+                queryset=ContentWeaponTrait.objects.all_content(),
+            )
+        )
+    )
+
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    visible_profile_ids = list(profiles_qs.values_list("pk", flat=True))
+    # Use all_content() for the archived count denominator — profiles_qs comes
+    # from with_packs() which excludes archived pack items, so archived
+    # pack-scoped profiles wouldn't be in visible_profile_ids and the
+    # archived-count query would always be empty.
+    all_profile_ids = list(
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=equipment)
+        .values_list("pk", flat=True)
+    )
+    pack_profile_object_ids = set(
+        CustomContentPackItem.objects.filter(
+            pack=pack,
+            content_type=profile_ct,
+            object_id__in=visible_profile_ids,
+            archived=False,
+        ).values_list("object_id", flat=True)
+    )
+    archived_pack_profile_count = CustomContentPackItem.objects.filter(
+        pack=pack,
+        content_type=profile_ct,
+        object_id__in=all_profile_ids,
+        archived=True,
+    ).count()
+
+    profiles = list(profiles_qs)
+    for p in profiles:
+        p.is_pack_scoped = p.pk in pack_profile_object_ids
+    # Sort: library standard (no name) first, library named, pack-scoped last —
+    # so the pack author's customisations are anchored at the bottom.
+    profiles.sort(
+        key=lambda p: (
+            2 if p.is_pack_scoped else (0 if not p.name else 1),
+            p.name or "",
+        )
+    )
+
+    context = {
+        "pack": pack,
+        "equipment": equipment,
+        "profiles": profiles,
+        "pack_profile_count": len(pack_profile_object_ids),
+        "archived_pack_profile_count": archived_pack_profile_count,
+        "back_url": _pack_url(pack),
+    }
+    return render(request, "core/pack/customise_weapon.html", context)
+
+
+def _save_customised_weapon_profile(request, pack, equipment, profile, form, *, is_new):
+    """Shared save logic for add/edit of a customised-weapon profile.
+
+    Returns True on success (and writes a pack item for new profiles), or
+    False with errors attached to ``form``.
+    """
+    profile._history_user = request.user
+    for field_name, _, _ in _WEAPON_PROFILE_STAT_FIELDS:
+        raw = request.POST.get(f"wp_{field_name}", "") or ""
+        setattr(profile, field_name, raw.strip())
+
+    profile_name = (profile.name or "").strip()
+
+    duplicate_q = ContentWeaponProfile.objects.all_content().filter(
+        equipment=equipment, name=profile_name
+    )
+    if not is_new:
+        duplicate_q = duplicate_q.exclude(pk=profile.pk)
+    if duplicate_q.exists():
+        if profile_name == "":
+            msg = "This weapon already has a standard (unnamed) profile."
+        else:
+            msg = f'A profile named "{profile_name}" already exists for this weapon.'
+        form.add_error("name", msg)
+        return False
+
+    if profile_name != "" and profile.cost == 0:
+        unnamed_q = ContentWeaponProfile.objects.all_content().filter(
+            equipment=equipment, name=""
+        )
+        if not is_new:
+            unnamed_q = unnamed_q.exclude(pk=profile.pk)
+        if unnamed_q.exists():
+            form.add_error(
+                "cost",
+                "This weapon already has an unnamed standard profile. "
+                "Additional profiles must have a non-zero cost.",
+            )
+            return False
+
+    try:
+        with transaction.atomic():
+            profile.full_clean()
+            profile.save()
+            form.save_m2m()
+            if is_new:
+                ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+                pack_item = CustomContentPackItem(
+                    pack=pack,
+                    content_type=ct,
+                    object_id=profile.pk,
+                    owner=request.user,
+                )
+                pack_item.save_with_user(request.user)
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.CREATE if is_new else EventVerb.UPDATE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="weapon_profile",
+            weapon_name=str(equipment),
+            profile_name=profile.name or "(Standard)",
+        )
+        return True
+    except DjangoValidationError as e:
+        if hasattr(e, "message_dict"):
+            for field, messages_list in e.message_dict.items():
+                for message in messages_list:
+                    form.add_error(field if field != "__all__" else None, message)
+        else:
+            form.add_error(None, e.message)
+        return False
+    except IntegrityError as e:
+        if "equipment_id" in str(e).lower() or "name" in str(e).lower():
+            form.add_error(
+                "name",
+                "A profile with this name already exists for this weapon.",
+            )
+            return False
+        raise
+
+
+@login_required
+def add_customised_weapon_profile(request, id, equipment_id):
+    """Add a pack-scoped weapon profile to an existing library weapon."""
+    pack, equipment = _get_pack_and_existing_weapon(id, equipment_id, request.user)
+    back_url = _customise_weapon_back_url(pack, equipment)
+
+    if request.method == "POST":
+        form = ContentWeaponProfilePackForm(request.POST, pack=pack)
+        if form.is_valid():
+            profile = form.save(commit=False)
+            profile.equipment = equipment
+            if _save_customised_weapon_profile(
+                request, pack, equipment, profile, form, is_new=True
+            ):
+                return HttpResponseRedirect(back_url)
+    else:
+        form = ContentWeaponProfilePackForm(pack=pack)
+
+    context = {
+        "form": form,
+        "pack": pack,
+        "equipment": equipment,
+        "slug": "weapon",
+        "back_url": back_url,
+        "form_action_url": reverse(
+            "core:pack-customise-weapon-profile-add",
+            args=(pack.id, equipment.id),
+        ),
+        "weapon_stat_fields": _build_weapon_stat_context(request),
+    }
+    return render(request, "core/pack/weapon_profile_add.html", context)
+
+
+@login_required
+def edit_customised_weapon_profile(request, id, equipment_id, profile_id):
+    """Edit a pack-scoped weapon profile attached to a library weapon."""
+    pack, equipment = _get_pack_and_existing_weapon(id, equipment_id, request.user)
+    profile = get_object_or_404(
+        ContentWeaponProfile.objects.all_content(),
+        id=profile_id,
+        equipment=equipment,
+    )
+
+    # The profile must be owned by this pack — we only allow editing
+    # pack-scoped profiles, not library ones.
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    if not CustomContentPackItem.objects.filter(
+        pack=pack,
+        content_type=profile_ct,
+        object_id=profile.pk,
+        archived=False,
+    ).exists():
+        raise Http404
+
+    back_url = _customise_weapon_back_url(pack, equipment)
+
+    if request.method == "POST":
+        form = ContentWeaponProfilePackForm(request.POST, instance=profile, pack=pack)
+        if form.is_valid():
+            updated = form.save(commit=False)
+            if _save_customised_weapon_profile(
+                request, pack, equipment, updated, form, is_new=False
+            ):
+                return HttpResponseRedirect(back_url)
+    else:
+        form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
+
+    weapon_stat_context = []
+    for field_name, short_name, placeholder in _WEAPON_PROFILE_STAT_FIELDS:
+        entry_dict = {
+            "field_name": field_name,
+            "short_name": short_name,
+            "placeholder": placeholder,
+        }
+        if request.method == "POST":
+            entry_dict["value"] = request.POST.get(f"wp_{field_name}", "")
+        else:
+            entry_dict["value"] = getattr(profile, field_name, "")
+        weapon_stat_context.append(entry_dict)
+
+    context = {
+        "form": form,
+        "pack": pack,
+        "equipment": equipment,
+        "profile": profile,
+        "slug": "weapon",
+        "back_url": back_url,
+        "form_action_url": reverse(
+            "core:pack-customise-weapon-profile-edit",
+            args=(pack.id, equipment.id, profile.id),
+        ),
+        "delete_url": reverse(
+            "core:pack-customise-weapon-profile-delete",
+            args=(pack.id, equipment.id, profile.id),
+        ),
+        "weapon_stat_values": weapon_stat_context,
+    }
+    return render(request, "core/pack/weapon_profile_edit.html", context)
+
+
+@login_required
+def delete_customised_weapon_profile(request, id, equipment_id, profile_id):
+    """Archive a pack-scoped profile that was added to a library weapon."""
+    pack, equipment = _get_pack_and_existing_weapon(id, equipment_id, request.user)
+    profile = get_object_or_404(
+        ContentWeaponProfile.objects.all_content(),
+        id=profile_id,
+        equipment=equipment,
+    )
+
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_pack_item = get_object_or_404(
+        CustomContentPackItem,
+        pack=pack,
+        content_type=profile_ct,
+        object_id=profile.pk,
+        archived=False,
+    )
+
+    back_url = _customise_weapon_back_url(pack, equipment)
+
+    if request.method == "POST":
+        profile_pack_item._history_user = request.user
+        profile_pack_item.archive()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.ARCHIVE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="weapon_profile",
+            weapon_name=str(equipment),
+            profile_name=profile.name or "(Standard)",
+        )
+        return HttpResponseRedirect(back_url)
+
+    context = {
+        "pack": pack,
+        "equipment": equipment,
+        "profile": profile,
+        "slug": "weapon",
+        "back_url": back_url,
+        "form_action_url": reverse(
+            "core:pack-customise-weapon-profile-delete",
+            args=(pack.id, equipment.id, profile.id),
+        ),
+    }
+    return render(request, "core/pack/weapon_profile_delete.html", context)
+
+
+@login_required
+def archived_customised_weapon_profiles(request, id, equipment_id):
+    """Display archived pack-scoped profiles for a customised library weapon."""
+    pack, equipment = _get_pack_and_existing_weapon(id, equipment_id, request.user)
+
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    profile_ids = (
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=equipment)
+        .values_list("pk", flat=True)
+    )
+    archived_items = []
+    for item in CustomContentPackItem.objects.filter(
+        pack=pack, content_type=profile_ct, object_id__in=profile_ids, archived=True
+    ):
+        if item.content_object is not None:
+            archived_items.append(
+                {"pack_item": item, "content_object": item.content_object}
+            )
+
+    back_url = _customise_weapon_back_url(pack, equipment)
+    return render(
+        request,
+        "core/pack/pack_archived.html",
+        {
+            "pack": pack,
+            "archived_items": archived_items,
+            "section_label": "Weapon Profiles",
+            "back_url": back_url,
+            "back_text": str(equipment),
+            "restore_next": back_url,
         },
     )
 
