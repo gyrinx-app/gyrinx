@@ -46,14 +46,17 @@ class ContentQuerySet(models.QuerySet):
     def with_packs(self, packs):
         """Return items not in any pack plus items from specified packs.
 
-        Only non-archived pack items are considered when checking membership
-        in the specified packs, so archived (soft-deleted) content is excluded.
+        Archived ``CustomContentPackItem`` rows (and items inside an archived
+        ``CustomContentPack``) are intentionally still returned: archiving is a
+        pack-owner soft-delete and must not retract content from lists/gangs
+        already subscribed to the pack. See "Domain Rules → Content packs:
+        archive semantics" in CLAUDE.md.
         """
         from django.db.models import Exists, OuterRef
 
         pack_items = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
         not_in_any_pack = ~Exists(pack_items)
-        in_specified_packs = Exists(pack_items.filter(pack__in=packs, archived=False))
+        in_specified_packs = Exists(pack_items.filter(pack__in=packs))
         return self.filter(not_in_any_pack | in_specified_packs)
 
 

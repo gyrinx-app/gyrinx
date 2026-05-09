@@ -545,6 +545,43 @@ def test_subscribed_list_sees_pack_power_in_powers_edit(
 
 
 @pytest.mark.django_db
+def test_subscribed_list_sees_archived_pack_power_in_powers_edit(
+    client,
+    user,
+    pack,
+    pack_psyker_fighter,
+    pack_discipline,
+    pack_power,
+    content_house,
+):
+    """Archiving the CustomContentPackItem for a pack power must NOT hide it
+    from a list already subscribed to the pack (see #1742).
+    """
+    ContentFighterPsykerDisciplineAssignment.objects.create(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    ct = ContentType.objects.get_for_model(ContentFighterPsykerDisciplineAssignment)
+    assignment = ContentFighterPsykerDisciplineAssignment.objects.all_content().get(
+        fighter=pack_psyker_fighter, discipline=pack_discipline
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=assignment.pk, owner=pack.owner
+    )
+
+    # Archive the pack power's pack item — should still be visible to subscribers.
+    power_item = CustomContentPackItem.objects.get(pack=pack, object_id=pack_power.pk)
+    power_item.archived = True
+    power_item.save()
+
+    lst, lf = _make_subscribed_list(user, content_house, pack, pack_psyker_fighter)
+    client.force_login(user)
+    url = reverse("core:list-fighter-powers-edit", args=[lst.id, lf.id])
+    response = client.get(url)
+    assert response.status_code == 200
+    assert b"Pack Inferno" in response.content
+
+
+@pytest.mark.django_db
 def test_unsubscribed_list_hides_pack_power_in_powers_edit(
     client,
     user,

@@ -256,6 +256,58 @@ def test_content_manager_with_packs_excludes_other(
 
 
 @pytest.mark.django_db
+def test_with_packs_includes_archived_pack_item(pack, pack_fighter):
+    """Archiving a CustomContentPackItem must NOT hide the item from subscribers.
+
+    Pack archive is a soft-delete in the owner's library; subscribed lists
+    must keep seeing the content. See #1742.
+    """
+    item = CustomContentPackItem.objects.get(
+        pack=pack,
+        object_id=pack_fighter.pk,
+    )
+    item.archived = True
+    item.save()
+
+    fighters = ContentFighter.objects.with_packs([pack])
+    assert pack_fighter in fighters
+
+
+@pytest.mark.django_db
+def test_with_packs_includes_items_from_archived_pack(pack, pack_fighter):
+    """Archiving the CustomContentPack itself must NOT hide its content from subscribers."""
+    pack.archived = True
+    pack.save()
+
+    fighters = ContentFighter.objects.with_packs([pack])
+    assert pack_fighter in fighters
+
+
+@pytest.mark.django_db
+def test_with_packs_archived_equipment_visible(user):
+    """Archived pack equipment items remain visible to subscribers."""
+    pack = CustomContentPack.objects.create(name="Equip Pack", owner=user)
+    category = ContentEquipmentCategory.objects.create(
+        name="Test Cat 1742", group="Weapons & Ammo"
+    )
+    pack_equip = ContentEquipment.objects.all_content().create(
+        name="Pack Gun 1742", category=category, cost="20"
+    )
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ct,
+        object_id=pack_equip.pk,
+        owner=user,
+    )
+    item.archived = True
+    item.save()
+
+    pack_qs = ContentEquipment.objects.with_packs([pack])
+    assert pack_equip in pack_qs
+
+
+@pytest.mark.django_db
 def test_content_manager_filter_chaining(base_fighter, pack_fighter, house):
     """Ensure normal queryset filtering still works."""
     fighters = ContentFighter.objects.filter(house=house)

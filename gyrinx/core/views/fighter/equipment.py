@@ -610,7 +610,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     if packs:
         pack_content_map = {}
         for object_id, pname in (
-            CustomContentPackItem.objects.filter(pack__in=packs, archived=False)
+            CustomContentPackItem.objects.filter(pack__in=packs)
             .select_related("pack")
             .values_list("object_id", "pack__name")
         ):

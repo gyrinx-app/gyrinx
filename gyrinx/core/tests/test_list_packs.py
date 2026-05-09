@@ -378,6 +378,70 @@ class TestPackContentVisibility:
         rules = ContentRule.objects.with_packs(lst.packs.all())
         assert pack_rule in rules
 
+    def test_archived_pack_item_still_visible_to_subscriber(
+        self, make_list, pack, pack_fighter, content_house
+    ):
+        """Archiving the CustomContentPackItem must NOT hide it from subscribers (#1742)."""
+        item = CustomContentPackItem.objects.get(pack=pack, object_id=pack_fighter.pk)
+        item.archived = True
+        item.save()
+
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        fighters = ContentFighter.objects.with_packs(
+            lst.packs.all()
+        ).available_for_house(content_house)
+        assert pack_fighter in fighters
+
+    def test_items_in_archived_pack_still_visible_to_subscriber(
+        self, make_list, pack, pack_fighter, content_house
+    ):
+        """Archiving the pack itself must NOT hide its content from subscribers (#1742)."""
+        pack.archived = True
+        pack.save()
+
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        fighters = ContentFighter.objects.with_packs(
+            lst.packs.all()
+        ).available_for_house(content_house)
+        assert pack_fighter in fighters
+
+    def test_list_detail_pack_content_map_includes_archived_item(
+        self, client, cc_user, make_list, pack, pack_fighter
+    ):
+        """ListDetailView's pack_content_map must include archived pack items (#1742)."""
+        item = CustomContentPackItem.objects.get(pack=pack, object_id=pack_fighter.pk)
+        item.archived = True
+        item.save()
+
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        pack_content_map = response.context["pack_content_map"]
+        assert pack_fighter.pk in pack_content_map
+        assert pack.name in pack_content_map[pack_fighter.pk]
+
+    def test_list_detail_pack_content_map_includes_items_from_archived_pack(
+        self, client, cc_user, make_list, pack, pack_fighter
+    ):
+        """An archived pack must still surface its items to subscribers (#1742)."""
+        pack.archived = True
+        pack.save()
+
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        pack_content_map = response.context["pack_content_map"]
+        assert pack_fighter.pk in pack_content_map
+        assert pack.name in pack_content_map[pack_fighter.pk]
+
 
 @pytest.mark.django_db
 class TestPackDetailViewSubscription:

@@ -299,6 +299,34 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
 - **Security**: Always validate return URLs using `safe_redirect` when accepting redirect URLs from user input to
   prevent open redirect vulnerabilities
 
+### Domain Rules
+
+#### Content packs: archive semantics
+
+`archived` on `CustomContentPack` and `CustomContentPackItem` is a **pack-owner soft-delete**. It hides the pack/item
+from the owner's pack admin/editor and prevents new subscribers from picking it up — but it does **not** retract
+content from lists/gangs already subscribed.
+
+Once a list or campaign holds a pack in its `packs` M2M, every item in that pack stays visible to that list — even
+items where `archived=True`, and even if the whole pack has been archived. This applies to fighters, equipment,
+default assignments, weapon profiles, accessories, skills, rules, psyker disciplines, psyker powers, and any other
+pack-aware content.
+
+**Rules of thumb when querying packs / pack items:**
+
+- **Subscriber read paths** (anything driven by `list.packs` or `campaign.packs`) MUST NOT filter `archived=False` on
+  `CustomContentPack` or `CustomContentPackItem`. This applies to both directions: the M2M lookup that finds *which*
+  packs a list/campaign is subscribed to (e.g. `CustomContentPack.objects.filter(subscribed_lists__id=...)`), and the
+  pack-item lookup that resolves content within those packs. The canonical join is `ContentQuerySet.with_packs(packs)`
+  in `gyrinx/content/models/base.py` — use it rather than building a parallel filter.
+- **Pack-owner library views, gallery / featured listings, list-creation pack pickers, and campaign pack-add UIs** —
+  these are pack-discovery / write paths. Filtering `archived=False` is correct here so archived packs don't appear
+  as new options.
+- **Form validation and unique-constraint lookups** — also fine to filter `archived=False`; the unique constraint on
+  `CustomContentPackItem` is conditional on `archived=False` and code that looks up the "live" item must match.
+
+If you find a place where archived pack content is being hidden from subscribers, treat it as a bug (see #1742).
+
 ### Settings Configuration
 
 - `settings.py` - Production defaults
