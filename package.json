@@ -32,7 +32,7 @@
     "markdownlint-cli2-formatter-pretty": "^0.0.10",
     "nodemon": "^3.1.14",
     "npm-run-all": "^4.1.5",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.14",
     "postcss-cli": "^11.0.1",
     "prettier": "^3.8.3",
     "sass": "^1.99.0",
