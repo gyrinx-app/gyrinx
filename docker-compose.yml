@@ -5,6 +5,13 @@ services:
     image: postgres:16.4
     container_name: postgres
     restart: always
+    # Default max_locks_per_transaction (64) is too low when pytest-xdist
+    # spins up many workers that each create all tables via syncdb
+    # (--nomigrations). Mirrors the tuning in scripts/setup_web.sh (#1410).
+    command:
+      - postgres
+      - -c
+      - max_locks_per_transaction=256
     ports:
       - "${PG_HOSTPORT:-5432}:5432"
     environment:
