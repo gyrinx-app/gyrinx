@@ -24,7 +24,7 @@
                 {% endif %}
             </div>
             {% if profiles %}
-                <table class="table table-sm table-borderless mb-0 fs-7 border rounded">
+                <table class="table table-sm table-borderless mb-0 fs-7">
                     {% include "core/includes/weapon_stat_headers.html" with show_al=True %}
                     <tbody class="table-group-divider">
                         {% include "core/pack/includes/weapon_profiles_display.html" with profiles=profiles weapon=equipment can_edit=True show_al=True is_customised=True show_actions_row=False %}
