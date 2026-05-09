@@ -296,6 +296,41 @@ def test_delete_pack_scoped_profile_archives_pack_item(
     assert item.archived
 
 
+@pytest.mark.django_db
+def test_archived_profiles_link_visible_after_archiving_only_profile(
+    client, user, pack, library_weapon
+):
+    """Regression: after archiving a pack-scoped profile, the customise page
+    must still show the "Archived profiles" link so the user can restore it.
+
+    The bug was that the archived-count denominator used ``with_packs([pack])``,
+    which excludes archived pack items — so the count came back 0 and the link
+    disappeared.
+    """
+    client.force_login(user)
+    profile = ContentWeaponProfile.objects.create(
+        equipment=library_weapon, name="Inferno", cost=5
+    )
+    _add_to_pack(pack, profile)
+
+    # Archive the pack item.
+    profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
+    item = CustomContentPackItem.objects.get(
+        pack=pack, content_type=profile_ct, object_id=profile.pk
+    )
+    item.archived = True
+    item.save()
+
+    url = reverse("core:pack-customise-weapon", args=(pack.id, library_weapon.id))
+    response = client.get(url)
+    assert response.status_code == 200
+    archived_url = reverse(
+        "core:pack-customise-weapon-archived-profiles",
+        args=(pack.id, library_weapon.id),
+    )
+    assert archived_url.encode() in response.content
+
+
 # --- Pack detail surfacing ---------------------------------------------------
 
 

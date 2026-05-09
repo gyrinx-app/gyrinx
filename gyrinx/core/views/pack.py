@@ -937,18 +937,18 @@ class PackDetailView(generic.DetailView):
         # (i.e. customised existing weapons) — they aren't pack items themselves
         # so the equipment-driven loop above misses them.
         profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
-        pack_profile_items = CustomContentPackItem.objects.filter(
-            pack=pack, content_type=profile_ct, archived=False
+        pack_profile_ids = list(
+            CustomContentPackItem.objects.filter(
+                pack=pack, content_type=profile_ct, archived=False
+            ).values_list("object_id", flat=True)
         )
         owned_equipment_ids = {
             item.object_id
             for item in pack_items
             if item.content_type_id == equipment_ct.id and not item.archived
         }
-        if pack_profile_items.exists():
-            pack_profile_ids = list(
-                pack_profile_items.values_list("object_id", flat=True)
-            )
+        if pack_profile_ids:
+            pack_profile_id_set = set(pack_profile_ids)
             customised_equipment_ids = (
                 set(
                     ContentWeaponProfile.objects.all_content()
@@ -970,31 +970,28 @@ class PackDetailView(generic.DetailView):
                     (s for s in content_sections if s["slug"] == "weapon"), None
                 )
                 if weapon_section is not None:
-                    customised_entries = []
-                    for eq in customised_weapons:
-                        profiles = list(
-                            ContentWeaponProfile.objects.with_packs([pack])
-                            .filter(equipment=eq)
-                            .prefetch_related(
-                                Prefetch(
-                                    "traits",
-                                    queryset=ContentWeaponTrait.objects.all_content(),
-                                )
+                    # Bulk-fetch all profiles for all customised weapons in
+                    # one query, then group in Python — avoids an N+1 across
+                    # customised weapons. Reuse pack_profile_id_set to mark
+                    # pack-scoped rows without another CustomContentPackItem
+                    # query per weapon.
+                    profiles_by_equipment = defaultdict(list)
+                    for p in (
+                        ContentWeaponProfile.objects.with_packs([pack])
+                        .filter(equipment_id__in=customised_equipment_ids)
+                        .prefetch_related(
+                            Prefetch(
+                                "traits",
+                                queryset=ContentWeaponTrait.objects.all_content(),
                             )
                         )
-                        # Identify which profiles are pack-scoped (vs library) so
-                        # the template knows which Edit links to render and to
-                        # sort pack-scoped rows to the bottom.
-                        pack_profile_object_ids = set(
-                            CustomContentPackItem.objects.filter(
-                                pack=pack,
-                                content_type=profile_ct,
-                                object_id__in=[p.pk for p in profiles],
-                                archived=False,
-                            ).values_list("object_id", flat=True)
-                        )
-                        for p in profiles:
-                            p.is_pack_scoped = p.pk in pack_profile_object_ids
+                    ):
+                        p.is_pack_scoped = p.pk in pack_profile_id_set
+                        profiles_by_equipment[p.equipment_id].append(p)
+
+                    customised_entries = []
+                    for eq in customised_weapons:
+                        profiles = profiles_by_equipment.get(eq.id, [])
                         profiles.sort(
                             key=lambda p: (
                                 2 if p.is_pack_scoped else (0 if not p.name else 1),
@@ -2883,13 +2880,18 @@ def customise_weapon(request, id, equipment_id):
     pack, equipment = _get_pack_and_existing_weapon(id, equipment_id, request.user)
 
     if _equipment_already_in_pack(pack, equipment):
-        # The weapon is owned by the pack — manage profiles via the regular flow.
+        # The weapon is owned by the pack — manage profiles via the regular
+        # flow. Filter on archived=False because the unique constraint on
+        # CustomContentPackItem only applies to active rows; an archived row
+        # could otherwise be returned and produce a dead anchor.
         equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
-        owning_item = CustomContentPackItem.objects.filter(
-            pack=pack, content_type=equipment_ct, object_id=equipment.pk
-        ).first()
-        if owning_item is not None:
-            return HttpResponseRedirect(_pack_url(pack, f"item-{owning_item.id}"))
+        owning_item = CustomContentPackItem.objects.get(
+            pack=pack,
+            content_type=equipment_ct,
+            object_id=equipment.pk,
+            archived=False,
+        )
+        return HttpResponseRedirect(_pack_url(pack, f"item-{owning_item.id}"))
 
     profiles_qs = (
         ContentWeaponProfile.objects.with_packs([pack])
@@ -2903,19 +2905,28 @@ def customise_weapon(request, id, equipment_id):
     )
 
     profile_ct = ContentType.objects.get_for_model(ContentWeaponProfile)
-    profile_ids = list(profiles_qs.values_list("pk", flat=True))
+    visible_profile_ids = list(profiles_qs.values_list("pk", flat=True))
+    # Use all_content() for the archived count denominator — profiles_qs comes
+    # from with_packs() which excludes archived pack items, so archived
+    # pack-scoped profiles wouldn't be in visible_profile_ids and the
+    # archived-count query would always be empty.
+    all_profile_ids = list(
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=equipment)
+        .values_list("pk", flat=True)
+    )
     pack_profile_object_ids = set(
         CustomContentPackItem.objects.filter(
             pack=pack,
             content_type=profile_ct,
-            object_id__in=profile_ids,
+            object_id__in=visible_profile_ids,
             archived=False,
         ).values_list("object_id", flat=True)
     )
     archived_pack_profile_count = CustomContentPackItem.objects.filter(
         pack=pack,
         content_type=profile_ct,
-        object_id__in=profile_ids,
+        object_id__in=all_profile_ids,
         archived=True,
     ).count()
 
