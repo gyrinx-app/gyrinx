@@ -2,6 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
 
+from gyrinx.content.models.attribute import ContentAttribute, ContentAttributeValue
 from gyrinx.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.content.models.house import ContentHouse
@@ -863,6 +864,115 @@ class ContentSkillPackForm(forms.ModelForm):
             if qs.exists():
                 raise ValidationError(
                     "A skill with this name already exists in this skill tree."
+                )
+        return value
+
+
+class ContentAttributePackForm(forms.ModelForm):
+    """Form for adding/editing gang attributes in a content pack."""
+
+    class Meta:
+        model = ContentAttribute
+        fields = ["name", "is_single_select", "restricted_to"]
+        labels = {
+            "name": "Name",
+            "is_single_select": "Single-select",
+            "restricted_to": "Restricted to houses",
+        }
+        help_texts = {
+            "name": "The name of the attribute (e.g. 'Alignment', 'Alliance').",
+            "is_single_select": "If checked, only one value can be selected. Otherwise multiple values are allowed.",
+            "restricted_to": "If any houses are selected, the attribute is only available to lists in those houses. Leave empty to make it available to all houses.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "is_single_select": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
+            "restricted_to": BsCheckboxSelectMultipleCompact(),
+        }
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        qs = ContentAttribute.objects.all_content().filter(name__iexact=value)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(
+                "An attribute with this name already exists in the content library."
+            )
+        return value
+
+
+class ContentAttributeValuePackForm(forms.ModelForm):
+    """Form for adding/editing gang-attribute values in a content pack."""
+
+    class Meta:
+        model = ContentAttributeValue
+        fields = ["name", "attribute", "description"]
+        labels = {
+            "name": "Name",
+            "attribute": "Attribute",
+            "description": "Description",
+        }
+        help_texts = {
+            "name": "The value name (e.g. 'Law Abiding', 'Outlaw').",
+            "attribute": "The attribute this value belongs to.",
+            "description": "Optional description of what this value represents.",
+        }
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "attribute": forms.Select(attrs={"class": "form-select"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pack = pack
+        if pack is not None:
+            qs = ContentAttribute.objects.with_packs([pack])
+        else:
+            qs = ContentAttribute.objects.all()
+        self.fields["attribute"].queryset = qs
+
+        # Group choices into "Default" (base game) and "Custom" (pack content)
+        if pack is not None:
+            from gyrinx.core.models.pack import CustomContentPackItem
+
+            pack_attr_ids = set(
+                CustomContentPackItem.objects.filter(
+                    pack=pack,
+                    content_type__model="contentattribute",
+                    archived=False,
+                ).values_list("object_id", flat=True)
+            )
+            default_choices = []
+            custom_choices = []
+            for attr in qs.order_by("name"):
+                choice = (attr.pk, str(attr))
+                if attr.pk in pack_attr_ids:
+                    custom_choices.append(choice)
+                else:
+                    default_choices.append(choice)
+            grouped = [("", "---------")]
+            if custom_choices:
+                grouped.append(("Custom", custom_choices))
+            if default_choices:
+                grouped.append(("Default", default_choices))
+            self.fields["attribute"].choices = grouped
+
+    def clean_name(self):
+        value = self.cleaned_data["name"]
+        attribute = self.cleaned_data.get("attribute")
+        if attribute:
+            qs = ContentAttributeValue.objects.all_content().filter(
+                name__iexact=value, attribute=attribute
+            )
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "A value with this name already exists for this attribute."
                 )
         return value
 

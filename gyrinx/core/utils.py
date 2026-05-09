@@ -186,11 +186,12 @@ def get_list_attributes(list_obj):
             assignment_map[attr_id] = []
         assignment_map[attr_id].append(assignment["attribute_value__name"])
 
-    # Get all available attributes in a single query using values to avoid object queries
+    # Get all available attributes in a single query using values to avoid
+    # object queries. Use with_packs() so pack-scoped attributes appear for
+    # lists subscribed to the pack.
     available_attributes = list(
-        ContentAttribute.objects.filter(
-            Q(restricted_to__isnull=True) | Q(restricted_to=list_obj.content_house)
-        )
+        ContentAttribute.objects.with_packs(list_obj.packs.all())
+        .filter(Q(restricted_to__isnull=True) | Q(restricted_to=list_obj.content_house))
         .distinct()
         .order_by("name")
         .values("id", "name")

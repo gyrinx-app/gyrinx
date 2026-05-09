@@ -793,11 +793,12 @@ class List(AppBase):
             attr_id = attribute_assign.attribute_value.attribute_id
             assignment_map[attr_id].append(attribute_assign.attribute_value.name)
 
-        # Get all available attributes in a single query using values to avoid object queries
+        # Get all available attributes in a single query using values to avoid
+        # object queries. Use with_packs() so pack-scoped attributes are
+        # surfaced for lists subscribed to the pack.
         available_attributes = list(
-            ContentAttribute.objects.filter(
-                Q(restricted_to__isnull=True) | Q(restricted_to=self.content_house)
-            )
+            ContentAttribute.objects.with_packs(self.packs.all())
+            .filter(Q(restricted_to__isnull=True) | Q(restricted_to=self.content_house))
             .distinct()
             .order_by("name")
             .values("id", "name")

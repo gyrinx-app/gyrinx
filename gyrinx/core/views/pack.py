@@ -20,6 +20,7 @@ from django.views import generic
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
+from gyrinx.content.models.attribute import ContentAttribute, ContentAttributeValue
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import (
     AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY,
@@ -52,6 +53,8 @@ from gyrinx.content.models.weapon import (
     ContentWeaponTrait,
 )
 from gyrinx.core.forms.pack import (
+    ContentAttributePackForm,
+    ContentAttributeValuePackForm,
     ContentFighterPackForm,
     ContentGearPackForm,
     ContentHouseForm,
@@ -153,6 +156,24 @@ SUPPORTED_CONTENT_TYPES = [
         ContentPsykerPowerPackForm,
         "psyker-power",
         singular_label="Psyker Power",
+    ),
+    ContentTypeEntry(
+        ContentAttribute,
+        "Gang Attributes",
+        "Custom gang attributes for your Content Pack.",
+        "bi-tag",
+        ContentAttributePackForm,
+        "attribute",
+        singular_label="Gang Attribute",
+    ),
+    ContentTypeEntry(
+        ContentAttributeValue,
+        "Gang Attribute Values",
+        "Custom values for gang attributes in your Content Pack.",
+        "bi-bookmark",
+        ContentAttributeValuePackForm,
+        "attribute-value",
+        singular_label="Gang Attribute Value",
     ),
     # --- Equipment ---
     ContentTypeEntry(
@@ -902,6 +923,34 @@ class PackDetailView(generic.DetailView):
                     archived_by_slug.get("skill-tree", [])
                 )
 
+            # Group attribute values by attribute, mirroring skills.
+            if ct_entry.slug == "attribute-value":
+                from collections import OrderedDict
+
+                grouped = OrderedDict()
+                attribute_items = active_by_slug.get("attribute", [])
+                for attr_item in attribute_items:
+                    attr = attr_item["content_object"]
+                    grouped[attr.id] = {
+                        "attribute": attr,
+                        "pack_item": attr_item["pack_item"],
+                        "values": [],
+                    }
+                for item_data in items:
+                    value = item_data["content_object"]
+                    attr = value.attribute
+                    if attr.id not in grouped:
+                        grouped[attr.id] = {
+                            "attribute": attr,
+                            "pack_item": None,
+                            "values": [],
+                        }
+                    grouped[attr.id]["values"].append(item_data)
+                section["attribute_groups"] = list(grouped.values())
+                section["attribute_archived_count"] = len(
+                    archived_by_slug.get("attribute", [])
+                )
+
             # Group psyker powers by discipline for display, mirroring skills.
             if ct_entry.slug == "psyker-power":
                 from collections import OrderedDict
@@ -1470,6 +1519,7 @@ def _form_kwargs(entry, pack):
         ContentWeaponAccessoryPackForm,
         ContentSkillPackForm,
         ContentPsykerPowerPackForm,
+        ContentAttributeValuePackForm,
     ):
         return {"pack": pack}
     return {}
@@ -1743,6 +1793,9 @@ def add_pack_item(request, id, content_type_slug):
         # Pre-select discipline from query param (e.g., psyker discipline → power)
         if "discipline" in request.GET and "discipline" in form.fields:
             form.initial["discipline"] = request.GET["discipline"]
+        # Pre-select attribute from query param (e.g., attribute → value)
+        if "attribute" in request.GET and "attribute" in form.fields:
+            form.initial["attribute"] = request.GET["attribute"]
 
     context = {
         "form": form,
@@ -2177,6 +2230,21 @@ def delete_pack_item(request, id, item_id):
             ):
                 skill_item._history_user = request.user
                 skill_item.archive()
+        # Cascade archive to attribute values when archiving an attribute.
+        if isinstance(content_obj, ContentAttribute):
+            value_ct = ContentType.objects.get_for_model(ContentAttributeValue)
+            value_ids = set(
+                ContentAttributeValue.objects.all_content()
+                .filter(attribute=content_obj)
+                .values_list("id", flat=True)
+            )
+            for value_item in pack.items.filter(
+                content_type=value_ct,
+                object_id__in=value_ids,
+                archived=False,
+            ):
+                value_item._history_user = request.user
+                value_item.archive()
         # Cascade archive to powers, fighter-discipline assignments, and
         # default-power assignments when archiving a psyker discipline.
         # Otherwise subscribed lists keep seeing orphaned powers, stale
@@ -2242,6 +2310,8 @@ def delete_pack_item(request, id, item_id):
             fragment = "skill"
         elif fragment == "psyker-discipline":
             fragment = "psyker-power"
+        elif fragment == "attribute":
+            fragment = "attribute-value"
         return HttpResponseRedirect(_pack_url(pack, fragment))
 
     return render(
@@ -2323,6 +2393,32 @@ def restore_pack_item(request, id, item_id):
         if tree_item:
             tree_item._history_user = request.user
             tree_item.unarchive()
+    # Cascade restore for attribute → values, and restoring a value should
+    # also restore its parent attribute if archived.
+    if isinstance(content_obj, ContentAttribute):
+        value_ct = ContentType.objects.get_for_model(ContentAttributeValue)
+        value_ids = set(
+            ContentAttributeValue.objects.all_content()
+            .filter(attribute=content_obj)
+            .values_list("id", flat=True)
+        )
+        for value_item in pack.items.filter(
+            content_type=value_ct,
+            object_id__in=value_ids,
+            archived=True,
+        ):
+            value_item._history_user = request.user
+            value_item.unarchive()
+    if isinstance(content_obj, ContentAttributeValue):
+        attr_ct = ContentType.objects.get_for_model(ContentAttribute)
+        attr_item = pack.items.filter(
+            content_type=attr_ct,
+            object_id=content_obj.attribute_id,
+            archived=True,
+        ).first()
+        if attr_item:
+            attr_item._history_user = request.user
+            attr_item.unarchive()
     # Cascade restore to powers, fighter-discipline assignments, and
     # default-power assignments when restoring a psyker discipline
     # (mirrors the archive cascade above).
