@@ -892,6 +892,15 @@ class ContentAttributePackForm(forms.ModelForm):
             "restricted_to": BsCheckboxSelectMultipleCompact(),
         }
 
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pack = pack
+        if pack is not None:
+            # Pack-aware so houses authored in this pack are selectable.
+            self.fields["restricted_to"].queryset = ContentHouse.objects.with_packs(
+                [pack]
+            ).order_by("name")
+
     def clean_name(self):
         value = self.cleaned_data["name"]
         qs = ContentAttribute.objects.all_content().filter(name__iexact=value)

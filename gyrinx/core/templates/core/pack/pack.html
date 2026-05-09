@@ -349,16 +349,7 @@
                                     {% for group in section.attribute_groups %}
                                         <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
                                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">
-                                                    {{ group.attribute.name }}
-                                                    <span class="text-secondary text-lowercase fw-normal ms-1">
-                                                        {% if group.attribute.is_single_select %}
-                                                            single-select
-                                                        {% else %}
-                                                            multi-select
-                                                        {% endif %}
-                                                    </span>
-                                                </div>
+                                                <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.attribute.name }}</div>
                                                 <span class="d-flex gap-2 align-items-center">
                                                     {% if can_edit %}
                                                         <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}?attribute={{ group.attribute.id }}"

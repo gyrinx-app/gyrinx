@@ -1519,6 +1519,7 @@ def _form_kwargs(entry, pack):
         ContentWeaponAccessoryPackForm,
         ContentSkillPackForm,
         ContentPsykerPowerPackForm,
+        ContentAttributePackForm,
         ContentAttributeValuePackForm,
     ):
         return {"pack": pack}
