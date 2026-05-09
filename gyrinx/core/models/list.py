@@ -6,6 +6,7 @@ from typing import Optional, Union
 
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
 from django.core.exceptions import ValidationError
@@ -714,6 +715,69 @@ class List(AppBase):
     @traced("list_owner_cached")
     def owner_cached(self):
         return self.owner
+
+    @cached_property
+    @traced("list_pack_mods_by_target")
+    def pack_mods_by_target(self) -> dict:
+        """
+        Pack-scoped house-rule mods that apply to this list, grouped by target.
+
+        Returns a dict keyed by ``(content_type_id, object_id)`` to a list of
+        polymorphic ``ContentMod`` instances. Built from
+        ``ContentModApplication.objects.with_packs(self.packs.all())`` — one
+        query per list. Empty when the list subscribes to no packs.
+
+        Consumers (``ListFighter._mods``, ``ListFighterEquipmentAssignment._mods``,
+        ``VirtualWeaponProfile`` construction sites) look up the dict by their
+        target's ``(content_type_id, object_id)`` and union the returned mods
+        into their existing mod list.
+
+        Performance: uses ``self.packs.all()`` (not ``values_list``) so the
+        ``packs`` prefetch from ``with_related_data`` is honoured. Returns
+        immediately with an empty dict when the list subscribes to no packs.
+        """
+        from gyrinx.content.models import ContentMod, ContentModApplication
+
+        result: dict = defaultdict(list)
+        # Use .all() so the with_related_data prefetch cache is honoured.
+        # values_list() would bypass the cache and issue a new query.
+        packs = list(self.packs.all())
+        if not packs:
+            return result
+
+        pack_ids = [p.pk for p in packs]
+        applications = ContentModApplication.objects.with_packs(
+            pack_ids
+        ).select_related("modifier", "target_content_type")
+        # ``modifier`` is a polymorphic FK — re-fetch as polymorphic instances
+        # so isinstance(mod, ContentModStat/...) works downstream. Done in a
+        # single query keyed by id.
+        mod_ids = [a.modifier_id for a in applications]
+        polymorphic_mods = {m.pk: m for m in ContentMod.objects.filter(pk__in=mod_ids)}
+        for app in applications:
+            mod = polymorphic_mods.get(app.modifier_id)
+            if mod is None:
+                continue
+            key = (app.target_content_type_id, app.target_object_id)
+            result[key].append(mod)
+        return result
+
+    def pack_mods_for(self, target) -> list:
+        """Return pack-scoped mods applying to ``target`` (a Content instance).
+
+        ``target`` may be ``None`` (returns ``[]``) or any model instance whose
+        ``(ContentType, pk)`` is a key in ``pack_mods_by_target``. Lookup is
+        keyed by ``ContentType.id`` so polymorphic models resolve correctly.
+        Returns ``[]`` when no pack mods exist for this list — short-circuits
+        the ``ContentType.get_for_model()`` lookup, which would otherwise be
+        the only DB query for an unsubscribed list.
+        """
+        if target is None:
+            return []
+        if not self.pack_mods_by_target:
+            return []
+        ct = ContentType.objects.get_for_model(type(target))
+        return self.pack_mods_by_target.get((ct.id, target.pk), [])
 
     @cached_property
     @traced("list_content_house_cached")
@@ -2420,7 +2484,12 @@ class ListFighter(AppBase):
             )
         ]
 
-        return equipment_mods + injury_mods + advancement_mods
+        # Pack-scoped house-rule mods targeting this fighter's content_fighter
+        # (e.g. "fighter X gets +1 toughness as a house rule"). Empty when no
+        # packs are subscribed.
+        pack_mods = list(self.list.pack_mods_for(self.content_fighter))
+
+        return equipment_mods + injury_mods + advancement_mods + pack_mods
 
     @traced("listfighter_apply_mods")
     def _apply_mods(
@@ -3987,8 +4056,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
     @traced("listfighterequipmentassignment_profile_cost_int")
     def weapon_profiles(self):
+        list_obj = self.list_fighter.list
         return [
-            VirtualWeaponProfile(p, self._mods)
+            VirtualWeaponProfile(p, self._mods + list(list_obj.pack_mods_for(p)))
             for p in self.weapon_profiles_field.all()
         ]
 
@@ -4028,8 +4098,9 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     @traced("listfighterequipmentassignment_standard_profiles")
     def standard_profiles(self):
         # TODO: There is nothing in the prefetch cache here
+        list_obj = self.list_fighter.list
         return [
-            VirtualWeaponProfile(p, self._mods)
+            VirtualWeaponProfile(p, self._mods + list(list_obj.pack_mods_for(p)))
             for p in self.content_equipment.contentweaponprofile_set.all()
             if p.cost == 0
         ]
@@ -4064,10 +4135,18 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         - the equipment itself
         - accessories
         - upgrades
+        - pack-scoped house-rule mods targeting this assignment's equipment
+          (the equipment-level lookup; per-profile house-rule mods are unioned
+          in at ``VirtualWeaponProfile`` construction time).
         """
         mods = [m for a in self.weapon_accessories_cached for m in a.modifiers.all()]
         mods += list(self.content_equipment_cached.modifiers.all())
         mods += [m for u in self.upgrades_field.all() for m in u.modifiers.all()]
+        # Pack-scoped house rules targeting this equipment apply to every
+        # profile of the weapon (and to fighter stats when they're equipped).
+        mods += list(
+            self.list_fighter.list.pack_mods_for(self.content_equipment_cached)
+        )
         return mods
 
     # Costs
@@ -4955,6 +5034,35 @@ class VirtualListFighterEquipmentAssignment:
         """
         return f"{self.equipment}"
 
+    def _rebuild_profiles_with_pack_mods(self, virtual_profiles):
+        """Rebuild a list of VirtualWeaponProfiles to include pack-scoped mods.
+
+        Default-assignment profiles are constructed in ``content/`` without
+        knowledge of the list, so they don't include the list's pack
+        house-rule mods. When we wrap a ``ContentFighterDefaultAssignment``
+        we rebuild the virtual profiles here so pack mods (both
+        equipment-scoped and profile-scoped) get applied. For
+        already-list-aware ``ListFighterEquipmentAssignment`` profiles, the
+        pack mods are unioned in at construction time and we don't rebuild.
+        """
+        if not isinstance(self._assignment, ContentFighterDefaultAssignment):
+            return virtual_profiles
+        if self.fighter is None:
+            return virtual_profiles
+        list_obj = self.fighter.list
+        if not list_obj.pack_mods_by_target:
+            return virtual_profiles
+
+        equipment_mods = list(list_obj.pack_mods_for(self.equipment))
+        rebuilt = []
+        for vp in virtual_profiles:
+            extra = equipment_mods + list(list_obj.pack_mods_for(vp.profile))
+            if not extra:
+                rebuilt.append(vp)
+                continue
+            rebuilt.append(VirtualWeaponProfile(vp.profile, vp.mods + extra))
+        return rebuilt
+
     def all_profiles(self):
         """
         Return all profiles for this equipment.
@@ -4962,10 +5070,11 @@ class VirtualListFighterEquipmentAssignment:
         if not self._assignment:
             return self.profiles
 
-        if self._assignment.all_profiles_cached:
-            return self._assignment.all_profiles_cached
+        cached = getattr(self._assignment, "all_profiles_cached", None)
+        if cached:
+            return self._rebuild_profiles_with_pack_mods(cached)
 
-        return self._assignment.all_profiles()
+        return self._rebuild_profiles_with_pack_mods(self._assignment.all_profiles())
 
     @cached_property
     def all_profiles_cached(self):
@@ -4979,9 +5088,13 @@ class VirtualListFighterEquipmentAssignment:
             return [profile for profile in self.profiles if profile.cost == 0]
 
         if self._assignment.standard_profiles_cached:
-            return self._assignment.standard_profiles_cached
+            return self._rebuild_profiles_with_pack_mods(
+                self._assignment.standard_profiles_cached
+            )
 
-        return self._assignment.standard_profiles()
+        return self._rebuild_profiles_with_pack_mods(
+            self._assignment.standard_profiles()
+        )
 
     @cached_property
     def standard_profiles_cached(self):
@@ -4995,9 +5108,11 @@ class VirtualListFighterEquipmentAssignment:
             return [profile for profile in self.profiles if profile.cost_int() > 0]
 
         if self._assignment.weapon_profiles_cached:
-            return self._assignment.weapon_profiles_cached
+            return self._rebuild_profiles_with_pack_mods(
+                self._assignment.weapon_profiles_cached
+            )
 
-        return self._assignment.weapon_profiles()
+        return self._rebuild_profiles_with_pack_mods(self._assignment.weapon_profiles())
 
     @cached_property
     def weapon_profiles_cached(self):
@@ -5211,7 +5326,18 @@ class VirtualListFighterEquipmentAssignment:
         if not self._assignment:
             return []
 
-        return self._assignment._mods
+        mods = list(self._assignment._mods)
+
+        # Default assignments don't know about the list's packs (they live in
+        # ``content/`` and have no list reference), so we add equipment-scoped
+        # pack mods here. ListFighterEquipmentAssignment._mods already does
+        # this work for direct assignments.
+        if isinstance(self._assignment, ContentFighterDefaultAssignment):
+            list_obj = self.fighter.list if self.fighter else None
+            if list_obj is not None:
+                mods += list(list_obj.pack_mods_for(self.equipment))
+
+        return mods
 
 
 class ListFighterPsykerPowerAssignment(Base, Archived):

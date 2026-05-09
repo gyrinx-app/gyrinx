@@ -1,0 +1,79 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Add house rule - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 col-lg-8 px-0 vstack gap-3">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi-megaphone"></i> Add house rule
+            </h1>
+            <p class="text-secondary mb-0">
+                Pick what this house rule changes. The library content itself
+                isn't modified — Lists subscribed to this Content Pack will see
+                the modified stats wherever the target appears.
+            </p>
+        </div>
+        <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+            <label for="target_type" class="form-label mb-0 fs-7">Target type</label>
+            <select name="target_type"
+                    id="target_type"
+                    class="form-select form-select-sm w-auto"
+                    onchange="this.form.submit()">
+                {% for slug, label in target_choices %}
+                    <option value="{{ slug }}" {% if slug == target_type %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <input type="search"
+                   name="q"
+                   value="{{ search_query }}"
+                   placeholder="Search by name"
+                   class="form-control form-control-sm flex-grow-1"
+                   aria-label="Search">
+            <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+        </form>
+        {% if results %}
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="target_type" value="{{ target_type }}">
+                <div class="border rounded">
+                    <ul class="list-group list-group-flush">
+                        {% for obj in results %}
+                            <li class="list-group-item d-flex align-items-center gap-2">
+                                <button type="submit"
+                                        name="target_id"
+                                        value="{{ obj.id }}"
+                                        class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
+                                    {% if target_type == "weapon-profile" %}
+                                        {{ obj.equipment.name }}
+                                        {% if obj.name %}({{ obj.name }}){% endif %}
+                                    {% elif target_type == "fighter" %}
+                                        {{ obj.type }}
+                                    {% else %}
+                                        {{ obj.name }}
+                                    {% endif %}
+                                </button>
+                                {% if target_type == "fighter" %}
+                                    {% if obj.house %}<span class="text-secondary fs-7">{{ obj.house.name }}</span>{% endif %}
+                                {% elif obj.category %}
+                                    <span class="text-secondary fs-7">{{ obj.category.name }}</span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </form>
+            {% include "core/includes/pagination.html" %}
+        {% else %}
+            <p class="text-secondary mb-0">
+                {% if search_query %}
+                    No {{ target_label|lower }} matches "{{ search_query }}".
+                {% else %}
+                    No {{ target_label|lower }} available.
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+{% endblock content %}

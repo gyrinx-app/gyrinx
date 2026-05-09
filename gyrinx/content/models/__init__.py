@@ -76,6 +76,7 @@ from .psyker import (
 )
 from .modifier import (
     ContentMod,
+    ContentModApplication,
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
@@ -189,6 +190,7 @@ __all__ = [
     "ContentPsykerPower",
     # Modifiers
     "ContentMod",
+    "ContentModApplication",
     "ContentModFighterRule",
     "ContentModFighterSkill",
     "ContentModFighterStat",

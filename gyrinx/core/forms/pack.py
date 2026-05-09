@@ -1271,3 +1271,106 @@ class ContentPsykerPowerPackForm(forms.ModelForm):
                     "A psyker power with this name already exists in this discipline."
                 )
         return value
+
+
+# House-rule mod target choices. These map to the slug used in URLs and to
+# the ContentType being targeted.
+HOUSE_RULE_TARGET_CHOICES = [
+    ("weapon", "Weapon (all profiles)"),
+    ("weapon-profile", "Weapon profile"),
+    ("gear", "Gear"),
+    ("fighter", "Fighter"),
+]
+
+
+class ContentHouseRuleForm(forms.Form):
+    """Single-form house-rule definition: target + mod fields.
+
+    Backed by ``ContentModApplication`` + a freshly-created ``ContentMod``
+    (a ``ContentModStat`` for weapon targets, a ``ContentModFighterStat``
+    for fighter / gear targets). The view creates the mod, application,
+    and ``CustomContentPackItem`` in one transaction.
+    """
+
+    MODE_CHOICES = [
+        ("improve", "Improve"),
+        ("worsen", "Worsen"),
+        ("set", "Set"),
+    ]
+
+    target_type = forms.ChoiceField(
+        choices=HOUSE_RULE_TARGET_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text=(
+            "Pick what kind of thing this house rule changes. Weapon-stat "
+            "rules apply to a Weapon or a single Profile; fighter-stat rules "
+            "apply to a Fighter or a piece of Gear."
+        ),
+    )
+    target_id = forms.UUIDField(
+        widget=forms.HiddenInput(),
+        required=True,
+    )
+    target_label = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "readonly": True}),
+        label="Target",
+    )
+
+    stat = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="The statistic to modify.",
+    )
+    mode = forms.ChoiceField(
+        choices=MODE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Improve nudges the stat in the helpful direction; Worsen the opposite; Set replaces it.",
+    )
+    value = forms.CharField(
+        max_length=5,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+        help_text="A number, e.g. 1.",
+    )
+
+    # Weapon stat choices match ContentModStat.stat
+    WEAPON_STAT_CHOICES = [
+        ("strength", "Strength"),
+        ("range_short", "Range (Short)"),
+        ("range_long", "Range (Long)"),
+        ("accuracy_short", "Accuracy (Short)"),
+        ("accuracy_long", "Accuracy (Long)"),
+        ("armour_piercing", "Armour Piercing"),
+        ("damage", "Damage"),
+        ("ammo", "Ammo"),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Build fighter stat choices from ContentStat — mirrors the admin
+        # dynamic-choices pattern in ContentModFighterStatAdminForm.
+        from gyrinx.content.models.statline import ContentStat
+
+        fighter_stat_choices = [
+            (s.field_name, s.full_name)
+            for s in ContentStat.objects.all().order_by("full_name")
+        ]
+        # Default the choices to weapon stats; the view can swap them based
+        # on the chosen target_type before validating.
+        self.fields["stat"].choices = self.WEAPON_STAT_CHOICES + fighter_stat_choices
+        self._fighter_stat_field_names = {fc for fc, _ in fighter_stat_choices}
+        self._weapon_stat_field_names = {fc for fc, _ in self.WEAPON_STAT_CHOICES}
+
+    def clean(self):
+        cleaned = super().clean()
+        target_type = cleaned.get("target_type")
+        stat = cleaned.get("stat")
+        if not stat or not target_type:
+            return cleaned
+
+        if target_type in ("weapon", "weapon-profile"):
+            if stat not in self._weapon_stat_field_names:
+                self.add_error("stat", "Pick a weapon stat for a weapon target.")
+        elif target_type in ("gear", "fighter"):
+            if stat not in self._fighter_stat_field_names:
+                self.add_error("stat", "Pick a fighter stat for this target.")
+        return cleaned

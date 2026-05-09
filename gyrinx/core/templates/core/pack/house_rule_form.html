@@ -1,0 +1,68 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    {% if is_new %}
+        Add
+    {% else %}
+        Edit
+    {% endif %}
+    house rule - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 col-lg-6 px-0 vstack gap-3">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi-megaphone"></i>
+                {% if is_new %}
+                    Add
+                {% else %}
+                    Edit
+                {% endif %}
+                house rule
+            </h1>
+            <p class="text-secondary mb-0">
+                Modifies <strong>{{ target_label }}</strong> for any List
+                subscribed to <em>{{ pack.name }}</em>.
+            </p>
+        </div>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            <input type="hidden" name="target_type" value="{{ target_type }}">
+            {{ form.target_id }}
+            <div>
+                <label class="form-label fs-7 text-secondary">Target</label>
+                <input type="text" class="form-control" value="{{ target_label }}" readonly>
+            </div>
+            <div>
+                <label for="{{ form.stat.id_for_label }}" class="form-label">Stat</label>
+                {{ form.stat }}
+                {% if form.stat.help_text %}<div class="form-text">{{ form.stat.help_text }}</div>{% endif %}
+                {% if form.stat.errors %}<div class="invalid-feedback d-block">{{ form.stat.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div>
+                <label for="{{ form.mode.id_for_label }}" class="form-label">Mode</label>
+                {{ form.mode }}
+                {% if form.mode.help_text %}<div class="form-text">{{ form.mode.help_text }}</div>{% endif %}
+                {% if form.mode.errors %}<div class="invalid-feedback d-block">{{ form.mode.errors|join:" " }}</div>{% endif %}
+            </div>
+            <div>
+                <label for="{{ form.value.id_for_label }}" class="form-label">Value</label>
+                {{ form.value }}
+                {% if form.value.help_text %}<div class="form-text">{{ form.value.help_text }}</div>{% endif %}
+                {% if form.value.errors %}<div class="invalid-feedback d-block">{{ form.value.errors|join:" " }}</div>{% endif %}
+            </div>
+            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    {% if is_new %}
+                        Add house rule
+                    {% else %}
+                        Save
+                    {% endif %}
+                </button>
+                <a href="{{ back_url }}" class="btn btn-secondary btn-sm">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

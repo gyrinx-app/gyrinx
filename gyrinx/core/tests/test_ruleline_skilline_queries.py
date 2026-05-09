@@ -148,8 +148,11 @@ def test_ruleline_zero_queries_with_prefetch(pack_query_test_data):
     query_count = len(context.captured_queries)
     print(f"\nruleline() queries for {num_fighters} fighters: {query_count}")
 
-    assert query_count == 0, (
-        f"Expected 0 queries with pack-aware prefetch, got {query_count}"
+    # The pack house-rule mod system adds at most 1 list-scoped query for
+    # ContentModApplication when packs are subscribed (see List.pack_mods_by_target).
+    # Cost does not scale with fighter count.
+    assert query_count <= 1, (
+        f"Expected ≤1 query with pack-aware prefetch, got {query_count}"
     )
 
 
@@ -170,8 +173,12 @@ def test_skilline_zero_queries_with_prefetch(pack_query_test_data):
     query_count = len(context.captured_queries)
     print(f"\nskilline() queries for {num_fighters} fighters: {query_count}")
 
-    assert query_count == 0, (
-        f"Expected 0 queries with pack-aware prefetch, got {query_count}"
+    # The pack house-rule mod system adds at most 1 list-scoped query for
+    # ContentModApplication when packs are subscribed (see List.pack_mods_by_target).
+    # Skilline accesses _mods which now also pulls pack mods; cost does not
+    # scale with fighter count.
+    assert query_count <= 1, (
+        f"Expected ≤1 query with pack-aware prefetch, got {query_count}"
     )
 
 
