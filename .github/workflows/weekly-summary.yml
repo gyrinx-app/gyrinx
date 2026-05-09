@@ -118,7 +118,7 @@ jobs:
           allowed_bots: "github-merge-queue[bot]"
 
           claude_args: |
-            --model claude-sonnet-4-20250514
+            --model claude-sonnet-4-6
             --allowedTools "Bash(git:*),Bash(gh:*)"
             --json-schema '{"type":"object","properties":{"summary":{"type":"string","description":"The bullet-point summary in markdown format"}},"required":["summary"]}'
 
