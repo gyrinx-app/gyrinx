@@ -1591,6 +1591,20 @@ class ListFighterQuerySet(models.QuerySet):
                     "content_fighter__default_assignments__equipment__contentweaponprofile_set",
                     queryset=ContentWeaponProfile.objects.all_content(),
                 ),
+                # Default-assignment M2Ms also need all_content() so that
+                # pack-scoped weapon profiles / accessories chosen on a
+                # ContentFighterDefaultAssignment aren't dropped by the
+                # default ContentManager when the fighter is hired.
+                Prefetch(
+                    "content_fighter__default_assignments__weapon_profiles_field",
+                    queryset=ContentWeaponProfile.objects.all_content(),
+                ),
+                Prefetch(
+                    "content_fighter__default_assignments__weapon_accessories_field",
+                    queryset=ContentWeaponAccessory.objects.all_content().prefetch_related(
+                        "modifiers"
+                    ),
+                ),
                 # Prefetch equipment list items for cost override lookups
                 "content_fighter__contentfighterequipmentlistitem_set",
                 "legacy_content_fighter__contentfighterequipmentlistitem_set",

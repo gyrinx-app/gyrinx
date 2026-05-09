@@ -11,8 +11,7 @@
             Are you sure you want to archive the profile <strong>{{ profile.name }}</strong> from <strong>{{ equipment.name }}</strong>?
         </p>
         <p class="text-secondary fs-7">Archived items can be restored later.</p>
-        <form action="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
-              method="post">
+        <form action="{{ form_action_url }}" method="post">
             {% csrf_token %}
             <div class="d-flex gap-2">
                 <button type="submit" class="btn btn-danger btn-sm">Archive</button>
