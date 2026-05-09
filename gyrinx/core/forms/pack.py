@@ -908,7 +908,8 @@ class ContentAttributePackForm(forms.ModelForm):
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise ValidationError(
-                "An attribute with this name already exists in the content library."
+                "An attribute with this name already exists. "
+                "Attribute names are unique across the library and all packs."
             )
         return value
 

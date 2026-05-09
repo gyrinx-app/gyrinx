@@ -640,6 +640,8 @@ class PackDetailView(generic.DetailView):
         equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
         fighter_ct = ContentType.objects.get_for_model(ContentFighter)
         skill_ct = ContentType.objects.get_for_model(ContentSkill)
+        attribute_ct = ContentType.objects.get_for_model(ContentAttribute)
+        attribute_value_ct = ContentType.objects.get_for_model(ContentAttributeValue)
 
         content_objects_map = {}
         for ct_id, ct_items in items_by_ct.items():
@@ -718,6 +720,12 @@ class PackDetailView(generic.DetailView):
                 )
             elif ct_id == skill_ct.id:
                 qs = qs.select_related("category")
+            elif ct_id == attribute_ct.id:
+                qs = qs.prefetch_related("restricted_to")
+            elif ct_id == attribute_value_ct.id:
+                qs = qs.select_related("attribute").prefetch_related(
+                    "attribute__restricted_to"
+                )
 
             for obj in qs:
                 content_objects_map[(ct_id, obj.id)] = obj
