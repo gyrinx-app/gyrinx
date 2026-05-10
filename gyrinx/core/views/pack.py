@@ -5139,10 +5139,12 @@ def house_rule_picker(request, id):
         ):
             weapons_in_cat = []
             for w in group:
+                profiles = profiles_by_weapon.get(w.id, [])
                 weapons_in_cat.append(
                     {
                         "weapon": w,
-                        "profiles": profiles_by_weapon.get(w.id, []),
+                        "profiles": profiles,
+                        "has_named_profile": any(p.name for p in profiles),
                     }
                 )
             if weapons_in_cat:

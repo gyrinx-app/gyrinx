@@ -27,8 +27,12 @@
         {% if target_type == "weapon-profile" %}
             <div class="card">
                 <div class="card-body p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0 fs-7">
-                        {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
+                    <table class="table table-sm table-borderless mb-0">
+                        {% if target.name %}
+                            {% include "core/includes/weapon_stat_headers.html" with first_col=target.equipment.name %}
+                        {% else %}
+                            {% include "core/includes/weapon_stat_headers.html" %}
+                        {% endif %}
                         <tbody class="table-group-divider">
                             <tr>
                                 <td>
@@ -49,10 +53,10 @@
         {% else %}
             <div class="card">
                 <div class="card-body p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0 fs-7">
+                    <table class="table table-sm table-borderless mb-0">
                         <thead class="table-group-divider">
                             <tr>
-                                <th scope="col">Fighter</th>
+                                <th scope="col"></th>
                                 {% for stat in target.statline %}
                                     <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
                                         scope="col">{{ stat.name }}</th>

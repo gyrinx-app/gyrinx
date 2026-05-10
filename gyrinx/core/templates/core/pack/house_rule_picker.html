@@ -100,11 +100,13 @@
                                     {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
                                     {% for entry in group.weapons %}
                                         <tbody class="table-group-divider">
-                                            <tr>
-                                                <td colspan="9">
-                                                    <strong>{{ entry.weapon.name }}</strong>
-                                                </td>
-                                            </tr>
+                                            {% if entry.has_named_profile %}
+                                                <tr>
+                                                    <td colspan="9">
+                                                        <strong>{{ entry.weapon.name }}</strong>
+                                                    </td>
+                                                </tr>
+                                            {% endif %}
                                             {% for profile in entry.profiles %}
                                                 <tr>
                                                     <td>
@@ -115,7 +117,7 @@
                                                             {% if profile.name %}
                                                                 {{ profile.name }}
                                                             {% else %}
-                                                                Standard
+                                                                {{ entry.weapon.name }}
                                                             {% endif %}
                                                         </button>
                                                     </td>
