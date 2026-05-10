@@ -175,7 +175,6 @@
                                                     <th class="text-center {% if forloop.first or col.first_of_group %}border-start{% endif %}"
                                                         scope="col">{{ col.name }}</th>
                                                 {% endfor %}
-                                                <th class="text-center border-start" scope="col">Cost</th>
                                             </tr>
                                         </thead>
                                         <tbody class="table-group-divider">
@@ -195,7 +194,6 @@
                                                             {{ cell.value|default:"-" }}
                                                         </td>
                                                     {% endfor %}
-                                                    <td class="text-center border-start">{{ row.fighter.base_cost }}¢</td>
                                                 </tr>
                                             {% endfor %}
                                         </tbody>
