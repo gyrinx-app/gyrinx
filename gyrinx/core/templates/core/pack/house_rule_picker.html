@@ -96,15 +96,13 @@
                                 <h2 class="h5 mb-0">{{ group.category }}</h2>
                             </div>
                             <div class="px-2">
-                                <table class="table table-sm table-borderless mb-0 fs-7">
+                                <table class="table table-sm table-borderless mb-0">
                                     {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
                                     {% for entry in group.weapons %}
                                         <tbody class="table-group-divider">
                                             {% if not entry.profiles %}
                                                 <tr>
-                                                    <td colspan="9">
-                                                        <strong>{{ entry.weapon.name }}</strong>
-                                                    </td>
+                                                    <td colspan="9">{{ entry.weapon.name }}</td>
                                                 </tr>
                                                 <tr>
                                                     <td colspan="9" class="text-secondary fst-italic">No profiles.</td>
@@ -112,9 +110,7 @@
                                             {% else %}
                                                 {% if entry.profiles|length > 1 and entry.profiles.0.name %}
                                                     <tr>
-                                                        <td colspan="9">
-                                                            <strong>{{ entry.weapon.name }}</strong>
-                                                        </td>
+                                                        <td colspan="9">{{ entry.weapon.name }}</td>
                                                     </tr>
                                                 {% endif %}
                                                 {% for profile in entry.profiles %}
@@ -127,7 +123,7 @@
                                                                 {% if entry.profiles|length == 1 or forloop.first and not profile.name %}
                                                                     {{ entry.weapon.name }}
                                                                 {% else %}
-                                                                    <i class="bi-dash"></i> {{ profile.name }}
+                                                                    <i class="bi-dash"></i>{{ profile.name }}
                                                                 {% endif %}
                                                             </button>
                                                         </td>
