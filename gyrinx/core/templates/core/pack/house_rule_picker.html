@@ -100,41 +100,48 @@
                                     {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
                                     {% for entry in group.weapons %}
                                         <tbody class="table-group-divider">
-                                            {% if entry.has_named_profile %}
+                                            {% if not entry.profiles %}
                                                 <tr>
                                                     <td colspan="9">
                                                         <strong>{{ entry.weapon.name }}</strong>
                                                     </td>
                                                 </tr>
-                                            {% endif %}
-                                            {% for profile in entry.profiles %}
-                                                <tr>
-                                                    <td>
-                                                        <button type="submit"
-                                                                name="target_id"
-                                                                value="{{ profile.id }}"
-                                                                class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
-                                                            {% if profile.name %}
-                                                                {{ profile.name }}
-                                                            {% else %}
-                                                                {{ entry.weapon.name }}
-                                                            {% endif %}
-                                                        </button>
-                                                    </td>
-                                                    <td class="text-center">{{ profile.range_short|default:"-" }}</td>
-                                                    <td class="text-center">{{ profile.range_long|default:"-" }}</td>
-                                                    <td class="text-center border-start">{{ profile.accuracy_short|default:"-" }}</td>
-                                                    <td class="text-center">{{ profile.accuracy_long|default:"-" }}</td>
-                                                    <td class="text-center border-start">{{ profile.strength|default:"-" }}</td>
-                                                    <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
-                                                    <td class="text-center">{{ profile.damage|default:"-" }}</td>
-                                                    <td class="text-center">{{ profile.ammo|default:"-" }}</td>
-                                                </tr>
-                                            {% empty %}
                                                 <tr>
                                                     <td colspan="9" class="text-secondary fst-italic">No profiles.</td>
                                                 </tr>
-                                            {% endfor %}
+                                            {% else %}
+                                                {% if entry.profiles|length > 1 and entry.profiles.0.name %}
+                                                    <tr>
+                                                        <td colspan="9">
+                                                            <strong>{{ entry.weapon.name }}</strong>
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                                {% for profile in entry.profiles %}
+                                                    <tr>
+                                                        <td>
+                                                            <button type="submit"
+                                                                    name="target_id"
+                                                                    value="{{ profile.id }}"
+                                                                    class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
+                                                                {% if entry.profiles|length == 1 or forloop.first and not profile.name %}
+                                                                    {{ entry.weapon.name }}
+                                                                {% else %}
+                                                                    <i class="bi-dash"></i> {{ profile.name }}
+                                                                {% endif %}
+                                                            </button>
+                                                        </td>
+                                                        <td class="text-center">{{ profile.range_short|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.range_long|default:"-" }}</td>
+                                                        <td class="text-center border-start">{{ profile.accuracy_short|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.accuracy_long|default:"-" }}</td>
+                                                        <td class="text-center border-start">{{ profile.strength|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.damage|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.ammo|default:"-" }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            {% endif %}
                                         </tbody>
                                     {% endfor %}
                                 </table>
