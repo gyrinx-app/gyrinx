@@ -2,14 +2,13 @@
 
 Covers the verification points from the plan:
 1. Pack subscribed → mod applies; unsubscribed list → mod does not apply.
-2. ContentEquipment-targeted weapon-stat mod applies to all profiles of that
-   weapon for subscribed lists.
+2. ContentWeaponProfile-targeted weapon-stat mod applies to that profile for
+   subscribed lists (only weapon profiles and fighters are valid targets).
 3. ContentFighter-targeted fighter-stat mod applies to fighter statline.
 4. Default-assignment path: house-rule mod applies through
    ``ContentFighterDefaultAssignment.weapon_profiles_field``.
 5. Two packs with conflicting mods on same target stack deterministically.
-6. Archived ``CustomContentPackItem`` excludes the mod (matches ``with_packs``
-   archived-exclude semantics).
+6. Archived ``CustomContentPackItem`` excludes the mod.
 7. Validation: cannot create a ``ContentModApplication`` whose modifier class
    doesn't match the target type.
 8. Cache: removing a pack from ``List.packs`` removes the modded display.

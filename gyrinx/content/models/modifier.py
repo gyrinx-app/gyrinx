@@ -445,13 +445,12 @@ class ContentModPsykerDisciplineAccess(ContentMod):
 
 
 class ContentModApplication(Content):
-    """Scopes a ContentMod to a specific target (weapon profile, equipment, fighter).
+    """Scopes a ContentMod to a specific target (weapon profile or fighter).
 
     A pack owns instances of this model via CustomContentPackItem. When a list
-    subscribes to the pack, the application is surfaced via the standard
-    with_packs() pack-membership pattern and its modifier is applied wherever
-    the target appears on the list — without modifying the targeted library
-    content directly.
+    subscribes to the pack, the application is surfaced via pack-membership
+    lookup and its modifier is applied wherever the target appears on the
+    list — without modifying the targeted library content directly.
     """
 
     # Models that may be targeted by a house-rule application.

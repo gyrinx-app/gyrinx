@@ -723,9 +723,19 @@ class List(AppBase):
         Pack-scoped house-rule mods that apply to this list, grouped by target.
 
         Returns a dict keyed by ``(content_type_id, object_id)`` to a list of
-        polymorphic ``ContentMod`` instances. Built from
-        ``ContentModApplication.objects.with_packs(self.packs.all())`` — one
-        query per list. Empty when the list subscribes to no packs.
+        polymorphic ``ContentMod`` instances. Empty when the list subscribes
+        to no packs.
+
+        Pack scoping is enforced strictly via ``CustomContentPackItem``: only
+        applications attached to one of this list's packs (and not archived)
+        are returned. We deliberately do not use ``with_packs()`` here — that
+        helper also includes "base content" (rows not linked to any pack),
+        which would let an admin- or fixture-created ``ContentModApplication``
+        leak globally to every list.
+
+        Two queries when packs are subscribed: one to look up the application
+        IDs via ``CustomContentPackItem``, one to fetch polymorphic
+        ``ContentMod`` instances. Empty short-circuit otherwise.
 
         Consumers (``ListFighter._mods``, ``ListFighterEquipmentAssignment._mods``,
         ``VirtualWeaponProfile`` construction sites) look up the dict by their
@@ -733,10 +743,10 @@ class List(AppBase):
         into their existing mod list.
 
         Performance: uses ``self.packs.all()`` (not ``values_list``) so the
-        ``packs`` prefetch from ``with_related_data`` is honoured. Returns
-        immediately with an empty dict when the list subscribes to no packs.
+        ``packs`` prefetch from ``with_related_data`` is honoured.
         """
         from gyrinx.content.models import ContentMod, ContentModApplication
+        from gyrinx.core.models.pack import CustomContentPackItem
 
         result: dict = defaultdict(list)
         # Use .all() so the with_related_data prefetch cache is honoured.
@@ -746,12 +756,24 @@ class List(AppBase):
             return result
 
         pack_ids = [p.pk for p in packs]
-        applications = ContentModApplication.objects.with_packs(
-            pack_ids
-        ).select_related("modifier", "target_content_type")
+        application_ct = ContentType.objects.get_for_model(ContentModApplication)
+        application_ids = list(
+            CustomContentPackItem.objects.filter(
+                pack_id__in=pack_ids,
+                archived=False,
+                content_type=application_ct,
+            ).values_list("object_id", flat=True)
+        )
+        if not application_ids:
+            return result
+
+        applications = (
+            ContentModApplication.objects.all_content()
+            .filter(pk__in=application_ids)
+            .select_related("modifier", "target_content_type")
+        )
         # ``modifier`` is a polymorphic FK — re-fetch as polymorphic instances
-        # so isinstance(mod, ContentModStat/...) works downstream. Done in a
-        # single query keyed by id.
+        # so isinstance(mod, ContentModStat/...) works downstream.
         mod_ids = [a.modifier_id for a in applications]
         polymorphic_mods = {m.pk: m for m in ContentMod.objects.filter(pk__in=mod_ids)}
         for app in applications:
