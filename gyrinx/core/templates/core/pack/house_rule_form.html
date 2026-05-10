@@ -10,58 +10,83 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=back_url text=pack.name %}
-    <div class="col-12 col-lg-6 px-0 vstack gap-3">
-        <div>
-            <h1 class="h3 mb-1">
-                <i class="bi-megaphone"></i>
-                {% if is_new %}
-                    Add
-                {% else %}
-                    Edit
-                {% endif %}
-                house rule
-            </h1>
-            <p class="text-secondary mb-0">
-                Modifies <strong>{{ target_label }}</strong> for any List
-                subscribed to <em>{{ pack.name }}</em>.
-            </p>
-        </div>
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            <i class="bi-megaphone"></i>
+            {% if is_new %}
+                Add
+            {% else %}
+                Edit
+            {% endif %}
+            house rule
+        </h1>
+        <p class="text-secondary mb-0">
+            Modifies the statline below for any List subscribed to
+            <em>{{ pack.name }}</em>.
+        </p>
+        {% if target_type == "weapon-profile" %}
+            <div class="card">
+                <div class="card-body p-0 p-sm-2">
+                    <table class="table table-sm table-borderless mb-0 fs-7">
+                        {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
+                        <tbody class="table-group-divider">
+                            <tr>
+                                <td>
+                                    <strong>
+                                        {% if target.name %}
+                                            {{ target.name }}
+                                        {% else %}
+                                            {{ target.equipment.name }}
+                                        {% endif %}
+                                    </strong>
+                                </td>
+                                {% for stat in target.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body p-0 p-sm-2">
+                    <table class="table table-sm table-borderless mb-0 fs-7">
+                        <thead class="table-group-divider">
+                            <tr>
+                                <th scope="col">Fighter</th>
+                                {% for stat in target.statline %}
+                                    <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
+                                        scope="col">{{ stat.name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="table-group-divider">
+                            <tr>
+                                <td>
+                                    <strong>{{ target.type }}</strong>
+                                    {% if target.house %}<span class="text-secondary">· {{ target.house.name }}</span>{% endif %}
+                                </td>
+                                {% for stat in target.statline %}
+                                    <td class="text-center {% if stat.first_of_group %}border-start{% endif %}">{{ stat.value }}</td>
+                                {% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
-            <input type="hidden" name="target_type" value="{{ target_type }}">
-            {{ form.target_id }}
-            <div>
-                <label class="form-label fs-7 text-secondary">Target</label>
-                <input type="text" class="form-control" value="{{ target_label }}" readonly>
-            </div>
-            <div>
-                <label for="{{ form.stat.id_for_label }}" class="form-label">Stat</label>
-                {{ form.stat }}
-                {% if form.stat.help_text %}<div class="form-text">{{ form.stat.help_text }}</div>{% endif %}
-                {% if form.stat.errors %}<div class="invalid-feedback d-block">{{ form.stat.errors|join:" " }}</div>{% endif %}
-            </div>
-            <div>
-                <label for="{{ form.mode.id_for_label }}" class="form-label">Mode</label>
-                {{ form.mode }}
-                {% if form.mode.help_text %}<div class="form-text">{{ form.mode.help_text }}</div>{% endif %}
-                {% if form.mode.errors %}<div class="invalid-feedback d-block">{{ form.mode.errors|join:" " }}</div>{% endif %}
-            </div>
-            <div>
-                <label for="{{ form.value.id_for_label }}" class="form-label">Value</label>
-                {{ form.value }}
-                {% if form.value.help_text %}<div class="form-text">{{ form.value.help_text }}</div>{% endif %}
-                {% if form.value.errors %}<div class="invalid-feedback d-block">{{ form.value.errors|join:" " }}</div>{% endif %}
-            </div>
-            {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary btn-sm">
+            {{ form }}
+            <div class="mt-2 d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi-check-lg me-1"></i>
                     {% if is_new %}
                         Add house rule
                     {% else %}
                         Save
                     {% endif %}
                 </button>
-                <a href="{{ back_url }}" class="btn btn-secondary btn-sm">Cancel</a>
+                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
             </div>
         </form>
     </div>

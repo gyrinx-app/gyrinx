@@ -68,11 +68,7 @@ class Migration(migrations.Migration):
                         db_constraint=False,
                         limit_choices_to={
                             "app_label": "content",
-                            "model__in": (
-                                "contentequipment",
-                                "contentweaponprofile",
-                                "contentfighter",
-                            ),
+                            "model__in": ("contentweaponprofile", "contentfighter"),
                         },
                         null=True,
                         on_delete=django.db.models.deletion.DO_NOTHING,
@@ -117,11 +113,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         limit_choices_to={
                             "app_label": "content",
-                            "model__in": (
-                                "contentequipment",
-                                "contentweaponprofile",
-                                "contentfighter",
-                            ),
+                            "model__in": ("contentweaponprofile", "contentfighter"),
                         },
                         on_delete=django.db.models.deletion.CASCADE,
                         to="contenttypes.contenttype",

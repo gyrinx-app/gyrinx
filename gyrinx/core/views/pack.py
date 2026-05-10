@@ -4953,12 +4953,9 @@ def remove_pack_fighter_equipment_list_accessory(request, id, item_id, acc_eli_i
 # House-rule mod applications
 # ---------------------------------------------------------------------------
 
-# Map a house-rule target slug to (Model class, ContentType-friendly model
-# name). The slug is what appears in URLs and in the form ``target_type``
-# field.
+# Map a house-rule target slug to its model. The slug is what appears in
+# URLs and in the form ``target_type`` field.
 _HOUSE_RULE_TARGET_MODEL = {
-    "weapon": ContentEquipment,
-    "gear": ContentEquipment,
     "weapon-profile": ContentWeaponProfile,
     "fighter": ContentFighter,
 }
@@ -4973,12 +4970,7 @@ def _house_rule_target_for_slug(slug, pack, target_id):
     model = _HOUSE_RULE_TARGET_MODEL.get(slug)
     if model is None:
         raise Http404
-    if slug == "weapon":
-        qs = ContentEquipment.objects.weapons().with_packs([pack])
-    elif slug == "gear":
-        qs = ContentEquipment.objects.non_weapons().with_packs([pack])
-    else:
-        qs = model._default_manager.with_packs([pack])
+    qs = model._default_manager.with_packs([pack])
     return get_object_or_404(qs, pk=target_id)
 
 
@@ -5068,53 +5060,197 @@ def house_rule_picker(request, id):
                 reverse("core:pack-house-rule-add", args=(pack.id,)) + f"?{qs}"
             )
 
-    target_type = request.GET.get("target_type") or "weapon"
+    target_type = request.GET.get("target_type") or "weapon-profile"
     if target_type not in {slug for slug, _ in HOUSE_RULE_TARGET_CHOICES}:
-        target_type = "weapon"
+        target_type = "weapon-profile"
     q = request.GET.get("q", "").strip()
 
-    if target_type == "weapon":
-        qs = (
+    # Category selection state. Three cases:
+    #   - No ``cat`` param at all → default = all categories shown.
+    #   - ``cat=all`` → All-link click → also all categories shown.
+    #   - ``cat=<id>...`` (any other values, including empty) → filter to that
+    #     explicit set. An explicit empty list (None-link click sends ``cat=``)
+    #     filters to nothing.
+    raw_cats = request.GET.getlist("cat")
+    cat_filter_active = bool(raw_cats) and "all" not in raw_cats
+    selected_cats = {c for c in raw_cats if c and c != "all"}
+
+    weapon_groups = []
+    fighter_groups = []
+    categories = []
+    paginator = None
+    page = None
+
+    if target_type == "weapon-profile":
+        target_label = "weapons"
+        weapons_qs = (
             ContentEquipment.objects.weapons()
             .with_packs([pack])
             .select_related("category")
-            .order_by("category__name", "name")
         )
         if q:
-            qs = search_queryset(qs, q, ["name", "category__name"])
-        target_label = "Weapon"
-    elif target_type == "weapon-profile":
-        qs = (
-            ContentWeaponProfile.objects.with_packs([pack])
-            .select_related("equipment", "equipment__category")
-            .order_by("equipment__name", "name")
+            weapons_qs = search_queryset(weapons_qs, q, ["name", "category__name"])
+
+        # Category options come from the unfiltered (by cat) set so the
+        # dropdown remains stable when a category is selected.
+        # ``order_by()`` clears inherited ordering — needed for distinct() on
+        # values_list to dedupe correctly when with_packs adds an ORDER BY.
+        all_cat_ids = list(
+            weapons_qs.order_by().values_list("category_id", flat=True).distinct()
         )
-        if q:
-            qs = search_queryset(qs, q, ["name", "equipment__name"])
-        target_label = "Weapon profile"
-    elif target_type == "gear":
-        qs = (
-            ContentEquipment.objects.non_weapons()
-            .with_packs([pack])
-            .select_related("category")
-            .order_by("category__name", "name")
-        )
-        if q:
-            qs = search_queryset(qs, q, ["name", "category__name"])
-        target_label = "Gear"
+        from gyrinx.content.models import ContentEquipmentCategory
+
+        # Stringified IDs so equality with query-string selections in the
+        # template just works (request.GET.getlist returns strings).
+        categories = [
+            {"id": str(c.id), "name": c.name}
+            for c in ContentEquipmentCategory.objects.filter(
+                id__in=all_cat_ids
+            ).order_by("name")
+        ]
+
+        if cat_filter_active:
+            weapons_qs = weapons_qs.filter(category_id__in=selected_cats)
+
+        weapons_qs = weapons_qs.order_by("category__name", "name")
+
+        paginator = Paginator(weapons_qs, 25)
+        page = paginator.get_page(request.GET.get("page", 1))
+        weapons_page = list(page.object_list)
+
+        # Prefetch profiles for visible weapons (pack-aware).
+        weapon_ids = [w.id for w in weapons_page]
+        profiles_by_weapon = {}
+        if weapon_ids:
+            profiles = (
+                ContentWeaponProfile.objects.with_packs([pack])
+                .filter(equipment_id__in=weapon_ids)
+                .order_by("name")
+            )
+            for p in profiles:
+                profiles_by_weapon.setdefault(p.equipment_id, []).append(p)
+
+        # Group weapons by category for the shop-style layout.
+        from itertools import groupby
+
+        weapons_page.sort(key=lambda w: (w.category.name if w.category else "", w.name))
+        for cat_name, group in groupby(
+            weapons_page, key=lambda w: w.category.name if w.category else ""
+        ):
+            weapons_in_cat = []
+            for w in group:
+                weapons_in_cat.append(
+                    {
+                        "weapon": w,
+                        "profiles": profiles_by_weapon.get(w.id, []),
+                    }
+                )
+            if weapons_in_cat:
+                weapon_groups.append({"category": cat_name, "weapons": weapons_in_cat})
     else:  # fighter
-        qs = (
+        target_label = "fighters & vehicles"
+        from gyrinx.models import FighterCategoryChoices
+
+        fighters_qs = (
             ContentFighter.objects.with_packs([pack])
             .select_related("house")
-            .order_by("house__name", "type")
+            .exclude(category=FighterCategoryChoices.STASH)
         )
         if q:
-            qs = search_queryset(qs, q, ["type", "house__name"])
-        target_label = "Fighter"
+            fighters_qs = search_queryset(fighters_qs, q, ["type", "house__name"])
 
-    paginator = Paginator(qs, 25)
-    page_number = request.GET.get("page", 1)
-    page = paginator.get_page(page_number)
+        # Category options: every fighter category that has a row (minus STASH).
+        # ``order_by()`` clears inherited ordering so distinct() on values_list
+        # dedupes correctly.
+        present_cats = list(
+            fighters_qs.order_by().values_list("category", flat=True).distinct()
+        )
+        categories = [
+            {"id": c, "name": FighterCategoryChoices[c].label}
+            for c in sorted(present_cats, key=lambda c: FighterCategoryChoices[c].label)
+        ]
+
+        if cat_filter_active:
+            fighters_qs = fighters_qs.filter(category__in=selected_cats)
+
+        # Sort by the category label, then house then type.
+        fighters_qs = fighters_qs.order_by("category", "house__name", "type")
+
+        paginator = Paginator(fighters_qs, 25)
+        page = paginator.get_page(request.GET.get("page", 1))
+        fighters_page = list(page.object_list)
+
+        from itertools import groupby
+
+        def _row(fighter):
+            """Resolve a fighter's statline once and freeze it into a row dict.
+
+            Statlines vary: most fighters use the legacy 12-stat schema, but
+            Crew may use a partial subset and Vehicles use a vehicle-specific
+            schema (Front/Side/Rear/HP/Handling/Save). Grouping rows by their
+            schema lets the template render each schema as its own sub-table
+            with the right column headers.
+            """
+            statline = list(fighter.statline())
+            schema_key = tuple(
+                (s.get("field_name") if isinstance(s, dict) else s.field_name)
+                for s in statline
+            )
+            cells = []
+            columns = []
+            for s in statline:
+                if isinstance(s, dict):
+                    name = s.get("name")
+                    field_name = s.get("field_name")
+                    value = s.get("value")
+                    first_of_group = s.get("first_of_group", False)
+                else:
+                    name = s.name
+                    field_name = s.field_name
+                    value = s.value
+                    first_of_group = bool(
+                        getattr(s, "classes", "") and "border-start" in s.classes
+                    )
+                columns.append(
+                    {
+                        "name": name,
+                        "field_name": field_name,
+                        "first_of_group": first_of_group,
+                    }
+                )
+                cells.append({"value": value, "first_of_group": first_of_group})
+            return {
+                "fighter": fighter,
+                "schema_key": schema_key,
+                "columns": columns,
+                "cells": cells,
+            }
+
+        fighters_page.sort(
+            key=lambda f: (FighterCategoryChoices[f.category].label, f.type)
+        )
+        for cat_label, group in groupby(
+            fighters_page,
+            key=lambda f: FighterCategoryChoices[f.category].label,
+        ):
+            rows = [_row(f) for f in group]
+            # Sub-group by statline schema so each sub-table has consistent
+            # columns. Preserve stable ordering: group by first appearance.
+            schema_order = []
+            by_schema = {}
+            for r in rows:
+                if r["schema_key"] not in by_schema:
+                    schema_order.append(r["schema_key"])
+                    by_schema[r["schema_key"]] = {
+                        "columns": r["columns"],
+                        "rows": [],
+                    }
+                by_schema[r["schema_key"]]["rows"].append(r)
+            statline_groups = [by_schema[k] for k in schema_order]
+            fighter_groups.append(
+                {"category": cat_label, "statline_groups": statline_groups}
+            )
+
     return render(
         request,
         "core/pack/house_rule_picker.html",
@@ -5123,10 +5259,14 @@ def house_rule_picker(request, id):
             "target_type": target_type,
             "target_label": target_label,
             "target_choices": HOUSE_RULE_TARGET_CHOICES,
-            "results": page.object_list,
+            "weapon_groups": weapon_groups,
+            "fighter_groups": fighter_groups,
+            "categories": categories,
+            "selected_cats": selected_cats,
+            "cat_filter_active": cat_filter_active,
             "page_obj": page,
             "paginator": paginator,
-            "is_paginated": page.has_other_pages(),
+            "is_paginated": page.has_other_pages() if page else False,
             "search_query": q,
             "back_url": _pack_url(pack, "house-rule"),
         },
@@ -5137,6 +5277,28 @@ def _describe_house_rule_target(target):
     if target is None:
         return ""
     return str(target)
+
+
+def _statline_field_names(target):
+    """Return the set of stat ``field_name`` keys present on a target's statline.
+
+    Used to narrow the stat dropdown on the add/edit house-rule form so users
+    can only pick stats that actually exist on the target (e.g. a non-vehicle
+    fighter has no Front/Side/Rear).
+    """
+    if target is None:
+        return None
+    try:
+        statline = target.statline()
+    except Exception:  # nosec B110
+        return None
+    names = set()
+    for stat in statline:
+        if hasattr(stat, "field_name"):
+            names.add(stat.field_name)
+        elif isinstance(stat, dict) and "field_name" in stat:
+            names.add(stat["field_name"])
+    return names or None
 
 
 @login_required
@@ -5169,36 +5331,32 @@ def add_house_rule(request, id):
 
     target = _house_rule_target_for_slug(target_type, pack, target_id)
     target_label = _describe_house_rule_target(target)
+    available_stat_field_names = _statline_field_names(target)
 
     initial = {
         "target_type": target_type,
         "target_id": target_id,
-        "target_label": target_label,
     }
     if request.method == "POST":
-        form = ContentHouseRuleForm(request.POST, initial=initial)
+        form = ContentHouseRuleForm(
+            request.POST,
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
         if form.is_valid():
             stat = form.cleaned_data["stat"]
             mode = form.cleaned_data["mode"]
             value = form.cleaned_data["value"]
 
             with transaction.atomic():
-                if target_type in ("weapon", "weapon-profile"):
+                if target_type == "weapon-profile":
                     mod = ContentModStat(stat=stat, mode=mode, value=value)
                 else:
                     mod = ContentModFighterStat(stat=stat, mode=mode, value=value)
                 mod._history_user = request.user
                 mod.save()
 
-                if target_type == "weapon-profile":
-                    target_model_label = "contentweaponprofile"
-                elif target_type == "fighter":
-                    target_model_label = "contentfighter"
-                else:
-                    target_model_label = "contentequipment"
-                ct = ContentType.objects.get(
-                    app_label="content", model=target_model_label
-                )
+                ct = ContentType.objects.get_for_model(type(target))
 
                 application = ContentModApplication(
                     target_content_type=ct,
@@ -5233,7 +5391,10 @@ def add_house_rule(request, id):
             messages.success(request, f"House rule added for {target_label}.")
             return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
     else:
-        form = ContentHouseRuleForm(initial=initial)
+        form = ContentHouseRuleForm(
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
 
     return render(
         request,
@@ -5289,27 +5450,27 @@ def edit_house_rule(request, id, item_id):
     target_model = application.target_content_type.model
     if target_model == "contentweaponprofile":
         target_type = "weapon-profile"
-    elif target_model == "contentfighter":
-        target_type = "fighter"
     else:
-        # ContentEquipment — pick weapon vs gear from the equipment itself.
-        equipment = application.target
-        target_type = "weapon" if (equipment and equipment.is_weapon()) else "gear"
+        target_type = "fighter"
 
     target = application.target
     target_label = _describe_house_rule_target(target)
+    available_stat_field_names = _statline_field_names(target)
 
     initial = {
         "target_type": target_type,
         "target_id": str(application.target_object_id),
-        "target_label": target_label,
         "stat": modifier.stat if hasattr(modifier, "stat") else "",
         "mode": modifier.mode if hasattr(modifier, "mode") else "",
         "value": modifier.value if hasattr(modifier, "value") else "",
     }
 
     if request.method == "POST":
-        form = ContentHouseRuleForm(request.POST, initial=initial)
+        form = ContentHouseRuleForm(
+            request.POST,
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
         if form.is_valid():
             stat = form.cleaned_data["stat"]
             mode = form.cleaned_data["mode"]
@@ -5353,7 +5514,10 @@ def edit_house_rule(request, id, item_id):
             messages.success(request, f"House rule updated for {target_label}.")
             return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
     else:
-        form = ContentHouseRuleForm(initial=initial)
+        form = ContentHouseRuleForm(
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
 
     return render(
         request,

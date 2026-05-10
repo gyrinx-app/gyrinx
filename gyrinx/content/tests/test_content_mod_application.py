@@ -136,52 +136,7 @@ def test_weapon_profile_mod_applies_only_for_subscribed_list(
     assert damage_stat.modded is True
 
 
-# 2. Equipment-targeted mod applies to all profiles -------------------------
-
-
-@pytest.mark.django_db
-def test_equipment_targeted_mod_applies_to_all_profiles(
-    user,
-    make_pack,
-    make_list,
-    make_list_fighter,
-    weapon_with_profile,
-    make_weapon_profile,
-):
-    weapon, profile = weapon_with_profile
-    extra_profile = make_weapon_profile(
-        equipment=weapon,
-        name="overcharge",
-        cost=10,
-        range_short='8"',
-        range_long='16"',
-        accuracy_short="",
-        accuracy_long="",
-        strength="5",
-        armour_piercing="-2",
-        damage="3",
-        ammo="6+",
-    )
-
-    pack = make_pack(name="Equipment-wide rule")
-    mod = ContentModStat.objects.create(stat="strength", mode="worsen", value="1")
-    _make_application(weapon, mod, pack, user)
-
-    lst = make_list("Subscribed")
-    lst.packs.add(pack)
-    fighter = make_list_fighter(lst, "Tester")
-    assignment = ListFighterEquipmentAssignment.objects.create(
-        list_fighter=fighter, content_equipment=weapon
-    )
-    assignment.weapon_profiles_field.add(profile, extra_profile)
-
-    profiles = {vp.profile.pk: vp for vp in assignment.weapon_profiles()}
-    # Strength reduced by 1 on both profiles.
-    assert profiles[profile.pk].strength == "3"
-    assert profiles[extra_profile.pk].strength == "4"
-
-
-# 3. Fighter-targeted fighter-stat mod ---------------------------------------
+# 2. Fighter-targeted fighter-stat mod ---------------------------------------
 
 
 @pytest.mark.django_db

@@ -455,7 +455,7 @@ class ContentModApplication(Content):
     """
 
     # Models that may be targeted by a house-rule application.
-    TARGET_MODELS = ("contentequipment", "contentweaponprofile", "contentfighter")
+    TARGET_MODELS = ("contentweaponprofile", "contentfighter")
 
     target_content_type = models.ForeignKey(
         ContentType,
@@ -507,7 +507,7 @@ class ContentModApplication(Content):
             raise ValidationError(
                 {
                     "target_content_type": (
-                        "Target must be a weapon, weapon profile, or fighter."
+                        "Target must be a weapon profile or a fighter."
                     )
                 }
             )
@@ -556,31 +556,22 @@ class ContentModApplication(Content):
                 return
 
         target_model = ct.model
-        is_weapon_target = target_model in ("contentequipment", "contentweaponprofile")
+        is_weapon_profile_target = target_model == "contentweaponprofile"
         is_fighter_target = target_model == "contentfighter"
-        is_equipment_target = target_model == "contentequipment"
 
         if isinstance(modifier, (ContentModStat, ContentModTrait)):
-            if not is_weapon_target:
+            if not is_weapon_profile_target:
                 raise ValidationError(
                     {
                         "modifier": (
-                            "Weapon stat/trait modifiers must target a weapon "
-                            "or weapon profile."
+                            "Weapon stat/trait modifiers must target a weapon profile."
                         )
                     }
                 )
         elif isinstance(modifier, ContentModFighterStat):
-            # Fighter stat mods can target a fighter directly, or equipment
-            # (matches existing ContentEquipment.modifiers semantics).
-            if not (is_fighter_target or is_equipment_target):
+            if not is_fighter_target:
                 raise ValidationError(
-                    {
-                        "modifier": (
-                            "Fighter stat modifiers must target a fighter or "
-                            "a piece of equipment."
-                        )
-                    }
+                    {"modifier": "Fighter stat modifiers must target a fighter."}
                 )
         elif isinstance(
             modifier,
@@ -591,12 +582,11 @@ class ContentModApplication(Content):
                 ContentModPsykerDisciplineAccess,
             ),
         ):
-            if not (is_fighter_target or is_equipment_target):
+            if not is_fighter_target:
                 raise ValidationError(
                     {
                         "modifier": (
-                            "Fighter rule/skill/access modifiers must target a "
-                            "fighter or a piece of equipment."
+                            "Fighter rule/skill/access modifiers must target a fighter."
                         )
                     }
                 )
