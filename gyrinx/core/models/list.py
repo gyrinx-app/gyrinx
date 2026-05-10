@@ -733,9 +733,10 @@ class List(AppBase):
         which would let an admin- or fixture-created ``ContentModApplication``
         leak globally to every list.
 
-        Two queries when packs are subscribed: one to look up the application
-        IDs via ``CustomContentPackItem``, one to fetch polymorphic
-        ``ContentMod`` instances. Empty short-circuit otherwise.
+        At most two queries when packs are subscribed: one to fetch the
+        applications (via a subquery on ``CustomContentPackItem``), and a
+        second to re-fetch the polymorphic ``ContentMod`` instances when any
+        applications exist.
 
         Consumers (``ListFighter._mods``, ``ListFighterEquipmentAssignment._mods``,
         ``VirtualWeaponProfile`` construction sites) look up the dict by their
@@ -745,6 +746,8 @@ class List(AppBase):
         Performance: uses ``self.packs.all()`` (not ``values_list``) so the
         ``packs`` prefetch from ``with_related_data`` is honoured.
         """
+        from django.db.models import Subquery
+
         from gyrinx.content.models import ContentMod, ContentModApplication
         from gyrinx.core.models.pack import CustomContentPackItem
 
@@ -756,20 +759,18 @@ class List(AppBase):
             return result
 
         pack_ids = [p.pk for p in packs]
-        application_ct = ContentType.objects.get_for_model(ContentModApplication)
-        application_ids = list(
-            CustomContentPackItem.objects.filter(
-                pack_id__in=pack_ids,
-                archived=False,
-                content_type=application_ct,
-            ).values_list("object_id", flat=True)
-        )
-        if not application_ids:
-            return result
-
+        # Filter on content_type__app_label/model rather than calling
+        # ContentType.objects.get_for_model(), to avoid an extra DB query
+        # for the CT row (matches the pattern used by with_packs()).
+        pack_application_ids = CustomContentPackItem.objects.filter(
+            pack_id__in=pack_ids,
+            archived=False,
+            content_type__app_label="content",
+            content_type__model="contentmodapplication",
+        ).values("object_id")
         applications = (
             ContentModApplication.objects.all_content()
-            .filter(pk__in=application_ids)
+            .filter(pk__in=Subquery(pack_application_ids))
             .select_related("modifier", "target_content_type")
         )
         # ``modifier`` is a polymorphic FK — re-fetch as polymorphic instances
