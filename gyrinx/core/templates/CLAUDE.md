@@ -7,7 +7,7 @@ reference for components, colours, typography, spacing, buttons, tables, forms, 
 and inline action menus.
 
 - Spec: [docs/DESIGN-SYSTEM.md](../../../docs/DESIGN-SYSTEM.md)
-- Live HTML reference: [core/debug/design_system.html](core/debug/design_system.html) — render at `/debug/design-system/` to see real components in context
+- Live HTML reference: [core/debug/design_system.html](core/debug/design_system.html) — render at `/_debug/design-system/` to see real components in context
 - Semantic colour vocabulary: [_tokens.scss](../static/core/scss/_tokens.scss)
 
 Working rules:
@@ -20,7 +20,9 @@ Working rules:
   btn-sm`, etc.) rather than inventing new ones.
 - Mobile-first; responsive utilities scale up. Left-aligned content typically `col-12 col-xl-6`.
 - Avoid `alert` classes — prefer `border rounded p-2`. Cards are reserved for fighter grids.
-- User-supplied HTML uses the `|safe` filter; ordinary content does not.
+- Never apply `|safe` directly to user-supplied content. Sanitize first — the project ships
+  the `safe_rich_text` template filter (in `core/templatetags/custom_tags.py`) for this.
+  Only use `|safe` on values you control or that have already been sanitized.
 
 ## Microcopy Guidelines
 

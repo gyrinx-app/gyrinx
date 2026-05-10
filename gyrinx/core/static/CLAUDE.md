@@ -13,8 +13,10 @@ maps to tokens defined here.
 - Entry points: `screen.scss`, `print.scss`, `styles.scss`.
 - Spec: [docs/DESIGN-SYSTEM.md](../../../docs/DESIGN-SYSTEM.md)
 
-**Never commit `.css` files.** They are generated from SCSS by `npm run css` (one-shot) or
-`npm run watch` (rebuild on change). The pre-commit hooks and CI will fail on committed CSS.
+**Don't commit generated CSS.** It is built from SCSS by `npm run css` (one-shot) or
+`npm run watch` (rebuild on change), and the build outputs (e.g. `core/css/styles.css`,
+`core/css/styles.css.map`) are listed in `.gitignore`. Committing CSS bypasses the build
+and causes drift between source and what's served.
 
 ## JavaScript
 
