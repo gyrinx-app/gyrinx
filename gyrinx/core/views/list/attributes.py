@@ -41,10 +41,14 @@ def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.
         messages.error(request, "Cannot modify attributes for an archived list.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
-    # Get the attribute
+    # Get the attribute. Use with_packs() so pack-scoped attributes are
+    # editable on lists subscribed to the pack.
     from gyrinx.content.models import ContentAttribute
 
-    attribute = get_object_or_404(ContentAttribute, id=attribute_id)
+    attribute = get_object_or_404(
+        ContentAttribute.objects.with_packs(lst.packs.all()),
+        id=attribute_id,
+    )
 
     # Check if attribute is available to this house
     if (

@@ -16,10 +16,13 @@ class ListAttributeForm(forms.Form):
         self.request = kwargs.pop("request", None)
         super().__init__(*args, **kwargs)
 
-        # Get available values for this attribute
-        values = ContentAttributeValue.objects.filter(
-            attribute=self.attribute
-        ).order_by("name")
+        # Get available values for this attribute. Use with_packs() so that
+        # pack-scoped values appear for lists subscribed to the pack.
+        values = (
+            ContentAttributeValue.objects.with_packs(self.list_obj.packs.all())
+            .filter(attribute=self.attribute)
+            .order_by("name")
+        )
 
         # Get current assignments
         current_assignments = ListAttributeAssignment.objects.filter(
