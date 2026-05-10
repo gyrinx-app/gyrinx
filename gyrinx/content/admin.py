@@ -56,6 +56,7 @@ from .models import (
     ContentRollTable,
     ContentRollTableRow,
     ContentMod,
+    ContentModApplication,
     ContentModFighterRule,
     ContentModFighterSkill,
     ContentModFighterStat,
@@ -1009,6 +1010,15 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModPsykerDisciplineAccess,
     )
     list_filter = (PolymorphicChildModelFilter,)
+
+
+@admin.register(ContentModApplication)
+class ContentModApplicationAdmin(ContentAdmin):
+    list_filter = ("target_content_type",)
+    raw_id_fields = ("modifier",)
+
+    def get_list_display(self, request):
+        return ("__str__", "target_content_type", "modifier", "packs_display")
 
 
 class ContentPageRefInline(ContentTabularInline):

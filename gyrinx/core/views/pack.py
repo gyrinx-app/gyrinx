@@ -58,6 +58,7 @@ from gyrinx.core.forms.pack import (
     ContentFighterPackForm,
     ContentGearPackForm,
     ContentHouseForm,
+    ContentHouseRuleForm,
     ContentPsykerDisciplinePackForm,
     ContentPsykerPowerPackForm,
     ContentRuleForm,
@@ -68,6 +69,7 @@ from gyrinx.core.forms.pack import (
     ContentWeaponProfilePackForm,
     ContentWeaponTraitPackForm,
     PackForm,
+    HOUSE_RULE_TARGET_CHOICES,
 )
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
@@ -1068,6 +1070,7 @@ class PackDetailView(generic.DetailView):
                     weapon_section["count"] = len(weapon_section["items"])
 
         context["content_sections"] = content_sections
+        context["house_rule_entries"] = _list_house_rule_applications(pack)
         all_activities = _get_pack_activity(pack)
         context["recent_activities"] = all_activities[:5]
         context["total_activity_count"] = len(all_activities)
@@ -4942,5 +4945,628 @@ def remove_pack_fighter_equipment_list_accessory(request, id, item_id, acc_eli_i
             "pack_item": pack_item,
             "content_fighter": content_fighter,
             "row": row,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# House-rule mod applications
+# ---------------------------------------------------------------------------
+
+# Map a house-rule target slug to its model. The slug is what appears in
+# URLs and in the form ``target_type`` field.
+_HOUSE_RULE_TARGET_MODEL = {
+    "weapon-profile": ContentWeaponProfile,
+    "fighter": ContentFighter,
+}
+
+
+def _house_rule_target_for_slug(slug, pack, target_id):
+    """Resolve a (slug, pack, target_id) tuple to a target object.
+
+    Uses ``with_packs`` so a pack can also house-rule its own content
+    (mirroring the customise-weapon flow).
+    """
+    model = _HOUSE_RULE_TARGET_MODEL.get(slug)
+    if model is None:
+        raise Http404
+    qs = model._default_manager.with_packs([pack])
+    return get_object_or_404(qs, pk=target_id)
+
+
+def _list_house_rule_applications(pack):
+    """Return active ContentModApplication rows belonging to this pack.
+
+    Each row is annotated with its ``CustomContentPackItem`` so the
+    template can show edit/archive links keyed off the pack item id.
+    """
+    from gyrinx.content.models import ContentMod, ContentModApplication
+
+    application_ct = ContentType.objects.get_for_model(ContentModApplication)
+    pack_items = list(
+        CustomContentPackItem.objects.filter(
+            pack=pack, content_type=application_ct, archived=False
+        )
+    )
+    if not pack_items:
+        return []
+    app_ids = [pi.object_id for pi in pack_items]
+    apps = (
+        ContentModApplication.objects.all_content()
+        .filter(pk__in=app_ids)
+        .select_related("modifier", "target_content_type")
+    )
+    polymorphic_mods = {
+        m.pk: m for m in ContentMod.objects.filter(pk__in=[a.modifier_id for a in apps])
+    }
+    apps_by_id = {a.id: a for a in apps}
+
+    # Resolve targets in batches per content type to avoid N+1.
+    from collections import defaultdict as _defaultdict
+
+    targets_by_ctid_oid = {}
+    by_ct = _defaultdict(list)
+    for a in apps:
+        by_ct[a.target_content_type_id].append(a.target_object_id)
+    for ct_id, oids in by_ct.items():
+        ct = ContentType.objects.get_for_id(ct_id)
+        m = ct.model_class()
+        manager = m._default_manager
+        base_qs = (
+            manager.all_content() if hasattr(manager, "all_content") else manager.all()
+        )
+        for obj in base_qs.filter(pk__in=oids):
+            targets_by_ctid_oid[(ct_id, obj.pk)] = obj
+
+    entries = []
+    for pi in pack_items:
+        app = apps_by_id.get(pi.object_id)
+        if app is None:
+            continue
+        mod = polymorphic_mods.get(app.modifier_id)
+        target = targets_by_ctid_oid.get(
+            (app.target_content_type_id, app.target_object_id)
+        )
+        entries.append(
+            {
+                "pack_item": pi,
+                "application": app,
+                "modifier": mod,
+                "target": target,
+                "target_kind": app.target_content_type.model,
+            }
+        )
+    return entries
+
+
+@login_required
+def house_rule_picker(request, id):
+    """Step 1 of the add-house-rule flow: choose target type and target.
+
+    Renders a form with a target-type radio plus per-type searchable lists
+    of candidate targets. On POST, redirects to the add form with the
+    chosen ``target_type`` and ``target_id`` in the query string.
+    """
+    pack = _get_pack_for_edit(id, request.user)
+
+    if request.method == "POST":
+        target_type = request.POST.get("target_type", "")
+        target_id = request.POST.get("target_id", "")
+        if target_type in {
+            slug for slug, _ in HOUSE_RULE_TARGET_CHOICES
+        } and is_valid_uuid(target_id):
+            qs = urlencode({"target_type": target_type, "target_id": target_id})
+            return HttpResponseRedirect(
+                reverse("core:pack-house-rule-add", args=(pack.id,)) + f"?{qs}"
+            )
+
+    target_type = request.GET.get("target_type") or "weapon-profile"
+    if target_type not in {slug for slug, _ in HOUSE_RULE_TARGET_CHOICES}:
+        target_type = "weapon-profile"
+    q = request.GET.get("q", "").strip()
+
+    # Category selection state. Three cases:
+    #   - No ``cat`` param at all → default = all categories shown.
+    #   - ``cat=all`` → All-link click → also all categories shown.
+    #   - ``cat=<id>...`` (any other values, including empty) → filter to that
+    #     explicit set. An explicit empty list (None-link click sends ``cat=``)
+    #     filters to nothing.
+    raw_cats = request.GET.getlist("cat")
+    cat_filter_active = bool(raw_cats) and "all" not in raw_cats
+    selected_cats = {c for c in raw_cats if c and c != "all"}
+
+    weapon_groups = []
+    fighter_groups = []
+    categories = []
+    paginator = None
+    page = None
+
+    if target_type == "weapon-profile":
+        target_label = "weapons"
+        weapons_qs = (
+            ContentEquipment.objects.weapons()
+            .with_packs([pack])
+            .select_related("category")
+        )
+        if q:
+            weapons_qs = search_queryset(weapons_qs, q, ["name", "category__name"])
+
+        # Category options come from the unfiltered (by cat) set so the
+        # dropdown remains stable when a category is selected.
+        # ``order_by()`` clears inherited ordering — needed for distinct() on
+        # values_list to dedupe correctly when with_packs adds an ORDER BY.
+        all_cat_ids = list(
+            weapons_qs.order_by().values_list("category_id", flat=True).distinct()
+        )
+        from gyrinx.content.models import ContentEquipmentCategory
+
+        # Stringified IDs so equality with query-string selections in the
+        # template just works (request.GET.getlist returns strings).
+        categories = [
+            {"id": str(c.id), "name": c.name}
+            for c in ContentEquipmentCategory.objects.filter(
+                id__in=all_cat_ids
+            ).order_by("name")
+        ]
+
+        if cat_filter_active:
+            weapons_qs = weapons_qs.filter(category_id__in=selected_cats)
+
+        weapons_qs = weapons_qs.order_by("category__name", "name")
+
+        paginator = Paginator(weapons_qs, 25)
+        page = paginator.get_page(request.GET.get("page", 1))
+        weapons_page = list(page.object_list)
+
+        # Prefetch profiles for visible weapons (pack-aware).
+        weapon_ids = [w.id for w in weapons_page]
+        profiles_by_weapon = {}
+        if weapon_ids:
+            profiles = (
+                ContentWeaponProfile.objects.with_packs([pack])
+                .filter(equipment_id__in=weapon_ids)
+                .order_by("name")
+            )
+            for p in profiles:
+                profiles_by_weapon.setdefault(p.equipment_id, []).append(p)
+
+        # Group weapons by category for the shop-style layout.
+        from itertools import groupby
+
+        weapons_page.sort(key=lambda w: (w.category.name if w.category else "", w.name))
+        for cat_name, group in groupby(
+            weapons_page, key=lambda w: w.category.name if w.category else ""
+        ):
+            weapons_in_cat = []
+            for w in group:
+                weapons_in_cat.append(
+                    {
+                        "weapon": w,
+                        "profiles": profiles_by_weapon.get(w.id, []),
+                    }
+                )
+            if weapons_in_cat:
+                weapon_groups.append({"category": cat_name, "weapons": weapons_in_cat})
+    else:  # fighter
+        target_label = "fighters & vehicles"
+        from gyrinx.models import FighterCategoryChoices
+
+        fighters_qs = (
+            ContentFighter.objects.with_packs([pack])
+            .select_related("house")
+            .exclude(category=FighterCategoryChoices.STASH)
+        )
+        if q:
+            fighters_qs = search_queryset(fighters_qs, q, ["type", "house__name"])
+
+        # Category options: every fighter category that has a row (minus STASH).
+        # ``order_by()`` clears inherited ordering so distinct() on values_list
+        # dedupes correctly.
+        present_cats = list(
+            fighters_qs.order_by().values_list("category", flat=True).distinct()
+        )
+        categories = [
+            {"id": c, "name": FighterCategoryChoices[c].label}
+            for c in sorted(present_cats, key=lambda c: FighterCategoryChoices[c].label)
+        ]
+
+        if cat_filter_active:
+            fighters_qs = fighters_qs.filter(category__in=selected_cats)
+
+        # Sort by the category label, then house then type.
+        fighters_qs = fighters_qs.order_by("category", "house__name", "type")
+
+        paginator = Paginator(fighters_qs, 25)
+        page = paginator.get_page(request.GET.get("page", 1))
+        fighters_page = list(page.object_list)
+
+        from itertools import groupby
+
+        def _row(fighter):
+            """Resolve a fighter's statline once and freeze it into a row dict.
+
+            Statlines vary: most fighters use the legacy 12-stat schema, but
+            Crew may use a partial subset and Vehicles use a vehicle-specific
+            schema (Front/Side/Rear/HP/Handling/Save). Grouping rows by their
+            schema lets the template render each schema as its own sub-table
+            with the right column headers.
+            """
+            statline = list(fighter.statline())
+            schema_key = tuple(
+                (s.get("field_name") if isinstance(s, dict) else s.field_name)
+                for s in statline
+            )
+            cells = []
+            columns = []
+            for s in statline:
+                if isinstance(s, dict):
+                    name = s.get("name")
+                    field_name = s.get("field_name")
+                    value = s.get("value")
+                    first_of_group = s.get("first_of_group", False)
+                else:
+                    name = s.name
+                    field_name = s.field_name
+                    value = s.value
+                    first_of_group = bool(
+                        getattr(s, "classes", "") and "border-start" in s.classes
+                    )
+                columns.append(
+                    {
+                        "name": name,
+                        "field_name": field_name,
+                        "first_of_group": first_of_group,
+                    }
+                )
+                cells.append({"value": value, "first_of_group": first_of_group})
+            return {
+                "fighter": fighter,
+                "schema_key": schema_key,
+                "columns": columns,
+                "cells": cells,
+            }
+
+        fighters_page.sort(
+            key=lambda f: (FighterCategoryChoices[f.category].label, f.type)
+        )
+        for cat_label, group in groupby(
+            fighters_page,
+            key=lambda f: FighterCategoryChoices[f.category].label,
+        ):
+            rows = [_row(f) for f in group]
+            # Sub-group by statline schema so each sub-table has consistent
+            # columns. Preserve stable ordering: group by first appearance.
+            schema_order = []
+            by_schema = {}
+            for r in rows:
+                if r["schema_key"] not in by_schema:
+                    schema_order.append(r["schema_key"])
+                    by_schema[r["schema_key"]] = {
+                        "columns": r["columns"],
+                        "rows": [],
+                    }
+                by_schema[r["schema_key"]]["rows"].append(r)
+            statline_groups = [by_schema[k] for k in schema_order]
+            fighter_groups.append(
+                {"category": cat_label, "statline_groups": statline_groups}
+            )
+
+    return render(
+        request,
+        "core/pack/house_rule_picker.html",
+        {
+            "pack": pack,
+            "target_type": target_type,
+            "target_label": target_label,
+            "target_choices": HOUSE_RULE_TARGET_CHOICES,
+            "weapon_groups": weapon_groups,
+            "fighter_groups": fighter_groups,
+            "categories": categories,
+            "selected_cats": selected_cats,
+            "cat_filter_active": cat_filter_active,
+            "page_obj": page,
+            "paginator": paginator,
+            "is_paginated": page.has_other_pages() if page else False,
+            "search_query": q,
+            "back_url": _pack_url(pack, "house-rule"),
+        },
+    )
+
+
+def _describe_house_rule_target(target):
+    if target is None:
+        return ""
+    return str(target)
+
+
+def _statline_field_names(target):
+    """Return the set of stat ``field_name`` keys present on a target's statline.
+
+    Used to narrow the stat dropdown on the add/edit house-rule form so users
+    can only pick stats that actually exist on the target (e.g. a non-vehicle
+    fighter has no Front/Side/Rear).
+    """
+    if target is None:
+        return None
+    try:
+        statline = target.statline()
+    except Exception:  # nosec B110
+        return None
+    names = set()
+    for stat in statline:
+        if hasattr(stat, "field_name"):
+            names.add(stat.field_name)
+        elif isinstance(stat, dict) and "field_name" in stat:
+            names.add(stat["field_name"])
+    return names or None
+
+
+@login_required
+def add_house_rule(request, id):
+    """Step 2 of the add-house-rule flow: define the mod for the chosen target.
+
+    Creates the ``ContentMod`` (a ``ContentModStat`` for weapon targets, a
+    ``ContentModFighterStat`` otherwise), the ``ContentModApplication``,
+    and the ``CustomContentPackItem`` linking the application to the pack
+    in a single transaction.
+    """
+    from gyrinx.content.models import (
+        ContentModApplication,
+        ContentModFighterStat,
+        ContentModStat,
+    )
+
+    pack = _get_pack_for_edit(id, request.user)
+
+    target_type = request.GET.get("target_type") or request.POST.get("target_type")
+    target_id = request.GET.get("target_id") or request.POST.get("target_id")
+    if target_type not in {slug for slug, _ in HOUSE_RULE_TARGET_CHOICES}:
+        return HttpResponseRedirect(
+            reverse("core:pack-house-rule-picker", args=(pack.id,))
+        )
+    if not is_valid_uuid(target_id):
+        return HttpResponseRedirect(
+            reverse("core:pack-house-rule-picker", args=(pack.id,))
+        )
+
+    target = _house_rule_target_for_slug(target_type, pack, target_id)
+    target_label = _describe_house_rule_target(target)
+    available_stat_field_names = _statline_field_names(target)
+
+    initial = {
+        "target_type": target_type,
+        "target_id": target_id,
+    }
+    if request.method == "POST":
+        form = ContentHouseRuleForm(
+            request.POST,
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
+        if form.is_valid():
+            stat = form.cleaned_data["stat"]
+            mode = form.cleaned_data["mode"]
+            value = form.cleaned_data["value"]
+
+            with transaction.atomic():
+                if target_type == "weapon-profile":
+                    mod = ContentModStat(stat=stat, mode=mode, value=value)
+                else:
+                    mod = ContentModFighterStat(stat=stat, mode=mode, value=value)
+                mod._history_user = request.user
+                mod.save()
+
+                ct = ContentType.objects.get_for_model(type(target))
+
+                application = ContentModApplication(
+                    target_content_type=ct,
+                    target_object_id=target.pk,
+                    modifier=mod,
+                )
+                application._history_user = request.user
+                application.save()
+
+                application_ct = ContentType.objects.get_for_model(
+                    ContentModApplication
+                )
+                item = CustomContentPackItem(
+                    pack=pack,
+                    content_type=application_ct,
+                    object_id=application.pk,
+                    owner=request.user,
+                )
+                item.save_with_user(user=request.user)
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.CREATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type="house_rule",
+                target=target_label,
+                modifier=str(mod),
+            )
+            messages.success(request, f"House rule added for {target_label}.")
+            return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
+    else:
+        form = ContentHouseRuleForm(
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
+
+    return render(
+        request,
+        "core/pack/house_rule_form.html",
+        {
+            "pack": pack,
+            "form": form,
+            "target": target,
+            "target_label": target_label,
+            "target_type": target_type,
+            "is_new": True,
+            "back_url": reverse("core:pack-house-rule-picker", args=(pack.id,))
+            + f"?target_type={target_type}",
+        },
+    )
+
+
+@login_required
+def edit_house_rule(request, id, item_id):
+    """Edit an existing house-rule application's mod fields.
+
+    Pre-populates the form from the current application + modifier and saves
+    in-place — no new ``ContentModApplication`` row is created. The target
+    cannot be changed here; archive and re-add to retarget.
+    """
+    from gyrinx.content.models import (
+        ContentModApplication,
+        ContentModFighterStat,
+        ContentModStat,
+    )
+
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+        archived=False,
+        content_type__app_label="content",
+        content_type__model="contentmodapplication",
+    )
+    application = get_object_or_404(
+        ContentModApplication.objects.all_content().select_related(
+            "modifier", "target_content_type"
+        ),
+        pk=pack_item.object_id,
+    )
+
+    # Resolve the polymorphic modifier so we know which subclass it is.
+    from gyrinx.content.models import ContentMod
+
+    modifier = ContentMod.objects.get(pk=application.modifier_id)
+
+    target_model = application.target_content_type.model
+    if target_model == "contentweaponprofile":
+        target_type = "weapon-profile"
+    else:
+        target_type = "fighter"
+
+    target = application.target
+    target_label = _describe_house_rule_target(target)
+    available_stat_field_names = _statline_field_names(target)
+
+    initial = {
+        "target_type": target_type,
+        "target_id": str(application.target_object_id),
+        "stat": modifier.stat if hasattr(modifier, "stat") else "",
+        "mode": modifier.mode if hasattr(modifier, "mode") else "",
+        "value": modifier.value if hasattr(modifier, "value") else "",
+    }
+
+    if request.method == "POST":
+        form = ContentHouseRuleForm(
+            request.POST,
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
+        if form.is_valid():
+            stat = form.cleaned_data["stat"]
+            mode = form.cleaned_data["mode"]
+            value = form.cleaned_data["value"]
+
+            with transaction.atomic():
+                # If the modifier subclass needs to change (e.g. the user
+                # picked a weapon stat for a previously-fighter mod, which
+                # the form prevents but defensively…), recreate the modifier.
+                expected_class = (
+                    ContentModStat
+                    if target_type in ("weapon", "weapon-profile")
+                    else ContentModFighterStat
+                )
+                if not isinstance(modifier, expected_class):
+                    new_mod = expected_class(stat=stat, mode=mode, value=value)
+                    new_mod._history_user = request.user
+                    new_mod.save()
+                    application.modifier = new_mod
+                    application._history_user = request.user
+                    application.save()
+                    modifier.delete()
+                else:
+                    modifier.stat = stat
+                    modifier.mode = mode
+                    modifier.value = value
+                    modifier._history_user = request.user
+                    modifier.save()
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.UPDATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type="house_rule",
+                target=target_label,
+                modifier=str(application.modifier),
+            )
+            messages.success(request, f"House rule updated for {target_label}.")
+            return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
+    else:
+        form = ContentHouseRuleForm(
+            initial=initial,
+            available_stat_field_names=available_stat_field_names,
+        )
+
+    return render(
+        request,
+        "core/pack/house_rule_form.html",
+        {
+            "pack": pack,
+            "form": form,
+            "target": target,
+            "target_label": target_label,
+            "target_type": target_type,
+            "is_new": False,
+            "back_url": _pack_url(pack, f"item-{pack_item.id}"),
+        },
+    )
+
+
+@login_required
+def delete_house_rule(request, id, item_id):
+    """Archive a house-rule application from a pack."""
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+        archived=False,
+        content_type__app_label="content",
+        content_type__model="contentmodapplication",
+    )
+
+    if request.method == "POST":
+        pack_item._history_user = request.user
+        pack_item.archive()
+        log_event(
+            user=request.user,
+            noun=EventNoun.CONTENT_PACK,
+            verb=EventVerb.ARCHIVE,
+            object=pack,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            content_type="house_rule",
+        )
+        return HttpResponseRedirect(_pack_url(pack, "house-rule"))
+
+    return render(
+        request,
+        "core/pack/house_rule_delete.html",
+        {
+            "pack": pack,
+            "pack_item": pack_item,
         },
     )

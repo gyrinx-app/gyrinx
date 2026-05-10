@@ -1,0 +1,97 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    {% if is_new %}
+        Add
+    {% else %}
+        Edit
+    {% endif %}
+    house rule - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            <i class="bi-megaphone"></i>
+            {% if is_new %}
+                Add
+            {% else %}
+                Edit
+            {% endif %}
+            house rule
+        </h1>
+        <p class="text-secondary mb-0">
+            Modifies the statline below for any List subscribed to
+            <em>{{ pack.name }}</em>.
+        </p>
+        {% if target_type == "weapon-profile" %}
+            <div class="card">
+                <div class="card-body p-0 p-sm-2">
+                    <table class="table table-sm table-borderless mb-0">
+                        {% if target.name %}
+                            {% include "core/includes/weapon_stat_headers.html" with first_col=target.equipment.name %}
+                        {% else %}
+                            {% include "core/includes/weapon_stat_headers.html" %}
+                        {% endif %}
+                        <tbody class="table-group-divider">
+                            <tr>
+                                <td>
+                                    <strong>
+                                        {% if target.name %}
+                                            {{ target.name }}
+                                        {% else %}
+                                            {{ target.equipment.name }}
+                                        {% endif %}
+                                    </strong>
+                                </td>
+                                {% for stat in target.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <div class="card">
+                <div class="card-body p-0 p-sm-2">
+                    <table class="table table-sm table-borderless mb-0">
+                        <thead class="table-group-divider">
+                            <tr>
+                                <th scope="col"></th>
+                                {% for stat in target.statline %}
+                                    <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
+                                        scope="col">{{ stat.name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="table-group-divider">
+                            <tr>
+                                <td>
+                                    <strong>{{ target.type }}</strong>
+                                    {% if target.house %}<span class="text-secondary">· {{ target.house.name }}</span>{% endif %}
+                                </td>
+                                {% for stat in target.statline %}
+                                    <td class="text-center {% if stat.first_of_group %}border-start{% endif %}">{{ stat.value }}</td>
+                                {% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form }}
+            <div class="mt-2 d-flex gap-2 align-items-center">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi-check-lg me-1"></i>
+                    {% if is_new %}
+                        Add house rule
+                    {% else %}
+                        Save
+                    {% endif %}
+                </button>
+                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

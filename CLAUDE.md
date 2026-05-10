@@ -278,6 +278,11 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
   - History-aware manager for better user tracking
 - All models inherit from `AppBase` to get consistent behavior
 - Models already define `history = HistoricalRecords()` for SimpleHistory integration
+- **Never call `self.full_clean()` from `save()`.** This is a Django anti-pattern: it duplicates work the form layer
+  already does, runs validation queries on every write (including bulk operations and migrations), can fail in
+  surprising ways for partially-loaded instances, and conflates form-level validation with persistence. Use form
+  validation, `clean()` invoked explicitly where needed, or database constraints instead. A few legacy models still
+  do this — do not copy the pattern, and prefer to remove it when touching those files.
 
 ### Key Model Relationships
 

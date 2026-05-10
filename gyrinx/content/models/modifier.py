@@ -11,10 +11,13 @@ This module contains:
 - ContentModFighterSkill: Fighter skill modifiers
 - ContentModSkillTreeAccess: Skill tree access modifiers
 - ContentModPsykerDisciplineAccess: Psyker discipline access modifiers
+- ContentModApplication: Pack-scoped house-rule application of a ContentMod to a target
 """
 
 from typing import Optional
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
 from polymorphic.models import PolymorphicModel
@@ -439,3 +442,150 @@ class ContentModPsykerDisciplineAccess(ContentMod):
         verbose_name = "Psyker Discipline Access Modifier"
         verbose_name_plural = "Psyker Discipline Access Modifiers"
         ordering = ["discipline__name", "mode"]
+
+
+class ContentModApplication(Content):
+    """Scopes a ContentMod to a specific target (weapon profile or fighter).
+
+    A pack owns instances of this model via CustomContentPackItem. When a list
+    subscribes to the pack, the application is surfaced via pack-membership
+    lookup and its modifier is applied wherever the target appears on the
+    list — without modifying the targeted library content directly.
+    """
+
+    # Models that may be targeted by a house-rule application.
+    TARGET_MODELS = ("contentweaponprofile", "contentfighter")
+
+    target_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE,
+        limit_choices_to={"app_label": "content", "model__in": TARGET_MODELS},
+    )
+    target_object_id = models.UUIDField()
+    target = GenericForeignKey("target_content_type", "target_object_id")
+
+    modifier = models.ForeignKey(
+        ContentMod,
+        on_delete=models.CASCADE,
+        related_name="applications",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Modifier Application"
+        verbose_name_plural = "Modifier Applications"
+        indexes = [
+            models.Index(
+                fields=["target_content_type", "target_object_id"],
+                name="idx_modapp_target",
+            ),
+        ]
+
+    def __str__(self):
+        # GenericForeignKey resolution may fail if the target was deleted
+        # without cascading; fall back to a stable label using the CT + id.
+        try:
+            target = self.target
+        except Exception:  # nosec B110
+            target = None
+        target_str = (
+            str(target)
+            if target is not None
+            else f"{self.target_content_type}#{self.target_object_id}"
+        )
+        return f"{self.modifier} → {target_str}"
+
+    def clean(self):
+        super().clean()
+
+        ct = self.target_content_type
+        if ct is None:
+            return
+        if ct.app_label != "content" or ct.model not in self.TARGET_MODELS:
+            raise ValidationError(
+                {
+                    "target_content_type": (
+                        "Target must be a weapon profile or a fighter."
+                    )
+                }
+            )
+
+        # Ensure target object exists. Use all_content() so pack-owned targets
+        # are also valid (mirrors CustomContentPackItem.clean).
+        if self.target_object_id:
+            model_class = ct.model_class()
+            manager = model_class._default_manager
+            qs = (
+                manager.all_content()
+                if hasattr(manager, "all_content")
+                else manager.all()
+            )
+            if not qs.filter(pk=self.target_object_id).exists():
+                raise ValidationError(
+                    {
+                        "target_object_id": (
+                            f"No {model_class._meta.verbose_name} found with ID "
+                            f"{self.target_object_id}."
+                        )
+                    }
+                )
+
+        # Cross-validate modifier subclass vs target type.
+        modifier = self.modifier
+        if modifier is None:
+            return
+
+        # Re-fetch as polymorphic instance so isinstance checks see the subclass.
+        if not isinstance(
+            modifier,
+            (
+                ContentModStat,
+                ContentModFighterStat,
+                ContentModTrait,
+                ContentModFighterRule,
+                ContentModFighterSkill,
+                ContentModSkillTreeAccess,
+                ContentModPsykerDisciplineAccess,
+            ),
+        ):
+            try:
+                modifier = ContentMod.objects.get(pk=modifier.pk)
+            except ContentMod.DoesNotExist:
+                return
+
+        target_model = ct.model
+        is_weapon_profile_target = target_model == "contentweaponprofile"
+        is_fighter_target = target_model == "contentfighter"
+
+        if isinstance(modifier, (ContentModStat, ContentModTrait)):
+            if not is_weapon_profile_target:
+                raise ValidationError(
+                    {
+                        "modifier": (
+                            "Weapon stat/trait modifiers must target a weapon profile."
+                        )
+                    }
+                )
+        elif isinstance(modifier, ContentModFighterStat):
+            if not is_fighter_target:
+                raise ValidationError(
+                    {"modifier": "Fighter stat modifiers must target a fighter."}
+                )
+        elif isinstance(
+            modifier,
+            (
+                ContentModFighterRule,
+                ContentModFighterSkill,
+                ContentModSkillTreeAccess,
+                ContentModPsykerDisciplineAccess,
+            ),
+        ):
+            if not is_fighter_target:
+                raise ValidationError(
+                    {
+                        "modifier": (
+                            "Fighter rule/skill/access modifiers must target a fighter."
+                        )
+                    }
+                )

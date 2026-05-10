@@ -875,6 +875,27 @@ urlpatterns = [
         pack_views.archived_customised_weapon_profiles,
         name="pack-customise-weapon-archived-profiles",
     ),
+    # House-rule mod applications
+    path(
+        "pack/<id>/house-rule/",
+        pack_views.house_rule_picker,
+        name="pack-house-rule-picker",
+    ),
+    path(
+        "pack/<id>/house-rule/add/",
+        pack_views.add_house_rule,
+        name="pack-house-rule-add",
+    ),
+    path(
+        "pack/<id>/house-rule/<item_id>/edit/",
+        pack_views.edit_house_rule,
+        name="pack-house-rule-edit",
+    ),
+    path(
+        "pack/<id>/house-rule/<item_id>/delete/",
+        pack_views.delete_house_rule,
+        name="pack-house-rule-delete",
+    ),
     path(
         "pack/<id>/item/<item_id>/default-equipment/weapons/add/",
         pack_views.add_pack_fighter_default_weapon,

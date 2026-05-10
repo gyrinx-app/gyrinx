@@ -1271,3 +1271,142 @@ class ContentPsykerPowerPackForm(forms.ModelForm):
                     "A psyker power with this name already exists in this discipline."
                 )
         return value
+
+
+# House-rule mod target choices. These map to the slug used in URLs and to
+# the ContentType being targeted.
+HOUSE_RULE_TARGET_CHOICES = [
+    ("weapon-profile", "Weapons"),
+    ("fighter", "Fighters & Vehicles"),
+]
+
+
+class ContentHouseRuleForm(forms.Form):
+    """Single-form house-rule definition: target + mod fields.
+
+    Backed by ``ContentModApplication`` + a freshly-created ``ContentMod``
+    (a ``ContentModStat`` for weapon-profile targets, a
+    ``ContentModFighterStat`` for fighter targets). The view creates the
+    mod, application, and ``CustomContentPackItem`` in one transaction.
+    """
+
+    MODE_CHOICES = [
+        ("improve", "Improve"),
+        ("worsen", "Worsen"),
+        ("set", "Set"),
+    ]
+
+    target_type = forms.ChoiceField(
+        choices=HOUSE_RULE_TARGET_CHOICES,
+        widget=forms.HiddenInput(),
+    )
+    target_id = forms.UUIDField(
+        widget=forms.HiddenInput(),
+        required=True,
+    )
+
+    stat = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="The statistic to modify.",
+    )
+    mode = forms.ChoiceField(
+        choices=MODE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Improve nudges the stat in the helpful direction; Worsen the opposite; Set replaces it.",
+    )
+    value = forms.CharField(
+        max_length=5,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+        help_text="A number, e.g. 1.",
+    )
+
+    # Weapon stat choices match ContentModStat.stat
+    WEAPON_STAT_CHOICES = [
+        ("strength", "Strength"),
+        ("range_short", "Range (Short)"),
+        ("range_long", "Range (Long)"),
+        ("accuracy_short", "Accuracy (Short)"),
+        ("accuracy_long", "Accuracy (Long)"),
+        ("armour_piercing", "Armour Piercing"),
+        ("damage", "Damage"),
+        ("ammo", "Ammo"),
+    ]
+
+    def __init__(self, *args, available_stat_field_names=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Build fighter stat choices from ContentStat — mirrors the admin
+        # dynamic-choices pattern in ContentModFighterStatAdminForm.
+        # Exclude weapon-only stats so the dropdown for fighter targets
+        # only shows stats that actually exist on a fighter.
+        from gyrinx.content.models.statline import ContentStat
+
+        weapon_only_field_names = {fc for fc, _ in self.WEAPON_STAT_CHOICES} - {
+            "strength"
+        }
+        fighter_stat_choices = [
+            (s.field_name, s.full_name)
+            for s in ContentStat.objects.exclude(
+                field_name__in=weapon_only_field_names
+            ).order_by("full_name")
+        ]
+        # Narrow the stat choices to match the target type. Initial data
+        # carries the target_type from the picker; falling back to bound
+        # data covers POST.
+        target_type = (
+            (self.initial or {}).get("target_type")
+            or (self.data or {}).get("target_type")
+            or "weapon-profile"
+        )
+        if target_type == "fighter":
+            choices = fighter_stat_choices
+        else:
+            choices = self.WEAPON_STAT_CHOICES
+
+        # If the caller passes the specific target's available stat field
+        # names (e.g. a non-vehicle fighter has no Front/Rear/HP), narrow
+        # the dropdown further so it only offers stats that actually exist.
+        if available_stat_field_names is not None:
+            allowed = set(available_stat_field_names)
+            choices = [(k, v) for k, v in choices if k in allowed]
+
+        self.fields["stat"].choices = choices
+        self._fighter_stat_field_names = {fc for fc, _ in fighter_stat_choices}
+        self._weapon_stat_field_names = {fc for fc, _ in self.WEAPON_STAT_CHOICES}
+        self._available_stat_field_names = (
+            set(available_stat_field_names)
+            if available_stat_field_names is not None
+            else None
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        target_type = cleaned.get("target_type")
+        stat = cleaned.get("stat")
+        mode = cleaned.get("mode")
+        value = cleaned.get("value")
+
+        if stat and target_type == "weapon-profile":
+            if stat not in self._weapon_stat_field_names:
+                self.add_error("stat", "Pick a weapon stat for a weapon profile.")
+        elif stat and target_type == "fighter":
+            if stat not in self._fighter_stat_field_names:
+                self.add_error("stat", "Pick a fighter stat for a fighter target.")
+
+        if (
+            stat
+            and self._available_stat_field_names is not None
+            and stat not in self._available_stat_field_names
+        ):
+            self.add_error("stat", "That stat isn't on this target's statline.")
+
+        # For improve/worsen modes, value must be an integer (the modifier
+        # operates numerically). 'set' allows non-numeric values (e.g. "S").
+        if mode in ("improve", "worsen") and value is not None:
+            try:
+                int(value)
+            except (TypeError, ValueError):
+                self.add_error(
+                    "value",
+                    "Value must be a whole number when improving or worsening a stat.",
+                )
+        return cleaned

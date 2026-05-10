@@ -1,0 +1,218 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Add house rule - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 col-lg-8 col-xl-6 px-0 vstack gap-3">
+        <div>
+            <h1 class="h3 mb-1">
+                <i class="bi-megaphone"></i> Add house rule
+            </h1>
+            <p class="text-secondary mb-0">
+                Pick what this house rule changes. The library content itself
+                isn't modified — Lists subscribed to this Content Pack will see
+                the modified stats wherever the target appears.
+            </p>
+        </div>
+        <ul class="nav nav-tabs">
+            {% for slug, label in target_choices %}
+                <li class="nav-item">
+                    <a class="nav-link{% if slug == target_type %} active{% endif %}"
+                       {% if slug == target_type %}aria-current="page"{% endif %}
+                       href="?{% qt request target_type=slug q=None page=None cat=None %}">{{ label }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+        <form id="search" method="get" action="" class="row g-2 align-items-center">
+            <input type="hidden" name="target_type" value="{{ target_type }}">
+            {% if categories %}
+                <div class="col-12 col-sm-auto">
+                    <div class="btn-group">
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm dropdown-toggle"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                data-bs-auto-close="outside">Category</button>
+                        <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                            <label class="form-label">
+                                <a href="#" id="category-all-link">All</a>
+                                /
+                                <a href="#" id="category-none-link">None</a>
+                            </label>
+                            {% for cat in categories %}
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           role="switch"
+                                           form="search"
+                                           id="cat-{{ cat.id }}"
+                                           name="cat"
+                                           value="{{ cat.id }}"
+                                           {% if not cat_filter_active or cat.id in selected_cats %}checked{% endif %}>
+                                    <label class="form-check-label" for="cat-{{ cat.id }}">{{ cat.name }}</label>
+                                    •
+                                    <a class="ms-auto" href="?{% qt request cat=cat.id page=None %}">only</a>
+                                </div>
+                            {% endfor %}
+                            <div class="btn-group align-items-center mt-1">
+                                <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
+                                    <i class="bi-arrow-clockwise"></i>
+                                    Update
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            <div class="col-12 col-sm">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <i class="bi-search"></i>
+                    </span>
+                    <input class="form-control"
+                           type="search"
+                           placeholder="Search {{ target_label }}"
+                           aria-label="Search {{ target_label }}"
+                           name="q"
+                           value="{{ search_query }}">
+                    <button class="btn btn-primary" type="submit">Search</button>
+                    {% if search_query or cat_filter_active %}
+                        <a href="?{% qt request q=None page=None cat=None %}"
+                           class="btn btn-outline-secondary">Clear</a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+        {% if target_type == "weapon-profile" %}
+            {% if weapon_groups %}
+                <form method="post" class="vstack gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="target_type" value="{{ target_type }}">
+                    {% for group in weapon_groups %}
+                        <section>
+                            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                                <h2 class="h5 mb-0">{{ group.category }}</h2>
+                            </div>
+                            <div class="px-2">
+                                <table class="table table-sm table-borderless mb-0">
+                                    {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
+                                    {% for entry in group.weapons %}
+                                        <tbody class="table-group-divider">
+                                            {% if not entry.profiles %}
+                                                <tr>
+                                                    <td colspan="9">{{ entry.weapon.name }}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td colspan="9" class="text-secondary fst-italic">No profiles.</td>
+                                                </tr>
+                                            {% else %}
+                                                {% if entry.profiles|length > 1 and entry.profiles.0.name %}
+                                                    <tr>
+                                                        <td colspan="9">{{ entry.weapon.name }}</td>
+                                                    </tr>
+                                                {% endif %}
+                                                {% for profile in entry.profiles %}
+                                                    <tr>
+                                                        <td>
+                                                            <button type="submit"
+                                                                    name="target_id"
+                                                                    value="{{ profile.id }}"
+                                                                    class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
+                                                                {% if entry.profiles|length == 1 or forloop.first and not profile.name %}
+                                                                    {{ entry.weapon.name }}
+                                                                {% else %}
+                                                                    <i class="bi-dash"></i>{{ profile.name }}
+                                                                {% endif %}
+                                                            </button>
+                                                        </td>
+                                                        <td class="text-center">{{ profile.range_short|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.range_long|default:"-" }}</td>
+                                                        <td class="text-center border-start">{{ profile.accuracy_short|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.accuracy_long|default:"-" }}</td>
+                                                        <td class="text-center border-start">{{ profile.strength|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.damage|default:"-" }}</td>
+                                                        <td class="text-center">{{ profile.ammo|default:"-" }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </tbody>
+                                    {% endfor %}
+                                </table>
+                            </div>
+                        </section>
+                    {% endfor %}
+                </form>
+                {% include "core/includes/pagination.html" %}
+            {% else %}
+                <p class="text-secondary mb-0">
+                    {% if search_query %}
+                        No weapons match "{{ search_query }}".
+                    {% else %}
+                        No weapons available.
+                    {% endif %}
+                </p>
+            {% endif %}
+        {% else %}
+            {% if fighter_groups %}
+                <form method="post" class="vstack gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="target_type" value="{{ target_type }}">
+                    {% for group in fighter_groups %}
+                        <section>
+                            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                                <h2 class="h5 mb-0">{{ group.category }}</h2>
+                            </div>
+                            <div class="px-2 vstack gap-2">
+                                {% for sub in group.statline_groups %}
+                                    <table class="table table-sm table-borderless mb-0 fs-7">
+                                        <thead class="table-group-divider">
+                                            <tr>
+                                                <th scope="col">Fighter</th>
+                                                {% for col in sub.columns %}
+                                                    <th class="text-center {% if forloop.first or col.first_of_group %}border-start{% endif %}"
+                                                        scope="col">{{ col.name }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody class="table-group-divider">
+                                            {% for row in sub.rows %}
+                                                <tr>
+                                                    <td>
+                                                        <button type="submit"
+                                                                name="target_id"
+                                                                value="{{ row.fighter.id }}"
+                                                                class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
+                                                            {{ row.fighter.type }}
+                                                        </button>
+                                                        {% if row.fighter.house %}<span class="text-secondary">· {{ row.fighter.house.name }}</span>{% endif %}
+                                                    </td>
+                                                    {% for cell in row.cells %}
+                                                        <td class="text-center {% if forloop.first or cell.first_of_group %}border-start{% endif %}">
+                                                            {{ cell.value|default:"-" }}
+                                                        </td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                {% endfor %}
+                            </div>
+                        </section>
+                    {% endfor %}
+                </form>
+                {% include "core/includes/pagination.html" %}
+            {% else %}
+                <p class="text-secondary mb-0">
+                    {% if search_query %}
+                        No fighters match "{{ search_query }}".
+                    {% else %}
+                        No fighters available.
+                    {% endif %}
+                </p>
+            {% endif %}
+        {% endif %}
+    </div>
+{% endblock content %}
