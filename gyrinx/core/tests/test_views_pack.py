@@ -633,7 +633,7 @@ def test_add_rule_form_loads(client, group_user, pack):
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/add/rule/")
     assert response.status_code == 200
-    assert b"Add Rule" in response.content
+    assert b"Add Special Rule" in response.content
 
 
 @pytest.mark.django_db
@@ -787,7 +787,7 @@ def test_edit_rule_form_loads(client, group_user, pack, pack_rule):
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
     assert response.status_code == 200
-    assert b"Edit Rule" in response.content
+    assert b"Edit Special Rule" in response.content
     assert b"Test Rule" in response.content
 
 
@@ -822,7 +822,7 @@ def test_delete_rule_confirmation_loads(client, group_user, pack, pack_rule):
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 200
-    assert b"Archive Rule" in response.content
+    assert b"Archive Special Rule" in response.content
     assert b"Test Rule" in response.content
 
 
@@ -1261,7 +1261,7 @@ def test_archived_items_page_loads(client, group_user, pack, pack_rule):
     response = client.get(f"/pack/{pack.id}/archived/rule/")
     assert response.status_code == 200
     content = response.content.decode()
-    assert "Archived Rules" in content
+    assert "Archived Special Rules" in content
     assert "Test Rule" in content
     assert "Restore" in content
 

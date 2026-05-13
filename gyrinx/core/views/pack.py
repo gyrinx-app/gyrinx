@@ -137,11 +137,12 @@ SUPPORTED_CONTENT_TYPES = [
     ),
     ContentTypeEntry(
         ContentRule,
-        "Rules",
-        "Custom rules for your Content Pack.",
+        "Special Rules",
+        "Custom special rules for your Content Pack.",
         "bi-journal-text",
         ContentRuleForm,
         "rule",
+        singular_label="Special Rule",
     ),
     ContentTypeEntry(
         ContentSkillCategory,
