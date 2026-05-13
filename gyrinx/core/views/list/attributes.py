@@ -46,7 +46,9 @@ def edit_list_attribute(request: HttpRequest, id: uuid.UUID, attribute_id: uuid.
     from gyrinx.content.models import ContentAttribute
 
     attribute = get_object_or_404(
-        ContentAttribute.objects.with_packs(lst.packs.all()),
+        ContentAttribute.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        ),
         id=attribute_id,
     )
 

@@ -220,9 +220,7 @@ class ListDetailView(generic.DetailView):
         from gyrinx.core.models.pack import CustomContentPack
 
         list_id = self.kwargs["id"]
-        packs = CustomContentPack.objects.filter(
-            subscribed_lists__id=list_id, archived=False
-        )
+        packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
         return get_clean_list_or_404(
             List.objects.with_related_data(with_fighters=True, packs=packs),
             id=list_id,
@@ -292,9 +290,7 @@ class ListDetailView(generic.DetailView):
 
             pack_content_map = {}
             for object_id, pname in (
-                CustomContentPackItem.objects.filter(
-                    pack__in=subscribed_packs, archived=False
-                )
+                CustomContentPackItem.objects.filter(pack__in=subscribed_packs)
                 .select_related("pack")
                 .values_list("object_id", "pack__name")
             ):
@@ -326,9 +322,7 @@ class ListPerformanceView(generic.DetailView):
         from gyrinx.core.models.pack import CustomContentPack
 
         list_id = self.kwargs["id"]
-        packs = CustomContentPack.objects.filter(
-            subscribed_lists__id=list_id, archived=False
-        )
+        packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
         return get_clean_list_or_404(
             List.objects.with_related_data(with_fighters=True, packs=packs),
             id=list_id,

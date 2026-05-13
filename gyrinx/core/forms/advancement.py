@@ -515,7 +515,9 @@ class SkillSelectionForm(forms.Form):
 
         # Use pack-aware queryset if packs provided, otherwise default manager.
         if packs is not None:
-            base_skills_qs = ContentSkill.objects.with_packs(packs)
+            base_skills_qs = ContentSkill.objects.with_packs(
+                packs, include_archived_items=True
+            )
         else:
             base_skills_qs = ContentSkill.objects.all()
 
@@ -576,7 +578,9 @@ class SkillCategorySelectionForm(forms.Form):
 
         # Use pack-aware queryset if packs provided.
         if packs is not None:
-            base_cats_qs = ContentSkillCategory.objects.with_packs(packs)
+            base_cats_qs = ContentSkillCategory.objects.with_packs(
+                packs, include_archived_items=True
+            )
         else:
             base_cats_qs = ContentSkillCategory.objects.all()
 

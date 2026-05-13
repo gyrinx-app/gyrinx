@@ -53,7 +53,9 @@ def edit_list_fighter_rules(request, id, fighter_id):
     # Scope all rule queries to the list's subscribed packs.
     # The default ContentManager excludes pack content, and all_content()
     # leaks rules from unsubscribed packs.
-    rules_qs = ContentRule.objects.with_packs(lst.packs.all())
+    rules_qs = ContentRule.objects.with_packs(
+        lst.packs.all(), include_archived_items=True
+    )
 
     # Get default rules from ContentFighter.
     default_rules = rules_qs.filter(contentfighter=fighter.content_fighter)
@@ -145,7 +147,8 @@ def toggle_list_fighter_rule(request, id, fighter_id, rule_id):
         owner=lst.owner,
     )
     rule = get_object_or_404(
-        ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
+        ContentRule.objects.with_packs(lst.packs.all(), include_archived_items=True),
+        id=rule_id,
     )
 
     # Ensure this is a default rule for the fighter.
@@ -208,7 +211,10 @@ def add_list_fighter_rule(request, id, fighter_id):
     rule_id = request.POST.get("rule_id")
     if rule_id and is_valid_uuid(rule_id):
         rule = get_object_or_404(
-            ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
+            ContentRule.objects.with_packs(
+                lst.packs.all(), include_archived_items=True
+            ),
+            id=rule_id,
         )
         fighter.custom_rules.add(rule)
 
@@ -254,7 +260,8 @@ def remove_list_fighter_rule(request, id, fighter_id, rule_id):
     )
 
     rule = get_object_or_404(
-        ContentRule.objects.with_packs(lst.packs.all()), id=rule_id
+        ContentRule.objects.with_packs(lst.packs.all(), include_archived_items=True),
+        id=rule_id,
     )
     # Delete from the through table directly because the default ContentRule
     # manager excludes pack content, which causes the M2M remove() to silently

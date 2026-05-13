@@ -115,14 +115,18 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         instance = ListFighterEquipmentAssignment(list_fighter=fighter)
         form = ListFighterEquipmentAssignmentForm(request.POST, instance=instance)
         form.fields["content_equipment"].queryset = ContentEquipment.objects.with_packs(
-            packs
+            packs, include_archived_items=True
         )
         form.fields[
             "weapon_profiles_field"
-        ].queryset = ContentWeaponProfile.objects.with_packs(packs)
+        ].queryset = ContentWeaponProfile.objects.with_packs(
+            packs, include_archived_items=True
+        )
         form.fields[
             "upgrades_field"
-        ].queryset = ContentEquipmentUpgrade.objects.with_packs(packs)
+        ].queryset = ContentEquipmentUpgrade.objects.with_packs(
+            packs, include_archived_items=True
+        )
         if form.is_valid():
             assign: ListFighterEquipmentAssignment = form.save(commit=False)
 
@@ -237,7 +241,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
 
     if is_weapon:
         equipment = (
-            ContentEquipment.objects.with_packs(packs)
+            ContentEquipment.objects.with_packs(packs, include_archived_items=True)
             .weapons()
             .with_expansion_cost_for_fighter(
                 fighter.equipment_list_fighter, expansion_inputs
@@ -251,7 +255,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         ]
     else:
         equipment = (
-            ContentEquipment.objects.with_packs(packs)
+            ContentEquipment.objects.with_packs(packs, include_archived_items=True)
             .non_weapons()
             .with_expansion_cost_for_fighter(
                 fighter.equipment_list_fighter, expansion_inputs
@@ -481,9 +485,13 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         # (weapons or non-weapons) to prevent cross-type items from leaking
         # into the combine (e.g. Armour appearing on the weapons page).
         equipment_type_qs = (
-            ContentEquipment.objects.with_packs(packs).weapons()
+            ContentEquipment.objects.with_packs(
+                packs, include_archived_items=True
+            ).weapons()
             if is_weapon
-            else ContentEquipment.objects.with_packs(packs).non_weapons()
+            else ContentEquipment.objects.with_packs(
+                packs, include_archived_items=True
+            ).non_weapons()
         )
         filtered_list_ids = list(
             equipment_type_qs.filter(id__in=equipment_list_ids).values_list(
@@ -496,15 +504,15 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
         # re-added via the combine (e.g. Ancestry items via squat legacy).
         if cats and "all" not in cats:
             filtered_list_ids = list(
-                ContentEquipment.objects.with_packs(packs)
+                ContentEquipment.objects.with_packs(packs, include_archived_items=True)
                 .filter(id__in=filtered_list_ids, category_id__in=cats)
                 .values_list("id", flat=True)
             )
 
         # Combine equipment and equipment_list_items using a single filter with Q
-        combined_equipment_qs = ContentEquipment.objects.with_packs(packs).filter(
-            Q(id__in=equipment.values("id")) | Q(id__in=filtered_list_ids)
-        )
+        combined_equipment_qs = ContentEquipment.objects.with_packs(
+            packs, include_archived_items=True
+        ).filter(Q(id__in=equipment.values("id")) | Q(id__in=filtered_list_ids))
 
         if is_weapon:
             equipment = combined_equipment_qs.with_expansion_cost_for_fighter(
@@ -610,7 +618,7 @@ def edit_list_fighter_equipment(request, id, fighter_id, is_weapon=False):
     if packs:
         pack_content_map = {}
         for object_id, pname in (
-            CustomContentPackItem.objects.filter(pack__in=packs, archived=False)
+            CustomContentPackItem.objects.filter(pack__in=packs)
             .select_related("pack")
             .values_list("object_id", "pack__name")
         ):
@@ -950,7 +958,9 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     if request.method == "POST" and "accessory_id" in request.POST:
         accessory_id = request.POST.get("accessory_id")
         accessory = get_object_or_404(
-            ContentWeaponAccessory.objects.with_packs(lst.packs.all()),
+            ContentWeaponAccessory.objects.with_packs(
+                lst.packs.all(), include_archived_items=True
+            ),
             pk=accessory_id,
         )
 
@@ -1005,7 +1015,9 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
     search_query = request.GET.get("q", "")
 
     # Build the accessories queryset (pack-aware)
-    accessible_accessories = ContentWeaponAccessory.objects.with_packs(lst.packs.all())
+    accessible_accessories = ContentWeaponAccessory.objects.with_packs(
+        lst.packs.all(), include_archived_items=True
+    )
     if filter_mode == "equipment-list":
         # Get accessories from equipment list
         equipment_list_accessories = (
@@ -1156,7 +1168,7 @@ def edit_single_weapon(request, id, fighter_id, assign_id):
     # Exclude standard (free) profiles as they're automatically included
     # Use with_packs() so pack-created profiles are visible to subscribers
     profiles_qs = (
-        ContentWeaponProfile.objects.with_packs(packs)
+        ContentWeaponProfile.objects.with_packs(packs, include_archived_items=True)
         .filter(equipment=assignment.content_equipment)
         .exclude(cost=0)
         .prefetch_related(

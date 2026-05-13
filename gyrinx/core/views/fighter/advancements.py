@@ -1019,7 +1019,9 @@ def list_fighter_advancement_select(request, id, fighter_id):
                 # Auto-select a random skill from the category.
                 # Exclude both default skills and user-added skills.
                 packs = lst.packs.all()
-                skills_qs = ContentSkill.objects.with_packs(packs)
+                skills_qs = ContentSkill.objects.with_packs(
+                    packs, include_archived_items=True
+                )
                 default_skill_ids = skills_qs.filter(
                     contentfighter=fighter.content_fighter
                 ).values_list("id", flat=True)

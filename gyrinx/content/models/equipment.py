@@ -190,9 +190,11 @@ class ContentEquipmentManager(ContentManager):
         """Return all equipment including pack content."""
         return self._annotate_default(super().all_content())
 
-    def with_packs(self, packs):
+    def with_packs(self, packs, include_archived_items=False):
         """Return base equipment plus equipment from specified packs."""
-        return self._annotate_default(super().with_packs(packs))
+        return self._annotate_default(
+            super().with_packs(packs, include_archived_items=include_archived_items)
+        )
 
 
 class ContentEquipmentQuerySet(ContentQuerySet):

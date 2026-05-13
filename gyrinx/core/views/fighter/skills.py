@@ -56,8 +56,12 @@ def edit_list_fighter_skills(request, id, fighter_id):
 
     # Scope all skill queries to the list's subscribed packs.
     # The default ContentManager excludes pack content.
-    skills_qs = ContentSkill.objects.with_packs(lst.packs.all())
-    skill_cats_qs = ContentSkillCategory.objects.with_packs(lst.packs.all())
+    skills_qs = ContentSkill.objects.with_packs(
+        lst.packs.all(), include_archived_items=True
+    )
+    skill_cats_qs = ContentSkillCategory.objects.with_packs(
+        lst.packs.all(), include_archived_items=True
+    )
 
     # Get default skills from ContentFighter
     default_skills = skills_qs.filter(contentfighter=fighter.content_fighter)
@@ -241,7 +245,10 @@ def add_list_fighter_skill(request, id, fighter_id):
     skill_id = request.POST.get("skill_id")
     if skill_id:
         skill = get_object_or_404(
-            ContentSkill.objects.with_packs(lst.packs.all()), id=skill_id
+            ContentSkill.objects.with_packs(
+                lst.packs.all(), include_archived_items=True
+            ),
+            id=skill_id,
         )
         fighter.skills.add(skill)
 
@@ -285,7 +292,8 @@ def remove_list_fighter_skill(request, id, fighter_id, skill_id):
     )
 
     skill = get_object_or_404(
-        ContentSkill.objects.with_packs(lst.packs.all()), id=skill_id
+        ContentSkill.objects.with_packs(lst.packs.all(), include_archived_items=True),
+        id=skill_id,
     )
     fighter.skills.remove(skill)
 
@@ -328,12 +336,15 @@ def toggle_list_fighter_skill(request, id, fighter_id, skill_id):
         owner=lst.owner,
     )
     skill = get_object_or_404(
-        ContentSkill.objects.with_packs(lst.packs.all()), id=skill_id
+        ContentSkill.objects.with_packs(lst.packs.all(), include_archived_items=True),
+        id=skill_id,
     )
 
     # Ensure this is a default skill for the fighter (use with_packs for pack skills)
     if (
-        not ContentSkill.objects.with_packs(lst.packs.all())
+        not ContentSkill.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        )
         .filter(id=skill_id, contentfighter=fighter.content_fighter)
         .exists()
     ):
