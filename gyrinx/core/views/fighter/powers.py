@@ -57,7 +57,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
             if kind == "default":
                 default_assign = get_object_or_404(
                     ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
-                        lst.packs.all()
+                        lst.packs.all(), include_archived_items=True
                     ),
                     psyker_power=power_id,
                     fighter=fighter.content_fighter_cached,
@@ -108,7 +108,7 @@ def edit_list_fighter_powers(request, id, fighter_id):
             # Enable a disabled default power
             default_assign = get_object_or_404(
                 ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
-                    lst.packs.all()
+                    lst.packs.all(), include_archived_items=True
                 ),
                 psyker_power=power_id,
                 fighter=fighter.content_fighter_cached,
@@ -132,7 +132,9 @@ def edit_list_fighter_powers(request, id, fighter_id):
             )
         elif request.POST.get("action") == "add":
             power = get_object_or_404(
-                ContentPsykerPower.objects.with_packs(lst.packs.all()),
+                ContentPsykerPower.objects.with_packs(
+                    lst.packs.all(), include_archived_items=True
+                ),
                 id=power_id,
             )
             assign = ListFighterPsykerPowerAssignment(

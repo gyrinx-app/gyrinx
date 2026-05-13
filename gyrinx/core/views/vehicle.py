@@ -131,7 +131,9 @@ def vehicle_crew(request, id):
     # Pack-aware lookup so a vehicle defined in a pack the list is
     # subscribed to is found, not just base library content.
     vehicle_equipment = get_object_or_404(
-        ContentEquipment.objects.with_packs(lst.packs.all()),
+        ContentEquipment.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        ),
         id=params.vehicle_equipment_id,
     )
 
@@ -201,7 +203,9 @@ def vehicle_confirm(request, id):
     # Pack-aware lookup so a vehicle defined in a pack the list is
     # subscribed to is found, not just base library content.
     vehicle_equipment = get_object_or_404(
-        ContentEquipment.objects.with_packs(lst.packs.all()),
+        ContentEquipment.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        ),
         id=params.vehicle_equipment_id,
     )
 
@@ -222,7 +226,9 @@ def vehicle_confirm(request, id):
     if params.action == "select_crew":
         # Pack-aware so pack-defined crew fighters resolve.
         crew_fighter = get_object_or_404(
-            ContentFighter.objects.with_packs(lst.packs.all()),
+            ContentFighter.objects.with_packs(
+                lst.packs.all(), include_archived_items=True
+            ),
             id=params.crew_fighter_id,
         )
 

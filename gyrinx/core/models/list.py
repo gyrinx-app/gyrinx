@@ -884,7 +884,9 @@ class List(AppBase):
         # object queries. Use with_packs() so pack-scoped attributes are
         # surfaced for lists subscribed to the pack.
         available_attributes = list(
-            ContentAttribute.objects.with_packs(self.packs.all())
+            ContentAttribute.objects.with_packs(
+                self.packs.all(), include_archived_items=True
+            )
             .filter(Q(restricted_to__isnull=True) | Q(restricted_to=self.content_house))
             .distinct()
             .order_by("name")
@@ -1605,8 +1607,12 @@ class ListFighterQuerySet(models.QuerySet):
         # When packs are provided, use pack-aware querysets for skill/rule
         # prefetches so that ruleline() and skilline() hit the cache.
         if packs is not None:
-            skills_qs = ContentSkill.objects.with_packs(packs)
-            rules_qs = ContentRule.objects.with_packs(packs)
+            skills_qs = ContentSkill.objects.with_packs(
+                packs, include_archived_items=True
+            )
+            rules_qs = ContentRule.objects.with_packs(
+                packs, include_archived_items=True
+            )
             skill_prefetches = [
                 Prefetch("skills", queryset=skills_qs),
                 Prefetch("disabled_skills", queryset=skills_qs),
@@ -2547,9 +2553,9 @@ class ListFighter(AppBase):
 
         packs = self.list.packs.all()
         categories = set(
-            ContentSkillCategory.objects.with_packs(packs).filter(
-                primary_fighters=self.content_fighter
-            )
+            ContentSkillCategory.objects.with_packs(
+                packs, include_archived_items=True
+            ).filter(primary_fighters=self.content_fighter)
         )
 
         # Apply equipment modifications
@@ -2577,9 +2583,9 @@ class ListFighter(AppBase):
 
         packs = self.list.packs.all()
         categories = set(
-            ContentSkillCategory.objects.with_packs(packs).filter(
-                secondary_fighters=self.content_fighter
-            )
+            ContentSkillCategory.objects.with_packs(
+                packs, include_archived_items=True
+            ).filter(secondary_fighters=self.content_fighter)
         )
 
         # Apply equipment modifications
@@ -2611,7 +2617,7 @@ class ListFighter(AppBase):
 
         base_assignments = (
             ContentFighterPsykerDisciplineAssignment.objects.with_packs(
-                self.list.packs.all()
+                self.list.packs.all(), include_archived_items=True
             )
             .filter(fighter=self.content_fighter)
             .select_related("discipline")
@@ -2800,7 +2806,9 @@ class ListFighter(AppBase):
         else:
             # Fallback: explicit pack-scoped queries
             packs = self.list.packs.all()
-            rules_qs = ContentRule.objects.with_packs(packs)
+            rules_qs = ContentRule.objects.with_packs(
+                packs, include_archived_items=True
+            )
             rules = list(rules_qs.filter(contentfighter=self.content_fighter_cached))
             disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
             custom_rules = list(rules_qs.filter(custom_for_fighters=self))
@@ -2958,7 +2966,9 @@ class ListFighter(AppBase):
         else:
             # Fallback: explicit pack-scoped queries
             packs = self.list.packs.all()
-            skills_qs = ContentSkill.objects.with_packs(packs)
+            skills_qs = ContentSkill.objects.with_packs(
+                packs, include_archived_items=True
+            )
             default_skills = list(
                 skills_qs.filter(contentfighter=self.content_fighter_cached)
             )
@@ -3376,7 +3386,7 @@ class ListFighter(AppBase):
         ).values("contentfighterpsykerpowerdefaultassignment_id")
         default_powers = (
             ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
-                self.list.packs.all()
+                self.list.packs.all(), include_archived_items=True
             )
             .filter(fighter=self.content_fighter_cached)
             .exclude(pk__in=disabled_pks)
@@ -5410,7 +5420,7 @@ class ListFighterPsykerPowerAssignment(Base, Archived):
 
         if (
             ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
-                self.list_fighter.list.packs.all()
+                self.list_fighter.list.packs.all(), include_archived_items=True
             )
             .filter(
                 fighter=self.list_fighter.content_fighter,

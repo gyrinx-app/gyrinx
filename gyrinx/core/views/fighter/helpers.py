@@ -154,17 +154,21 @@ def get_fighter_powers(fighter: ListFighter, show_restricted: bool = False):
     # Build the disciplines query
     if show_restricted:
         # Show all disciplines when restricted is enabled
-        disciplines_query = ContentPsykerDiscipline.objects.with_packs(packs)
+        disciplines_query = ContentPsykerDiscipline.objects.with_packs(
+            packs, include_archived_items=True
+        )
     else:
         # Default behavior: only show assigned or generic disciplines
         disciplines_query = (
-            ContentPsykerDiscipline.objects.with_packs(packs)
+            ContentPsykerDiscipline.objects.with_packs(
+                packs, include_archived_items=True
+            )
             .filter(Q(id__in=[d.id for d in available_disciplines]) | Q(generic=True))
             .distinct()
         )
 
     powers = (
-        ContentPsykerPower.objects.with_packs(packs)
+        ContentPsykerPower.objects.with_packs(packs, include_archived_items=True)
         .filter(
             # Get powers via disciplines
             Q(discipline__in=disciplines_query)
@@ -183,7 +187,9 @@ def get_fighter_powers(fighter: ListFighter, show_restricted: bool = False):
                 ).values("psyker_power_id")
             ),
             assigned_default=Exists(
-                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(packs)
+                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
+                    packs, include_archived_items=True
+                )
                 .filter(
                     fighter=fighter.content_fighter_cached,
                     psyker_power=OuterRef("pk"),
@@ -192,7 +198,9 @@ def get_fighter_powers(fighter: ListFighter, show_restricted: bool = False):
                 .values("psyker_power_id")
             ),
             disabled_default=Exists(
-                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(packs)
+                ContentFighterPsykerPowerDefaultAssignment.objects.with_packs(
+                    packs, include_archived_items=True
+                )
                 .filter(
                     fighter=fighter.content_fighter_cached,
                     psyker_power=OuterRef("pk"),

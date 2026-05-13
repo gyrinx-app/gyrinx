@@ -216,7 +216,7 @@ class ListFighterForm(forms.ModelForm):
             # Use the available_for_house method to get available fighters
             # Include fighters from subscribed packs if any
             self.fields["content_fighter"].queryset = ContentFighter.objects.with_packs(
-                inst.list.packs.all()
+                inst.list.packs.all(), include_archived_items=True
             ).available_for_house(inst.list.content_house)
 
             self.fields[
@@ -465,7 +465,7 @@ class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
             # values (the default M2M manager would silently exclude them).
             packs = inst.list_fighter.list.packs.all()
             choices_qs = ContentWeaponAccessory.objects.with_packs(
-                packs
+                packs, include_archived_items=True
             ).with_cost_for_fighter(inst.list_fighter.content_fighter)
             initial_qs = ContentWeaponAccessory.objects.all_content().filter(
                 weapon_accessories=inst

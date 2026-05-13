@@ -190,7 +190,9 @@ def get_list_attributes(list_obj):
     # object queries. Use with_packs() so pack-scoped attributes appear for
     # lists subscribed to the pack.
     available_attributes = list(
-        ContentAttribute.objects.with_packs(list_obj.packs.all())
+        ContentAttribute.objects.with_packs(
+            list_obj.packs.all(), include_archived_items=True
+        )
         .filter(Q(restricted_to__isnull=True) | Q(restricted_to=list_obj.content_house))
         .distinct()
         .order_by("name")

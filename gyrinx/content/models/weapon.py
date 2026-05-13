@@ -124,8 +124,10 @@ class ContentWeaponProfileManager(ContentManager):
     def all_content(self):
         return self._annotate_default(super().all_content())
 
-    def with_packs(self, packs):
-        return self._annotate_default(super().with_packs(packs))
+    def with_packs(self, packs, include_archived_items=False):
+        return self._annotate_default(
+            super().with_packs(packs, include_archived_items=include_archived_items)
+        )
 
 
 class ContentWeaponProfileQuerySet(ContentQuerySet):

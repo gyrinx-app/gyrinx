@@ -381,7 +381,10 @@ class TestPackContentVisibility:
     def test_archived_pack_item_still_visible_to_subscriber(
         self, make_list, pack, pack_fighter, content_house
     ):
-        """Archiving the CustomContentPackItem must NOT hide it from subscribers (#1742)."""
+        """Archiving the CustomContentPackItem must NOT hide it from subscribers (#1742).
+
+        Subscriber paths opt in with ``include_archived_items=True``.
+        """
         item = CustomContentPackItem.objects.get(pack=pack, object_id=pack_fighter.pk)
         item.archived = True
         item.save()
@@ -389,7 +392,7 @@ class TestPackContentVisibility:
         lst = make_list("Test List")
         lst.packs.add(pack)
         fighters = ContentFighter.objects.with_packs(
-            lst.packs.all()
+            lst.packs.all(), include_archived_items=True
         ).available_for_house(content_house)
         assert pack_fighter in fighters
 
@@ -403,7 +406,7 @@ class TestPackContentVisibility:
         lst = make_list("Test List")
         lst.packs.add(pack)
         fighters = ContentFighter.objects.with_packs(
-            lst.packs.all()
+            lst.packs.all(), include_archived_items=True
         ).available_for_house(content_house)
         assert pack_fighter in fighters
 

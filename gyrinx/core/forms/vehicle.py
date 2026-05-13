@@ -70,7 +70,7 @@ class VehicleSelectionForm(forms.Form):
             # ContentManager.
             packs = list_instance.packs.all()
             available_fighters = ContentFighter.objects.with_packs(
-                packs
+                packs, include_archived_items=True
             ).available_for_house(
                 list_instance.content_house,
                 include=[FighterCategoryChoices.VEHICLE],
@@ -82,7 +82,7 @@ class VehicleSelectionForm(forms.Form):
 
             # Get equipment with prefetched fighter profiles
             queryset = (
-                ContentEquipment.objects.with_packs(packs)
+                ContentEquipment.objects.with_packs(packs, include_archived_items=True)
                 .filter(id__in=vehicle_equipment_ids)
                 .select_related("category")
                 .prefetch_related(
@@ -150,9 +150,9 @@ class CrewSelectionForm(forms.Form):
             # Get valid crew members for this vehicle. Pack-aware so
             # pack-defined crew fighters appear for subscribed lists.
             packs = list_instance.packs.all()
-            queryset = ContentFighter.objects.with_packs(packs).available_for_house(
-                list_instance.content_house
-            )
+            queryset = ContentFighter.objects.with_packs(
+                packs, include_archived_items=True
+            ).available_for_house(list_instance.content_house)
 
             # Exclude vehicles from being crew members
             queryset = queryset.filter(category__in=[FighterCategoryChoices.CREW])

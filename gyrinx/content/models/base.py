@@ -43,20 +43,29 @@ class ContentQuerySet(models.QuerySet):
         pack_exists = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
         return self.filter(~Exists(pack_exists))
 
-    def with_packs(self, packs):
+    def with_packs(self, packs, include_archived_items=False):
         """Return items not in any pack plus items from specified packs.
 
-        Archived ``CustomContentPackItem`` rows (and items inside an archived
-        ``CustomContentPack``) are intentionally still returned: archiving is a
-        pack-owner soft-delete and must not retract content from lists/gangs
-        already subscribed to the pack. See "Domain Rules → Content packs:
-        archive semantics" in CLAUDE.md.
+        By default, archived ``CustomContentPackItem`` rows are excluded —
+        pack-owner / editor UIs (forms in ``core/forms/pack.py``, querysets
+        in ``core/views/pack.py``) rely on this so that soft-deleted items
+        don't reappear in dropdowns or library views.
+
+        Subscriber-side callers — code driven by a ``List.packs`` or
+        ``Campaign.packs`` subscription — should pass
+        ``include_archived_items=True``. Archiving is a pack-owner
+        soft-delete and must not retract content from lists/gangs already
+        subscribed to the pack. See "Domain Rules → Content packs: archive
+        semantics" in CLAUDE.md.
         """
         from django.db.models import Exists, OuterRef
 
         pack_items = self._pack_items_for_model().filter(object_id=OuterRef("pk"))
         not_in_any_pack = ~Exists(pack_items)
-        in_specified_packs = Exists(pack_items.filter(pack__in=packs))
+        membership = pack_items.filter(pack__in=packs)
+        if not include_archived_items:
+            membership = membership.filter(archived=False)
+        in_specified_packs = Exists(membership)
         return self.filter(not_in_any_pack | in_specified_packs)
 
 
@@ -75,9 +84,18 @@ class ContentManager(models.Manager):
         """Return all content including pack items."""
         return super().get_queryset()
 
-    def with_packs(self, packs):
-        """Return base content plus content from specified packs."""
-        return super().get_queryset().with_packs(packs)
+    def with_packs(self, packs, include_archived_items=False):
+        """Return base content plus content from specified packs.
+
+        See ``ContentQuerySet.with_packs`` for the ``include_archived_items``
+        flag — subscriber paths should pass ``True``, owner paths leave the
+        default.
+        """
+        return (
+            super()
+            .get_queryset()
+            .with_packs(packs, include_archived_items=include_archived_items)
+        )
 
 
 class Content(Base):

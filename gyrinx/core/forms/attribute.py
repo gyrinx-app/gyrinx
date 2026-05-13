@@ -19,7 +19,9 @@ class ListAttributeForm(forms.Form):
         # Get available values for this attribute. Use with_packs() so that
         # pack-scoped values appear for lists subscribed to the pack.
         values = (
-            ContentAttributeValue.objects.with_packs(self.list_obj.packs.all())
+            ContentAttributeValue.objects.with_packs(
+                self.list_obj.packs.all(), include_archived_items=True
+            )
             .filter(attribute=self.attribute)
             .order_by("name")
         )

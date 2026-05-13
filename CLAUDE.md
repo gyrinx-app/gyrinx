@@ -317,11 +317,12 @@ pack-aware content.
 - **Subscriber read paths** (anything driven by `list.packs` or `campaign.packs`) MUST NOT filter `archived=False` on
   `CustomContentPack` or `CustomContentPackItem`. This applies to both directions: the M2M lookup that finds *which*
   packs a list/campaign is subscribed to (e.g. `CustomContentPack.objects.filter(subscribed_lists__id=...)`), and the
-  pack-item lookup that resolves content within those packs. The canonical join is `ContentQuerySet.with_packs(packs)`
-  in `gyrinx/content/models/base.py` — use it rather than building a parallel filter.
+  pack-item lookup that resolves content within those packs. The canonical join is `ContentQuerySet.with_packs(packs,
+  include_archived_items=True)` in `gyrinx/content/models/base.py` — subscriber paths **must** pass
+  `include_archived_items=True`; the default excludes archived items so owner-side callers don't surface them.
 - **Pack-owner library views, gallery / featured listings, list-creation pack pickers, and campaign pack-add UIs** —
   these are pack-discovery / write paths. Filtering `archived=False` is correct here so archived packs don't appear
-  as new options.
+  as new options. For `with_packs([pack])` calls on owner-side, leave the default — archived items stay hidden.
 - **Form validation and unique-constraint lookups** — also fine to filter `archived=False`; the unique constraint on
   `CustomContentPackItem` is conditional on `archived=False` and code that looks up the "live" item must match.
 

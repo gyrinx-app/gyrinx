@@ -256,11 +256,11 @@ def test_content_manager_with_packs_excludes_other(
 
 
 @pytest.mark.django_db
-def test_with_packs_includes_archived_pack_item(pack, pack_fighter):
-    """Archiving a CustomContentPackItem must NOT hide the item from subscribers.
+def test_with_packs_archived_item_hidden_by_default(pack, pack_fighter):
+    """The default ``with_packs(packs)`` excludes archived items.
 
-    Pack archive is a soft-delete in the owner's library; subscribed lists
-    must keep seeing the content. See #1742.
+    Pack-owner / editor UIs (pack forms, pack detail querysets) rely on this so
+    that soft-deleted items don't reappear in dropdowns or library views.
     """
     item = CustomContentPackItem.objects.get(
         pack=pack,
@@ -270,22 +270,42 @@ def test_with_packs_includes_archived_pack_item(pack, pack_fighter):
     item.save()
 
     fighters = ContentFighter.objects.with_packs([pack])
+    assert pack_fighter not in fighters
+
+
+@pytest.mark.django_db
+def test_with_packs_subscriber_opt_in_includes_archived_item(pack, pack_fighter):
+    """Subscriber paths pass ``include_archived_items=True`` so archived pack
+    items stay visible — pack archive is a pack-owner soft-delete and must not
+    retract content from already-subscribed lists/gangs. See #1742.
+    """
+    item = CustomContentPackItem.objects.get(
+        pack=pack,
+        object_id=pack_fighter.pk,
+    )
+    item.archived = True
+    item.save()
+
+    fighters = ContentFighter.objects.with_packs([pack], include_archived_items=True)
     assert pack_fighter in fighters
 
 
 @pytest.mark.django_db
 def test_with_packs_includes_items_from_archived_pack(pack, pack_fighter):
-    """Archiving the CustomContentPack itself must NOT hide its content from subscribers."""
+    """Archiving the CustomContentPack itself must NOT hide its content from
+    subscribers (the item filter is on CustomContentPackItem.archived, not
+    CustomContentPack.archived).
+    """
     pack.archived = True
     pack.save()
 
-    fighters = ContentFighter.objects.with_packs([pack])
+    fighters = ContentFighter.objects.with_packs([pack], include_archived_items=True)
     assert pack_fighter in fighters
 
 
 @pytest.mark.django_db
-def test_with_packs_archived_equipment_visible(user):
-    """Archived pack equipment items remain visible to subscribers."""
+def test_with_packs_archived_equipment_visible_to_subscriber(user):
+    """Archived pack equipment items remain visible when the caller opts in."""
     pack = CustomContentPack.objects.create(name="Equip Pack", owner=user)
     category = ContentEquipmentCategory.objects.create(
         name="Test Cat 1742", group="Weapons & Ammo"
@@ -303,8 +323,15 @@ def test_with_packs_archived_equipment_visible(user):
     item.archived = True
     item.save()
 
-    pack_qs = ContentEquipment.objects.with_packs([pack])
-    assert pack_equip in pack_qs
+    # Owner default: archived item hidden.
+    owner_qs = ContentEquipment.objects.with_packs([pack])
+    assert pack_equip not in owner_qs
+
+    # Subscriber opt-in: archived item visible.
+    subscriber_qs = ContentEquipment.objects.with_packs(
+        [pack], include_archived_items=True
+    )
+    assert pack_equip in subscriber_qs
 
 
 @pytest.mark.django_db
