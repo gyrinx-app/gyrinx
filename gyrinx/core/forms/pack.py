@@ -115,7 +115,7 @@ class ContentFighterPackForm(forms.ModelForm):
             "skills": "Default skills",
             "primary_skill_categories": "Primary skill trees",
             "secondary_skill_categories": "Secondary skill trees",
-            "rules": "Rules",
+            "rules": "Special rules",
         }
         help_texts = {
             "type": "The name of this fighter or vehicle (e.g. 'Gang Leader', 'Goliath Mauler').",
