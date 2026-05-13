@@ -58,6 +58,6 @@ simpleeval==1.0.7
 sqlparse==0.5.5
 
 # Security: minimum versions for vulnerable transitive dependencies
-urllib3>=2.6.3
+urllib3>=2.7.0
 virtualenv>=20.36.1
 whitenoise==6.12.0
