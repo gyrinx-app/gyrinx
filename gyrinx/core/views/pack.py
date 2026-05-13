@@ -1821,7 +1821,9 @@ def add_pack_item(request, id, content_type_slug):
 
     if is_fighter:
         context["next_step_hint"] = (
-            "You can configure the Fighter statline on the next screen."
+            "You can configure the Fighter statline on the next screen. "
+            "Skill trees and Psyker disciplines can be set after you create "
+            "this Fighter — open it from the pack and use Edit."
         )
         context["next_step_button"] = "Next →"
 
