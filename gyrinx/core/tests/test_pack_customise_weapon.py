@@ -200,6 +200,73 @@ def test_add_profile_creates_pack_item(client, user, pack, library_weapon):
 
 
 @pytest.mark.django_db
+def test_add_profile_save_and_customise_another_redirects_to_picker(
+    client, user, pack, library_weapon
+):
+    client.force_login(user)
+    url = reverse(
+        "core:pack-customise-weapon-profile-add", args=(pack.id, library_weapon.id)
+    )
+    response = client.post(
+        url,
+        data={
+            "name": "Plasma Round",
+            "cost": "10",
+            "rarity": "C",
+            "wp_range_short": "12",
+            "wp_range_long": "24",
+            "wp_strength": "6",
+            "wp_armour_piercing": "-1",
+            "wp_damage": "2",
+            "wp_ammo": "5+",
+            "save_and_customise_another": "1",
+        },
+    )
+    assert response.status_code == 302
+    assert response["Location"].endswith(
+        reverse("core:pack-customise-weapon-picker", args=(pack.id,))
+    )
+    # The profile was still saved.
+    assert (
+        ContentWeaponProfile.objects.all_content()
+        .filter(equipment=library_weapon, name="Plasma Round")
+        .exists()
+    )
+
+
+@pytest.mark.django_db
+def test_edit_profile_save_and_customise_another_redirects_to_picker(
+    client, user, pack, library_weapon
+):
+    client.force_login(user)
+    profile = ContentWeaponProfile.objects.create(
+        equipment=library_weapon, name="Inferno", cost=5
+    )
+    _add_to_pack(pack, profile)
+    url = reverse(
+        "core:pack-customise-weapon-profile-edit",
+        args=(pack.id, library_weapon.id, profile.id),
+    )
+    response = client.post(
+        url,
+        data={
+            "name": "Inferno",
+            "cost": "9",
+            "rarity": "R",
+            "wp_range_short": "8",
+            "wp_range_long": "20",
+            "save_and_customise_another": "1",
+        },
+    )
+    assert response.status_code == 302
+    assert response["Location"].endswith(
+        reverse("core:pack-customise-weapon-picker", args=(pack.id,))
+    )
+    profile.refresh_from_db()
+    assert profile.cost == 9
+
+
+@pytest.mark.django_db
 def test_add_profile_rejects_duplicate_name(client, user, pack, library_weapon):
     client.force_login(user)
     ContentWeaponProfile.objects.create(

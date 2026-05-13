@@ -3160,6 +3160,11 @@ def add_customised_weapon_profile(request, id, equipment_id):
             if _save_customised_weapon_profile(
                 request, pack, equipment, profile, form, is_new=True
             ):
+                if "save_and_customise_another" in request.POST:
+                    messages.success(request, f'Profile added to "{equipment}".')
+                    return HttpResponseRedirect(
+                        reverse("core:pack-customise-weapon-picker", args=(pack.id,))
+                    )
                 return HttpResponseRedirect(back_url)
     else:
         form = ContentWeaponProfilePackForm(pack=pack)
@@ -3173,6 +3178,9 @@ def add_customised_weapon_profile(request, id, equipment_id):
         "form_action_url": reverse(
             "core:pack-customise-weapon-profile-add",
             args=(pack.id, equipment.id),
+        ),
+        "customise_another_url": reverse(
+            "core:pack-customise-weapon-picker", args=(pack.id,)
         ),
         "weapon_stat_fields": _build_weapon_stat_context(request),
     }
@@ -3209,6 +3217,11 @@ def edit_customised_weapon_profile(request, id, equipment_id, profile_id):
             if _save_customised_weapon_profile(
                 request, pack, equipment, updated, form, is_new=False
             ):
+                if "save_and_customise_another" in request.POST:
+                    messages.success(request, f'Profile on "{equipment}" saved.')
+                    return HttpResponseRedirect(
+                        reverse("core:pack-customise-weapon-picker", args=(pack.id,))
+                    )
                 return HttpResponseRedirect(back_url)
     else:
         form = ContentWeaponProfilePackForm(instance=profile, pack=pack)
@@ -3240,6 +3253,9 @@ def edit_customised_weapon_profile(request, id, equipment_id, profile_id):
         "delete_url": reverse(
             "core:pack-customise-weapon-profile-delete",
             args=(pack.id, equipment.id, profile.id),
+        ),
+        "customise_another_url": reverse(
+            "core:pack-customise-weapon-picker", args=(pack.id,)
         ),
         "weapon_stat_values": weapon_stat_context,
     }
