@@ -9,8 +9,8 @@
 #
 # Usage:
 #   ./scripts/dev.sh                # Normal startup; auto-provisions a
-#                                   # per-worktree .venv in child worktrees
-#                                   # if missing.
+#                                   # per-worktree .venv and node_modules in
+#                                   # child worktrees if missing.
 #   ./scripts/dev.sh --no-watch     # Skip npm watch (CSS already built)
 #   ./scripts/dev.sh --reset-db     # Drop and re-fork the worktree database
 #   ./scripts/dev.sh --reset-venv   # Rebuild the worktree's .venv from scratch
@@ -94,6 +94,23 @@ if [ "$WT_ROOT" != "$MAIN_WT" ]; then
   # had a .venv from before this change and would otherwise never get the
   # hook installed.
   install_worktree_venv_hook "$WT_VENV/bin/activate" || true
+fi
+
+# ---------------------------------------------------------------------------
+# Provision per-worktree node_modules (child worktrees only)
+# ---------------------------------------------------------------------------
+# `npm run watch` needs Bootstrap's SCSS partials from node_modules; without
+# this, sass fails with `Can't find stylesheet to import` and the dev server
+# serves unstyled pages.  Mirrors the venv block above — main worktree is
+# assumed to be set up by the initial install steps.
+if [ "$WT_ROOT" != "$MAIN_WT" ] && [ ! -d "${WT_ROOT}/node_modules" ]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "ERROR: \`npm\` is required to provision frontend deps but isn't on PATH." >&2
+    echo "Install Node (e.g. via nvm) and re-run \`./scripts/dev.sh\`." >&2
+    exit 1
+  fi
+  echo "Provisioning per-worktree node_modules at ${WT_ROOT}/node_modules..."
+  (cd "$WT_ROOT" && npm install --no-fund --no-audit)
 fi
 
 # Activate venv — child worktree's own first, then main worktree as fallback.
