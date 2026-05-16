@@ -30,15 +30,19 @@ pytest --cov=gyrinx
 ### Full Test Suite
 
 ```bash
-# Run full test suite (uses Docker if available, otherwise local Postgres)
+# Run the full suite against local Postgres (thin wrapper over pytest)
 ./scripts/test.sh
 
-# Run tests in parallel (recommended — much faster)
-pytest -n auto
+# Or invoke pytest directly — pyproject.toml already sets -n auto, so this
+# runs in parallel by default
+pytest
 
-# Run tests with watcher for continuous development
+# Continuous test runner
 ptw .
 ```
+
+CI runs the same `pytest` invocation against a GitHub Actions service container
+Postgres — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
 
 ### Per-Worktree Testing
 

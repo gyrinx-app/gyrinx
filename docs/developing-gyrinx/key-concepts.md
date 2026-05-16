@@ -46,7 +46,7 @@ Here's a breakdown of the directories in the repo, with files that are not impor
 ├── cloudbuild.yaml         -- Google Cloud Build configuration
 ├── content                 -- Historic directory for the initial content, now deprecated
 ├── docker                  -- Docker configuration directory, with entrypoint etc.
-├── docker-compose.yml      -- Docker Compose configuration (production/CI/analytics)
+├── docker-compose.yml      -- Docker Compose configuration (analytics profile + optional legacy local use; dev and CI run Postgres natively)
 ├── docs                    -- Documentation for the content you're looking at now
 ├── gyrinx                  -- The main application directory
 │   ├── api                 -- API endpoints (used by webhooks from Patreon)

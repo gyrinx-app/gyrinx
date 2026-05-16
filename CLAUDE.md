@@ -167,20 +167,14 @@ Docker layer to go through.
 ### Running the Application
 
 ```bash
-# Start everything (recommended — handles DB, migrations, runserver, CSS watch)
+# Start everything — handles DB, migrations, runserver, CSS watch
 ./scripts/dev.sh
-
-# Or start with Docker (legacy):
-docker compose up -d
-manage migrate
-manage runserver
-npm run watch  # in separate terminal
 ```
 
 ### Testing
 
 ```bash
-# Run full test suite (uses Docker if available, otherwise runs directly)
+# Run full test suite (thin wrapper over pytest; tests use local Postgres)
 ./scripts/test.sh
 
 # Run tests with pytest-watcher for continuous testing
