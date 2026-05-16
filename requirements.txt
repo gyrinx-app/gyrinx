@@ -50,7 +50,7 @@ pytest-xdist==3.8.0
 python-dotenv==1.2.2
 qrcode==8.2
 referencing==0.37.0
-requests>=2.32.4
+requests>=2.34.2
 rich==15.0.0
 ruff==0.15.13
 setuptools==81.0.0
