@@ -65,8 +65,10 @@ python scripts/screenshot.py --check
 - `setup-local-postgres.sh`: One-time machine setup. Installs PostgreSQL 16 via Homebrew (macOS),
   initialises the cluster with ICU collation, and migrates data from any pre-existing Docker
   Postgres container.
-- `cleanup-worktree-dbs.sh`: Lists (or with `--force`, drops) `gyrinx_wt_*` databases whose
-  worktrees no longer exist. Run periodically to reclaim disk.
+- `cleanup-worktree-dbs.sh`: Lists (or with `--force`, drops) orphaned `gyrinx_wt_*`
+  databases plus their pytest `test_*` databases. Pass `--include-tests` to also clean
+  test DBs for active worktrees (pytest will recreate them on next run). Run periodically
+  to reclaim disk.
 - `lib/worktree.sh`: Shared helpers for deriving per-worktree database names and Django ports.
   Sourced by `dev.sh`, `activate_venv_hook.sh`, and `cleanup-worktree-dbs.sh`.
 - `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution

@@ -56,11 +56,16 @@ Checks for any migration issues or conflicts.
 
 ### `scripts/cleanup-worktree-dbs.sh`
 
-Finds and removes orphaned worktree databases (from deleted worktrees).
+Finds and removes orphaned worktree databases (from deleted worktrees) along
+with their pytest test databases. Pass `--include-tests` to also clean up
+test DBs for *active* worktrees — pytest will recreate them on next run, so
+this is a safe way to reclaim disk.
 
 ```bash
-./scripts/cleanup-worktree-dbs.sh           # Dry run — list orphans
-./scripts/cleanup-worktree-dbs.sh --force   # Drop orphaned databases
+./scripts/cleanup-worktree-dbs.sh                   # Dry run: orphans only
+./scripts/cleanup-worktree-dbs.sh --force           # Drop orphans
+./scripts/cleanup-worktree-dbs.sh --include-tests   # Dry run + active test DBs
+./scripts/cleanup-worktree-dbs.sh --include-tests --force
 ```
 
 ### `scripts/reset-migrations-to-main.sh`
