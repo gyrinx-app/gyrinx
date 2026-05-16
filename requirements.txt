@@ -38,7 +38,7 @@ Pillow==12.2.0
 playwright==1.59.0
 pre-commit==4.6.0
 psycopg2-binary==2.9.12
-pyasn1>=0.6.2
+pyasn1>=0.6.3
 pydantic==2.13.4
 pydot==4.0.1
 PyNaCl>=1.6.2
