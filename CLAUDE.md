@@ -43,16 +43,22 @@ Each git worktree gets its own Postgres database and Django port, started with a
 
 - **Setup (once per machine):** `./scripts/setup-local-postgres.sh` — installs Postgres 16 + pgAdmin via Homebrew,
   migrates data from Docker
-- **Start dev server:** `./scripts/dev.sh` — ensures DB exists (forks from template if needed), runs migrations,
-  starts Django runserver + npm watch
+- **Start dev server:** `./scripts/dev.sh` — ensures DB exists (forks from template if needed), provisions a
+  per-worktree `.venv` on first run in a child worktree, runs migrations, starts Django runserver + npm watch
 - **Reset a worktree DB:** `./scripts/dev.sh --reset-db` — drops and re-forks from template
-- **Clean up orphans:** `./scripts/cleanup-worktree-dbs.sh` — finds/drops DBs for deleted worktrees
+- **Rebuild a worktree's venv:** `./scripts/dev.sh --reset-venv` — wipes and re-provisions `${WT_ROOT}/.venv`
+- **Clean up orphans:** `./scripts/cleanup-worktree-dbs.sh` — drops orphan DBs + reports worktree `.venv` sizes
 
 **How it works:**
 
 - Main worktree uses `gyrinx_main` database (port 8000) — this is the template with curated test data
 - Child worktrees get `gyrinx_wt_{hash}` databases forked via `CREATE DATABASE ... TEMPLATE`
 - Ports are deterministic per worktree path (range 8100-9599)
+- **Each child worktree gets its own `.venv` with `gyrinx` editable-installed from that worktree**, so
+  `import gyrinx` always resolves to worktree-local code (new migrations, new models, etc.). Without this,
+  `manage migrate` from a child worktree silently misses new migrations and `pytest` fails with
+  `ImportError`. `./scripts/dev.sh` provisions the venv via `uv venv` + `uv pip install --editable .` on
+  first run (~1 minute). Main worktree continues to use whatever venv it already had.
 - The session hook (`activate_venv_hook.sh`) auto-sets `DB_NAME` and `DJANGO_PORT` for every
   Claude Code Bash invocation
 - `setup-local-postgres.sh` appends a block to `.venv/bin/activate` so that

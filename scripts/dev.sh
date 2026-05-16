@@ -8,9 +8,13 @@
 # Starts Django runserver + npm watch, logs to ./logs/
 #
 # Usage:
-#   ./scripts/dev.sh              # Normal startup
-#   ./scripts/dev.sh --no-watch   # Skip npm watch (CSS already built)
-#   ./scripts/dev.sh --reset-db   # Drop and re-fork the worktree database
+#   ./scripts/dev.sh                # Normal startup; auto-provisions a
+#                                   # per-worktree .venv in child worktrees
+#                                   # if missing.
+#   ./scripts/dev.sh --no-watch     # Skip npm watch (CSS already built)
+#   ./scripts/dev.sh --reset-db     # Drop and re-fork the worktree database
+#   ./scripts/dev.sh --reset-venv   # Rebuild the worktree's .venv from scratch
+#                                   # (no-op in the main worktree)
 
 set -euo pipefail
 
@@ -22,10 +26,12 @@ source "$SCRIPT_DIR/lib/worktree.sh"
 # ---------------------------------------------------------------------------
 NO_WATCH=false
 RESET_DB=false
+RESET_VENV=false
 for arg in "$@"; do
   case "$arg" in
     --no-watch) NO_WATCH=true ;;
     --reset-db) RESET_DB=true ;;
+    --reset-venv) RESET_VENV=true ;;
     *) echo "Unknown argument: $arg"; exit 1 ;;
   esac
 done
@@ -52,8 +58,45 @@ if [ -n "$PG_BIN_DIR" ]; then
   export PATH="$PG_BIN_DIR:$PATH"
 fi
 
-# Activate venv — check worktree first, then main worktree
 MAIN_WT=$(_main_worktree)
+
+# ---------------------------------------------------------------------------
+# Provision per-worktree venv (child worktrees only)
+# ---------------------------------------------------------------------------
+# Each child worktree gets its own .venv with gyrinx editable-installed from
+# that worktree, so `import gyrinx` resolves to worktree-local code (including
+# new migrations, new models, etc.).  Without this, every Python invocation
+# from a child worktree would resolve gyrinx from the main worktree's editable
+# install — see issue #1772.
+if [ "$WT_ROOT" != "$MAIN_WT" ]; then
+  WT_VENV="${WT_ROOT}/.venv"
+  if [ "$RESET_VENV" = true ] && [ -d "$WT_VENV" ]; then
+    echo "Removing existing per-worktree venv at $WT_VENV..."
+    rm -rf "$WT_VENV"
+  fi
+  if [ ! -d "$WT_VENV" ]; then
+    if ! command -v uv >/dev/null 2>&1; then
+      echo "ERROR: \`uv\` is required to provision per-worktree venvs but isn't on PATH." >&2
+      echo "Install from https://docs.astral.sh/uv/ or re-create .venv manually:" >&2
+      echo "    python -m venv ${WT_VENV} && ${WT_VENV}/bin/pip install --editable ${WT_ROOT}" >&2
+      exit 1
+    fi
+    echo "Provisioning per-worktree venv at $WT_VENV (~1 min)..."
+    uv venv "$WT_VENV" >/dev/null
+    (
+      cd "$WT_ROOT"
+      uv pip install --python "$WT_VENV/bin/python" --editable . --quiet
+    )
+    echo "Provisioned: $WT_VENV"
+  fi
+  # Always (re-)ensure the activate hook is present.  Idempotent — no-op if
+  # the marker is already there.  Catches the case where a child worktree
+  # had a .venv from before this change and would otherwise never get the
+  # hook installed.
+  install_worktree_venv_hook "$WT_VENV/bin/activate" || true
+fi
+
+# Activate venv — child worktree's own first, then main worktree as fallback.
 VENV_PATH="${WT_ROOT}/.venv"
 if [ ! -d "$VENV_PATH" ] && [ "$WT_ROOT" != "$MAIN_WT" ]; then
   VENV_PATH="${MAIN_WT}/.venv"

@@ -94,10 +94,39 @@ if [ "$INCLUDE_TESTS" = true ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Informational: report worktree .venv sizes
+# ---------------------------------------------------------------------------
+# Each child worktree has its own .venv (#1772).  We don't reap orphan .venvs
+# — a venv lives inside its worktree directory, so `git worktree remove` (or
+# rm -rf) takes it down with the worktree.  Surface the sizes so contributors
+# can eyeball disk usage.
+report_worktree_venvs() {
+  local any=0
+  while IFS= read -r wt_path; do
+    [ -z "$wt_path" ] && continue
+    if [ -d "$wt_path/.venv" ]; then
+      if [ "$any" = 0 ]; then
+        echo
+        echo "Worktree .venv sizes:"
+        any=1
+      fi
+      local size label
+      # Best-effort: `du` can fail (race on dir removal, unreadable subtrees).
+      # Don't let an informational lookup crash the script under `set -euo
+      # pipefail` — fall back to "?" instead.
+      size=$(du -sh "$wt_path/.venv" 2>/dev/null | awk '{print $1}' || echo "?")
+      label=$(worktree_label "$wt_path")
+      echo "  - ${label} (${wt_path}/.venv): ${size}"
+    fi
+  done < <(git worktree list --porcelain | sed -n 's/^worktree //p')
+}
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 if [ ${#TO_DROP[@]} -eq 0 ]; then
-  echo "Nothing to clean up."
+  echo "No databases to clean up."
+  report_worktree_venvs
   exit 0
 fi
 
@@ -120,6 +149,7 @@ fi
 if [ "$FORCE" = false ]; then
   echo
   echo "Run with --force to drop these databases."
+  report_worktree_venvs
   exit 0
 fi
 
@@ -137,3 +167,4 @@ for db in "${TO_DROP[@]}"; do
   dropdb "$db"
 done
 echo "Done. Dropped ${#TO_DROP[@]} database(s) ($total_pretty)."
+report_worktree_venvs

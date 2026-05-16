@@ -127,3 +127,52 @@ homebrew_postgres_data_dir() {
     echo "$prefix/var/postgresql@16"
   fi
 }
+
+# install_worktree_venv_hook <activate_path>
+#   Append the per-worktree DB env block to a venv's bin/activate file so
+#   `source .venv/bin/activate` exports DB_NAME / DJANGO_PORT / DB_CONFIG
+#   for the current worktree.  Idempotent — does nothing if the marker is
+#   already present.
+#
+#   Returns 0 on success or skip-when-already-installed.
+#   Returns 1 if the activate file doesn't exist.
+install_worktree_venv_hook() {
+  local activate="$1"
+  local marker="# >>> Gyrinx per-worktree DB env >>>"
+  if [ ! -f "$activate" ]; then
+    return 1
+  fi
+  if grep -qF "$marker" "$activate"; then
+    return 0
+  fi
+  cat >> "$activate" <<'BLOCK'
+
+# >>> Gyrinx per-worktree DB env >>>
+# Installed by scripts/setup-local-postgres.sh or scripts/dev.sh.  Makes
+# pytest, manage, and other tools target the current worktree's Postgres
+# database without manual exports.  Re-source the activate script after
+# `cd`ing between worktrees.
+_gyrinx_set_db_env() {
+  local wt_root lib
+  wt_root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  lib="$wt_root/scripts/lib/worktree.sh"
+  [ -f "$lib" ] || return 0
+  # POSIX `.` rather than bash-only `source` — the activate script is also
+  # used from zsh/ksh.
+  # shellcheck source=/dev/null
+  . "$lib"
+  export DB_NAME
+  DB_NAME=$(worktree_db_name "$wt_root")
+  export DJANGO_PORT
+  DJANGO_PORT=$(worktree_port "$wt_root")
+  export DB_HOST=localhost
+  export DB_PORT=5432
+  export DB_CONFIG
+  DB_CONFIG="$(db_config_for_local)"
+}
+_gyrinx_set_db_env
+unset -f _gyrinx_set_db_env
+# <<< Gyrinx per-worktree DB env <<<
+BLOCK
+  return 0
+}
