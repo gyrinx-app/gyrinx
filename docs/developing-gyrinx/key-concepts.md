@@ -40,13 +40,13 @@ Here's a breakdown of the directories in the repo, with files that are not impor
 ├── CODE-OF-CONDUCT.md      -- Code of conduct for the project
 ├── CODEOWNERS              -- GitHub code owners for the project
 ├── CONTRIBUTING.md         -- Contribution guidelines
-├── Dockerfile              -- Dockerfile for building the Gyrinx image
+├── Dockerfile              -- Dockerfile for building the Gyrinx image (production/CI)
 ├── README.md               -- Project overview and instructions
 ├── SECURITY.md             -- Security policy for the project
 ├── cloudbuild.yaml         -- Google Cloud Build configuration
 ├── content                 -- Historic directory for the initial content, now deprecated
 ├── docker                  -- Docker configuration directory, with entrypoint etc.
-├── docker-compose.yml      -- Docker Compose configuration for running Gyrinx locally
+├── docker-compose.yml      -- Docker Compose configuration (analytics profile + optional legacy local use; dev and CI run Postgres natively)
 ├── docs                    -- Documentation for the content you're looking at now
 ├── gyrinx                  -- The main application directory
 │   ├── api                 -- API endpoints (used by webhooks from Patreon)
@@ -64,7 +64,11 @@ Here's a breakdown of the directories in the repo, with files that are not impor
 ├── pyproject.toml          -- Python package configuration
 ├── requirements.txt        -- Python package requirements
 └── scripts
-    └── manage.py           -- Dyango command line management script
+    ├── dev.sh              -- Start the full dev environment (DB + server + CSS watch)
+    ├── setup-local-postgres.sh -- One-time local Postgres setup
+    ├── cleanup-worktree-dbs.sh -- Remove orphaned worktree databases
+    ├── lib/worktree.sh     -- Shared worktree utility functions
+    └── manage.py           -- Django command line management script
 ```
 
 ## Technical Principles of Gyrinx

@@ -20,7 +20,9 @@ and development guides.
 Before getting started, you'll need:
 
 - **Python 3.12+** - Use [pyenv](https://github.com/pyenv/pyenv) to manage versions
-- **Docker** with [Compose](https://docs.docker.com/compose/gettingstarted/) - For the database
+- **macOS with Homebrew** - The local dev scripts (`setup-local-postgres.sh`, `dev.sh`) are
+  macOS-only. Linux contributors will need to set up PostgreSQL 16 manually and start it
+  before running `dev.sh`
 - **Git** - For version control
 
 ## Quick Start
@@ -39,11 +41,11 @@ manage setupenv
 # Set up frontend toolchain
 nodeenv -p && npm install && npm run build
 
-# Start the database and run migrations
-docker compose up -d && manage migrate
+# One-time: install and initialise local PostgreSQL (macOS via Homebrew)
+./scripts/setup-local-postgres.sh
 
-# Run the application
-manage runserver
+# Start the development server (DB fork + migrate + runserver + CSS watch)
+./scripts/dev.sh
 ```
 
 Visit http://localhost:8000 to see the application.
@@ -151,35 +153,32 @@ The Quick Start above gets you running fast. For more detailed steps:
 
 ## Running the Django application
 
-1. Make sure your virtual environment is active & `pip` has up-to-date
-   dependencies:
+The development workflow is a single command:
 
-    ```bash
-    . .venv/bin/activate
-    pip install --editable .
-    ```
+```bash
+./scripts/dev.sh
+```
 
-2. Start the database ([Postgres](https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/#Using-Docker-Compose))
-   and [pgadmin](https://www.pgadmin.org/):
+This handles:
 
-    ```bash
-    docker compose up -d
-    ```
+- Forking the per-worktree database from the `gyrinx_main` template (if missing)
+- Running migrations
+- Starting Django on a deterministic per-worktree port (8000 for `main`, 8100–9599 for child worktrees)
+- Starting `npm run watch` for SCSS rebuilds
 
-3. Run the migrations:
+Useful flags:
 
-    ```bash
-    manage migrate
-    ```
+```bash
+./scripts/dev.sh --no-watch    # skip the CSS watcher
+./scripts/dev.sh --reset-db    # drop and re-fork the worktree DB
+```
 
-4. Run the application:
+If you've never set up local PostgreSQL on this machine, run
+`./scripts/setup-local-postgres.sh` first.
 
-    ```bash
-    manage runserver
-    ```
-
-You can also run the application itself within Docker Compose by passing
-`--profile app`, but this will not auto-reload the static files.
+> [!NOTE]
+> For details on the per-worktree database model and how `gyrinx_main` is used as a template,
+> see [docs/useful-scripts.md](docs/useful-scripts.md).
 
 ## Building the UI
 
@@ -194,38 +193,49 @@ npm run watch
 
 ## Running Tests
 
-To run the test suite, we also use Docker (so there is a database to talk to):
+Tests run against your local PostgreSQL database. `setup-local-postgres.sh`
+configures everything you need: `max_locks_per_transaction = 256` on the
+cluster (required for pytest-xdist parallel syncdb), and a hook in
+`.venv/bin/activate` that exports the per-worktree `DB_NAME` / `DB_CONFIG` /
+`DJANGO_PORT` so `pytest` and `manage` target the right database.
+
+> [!IMPORTANT]
+> Re-run `source .venv/bin/activate` after switching worktrees. The hook
+> reads `git rev-parse --show-toplevel` at activation time, not on every
+> command. Symptom of forgetting: `pytest` fails with `FATAL: role "postgres"
+> does not exist` (settings.py fell back to defaults because `DB_CONFIG` was
+> unset or pinned to the wrong worktree).
+
+The wrapper script is a thin convenience over `pytest`:
 
 ```bash
-./scripts/test.sh
+./scripts/test.sh                 # parallel (via pyproject addopts: -n auto)
+./scripts/test.sh -n 0            # serial
 ```
 
-For faster test execution using parallel workers:
+Or invoke `pytest` directly — `pyproject.toml` already sets `-n auto --reuse-db
+--nomigrations`, so the bare command runs the full suite in parallel:
 
 ```bash
-./scripts/test.sh --parallel
-# or
-./scripts/test.sh -p
+pytest                            # full suite, parallel
+pytest gyrinx/core/tests/         # one directory
+pytest -k campaign                # by name
 ```
 
-You can also run tests directly with pytest for more control:
+After adding migrations, run them once with `--migrations`:
 
 ```bash
-# Run tests in parallel (requires pytest-xdist)
-pytest -n auto
-
-# Run tests with database reuse (faster for repeated runs)
-pytest --reuse-db
-
-# Combine both for maximum speed
-pytest -n auto --reuse-db
+pytest --migrations
 ```
 
-You can also use the `pytest-watcher`:
+You can also use `pytest-watcher` for continuous testing:
 
 ```bash
 ptw .
 ```
+
+CI runs the same `pytest` invocation against a GitHub Actions service container
+Postgres — see [.github/workflows/test.yaml](.github/workflows/test.yaml).
 
 ## New data migration
 

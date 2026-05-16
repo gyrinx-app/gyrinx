@@ -27,15 +27,26 @@ pytest -v
 pytest --cov=gyrinx
 ```
 
-### Docker Testing
+### Full Test Suite
 
 ```bash
-# Run full test suite in Docker (uses fresh database)
+# Run the full suite against local Postgres (thin wrapper over pytest)
 ./scripts/test.sh
 
-# Run tests with watcher for continuous development
+# Or invoke pytest directly — pyproject.toml already sets -n auto, so this
+# runs in parallel by default
+pytest
+
+# Continuous test runner
 ptw .
 ```
+
+CI runs the same `pytest` invocation against a GitHub Actions service container
+Postgres — see [.github/workflows/test.yaml](https://github.com/gyrinx-app/gyrinx/blob/main/.github/workflows/test.yaml).
+
+### Per-Worktree Testing
+
+Each worktree has its own database. The session hook automatically sets `DB_NAME` so `pytest` targets the correct database. No extra configuration needed — just run `pytest` from within any worktree.
 
 ## Test Organization
 
@@ -115,7 +126,7 @@ Tests are configured to use `StaticFilesStorage` instead of `CompressedManifestS
 
 ### Database
 
-Tests use a separate test database that's created and destroyed for each test run.
+Tests use a separate test database created by pytest-django. In local development, each worktree has its own database (`gyrinx_wt_{hash}`) and its own set of test databases. The `--reuse-db` flag (configured in `pyproject.toml`) speeds up repeated runs by keeping test databases between runs.
 
 ### Fixtures
 

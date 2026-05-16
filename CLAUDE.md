@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Critical Commands:**
 
+- Start dev server: `./scripts/dev.sh` (starts Django + CSS watch, per-worktree isolation)
 - Format code: `./scripts/fmt.sh`
 - Run tests: `pytest -n auto`
 - Django commands: Use `manage` (not `python manage.py`)
@@ -21,6 +22,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The virtualenv is auto-activated for every Bash command by a `SessionStart` hook
   (`scripts/activate_venv_hook.sh`) that persists `.venv` into `CLAUDE_ENV_FILE`.
   There is no need to prefix commands with `. .venv/bin/activate &&`.
+- The session hook also sets `DB_NAME` and `DJANGO_PORT` per-worktree — `manage` and `pytest`
+  automatically target the correct database.
 
 **Key Principles:**
 
@@ -33,6 +36,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - All our infra is in GCP europe-west2 (London)
 - In prod, the user uploads bucket name is gyrinx-app-bootstrap-uploads
+
+## Local Development (Per-Worktree Isolation)
+
+Each git worktree gets its own Postgres database and Django port, started with a single command.
+
+- **Setup (once per machine):** `./scripts/setup-local-postgres.sh` — installs Postgres 16 + pgAdmin via Homebrew,
+  migrates data from Docker
+- **Start dev server:** `./scripts/dev.sh` — ensures DB exists (forks from template if needed), runs migrations,
+  starts Django runserver + npm watch
+- **Reset a worktree DB:** `./scripts/dev.sh --reset-db` — drops and re-forks from template
+- **Clean up orphans:** `./scripts/cleanup-worktree-dbs.sh` — finds/drops DBs for deleted worktrees
+
+**How it works:**
+
+- Main worktree uses `gyrinx_main` database (port 8000) — this is the template with curated test data
+- Child worktrees get `gyrinx_wt_{hash}` databases forked via `CREATE DATABASE ... TEMPLATE`
+- Ports are deterministic per worktree path (range 8100-9599)
+- The session hook (`activate_venv_hook.sh`) auto-sets `DB_NAME` and `DJANGO_PORT` for every
+  Claude Code Bash invocation
+- `setup-local-postgres.sh` appends a block to `.venv/bin/activate` so that
+  `source .venv/bin/activate` from any interactive terminal also exports the
+  per-worktree DB env vars. **Re-activate the venv after switching worktrees**
+  — the hook reads `git rev-parse --show-toplevel` at activation time, not on
+  every command. Without this, `pytest` and `manage` from a plain shell fall
+  back to `settings.py` defaults (user=postgres) and fail with
+  "role postgres does not exist".
+- `setup-local-postgres.sh` also tunes `max_locks_per_transaction = 256` in
+  the local cluster (the default 64 is too low for pytest-xdist with 12
+  workers each running syncdb in parallel — symptom is "out of shared memory").
+- pgAdmin 4 (local app) connects to localhost:5432 and is pre-registered with
+  a "Gyrinx (local)" server on first setup (CLI-imported into pgAdmin's
+  SQLite config at `~/.pgadmin/pgadmin4.db`)
 
 ## Agents, Skills, and Commands
 
@@ -78,6 +113,10 @@ Skills are loaded automatically by agents that need them. They can also be refer
 - **pr-feedback** — Review PR feedback from reviewers and Copilot, triage each comment
   (implement / acknowledge / decline), plan changes, and implement approved fixes. Invoke with
   `/pr-feedback [PR number or URL]`. Uses the `pr-comments` fetch script for data.
+- **dev-server** — Knowledge about starting/stopping the dev server, reading ports, telling Claude in Chrome
+  where to point, log file locations
+- **worktree-db** — Knowledge about per-worktree database isolation: forking, resetting, migrating, cleanup,
+  template workflow, pgAdmin access
 
 ## Browser automation
 
@@ -134,33 +173,20 @@ pre-commit install
 ```
 
 **Note:** In Claude Code on the Web environments, `setup_web.sh` runs automatically on session
-start and configures PostgreSQL directly (no Docker). Skip `docker compose` commands and use
-`pytest` / `manage` directly — the helper scripts (`test.sh`, `migrate.sh`) detect the
-environment automatically.
+start and configures PostgreSQL directly. Use `pytest` and `manage` directly — there's no
+Docker layer to go through.
 
 ### Running the Application
 
 ```bash
-# Start database services (local dev with Docker only)
-docker compose up -d
-
-# Run migrations
-manage migrate
-
-# Build frontend assets
-npm run build
-
-# Start Django development server
-manage runserver
-
-# Watch and rebuild CSS (run in separate terminal)
-npm run watch
+# Start everything — handles DB, migrations, runserver, CSS watch
+./scripts/dev.sh
 ```
 
 ### Testing
 
 ```bash
-# Run full test suite (uses Docker if available, otherwise runs directly)
+# Run full test suite (thin wrapper over pytest; tests use local Postgres)
 ./scripts/test.sh
 
 # Run tests with pytest-watcher for continuous testing

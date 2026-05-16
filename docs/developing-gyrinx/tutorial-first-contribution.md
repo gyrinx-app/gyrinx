@@ -13,7 +13,7 @@ This tutorial walks you through making your first code contribution to Gyrinx. Y
 ## Prerequisites
 
 - Python 3.12+ installed
-- Docker with Compose installed
+- Homebrew installed (macOS)
 - Git installed
 - Basic familiarity with Django
 
@@ -46,11 +46,11 @@ nodeenv -p && npm install && npm run build
 # Install pre-commit hooks
 pre-commit install
 
-# Start database and run migrations
-docker compose up -d && manage migrate
+# Set up local PostgreSQL and create the development database
+./scripts/setup-local-postgres.sh
 ```
 
-**Checkpoint:** Run `manage runserver` and visit http://localhost:8000 to verify the app works.
+**Checkpoint:** Run `./scripts/dev.sh` and visit http://localhost:8000 to verify the app works. This starts both the Django server and CSS watcher in one command.
 
 ---
 
@@ -227,10 +227,10 @@ This runs:
 Start the development server and check your work:
 
 ```bash
-manage runserver
+./scripts/dev.sh
 ```
 
-Visit http://localhost:8000/about-development/ to see your new page.
+Visit http://localhost:8000/about-development/ to see your new page (the port is shown in the startup banner).
 
 **Checkpoint:** The page should display with proper styling and content.
 

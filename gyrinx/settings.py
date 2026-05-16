@@ -214,7 +214,9 @@ DB_CONFIG = _parse_json_env("DB_CONFIG", {})
 
 if not DB_CONFIG.get("user"):
     logger.error("DB_CONFIG is missing 'user' key")
-if not DB_CONFIG.get("password"):
+if "password" not in DB_CONFIG:
+    # Empty string is a valid password (local trust auth), so check key
+    # existence rather than truthiness.
     logger.error("DB_CONFIG is missing 'password' key")
 
 
