@@ -18,8 +18,10 @@ _worktree_root() {
 }
 
 _main_worktree() {
-  # First line of `git worktree list` is always the main worktree.
-  git worktree list | head -1 | awk '{print $1}'
+  # The main worktree is the first stanza of `git worktree list --porcelain`,
+  # which begins with `worktree <path>`.  Use --porcelain so paths containing
+  # spaces aren't truncated by field-splitting.
+  git worktree list --porcelain | sed -n 's/^worktree //p' | head -1
 }
 
 _is_main_worktree() {

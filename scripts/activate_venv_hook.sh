@@ -21,7 +21,7 @@ VENV_PATH="${CLAUDE_PROJECT_DIR:-.}/.venv"
 
 # If no venv in current worktree, try the main worktree
 if [ ! -d "$VENV_PATH" ]; then
-  MAIN_WT=$(git -C "${CLAUDE_PROJECT_DIR:-.}" worktree list 2>/dev/null | head -1 | awk '{print $1}')
+  MAIN_WT=$(git -C "${CLAUDE_PROJECT_DIR:-.}" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | head -1)
   if [ -n "$MAIN_WT" ] && [ -d "${MAIN_WT}/.venv" ]; then
     VENV_PATH="${MAIN_WT}/.venv"
   else

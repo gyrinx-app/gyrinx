@@ -197,8 +197,8 @@ Tests run against your local PostgreSQL database. The wrapper script is a thin
 convenience over `pytest`:
 
 ```bash
-./scripts/test.sh                 # serial
-./scripts/test.sh --parallel      # pytest-xdist (-n auto)
+./scripts/test.sh                 # parallel (via pyproject addopts: -n auto)
+./scripts/test.sh -n 0            # serial
 ```
 
 Or invoke `pytest` directly — `pyproject.toml` already sets `-n auto --reuse-db

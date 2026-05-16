@@ -211,13 +211,18 @@ else
   VENV_PATH="${SCRIPT_DIR}/../.venv"
   if [ ! -d "$VENV_PATH" ]; then
     # Try main worktree
-    MAIN_WT=$(git -C "${SCRIPT_DIR}" worktree list 2>/dev/null | head -1 | awk '{print $1}')
+    MAIN_WT=$(git -C "${SCRIPT_DIR}" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | head -1)
     if [ -n "$MAIN_WT" ] && [ -d "${MAIN_WT}/.venv" ]; then
       VENV_PATH="${MAIN_WT}/.venv"
     fi
   fi
   if [ -d "$VENV_PATH" ]; then
     source "$VENV_PATH/bin/activate"
+  else
+    echo "ERROR: No .venv found at ${VENV_PATH}." >&2
+    echo "Create one and install the project before running this script:" >&2
+    echo "    python -m venv .venv && . .venv/bin/activate && pip install --editable ." >&2
+    exit 1
   fi
 
   manage migrate --no-input

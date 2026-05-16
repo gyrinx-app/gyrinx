@@ -34,11 +34,14 @@ FORCE=false
 # Build set of expected DB names from active worktrees
 # ---------------------------------------------------------------------------
 declare -A EXPECTED_DBS
-while IFS= read -r line; do
-  wt_path=$(echo "$line" | awk '{print $1}')
+# Use --porcelain so paths containing spaces aren't truncated by awk.
+# Each entry is a stanza like `worktree <path>\nHEAD <sha>\n...`; we only
+# need the first line.
+while IFS= read -r wt_path; do
+  [ -z "$wt_path" ] && continue
   db=$(worktree_db_name "$wt_path")
   EXPECTED_DBS["$db"]=1
-done < <(git worktree list)
+done < <(git worktree list --porcelain | sed -n 's/^worktree //p')
 
 # ---------------------------------------------------------------------------
 # Find all gyrinx_wt_* databases

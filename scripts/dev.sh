@@ -61,7 +61,10 @@ fi
 if [ -d "$VENV_PATH" ]; then
   source "$VENV_PATH/bin/activate"
 else
-  echo "WARNING: No .venv found in ${WT_ROOT} or ${MAIN_WT}"
+  echo "ERROR: No .venv found in ${WT_ROOT} or ${MAIN_WT}." >&2
+  echo "Create one from the main worktree before running dev.sh:" >&2
+  echo "    python -m venv .venv && . .venv/bin/activate && pip install --editable ." >&2
+  exit 1
 fi
 
 # Ensure .env exists — copy from main worktree if missing
