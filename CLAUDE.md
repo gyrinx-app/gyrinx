@@ -201,7 +201,7 @@ ptw .
 # Run specific test
 pytest gyrinx/core/tests/test_models_core.py::test_basic_list
 
-# Run tests with pytest directly (faster, uses existing database)
+# Run tests with pytest directly
 pytest
 
 # Run tests in parallel using pytest-xdist (significant performance improvement)
@@ -210,15 +210,12 @@ pytest -n 4     # Uses 4 workers
 
 # Collect static files before running tests (required for templates with static assets)
 manage collectstatic --noinput
-
-# After adding new migrations, use --migrations to apply them to the test database
-pytest -n auto --migrations
 ```
 
-**IMPORTANT for Claude:** `pyproject.toml` addopts already includes `--reuse-db -n auto --nomigrations`.
-When you've added new migrations, just run `pytest -n auto --migrations` — that's all you need.
-Do NOT use `--create-db`, do NOT use `--reuse-db` (it's already the default), and do NOT try
-to disable xdist. Just `pytest -n auto --migrations`.
+**IMPORTANT for Claude:** `pyproject.toml` addopts already includes `-n auto --nomigrations`.
+The test DB is rebuilt from models on every run (via `--nomigrations` syncdb), so schema
+changes are picked up automatically — no `--create-db` or `--migrations` flag needed.
+If you want to reuse the test DB across runs for speed, pass `--reuse-db` explicitly.
 
 ### Frontend Development
 
