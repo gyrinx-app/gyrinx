@@ -69,8 +69,8 @@ python scripts/screenshot.py --check
   worktrees no longer exist. Run periodically to reclaim disk.
 - `lib/worktree.sh`: Shared helpers for deriving per-worktree database names and Django ports.
   Sourced by `dev.sh`, `activate_venv_hook.sh`, and `cleanup-worktree-dbs.sh`.
-- `test.sh`: Thin wrapper over `pytest`. Use `--parallel` for `-n auto`; anything else is passed
-  through.
+- `test.sh`: Thin wrapper over `pytest`. All args are passed through. Parallel execution
+  (`-n auto`) is already enabled via `pyproject.toml` addopts; use `-n 0` to force serial.
 - `check_migrations.sh`: Checks for migration conflicts.
 - `fmt-check.sh` / `fmt.sh`: Run / apply formatting.
 - `manage.py`: Django management wrapper (also available as `manage` on `PATH` once the venv is

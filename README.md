@@ -20,8 +20,9 @@ and development guides.
 Before getting started, you'll need:
 
 - **Python 3.12+** - Use [pyenv](https://github.com/pyenv/pyenv) to manage versions
-- **PostgreSQL 16** - Installed locally. On macOS, `./scripts/setup-local-postgres.sh` handles the
-  Homebrew install (see Quick Start). On Linux, install `postgresql-16` via your package manager
+- **macOS with Homebrew** - The local dev scripts (`setup-local-postgres.sh`, `dev.sh`) are
+  macOS-only. Linux contributors will need to set up PostgreSQL 16 manually and start it
+  before running `dev.sh`
 - **Git** - For version control
 
 ## Quick Start

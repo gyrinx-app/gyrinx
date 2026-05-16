@@ -74,6 +74,11 @@ fi
 # Ensure PostgreSQL is running
 # ---------------------------------------------------------------------------
 if ! pg_isready -q 2>/dev/null; then
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "ERROR: PostgreSQL is not running and \`brew\` isn't available." >&2
+    echo "Start PostgreSQL manually and re-run \`./scripts/dev.sh\`." >&2
+    exit 1
+  fi
   echo "Starting PostgreSQL..."
   brew services start postgresql@16
   for i in $(seq 1 30); do
