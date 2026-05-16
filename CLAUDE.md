@@ -161,9 +161,8 @@ pre-commit install
 ```
 
 **Note:** In Claude Code on the Web environments, `setup_web.sh` runs automatically on session
-start and configures PostgreSQL directly (no Docker). Skip `docker compose` commands and use
-`pytest` / `manage` directly — the helper scripts (`test.sh`, `migrate.sh`) detect the
-environment automatically.
+start and configures PostgreSQL directly. Use `pytest` and `manage` directly — there's no
+Docker layer to go through.
 
 ### Running the Application
 

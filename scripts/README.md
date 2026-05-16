@@ -62,5 +62,4 @@ python scripts/screenshot.py --check
 - `check_migrations.sh`: Checks for migration conflicts
 - `fmt-check.sh`: Runs formatting checks
 - `manage.py`: Django management wrapper
-- `migrate.sh`: Runs database migrations
 - `test.sh`: Runs the test suite
