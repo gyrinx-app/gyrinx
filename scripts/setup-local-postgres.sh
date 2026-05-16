@@ -138,6 +138,30 @@ else
   brew install --cask pgadmin4
 fi
 
+# Write a servers.json so the user can import the local cluster into pgAdmin
+# without filling in the connection details by hand.  We don't auto-import
+# (the desktop bundle's Python path is version-pinned and the import command
+# requires pgAdmin to have been initialised at least once), but the file lives
+# in a known location and the final summary points the user at it.
+PGADMIN_SERVERS_FILE="${HOME}/.gyrinx/pgadmin-servers.json"
+mkdir -p "$(dirname "$PGADMIN_SERVERS_FILE")"
+cat > "$PGADMIN_SERVERS_FILE" <<JSON
+{
+  "Servers": {
+    "1": {
+      "Name": "Gyrinx (local)",
+      "Group": "Servers",
+      "Host": "localhost",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "$(whoami)",
+      "SSLMode": "prefer"
+    }
+  }
+}
+JSON
+echo "Wrote pgAdmin servers config: $PGADMIN_SERVERS_FILE"
+
 # ---------------------------------------------------------------------------
 # 4. Dump existing Docker database (if available)
 # ---------------------------------------------------------------------------
@@ -242,7 +266,8 @@ echo
 echo "  Database:  gyrinx_main (port 5432)"
 echo "  User:      ${CURRENT_USER} (trust auth, no password)"
 echo "  pgAdmin:   Open pgAdmin 4 from Applications"
-echo "             Add server: host=localhost, port=5432, user=${CURRENT_USER}"
+echo "             Tools → Import/Export Servers → Import:"
+echo "             ${PGADMIN_SERVERS_FILE}"
 echo
 echo "  Next steps:"
 echo "    1. Start dev server:  ./scripts/dev.sh"
