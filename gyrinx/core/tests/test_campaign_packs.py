@@ -1460,3 +1460,73 @@ def test_list_packs_template_shows_required_by_pill(
     # The unsubscribe form action should not appear, since the pack is required.
     unsubscribe_url = reverse("core:pack-unsubscribe", args=[pack.id])
     assert unsubscribe_url not in content
+
+
+# --- Concurrency lock regression tests ---
+#
+# These assert that the required-flag toggle and the unsubscribe endpoint each
+# acquire a row lock on the CampaignContentPack through-row before reading or
+# mutating it. The lock is what serialises the two endpoints — without it, a
+# concurrent unsubscribe can slip a list out of compliance between the
+# toggle's check and its save (or vice versa).
+
+
+@pytest.mark.django_db(transaction=True)
+def test_campaign_pack_set_required_locks_through_row(
+    client, user, make_campaign, make_list
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign = make_campaign("Lock Test")
+    lst = make_list("Lock Gang")
+    pack = CustomContentPack.objects.create(name="Lock Pack", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+
+    client.force_login(user)
+    with CaptureQueriesContext(connection) as ctx:
+        client.post(
+            reverse("core:campaign-pack-set-required", args=[campaign.id, pack.id]),
+            {"required": "1"},
+        )
+    locking_qs = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if "core_campaign_packs" in q["sql"] and "FOR UPDATE" in q["sql"].upper()
+    ]
+    assert locking_qs, (
+        "Expected a SELECT ... FOR UPDATE on core_campaign_packs in the toggle "
+        f"path; got: {[q['sql'] for q in ctx.captured_queries]}"
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_unsubscribe_pack_locks_through_rows(client, user, make_campaign, make_list):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign = make_campaign("Lock Test 2")
+    lst = make_list("Lock Gang 2")
+    pack = CustomContentPack.objects.create(name="Lock Pack 2", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    # Not required — the unsubscribe should succeed, but still emits the lock.
+
+    client.force_login(user)
+    with CaptureQueriesContext(connection) as ctx:
+        client.post(
+            reverse("core:pack-unsubscribe", args=[pack.id]),
+            {"list_id": str(lst.id), "return_url": "list"},
+        )
+    locking_qs = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if "core_campaign_packs" in q["sql"] and "FOR UPDATE" in q["sql"].upper()
+    ]
+    assert locking_qs, (
+        "Expected a SELECT ... FOR UPDATE on core_campaign_packs in the "
+        f"unsubscribe path; got: {[q['sql'] for q in ctx.captured_queries]}"
+    )

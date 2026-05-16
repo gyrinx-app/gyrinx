@@ -3523,29 +3523,33 @@ def unsubscribe_pack(request, id):
 
     # Hard-block: a pack required by any campaign this list is in cannot be
     # unsubscribed. The arbitrator would have to flip it to optional first.
-    blocking = list(
-        Campaign.objects.filter(
-            lists=lst,
-            pack_links__pack=pack,
-            pack_links__required=True,
+    #
+    # The row lock here pairs with the lock in `campaign_pack_set_required` —
+    # both endpoints touch the same CampaignContentPack rows, so a concurrent
+    # required-flag flip can't race against this unsubscribe.
+    with transaction.atomic():
+        locked_links = list(
+            CampaignContentPack.objects.select_for_update()
+            .filter(pack=pack, campaign__lists=lst)
+            .select_related("campaign")
         )
-        .distinct()
-        .values_list("name", flat=True)
-    )
-    if blocking:
-        names = ", ".join(blocking)
-        messages.error(
-            request,
-            f"{pack.name} is required by Campaign(s): {names}. "
-            f"You cannot unsubscribe while this Gang is in those Campaigns.",
+        blocking = sorted(
+            {link.campaign.name for link in locked_links if link.required}
         )
-        if return_url == "list":
-            return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
-        if return_url == "pack-lists":
-            return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
-        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+        if blocking:
+            names = ", ".join(blocking)
+            messages.error(
+                request,
+                f"{pack.name} is required by Campaign(s): {names}. "
+                f"You cannot unsubscribe while this Gang is in those Campaigns.",
+            )
+            if return_url == "list":
+                return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
+            if return_url == "pack-lists":
+                return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
+            return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
 
-    lst.packs.remove(pack)
+        lst.packs.remove(pack)
 
     source = _pack_subscription_source(return_url)
     log_event(

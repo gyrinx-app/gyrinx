@@ -1,7 +1,7 @@
 """Campaign pack management views."""
 
 from django.contrib.auth.decorators import login_required
-from django.db import models
+from django.db import models, transaction
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -194,33 +194,40 @@ def campaign_pack_set_required(request, id, pack_id):
         )
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
 
-    try:
-        link = CampaignContentPack.objects.get(campaign=campaign, pack=pack)
-    except CampaignContentPack.DoesNotExist:
-        raise Http404
-
     required = request.POST.get("required") == "1"
 
-    if required and not link.required:
-        non_compliant = list(
-            campaign.lists.exclude(packs=pack)
-            .order_by("name")
-            .values_list("name", flat=True)
-        )
-        if non_compliant:
-            names = ", ".join(non_compliant)
-            messages.error(
-                request,
-                f"Cannot mark {pack.name} as required: these Gangs are not "
-                f"subscribed to it: {names}. Ask their owners to subscribe, or "
-                f"remove them from the Campaign first.",
+    # Take a row lock on the through-model row so a concurrent unsubscribe
+    # request can't slip a list out of compliance between our check and our
+    # save. `unsubscribe_pack` acquires the same row lock before reading
+    # `required`, so the two paths serialize.
+    with transaction.atomic():
+        try:
+            link = CampaignContentPack.objects.select_for_update().get(
+                campaign=campaign, pack=pack
             )
-            return HttpResponseRedirect(
-                reverse("core:campaign-packs", args=(campaign.id,))
-            )
+        except CampaignContentPack.DoesNotExist:
+            raise Http404
 
-    link.required = required
-    link.save(update_fields=["required"])
+        if required and not link.required:
+            non_compliant = list(
+                campaign.lists.exclude(packs=pack)
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+            if non_compliant:
+                names = ", ".join(non_compliant)
+                messages.error(
+                    request,
+                    f"Cannot mark {pack.name} as required: these Gangs are not "
+                    f"subscribed to it: {names}. Ask their owners to subscribe, or "
+                    f"remove them from the Campaign first.",
+                )
+                return HttpResponseRedirect(
+                    reverse("core:campaign-packs", args=(campaign.id,))
+                )
+
+        link.required = required
+        link.save(update_fields=["required"])
 
     if required:
         messages.success(request, f"{pack.name} is now required.")
