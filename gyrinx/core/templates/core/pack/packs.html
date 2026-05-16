@@ -55,16 +55,7 @@
                     <div class="caps-label mb-2">Featured</div>
                     <div class="vstack gap-2">
                         {% for pack in featured_packs %}
-                            <a href="{% url 'core:pack' pack.id %}"
-                               class="border rounded p-3 d-flex align-items-center gap-3 text-decoration-none">
-                                <div class="flex-grow-1">
-                                    <h2 class="h4 mb-1">{{ pack.name }}</h2>
-                                    {% with pack.featured_description|default:pack.summary as desc %}
-                                        {% if desc %}<p class="text-secondary mb-0">{{ desc|plain_text_truncate:150 }}</p>{% endif %}
-                                    {% endwith %}
-                                </div>
-                                <i class="bi-chevron-right flex-shrink-0"></i>
-                            </a>
+                            {% include "core/includes/featured_pack_card.html" with pack=pack %}
                         {% endfor %}
                     </div>
                 </div>

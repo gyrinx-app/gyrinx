@@ -253,9 +253,42 @@
                         </div>
                     </div>
                 </div>
+                {% if featured_packs %}
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h4 mb-0">Featured Content Packs</h2>
+                            <span class="ms-auto fs-7">
+                                <a href="{% url 'core:packs' %}"
+                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Browse all</a>
+                            </span>
+                        </div>
+                        <div class="row g-3">
+                            {% for pack in featured_packs %}
+                                <div class="col-12 col-md-4">{% include "core/includes/featured_pack_card.html" with pack=pack %}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         {% else %}
             <div class="mt-4 vstack gap-4">
+                {% if featured_packs %}
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h4 mb-0">Featured Content Packs</h2>
+                            <span class="ms-auto fs-7">
+                                <a href="{% url 'core:packs' %}"
+                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Browse all</a>
+                            </span>
+                        </div>
+                        <div class="row g-3">
+                            {% for pack in featured_packs %}
+                                <div class="col-12 col-md-4">{% include "core/includes/featured_pack_card.html" with pack=pack %}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <hr class="col-1 my-4 align-self-center" />
+                {% endif %}
                 <div class="row">
                     <div class="col-md-4">
                         <h2>Build and manage your gangs</h2>
