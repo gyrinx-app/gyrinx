@@ -43,6 +43,37 @@ dropdb gyrinx_wt_a1b2c3d4
 ./scripts/dev.sh
 ```
 
+### Rebuild a worktree's .venv from scratch
+```bash
+./scripts/dev.sh --reset-venv   # no-op in the main worktree
+```
+
+## Per-Worktree `.venv` (issue #1772)
+
+Each child worktree has its own `.venv` with `gyrinx` editable-installed from
+that worktree. Without this, `import gyrinx` would always resolve to the main
+worktree's source — silently missing new migrations, new models, etc. The
+symptom is `manage migrate` reporting "No migrations to apply" even though the
+worktree has a new migration file, or `pytest` failing with `ImportError`
+because the imported `gyrinx` doesn't have the worktree's new code.
+
+`./scripts/dev.sh` provisions the venv on first run in a child worktree:
+
+```bash
+uv venv "${WT_ROOT}/.venv"
+( cd "$WT_ROOT" && uv pip install --python "$WT_VENV/bin/python" --editable . )
+```
+
+Then installs the per-worktree DB env hook via
+`install_worktree_venv_hook` (from `scripts/lib/worktree.sh`). The main worktree
+continues to use whatever venv it already had — provisioning is skipped there.
+
+To verify a venv is worktree-local:
+```bash
+.venv/bin/python -c "import gyrinx; print(gyrinx.__file__)"
+# Should print a path inside the current worktree.
+```
+
 ### Run migrations on a worktree database
 ```bash
 # dev.sh runs migrate automatically on startup

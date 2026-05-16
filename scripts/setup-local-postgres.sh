@@ -319,39 +319,10 @@ if [ ! -d "$VENV_DIR" ]; then
   fi
 fi
 VENV_ACTIVATE="${VENV_DIR}/bin/activate"
-HOOK_MARKER="# >>> Gyrinx per-worktree DB env >>>"
-if [ ! -f "$VENV_ACTIVATE" ]; then
-  echo "No .venv found; skipping hook install."
-elif grep -qF "$HOOK_MARKER" "$VENV_ACTIVATE"; then
-  echo "Hook already installed in $VENV_ACTIVATE"
+if install_worktree_venv_hook "$VENV_ACTIVATE"; then
+  echo "Hook installed (or already present) in $VENV_ACTIVATE"
 else
-  cat >> "$VENV_ACTIVATE" <<'BLOCK'
-
-# >>> Gyrinx per-worktree DB env >>>
-# Added by scripts/setup-local-postgres.sh.  Makes pytest, manage, and other
-# tools target the current worktree's Postgres database without manual exports.
-# Re-source the activate script after `cd`ing between worktrees.
-_gyrinx_set_db_env() {
-  local wt_root lib
-  wt_root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
-  lib="$wt_root/scripts/lib/worktree.sh"
-  [ -f "$lib" ] || return 0
-  # shellcheck source=/dev/null
-  source "$lib"
-  export DB_NAME
-  DB_NAME=$(worktree_db_name "$wt_root")
-  export DJANGO_PORT
-  DJANGO_PORT=$(worktree_port "$wt_root")
-  export DB_HOST=localhost
-  export DB_PORT=5432
-  export DB_CONFIG
-  DB_CONFIG="$(db_config_for_local)"
-}
-_gyrinx_set_db_env
-unset -f _gyrinx_set_db_env
-# <<< Gyrinx per-worktree DB env <<<
-BLOCK
-  echo "Installed hook in $VENV_ACTIVATE"
+  echo "No .venv found; skipping hook install."
 fi
 
 # ---------------------------------------------------------------------------
