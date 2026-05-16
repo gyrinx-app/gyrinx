@@ -1,13 +1,13 @@
 """Campaign pack management views."""
 
 from django.contrib.auth.decorators import login_required
-from django.db import models
+from django.db import models, transaction
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
-from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.campaign import Campaign, CampaignContentPack
 from gyrinx.core.models.pack import CustomContentPack
 
 
@@ -48,6 +48,9 @@ def campaign_packs(request, id):
         raise Http404
 
     campaign_packs_qs = campaign.packs.select_related("owner").order_by("name")
+    required_pack_ids = set(
+        campaign.pack_links.filter(required=True).values_list("pack_id", flat=True)
+    )
 
     # User's gangs in this campaign, for the "Add to..." dropdown.
     user_campaign_lists = (
@@ -70,7 +73,12 @@ def campaign_packs(request, id):
         pack.unsubscribed_user_lists = [
             lst for lst in user_campaign_lists if lst.id not in subscribed_ids
         ]
+        pack.is_required = pack.id in required_pack_ids
         packs_with_lists.append(pack)
+
+    can_edit_required = (
+        is_owner and not campaign.archived and not campaign.is_post_campaign
+    )
 
     # Owner-only: available packs to add to the campaign.
     available_packs = None
@@ -107,6 +115,7 @@ def campaign_packs(request, id):
             "user_campaign_lists": user_campaign_lists,
             "search_query": search_query,
             "show_my_packs": show_my_packs,
+            "can_edit_required": can_edit_required,
         },
     )
 
@@ -122,6 +131,10 @@ def campaign_pack_add(request, id, pack_id):
 
     if campaign.archived:
         messages.error(request, "Cannot modify packs for an archived Campaign.")
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
+
+    if campaign.is_post_campaign:
+        messages.error(request, "Cannot modify packs after a Campaign has ended.")
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
 
     if not pack.listed and pack.owner != request.user:
@@ -144,6 +157,10 @@ def campaign_pack_remove(request, id, pack_id):
         messages.error(request, "Cannot modify packs for an archived Campaign.")
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
 
+    if campaign.is_post_campaign:
+        messages.error(request, "Cannot modify packs after a Campaign has ended.")
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
+
     if request.method == "POST":
         campaign.packs.remove(pack)
         messages.success(request, f"Removed {pack.name} from Campaign.")
@@ -157,3 +174,72 @@ def campaign_pack_remove(request, id, pack_id):
             "pack": pack,
         },
     )
+
+
+@login_required
+def campaign_pack_set_required(request, id, pack_id):
+    """Toggle whether a content pack is required for this campaign.
+
+    Arbitrator-only. Flipping a pack to required is blocked if any current list
+    in the campaign is not subscribed to it — that would silently exclude those
+    lists from the constraint. The arbitrator must either ask owners to
+    subscribe first, or remove the non-compliant lists. Flipping to optional is
+    always allowed.
+    """
+    if request.method != "POST":
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(id,)))
+
+    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    pack = get_object_or_404(CustomContentPack, id=pack_id)
+
+    if campaign.archived:
+        messages.error(request, "Cannot modify packs for an archived Campaign.")
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
+
+    if campaign.is_post_campaign:
+        messages.error(
+            request, "Cannot change required packs after a Campaign has ended."
+        )
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
+
+    required = request.POST.get("required") == "1"
+
+    # Take a row lock on the through-model row so a concurrent unsubscribe
+    # request can't slip a list out of compliance between our check and our
+    # save. `unsubscribe_pack` acquires the same row lock before reading
+    # `required`, so the two paths serialize.
+    with transaction.atomic():
+        try:
+            link = CampaignContentPack.objects.select_for_update().get(
+                campaign=campaign, pack=pack
+            )
+        except CampaignContentPack.DoesNotExist:
+            raise Http404
+
+        if required and not link.required:
+            non_compliant = list(
+                campaign.lists.exclude(packs=pack)
+                .order_by("name")
+                .values_list("name", flat=True)
+            )
+            if non_compliant:
+                names = ", ".join(non_compliant)
+                messages.error(
+                    request,
+                    f"Cannot mark {pack.name} as required: these Gangs are not "
+                    f"subscribed to it: {names}. Ask their owners to subscribe, or "
+                    f"remove them from the Campaign first.",
+                )
+                return HttpResponseRedirect(
+                    reverse("core:campaign-packs", args=(campaign.id,))
+                )
+
+        link.required = required
+        link.save(update_fields=["required"])
+
+    if required:
+        messages.success(request, f"{pack.name} is now required.")
+    else:
+        messages.success(request, f"{pack.name} is no longer required.")
+
+    return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))

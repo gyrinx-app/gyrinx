@@ -146,10 +146,38 @@ def invitation_pack_setup(request, id, campaign_id):
     # Compute suggestions from campaign packs directly — works even when the
     # list is only associated via a clone (in-progress campaigns).
     subscribed_ids = set(lst.packs.values_list("id", flat=True))
-    suggested_packs = campaign.packs.exclude(id__in=subscribed_ids)
+    required_pack_ids = set(
+        campaign.pack_links.filter(required=True).values_list("pack_id", flat=True)
+    )
+    suggested_qs = campaign.packs.exclude(id__in=subscribed_ids).order_by("name")
+    suggested_packs = []
+    for pack in suggested_qs:
+        pack.is_required = pack.id in required_pack_ids
+        suggested_packs.append(pack)
 
     if request.method == "POST":
-        pack_ids = request.POST.getlist("pack_ids")
+        pack_ids = set(request.POST.getlist("pack_ids"))
+        # Required packs cannot be skipped — always include them.
+        unmet_required = [
+            p for p in suggested_packs if p.is_required and str(p.id) not in pack_ids
+        ]
+        if unmet_required:
+            names = ", ".join(p.name for p in unmet_required)
+            messages.error(
+                request,
+                f"This Campaign requires these Content Packs: {names}. "
+                f"You must subscribe to them to join.",
+            )
+            return render(
+                request,
+                "core/list/invitation_pack_setup.html",
+                {
+                    "list": lst,
+                    "campaign": campaign,
+                    "suggested_packs": suggested_packs,
+                },
+            )
+
         if pack_ids:
             from gyrinx.core.models.pack import CustomContentPack
 

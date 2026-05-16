@@ -9,6 +9,7 @@
         <p class="text-muted small">
             {{ campaign.name }} uses the following Content Packs.
             Select the ones you'd like to add to <strong>{{ list.name }}</strong>.
+            Packs marked <span class="badge text-bg-warning">Required</span> must be added to join this Campaign.
         </p>
         <form method="post"
               action="{% url 'core:invitation-pack-setup' list.id campaign.id %}"
@@ -22,9 +23,14 @@
                                name="pack_ids"
                                value="{{ pack.id }}"
                                class="form-check-input mt-1"
-                               checked>
+                               checked
+                               {% if pack.is_required %}disabled{% endif %}>
+                        {% if pack.is_required %}<input type="hidden" name="pack_ids" value="{{ pack.id }}">{% endif %}
                         <div class="flex-grow-1">
-                            <div class="fw-medium small">{{ pack.name }}</div>
+                            <div class="fw-medium small">
+                                {{ pack.name }}
+                                {% if pack.is_required %}<span class="badge text-bg-warning ms-1">Required</span>{% endif %}
+                            </div>
                             <div class="text-muted small">by {{ pack.owner }}</div>
                             {% if pack.summary %}<div class="text-muted small mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                         </div>

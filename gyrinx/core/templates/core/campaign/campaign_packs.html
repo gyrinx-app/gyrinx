@@ -27,12 +27,30 @@
                 {% if campaign_packs %}
                     <ul class="list-unstyled mb-0">
                         {% for pack in campaign_packs %}
-                            <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <li class="py-2 d-flex justify-content-between align-items-center gap-2 border-bottom">
                                 <div>
                                     <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
                                     <span class="text-secondary fs-7">by {{ pack.owner.username }}</span>
+                                    {% if pack.is_required and not can_edit_required %}<span class="badge text-bg-warning ms-1">Required</span>{% endif %}
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
+                                    {% if can_edit_required %}
+                                        <form method="post"
+                                              action="{% url 'core:campaign-pack-set-required' campaign.id pack.id %}"
+                                              class="form-check form-switch mb-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="required" value="0">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   role="switch"
+                                                   id="required-{{ pack.id }}"
+                                                   name="required"
+                                                   value="1"
+                                                   data-gy-toggle-submit
+                                                   {% if pack.is_required %}checked{% endif %}>
+                                            <label class="form-check-label fs-7 mb-0" for="required-{{ pack.id }}">Required</label>
+                                        </form>
+                                    {% endif %}
                                     {% if user_campaign_lists %}
                                         <div class="btn-group" role="group">
                                             <button type="button"
@@ -66,7 +84,7 @@
                                             </ul>
                                         </div>
                                     {% endif %}
-                                    {% if is_owner and not campaign.archived %}
+                                    {% if is_owner and not campaign.archived and not campaign.is_post_campaign %}
                                         <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
                                            class="icon-link link-danger fs-7"
                                            aria-label="Remove {{ pack.name }} from campaign">
@@ -89,7 +107,7 @@
             </div>
         </section>
         <!-- Add packs (owner only) -->
-        {% if is_owner and not campaign.archived %}
+        {% if is_owner and not campaign.archived and not campaign.is_post_campaign %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Add Packs</h2>

@@ -1091,3 +1091,505 @@ def test_campaign_packs_owner_sees_both_controls(
     assert "Owner Gang" in content
     assert "Add Packs" in content
     assert "bi-trash" in content
+
+
+# --- Required content pack tests ---
+
+
+def _mark_pack_required(campaign, pack):
+    """Helper: flip the through-row's required flag without going through the view."""
+    from gyrinx.core.models.campaign import CampaignContentPack
+
+    link = CampaignContentPack.objects.get(campaign=campaign, pack=pack)
+    link.required = True
+    link.save()
+    return link
+
+
+@pytest.mark.django_db
+def test_validate_list_required_packs_no_required(user, make_campaign, make_list):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+
+    has_all, missing = campaign.validate_list_required_packs(lst)
+    assert has_all is True
+    assert missing == []
+
+
+@pytest.mark.django_db
+def test_validate_list_required_packs_missing(user, make_campaign, make_list):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Mandatory", owner=user, listed=True)
+    campaign.packs.add(pack)
+    _mark_pack_required(campaign, pack)
+
+    has_all, missing = campaign.validate_list_required_packs(lst)
+    assert has_all is False
+    assert [p.name for p in missing] == ["Mandatory"]
+
+
+@pytest.mark.django_db
+def test_validate_list_required_packs_satisfied(user, make_campaign, make_list):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Mandatory", owner=user, listed=True)
+    campaign.packs.add(pack)
+    _mark_pack_required(campaign, pack)
+    lst.packs.add(pack)
+
+    has_all, missing = campaign.validate_list_required_packs(lst)
+    assert has_all is True
+    assert missing == []
+
+
+@pytest.mark.django_db
+def test_add_list_to_campaign_blocks_missing_required_pack(
+    user, make_campaign, make_list
+):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Mandatory", owner=user, listed=True)
+    campaign.packs.add(pack)
+    _mark_pack_required(campaign, pack)
+
+    with pytest.raises(ValueError, match="Mandatory"):
+        campaign.add_list_to_campaign(lst, user=user)
+    assert lst not in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_add_list_to_campaign_blocks_required_in_progress(
+    user, make_campaign, make_list
+):
+    """Required-pack check runs for in-progress campaigns too (pre-clone)."""
+    campaign = make_campaign("Test Campaign")
+    pack = CustomContentPack.objects.create(name="Mandatory", owner=user, listed=True)
+    campaign.packs.add(pack)
+    _mark_pack_required(campaign, pack)
+
+    # Add a compliant list first, then start the campaign.
+    compliant = make_list("Compliant")
+    compliant.packs.add(pack)
+    campaign.add_list_to_campaign(compliant, user=user)
+    campaign.status = Campaign.IN_PROGRESS
+    campaign.save()
+
+    non_compliant = make_list("Non-Compliant")
+    with pytest.raises(ValueError, match="Mandatory"):
+        campaign.add_list_to_campaign(non_compliant, user=user)
+
+
+@pytest.mark.django_db
+def test_add_list_succeeds_when_required_packs_satisfied(
+    user, make_campaign, make_list
+):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Mandatory", owner=user, listed=True)
+    campaign.packs.add(pack)
+    _mark_pack_required(campaign, pack)
+    lst.packs.add(pack)
+
+    added, was_added = campaign.add_list_to_campaign(lst, user=user)
+    assert was_added is True
+    assert lst in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_pack_unsubscribe_blocked_when_required(client, user, make_campaign, make_list):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Mandatory", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    _mark_pack_required(campaign, pack)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:pack-unsubscribe", args=[pack.id]),
+        {"list_id": str(lst.id), "return_url": "list"},
+    )
+    assert response.status_code == 302
+    assert pack in lst.packs.all()  # still subscribed
+
+
+@pytest.mark.django_db
+def test_pack_unsubscribe_allowed_when_not_required(
+    client, user, make_campaign, make_list
+):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Optional", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    # Not marked as required.
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:pack-unsubscribe", args=[pack.id]),
+        {"list_id": str(lst.id), "return_url": "list"},
+    )
+    assert response.status_code == 302
+    assert pack not in lst.packs.all()
+
+
+@pytest.mark.django_db
+def test_campaign_pack_set_required_success(client, user, make_campaign, make_list):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-set-required", args=[campaign.id, pack.id]),
+        {"required": "1"},
+    )
+    assert response.status_code == 302
+    from gyrinx.core.models.campaign import CampaignContentPack
+
+    link = CampaignContentPack.objects.get(campaign=campaign, pack=pack)
+    assert link.required is True
+
+
+@pytest.mark.django_db
+def test_campaign_pack_set_required_blocks_non_compliant(
+    client, user, make_campaign, make_list
+):
+    """Cannot flip required=True while a list in the campaign lacks the pack."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+    # Note: list is NOT subscribed to pack.
+    campaign.add_list_to_campaign(lst, user=user)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-set-required", args=[campaign.id, pack.id]),
+        {"required": "1"},
+    )
+    assert response.status_code == 302
+    from gyrinx.core.models.campaign import CampaignContentPack
+
+    link = CampaignContentPack.objects.get(campaign=campaign, pack=pack)
+    assert link.required is False
+
+
+@pytest.mark.django_db
+def test_campaign_pack_set_required_unset_always_allowed(
+    client, user, make_campaign, make_list
+):
+    """Flipping required=False is allowed even if lists were depending on it."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    _mark_pack_required(campaign, pack)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-set-required", args=[campaign.id, pack.id]),
+        {"required": "0"},
+    )
+    assert response.status_code == 302
+    from gyrinx.core.models.campaign import CampaignContentPack
+
+    link = CampaignContentPack.objects.get(campaign=campaign, pack=pack)
+    assert link.required is False
+    # Subscription stays put.
+    assert pack in lst.packs.all()
+
+
+@pytest.mark.django_db
+def test_campaign_pack_set_required_blocked_post_campaign(
+    client, user, make_campaign, make_list
+):
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    campaign.status = Campaign.POST_CAMPAIGN
+    campaign.save()
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-set-required", args=[campaign.id, pack.id]),
+        {"required": "1"},
+    )
+    assert response.status_code == 302
+    from gyrinx.core.models.campaign import CampaignContentPack
+
+    link = CampaignContentPack.objects.get(campaign=campaign, pack=pack)
+    assert link.required is False
+
+
+@pytest.mark.django_db
+def test_campaign_pack_remove_preserves_list_subscriptions(
+    client, user, make_campaign, make_list
+):
+    """Removing a pack from the campaign should not unsubscribe lists."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-remove", args=[campaign.id, pack.id])
+    )
+    assert response.status_code == 302
+    assert pack not in campaign.packs.all()
+    assert pack in lst.packs.all()
+
+
+@pytest.mark.django_db
+def test_invitation_pack_setup_rejects_unticked_required(
+    client, user, make_campaign, make_list
+):
+    """The user cannot submit invitation_pack_setup without ticking required packs."""
+    campaign = make_campaign("Test Campaign")
+    lst = make_list("Test List")
+    pack_required = CustomContentPack.objects.create(
+        name="Mandatory", owner=user, listed=True
+    )
+    pack_optional = CustomContentPack.objects.create(
+        name="Optional", owner=user, listed=True
+    )
+    campaign.packs.add(pack_required, pack_optional)
+    _mark_pack_required(campaign, pack_required)
+    campaign.lists.add(lst)
+
+    client.force_login(user)
+    # POST only the optional pack — the required one is missing.
+    response = client.post(
+        reverse("core:invitation-pack-setup", args=[lst.id, campaign.id]),
+        {"pack_ids": [str(pack_optional.id)]},
+    )
+    # Re-renders the form with an error message rather than subscribing.
+    assert response.status_code == 200
+    assert pack_required not in lst.packs.all()
+    assert pack_optional not in lst.packs.all()
+
+
+@pytest.mark.django_db
+def test_copy_packs_carries_required_flag(user, make_campaign):
+    """Copying a campaign pack preserves the required flag on the target."""
+    from gyrinx.core.handlers.campaign_copy import copy_campaign_content
+    from gyrinx.core.models.campaign import CampaignContentPack
+
+    src = make_campaign("Source")
+    tgt = make_campaign("Target")
+    pack_req = CustomContentPack.objects.create(name="Req", owner=user, listed=True)
+    pack_opt = CustomContentPack.objects.create(name="Opt", owner=user, listed=True)
+    src.packs.add(pack_req, pack_opt)
+    _mark_pack_required(src, pack_req)
+
+    copy_campaign_content(
+        source_campaign=src,
+        target_campaign=tgt,
+        user=user,
+        pack_ids=[str(pack_req.id), str(pack_opt.id)],
+    )
+
+    assert pack_req in tgt.packs.all()
+    assert pack_opt in tgt.packs.all()
+    req_link = CampaignContentPack.objects.get(campaign=tgt, pack=pack_req)
+    opt_link = CampaignContentPack.objects.get(campaign=tgt, pack=pack_opt)
+    assert req_link.required is True
+    assert opt_link.required is False
+
+
+@pytest.mark.django_db
+def test_required_packs_helper_returns_only_required(user, make_campaign):
+    campaign = make_campaign("Test Campaign")
+    pack_req = CustomContentPack.objects.create(name="Req", owner=user, listed=True)
+    pack_opt = CustomContentPack.objects.create(name="Opt", owner=user, listed=True)
+    campaign.packs.add(pack_req, pack_opt)
+    _mark_pack_required(campaign, pack_req)
+
+    required = list(campaign.required_packs())
+    assert pack_req in required
+    assert pack_opt not in required
+
+
+@pytest.mark.django_db
+def test_campaign_packs_template_shows_required_toggle(client, user, make_campaign):
+    campaign = make_campaign("Test Campaign")
+    pack = CustomContentPack.objects.create(name="Pack A", owner=user, listed=True)
+    campaign.packs.add(pack)
+
+    client.force_login(user)
+    response = client.get(reverse("core:campaign-packs", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert f"required-{pack.id}" in content
+    assert "campaign-pack-set-required" in content or "/required" in content
+
+
+@pytest.mark.django_db
+def test_list_packs_template_shows_required_by_pill(
+    client, user, make_campaign, make_list
+):
+    campaign = make_campaign("Skull Wars")
+    lst = make_list("My Gang")
+    pack = CustomContentPack.objects.create(name="House Rules", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    _mark_pack_required(campaign, pack)
+
+    client.force_login(user)
+    response = client.get(reverse("core:list-packs", args=[lst.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Required by Skull Wars" in content
+    # The unsubscribe form action should not appear, since the pack is required.
+    unsubscribe_url = reverse("core:pack-unsubscribe", args=[pack.id])
+    assert unsubscribe_url not in content
+
+
+# --- Concurrency lock regression tests ---
+#
+# These assert that the required-flag toggle and the unsubscribe endpoint each
+# acquire a row lock on the CampaignContentPack through-row before reading or
+# mutating it. The lock is what serialises the two endpoints — without it, a
+# concurrent unsubscribe can slip a list out of compliance between the
+# toggle's check and its save (or vice versa).
+
+
+@pytest.mark.django_db(transaction=True)
+def test_campaign_pack_set_required_locks_through_row(
+    client, user, make_campaign, make_list
+):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign = make_campaign("Lock Test")
+    lst = make_list("Lock Gang")
+    pack = CustomContentPack.objects.create(name="Lock Pack", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+
+    client.force_login(user)
+    with CaptureQueriesContext(connection) as ctx:
+        client.post(
+            reverse("core:campaign-pack-set-required", args=[campaign.id, pack.id]),
+            {"required": "1"},
+        )
+    locking_qs = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if "core_campaign_packs" in q["sql"] and "FOR UPDATE" in q["sql"].upper()
+    ]
+    assert locking_qs, (
+        "Expected a SELECT ... FOR UPDATE on core_campaign_packs in the toggle "
+        f"path; got: {[q['sql'] for q in ctx.captured_queries]}"
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_unsubscribe_pack_locks_through_rows(client, user, make_campaign, make_list):
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign = make_campaign("Lock Test 2")
+    lst = make_list("Lock Gang 2")
+    pack = CustomContentPack.objects.create(name="Lock Pack 2", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+    campaign.add_list_to_campaign(lst, user=user)
+    # Not required — the unsubscribe should succeed, but still emits the lock.
+
+    client.force_login(user)
+    with CaptureQueriesContext(connection) as ctx:
+        client.post(
+            reverse("core:pack-unsubscribe", args=[pack.id]),
+            {"list_id": str(lst.id), "return_url": "list"},
+        )
+    locking_qs = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if "core_campaign_packs" in q["sql"] and "FOR UPDATE" in q["sql"].upper()
+    ]
+    assert locking_qs, (
+        "Expected a SELECT ... FOR UPDATE on core_campaign_packs in the "
+        f"unsubscribe path; got: {[q['sql'] for q in ctx.captured_queries]}"
+    )
+
+
+@pytest.mark.django_db
+def test_campaign_pack_add_blocked_in_post_campaign(client, user, make_campaign):
+    """Pack add is blocked after the Campaign has ended."""
+    campaign = make_campaign("Ended Campaign")
+    pack = CustomContentPack.objects.create(
+        name="Latecomer Pack", owner=user, listed=True
+    )
+    campaign.status = Campaign.POST_CAMPAIGN
+    campaign.save()
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-add", args=[campaign.id, pack.id])
+    )
+    assert response.status_code == 302
+    assert pack not in campaign.packs.all()
+
+
+@pytest.mark.django_db
+def test_campaign_pack_remove_blocked_in_post_campaign(client, user, make_campaign):
+    """Pack remove is blocked after the Campaign has ended."""
+    campaign = make_campaign("Ended Campaign 2")
+    pack = CustomContentPack.objects.create(name="Stuck Pack", owner=user, listed=True)
+    campaign.packs.add(pack)
+    campaign.status = Campaign.POST_CAMPAIGN
+    campaign.save()
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-remove", args=[campaign.id, pack.id])
+    )
+    assert response.status_code == 302
+    # Still attached.
+    assert pack in campaign.packs.all()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_add_list_to_campaign_locks_through_rows(user, make_campaign, make_list):
+    """add_list_to_campaign locks pack_links so a concurrent required-flip
+    can't slip in between validation and the list write."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign = make_campaign("Lock Test 3")
+    lst = make_list("Lock Gang 3")
+    pack = CustomContentPack.objects.create(name="Lock Pack 3", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+
+    with CaptureQueriesContext(connection) as ctx:
+        campaign.add_list_to_campaign(lst, user=user)
+
+    locking_qs = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if "core_campaign_packs" in q["sql"] and "FOR UPDATE" in q["sql"].upper()
+    ]
+    assert locking_qs, (
+        "Expected a SELECT ... FOR UPDATE on core_campaign_packs during the "
+        f"join path; got: {[q['sql'] for q in ctx.captured_queries]}"
+    )
