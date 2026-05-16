@@ -82,13 +82,6 @@ class ContentWeaponTrait(Content):
                 {"name": "A base weapon trait with this name already exists."}
             )
 
-    def save(self, *args, **kwargs):
-        # Run full_clean so direct ORM writes (objects.create, fixtures, data
-        # migrations) also enforce base-only name uniqueness. ModelForm flows
-        # already trigger this via form.is_valid().
-        self.full_clean()
-        return super().save(*args, **kwargs)
-
     def __str__(self):
         return self.name
 
@@ -501,13 +494,6 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
             raise ValidationError(
                 {"name": "A base weapon accessory with this name already exists."}
             )
-
-    def save(self, *args, **kwargs):
-        # Run full_clean so direct ORM writes (objects.create, fixtures, data
-        # migrations) also enforce base-only name uniqueness. ModelForm flows
-        # already trigger this via form.is_valid().
-        self.full_clean()
-        return super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

@@ -127,9 +127,3 @@ class UploadedFile(AppBase):
                 raise ValidationError(
                     f"File type '{self.content_type}' is not allowed. Allowed types: JPEG, PNG, GIF, WebP, SVG."
                 )
-
-    def save(self, *args, **kwargs):
-        """Override save to validate before saving."""
-        # Always validate before saving
-        self.full_clean()
-        super().save(*args, **kwargs)
