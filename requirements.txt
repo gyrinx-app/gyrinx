@@ -29,7 +29,7 @@ nodeenv==1.10.0
 opentelemetry-exporter-gcp-trace>=1.12.0
 opentelemetry-instrumentation-asgi>=0.49b0
 opentelemetry-instrumentation-django>=0.62b1
-opentelemetry-instrumentation-logging>=0.49b0
+opentelemetry-instrumentation-logging>=0.62b1
 opentelemetry-propagator-gcp>=1.12.0
 
 # OpenTelemetry - Cloud Trace integration
