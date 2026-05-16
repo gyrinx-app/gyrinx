@@ -292,7 +292,9 @@ class Campaign(AppBase):
         if user is None:
             user = self.owner
 
-        # Validate pack compatibility
+        # Validate pack subset (campaign packs ⊇ list packs). Reads M2M state
+        # that isn't mutated by the required-toggle path, so it doesn't need
+        # the through-row lock.
         is_valid, incompatible_packs = self.validate_list_packs(list_to_add)
         if not is_valid:
             pack_names = ", ".join(p.name for p in incompatible_packs)
@@ -301,61 +303,72 @@ class Campaign(AppBase):
                 f"Unsubscribe from these packs before joining."
             )
 
-        has_required, missing_required = self.validate_list_required_packs(list_to_add)
-        if not has_required:
-            pack_names = ", ".join(p.name for p in missing_required)
-            raise ValueError(
-                f"This gang is missing required Content Packs for this Campaign: {pack_names}. "
-                f"Subscribe to these packs before joining."
-            )
-
-        if self.is_pre_campaign:
-            # Pre-campaign: check if list is already in campaign
-            if list_to_add in self.lists.all():
-                return list_to_add, False
-            # Add the list directly
-            self.lists.add(list_to_add)
-            return list_to_add, True
-        elif self.is_in_progress:
-            with transaction.atomic():
-                # Check if we already have a clone of this list
-                if self.has_clone_of_list(list_to_add):
-                    logger.warning(
-                        f"Campaign {self.id} already has a clone of list {list_to_add.id}, skipping"
-                    )
-                    # Return the existing clone
-                    return self.lists.get(original_list=list_to_add), False
-
-                # In-progress: clone the list using the handler
-                from gyrinx.core.handlers.list import handle_list_clone
-
-                clone_result = handle_list_clone(
-                    user=user,
-                    original_list=list_to_add,
-                    for_campaign=self,
-                )
-                campaign_clone = clone_result.cloned_list
-                self.lists.add(campaign_clone)
-
-                # Distribute budget credits to the new gang
-                self._distribute_budget_to_list(campaign_clone)
-
-                # Allocate default resources to the new list
-                for resource_type in self.resource_types.all():
-                    CampaignListResource.objects.get_or_create(
-                        campaign=self,
-                        resource_type=resource_type,
-                        list=campaign_clone,
-                        defaults={
-                            "amount": resource_type.default_amount,
-                            "owner": self.owner,  # Campaign owner owns the resource tracking
-                        },
-                    )
-
-                return campaign_clone, True
-        else:
+        if not (self.is_pre_campaign or self.is_in_progress):
             # Post-campaign: cannot add lists
             raise ValueError("Cannot add lists to a completed campaign")
+
+        # Take the same row lock as campaign_pack_set_required so a concurrent
+        # required-flag flip can't sneak in between validate_list_required_packs
+        # and the list write below. Without this, the toggle's "are all
+        # current lists compliant?" check would succeed (the list isn't in
+        # self.lists yet) and commit required=True, then we'd add a list that
+        # lacks the now-required pack.
+        with transaction.atomic():
+            list(self.pack_links.select_for_update().all())
+
+            has_required, missing_required = self.validate_list_required_packs(
+                list_to_add
+            )
+            if not has_required:
+                pack_names = ", ".join(p.name for p in missing_required)
+                raise ValueError(
+                    f"This gang is missing required Content Packs for this Campaign: {pack_names}. "
+                    f"Subscribe to these packs before joining."
+                )
+
+            if self.is_pre_campaign:
+                # Pre-campaign: check if list is already in campaign
+                if list_to_add in self.lists.all():
+                    return list_to_add, False
+                # Add the list directly
+                self.lists.add(list_to_add)
+                return list_to_add, True
+
+            # In-progress: clone the list using the handler
+            # Check if we already have a clone of this list
+            if self.has_clone_of_list(list_to_add):
+                logger.warning(
+                    f"Campaign {self.id} already has a clone of list {list_to_add.id}, skipping"
+                )
+                # Return the existing clone
+                return self.lists.get(original_list=list_to_add), False
+
+            from gyrinx.core.handlers.list import handle_list_clone
+
+            clone_result = handle_list_clone(
+                user=user,
+                original_list=list_to_add,
+                for_campaign=self,
+            )
+            campaign_clone = clone_result.cloned_list
+            self.lists.add(campaign_clone)
+
+            # Distribute budget credits to the new gang
+            self._distribute_budget_to_list(campaign_clone)
+
+            # Allocate default resources to the new list
+            for resource_type in self.resource_types.all():
+                CampaignListResource.objects.get_or_create(
+                    campaign=self,
+                    resource_type=resource_type,
+                    list=campaign_clone,
+                    defaults={
+                        "amount": resource_type.default_amount,
+                        "owner": self.owner,  # Campaign owner owns the resource tracking
+                    },
+                )
+
+            return campaign_clone, True
 
 
 class CampaignContentPack(models.Model):

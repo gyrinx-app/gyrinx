@@ -133,6 +133,10 @@ def campaign_pack_add(request, id, pack_id):
         messages.error(request, "Cannot modify packs for an archived Campaign.")
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
 
+    if campaign.is_post_campaign:
+        messages.error(request, "Cannot modify packs after a Campaign has ended.")
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
+
     if not pack.listed and pack.owner != request.user:
         messages.error(request, "You don't have access to this pack.")
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
@@ -151,6 +155,10 @@ def campaign_pack_remove(request, id, pack_id):
 
     if campaign.archived:
         messages.error(request, "Cannot modify packs for an archived Campaign.")
+        return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
+
+    if campaign.is_post_campaign:
+        messages.error(request, "Cannot modify packs after a Campaign has ended.")
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(campaign.id,)))
 
     if request.method == "POST":

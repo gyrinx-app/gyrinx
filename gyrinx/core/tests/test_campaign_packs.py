@@ -1530,3 +1530,66 @@ def test_unsubscribe_pack_locks_through_rows(client, user, make_campaign, make_l
         "Expected a SELECT ... FOR UPDATE on core_campaign_packs in the "
         f"unsubscribe path; got: {[q['sql'] for q in ctx.captured_queries]}"
     )
+
+
+@pytest.mark.django_db
+def test_campaign_pack_add_blocked_in_post_campaign(client, user, make_campaign):
+    """Pack add is blocked after the Campaign has ended."""
+    campaign = make_campaign("Ended Campaign")
+    pack = CustomContentPack.objects.create(
+        name="Latecomer Pack", owner=user, listed=True
+    )
+    campaign.status = Campaign.POST_CAMPAIGN
+    campaign.save()
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-add", args=[campaign.id, pack.id])
+    )
+    assert response.status_code == 302
+    assert pack not in campaign.packs.all()
+
+
+@pytest.mark.django_db
+def test_campaign_pack_remove_blocked_in_post_campaign(client, user, make_campaign):
+    """Pack remove is blocked after the Campaign has ended."""
+    campaign = make_campaign("Ended Campaign 2")
+    pack = CustomContentPack.objects.create(name="Stuck Pack", owner=user, listed=True)
+    campaign.packs.add(pack)
+    campaign.status = Campaign.POST_CAMPAIGN
+    campaign.save()
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-pack-remove", args=[campaign.id, pack.id])
+    )
+    assert response.status_code == 302
+    # Still attached.
+    assert pack in campaign.packs.all()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_add_list_to_campaign_locks_through_rows(user, make_campaign, make_list):
+    """add_list_to_campaign locks pack_links so a concurrent required-flip
+    can't slip in between validation and the list write."""
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    campaign = make_campaign("Lock Test 3")
+    lst = make_list("Lock Gang 3")
+    pack = CustomContentPack.objects.create(name="Lock Pack 3", owner=user, listed=True)
+    campaign.packs.add(pack)
+    lst.packs.add(pack)
+
+    with CaptureQueriesContext(connection) as ctx:
+        campaign.add_list_to_campaign(lst, user=user)
+
+    locking_qs = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if "core_campaign_packs" in q["sql"] and "FOR UPDATE" in q["sql"].upper()
+    ]
+    assert locking_qs, (
+        "Expected a SELECT ... FOR UPDATE on core_campaign_packs during the "
+        f"join path; got: {[q['sql'] for q in ctx.captured_queries]}"
+    )
