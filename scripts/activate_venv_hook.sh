@@ -46,14 +46,18 @@ if command -v homebrew_postgres_bin >/dev/null 2>&1; then
 fi
 
 # Persist environment so every subsequent Bash tool call has the venv active.
+# Use `export` so values propagate to child processes (pytest, manage, etc.),
+# not just to the bash that sources this file.  Without `export`, the harness
+# would set these as shell vars but `pytest` would see settings.py defaults
+# (user=postgres, DB=gyrinx) and fail.
 {
   if [ -n "$PG_BIN_DIR" ]; then
-    echo "PATH=${PG_BIN_DIR}:${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
+    echo "export PATH=\"${PG_BIN_DIR}:${VENV_PATH}/bin:$HOME/.local/bin:$PATH\""
   else
-    echo "PATH=${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
+    echo "export PATH=\"${VENV_PATH}/bin:$HOME/.local/bin:$PATH\""
   fi
-  echo "VIRTUAL_ENV=${VENV_PATH}"
-  echo "DJANGO_SETTINGS_MODULE=gyrinx.settings_dev"
+  echo "export VIRTUAL_ENV=\"${VENV_PATH}\""
+  echo "export DJANGO_SETTINGS_MODULE=gyrinx.settings_dev"
 } >> "$CLAUDE_ENV_FILE"
 
 # Set per-worktree DB_NAME and DJANGO_PORT so manage/pytest target the right DB.
@@ -69,11 +73,11 @@ if command -v worktree_db_name >/dev/null 2>&1; then
       # so it survives shell sourcing (the harness re-sources CLAUDE_ENV_FILE
       # before every Bash invocation; an unquoted value would trip the parser).
       {
-        echo "DB_NAME=$(worktree_db_name "$WT_ROOT")"
-        echo "DJANGO_PORT=$(worktree_port "$WT_ROOT")"
-        echo "DB_HOST=localhost"
-        echo "DB_PORT=5432"
-        echo "DB_CONFIG='$(db_config_for_local)'"
+        echo "export DB_NAME=$(worktree_db_name "$WT_ROOT")"
+        echo "export DJANGO_PORT=$(worktree_port "$WT_ROOT")"
+        echo "export DB_HOST=localhost"
+        echo "export DB_PORT=5432"
+        echo "export DB_CONFIG='$(db_config_for_local)'"
       } >> "$CLAUDE_ENV_FILE"
     fi
   )

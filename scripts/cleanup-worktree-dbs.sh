@@ -47,6 +47,11 @@ ORPHANS=()
 while IFS= read -r db; do
   db=$(echo "$db" | xargs)  # trim whitespace
   [ -z "$db" ] && continue
+  # Defensive guard: only act on DB names matching our own pattern.  This
+  # rules out hand-crafted names that could break the SQL strings below.
+  if [[ ! "$db" =~ ^gyrinx_wt_[0-9a-f]{8}$ ]]; then
+    continue
+  fi
   if [ -z "${EXPECTED_DBS[$db]+x}" ]; then
     ORPHANS+=("$db")
   fi

@@ -43,7 +43,7 @@ export DB_NAME
 export DJANGO_PORT
 export DB_HOST=localhost
 export DB_PORT=5432
-export DB_CONFIG=$(db_config_for_local)
+export DB_CONFIG="$(db_config_for_local)"
 export DJANGO_SETTINGS_MODULE=gyrinx.settings_dev
 
 # Ensure Homebrew Postgres bin is on PATH (Apple Silicon or Intel layout)

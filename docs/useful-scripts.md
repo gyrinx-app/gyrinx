@@ -32,10 +32,16 @@ Formats all code in the project including Python, JavaScript, SCSS, and Django t
 
 ### `scripts/test.sh`
 
-Runs the full test suite. Uses Docker if available, otherwise runs pytest directly against local Postgres.
+Thin wrapper over `pytest` against the local Postgres database. `pyproject.toml`
+already enables parallel execution (`-n auto`) and `--reuse-db --nomigrations`
+via addopts, so the bare invocation runs the full suite in parallel.
 
 ```bash
-./scripts/test.sh
+./scripts/test.sh                  # full suite, parallel
+./scripts/test.sh -n 0             # serial
+./scripts/test.sh gyrinx/core/     # a directory
+./scripts/test.sh -k campaign      # by name
+./scripts/test.sh --migrations     # after adding new migrations
 ```
 
 ### `scripts/check_migrations.sh`

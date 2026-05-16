@@ -75,6 +75,25 @@ elif [ -z "$CURRENT_PROVIDER" ]; then
 fi
 
 if [ "$needs_reinit" = true ]; then
+  # If PGDATA exists with content we're about to destroy, require explicit
+  # confirmation.  This script otherwise wipes the cluster silently when it
+  # finds a libc-locale Postgres install, which would be catastrophic for a
+  # developer who installed Homebrew Postgres for unrelated work.
+  if [ -d "$PG_DATA" ] && [ -n "$(ls -A "$PG_DATA" 2>/dev/null || true)" ]; then
+    echo
+    echo "WARNING: existing cluster at $PG_DATA uses a non-ICU locale provider."
+    echo "Reinitialising will DROP ALL DATABASES in this cluster."
+    echo "If you have unrelated Postgres data here, stop now and back it up."
+    echo
+    if [ "${REINIT_ICU:-}" != "yes" ]; then
+      printf "Type 'yes' to wipe and reinitialise: "
+      read -r reply
+      if [ "$reply" != "yes" ]; then
+        echo "Aborted.  Re-run with REINIT_ICU=yes to skip this prompt." >&2
+        exit 1
+      fi
+    fi
+  fi
   echo "Reinitializing cluster with ICU locale provider..."
   echo "This ensures sort order matches Linux (Docker, Cloud SQL, CI)."
   brew services stop postgresql@16 2>/dev/null || true
