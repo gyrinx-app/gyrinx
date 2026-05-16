@@ -5949,11 +5949,6 @@ class ListAttributeAssignment(Base, Archived):
                         f"The attribute '{attribute.name}' is single-select and already has a value assigned to this list."
                     )
 
-    def save(self, *args, **kwargs):
-        """Override save to call full_clean() for validation."""
-        self.full_clean()
-        super().save(*args, **kwargs)
-
 
 class CapturedFighter(AppBase):
     """Tracks a fighter being held captive by another gang."""

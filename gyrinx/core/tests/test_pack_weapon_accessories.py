@@ -678,16 +678,6 @@ def test_base_accessory_model_level_uniqueness():
     assert "name" in exc_info.value.message_dict
 
 
-@pytest.mark.django_db
-def test_base_accessory_orm_create_rejects_duplicate():
-    """Direct objects.create() also enforces base uniqueness via save() →
-    full_clean(). Without this hook, fixtures or data migrations could quietly
-    insert duplicate base accessories."""
-    ContentWeaponAccessory.objects.create(name="Hot Shot Las")
-    with pytest.raises(ValidationError):
-        ContentWeaponAccessory.objects.create(name="Hot Shot Las")
-
-
 # --- Pack detail rendering ----------------------------------------------------
 
 

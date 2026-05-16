@@ -52,6 +52,7 @@ def tinymce_upload(request):
             file_size=file_size,
             content_type=content_type,
         )
+        upload.full_clean()
         upload.save()
 
         # Log the file upload event
