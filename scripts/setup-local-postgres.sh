@@ -20,7 +20,7 @@ echo
 # ---------------------------------------------------------------------------
 # 1. Install PostgreSQL 16
 # ---------------------------------------------------------------------------
-echo "--- [1/7] PostgreSQL 16 ---"
+echo "--- [1/8] PostgreSQL 16 ---"
 if brew list postgresql@16 &>/dev/null; then
   echo "postgresql@16 already installed."
 else
@@ -46,7 +46,7 @@ fi
 # 2. Initialize cluster with ICU collation (matches Linux glibc behavior)
 # ---------------------------------------------------------------------------
 echo
-echo "--- [2/7] PostgreSQL cluster (ICU collation) ---"
+echo "--- [2/8] PostgreSQL cluster (ICU collation) ---"
 
 # Only query the cluster's current locale provider if Postgres is actually up.
 # Otherwise a transient psql failure would falsely trigger a destructive reinit.
@@ -107,7 +107,7 @@ fi
 # 3. Start PostgreSQL service
 # ---------------------------------------------------------------------------
 echo
-echo "--- [3/7] Starting PostgreSQL service ---"
+echo "--- [3/8] Starting PostgreSQL service ---"
 if pg_isready -q 2>/dev/null; then
   echo "PostgreSQL is already running."
 else
@@ -130,7 +130,7 @@ fi
 # 3. Install pgAdmin
 # ---------------------------------------------------------------------------
 echo
-echo "--- [4/7] pgAdmin 4 ---"
+echo "--- [4/8] pgAdmin 4 ---"
 if [ -d "/Applications/pgAdmin 4.app" ]; then
   echo "pgAdmin 4 already installed."
 else
@@ -184,7 +184,7 @@ fi
 # 4. Dump existing Docker database (if available)
 # ---------------------------------------------------------------------------
 echo
-echo "--- [5/7] Checking for existing Docker database ---"
+echo "--- [5/8] Checking for existing Docker database ---"
 DUMP_FILE=""
 if docker info &>/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^postgres$'; then
   echo "Found running Docker Postgres container."
@@ -205,7 +205,7 @@ fi
 # 5. Create gyrinx_main database
 # ---------------------------------------------------------------------------
 echo
-echo "--- [6/7] Creating gyrinx_main database ---"
+echo "--- [6/8] Creating gyrinx_main database ---"
 CURRENT_USER="$(whoami)"
 if psql -lqt | cut -d \| -f 1 | grep -qw gyrinx_main; then
   echo "Database 'gyrinx_main' already exists."
@@ -218,7 +218,7 @@ fi
 # 6. Restore or migrate
 # ---------------------------------------------------------------------------
 echo
-echo "--- [7/7] Populating database ---"
+echo "--- [7/8] Populating database ---"
 if [ -n "$DUMP_FILE" ] && [ -f "$DUMP_FILE" ]; then
   # Check if the database has any tables already (i.e. was already restored)
   TABLE_COUNT=$(psql -d gyrinx_main -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
@@ -274,6 +274,58 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 8. Wire up per-worktree DB env in venv activation
+# ---------------------------------------------------------------------------
+# Appending to .venv/bin/activate so `source .venv/bin/activate` from any
+# terminal exports DB_NAME / DJANGO_PORT / DB_CONFIG for the current worktree.
+# Without this, pytest and `manage` from an interactive shell would fall back
+# to settings.py defaults (user=postgres) and fail to connect.
+echo
+echo "--- [8/8] venv activation hook ---"
+VENV_DIR="${SCRIPT_DIR}/../.venv"
+if [ ! -d "$VENV_DIR" ]; then
+  MAIN_WT=$(git -C "${SCRIPT_DIR}" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p' | head -1)
+  if [ -n "$MAIN_WT" ] && [ -d "${MAIN_WT}/.venv" ]; then
+    VENV_DIR="${MAIN_WT}/.venv"
+  fi
+fi
+VENV_ACTIVATE="${VENV_DIR}/bin/activate"
+HOOK_MARKER="# >>> Gyrinx per-worktree DB env >>>"
+if [ ! -f "$VENV_ACTIVATE" ]; then
+  echo "No .venv found; skipping hook install."
+elif grep -qF "$HOOK_MARKER" "$VENV_ACTIVATE"; then
+  echo "Hook already installed in $VENV_ACTIVATE"
+else
+  cat >> "$VENV_ACTIVATE" <<'BLOCK'
+
+# >>> Gyrinx per-worktree DB env >>>
+# Added by scripts/setup-local-postgres.sh.  Makes pytest, manage, and other
+# tools target the current worktree's Postgres database without manual exports.
+# Re-source the activate script after `cd`ing between worktrees.
+_gyrinx_set_db_env() {
+  local wt_root lib
+  wt_root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  lib="$wt_root/scripts/lib/worktree.sh"
+  [ -f "$lib" ] || return 0
+  # shellcheck source=/dev/null
+  source "$lib"
+  export DB_NAME
+  DB_NAME=$(worktree_db_name "$wt_root")
+  export DJANGO_PORT
+  DJANGO_PORT=$(worktree_port "$wt_root")
+  export DB_HOST=localhost
+  export DB_PORT=5432
+  export DB_CONFIG
+  DB_CONFIG="$(db_config_for_local)"
+}
+_gyrinx_set_db_env
+unset -f _gyrinx_set_db_env
+# <<< Gyrinx per-worktree DB env <<<
+BLOCK
+  echo "Installed hook in $VENV_ACTIVATE"
+fi
+
+# ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 echo
@@ -285,6 +337,8 @@ echo "  Database:  gyrinx_main (port 5432)"
 echo "  User:      ${CURRENT_USER} (trust auth, no password)"
 echo "  pgAdmin:   Open pgAdmin 4 from Applications — the 'Gyrinx (local)'"
 echo "             server is pre-registered (config at ${PGADMIN_SERVERS_FILE})."
+echo "  venv:      Activation now sets per-worktree DB env automatically;"
+echo "             re-activate after switching worktrees."
 echo
 echo "  Next steps:"
 echo "    1. Start dev server:  ./scripts/dev.sh"
