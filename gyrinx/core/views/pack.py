@@ -71,7 +71,7 @@ from gyrinx.core.forms.pack import (
     PackForm,
     HOUSE_RULE_TARGET_CHOICES,
 )
-from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.campaign import Campaign, CampaignContentPack
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import (
@@ -3518,9 +3518,35 @@ def unsubscribe_pack(request, id):
         raise Http404
 
     lst = get_object_or_404(List, id=list_id, owner=request.user)
-    lst.packs.remove(pack)
 
     return_url = request.POST.get("return_url", "")
+
+    # Hard-block: a pack required by any campaign this list is in cannot be
+    # unsubscribed. The arbitrator would have to flip it to optional first.
+    blocking = list(
+        Campaign.objects.filter(
+            lists=lst,
+            pack_links__pack=pack,
+            pack_links__required=True,
+        )
+        .distinct()
+        .values_list("name", flat=True)
+    )
+    if blocking:
+        names = ", ".join(blocking)
+        messages.error(
+            request,
+            f"{pack.name} is required by Campaign(s): {names}. "
+            f"You cannot unsubscribe while this Gang is in those Campaigns.",
+        )
+        if return_url == "list":
+            return HttpResponseRedirect(reverse("core:list-packs", args=(lst.id,)))
+        if return_url == "pack-lists":
+            return HttpResponseRedirect(reverse("core:pack-lists", args=(pack.id,)))
+        return HttpResponseRedirect(reverse("core:pack", args=(pack.id,)))
+
+    lst.packs.remove(pack)
+
     source = _pack_subscription_source(return_url)
     log_event(
         user=request.user,
@@ -3552,12 +3578,28 @@ def list_packs_manage(request, id):
     """Manage content pack subscriptions for a list."""
     lst = get_object_or_404(List, id=id, owner=request.user)
 
-    subscribed_packs = lst.packs.all().select_related("owner")
+    subscribed_packs = list(lst.packs.all().select_related("owner"))
+
+    # For each subscribed pack, find any Campaign this list is in that requires
+    # it. Required-by Campaigns block unsubscription and surface as a pill.
+    required_by_pack = {}
+    for link in (
+        CampaignContentPack.objects.filter(
+            required=True,
+            pack__in=subscribed_packs,
+            campaign__lists=lst,
+        )
+        .select_related("campaign")
+        .distinct()
+    ):
+        required_by_pack.setdefault(link.pack_id, []).append(link.campaign.name)
+    for pack in subscribed_packs:
+        pack.required_by_campaigns = required_by_pack.get(pack.id, [])
 
     # Available packs: listed packs or packs owned by user, excluding already subscribed
     available_packs = (
         CustomContentPack.objects.filter(archived=False)
-        .exclude(id__in=subscribed_packs.values_list("id", flat=True))
+        .exclude(id__in=[p.id for p in subscribed_packs])
         .filter(models.Q(listed=True) | models.Q(owner=request.user))
         .select_related("owner")
         .order_by("name")

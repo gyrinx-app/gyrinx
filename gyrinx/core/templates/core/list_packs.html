@@ -56,7 +56,7 @@
                 {% if subscribed_packs %}
                     <ul class="list-unstyled mb-0">
                         {% for pack in subscribed_packs %}
-                            <li class="py-2 d-flex justify-content-between align-items-center border-bottom">
+                            <li class="py-2 d-flex justify-content-between align-items-center gap-2 border-bottom">
                                 <div>
                                     {% if pack.listed or pack.owner == request.user %}
                                         <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
@@ -64,16 +64,24 @@
                                         <span class="fw-medium">{{ pack.name }}</span>
                                     {% endif %}
                                     <span class="text-secondary fs-7">by {{ pack.owner }}</span>
+                                    {% if pack.required_by_campaigns %}
+                                        <span class="badge text-bg-warning ms-1"
+                                              title="Required by {{ pack.required_by_campaigns|join:', ' }}">
+                                            Required by {{ pack.required_by_campaigns|join:", " }}
+                                        </span>
+                                    {% endif %}
                                     {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
                                 </div>
-                                <form method="post"
-                                      action="{% url 'core:pack-unsubscribe' pack.id %}"
-                                      class="d-inline">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="list_id" value="{{ list.id }}">
-                                    <input type="hidden" name="return_url" value="list">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
-                                </form>
+                                {% if not pack.required_by_campaigns %}
+                                    <form method="post"
+                                          action="{% url 'core:pack-unsubscribe' pack.id %}"
+                                          class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="list_id" value="{{ list.id }}">
+                                        <input type="hidden" name="return_url" value="list">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                    </form>
+                                {% endif %}
                             </li>
                         {% endfor %}
                     </ul>

@@ -10,6 +10,7 @@ from gyrinx.core.models.campaign import (
     CampaignAssetType,
     CampaignAttributeType,
     CampaignAttributeValue,
+    CampaignContentPack,
     CampaignResourceType,
     CampaignSubAsset,
 )
@@ -277,13 +278,20 @@ def copy_campaign_content(
                 )
                 result.attribute_values_copied += 1
 
-    # Copy packs (add by reference — packs are shared entities, not cloned)
+    # Copy packs (add by reference — packs are shared entities, not cloned).
+    # Carry the `required` flag from the source link onto the target link.
     if pack_ids:
         existing_pack_ids = set(target_campaign.packs.values_list("id", flat=True))
-        source_packs = source_campaign.packs.filter(id__in=pack_ids)
-        for pack in source_packs:
-            if pack.id not in existing_pack_ids:
-                target_campaign.packs.add(pack)
+        source_links = source_campaign.pack_links.filter(
+            pack_id__in=pack_ids
+        ).select_related("pack")
+        for link in source_links:
+            if link.pack_id not in existing_pack_ids:
+                CampaignContentPack.objects.create(
+                    campaign=target_campaign,
+                    pack=link.pack,
+                    required=link.required,
+                )
                 result.packs_copied += 1
 
     return result

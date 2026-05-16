@@ -87,6 +87,7 @@ class Campaign(AppBase):
         "CustomContentPack",
         blank=True,
         related_name="campaigns",
+        through="CampaignContentPack",
         help_text="Content packs allowed for this campaign. Empty means no restrictions.",
     )
 
@@ -211,6 +212,15 @@ class Campaign(AppBase):
             return True
         return False
 
+    def required_packs(self):
+        """Return packs marked as required for this campaign."""
+        from gyrinx.core.models.pack import CustomContentPack
+
+        return CustomContentPack.objects.filter(
+            campaign_links__campaign=self,
+            campaign_links__required=True,
+        )
+
     def validate_list_packs(self, list_to_add):
         """Validate that a list's packs are compatible with campaign packs.
 
@@ -234,6 +244,33 @@ class Campaign(AppBase):
         incompatible = [p for p in list_packs if p.id not in campaign_pack_ids]
 
         return len(incompatible) == 0, incompatible
+
+    def validate_list_required_packs(self, list_to_add):
+        """Validate the list is subscribed to every required pack on this campaign.
+
+        Args:
+            list_to_add: The List to validate
+
+        Returns:
+            tuple: (is_valid: bool, missing_packs: list[CustomContentPack])
+        """
+        from gyrinx.core.models.pack import CustomContentPack
+
+        required_ids = set(
+            self.pack_links.filter(required=True).values_list("pack_id", flat=True)
+        )
+        if not required_ids:
+            return True, []
+
+        list_pack_ids = set(list_to_add.packs.values_list("id", flat=True))
+        missing = required_ids - list_pack_ids
+        if not missing:
+            return True, []
+
+        missing_packs = list(
+            CustomContentPack.objects.filter(id__in=missing).order_by("name")
+        )
+        return False, missing_packs
 
     def add_list_to_campaign(self, list_to_add, user=None):
         """Add a list to the campaign, cloning if necessary.
@@ -262,6 +299,14 @@ class Campaign(AppBase):
             raise ValueError(
                 f"This gang has content packs not allowed by this campaign: {pack_names}. "
                 f"Unsubscribe from these packs before joining."
+            )
+
+        has_required, missing_required = self.validate_list_required_packs(list_to_add)
+        if not has_required:
+            pack_names = ", ".join(p.name for p in missing_required)
+            raise ValueError(
+                f"This gang is missing required Content Packs for this Campaign: {pack_names}. "
+                f"Subscribe to these packs before joining."
             )
 
         if self.is_pre_campaign:
@@ -311,6 +356,37 @@ class Campaign(AppBase):
         else:
             # Post-campaign: cannot add lists
             raise ValueError("Cannot add lists to a completed campaign")
+
+
+class CampaignContentPack(models.Model):
+    """Through-model for Campaign.packs. The `required` flag means every list
+    in the campaign must be subscribed to this pack."""
+
+    campaign = models.ForeignKey(
+        Campaign,
+        related_name="pack_links",
+        on_delete=models.CASCADE,
+    )
+    pack = models.ForeignKey(
+        "CustomContentPack",
+        related_name="campaign_links",
+        on_delete=models.CASCADE,
+        # Preserve the existing implicit-M2M column name so the data migration
+        # is state-only — no table drop/rebuild.
+        db_column="customcontentpack_id",
+    )
+    required = models.BooleanField(
+        default=False,
+        help_text="If true, every list in this campaign must be subscribed to this pack.",
+    )
+
+    class Meta:
+        # Keep the table Django implicitly created for the original M2M.
+        db_table = "core_campaign_packs"
+        unique_together = [("campaign", "pack")]
+
+    def __str__(self):
+        return f"{self.campaign.name} ⇒ {self.pack.name}"
 
 
 class CampaignAction(AppBase):

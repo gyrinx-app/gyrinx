@@ -694,6 +694,11 @@ urlpatterns = [
         campaign_packs.campaign_pack_remove,
         name="campaign-pack-remove",
     ),
+    path(
+        "campaign/<id>/packs/<pack_id>/required",
+        campaign_packs.campaign_pack_set_required,
+        name="campaign-pack-set-required",
+    ),
     # Battles
     path(
         "campaign/<id>/battles",

@@ -9,10 +9,18 @@ from gyrinx.core.models.campaign import (
     CampaignAssetType,
     CampaignAttributeType,
     CampaignAttributeValue,
+    CampaignContentPack,
     CampaignListAttributeAssignment,
     CampaignListResource,
     CampaignResourceType,
 )
+
+
+class CampaignContentPackInline(admin.TabularInline):
+    model = CampaignContentPack
+    extra = 0
+    autocomplete_fields = ["pack"]
+    fields = ["pack", "required"]
 
 
 @admin.register(Campaign)
@@ -21,6 +29,15 @@ class CampaignAdmin(BaseAdmin):
     search_fields = ["name", "owner__username"]
     list_filter = ["status", "public", "template", "created"]
     fields = ["name", "owner", "status", "public", "template", "summary", "narrative"]
+    inlines = [CampaignContentPackInline]
+
+
+@admin.register(CampaignContentPack)
+class CampaignContentPackAdmin(admin.ModelAdmin):
+    list_display = ["campaign", "pack", "required"]
+    list_filter = ["required"]
+    search_fields = ["campaign__name", "pack__name"]
+    autocomplete_fields = ["campaign", "pack"]
 
 
 @admin.register(CampaignAction)
