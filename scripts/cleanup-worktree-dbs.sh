@@ -111,7 +111,10 @@ report_worktree_venvs() {
         any=1
       fi
       local size label
-      size=$(du -sh "$wt_path/.venv" 2>/dev/null | awk '{print $1}')
+      # Best-effort: `du` can fail (race on dir removal, unreadable subtrees).
+      # Don't let an informational lookup crash the script under `set -euo
+      # pipefail` — fall back to "?" instead.
+      size=$(du -sh "$wt_path/.venv" 2>/dev/null | awk '{print $1}' || echo "?")
       label=$(worktree_label "$wt_path")
       echo "  - ${label} (${wt_path}/.venv): ${size}"
     fi

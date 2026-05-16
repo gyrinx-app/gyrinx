@@ -157,8 +157,10 @@ _gyrinx_set_db_env() {
   wt_root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
   lib="$wt_root/scripts/lib/worktree.sh"
   [ -f "$lib" ] || return 0
+  # POSIX `.` rather than bash-only `source` — the activate script is also
+  # used from zsh/ksh.
   # shellcheck source=/dev/null
-  source "$lib"
+  . "$lib"
   export DB_NAME
   DB_NAME=$(worktree_db_name "$wt_root")
   export DJANGO_PORT

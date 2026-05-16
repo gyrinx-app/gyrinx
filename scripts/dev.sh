@@ -87,9 +87,13 @@ if [ "$WT_ROOT" != "$MAIN_WT" ]; then
       cd "$WT_ROOT"
       uv pip install --python "$WT_VENV/bin/python" --editable . --quiet
     )
-    install_worktree_venv_hook "$WT_VENV/bin/activate"
     echo "Provisioned: $WT_VENV"
   fi
+  # Always (re-)ensure the activate hook is present.  Idempotent — no-op if
+  # the marker is already there.  Catches the case where a child worktree
+  # had a .venv from before this change and would otherwise never get the
+  # hook installed.
+  install_worktree_venv_hook "$WT_VENV/bin/activate" || true
 fi
 
 # Activate venv — child worktree's own first, then main worktree as fallback.
