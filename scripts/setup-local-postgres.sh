@@ -138,11 +138,10 @@ else
   brew install --cask pgadmin4
 fi
 
-# Write a servers.json so the user can import the local cluster into pgAdmin
-# without filling in the connection details by hand.  We don't auto-import
-# (the desktop bundle's Python path is version-pinned and the import command
-# requires pgAdmin to have been initialised at least once), but the file lives
-# in a known location and the final summary points the user at it.
+# Write a servers.json describing the local cluster and import it directly
+# into pgAdmin's SQLite config via the bundled setup.py CLI.  Avoids the
+# "Something went wrong" failure of the GUI Import/Export dialog and
+# means the server shows up the next time pgAdmin starts.
 PGADMIN_SERVERS_FILE="${HOME}/.gyrinx/pgadmin-servers.json"
 mkdir -p "$(dirname "$PGADMIN_SERVERS_FILE")"
 cat > "$PGADMIN_SERVERS_FILE" <<JSON
@@ -161,6 +160,25 @@ cat > "$PGADMIN_SERVERS_FILE" <<JSON
 }
 JSON
 echo "Wrote pgAdmin servers config: $PGADMIN_SERVERS_FILE"
+
+PGADMIN_PY="/Applications/pgAdmin 4.app/Contents/Frameworks/Python.framework/Versions/Current/bin/python3"
+PGADMIN_SETUP="/Applications/pgAdmin 4.app/Contents/Resources/web/setup.py"
+PGADMIN_DB="${HOME}/.pgadmin/pgadmin4.db"
+if [ -f "$PGADMIN_DB" ] && [ -x "$PGADMIN_PY" ] && [ -f "$PGADMIN_SETUP" ]; then
+  # Skip if a server with the same name already exists, so re-running the
+  # setup script is idempotent.
+  if sqlite3 "$PGADMIN_DB" "SELECT 1 FROM server WHERE name='Gyrinx (local)' LIMIT 1;" 2>/dev/null | grep -q 1; then
+    echo "pgAdmin already has a 'Gyrinx (local)' server — skipping import."
+  else
+    echo "Importing into pgAdmin's config DB..."
+    "$PGADMIN_PY" "$PGADMIN_SETUP" load-servers "$PGADMIN_SERVERS_FILE" \
+      --user pgadmin4@pgadmin.org \
+      --sqlite-path "$PGADMIN_DB" 2>&1 | tail -3
+  fi
+else
+  echo "pgAdmin not yet initialised — open it once, then re-run this script"
+  echo "to register the server automatically."
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Dump existing Docker database (if available)
@@ -265,9 +283,8 @@ echo "=========================================="
 echo
 echo "  Database:  gyrinx_main (port 5432)"
 echo "  User:      ${CURRENT_USER} (trust auth, no password)"
-echo "  pgAdmin:   Open pgAdmin 4 from Applications"
-echo "             Tools → Import/Export Servers → Import:"
-echo "             ${PGADMIN_SERVERS_FILE}"
+echo "  pgAdmin:   Open pgAdmin 4 from Applications — the 'Gyrinx (local)'"
+echo "             server is pre-registered (config at ${PGADMIN_SERVERS_FILE})."
 echo
 echo "  Next steps:"
 echo "    1. Start dev server:  ./scripts/dev.sh"
