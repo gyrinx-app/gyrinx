@@ -1284,16 +1284,39 @@ HOUSE_RULE_TARGET_CHOICES = [
 class ContentHouseRuleForm(forms.Form):
     """Single-form house-rule definition: target + mod fields.
 
-    Backed by ``ContentModApplication`` + a freshly-created ``ContentMod``
-    (a ``ContentModStat`` for weapon-profile targets, a
-    ``ContentModFighterStat`` for fighter targets). The view creates the
-    mod, application, and ``CustomContentPackItem`` in one transaction.
+    Backed by ``ContentModApplication`` + a freshly-created ``ContentMod``.
+    The concrete mod subclass depends on ``mod_kind``:
+
+    - ``stat`` → ``ContentModStat`` (weapon target) or ``ContentModFighterStat``
+      (fighter target) — adjusts a value on the statline.
+    - ``trait`` → ``ContentModTrait`` (weapon target only) — adds or removes a
+      weapon trait on a profile.
+    - ``rule`` → ``ContentModFighterRule`` (fighter target only) — adds or
+      removes a special rule on a fighter.
+
+    The view creates the mod, application, and ``CustomContentPackItem`` in
+    one transaction.
     """
 
-    MODE_CHOICES = [
+    # mode choices vary by mod_kind
+    STAT_MODE_CHOICES = [
         ("improve", "Improve"),
         ("worsen", "Worsen"),
         ("set", "Set"),
+    ]
+    ADD_REMOVE_MODE_CHOICES = [
+        ("add", "Add"),
+        ("remove", "Remove"),
+    ]
+
+    # mod_kind choices, scoped per target type
+    _WEAPON_KIND_CHOICES = [
+        ("stat", "Stat"),
+        ("trait", "Trait"),
+    ]
+    _FIGHTER_KIND_CHOICES = [
+        ("stat", "Stat"),
+        ("rule", "Special rule"),
     ]
 
     target_type = forms.ChoiceField(
@@ -1305,19 +1328,40 @@ class ContentHouseRuleForm(forms.Form):
         required=True,
     )
 
+    mod_kind = forms.ChoiceField(
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="What to modify",
+        help_text="Stat changes a value on the statline; Trait/Special rule adds or removes one.",
+    )
+
     stat = forms.ChoiceField(
+        required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
         help_text="The statistic to modify.",
     )
     mode = forms.ChoiceField(
-        choices=MODE_CHOICES,
+        required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
-        help_text="Improve nudges the stat in the helpful direction; Worsen the opposite; Set replaces it.",
+        help_text="How to apply the change.",
     )
     value = forms.CharField(
+        required=False,
         max_length=5,
         widget=forms.TextInput(attrs={"class": "form-control"}),
         help_text="A number, e.g. 1.",
+    )
+
+    trait = forms.ModelChoiceField(
+        queryset=ContentWeaponTrait.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="The trait to add or remove on the weapon profile.",
+    )
+    rule = forms.ModelChoiceField(
+        queryset=ContentRule.objects.none(),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="The special rule to add or remove on the fighter.",
     )
 
     # Weapon stat choices match ContentModStat.stat
@@ -1332,7 +1376,13 @@ class ContentHouseRuleForm(forms.Form):
         ("ammo", "Ammo"),
     ]
 
-    def __init__(self, *args, available_stat_field_names=None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        available_stat_field_names=None,
+        pack=None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         # Build fighter stat choices from ContentStat — mirrors the admin
         # dynamic-choices pattern in ContentModFighterStatAdminForm.
@@ -1349,27 +1399,29 @@ class ContentHouseRuleForm(forms.Form):
                 field_name__in=weapon_only_field_names
             ).order_by("full_name")
         ]
-        # Narrow the stat choices to match the target type. Initial data
-        # carries the target_type from the picker; falling back to bound
-        # data covers POST.
+        # Narrow the stat and mod_kind choices to match the target type.
+        # Initial data carries the target_type from the picker; falling back
+        # to bound data covers POST.
         target_type = (
             (self.initial or {}).get("target_type")
             or (self.data or {}).get("target_type")
             or "weapon-profile"
         )
         if target_type == "fighter":
-            choices = fighter_stat_choices
+            stat_choices = fighter_stat_choices
+            self.fields["mod_kind"].choices = self._FIGHTER_KIND_CHOICES
         else:
-            choices = self.WEAPON_STAT_CHOICES
+            stat_choices = self.WEAPON_STAT_CHOICES
+            self.fields["mod_kind"].choices = self._WEAPON_KIND_CHOICES
 
         # If the caller passes the specific target's available stat field
         # names (e.g. a non-vehicle fighter has no Front/Rear/HP), narrow
         # the dropdown further so it only offers stats that actually exist.
         if available_stat_field_names is not None:
             allowed = set(available_stat_field_names)
-            choices = [(k, v) for k, v in choices if k in allowed]
+            stat_choices = [(k, v) for k, v in stat_choices if k in allowed]
 
-        self.fields["stat"].choices = choices
+        self.fields["stat"].choices = stat_choices
         self._fighter_stat_field_names = {fc for fc, _ in fighter_stat_choices}
         self._weapon_stat_field_names = {fc for fc, _ in self.WEAPON_STAT_CHOICES}
         self._available_stat_field_names = (
@@ -1378,35 +1430,91 @@ class ContentHouseRuleForm(forms.Form):
             else None
         )
 
+        # Populate trait/rule querysets pack-aware so the pack's own content
+        # is selectable alongside the base library. Caller (views/pack.py)
+        # must always pass ``pack``.
+        if pack is None:
+            raise TypeError("ContentHouseRuleForm requires a pack= keyword argument.")
+        self.fields["trait"].queryset = ContentWeaponTrait.objects.with_packs(
+            [pack]
+        ).order_by("name")
+        self.fields["rule"].queryset = ContentRule.objects.with_packs([pack]).order_by(
+            "name"
+        )
+
+        # Build the mode choices depending on the selected mod_kind. Falls
+        # back to stat mode choices when the kind is not yet set.
+        mod_kind = (
+            (self.data or {}).get("mod_kind")
+            or (self.initial or {}).get("mod_kind")
+            or "stat"
+        )
+        if mod_kind in ("trait", "rule"):
+            self.fields["mode"].choices = self.ADD_REMOVE_MODE_CHOICES
+        else:
+            self.fields["mode"].choices = self.STAT_MODE_CHOICES
+
     def clean(self):
         cleaned = super().clean()
         target_type = cleaned.get("target_type")
+        mod_kind = cleaned.get("mod_kind")
         stat = cleaned.get("stat")
         mode = cleaned.get("mode")
         value = cleaned.get("value")
+        trait = cleaned.get("trait")
+        rule = cleaned.get("rule")
 
-        if stat and target_type == "weapon-profile":
-            if stat not in self._weapon_stat_field_names:
-                self.add_error("stat", "Pick a weapon stat for a weapon profile.")
-        elif stat and target_type == "fighter":
-            if stat not in self._fighter_stat_field_names:
-                self.add_error("stat", "Pick a fighter stat for a fighter target.")
+        # Reject combinations the model layer wouldn't allow.
+        if mod_kind == "trait" and target_type != "weapon-profile":
+            self.add_error(
+                "mod_kind", "Trait modifications can only target a weapon profile."
+            )
+        if mod_kind == "rule" and target_type != "fighter":
+            self.add_error(
+                "mod_kind", "Special rule modifications can only target a fighter."
+            )
 
-        if (
-            stat
-            and self._available_stat_field_names is not None
-            and stat not in self._available_stat_field_names
-        ):
-            self.add_error("stat", "That stat isn't on this target's statline.")
+        if mod_kind == "stat":
+            if not stat:
+                self.add_error("stat", "Pick a stat to modify.")
+            elif target_type == "weapon-profile":
+                if stat not in self._weapon_stat_field_names:
+                    self.add_error("stat", "Pick a weapon stat for a weapon profile.")
+            elif target_type == "fighter":
+                if stat not in self._fighter_stat_field_names:
+                    self.add_error("stat", "Pick a fighter stat for a fighter target.")
 
-        # For improve/worsen modes, value must be an integer (the modifier
-        # operates numerically). 'set' allows non-numeric values (e.g. "S").
-        if mode in ("improve", "worsen") and value is not None:
-            try:
-                int(value)
-            except (TypeError, ValueError):
-                self.add_error(
-                    "value",
-                    "Value must be a whole number when improving or worsening a stat.",
-                )
+            if (
+                stat
+                and self._available_stat_field_names is not None
+                and stat not in self._available_stat_field_names
+            ):
+                self.add_error("stat", "That stat isn't on this target's statline.")
+
+            if mode not in {m for m, _ in self.STAT_MODE_CHOICES}:
+                self.add_error("mode", "Pick Improve, Worsen, or Set.")
+            if not value:
+                self.add_error("value", "Enter a value.")
+
+            # For improve/worsen modes, value must be an integer (the modifier
+            # operates numerically). 'set' allows non-numeric values (e.g. "S").
+            if mode in ("improve", "worsen") and value:
+                try:
+                    int(value)
+                except (TypeError, ValueError):
+                    self.add_error(
+                        "value",
+                        "Value must be a whole number when improving or worsening a stat.",
+                    )
+        elif mod_kind == "trait":
+            if not trait:
+                self.add_error("trait", "Pick a trait.")
+            if mode not in {m for m, _ in self.ADD_REMOVE_MODE_CHOICES}:
+                self.add_error("mode", "Pick Add or Remove.")
+        elif mod_kind == "rule":
+            if not rule:
+                self.add_error("rule", "Pick a special rule.")
+            if mode not in {m for m, _ in self.ADD_REMOVE_MODE_CHOICES}:
+                self.add_error("mode", "Pick Add or Remove.")
+
         return cleaned

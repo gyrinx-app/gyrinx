@@ -21,7 +21,7 @@
             house rule
         </h1>
         <p class="text-secondary mb-0">
-            Modifies the statline below for any List subscribed to
+            Modify the target below for any List subscribed to
             <em>{{ pack.name }}</em>.
         </p>
         {% if target_type == "weapon-profile" %}
@@ -78,9 +78,18 @@
                 </div>
             </div>
         {% endif %}
-        <form method="post" class="vstack gap-3">
+        <form method="post" id="house-rule-form" class="vstack gap-3">
             {% csrf_token %}
-            {{ form }}
+            {{ form.target_type }}
+            {{ form.target_id }}
+            {% include "django/forms/field.html" with field=form.mod_kind %}
+            <div data-kind-fields="stat">
+                {% include "django/forms/field.html" with field=form.stat %}
+                {% include "django/forms/field.html" with field=form.value %}
+            </div>
+            <div data-kind-fields="trait">{% include "django/forms/field.html" with field=form.trait %}</div>
+            <div data-kind-fields="rule">{% include "django/forms/field.html" with field=form.rule %}</div>
+            {% include "django/forms/field.html" with field=form.mode %}
             <div class="mt-2 d-flex gap-2 align-items-center">
                 <button type="submit" class="btn btn-success">
                     <i class="bi-check-lg me-1"></i>
@@ -94,4 +103,55 @@
             </div>
         </form>
     </div>
+    <script>
+        (function () {
+            var form = document.getElementById("house-rule-form");
+            if (!form) return;
+            var kindSelect = form.querySelector('[name="mod_kind"]');
+            var modeSelect = form.querySelector('[name="mode"]');
+            if (!kindSelect || !modeSelect) return;
+
+            var statModeChoices = [
+                ["improve", "Improve"],
+                ["worsen", "Worsen"],
+                ["set", "Set"]
+            ];
+            var addRemoveChoices = [
+                ["add", "Add"],
+                ["remove", "Remove"]
+            ];
+
+            function setModeChoices(kind) {
+                var current = modeSelect.value;
+                var choices = (kind === "trait" || kind === "rule") ? addRemoveChoices : statModeChoices;
+                var validValues = choices.map(function (c) { return c[0]; });
+                // Clear and rebuild option list using DOM methods (avoids innerHTML).
+                while (modeSelect.firstChild) {
+                    modeSelect.removeChild(modeSelect.firstChild);
+                }
+                choices.forEach(function (c) {
+                    var opt = document.createElement("option");
+                    opt.value = c[0];
+                    opt.textContent = c[1];
+                    modeSelect.appendChild(opt);
+                });
+                if (validValues.indexOf(current) !== -1) {
+                    modeSelect.value = current;
+                }
+            }
+
+            function refreshVisibility() {
+                var kind = kindSelect.value;
+                var groups = form.querySelectorAll("[data-kind-fields]");
+                for (var i = 0; i < groups.length; i++) {
+                    var g = groups[i];
+                    g.style.display = (g.getAttribute("data-kind-fields") === kind) ? "" : "none";
+                }
+                setModeChoices(kind);
+            }
+
+            kindSelect.addEventListener("change", refreshVisibility);
+            refreshVisibility();
+        })();
+    </script>
 {% endblock content %}

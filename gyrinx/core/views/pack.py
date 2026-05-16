@@ -5320,20 +5320,44 @@ def _statline_field_names(target):
     return names or None
 
 
+def _build_house_rule_mod(target_type, cleaned_data):
+    """Construct an unsaved ``ContentMod`` subclass instance from form data.
+
+    Returns the instance ready for ``.save()``. The caller is responsible
+    for setting ``_history_user`` and persisting.
+    """
+    from gyrinx.content.models import (
+        ContentModFighterRule,
+        ContentModFighterStat,
+        ContentModStat,
+        ContentModTrait,
+    )
+
+    mod_kind = cleaned_data["mod_kind"]
+    mode = cleaned_data["mode"]
+    if mod_kind == "stat":
+        stat = cleaned_data["stat"]
+        value = cleaned_data["value"]
+        if target_type == "weapon-profile":
+            return ContentModStat(stat=stat, mode=mode, value=value)
+        return ContentModFighterStat(stat=stat, mode=mode, value=value)
+    if mod_kind == "trait":
+        return ContentModTrait(trait=cleaned_data["trait"], mode=mode)
+    if mod_kind == "rule":
+        return ContentModFighterRule(rule=cleaned_data["rule"], mode=mode)
+    raise ValueError(f"Unknown mod_kind: {mod_kind}")
+
+
 @login_required
 def add_house_rule(request, id):
     """Step 2 of the add-house-rule flow: define the mod for the chosen target.
 
-    Creates the ``ContentMod`` (a ``ContentModStat`` for weapon targets, a
-    ``ContentModFighterStat`` otherwise), the ``ContentModApplication``,
-    and the ``CustomContentPackItem`` linking the application to the pack
-    in a single transaction.
+    Creates the ``ContentMod`` subclass appropriate for the chosen
+    ``mod_kind`` (stat / trait / rule), the ``ContentModApplication``, and
+    the ``CustomContentPackItem`` linking the application to the pack in a
+    single transaction.
     """
-    from gyrinx.content.models import (
-        ContentModApplication,
-        ContentModFighterStat,
-        ContentModStat,
-    )
+    from gyrinx.content.models import ContentModApplication
 
     pack = _get_pack_for_edit(id, request.user)
 
@@ -5361,17 +5385,13 @@ def add_house_rule(request, id):
             request.POST,
             initial=initial,
             available_stat_field_names=available_stat_field_names,
+            pack=pack,
         )
         if form.is_valid():
-            stat = form.cleaned_data["stat"]
-            mode = form.cleaned_data["mode"]
-            value = form.cleaned_data["value"]
-
             with transaction.atomic():
-                if target_type == "weapon-profile":
-                    mod = ContentModStat(stat=stat, mode=mode, value=value)
-                else:
-                    mod = ContentModFighterStat(stat=stat, mode=mode, value=value)
+                mod = _build_house_rule_mod(
+                    form.cleaned_data["target_type"], form.cleaned_data
+                )
                 mod._history_user = request.user
                 mod.save()
 
@@ -5413,6 +5433,7 @@ def add_house_rule(request, id):
         form = ContentHouseRuleForm(
             initial=initial,
             available_stat_field_names=available_stat_field_names,
+            pack=pack,
         )
 
     return render(
@@ -5431,6 +5452,24 @@ def add_house_rule(request, id):
     )
 
 
+def _kind_for_modifier(modifier):
+    """Map a polymorphic ``ContentMod`` instance to its form ``mod_kind`` slug."""
+    from gyrinx.content.models import (
+        ContentModFighterRule,
+        ContentModFighterStat,
+        ContentModStat,
+        ContentModTrait,
+    )
+
+    if isinstance(modifier, (ContentModStat, ContentModFighterStat)):
+        return "stat"
+    if isinstance(modifier, ContentModTrait):
+        return "trait"
+    if isinstance(modifier, ContentModFighterRule):
+        return "rule"
+    return None
+
+
 @login_required
 def edit_house_rule(request, id, item_id):
     """Edit an existing house-rule application's mod fields.
@@ -5439,11 +5478,7 @@ def edit_house_rule(request, id, item_id):
     in-place — no new ``ContentModApplication`` row is created. The target
     cannot be changed here; archive and re-add to retarget.
     """
-    from gyrinx.content.models import (
-        ContentModApplication,
-        ContentModFighterStat,
-        ContentModStat,
-    )
+    from gyrinx.content.models import ContentModApplication
 
     pack = _get_pack_for_edit(id, request.user)
     pack_item = get_object_or_404(
@@ -5469,8 +5504,12 @@ def edit_house_rule(request, id, item_id):
     target_model = application.target_content_type.model
     if target_model == "contentweaponprofile":
         target_type = "weapon-profile"
-    else:
+    elif target_model == "contentfighter":
         target_type = "fighter"
+    else:
+        # ContentModApplication.clean() restricts targets to these two; any
+        # other content type here means the DB has been tampered with.
+        raise Http404
 
     target = application.target
     target_label = _describe_house_rule_target(target)
@@ -5479,9 +5518,12 @@ def edit_house_rule(request, id, item_id):
     initial = {
         "target_type": target_type,
         "target_id": str(application.target_object_id),
-        "stat": modifier.stat if hasattr(modifier, "stat") else "",
-        "mode": modifier.mode if hasattr(modifier, "mode") else "",
-        "value": modifier.value if hasattr(modifier, "value") else "",
+        "mod_kind": _kind_for_modifier(modifier) or "stat",
+        "stat": getattr(modifier, "stat", "") or "",
+        "mode": getattr(modifier, "mode", "") or "",
+        "value": getattr(modifier, "value", "") or "",
+        "trait": getattr(modifier, "trait_id", None),
+        "rule": getattr(modifier, "rule_id", None),
     }
 
     if request.method == "POST":
@@ -5489,35 +5531,32 @@ def edit_house_rule(request, id, item_id):
             request.POST,
             initial=initial,
             available_stat_field_names=available_stat_field_names,
+            pack=pack,
         )
         if form.is_valid():
-            stat = form.cleaned_data["stat"]
-            mode = form.cleaned_data["mode"]
-            value = form.cleaned_data["value"]
-
             with transaction.atomic():
-                # If the modifier subclass needs to change (e.g. the user
-                # picked a weapon stat for a previously-fighter mod, which
-                # the form prevents but defensively…), recreate the modifier.
-                expected_class = (
-                    ContentModStat
-                    if target_type in ("weapon", "weapon-profile")
-                    else ContentModFighterStat
+                # Construct the modifier the form requested. If the subclass
+                # matches the existing one, mutate in-place to keep the same
+                # PK (and history continuity); otherwise create a new modifier
+                # and delete the old.
+                new_mod = _build_house_rule_mod(
+                    form.cleaned_data["target_type"], form.cleaned_data
                 )
-                if not isinstance(modifier, expected_class):
-                    new_mod = expected_class(stat=stat, mode=mode, value=value)
+                if type(new_mod) is type(modifier):
+                    for field in ("stat", "mode", "value", "trait", "rule"):
+                        if hasattr(new_mod, field):
+                            setattr(modifier, field, getattr(new_mod, field))
+                    modifier._history_user = request.user
+                    modifier.save()
+                else:
                     new_mod._history_user = request.user
                     new_mod.save()
+                    old_modifier = modifier
                     application.modifier = new_mod
                     application._history_user = request.user
                     application.save()
-                    modifier.delete()
-                else:
-                    modifier.stat = stat
-                    modifier.mode = mode
-                    modifier.value = value
-                    modifier._history_user = request.user
-                    modifier.save()
+                    old_modifier.delete()
+                    modifier = new_mod
             log_event(
                 user=request.user,
                 noun=EventNoun.CONTENT_PACK,
@@ -5528,7 +5567,7 @@ def edit_house_rule(request, id, item_id):
                 pack_id=str(pack.id),
                 content_type="house_rule",
                 target=target_label,
-                modifier=str(application.modifier),
+                modifier=str(modifier),
             )
             messages.success(request, f"House rule updated for {target_label}.")
             return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
@@ -5536,6 +5575,7 @@ def edit_house_rule(request, id, item_id):
         form = ContentHouseRuleForm(
             initial=initial,
             available_stat_field_names=available_stat_field_names,
+            pack=pack,
         )
 
     return render(
