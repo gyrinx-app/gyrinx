@@ -1,0 +1,14 @@
+{% load custom_tags %}
+<a href="{% url 'core:pack' pack.id %}"
+   class="border rounded p-3 d-flex align-items-center gap-3 text-decoration-none h-100">
+    <div class="flex-grow-1">
+        <h2 class="h4 mb-1">{{ pack.name }}</h2>
+        <div class="text-secondary fs-7 mb-1">
+            <i class="bi-person"></i> {{ pack.owner.username }}
+        </div>
+        {% with pack.featured_description|default:pack.summary as desc %}
+            {% if desc %}<p class="text-secondary mb-0">{{ desc|plain_text_truncate:150 }}</p>{% endif %}
+        {% endwith %}
+    </div>
+    <i class="bi-chevron-right flex-shrink-0"></i>
+</a>

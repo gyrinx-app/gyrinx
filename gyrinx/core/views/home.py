@@ -138,6 +138,13 @@ def index(request):
             .order_by("name")
         )
 
+    # Pick up to 3 random featured packs to showcase on the front page.
+    featured_packs = (
+        CustomContentPack.objects.filter(featured=True, listed=True, archived=False)
+        .select_related("owner")
+        .order_by("?")[:3]
+    )
+
     return render(
         request,
         "core/index.html",
@@ -150,6 +157,7 @@ def index(request):
             "search_query": search_query,
             "search_gangs_query": search_gangs_query,
             "search_campaigns_query": search_campaigns_query,
+            "featured_packs": featured_packs,
         },
     )
 
