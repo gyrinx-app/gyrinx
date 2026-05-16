@@ -55,7 +55,19 @@ Each git worktree gets its own Postgres database and Django port, started with a
 - Ports are deterministic per worktree path (range 8100-9599)
 - The session hook (`activate_venv_hook.sh`) auto-sets `DB_NAME` and `DJANGO_PORT` for every
   Claude Code Bash invocation
-- pgAdmin 4 (local app) connects to localhost:5432 and sees all databases
+- `setup-local-postgres.sh` appends a block to `.venv/bin/activate` so that
+  `source .venv/bin/activate` from any interactive terminal also exports the
+  per-worktree DB env vars. **Re-activate the venv after switching worktrees**
+  — the hook reads `git rev-parse --show-toplevel` at activation time, not on
+  every command. Without this, `pytest` and `manage` from a plain shell fall
+  back to `settings.py` defaults (user=postgres) and fail with
+  "role postgres does not exist".
+- `setup-local-postgres.sh` also tunes `max_locks_per_transaction = 256` in
+  the local cluster (the default 64 is too low for pytest-xdist with 12
+  workers each running syncdb in parallel — symptom is "out of shared memory").
+- pgAdmin 4 (local app) connects to localhost:5432 and is pre-registered with
+  a "Gyrinx (local)" server on first setup (CLI-imported into pgAdmin's
+  SQLite config at `~/.pgadmin/pgadmin4.db`)
 
 ## Agents, Skills, and Commands
 

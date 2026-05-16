@@ -73,13 +73,31 @@ All logs are in the `./logs/` directory (gitignored):
 
 ## Environment Variables
 
-`dev.sh` and the session hook export these automatically:
+Three layers all export the same DB env vars:
+- `dev.sh` — exports them in its own shell before launching runserver
+- Claude Code SessionStart hook (`scripts/activate_venv_hook.sh`) — exports them
+  into every Claude Code Bash invocation
+- `.venv/bin/activate` hook (installed by `setup-local-postgres.sh`) — exports
+  them when the user runs `source .venv/bin/activate` in any terminal
+
+The vars:
 - `DB_NAME` — worktree-specific database name
 - `DJANGO_PORT` — worktree-specific port
 - `DB_HOST=localhost`, `DB_PORT=5432`
 - `DB_CONFIG` — local Postgres credentials (trust auth, current macOS user)
 
-These mean `manage` and `pytest` commands automatically target the correct database.
+Together these mean `manage` and `pytest` automatically target the correct
+database in any context.
+
+**Re-source `.venv/bin/activate` after `cd`ing between worktrees** — the venv
+hook computes the worktree from `git rev-parse --show-toplevel` at activation
+time, not on every command, so the env vars stay pinned to whichever worktree
+you activated from until you re-activate.
+
+Symptom of missing env: `pytest` (or `manage`) fails with
+`FATAL: role "postgres" does not exist`. That means `DB_CONFIG` isn't set and
+`settings.py` defaulted to the production-style `user=postgres`. Fix by
+re-activating the venv from the worktree root.
 
 ## Telling Claude in Chrome
 

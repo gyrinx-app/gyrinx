@@ -58,11 +58,40 @@ echo "DB: $(worktree_db_name)"
 manage shell -c "from django.conf import settings; print(settings.DATABASES['default']['NAME'])"
 ```
 
-### Clean up orphaned databases
+### Clean up orphaned databases (and pytest test DBs)
 ```bash
-./scripts/cleanup-worktree-dbs.sh           # Dry run — list orphans
-./scripts/cleanup-worktree-dbs.sh --force   # Drop orphans
+./scripts/cleanup-worktree-dbs.sh                   # Dry run: orphans + their test DBs
+./scripts/cleanup-worktree-dbs.sh --force           # Drop orphans + their test DBs
+./scripts/cleanup-worktree-dbs.sh --include-tests   # Also list test DBs for active worktrees
+./scripts/cleanup-worktree-dbs.sh --include-tests --force
 ```
+
+## Env Vars for `pytest` / `manage` in an Interactive Terminal
+
+The Claude Code SessionStart hook exports per-worktree DB env vars for every
+Bash tool invocation, but a normal interactive terminal needs the same env or
+`pytest` / `manage` will fall back to settings.py defaults
+(`user=postgres`, `db=gyrinx`) and fail with **"role postgres does not exist"**.
+
+`setup-local-postgres.sh` solves this by appending a block to
+`.venv/bin/activate` that exports the right vars on each `source .venv/bin/activate`.
+
+- The hook reads `git rev-parse --show-toplevel` from your `$PWD` at
+  activation time, so it picks up the correct worktree even when the venv is
+  shared (child worktrees fall back to the main worktree's `.venv`).
+- **Re-source the activate script after `cd`ing between worktrees**, otherwise
+  you'll still be targeting the previous worktree's DB.
+- To reinstall the hook after recreating the venv: `./scripts/setup-local-postgres.sh`
+  (the install step is idempotent and guarded by a marker comment).
+
+## Postgres Tuning
+
+`setup-local-postgres.sh` writes `max_locks_per_transaction = 256` into
+`postgresql.conf`. The default (64) is too low for `pytest-xdist` with 12
+workers each running syncdb in parallel — the symptom is `OperationalError:
+out of shared memory` during `django_db_setup`. CI applies the same tuning to
+the service-container Postgres in `.github/workflows/test.yaml`, and
+`docker-compose.yml` did the same for the old Docker postgres.
 
 ## Template Workflow
 
@@ -87,6 +116,12 @@ pgAdmin 4 is installed locally (`/Applications/pgAdmin 4.app`). One instance see
 - **Port**: 5432
 - **User**: your macOS username (trust auth, no password)
 - All `gyrinx_main` and `gyrinx_wt_*` databases visible
+
+`setup-local-postgres.sh` pre-registers a "Gyrinx (local)" server by importing
+`~/.gyrinx/pgadmin-servers.json` into pgAdmin's SQLite config at
+`~/.pgadmin/pgadmin4.db` via the bundled `setup.py load-servers` CLI. The GUI
+Import/Export Servers dialog tends to fail with "Something went wrong" on a
+fresh install, so we go straight to the config DB.
 
 ## Migration Strategies
 

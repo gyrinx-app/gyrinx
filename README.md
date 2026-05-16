@@ -193,8 +193,20 @@ npm run watch
 
 ## Running Tests
 
-Tests run against your local PostgreSQL database. The wrapper script is a thin
-convenience over `pytest`:
+Tests run against your local PostgreSQL database. `setup-local-postgres.sh`
+configures everything you need: `max_locks_per_transaction = 256` on the
+cluster (required for pytest-xdist parallel syncdb), and a hook in
+`.venv/bin/activate` that exports the per-worktree `DB_NAME` / `DB_CONFIG` /
+`DJANGO_PORT` so `pytest` and `manage` target the right database.
+
+> [!IMPORTANT]
+> Re-run `source .venv/bin/activate` after switching worktrees. The hook
+> reads `git rev-parse --show-toplevel` at activation time, not on every
+> command. Symptom of forgetting: `pytest` fails with `FATAL: role "postgres"
+> does not exist` (settings.py fell back to defaults because `DB_CONFIG` was
+> unset or pinned to the wrong worktree).
+
+The wrapper script is a thin convenience over `pytest`:
 
 ```bash
 ./scripts/test.sh                 # parallel (via pyproject addopts: -n auto)

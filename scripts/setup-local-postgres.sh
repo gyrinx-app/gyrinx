@@ -104,26 +104,55 @@ if [ "$needs_reinit" = true ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Start PostgreSQL service
+# 3. Tune PostgreSQL and start the service
 # ---------------------------------------------------------------------------
+# pytest-xdist with --nomigrations spins up many workers that each create all
+# tables via syncdb; the default max_locks_per_transaction (64) is too low and
+# tests fail with "out of shared memory".  Mirrors the tuning in
+# docker-compose.yml and the GitHub Actions test workflow.
 echo
-echo "--- [3/8] Starting PostgreSQL service ---"
+echo "--- [3/8] Tuning + starting PostgreSQL service ---"
+PG_CONF="${PG_DATA}/postgresql.conf"
+PG_NEEDS_RESTART=false
+if [ -f "$PG_CONF" ]; then
+  if ! grep -qE '^[[:space:]]*max_locks_per_transaction[[:space:]]*=' "$PG_CONF"; then
+    echo "Adding max_locks_per_transaction = 256 to $PG_CONF"
+    {
+      echo ""
+      echo "# Gyrinx: pytest-xdist syncdb across many workers exhausts the default"
+      echo "# max_locks_per_transaction (64).  Mirrors CI / docker-compose tuning."
+      echo "max_locks_per_transaction = 256"
+    } >> "$PG_CONF"
+    PG_NEEDS_RESTART=true
+  else
+    echo "max_locks_per_transaction already tuned in $PG_CONF"
+  fi
+else
+  echo "WARNING: postgresql.conf not found at $PG_CONF — skipping tuning." >&2
+fi
+
 if pg_isready -q 2>/dev/null; then
-  echo "PostgreSQL is already running."
+  if [ "$PG_NEEDS_RESTART" = true ]; then
+    echo "Restarting PostgreSQL to pick up tuning..."
+    brew services restart postgresql@16
+  else
+    echo "PostgreSQL is already running."
+  fi
 else
   brew services start postgresql@16
-  echo "Waiting for PostgreSQL to start..."
-  for i in $(seq 1 30); do
-    if pg_isready -q 2>/dev/null; then
-      echo "PostgreSQL is ready."
-      break
-    fi
-    sleep 1
-  done
-  if ! pg_isready -q 2>/dev/null; then
-    echo "ERROR: PostgreSQL failed to start after 30s."
-    exit 1
+fi
+
+echo "Waiting for PostgreSQL to be ready..."
+for i in $(seq 1 30); do
+  if pg_isready -q 2>/dev/null; then
+    echo "PostgreSQL is ready."
+    break
   fi
+  sleep 1
+done
+if ! pg_isready -q 2>/dev/null; then
+  echo "ERROR: PostgreSQL did not become ready within 30s." >&2
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------
