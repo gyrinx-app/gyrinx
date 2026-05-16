@@ -126,7 +126,7 @@ Tests are configured to use `StaticFilesStorage` instead of `CompressedManifestS
 
 ### Database
 
-Tests use a separate test database created by pytest-django. In local development, each worktree has its own database (`gyrinx_wt_{hash}`) and its own set of test databases. The `--reuse-db` flag (configured in `pyproject.toml`) speeds up repeated runs by keeping test databases between runs.
+Tests use a separate test database created by pytest-django. In local development, each worktree has its own database (`gyrinx_wt_{hash}`) and its own set of test databases. The schema is rebuilt from current model definitions on every run via `--nomigrations` (configured in `pyproject.toml`), so model changes are picked up automatically. Pass `--reuse-db` explicitly if you want to skip the rebuild for a tight focused-test loop — be aware this reintroduces the stale-schema risk if you then change a model.
 
 ### Fixtures
 

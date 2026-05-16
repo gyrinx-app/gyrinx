@@ -213,19 +213,14 @@ The wrapper script is a thin convenience over `pytest`:
 ./scripts/test.sh -n 0            # serial
 ```
 
-Or invoke `pytest` directly — `pyproject.toml` already sets `-n auto --reuse-db
---nomigrations`, so the bare command runs the full suite in parallel:
+Or invoke `pytest` directly — `pyproject.toml` already sets `-n auto
+--nomigrations`, so the bare command runs the full suite in parallel and
+rebuilds the test DB from current model definitions on every run:
 
 ```bash
 pytest                            # full suite, parallel
 pytest gyrinx/core/tests/         # one directory
 pytest -k campaign                # by name
-```
-
-After adding migrations, run them once with `--migrations`:
-
-```bash
-pytest --migrations
 ```
 
 You can also use `pytest-watcher` for continuous testing:

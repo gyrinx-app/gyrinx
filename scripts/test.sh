@@ -6,8 +6,8 @@
 # for interactive use).  CI invokes pytest directly — see
 # .github/workflows/test.yaml.
 #
-# pyproject.toml already sets `-n auto --reuse-db --nomigrations`, so the
-# bare invocation runs in parallel by default.  Pass `-n 0` to force serial.
+# pyproject.toml already sets `-n auto --nomigrations`, so the bare
+# invocation runs in parallel by default.  Pass `-n 0` to force serial.
 #
 # Usage:
 #   ./scripts/test.sh                 # parallel (via addopts -n auto)

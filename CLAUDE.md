@@ -215,7 +215,9 @@ manage collectstatic --noinput
 **IMPORTANT for Claude:** `pyproject.toml` addopts already includes `-n auto --nomigrations`.
 The test DB is rebuilt from models on every run (via `--nomigrations` syncdb), so schema
 changes are picked up automatically — no `--create-db` or `--migrations` flag needed.
-If you want to reuse the test DB across runs for speed, pass `--reuse-db` explicitly.
+If you want to reuse the test DB across runs for speed, pass `--reuse-db` explicitly —
+but be aware that `--reuse-db` combined with `--nomigrations` does NOT detect schema
+staleness, so you'll need a one-off `--create-db` run after changing a model.
 
 ### Frontend Development
 
