@@ -1,7 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Clean up orphaned worktree databases.
 #
 # Lists all gyrinx_wt_* databases and drops any whose worktree no longer exists.
+#
+# Requires bash 4+ for associative arrays.  macOS ships /bin/bash 3.2, so the
+# shebang uses /usr/bin/env bash to pick up the Homebrew bash on PATH.
 #
 # Usage:
 #   ./scripts/cleanup-worktree-dbs.sh           # Dry run (list orphans)
@@ -9,10 +12,20 @@
 
 set -euo pipefail
 
+if (( BASH_VERSINFO[0] < 4 )); then
+  echo "ERROR: This script requires bash 4+ (you have $BASH_VERSION)." >&2
+  echo "Install via: brew install bash" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/worktree.sh
 source "$SCRIPT_DIR/lib/worktree.sh"
 
-export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+PG_BIN_DIR=$(homebrew_postgres_bin)
+if [ -n "$PG_BIN_DIR" ]; then
+  export PATH="$PG_BIN_DIR:$PATH"
+fi
 
 FORCE=false
 [ "${1:-}" = "--force" ] && FORCE=true

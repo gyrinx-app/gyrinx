@@ -11,6 +11,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
 
 echo "=== Gyrinx Local Postgres Setup ==="
 echo
@@ -18,7 +20,7 @@ echo
 # ---------------------------------------------------------------------------
 # 1. Install PostgreSQL 16
 # ---------------------------------------------------------------------------
-echo "--- [1/6] PostgreSQL 16 ---"
+echo "--- [1/7] PostgreSQL 16 ---"
 if brew list postgresql@16 &>/dev/null; then
   echo "postgresql@16 already installed."
 else
@@ -26,20 +28,53 @@ else
   brew install postgresql@16
 fi
 
-# Ensure the Homebrew bin is on PATH for this script
-export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+# Resolve Homebrew paths (works on Apple Silicon and Intel).
+PG_BIN_DIR=$(homebrew_postgres_bin)
+PG_DATA=$(homebrew_postgres_data_dir)
+if [ -z "$PG_BIN_DIR" ]; then
+  echo "ERROR: Could not locate postgresql@16 bin directory." >&2
+  exit 1
+fi
+export PATH="$PG_BIN_DIR:$PATH"
+# Fall back to deriving PG_DATA from the bin path if the dir doesn't exist yet
+# (e.g. fresh install with no cluster initialised).
+if [ -z "$PG_DATA" ]; then
+  PG_DATA="${PG_BIN_DIR%/opt/postgresql@16/bin}/var/postgresql@16"
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Initialize cluster with ICU collation (matches Linux glibc behavior)
 # ---------------------------------------------------------------------------
 echo
 echo "--- [2/7] PostgreSQL cluster (ICU collation) ---"
-PG_DATA="/opt/homebrew/var/postgresql@16"
-CURRENT_PROVIDER=$(psql -d postgres -tAc "SELECT datlocprovider FROM pg_database WHERE datname='postgres'" 2>/dev/null || echo "")
 
+# Only query the cluster's current locale provider if Postgres is actually up.
+# Otherwise a transient psql failure would falsely trigger a destructive reinit.
+if pg_isready -q 2>/dev/null; then
+  CURRENT_PROVIDER=$(psql -d postgres -tAc "SELECT datlocprovider FROM pg_database WHERE datname='postgres'" 2>/dev/null || echo "")
+else
+  CURRENT_PROVIDER=""
+fi
+
+needs_reinit=false
 if [ "$CURRENT_PROVIDER" = "i" ]; then
   echo "Cluster already using ICU locale provider."
-elif [ "$CURRENT_PROVIDER" = "c" ] || [ -z "$CURRENT_PROVIDER" ]; then
+elif [ "$CURRENT_PROVIDER" = "c" ]; then
+  needs_reinit=true
+elif [ -z "$CURRENT_PROVIDER" ]; then
+  # Postgres isn't running (or psql failed).  Only reinit if PGDATA looks empty.
+  # An existing, populated PGDATA almost certainly belongs to the user's
+  # current cluster and must not be wiped without confirmation.
+  if [ ! -d "$PG_DATA" ] || [ -z "$(ls -A "$PG_DATA" 2>/dev/null || true)" ]; then
+    needs_reinit=true
+  else
+    echo "PGDATA at $PG_DATA exists but Postgres is not running."
+    echo "Skipping ICU reinit — start Postgres (\`brew services start postgresql@16\`)"
+    echo "and rerun this script to verify the locale provider."
+  fi
+fi
+
+if [ "$needs_reinit" = true ]; then
   echo "Reinitializing cluster with ICU locale provider..."
   echo "This ensures sort order matches Linux (Docker, Cloud SQL, CI)."
   brew services stop postgresql@16 2>/dev/null || true
@@ -94,8 +129,13 @@ if docker info &>/dev/null 2>&1 && docker ps --format '{{.Names}}' 2>/dev/null |
   echo "Found running Docker Postgres container."
   DUMP_FILE="/tmp/gyrinx_main_docker.dump"
   echo "Dumping Docker 'postgres' database to ${DUMP_FILE}..."
-  docker exec postgres pg_dump -U postgres -Fc postgres > "$DUMP_FILE"
-  echo "Dump complete ($(du -h "$DUMP_FILE" | awk '{print $1}'))."
+  if docker exec postgres pg_dump -U postgres -Fc postgres > "$DUMP_FILE"; then
+    echo "Dump complete ($(du -h "$DUMP_FILE" | awk '{print $1}'))."
+  else
+    echo "WARNING: docker pg_dump failed. Falling back to fresh database." >&2
+    rm -f "$DUMP_FILE"
+    DUMP_FILE=""
+  fi
 else
   echo "No running Docker Postgres found. Will create a fresh database."
 fi
@@ -125,8 +165,20 @@ if [ -n "$DUMP_FILE" ] && [ -f "$DUMP_FILE" ]; then
     echo "Database already has ${TABLE_COUNT} tables. Skipping restore."
   else
     echo "Restoring from Docker dump..."
-    pg_restore --no-owner --no-acl -d gyrinx_main "$DUMP_FILE" 2>&1 | tail -5 || true
-    echo "Restore complete."
+    # pg_restore can emit non-fatal warnings (e.g. role/ACL missing) when
+    # --no-owner --no-acl is in effect.  Capture its exit code so genuine
+    # failures (e.g. corrupt dump) surface, while still allowing warnings.
+    set +o pipefail
+    pg_restore --no-owner --no-acl -d gyrinx_main "$DUMP_FILE" 2>&1 | tail -20
+    restore_status=${PIPESTATUS[0]}
+    set -o pipefail
+    if [ "$restore_status" -ne 0 ]; then
+      echo "WARNING: pg_restore exited with status $restore_status." >&2
+      echo "Some warnings are expected when restoring across Postgres versions." >&2
+      echo "Verify the database with: psql -d gyrinx_main -c '\\dt'" >&2
+    else
+      echo "Restore complete."
+    fi
   fi
   rm -f "$DUMP_FILE"
 else
@@ -134,7 +186,7 @@ else
   export DB_NAME=gyrinx_main
   export DB_HOST=localhost
   export DB_PORT=5432
-  export DB_CONFIG="{\"user\": \"${CURRENT_USER}\", \"password\": \"\"}"
+  export DB_CONFIG=$(db_config_for_local)
 
   # Activate venv — check local first, then main worktree
   VENV_PATH="${SCRIPT_DIR}/../.venv"

@@ -46,8 +46,11 @@ export DB_PORT=5432
 export DB_CONFIG=$(db_config_for_local)
 export DJANGO_SETTINGS_MODULE=gyrinx.settings_dev
 
-# Ensure Homebrew Postgres bin is on PATH
-export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+# Ensure Homebrew Postgres bin is on PATH (Apple Silicon or Intel layout)
+PG_BIN_DIR=$(homebrew_postgres_bin)
+if [ -n "$PG_BIN_DIR" ]; then
+  export PATH="$PG_BIN_DIR:$PATH"
+fi
 
 # Activate venv — check worktree first, then main worktree
 MAIN_WT=$(_main_worktree)
@@ -133,7 +136,14 @@ fi
 # Run migrations
 # ---------------------------------------------------------------------------
 echo "Running migrations on '$DB_NAME'..."
-manage migrate --no-input 2>&1 | grep -v "^  " | grep -v "^$" || true
+set +o pipefail
+manage migrate --no-input 2>&1 | grep -v "^  " | grep -v "^$"
+migrate_status=${PIPESTATUS[0]}
+set -o pipefail
+if [ "$migrate_status" -ne 0 ]; then
+  echo "ERROR: Migration failed (exit $migrate_status)."
+  exit "$migrate_status"
+fi
 
 # ---------------------------------------------------------------------------
 # Prepare log directory

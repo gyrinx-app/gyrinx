@@ -29,25 +29,52 @@ if [ ! -d "$VENV_PATH" ]; then
   fi
 fi
 
+# Source the worktree library early so we can resolve the Postgres bin dir
+# and (further down) per-worktree DB identity.
+WORKTREE_LIB="${CLAUDE_PROJECT_DIR:-.}/scripts/lib/worktree.sh"
+if [ -f "$WORKTREE_LIB" ]; then
+  # shellcheck source=lib/worktree.sh
+  source "$WORKTREE_LIB"
+fi
+
+# Resolve the Homebrew Postgres bin dir (Apple Silicon or Intel).  May be
+# empty on systems without Postgres 16 installed — in that case we just
+# omit it from PATH.
+PG_BIN_DIR=""
+if command -v homebrew_postgres_bin >/dev/null 2>&1; then
+  PG_BIN_DIR=$(homebrew_postgres_bin)
+fi
+
 # Persist environment so every subsequent Bash tool call has the venv active.
 {
-  echo "PATH=/opt/homebrew/opt/postgresql@16/bin:${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
+  if [ -n "$PG_BIN_DIR" ]; then
+    echo "PATH=${PG_BIN_DIR}:${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
+  else
+    echo "PATH=${VENV_PATH}/bin:$HOME/.local/bin:$PATH"
+  fi
   echo "VIRTUAL_ENV=${VENV_PATH}"
   echo "DJANGO_SETTINGS_MODULE=gyrinx.settings_dev"
 } >> "$CLAUDE_ENV_FILE"
 
 # Set per-worktree DB_NAME and DJANGO_PORT so manage/pytest target the right DB.
-WORKTREE_LIB="${CLAUDE_PROJECT_DIR:-.}/scripts/lib/worktree.sh"
-if [ -f "$WORKTREE_LIB" ]; then
-  source "$WORKTREE_LIB"
-  WT_ROOT=$(_worktree_root)
-  if [ -n "$WT_ROOT" ]; then
-    {
-      echo "DB_NAME=$(worktree_db_name "$WT_ROOT")"
-      echo "DJANGO_PORT=$(worktree_port "$WT_ROOT")"
-      echo "DB_HOST=localhost"
-      echo "DB_PORT=5432"
-      echo "DB_CONFIG=$(db_config_for_local)"
-    } >> "$CLAUDE_ENV_FILE"
-  fi
+# The worktree_* helpers rely on `git` running inside the worktree, so cd
+# into CLAUDE_PROJECT_DIR first — the SessionStart hook isn't guaranteed
+# to inherit that as its cwd.
+if command -v worktree_db_name >/dev/null 2>&1; then
+  (
+    cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
+    WT_ROOT=$(_worktree_root)
+    if [ -n "$WT_ROOT" ]; then
+      # DB_CONFIG is JSON containing `{`, `}`, `"` — wrap in single quotes
+      # so it survives shell sourcing (the harness re-sources CLAUDE_ENV_FILE
+      # before every Bash invocation; an unquoted value would trip the parser).
+      {
+        echo "DB_NAME=$(worktree_db_name "$WT_ROOT")"
+        echo "DJANGO_PORT=$(worktree_port "$WT_ROOT")"
+        echo "DB_HOST=localhost"
+        echo "DB_PORT=5432"
+        echo "DB_CONFIG='$(db_config_for_local)'"
+      } >> "$CLAUDE_ENV_FILE"
+    fi
+  )
 fi
