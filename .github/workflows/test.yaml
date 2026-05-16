@@ -15,6 +15,25 @@ permissions:
 jobs:
   test:
     runs-on: [gyrinx-ubuntu-2]
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DB_NAME: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_CONFIG: '{"user":"postgres","password":"postgres"}'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -41,9 +60,29 @@ jobs:
           echo "SECRET_KEY=test-secret" >> .env
           echo "DJANGO_SUPERUSER_PASSWORD=password" >> .env
 
+      - name: Tune PostgreSQL for parallel test workloads
+        # pytest-xdist with --nomigrations spins up many workers that each
+        # create all tables via syncdb; default max_locks_per_transaction
+        # (64) is too low and tests deadlock.  Mirrors the tuning in
+        # docker-compose.yml and scripts/setup_web.sh.
+        env:
+          PG_CONTAINER_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$PG_CONTAINER_ID" \
+            psql -U postgres -c "ALTER SYSTEM SET max_locks_per_transaction = 256;"
+          docker restart "$PG_CONTAINER_ID"
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U postgres -q && exit 0
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready after restart" >&2
+          exit 1
+
       - name: Run tests in parallel
         timeout-minutes: 60
-        run: ./scripts/test.sh --parallel --durations=20 -v
+        run: |
+          source .venv/bin/activate
+          pytest --durations=20 -v
 
       - name: Run Bandit security scan
         run: |
