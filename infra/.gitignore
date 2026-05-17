@@ -1,0 +1,26 @@
+# Terraform local state and lock files
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Plan files
+*.tfplan
+
+# Override files (per-developer)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# tfvars containing secrets (keep environment-specific tfvars committed; ad-hoc local ones not)
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Spacelift SA keys — never commit. Live at ~/.config/gyrinx/spacelift-keys/
+# and are symlinked into infra/bootstrap/keys/ by scripts/setup-keys.sh.
+bootstrap/keys
+bootstrap/keys/
