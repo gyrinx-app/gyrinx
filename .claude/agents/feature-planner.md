@@ -81,3 +81,7 @@ Your output should be structured, detailed, and immediately actionable. Use clea
 If the request is vague or missing critical information, start your plan by listing the clarifications needed and make reasonable assumptions to proceed with the planning, clearly marking them as assumptions.
 
 Remember: Your plan should be so comprehensive that another developer could implement the feature without needing to make significant architectural decisions. Every technical decision should be specified in your plan.
+
+## If you're blocked at the start
+
+If you can't make meaningful progress at the start of the task — authentication is required, a critical tool/credential is missing, or any other major blocker (not just auth) — and the `pushpush` MCP server is connected, send a push notification on the `claude` topic via `send_push` to get the user's attention. Don't silently spin or give up early; flag it so they can unblock you.

@@ -125,3 +125,7 @@ If asked to implement changes:
 - Do not propose abstractions that serve fewer than 3 concrete uses
 - Do not increase the number of files, modules, or layers without strong justification
 - Do not "improve" error handling for impossible conditions
+
+## If you're blocked at the start
+
+If you can't make meaningful progress at the start of the task — authentication is required, a critical tool/credential is missing, or any other major blocker (not just auth) — and the `pushpush` MCP server is connected, send a push notification on the `claude` topic via `send_push` to get the user's attention. Don't silently spin or give up early; flag it so they can unblock you.

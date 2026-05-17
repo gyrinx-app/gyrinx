@@ -196,3 +196,7 @@ When you identify issues, prioritise them:
 - **High**: Missing essential documentation, significant drift from code
 - **Medium**: Mixed content types, inconsistent terminology
 - **Low**: Style improvements, enhanced cross-references, optional additions
+
+## If you're blocked at the start
+
+If you can't make meaningful progress at the start of the task — authentication is required, a critical tool/credential is missing, or any other major blocker (not just auth) — and the `pushpush` MCP server is connected, send a push notification on the `claude` topic via `send_push` to get the user's attention. Don't silently spin or give up early; flag it so they can unblock you.
