@@ -118,7 +118,7 @@ def test_handle_fighter_kill_with_equipment(
     stash_type = content_fighter.__class__.objects.create(
         house=content_fighter.house,
         type="Stash",
-        category=FighterCategoryChoices.CREW,
+        category=FighterCategoryChoices.STASH,
         base_cost=0,
         is_stash=True,
     )
@@ -312,7 +312,7 @@ def test_handle_fighter_resurrect_validates_not_stash(
 
     stash_type = make_content_fighter(
         type="Stash",
-        category=FighterCategoryChoices.CREW,
+        category=FighterCategoryChoices.STASH,
         house=content_house,
         base_cost=0,
         is_stash=True,
@@ -353,7 +353,7 @@ def _make_stash_fighter(*, user, lst, content_fighter):
     stash_type = content_fighter.__class__.objects.create(
         house=content_fighter.house,
         type="Stash",
-        category=FighterCategoryChoices.CREW,
+        category=FighterCategoryChoices.STASH,
         base_cost=0,
         is_stash=True,
     )
