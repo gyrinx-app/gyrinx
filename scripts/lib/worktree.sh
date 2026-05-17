@@ -159,11 +159,18 @@ provision_worktree_venv() {
     return 1
   fi
   echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
-  uv venv "$venv" >/dev/null || return 1
-  (
-    cd "$wt_root" || exit 1
-    uv pip install --python "$venv/bin/python" --editable . --quiet
-  ) || return 1
+  # If provisioning fails after `uv venv` has created the directory, remove
+  # the partial venv before returning — otherwise the next call sees the
+  # directory, skips provisioning, and activation puts a half-built venv on
+  # PATH (no editable install, broken imports).
+  if ! uv venv "$venv" >/dev/null; then
+    rm -rf "$venv"
+    return 1
+  fi
+  if ! (cd "$wt_root" && uv pip install --python "$venv/bin/python" --editable . --quiet); then
+    rm -rf "$venv"
+    return 1
+  fi
   install_worktree_venv_hook "$venv/bin/activate" || true
   echo "[gyrinx] Provisioned ${venv}." >&2
   return 0

@@ -90,13 +90,14 @@ _gyrinx_activate_worktree() {
     wt_root="$__GYRINX_MAIN_WT"
   fi
 
-  # Prefer the worktree's own scripts/lib/worktree.sh — it's identical to
-  # the main one for any committed state, and works even if the main
-  # worktree has been removed.  Fall back to the main worktree's copy.
-  lib="${wt_root}/scripts/lib/worktree.sh"
-  if [ ! -f "$lib" ]; then
-    lib="${__GYRINX_MAIN_WT}/scripts/lib/worktree.sh"
-  fi
+  # Always source the *main* worktree's scripts/lib/worktree.sh — never the
+  # current worktree's copy.  Two reasons:
+  #   1. Trust boundary: sourcing the worktree's copy would auto-execute any
+  #      unreviewed changes to that file on every Bash invocation.
+  #   2. Staleness: older worktrees may have a worktree.sh from before
+  #      provision_worktree_venv existed; sourcing them would silently
+  #      disable auto-provisioning — the very failure mode this hook fixes.
+  lib="${__GYRINX_MAIN_WT}/scripts/lib/worktree.sh"
   if [ -f "$lib" ]; then
     # shellcheck source=/dev/null
     . "$lib"
