@@ -49,3 +49,7 @@ Provide a comprehensive analysis that helps developers understand the feature de
 - List of files that you think are absolutely essential to get an understanding of the topic in question
 
 Structure your response for maximum clarity and usefulness. Always include specific file paths and line numbers.
+
+## If you're blocked at the start
+
+If you can't make meaningful progress at the start of the task — authentication is required, a critical tool/credential is missing, or any other major blocker (not just auth) — and the `pushpush` MCP server is connected, send a push notification on the `claude` topic via `send_push` to get the user's attention. Don't silently spin or give up early; flag it so they can unblock you.

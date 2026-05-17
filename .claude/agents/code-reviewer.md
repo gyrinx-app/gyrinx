@@ -44,3 +44,7 @@ Start by clearly stating what you're reviewing. For each high-confidence issue, 
 Group issues by severity (Critical vs Important). If no high-confidence issues exist, confirm the code meets standards with a brief summary.
 
 Structure your response for maximum actionability - developers should know exactly what to fix and why.
+
+## If you're blocked at the start
+
+If you can't make meaningful progress at the start of the task — authentication is required, a critical tool/credential is missing, or any other major blocker (not just auth) — and the `pushpush` MCP server is connected, send a push notification on the `claude` topic via `send_push` to get the user's attention. Don't silently spin or give up early; flag it so they can unblock you.
