@@ -2433,6 +2433,48 @@ def test_add_gear_creates_item(client, group_user, pack, equipment_category):
 
 
 @pytest.mark.django_db
+def test_add_gear_redirects_to_edit_page(client, group_user, pack, equipment_category):
+    """Creating gear should redirect to its edit page so users can keep configuring it."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "Redirect Test Gear",
+            "category": str(equipment_category.pk),
+            "cost": "10",
+            "rarity": "C",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(name="Redirect Test Gear")
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.get(
+        pack=pack, content_type=ct, object_id=equip.pk
+    )
+    assert response.url == f"/pack/{pack.id}/item/{item.id}/edit/"
+
+
+@pytest.mark.django_db
+def test_add_gear_save_and_add_another_returns_to_form(
+    client, group_user, pack, equipment_category
+):
+    """save_and_add_another for gear should still return to the add form."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/gear/",
+        {
+            "name": "Another Gear",
+            "category": str(equipment_category.pk),
+            "cost": "10",
+            "rarity": "C",
+            "save_and_add_another": "1",
+        },
+    )
+    assert response.status_code == 302
+    assert response.url.startswith(f"/pack/{pack.id}/add/gear/")
+
+
+@pytest.mark.django_db
 def test_add_gear_requires_name(client, group_user, pack, equipment_category):
     """Test that the name field is required."""
     client.force_login(group_user)
@@ -2997,6 +3039,69 @@ def test_add_weapon_creates_item_with_profile(
     assert CustomContentPackItem.objects.filter(
         pack=pack, content_type=profile_ct, object_id=profile.pk
     ).exists()
+
+
+@pytest.mark.django_db
+def test_add_weapon_redirects_to_edit_page(client, group_user, pack, weapon_category):
+    """Creating a single-profile weapon should land on its edit page."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon/",
+        {
+            "name": "Redirect Weapon",
+            "category": str(weapon_category.pk),
+            "cost": "15",
+            "rarity": "C",
+            "wp_range_short": '4"',
+            "wp_range_long": '8"',
+            "wp_strength": "3",
+            "wp_damage": "1",
+            "wp_ammo": "6+",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(name="Redirect Weapon")
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.get(
+        pack=pack, content_type=ct, object_id=equip.pk
+    )
+    assert response.url == f"/pack/{pack.id}/item/{item.id}/edit/"
+
+
+@pytest.mark.django_db
+def test_add_multi_profile_weapon_redirects_to_edit_page(
+    client, group_user, pack, weapon_category
+):
+    """Creating a multi-profile weapon should also land on its edit page."""
+    client.force_login(group_user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        {
+            "name": "Multi Profile Weapon",
+            "category": str(weapon_category.pk),
+            "cost": "30",
+            "rarity": "C",
+            "wp1_name": "Profile A",
+            "wp1_range_short": '4"',
+            "wp1_range_long": '8"',
+            "wp1_strength": "3",
+            "wp1_damage": "1",
+            "wp1_ammo": "6+",
+            "wp2_name": "Profile B",
+            "wp2_range_short": '6"',
+            "wp2_range_long": '12"',
+            "wp2_strength": "4",
+            "wp2_damage": "2",
+            "wp2_ammo": "5+",
+        },
+    )
+    assert response.status_code == 302
+    equip = ContentEquipment.objects.all_content().get(name="Multi Profile Weapon")
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+    item = CustomContentPackItem.objects.get(
+        pack=pack, content_type=ct, object_id=equip.pk
+    )
+    assert response.url == f"/pack/{pack.id}/item/{item.id}/edit/"
 
 
 @pytest.mark.django_db

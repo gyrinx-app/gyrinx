@@ -1794,6 +1794,16 @@ def add_pack_item(request, id, content_type_slug):
                         if hasattr(content_obj, "category") and content_obj.category_id:
                             url += f"?category={content_obj.category_id}"
                     return HttpResponseRedirect(url)
+                # For gear and weapons, land on the item's edit page so users
+                # can immediately keep configuring it (modifiers, weapon
+                # profiles, etc.) rather than bouncing back to the pack index.
+                if content_type_slug in ("gear", "weapon"):
+                    return HttpResponseRedirect(
+                        reverse(
+                            "core:pack-edit-item",
+                            args=(pack.id, item.id),
+                        )
+                    )
                 return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
         elif wp_name_errors:
             for err in wp_name_errors:
