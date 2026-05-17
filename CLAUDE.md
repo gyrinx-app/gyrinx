@@ -44,7 +44,11 @@ Each git worktree gets its own Postgres database and Django port, started with a
 - **Setup (once per machine):** `./scripts/setup-local-postgres.sh` — installs Postgres 16 + pgAdmin via Homebrew,
   migrates data from Docker
 - **Start dev server:** `./scripts/dev.sh` — ensures DB exists (forks from template if needed), provisions a
-  per-worktree `.venv` on first run in a child worktree, runs migrations, starts Django runserver + npm watch
+  per-worktree `.venv` on first run in a child worktree, runs migrations, runs `npm install` if
+  `node_modules` is missing/stale, does an initial `npm run css` build if `styles.css` is missing/stale,
+  then starts Django runserver + npm watch. **Always confirm the `CSS ready:` / `CSS file:` lines appear
+  in the startup output — `npm run watch` alone never produces an initial build, so without `dev.sh`
+  doing the seed build you'd get unstyled pages.**
 - **Reset a worktree DB:** `./scripts/dev.sh --reset-db` — drops and re-forks from template
 - **Rebuild a worktree's venv:** `./scripts/dev.sh --reset-venv` — wipes and re-provisions `${WT_ROOT}/.venv`
 - **Clean up orphans:** `./scripts/cleanup-worktree-dbs.sh` — drops orphan DBs + reports worktree `.venv` sizes

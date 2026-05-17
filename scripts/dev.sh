@@ -203,6 +203,43 @@ LOG_DIR="${WT_ROOT}/logs"
 mkdir -p "$LOG_DIR"
 
 # ---------------------------------------------------------------------------
+# Ensure frontend toolchain is installed and CSS is built
+# ---------------------------------------------------------------------------
+# `node_modules` is gitignored, so child worktrees (and fresh clones) start
+# without it. `npm run watch` only rebuilds on file *changes* — it never does
+# an initial build — so without these two steps the dev server boots against
+# a missing or stale styles.css and templates render unstyled.
+CSS_FILE="${WT_ROOT}/gyrinx/core/static/core/css/styles.css"
+
+if [ ! -d "${WT_ROOT}/node_modules" ] \
+  || [ "${WT_ROOT}/package-lock.json" -nt "${WT_ROOT}/node_modules" ] \
+  || [ "${WT_ROOT}/package.json" -nt "${WT_ROOT}/node_modules" ]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "ERROR: \`npm\` is required to build CSS but isn't on PATH." >&2
+    exit 1
+  fi
+  echo "Installing npm dependencies (node_modules missing or out of date)..."
+  (cd "$WT_ROOT" && npm install --no-audit --no-fund)
+fi
+
+if [ ! -f "$CSS_FILE" ] || [ "${WT_ROOT}/package-lock.json" -nt "$CSS_FILE" ]; then
+  echo "Building CSS (initial build)..."
+  (cd "$WT_ROOT" && npm run css > "$LOG_DIR/npm-css-build.log" 2>&1) || {
+    echo "ERROR: Initial CSS build failed. See $LOG_DIR/npm-css-build.log" >&2
+    tail -20 "$LOG_DIR/npm-css-build.log" >&2 || true
+    exit 1
+  }
+fi
+
+if [ ! -s "$CSS_FILE" ]; then
+  echo "ERROR: Expected CSS file is missing or empty: $CSS_FILE" >&2
+  echo "Run \`npm install && npm run css\` from $WT_ROOT to diagnose." >&2
+  exit 1
+fi
+CSS_SIZE=$(wc -c < "$CSS_FILE" | tr -d ' ')
+echo "CSS ready: $CSS_FILE (${CSS_SIZE} bytes)"
+
+# ---------------------------------------------------------------------------
 # Background process management
 # ---------------------------------------------------------------------------
 PIDS=()
@@ -238,8 +275,9 @@ echo "  Worktree:  $WT_LABEL"
 echo "  Database:  $DB_NAME"
 echo "  URL:       http://localhost:${DJANGO_PORT}"
 echo "  Logs:      ${LOG_DIR}/"
+echo "  CSS file:  ${CSS_FILE} (${CSS_SIZE} bytes)"
 if [ "$NO_WATCH" = false ]; then
-echo "  CSS watch: running (PID ${PIDS[0]:-?})"
+echo "  CSS watch: running (PID ${PIDS[0]:-?}) → ${LOG_DIR}/npm-watch.log"
 fi
 echo "=========================================="
 echo
