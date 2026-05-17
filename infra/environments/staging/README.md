@@ -1,28 +1,25 @@
 # staging environment
 
-Wrapper around `../../modules/gyrinx` configured for a (yet-to-be-created)
-`gyrinx-staging` GCP project. This is what the team uses to validate the
-modules before touching prod.
+Wrapper around `../../modules/gyrinx` configured for the
+`gyrinx-staging` GCP project. **Managed by Spacelift** (stack
+`gyrinx-staging` — created by `infra/bootstrap/`).
 
-## Bringing it up
+State is stored by Spacelift; this directory has no backend.tf.
 
-1. Manually create the GCP project `gyrinx-staging` and link billing.
-2. Run the bootstrap module against staging:
+## How runs happen
 
-   ```bash
-   cd ../../modules/bootstrap
-   terraform init
-   terraform apply -var-file=../../environments/staging/bootstrap.tfvars
-   ```
+- A push to `main` that touches `infra/environments/staging/**` or
+  `infra/modules/**` triggers a plan in the Spacelift stack.
+- `autodeploy = false` by default — you confirm the apply in the UI.
+- The runner authenticates to GCP via the long-lived SA key mounted
+  on the stack at `/mnt/workspace/gcp-credentials.json`.
 
-3. From this directory, initialise with the GCS backend:
+## Local plan (debugging)
 
-   ```bash
-   terraform init
-   terraform plan
-   ```
-
-4. Iterate on plan until clean, then `terraform apply`.
+You can run `terraform plan` locally if you set ADC to a credential
+that has equivalent rights in the staging project — useful for
+iterating on module changes before pushing. Don't `apply` locally;
+let Spacelift do that so the state stays consistent.
 
 ## Differences from prod
 
