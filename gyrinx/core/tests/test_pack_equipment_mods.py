@@ -45,15 +45,26 @@ def _add_to_pack(pack, obj):
 
 @pytest.fixture(autouse=True)
 def _seed_movement_stat(db):
-    """Ensure the ``movement`` ContentStat exists.
+    """Ensure the ``movement`` ContentStat exists and is linked to a Fighter
+    statline type.
 
     Data migration 0148 seeds the canonical set in production, but pytest
-    runs with ``--nomigrations`` so we materialise the one row the tests
-    need on the fly.
+    runs with ``--nomigrations`` so we materialise the rows the tests need
+    on the fly. The picker filters stats by membership in a statline type,
+    so the link is what makes ``movement`` visible to ``EquipmentModifiersForm``.
     """
-    ContentStat.objects.get_or_create(
+    from gyrinx.content.models.statline import (
+        ContentStatlineType,
+        ContentStatlineTypeStat,
+    )
+
+    stat, _ = ContentStat.objects.get_or_create(
         field_name="movement",
         defaults={"short_name": "M", "full_name": "Movement", "is_inches": True},
+    )
+    fighter_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
+    ContentStatlineTypeStat.objects.get_or_create(
+        statline_type=fighter_type, stat=stat, defaults={"position": 1}
     )
 
 

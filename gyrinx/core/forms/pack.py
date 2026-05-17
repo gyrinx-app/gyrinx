@@ -1028,7 +1028,15 @@ class FighterModPickerMixin(StandardFieldsMixin):
 
         from gyrinx.content.models.statline import ContentStat
 
-        self._fmod_stats = list(ContentStat.objects.all().order_by("full_name"))
+        # Only surface stats that belong to a fighter-side statline type
+        # (Fighter / Vehicle / Crew). ``ContentStat`` is shared with weapon
+        # profiles (ammo, AP, range, accuracy) — those have no meaning when
+        # applied to a fighter and would just confuse the picker.
+        self._fmod_stats = list(
+            ContentStat.objects.filter(statline_type_stats__isnull=False)
+            .distinct()
+            .order_by("full_name")
+        )
         for stat in self._fmod_stats:
             self.fields[f"fmod_stat_{stat.field_name}_mode"] = forms.ChoiceField(
                 choices=self.FIGHTER_STAT_MODE_CHOICES,
