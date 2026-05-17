@@ -13,6 +13,17 @@ variable "billing_account_id" {
   type        = string
 }
 
+variable "org_id" {
+  description = <<-EOT
+    GCP organisation ID under which to create new projects. The existing
+    prod project is in org 533848338530 (gyrinx.app); putting new ones
+    in the same org keeps the management hierarchy consistent.
+    Set to null to create no-parent (personal) projects.
+  EOT
+  type    = string
+  default = null
+}
+
 variable "environments" {
   description = <<-EOT
     Map of environment name => config. Each entry produces:

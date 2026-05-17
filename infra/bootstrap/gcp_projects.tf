@@ -11,7 +11,7 @@ resource "google_project" "this" {
   name            = coalesce(each.value.project_name, each.value.project_id)
   billing_account = var.billing_account_id
 
-  # No org / folder — these are personal-account projects.
+  org_id              = var.org_id
   auto_create_network = false
 
   labels = merge(each.value.labels, {
