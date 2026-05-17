@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=back_url text=pack.name %}
-    <div class="col-12 col-lg-8 px-0 vstack gap-3">
+    <div class="col-12 col-lg-8 col-xl-6 px-0 vstack gap-3">
         <div>
             <h1 class="h3 mb-1">
                 <i class="bi-crosshair"></i> Customise existing weapon
@@ -15,31 +15,9 @@
                 The weapon itself stays untouched — only your custom profiles are added.
             </p>
         </div>
-        <form method="get"
-              action="{% url 'core:pack-customise-weapon-picker' pack.id %}"
-              class="d-flex gap-2">
-            <input type="search"
-                   name="q"
-                   value="{{ search_query }}"
-                   placeholder="Search weapons by name or category"
-                   class="form-control form-control-sm"
-                   aria-label="Search weapons">
-            <button type="submit" class="btn btn-secondary btn-sm">Search</button>
-        </form>
-        {% if weapons %}
-            <div class="border rounded">
-                <ul class="list-group list-group-flush">
-                    {% for weapon in weapons %}
-                        <li class="list-group-item d-flex align-items-center gap-2">
-                            <a href="{% url 'core:pack-customise-weapon' pack.id weapon.id %}"
-                               class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover">
-                                {{ weapon.name }}
-                            </a>
-                            {% if weapon.category %}<span class="text-secondary fs-7">{{ weapon.category.name }}</span>{% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
+        {% include "core/pack/includes/weapon_picker_filter.html" %}
+        {% if weapon_groups %}
+            {% include "core/pack/includes/weapon_picker_table.html" with picker_mode="weapon_link" %}
             {% include "core/includes/pagination.html" %}
         {% else %}
             <p class="text-secondary mb-0">

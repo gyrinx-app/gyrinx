@@ -561,3 +561,120 @@ def test_pack_profile_on_default_assignment_shows_on_list_page(
     assert library_weapon.name.encode() in response.content
     # Avoid an unused-name warning while still touching the fighter.
     assert fighter is not None
+
+
+# --- Pack-mod application on display pages ----------------------------------
+
+
+def _create_pack_stat_mod(pack, profile, *, stat, mode, value):
+    """Wire up a ContentModStat → ContentWeaponProfile via ContentModApplication
+    + CustomContentPackItem (the same path the house-rule form takes).
+    """
+    from gyrinx.content.models import ContentModApplication, ContentModStat
+
+    modifier = ContentModStat.objects.create(stat=stat, mode=mode, value=value)
+    application = ContentModApplication.objects.create(
+        modifier=modifier,
+        target_content_type=ContentType.objects.get_for_model(ContentWeaponProfile),
+        target_object_id=profile.id,
+    )
+    _add_to_pack(pack, application)
+    return application
+
+
+@pytest.mark.django_db
+def test_customise_page_applies_pack_stat_mods(client, user, pack, library_weapon):
+    """Customise Weapon page must reflect this pack's stat mods so authors
+    see what subscribers will see."""
+    client.force_login(user)
+    profile = ContentWeaponProfile.objects.get(equipment=library_weapon, name="")
+    _create_pack_stat_mod(pack, profile, stat="damage", mode="set", value="9")
+
+    url = reverse("core:pack-customise-weapon", args=(pack.id, library_weapon.id))
+    response = client.get(url)
+    assert response.status_code == 200
+    # The modded value lands in the rendered profile statline.
+    assert b">9<" in response.content
+
+
+@pytest.mark.django_db
+def test_customise_page_applies_pack_trait_mods(client, user, pack, library_weapon):
+    """Pack-scoped trait additions show up in the profile traitline."""
+    from gyrinx.content.models import (
+        ContentModApplication,
+        ContentModTrait,
+        ContentWeaponTrait,
+    )
+
+    client.force_login(user)
+    profile = ContentWeaponProfile.objects.get(equipment=library_weapon, name="")
+    trait = ContentWeaponTrait.objects.create(name="Blaze")
+
+    modifier = ContentModTrait.objects.create(trait=trait, mode="add")
+    application = ContentModApplication.objects.create(
+        modifier=modifier,
+        target_content_type=ContentType.objects.get_for_model(ContentWeaponProfile),
+        target_object_id=profile.id,
+    )
+    _add_to_pack(pack, application)
+
+    url = reverse("core:pack-customise-weapon", args=(pack.id, library_weapon.id))
+    response = client.get(url)
+    assert response.status_code == 200
+    assert b"Blaze" in response.content
+
+
+@pytest.mark.django_db
+def test_trading_post_applies_pack_stat_mods(
+    client, user, pack, library_weapon, content_house, make_content_fighter, make_list
+):
+    """Regression for the Trading Post profile bug: when a list subscribes
+    to a pack that mods a weapon profile, the modded stats must appear on
+    the weapons-edit (Trading Post) page even before the weapon is bought."""
+    profile = ContentWeaponProfile.objects.get(equipment=library_weapon, name="")
+    _create_pack_stat_mod(pack, profile, stat="damage", mode="set", value="9")
+
+    cf = make_content_fighter(
+        type="Trading Post Fighter",
+        category="GANGER",
+        house=content_house,
+        base_cost=50,
+    )
+    lst = make_list("Trading Sub")
+    lst.packs.add(pack)
+    fighter = ListFighter.objects.create(
+        name="Buyer", list=lst, owner=user, content_fighter=cf
+    )
+
+    client.force_login(user)
+    # ``filter=all`` to bypass the equipment-list scope so the test fighter
+    # sees the Trading Post listing.
+    url = (
+        reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
+        + "?filter=all"
+    )
+    response = client.get(url)
+    assert response.status_code == 200
+    # Library Lasgun shows up with the modded damage value.
+    assert library_weapon.name.encode() in response.content
+    assert b">9<" in response.content
+
+
+@pytest.mark.django_db
+def test_picker_uses_unified_layout(client, user, pack, library_weapon):
+    """The customise-weapon picker uses the shared search + category filter
+    + category-grouped weapon table — same UI as the house-rule picker."""
+    client.force_login(user)
+    url = reverse("core:pack-customise-weapon-picker", args=(pack.id,))
+    response = client.get(url)
+    assert response.status_code == 200
+    # Search input + Category dropdown from the shared filter partial.
+    assert b'name="q"' in response.content
+    assert b"Category" in response.content
+    # Category section heading from the shared table partial.
+    assert library_weapon.category.name.encode() in response.content
+    # Clicking the weapon name navigates to the customise page.
+    expected_href = reverse(
+        "core:pack-customise-weapon", args=(pack.id, library_weapon.id)
+    ).encode()
+    assert expected_href in response.content

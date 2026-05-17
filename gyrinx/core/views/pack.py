@@ -2953,34 +2953,25 @@ def _equipment_already_in_pack(pack, equipment):
 
 @login_required
 def customise_weapon_picker(request, id):
-    """Searchable picker of library weapons to customise with new profiles."""
+    """Searchable picker of library weapons to customise with new profiles.
+
+    Shares its filter form and result-table layout with the house-rule
+    picker — the two views differ only in whether they let you pick the
+    weapon (this one) or the profile (house-rule).
+    """
     pack = _get_pack_for_edit(id, request.user)
 
-    # Library weapons only — pack-owned weapons are managed via the regular
-    # weapon flow. ``ContentEquipmentManager.get_queryset`` already excludes
-    # pack content.
-    weapons_qs = (
-        ContentEquipment.objects.weapons()
-        .select_related("category")
-        .order_by("category__name", "name")
-    )
-
-    q = request.GET.get("q", "").strip()
-    if q:
-        weapons_qs = search_queryset(weapons_qs, q, ["name", "category__name"])
-
-    paginator = Paginator(weapons_qs, 25)
-    page_number = request.GET.get("page", 1)
-    page = paginator.get_page(page_number)
+    # Library weapons only — pack-owned weapons are managed via the
+    # regular weapon flow. ``ContentEquipmentManager.get_queryset``
+    # excludes pack content for us, so passing ``include_pack_weapons=False``
+    # via the helper's queryset selection keeps that constraint.
+    picker_data = _pack_weapon_picker_data(request, pack, include_pack_weapons=False)
 
     context = {
         "pack": pack,
-        "weapons": page.object_list,
-        "page_obj": page,
-        "paginator": paginator,
-        "is_paginated": page.has_other_pages(),
-        "search_query": q,
+        "target_label": "weapons",
         "back_url": _pack_url(pack),
+        **picker_data,
     }
     return render(request, "core/pack/customise_weapon_picker.html", context)
 
@@ -3053,10 +3044,21 @@ def customise_weapon(request, id, equipment_id):
         )
     )
 
+    # Wrap profiles so this pack's house-rule mods (stat tweaks + trait
+    # add/remove) show up in the rendered statline and traitline — the
+    # author needs to see what subscribers will get, not the raw library
+    # row.
+    mods_by_profile = _pack_mods_for_target_ids(
+        pack, ContentWeaponProfile, [p.pk for p in profiles]
+    )
+    display_profiles = [
+        _PackModdedProfile(p, mods_by_profile.get(p.pk, [])) for p in profiles
+    ]
+
     context = {
         "pack": pack,
         "equipment": equipment,
-        "profiles": profiles,
+        "profiles": display_profiles,
         "pack_profile_count": len(pack_profile_object_ids),
         "archived_pack_profile_count": archived_pack_profile_count,
         "back_url": _pack_url(pack),
@@ -5102,87 +5104,16 @@ def house_rule_picker(request, id):
 
     if target_type == "weapon-profile":
         target_label = "weapons"
-        weapons_qs = (
-            ContentEquipment.objects.weapons()
-            .with_packs([pack])
-            .select_related("category")
-        )
-        if q:
-            weapons_qs = search_queryset(weapons_qs, q, ["name", "category__name"])
-
-        # Category options come from the unfiltered (by cat) set so the
-        # dropdown remains stable when a category is selected.
-        # ``order_by()`` clears inherited ordering — needed for distinct() on
-        # values_list to dedupe correctly when with_packs adds an ORDER BY.
-        all_cat_ids = list(
-            weapons_qs.order_by().values_list("category_id", flat=True).distinct()
-        )
-        from gyrinx.content.models import ContentEquipmentCategory
-
-        # Stringified IDs so equality with query-string selections in the
-        # template just works (request.GET.getlist returns strings).
-        categories = [
-            {"id": str(c.id), "name": c.name}
-            for c in ContentEquipmentCategory.objects.filter(
-                id__in=all_cat_ids
-            ).order_by("name")
-        ]
-
-        if cat_filter_active:
-            weapons_qs = weapons_qs.filter(category_id__in=selected_cats)
-
-        weapons_qs = weapons_qs.order_by("category__name", "name")
-
-        paginator = Paginator(weapons_qs, 25)
-        page = paginator.get_page(request.GET.get("page", 1))
-        weapons_page = list(page.object_list)
-
-        # Prefetch profiles for visible weapons (pack-aware).
-        weapon_ids = [w.id for w in weapons_page]
-        profiles_by_weapon = {}
-        all_profile_ids = []
-        if weapon_ids:
-            profiles = (
-                ContentWeaponProfile.objects.with_packs([pack])
-                .filter(equipment_id__in=weapon_ids)
-                .order_by("name")
-            )
-            for p in profiles:
-                profiles_by_weapon.setdefault(p.equipment_id, []).append(p)
-                all_profile_ids.append(p.id)
-
-        # Annotate each profile with its pack-mod-aware trait view so the
-        # picker shows the effect of this pack's house rules on traits.
-        trait_views = _pack_trait_views_for_profiles(pack, all_profile_ids)
-
-        # Group weapons by category for the shop-style layout.
-        from itertools import groupby
-
-        weapons_page.sort(key=lambda w: (w.category.name if w.category else "", w.name))
-        for cat_name, group in groupby(
-            weapons_page, key=lambda w: w.category.name if w.category else ""
-        ):
-            weapons_in_cat = []
-            for w in group:
-                weapon_profiles = profiles_by_weapon.get(w.id, [])
-                profile_entries = [
-                    {
-                        "profile": p,
-                        "trait_view": trait_views.get(
-                            p.id, {"entries": [], "html": ""}
-                        ),
-                    }
-                    for p in weapon_profiles
-                ]
-                weapons_in_cat.append(
-                    {
-                        "weapon": w,
-                        "profiles": weapon_profiles,
-                        "profile_entries": profile_entries,
-                    }
-                )
-            if weapons_in_cat:
-                weapon_groups.append({"category": cat_name, "weapons": weapons_in_cat})
+        # Same data builder the customise-weapon picker uses, including
+        # pack-scoped weapons so house rules can target them too.
+        picker_data = _pack_weapon_picker_data(request, pack, include_pack_weapons=True)
+        weapon_groups = picker_data["weapon_groups"]
+        categories = picker_data["categories"]
+        selected_cats = picker_data["selected_cats"]
+        cat_filter_active = picker_data["cat_filter_active"]
+        paginator = picker_data["paginator"]
+        page = picker_data["page_obj"]
+        q = picker_data["search_query"]
     else:  # fighter
         target_label = "fighters & vehicles"
         from gyrinx.models import FighterCategoryChoices
@@ -5313,6 +5244,11 @@ def house_rule_picker(request, id):
             "is_paginated": page.has_other_pages() if page else False,
             "search_query": q,
             "back_url": _pack_url(pack, "house-rule"),
+            # Carry the active tab through both the filter GET form and the
+            # POST submit form, so switching tabs / paginating / clicking a
+            # row preserves which target type is selected.
+            "filter_hidden_inputs": [{"name": "target_type", "value": target_type}],
+            "table_hidden_inputs": [{"name": "target_type", "value": target_type}],
         },
     )
 
@@ -5385,6 +5321,185 @@ def _render_pack_mod_view_html(entries):
     # Every element of ``parts`` is a SafeString produced by format_html.
     # str.join returns plain str so re-mark safe for Django's autoescape.
     return mark_safe(", ".join(parts))  # nosec B703 B308 - parts are escape-safe
+
+
+def _pack_weapon_picker_data(request, pack, *, include_pack_weapons):
+    """Build the searchable, paginated category-grouped weapon listing
+    shared between the house-rule picker (``picker_mode="post"``) and the
+    customise-weapon picker (``picker_mode="weapon_link"``).
+
+    Returns a dict ready to merge into a template context:
+      weapon_groups, categories, selected_cats, cat_filter_active,
+      page_obj, paginator, is_paginated, search_query.
+
+    Pass ``include_pack_weapons=True`` to surface this pack's own
+    pack-scoped weapons in the list (house-rule flow can attach rules to
+    them); pass ``False`` to limit to library weapons (customise flow,
+    where pack-owned weapons are managed elsewhere).
+    """
+    q = request.GET.get("q", "").strip()
+    raw_cats = request.GET.getlist("cat")
+    cat_filter_active = bool(raw_cats) and "all" not in raw_cats
+    selected_cats = {c for c in raw_cats if c and c != "all"}
+
+    if include_pack_weapons:
+        weapons_qs = (
+            ContentEquipment.objects.weapons()
+            .with_packs([pack])
+            .select_related("category")
+        )
+    else:
+        weapons_qs = ContentEquipment.objects.weapons().select_related("category")
+
+    if q:
+        weapons_qs = search_queryset(weapons_qs, q, ["name", "category__name"])
+
+    # Category dropdown options come from the unfiltered (by cat) set so
+    # the dropdown stays stable when a category is selected. ``order_by()``
+    # clears inherited ordering — needed for distinct() to dedupe when
+    # with_packs adds its own ORDER BY.
+    all_cat_ids = list(
+        weapons_qs.order_by().values_list("category_id", flat=True).distinct()
+    )
+    categories = [
+        {"id": str(c.id), "name": c.name}
+        for c in ContentEquipmentCategory.objects.filter(id__in=all_cat_ids).order_by(
+            "name"
+        )
+    ]
+
+    if cat_filter_active:
+        weapons_qs = weapons_qs.filter(category_id__in=selected_cats)
+
+    weapons_qs = weapons_qs.order_by("category__name", "name")
+
+    paginator = Paginator(weapons_qs, 25)
+    page = paginator.get_page(request.GET.get("page", 1))
+    weapons_page = list(page.object_list)
+
+    # Prefetch profiles for visible weapons (pack-aware).
+    weapon_ids = [w.id for w in weapons_page]
+    profiles_by_weapon = {}
+    all_profile_ids = []
+    if weapon_ids:
+        profiles = (
+            ContentWeaponProfile.objects.with_packs([pack])
+            .filter(equipment_id__in=weapon_ids)
+            .order_by("name")
+        )
+        for p in profiles:
+            profiles_by_weapon.setdefault(p.equipment_id, []).append(p)
+            all_profile_ids.append(p.id)
+
+    # Annotate each profile with this pack's trait view so add/remove
+    # markers show up next to the existing traitline.
+    trait_views = _pack_trait_views_for_profiles(pack, all_profile_ids)
+
+    from itertools import groupby
+
+    weapons_page.sort(key=lambda w: (w.category.name if w.category else "", w.name))
+    weapon_groups = []
+    for cat_name, group in groupby(
+        weapons_page, key=lambda w: w.category.name if w.category else ""
+    ):
+        weapons_in_cat = []
+        for w in group:
+            weapon_profiles = profiles_by_weapon.get(w.id, [])
+            profile_entries = [
+                {
+                    "profile": p,
+                    "trait_view": trait_views.get(p.id, {"entries": [], "html": ""}),
+                }
+                for p in weapon_profiles
+            ]
+            weapons_in_cat.append(
+                {
+                    "weapon": w,
+                    "profiles": weapon_profiles,
+                    "profile_entries": profile_entries,
+                }
+            )
+        if weapons_in_cat:
+            weapon_groups.append({"category": cat_name, "weapons": weapons_in_cat})
+
+    return {
+        "weapon_groups": weapon_groups,
+        "categories": categories,
+        "selected_cats": selected_cats,
+        "cat_filter_active": cat_filter_active,
+        "page_obj": page,
+        "paginator": paginator,
+        "is_paginated": page.has_other_pages(),
+        "search_query": q,
+    }
+
+
+def _pack_mods_for_target_ids(pack, target_model, target_ids):
+    """Return ``{target_id: [ContentMod, ...]}`` for ``target_model`` rows.
+
+    Only mods attached to this pack's active ``CustomContentPackItem`` rows
+    are returned. Mods are polymorphic ``ContentMod`` instances, ready to
+    pass into ``VirtualWeaponProfile`` (or any consumer that does
+    ``isinstance(mod, ContentModStat)`` etc.). Three queries at most.
+    """
+    from gyrinx.content.models import ContentMod, ContentModApplication
+
+    target_ids = list(target_ids)
+    if not target_ids:
+        return {}
+
+    target_ct = ContentType.objects.get_for_model(target_model)
+    application_ct = ContentType.objects.get_for_model(ContentModApplication)
+
+    pack_application_ids = CustomContentPackItem.objects.filter(
+        pack=pack, content_type=application_ct, archived=False
+    ).values_list("object_id", flat=True)
+
+    apps = ContentModApplication.objects.all_content().filter(
+        pk__in=list(pack_application_ids),
+        target_content_type=target_ct,
+        target_object_id__in=target_ids,
+    )
+    mod_ids = [a.modifier_id for a in apps]
+    mods_by_id = {m.pk: m for m in ContentMod.objects.filter(pk__in=mod_ids)}
+
+    result = defaultdict(list)
+    for a in apps:
+        m = mods_by_id.get(a.modifier_id)
+        if m is not None:
+            result[a.target_object_id].append(m)
+    return result
+
+
+class _PackModdedProfile:
+    """Read-through wrapper that exposes a profile with this pack's mods applied.
+
+    All attributes pass through to the underlying ``ContentWeaponProfile``
+    except ``statline()`` and ``traitline()`` (and the cached variants),
+    which return mod-aware results via ``VirtualWeaponProfile``.
+
+    Used on pack-author views (Customise Weapon page) where the rendered
+    table must reflect the pack's house-rule mods even though no list /
+    fighter exists yet to wire them through ``VirtualListFighterEquipmentAssignment``.
+    """
+
+    def __init__(self, profile, mods):
+        from gyrinx.content.models.weapon import VirtualWeaponProfile
+
+        self._profile = profile
+        self._virtual = VirtualWeaponProfile(profile, list(mods))
+
+    def __getattr__(self, item):
+        # Fall through to the underlying ContentWeaponProfile for any
+        # attribute we don't override. Triggered only on miss, so the
+        # overrides below short-circuit before this runs.
+        return getattr(self._profile, item)
+
+    def statline(self):
+        return self._virtual.statline()
+
+    def traitline(self):
+        return self._virtual.traitline()
 
 
 def _pack_mod_views(
