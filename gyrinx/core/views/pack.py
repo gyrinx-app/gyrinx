@@ -68,6 +68,7 @@ from gyrinx.core.forms.pack import (
     ContentWeaponPackForm,
     ContentWeaponProfilePackForm,
     ContentWeaponTraitPackForm,
+    EquipmentModifiersForm,
     PackForm,
     HOUSE_RULE_TARGET_CHOICES,
 )
@@ -2185,6 +2186,70 @@ def edit_pack_item(request, id, item_id):
         context.update(_load_fighter_preview_context(pack, content_obj))
 
     return render(request, "core/pack/pack_item_edit.html", context)
+
+
+@login_required
+def pack_item_modifiers(request, id, item_id):
+    """Modifiers tab for a pack-defined gear or weapon item.
+
+    Renders the fighter-mod picker (stat / rule / skill) against
+    ``ContentEquipment.modifiers``. Detail fields live on the Details
+    tab (``edit_pack_item``).
+    """
+    pack = _get_pack_for_edit(id, request.user)
+    pack_item = get_object_or_404(
+        CustomContentPackItem.objects.select_related("content_type"),
+        id=item_id,
+        pack=pack,
+        archived=False,
+    )
+
+    content_obj = pack_item.content_object
+    if content_obj is None:
+        raise Http404
+
+    entry = _get_entry_for_pack_item(pack_item)
+    # Only gear and weapons (ContentEquipment with these slugs) have the
+    # Modifiers tab. Other types 404.
+    if entry.slug not in ("gear", "weapon"):
+        raise Http404
+
+    singular_label = _singularize_label(entry)
+
+    if request.method == "POST":
+        form = EquipmentModifiersForm(request.POST, instance=content_obj, pack=pack)
+        if form.is_valid():
+            form.instance._history_user = request.user
+            form.save()
+            log_event(
+                user=request.user,
+                noun=EventNoun.CONTENT_PACK,
+                verb=EventVerb.UPDATE,
+                object=pack,
+                request=request,
+                pack_name=pack.name,
+                pack_id=str(pack.id),
+                content_type=entry.slug,
+                item_name=str(content_obj),
+                update_target="modifiers",
+            )
+            return HttpResponseRedirect(
+                reverse("core:pack-item-modifiers", args=(pack.id, pack_item.id))
+            )
+    else:
+        form = EquipmentModifiersForm(instance=content_obj, pack=pack)
+
+    context = {
+        "form": form,
+        "pack": pack,
+        "pack_item": pack_item,
+        "content_obj": content_obj,
+        "label": singular_label,
+        "icon": entry.icon,
+        "slug": entry.slug,
+        "back_url": _pack_url(pack, f"item-{pack_item.id}"),
+    }
+    return render(request, "core/pack/pack_item_modifiers.html", context)
 
 
 @login_required

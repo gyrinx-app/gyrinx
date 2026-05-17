@@ -1,0 +1,27 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Modifiers for {{ content_obj }} - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 vstack gap-3">
+        <h1 class="h3">
+            <i class="{{ icon }}"></i> Edit {{ label }}
+        </h1>
+        {% include "core/pack/includes/pack_item_edit_tabs_equipment.html" with active_tab="modifiers" %}
+        <form action="{% url 'core:pack-item-modifiers' pack.id pack_item.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+            {% include "core/pack/includes/_equipment_mods_picker.html" with form=form %}
+            {% include "core/pack/includes/_mod_picker_shared.html" %}
+            <div class="mt-3">
+                <button type="submit" class="btn btn-success">Save</button>
+                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
