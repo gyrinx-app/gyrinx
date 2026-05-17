@@ -20,6 +20,8 @@ The attribute system is intentionally flexible. Administrators can define any nu
 
 **Attribute Assignment** -- The record that links a specific attribute value to a user's list. Assignments can be archived (soft-deleted) rather than permanently removed.
 
+**Pack-scoped attributes** -- An attribute or attribute value can be owned by a content pack. Pack-scoped attributes are hidden from the normal content queries and only surface to lists that subscribe to the owning pack, mirroring the skill-tree + skill pattern. See [Content Packs](content-packs.md#how-default-filtering-works) and the [pack-aware attributes](#pack-aware-attributes-and-values) section below.
+
 ## Models
 
 ### `ContentAttribute`
@@ -84,6 +86,16 @@ A `ContentEquipmentListExpansionRuleByAttribute` links an expansion to a specifi
 - If the list has no value set for the relevant attribute, the expansion does not apply.
 
 For example, if an equipment list expansion is configured with a rule matching the "Affiliation" attribute with the value "Chaos Cult", then only lists that have selected "Chaos Cult" as their Affiliation will gain access to the equipment items in that expansion.
+
+### Pack-aware attributes and values
+
+Pack authors can create custom `ContentAttribute` and `ContentAttributeValue` rows inside a content pack. The flow mirrors the skill-tree + skill pattern used elsewhere in the pack system:
+
+- The pack detail page shows a single "Gang Attribute" section that groups values under their parent attribute, with inline "add value to existing attribute", edit, and archive controls.
+- Archiving an attribute cascades to archive all of its values. Restoring an archived value also restores its parent attribute.
+- The pack-create form rejects attribute names that collide (case-insensitive) with any existing library or pack-scoped attribute. Names remain globally unique across all `ContentAttribute` rows.
+
+On the list side, attribute lookups are pack-aware. `List.get_list_attributes`, the `ListAttributeForm` picker, and the `edit_list_attribute` view all query through `with_packs(lst.packs.all())`, so subscribed lists see the pack-defined attributes and values alongside library content -- subject to the usual house restrictions. Unsubscribed lists cannot edit a pack-only attribute (the view returns 404). A pack-scoped value linked to one pack does not leak to lists subscribed to a different pack.
 
 ### List Cloning
 

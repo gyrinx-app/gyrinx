@@ -29,12 +29,13 @@ For stat modifiers, `improve` and `worsen` are relative to the game meaning of t
 
 ### Attachment Points
 
-Modifiers can be attached to four types of content:
+Modifiers can be attached to five types of content:
 
 - **Equipment** (`ContentEquipment.modifiers`) -- for fighter-level effects like stat changes, rules, and skills
 - **Equipment Upgrades** (`ContentEquipmentUpgrade.modifiers`) -- for effects that come from upgrading equipment
 - **Weapon Accessories** (`ContentWeaponAccessory.modifiers`) -- for effects that modify weapon statlines and traits
 - **Injuries** (`ContentInjury.modifiers`) -- for lasting effects from campaign injuries
+- **Pack house rules** (via `ContentModApplication`) -- for pack-scoped modifications that apply to existing library weapons or fighters when a list is subscribed to the pack. See [`ContentModApplication`](#contentmodapplication) below and [Content Packs](content-packs.md#pack-house-rules).
 
 ### Virtual Weapon Profile
 
@@ -132,6 +133,39 @@ Modifies which psyker disciplines a fighter has access to.
 |-------|------|-------------|
 | `discipline` | FK to `ContentPsykerDiscipline` | The psyker discipline to grant or revoke |
 | `mode` | Choice | `add` (grant access to this discipline) or `remove` (revoke access) |
+
+### `ContentModApplication`
+
+A pack-scoped wrapper that applies an existing `ContentMod` to a specific library item without forking or duplicating the target. Used by [pack house rules](content-packs.md#pack-house-rules): when a list subscribes to a pack containing a `ContentModApplication`, the wrapped modifier is automatically applied wherever the target object appears on that list.
+
+`ContentModApplication` is itself a `Content` model and is attached to a pack via `CustomContentPackItem`, so it follows the same pack-filtering and archive rules as any other pack-owned content.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `target_content_type` | ForeignKey (`ContentType`) | The content type of the target. Limited to `contentweaponprofile` and `contentfighter` in the `content` app. |
+| `target_object_id` | UUIDField | The primary key of the target object. |
+| `target` | GenericForeignKey | A convenience accessor resolving to the target object. Not a database column. |
+| `modifier` | ForeignKey (`ContentMod`) | The polymorphic modifier to apply. Cascades on delete. |
+
+**Indexes:** A composite index on `(target_content_type, target_object_id)` ensures efficient `pack_mods_by_target` lookups.
+
+**Validation:** `clean()` enforces several rules:
+
+- The target's content type must be `contentweaponprofile` or `contentfighter` in the `content` app.
+- The target object must exist. The check uses `all_content()` so pack-owned targets are valid.
+- The modifier subclass must match the target kind:
+  - `ContentModStat` and `ContentModTrait` must target a weapon profile.
+  - `ContentModFighterStat`, `ContentModFighterRule`, `ContentModFighterSkill`, `ContentModSkillTreeAccess`, and `ContentModPsykerDisciplineAccess` must target a fighter.
+
+**Runtime application:** `List.pack_mods_by_target` (cached on the list) builds a single dict mapping `(content_type_id, object_id) → [ContentMod]` via one query per list. The dict is consumed by `ListFighterEquipmentAssignment._mods` (equipment scope), `ListFighter._mods` (fighter scope), and `VirtualWeaponProfile` construction (per-profile). For default assignments, `VirtualListFighterEquipmentAssignment` rebuilds profiles with the pack mods unioned in.
+
+**UX scope:** The pack detail page exposes pickers and forms for `ContentModStat` (against weapon profiles) and `ContentModFighterStat` (against fighters or gear). Other `ContentMod` subclasses remain valid at the model layer and are accessible via the Django admin.
+
+**Admin:** `ContentModApplication` is registered under the Content app:
+
+- **List display:** the human-readable string of modifier and target, `target_content_type`, `modifier`, and `packs_display`.
+- **Filter:** by `target_content_type`.
+- **Raw id field:** `modifier` (lookup widget for polymorphic mods).
 
 ### `ContentModStatApplyMixin`
 
