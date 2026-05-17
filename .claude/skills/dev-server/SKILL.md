@@ -21,9 +21,36 @@ This single command:
 1. Ensures local Postgres is running
 2. Creates/forks the database if needed
 3. Runs pending migrations
-4. Starts `npm run watch` in the background
-5. Starts Django `runserver` in the foreground
-6. Logs to `./logs/runserver.log` and `./logs/npm-watch.log`
+4. Runs `npm install` if `node_modules` is missing or out of date (vs. `package*.json`)
+5. Runs an **initial** `npm run css` build if `styles.css` is missing or stale
+6. Starts `npm run watch` in the background (watches scss/html → rebuilds CSS on change)
+7. Starts Django `runserver` in the foreground
+8. Logs to `./logs/runserver.log`, `./logs/npm-watch.log`, and `./logs/npm-css-build.log`
+
+## Verifying CSS Is Built
+
+**Always confirm CSS exists before relying on the dev server** — `npm run watch` (the watcher) only
+rebuilds on file *changes*; it does no initial build, so a fresh worktree without an initial CSS
+build will render unstyled pages.
+
+`scripts/dev.sh` now guarantees this for you (steps 4–5 above) and prints a `CSS ready: <path>
+(<bytes> bytes)` line plus a `CSS file:` row in the startup banner. Before navigating Claude in
+Chrome (or otherwise treating the server as ready), check that line appeared and that the file is
+non-empty:
+
+```bash
+CSS=gyrinx/core/static/core/css/styles.css
+[ -s "$CSS" ] && echo "CSS OK ($(wc -c <"$CSS") bytes)" || echo "CSS MISSING — re-run scripts/dev.sh"
+```
+
+If CSS is missing or you see unstyled pages, the recovery is:
+
+```bash
+npm install              # only if node_modules is missing/stale
+npm run css              # one-shot initial build
+```
+
+Do **not** rely on `npm run watch` alone to produce the first build — it won't.
 
 ## Port Assignment
 

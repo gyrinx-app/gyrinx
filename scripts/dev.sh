@@ -220,6 +220,61 @@ LOG_DIR="${WT_ROOT}/logs"
 mkdir -p "$LOG_DIR"
 
 # ---------------------------------------------------------------------------
+# Ensure frontend toolchain is installed and CSS is built
+# ---------------------------------------------------------------------------
+# `node_modules` is gitignored, so child worktrees (and fresh clones) start
+# without it. `npm run watch` only rebuilds on file *changes* — it never does
+# an initial build — so without these two steps the dev server boots against
+# a missing or stale styles.css and templates render unstyled.
+CSS_FILE="${WT_ROOT}/gyrinx/core/static/core/css/styles.css"
+SCSS_DIR="${WT_ROOT}/gyrinx/core/static/core/scss"
+
+# `npm` is needed for the install step, the one-shot CSS build, and the
+# background watcher — so fail fast up front rather than letting any of those
+# emit a vague "command not found" later.
+if ! command -v npm >/dev/null 2>&1; then
+  echo "ERROR: \`npm\` is required to install frontend deps and build CSS, but isn't on PATH." >&2
+  exit 1
+fi
+
+if [ ! -d "${WT_ROOT}/node_modules" ] \
+  || [ "${WT_ROOT}/package-lock.json" -nt "${WT_ROOT}/node_modules" ] \
+  || [ "${WT_ROOT}/package.json" -nt "${WT_ROOT}/node_modules" ]; then
+  echo "Installing npm dependencies (node_modules missing or out of date)..."
+  (cd "$WT_ROOT" && npm install --no-audit --no-fund)
+fi
+
+# Rebuild if styles.css is missing, older than package-lock.json (deps
+# changed), or older than any source file under the scss directory (a
+# `git pull` or branch switch may have updated scss without touching the
+# watcher's in-memory state).
+scss_changed=false
+if [ -f "$CSS_FILE" ] && [ -d "$SCSS_DIR" ]; then
+  if [ -n "$(find "$SCSS_DIR" -type f -newer "$CSS_FILE" -print -quit 2>/dev/null)" ]; then
+    scss_changed=true
+  fi
+fi
+
+if [ ! -f "$CSS_FILE" ] \
+  || [ "${WT_ROOT}/package-lock.json" -nt "$CSS_FILE" ] \
+  || [ "$scss_changed" = true ]; then
+  echo "Building CSS (initial build)..."
+  (cd "$WT_ROOT" && npm run css > "$LOG_DIR/npm-css-build.log" 2>&1) || {
+    echo "ERROR: Initial CSS build failed. See $LOG_DIR/npm-css-build.log" >&2
+    tail -20 "$LOG_DIR/npm-css-build.log" >&2 || true
+    exit 1
+  }
+fi
+
+if [ ! -s "$CSS_FILE" ]; then
+  echo "ERROR: Expected CSS file is missing or empty: $CSS_FILE" >&2
+  echo "Run \`npm install && npm run css\` from $WT_ROOT to diagnose." >&2
+  exit 1
+fi
+CSS_SIZE=$(wc -c < "$CSS_FILE" | tr -d ' ')
+echo "CSS ready: $CSS_FILE (${CSS_SIZE} bytes)"
+
+# ---------------------------------------------------------------------------
 # Background process management
 # ---------------------------------------------------------------------------
 PIDS=()
@@ -255,8 +310,9 @@ echo "  Worktree:  $WT_LABEL"
 echo "  Database:  $DB_NAME"
 echo "  URL:       http://localhost:${DJANGO_PORT}"
 echo "  Logs:      ${LOG_DIR}/"
+echo "  CSS file:  ${CSS_FILE} (${CSS_SIZE} bytes)"
 if [ "$NO_WATCH" = false ]; then
-echo "  CSS watch: running (PID ${PIDS[0]:-?})"
+echo "  CSS watch: running (PID ${PIDS[0]:-?}) → ${LOG_DIR}/npm-watch.log"
 fi
 echo "=========================================="
 echo
