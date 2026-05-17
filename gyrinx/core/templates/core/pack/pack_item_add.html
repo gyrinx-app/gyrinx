@@ -23,9 +23,11 @@
                 {{ form }}
             {% endif %}
             {% if slug == "gear" or slug == "weapon" %}
-                <div class="border rounded p-2 text-secondary fs-7">
-                    <i class="bi-info-circle" aria-hidden="true"></i>
-                    You can add fighter stat, rule, and skill modifiers from the Modifiers tab after you create this {{ label|lower }}.
+                <div class="alert alert-secondary alert-icon" role="alert">
+                    <i class="bi-info-circle"></i>
+                    <div>
+                        You can add fighter stat, rule, and skill modifiers from the Modifiers tab after you create this {{ label|lower }}.
+                    </div>
                 </div>
             {% endif %}
             {% if profile_mode == "multi" %}
