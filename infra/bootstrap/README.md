@@ -49,10 +49,11 @@ day-to-day Terraform happens via Spacelift — there is no other
 ```bash
 cd infra/bootstrap
 
-# Spacelift creds (from the config file you saved above)
-export SPACELIFT_API_KEY_ENDPOINT="https://<your-org>.app.spacelift.io"
-export SPACELIFT_API_KEY_ID="01KRVR6TP31F6BZKP6717HW7YM"
-export SPACELIFT_API_KEY_SECRET="<secret from the .config file>"
+# Spacelift creds — copy the example file and fill in the API key id/secret
+# from your ~/Downloads/api-key-gyrinx-spacelift-*.config. This file is
+# auto-loaded by Terraform on plan/apply and is gitignored.
+cp secrets.auto.tfvars.example secrets.auto.tfvars
+$EDITOR secrets.auto.tfvars
 
 # GCP creds — your own gcloud / ADC. Must have rights to:
 #   - Create projects + link billing (for envs with create_project = true)

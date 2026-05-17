@@ -48,6 +48,31 @@ variable "environments" {
   }))
 }
 
+# ---------------------------------------------------------------------------
+# Spacelift API connection
+# ---------------------------------------------------------------------------
+#
+# The endpoint is just a URL — committed in terraform.tfvars.
+# The key id and secret come from a gitignored secrets.auto.tfvars
+# (see secrets.auto.tfvars.example for the format).
+
+variable "spacelift_api_endpoint" {
+  description = "Spacelift account URL, e.g. https://gyrinx.app.spacelift.io"
+  type        = string
+}
+
+variable "spacelift_api_key_id" {
+  description = "Spacelift API key ID. Loaded from secrets.auto.tfvars (gitignored)."
+  type        = string
+  sensitive   = true
+}
+
+variable "spacelift_api_key_secret" {
+  description = "Spacelift API key secret. Loaded from secrets.auto.tfvars (gitignored)."
+  type        = string
+  sensitive   = true
+}
+
 variable "github_namespace" {
   description = "GitHub org/user that owns the repo."
   type        = string

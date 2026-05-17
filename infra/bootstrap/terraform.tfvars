@@ -1,6 +1,7 @@
-billing_account_id = "01CEC0-B05C50-58A7CD"
-org_id             = "533848338530" # gyrinx.app org (same as prod)
-region             = "europe-west2"
+billing_account_id     = "01CEC0-B05C50-58A7CD"
+org_id                 = "533848338530" # gyrinx.app org (same as prod)
+region                 = "europe-west2"
+spacelift_api_endpoint = "https://gyrinx.app.spacelift.io"
 
 github_namespace = "gyrinx-app"
 github_repo      = "gyrinx"
