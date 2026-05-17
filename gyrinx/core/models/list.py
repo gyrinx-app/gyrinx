@@ -608,19 +608,30 @@ class List(AppBase):
 
         # Optionally update cache
         if update:
-            # Use max(0, rating) to prevent PositiveIntegerField constraint violation
-            # (cost_int can return negative values via cost overrides)
+            # Clamp to non-negative — rating_current and stash_current are both
+            # PositiveIntegerField. Aggregates can drift negative when an
+            # individual fighter's cached rating_current goes negative (e.g.
+            # stash drift after a kill, see handlers/fighter/kill.py).
+            # Clamping is defence in depth; the per-fighter handlers are
+            # expected to keep the underlying caches consistent.
             rating_value = max(0, rating)
+            stash_value = max(0, stash)
+            if stash < 0:
+                track(
+                    "list_stash_clamped_to_zero",
+                    list_id=str(self.id),
+                    raw_stash=stash,
+                )
             # Use QuerySet.update() to bypass signals - facts_from_db is already
             # computing correct values with the latest data
             List.objects.filter(pk=self.pk).update(
                 rating_current=rating_value,
-                stash_current=stash,
+                stash_current=stash_value,
                 dirty=False,
             )
             # Update instance to reflect DB changes
             self.rating_current = rating_value
-            self.stash_current = stash
+            self.stash_current = stash_value
             self.dirty = False
 
         return ListFacts(

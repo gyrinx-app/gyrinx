@@ -118,7 +118,7 @@ def test_handle_fighter_kill_with_equipment(
     stash_type = content_fighter.__class__.objects.create(
         house=content_fighter.house,
         type="Stash",
-        category=FighterCategoryChoices.CREW,
+        category=FighterCategoryChoices.STASH,
         base_cost=0,
         is_stash=True,
     )
@@ -312,7 +312,7 @@ def test_handle_fighter_resurrect_validates_not_stash(
 
     stash_type = make_content_fighter(
         type="Stash",
-        category=FighterCategoryChoices.CREW,
+        category=FighterCategoryChoices.STASH,
         house=content_house,
         base_cost=0,
         is_stash=True,
@@ -332,3 +332,272 @@ def test_handle_fighter_resurrect_validates_not_stash(
             user=user,
             fighter=stash_fighter,
         )
+
+
+# ===== Stash accounting after kill (regression for stash_current 500) =====
+#
+# Bug: when a fighter is killed, handle_fighter_kill transfers their equipment
+# to the stash and bumps list.stash_current by the equipment cost, but it
+# never updates stash_fighter.rating_current. The stash fighter's cached rating
+# stays at 0 (or whatever it was). Later reassignment-out from the stash
+# decrements stash.rating_current normally, pushing it negative. The next
+# refresh_list_cost call writes that negative aggregate to
+# list.stash_current (PositiveIntegerField) and a CheckViolation 500s the
+# page.
+
+
+def _make_stash_fighter(*, user, lst, content_fighter):
+    """Create a stash fighter on ``lst`` reusing the existing ContentFighter house."""
+    from gyrinx.models import FighterCategoryChoices
+
+    stash_type = content_fighter.__class__.objects.create(
+        house=content_fighter.house,
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        base_cost=0,
+        is_stash=True,
+    )
+    return ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_type,
+        list=lst,
+        owner=user,
+    )
+
+
+def _make_fighter_with_equipment(*, user, lst, content_fighter, make_equipment, cost):
+    """Create a fighter on ``lst`` with one piece of equipment at ``cost`` credits."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    equipment = make_equipment("Test Weapon", cost=str(cost))
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+    return fighter, equipment, assignment
+
+
+@pytest.mark.django_db
+def test_handle_fighter_kill_bumps_stash_rating_current(
+    user, list_with_campaign, content_fighter, make_equipment, settings
+):
+    """Kill must bump stash_fighter.rating_current by the transferred equipment cost.
+
+    Without this, list.stash_current (incremented by stash_delta) and
+    stash_fighter.rating_current (untouched) drift, and any later reassignment
+    out of the stash drives the fighter's cached rating negative.
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+
+    stash_fighter = _make_stash_fighter(
+        user=user, lst=lst, content_fighter=content_fighter
+    )
+    stash_initial = stash_fighter.rating_current
+
+    fighter, _eq, _a = _make_fighter_with_equipment(
+        user=user,
+        lst=lst,
+        content_fighter=content_fighter,
+        make_equipment=make_equipment,
+        cost=50,
+    )
+
+    result = handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+
+    assert result.equipment_count == 1
+    # list.stash_current bumped by equipment cost (50)
+    assert result.list_action.stash_delta == 50
+
+    # Stash fighter cache must move in lock-step with list.stash_current
+    stash_fighter.refresh_from_db()
+    assert stash_fighter.rating_current == stash_initial + 50
+
+
+@pytest.mark.django_db
+def test_handle_fighter_kill_then_refresh_keeps_list_stash_consistent(
+    user, list_with_campaign, content_fighter, make_equipment, settings
+):
+    """After kill + facts_from_db, list.stash_current must match the kill's stash bump.
+
+    Previously, refresh recomputed stash from stash_fighter.facts() which
+    returned the stale rating_current (still 0), so the +equipment bump from
+    the kill action got silently undone on the next refresh.
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+
+    _make_stash_fighter(user=user, lst=lst, content_fighter=content_fighter)
+    fighter, _eq, _a = _make_fighter_with_equipment(
+        user=user,
+        lst=lst,
+        content_fighter=content_fighter,
+        make_equipment=make_equipment,
+        cost=50,
+    )
+
+    handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+    lst.refresh_from_db()
+    stash_after_kill = lst.stash_current
+
+    # Force the same path that the Refresh Cost button takes.
+    lst.facts_from_db(update=True)
+
+    lst.refresh_from_db()
+    assert lst.stash_current == stash_after_kill, (
+        f"Refresh changed stash_current from {stash_after_kill} to {lst.stash_current}"
+    )
+    assert lst.stash_current >= 50
+
+
+@pytest.mark.django_db
+def test_transfer_from_stash_after_kill_keeps_counters_non_negative(
+    user, list_with_campaign, content_fighter, make_equipment, settings
+):
+    """Reassigning equipment out of the stash after a kill must not drive either
+    stash_fighter.rating_current or list.stash_current below zero.
+
+    This is the precise drift that produced the production CheckViolation.
+    """
+    from gyrinx.core.handlers.equipment.reassignment import (
+        handle_equipment_reassignment,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+
+    stash_fighter = _make_stash_fighter(
+        user=user, lst=lst, content_fighter=content_fighter
+    )
+    fighter, _eq, _a = _make_fighter_with_equipment(
+        user=user,
+        lst=lst,
+        content_fighter=content_fighter,
+        make_equipment=make_equipment,
+        cost=50,
+    )
+    # A second live fighter to receive the stash item.
+    receiver = ListFighter.objects.create(
+        name="Receiver",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+
+    stash_fighter.refresh_from_db()
+    transferred = stash_fighter.listfighterequipmentassignment_set.first()
+    assert transferred is not None
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=stash_fighter,
+        to_fighter=receiver,
+        assignment=transferred,
+    )
+
+    stash_fighter.refresh_from_db()
+    lst.refresh_from_db()
+    assert stash_fighter.rating_current >= 0, (
+        f"stash rating drifted negative: {stash_fighter.rating_current}"
+    )
+    assert lst.stash_current >= 0
+
+
+@pytest.mark.django_db
+def test_facts_from_db_clamps_negative_stash_to_zero(
+    user, list_with_campaign, content_fighter, settings
+):
+    """A directly-corrupted negative stash cache must not 500 the refresh path.
+
+    Defense in depth: even if some future code path leaves stash_fighter
+    .rating_current negative, facts_from_db must clamp the aggregate to
+    satisfy list.stash_current's PositiveIntegerField constraint.
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+
+    stash_fighter = _make_stash_fighter(
+        user=user, lst=lst, content_fighter=content_fighter
+    )
+    # Bypass propagation to simulate drift that already exists in production
+    # data (e.g. The Ferrous Phalanx, list 478a91b9...).
+    ListFighter.objects.filter(pk=stash_fighter.pk).update(
+        rating_current=-270, dirty=False
+    )
+
+    # Must not raise IntegrityError (CheckViolation on PositiveIntegerField).
+    lst.facts_from_db(update=True)
+
+    lst.refresh_from_db()
+    assert lst.stash_current == 0, (
+        f"Negative stash should clamp to 0, got {lst.stash_current}"
+    )
+
+
+@pytest.mark.django_db
+def test_refresh_after_kill_and_transfer_does_not_500(
+    user, list_with_campaign, content_fighter, make_equipment, settings
+):
+    """End-to-end repro of the production 500 on list 478a91b9-...:
+
+    1. Kill a fighter with equipment (equipment moves to stash).
+    2. Refresh cost (facts_from_db with update=True).
+    3. Reassign the stash item back onto a live fighter.
+    4. Refresh cost again — this is the request that produced the
+       CheckViolation in production.
+
+    The original code raised django.db.utils.IntegrityError on step 4.
+    """
+    from gyrinx.core.handlers.equipment.reassignment import (
+        handle_equipment_reassignment,
+    )
+
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = list_with_campaign
+
+    stash_fighter = _make_stash_fighter(
+        user=user, lst=lst, content_fighter=content_fighter
+    )
+    fighter, _eq, _a = _make_fighter_with_equipment(
+        user=user,
+        lst=lst,
+        content_fighter=content_fighter,
+        make_equipment=make_equipment,
+        cost=50,
+    )
+    receiver = ListFighter.objects.create(
+        name="Receiver",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+
+    handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+    lst.facts_from_db(update=True)  # the user's first Refresh
+
+    stash_fighter.refresh_from_db()
+    transferred = stash_fighter.listfighterequipmentassignment_set.first()
+    assert transferred is not None
+    handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=stash_fighter,
+        to_fighter=receiver,
+        assignment=transferred,
+    )
+
+    # This is the call that raised in production.
+    lst.facts_from_db(update=True)
+
+    lst.refresh_from_db()
+    assert lst.stash_current >= 0
+    assert lst.rating_current >= 0
