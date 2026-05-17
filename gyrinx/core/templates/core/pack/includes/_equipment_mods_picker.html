@@ -1,0 +1,86 @@
+{% comment %}
+Picker for the synthetic fighter-mod fields on ContentGearPackForm and
+ContentWeaponPackForm (provided by FighterModPickerMixin). Expects:
+
+    form  — bound form with fighter_stat_mod_rows, fighter_rule_mod_rows,
+            fighter_skill_mod_rows and the any_*_set helpers.
+
+Modifiers attached here apply to the fighter whenever this equipment is
+equipped.
+{% endcomment %}
+<div class="vstack gap-3" data-mod-picker>
+    <div class="text-secondary fs-7">These modifiers apply to the fighter while this equipment is equipped.</div>
+    <details class="border rounded p-2"
+             {% if form.any_fighter_stat_mod_set %}open{% endif %}>
+        <summary class="fw-semibold">Fighter stat modifiers</summary>
+        <div class="text-secondary fs-7 mb-2 mt-1">Pick at most one modifier per stat. Leave the mode as "None" to skip.</div>
+        <div class="vstack gap-2">
+            {% for row in form.fighter_stat_mod_rows %}
+                <div class="row g-2 align-items-center mod-row" data-mod-row>
+                    <label class="col-4 col-sm-3 mb-0 fs-7"
+                           for="{{ row.mode_field.id_for_label }}">{{ row.label }}</label>
+                    <div class="col-4 col-sm-3">{{ row.mode_field }}</div>
+                    <div class="col-4 col-sm-3">{{ row.value_field }}</div>
+                </div>
+                {% if row.mode_field.errors %}<div class="text-danger fs-7 ms-1">{{ row.mode_field.errors|join:" " }}</div>{% endif %}
+                {% if row.value_field.errors %}
+                    <div class="text-danger fs-7 ms-1">{{ row.value_field.errors|join:" " }}</div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </details>
+    <details class="border rounded p-2"
+             {% if form.any_fighter_rule_mod_set %}open{% endif %}>
+        <summary class="fw-semibold">Fighter rule modifiers</summary>
+        <div class="text-secondary fs-7 mb-2 mt-1">
+            Add or remove a special rule on the fighter while this equipment is equipped.
+        </div>
+        {% if form.fighter_rule_mod_rows %}
+            <input type="search"
+                   class="form-control form-control-sm mb-2"
+                   placeholder="Filter rules…"
+                   data-rule-filter
+                   aria-label="Filter rules">
+            <div class="vstack gap-2" data-rule-list>
+                {% for row in form.fighter_rule_mod_rows %}
+                    <div class="row g-2 align-items-center mod-row" data-mod-row data-rule-row>
+                        <label class="col-6 mb-0 fs-7" for="{{ row.field.id_for_label }}">{{ row.rule.name }}</label>
+                        <div class="col-6">{{ row.field }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="text-secondary fs-7 mt-2 d-none" data-rule-empty>No rules match.</div>
+        {% else %}
+            <p class="text-secondary mb-0 fs-7">No rules available.</p>
+        {% endif %}
+    </details>
+    <details class="border rounded p-2"
+             {% if form.any_fighter_skill_mod_set %}open{% endif %}>
+        <summary class="fw-semibold">Fighter skill modifiers</summary>
+        <div class="text-secondary fs-7 mb-2 mt-1">Add or remove a skill on the fighter while this equipment is equipped.</div>
+        {% if form.fighter_skill_mod_rows %}
+            <input type="search"
+                   class="form-control form-control-sm mb-2"
+                   placeholder="Filter skills…"
+                   data-skill-filter
+                   aria-label="Filter skills">
+            <div class="vstack gap-2" data-skill-list>
+                {% for row in form.fighter_skill_mod_rows %}
+                    <div class="row g-2 align-items-center mod-row"
+                         data-mod-row
+                         data-skill-row>
+                        <label class="col-6 mb-0 fs-7" for="{{ row.field.id_for_label }}">{{ row.skill }}</label>
+                        <div class="col-6">{{ row.field }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="text-secondary fs-7 mt-2 d-none" data-skill-empty>No skills match.</div>
+        {% else %}
+            <p class="text-secondary mb-0 fs-7">No skills available.</p>
+        {% endif %}
+    </details>
+</div>
+{% comment %}
+Styles and JS live in _mod_picker_shared.html, which the host page
+(pack_item_edit / pack_item_add) includes once.
+{% endcomment %}

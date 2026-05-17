@@ -544,7 +544,20 @@ class ContentWeaponTraitPackForm(forms.ModelForm):
         return value
 
 
-class ContentWeaponAccessoryPackForm(forms.ModelForm):
+class StandardFieldsMixin:
+    """Exposes ``standard_fields`` for templates that render synthetic-field
+    pickers alongside the regular ``Meta.fields`` (used by both the accessory
+    mod picker and the equipment fighter-mod picker).
+    """
+
+    @property
+    def standard_fields(self):
+        """Iterate the bound fields for the regular ModelForm fields only."""
+        for name in self.Meta.fields:
+            yield self[name]
+
+
+class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
     """Form for adding/editing weapon accessories in a content pack.
 
     Includes a synthetic mod picker (weapon stat mods + weapon trait mods)
@@ -598,12 +611,6 @@ class ContentWeaponAccessoryPackForm(forms.ModelForm):
             "rarity": forms.Select(attrs={"class": "form-select"}),
             "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
         }
-
-    @property
-    def standard_fields(self):
-        """Iterate the bound fields for the regular ModelForm fields only."""
-        for name in self.Meta.fields:
-            yield self[name]
 
     @property
     def stat_mod_rows(self):
@@ -985,6 +992,243 @@ class ContentAttributeValuePackForm(forms.ModelForm):
                     "A value with this name already exists for this attribute."
                 )
         return value
+
+
+class FighterModPickerMixin(StandardFieldsMixin):
+    """Form mixin that exposes a fighter mod picker for ``ContentEquipment``.
+
+    Adds synthetic fields that find-or-create ``ContentModFighterStat``,
+    ``ContentModFighterRule`` and ``ContentModFighterSkill`` rows and attach
+    them to ``instance.modifiers`` (matching the pattern used by
+    ``ContentWeaponAccessoryPackForm`` for weapon stat/trait mods).
+
+    Host form contract:
+    - ``Meta.model`` must have a ``modifiers`` M2M to ``ContentMod``.
+    - ``__init__`` accepts ``pack`` (forwarded by ``super().__init__``).
+
+    The mixin overrides ``_save_m2m`` to call ``_save_fighter_mods`` itself,
+    so consumers don't have to remember the wiring.
+    """
+
+    FIGHTER_STAT_MODE_CHOICES = [
+        ("", "None"),
+        ("improve", "Improve"),
+        ("worsen", "Worsen"),
+        ("set", "Set"),
+    ]
+    FIGHTER_MOD_MODE_CHOICES = [
+        ("", "None"),
+        ("add", "Add"),
+        ("remove", "Remove"),
+    ]
+
+    def __init__(self, *args, pack=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pack = pack
+
+        from gyrinx.content.models.statline import ContentStat
+
+        self._fmod_stats = list(ContentStat.objects.all().order_by("full_name"))
+        for stat in self._fmod_stats:
+            self.fields[f"fmod_stat_{stat.field_name}_mode"] = forms.ChoiceField(
+                choices=self.FIGHTER_STAT_MODE_CHOICES,
+                required=False,
+                label=stat.full_name,
+                widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+            )
+            self.fields[f"fmod_stat_{stat.field_name}_value"] = forms.CharField(
+                required=False,
+                max_length=5,
+                label=f"{stat.full_name} value",
+                widget=forms.TextInput(
+                    attrs={"class": "form-control form-control-sm", "size": "5"}
+                ),
+            )
+
+        if pack is not None:
+            rule_qs = ContentRule.objects.with_packs([pack])
+            skill_qs = ContentSkill.objects.with_packs([pack])
+        else:
+            rule_qs = ContentRule.objects.all_content()
+            skill_qs = ContentSkill.objects.all_content()
+        self._fmod_rules = list(rule_qs.order_by("name"))
+        self._fmod_skills = list(
+            skill_qs.select_related("category").order_by("category__name", "name")
+        )
+
+        for rule in self._fmod_rules:
+            self.fields[f"fmod_rule_{rule.pk}"] = forms.ChoiceField(
+                choices=self.FIGHTER_MOD_MODE_CHOICES,
+                required=False,
+                label=str(rule),
+                widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+            )
+        for skill in self._fmod_skills:
+            self.fields[f"fmod_skill_{skill.pk}"] = forms.ChoiceField(
+                choices=self.FIGHTER_MOD_MODE_CHOICES,
+                required=False,
+                label=str(skill),
+                widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+            )
+
+        if self.instance.pk and not self.is_bound:
+            self._populate_initial_fighter_mods()
+
+    @property
+    def fighter_stat_mod_rows(self):
+        return [
+            {
+                "stat": stat,
+                "label": stat.full_name,
+                "mode_field": self[f"fmod_stat_{stat.field_name}_mode"],
+                "value_field": self[f"fmod_stat_{stat.field_name}_value"],
+            }
+            for stat in self._fmod_stats
+        ]
+
+    @property
+    def fighter_rule_mod_rows(self):
+        return [
+            {"rule": rule, "field": self[f"fmod_rule_{rule.pk}"]}
+            for rule in self._fmod_rules
+        ]
+
+    @property
+    def fighter_skill_mod_rows(self):
+        return [
+            {"skill": skill, "field": self[f"fmod_skill_{skill.pk}"]}
+            for skill in self._fmod_skills
+        ]
+
+    @property
+    def any_fighter_rule_mod_set(self):
+        return any(self[f"fmod_rule_{rule.pk}"].value() for rule in self._fmod_rules)
+
+    @property
+    def any_fighter_skill_mod_set(self):
+        return any(
+            self[f"fmod_skill_{skill.pk}"].value() for skill in self._fmod_skills
+        )
+
+    @property
+    def any_fighter_stat_mod_set(self):
+        return any(
+            self[f"fmod_stat_{stat.field_name}_mode"].value()
+            for stat in self._fmod_stats
+        )
+
+    def _populate_initial_fighter_mods(self):
+        from gyrinx.content.models.modifier import (
+            ContentModFighterRule,
+            ContentModFighterSkill,
+            ContentModFighterStat,
+        )
+
+        for mod in self.instance.modifiers.all():
+            if isinstance(mod, ContentModFighterStat):
+                mode_key = f"fmod_stat_{mod.stat}_mode"
+                value_key = f"fmod_stat_{mod.stat}_value"
+                if mode_key in self.fields:
+                    self.initial[mode_key] = mod.mode
+                    self.initial[value_key] = mod.value
+            elif isinstance(mod, ContentModFighterRule):
+                key = f"fmod_rule_{mod.rule_id}"
+                if key in self.fields:
+                    self.initial[key] = mod.mode
+            elif isinstance(mod, ContentModFighterSkill):
+                key = f"fmod_skill_{mod.skill_id}"
+                if key in self.fields:
+                    self.initial[key] = mod.mode
+
+    def clean(self):
+        cleaned = super().clean()
+        for stat in self._fmod_stats:
+            mode_key = f"fmod_stat_{stat.field_name}_mode"
+            value_key = f"fmod_stat_{stat.field_name}_value"
+            mode = cleaned.get(mode_key)
+            value = (cleaned.get(value_key) or "").strip()
+            # Normalise so " 1 " and "1" dedupe in get_or_create.
+            cleaned[value_key] = value
+            if mode and not value:
+                self.add_error(
+                    value_key,
+                    f"A value is required when a mode is selected for {stat.full_name}.",
+                )
+            elif value and not mode:
+                self.add_error(
+                    mode_key,
+                    f"Choose a mode for the {stat.full_name} value, or clear the value.",
+                )
+            elif mode in {"improve", "worsen"} and value:
+                # ContentModFighterStat.apply() does int(self.value) for
+                # improve/worsen — reject non-integers up front.
+                try:
+                    int(value)
+                except (TypeError, ValueError):
+                    self.add_error(
+                        value_key,
+                        f"Enter an integer for {stat.full_name} when using {mode}.",
+                    )
+        return cleaned
+
+    def _save_fighter_mods(self, instance):
+        from gyrinx.content.models.modifier import (
+            ContentModFighterRule,
+            ContentModFighterSkill,
+            ContentModFighterStat,
+        )
+
+        new_mods = []
+        for stat in self._fmod_stats:
+            mode = self.cleaned_data.get(f"fmod_stat_{stat.field_name}_mode")
+            value = self.cleaned_data.get(f"fmod_stat_{stat.field_name}_value")
+            if mode and value:
+                mod, _ = ContentModFighterStat.objects.get_or_create(
+                    stat=stat.field_name, mode=mode, value=value
+                )
+                new_mods.append(mod)
+        for rule in self._fmod_rules:
+            mode = self.cleaned_data.get(f"fmod_rule_{rule.pk}")
+            if mode:
+                mod, _ = ContentModFighterRule.objects.get_or_create(
+                    rule=rule, mode=mode
+                )
+                new_mods.append(mod)
+        for skill in self._fmod_skills:
+            mode = self.cleaned_data.get(f"fmod_skill_{skill.pk}")
+            if mode:
+                mod, _ = ContentModFighterSkill.objects.get_or_create(
+                    skill=skill, mode=mode
+                )
+                new_mods.append(mod)
+
+        # Preserve any existing mods this picker doesn't manage (e.g. skill-tree
+        # or psyker-discipline access mods set via admin on library equipment).
+        managed = (
+            ContentModFighterStat,
+            ContentModFighterRule,
+            ContentModFighterSkill,
+        )
+        preserved = [m for m in instance.modifiers.all() if not isinstance(m, managed)]
+        instance.modifiers.set([*preserved, *new_mods])
+
+    def _save_m2m(self):
+        super()._save_m2m()
+        self._save_fighter_mods(self.instance)
+
+
+class EquipmentModifiersForm(FighterModPickerMixin, forms.ModelForm):
+    """Form for the Modifiers tab on a pack-defined gear/weapon edit page.
+
+    Carries no detail fields itself — those live on the Details tab via
+    ``ContentGearPackForm`` / ``ContentWeaponPackForm``. This form only
+    exposes the synthetic fighter-mod picker fields (stat / rule / skill)
+    and writes them to ``instance.modifiers``.
+    """
+
+    class Meta:
+        model = ContentEquipment
+        fields = []
 
 
 class ContentGearPackForm(forms.ModelForm):

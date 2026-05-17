@@ -793,6 +793,11 @@ urlpatterns = [
         name="pack-edit-item",
     ),
     path(
+        "pack/<id>/item/<item_id>/modifiers/",
+        pack_views.pack_item_modifiers,
+        name="pack-item-modifiers",
+    ),
+    path(
         "pack/<id>/item/<item_id>/equipment/",
         pack_views.pack_item_equipment,
         name="pack-item-equipment",

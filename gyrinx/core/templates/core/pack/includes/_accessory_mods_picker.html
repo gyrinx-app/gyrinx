@@ -7,7 +7,7 @@ ContentWeaponAccessoryPackForm. Expects:
 The form exposes ``stat_mod_rows`` and ``trait_mod_rows`` iterables for
 template rendering.
 {% endcomment %}
-<div class="vstack gap-3" data-accessory-mods-picker>
+<div class="vstack gap-3" data-mod-picker>
     <details class="border rounded p-2" open>
         <summary class="fw-semibold">Weapon stat modifiers</summary>
         <div class="text-secondary fs-7 mb-2 mt-1">Pick at most one modifier per stat. Leave the mode as "None" to skip.</div>
@@ -52,78 +52,7 @@ template rendering.
         {% endif %}
     </details>
 </div>
-<style>
-    [data-accessory-mods-picker] .mod-row {
-        border-radius: 0.25rem;
-        padding: 0.125rem 0.25rem;
-        transition: background-color 200ms ease;
-        /* Neutralise Bootstrap's .row gutter trick (negative margin-top on
-           the row + positive margin-top on each col). Without this the
-           highlight bg looks top-heavy because the row's negative offset
-           lives outside its background box. */
-        margin-top: 0;
-    }
-    [data-accessory-mods-picker] .mod-row > * {
-        margin-top: 0;
-    }
-    [data-accessory-mods-picker] .mod-row.mod-row-modified {
-        background-color: var(--bs-warning-bg-subtle, #fff3cd);
-        font-weight: 600;
-    }
-    [data-accessory-mods-picker] .mod-row.mod-row-flash {
-        animation: mod-row-flash 600ms ease-in-out;
-    }
-    @keyframes mod-row-flash {
-        0% { background-color: #ffe082; }
-        100% { background-color: var(--bs-warning-bg-subtle, #fff3cd); }
-    }
-</style>
-<script>
-    (function () {
-        const root = document.querySelector("[data-accessory-mods-picker]");
-        if (!root) return;
-
-        function rowIsModified(row) {
-            const select = row.querySelector("select");
-            return !!(select && select.value !== "");
-        }
-
-        function applyState(row, flash) {
-            const modified = rowIsModified(row);
-            row.classList.toggle("mod-row-modified", modified);
-            if (flash && modified) {
-                row.classList.remove("mod-row-flash");
-                void row.offsetWidth;
-                row.classList.add("mod-row-flash");
-            }
-        }
-
-        // Initial state.
-        root.querySelectorAll("[data-mod-row]").forEach((row) => applyState(row, false));
-
-        // Update on change.
-        root.addEventListener("change", (e) => {
-            if (!e.target.matches("select")) return;
-            const row = e.target.closest("[data-mod-row]");
-            if (row) applyState(row, true);
-        });
-
-        // Trait filter.
-        const filter = root.querySelector("[data-trait-filter]");
-        const empty = root.querySelector("[data-trait-empty]");
-        if (filter) {
-            filter.addEventListener("input", (e) => {
-                const q = e.target.value.trim().toLowerCase();
-                let visible = 0;
-                root.querySelectorAll("[data-trait-row]").forEach((row) => {
-                    const label = row.querySelector("label");
-                    const text = label ? label.textContent.toLowerCase() : "";
-                    const match = !q || text.includes(q);
-                    row.classList.toggle("d-none", !match);
-                    if (match) visible += 1;
-                });
-                if (empty) empty.classList.toggle("d-none", visible > 0 || !q);
-            });
-        }
-    })();
-</script>
+{% comment %}
+Styles and JS live in _mod_picker_shared.html, which the host page
+(pack_item_edit / pack_item_add) includes once.
+{% endcomment %}

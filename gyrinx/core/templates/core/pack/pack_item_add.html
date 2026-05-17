@@ -18,8 +18,15 @@
                 {% for field in form.hidden_fields %}{{ field }}{% endfor %}
                 {% for field in form.standard_fields %}<div>{{ field.as_field_group }}</div>{% endfor %}
                 {% include "core/pack/includes/_accessory_mods_picker.html" with form=form %}
+                {% include "core/pack/includes/_mod_picker_shared.html" %}
             {% else %}
                 {{ form }}
+            {% endif %}
+            {% if slug == "gear" or slug == "weapon" %}
+                <div class="border rounded p-2 text-secondary fs-7">
+                    <i class="bi-info-circle" aria-hidden="true"></i>
+                    You can add fighter stat, rule, and skill modifiers from the Modifiers tab after you create this {{ label|lower }}.
+                </div>
             {% endif %}
             {% if profile_mode == "multi" %}
                 <input type="hidden" name="profile_mode" value="multi">
