@@ -28,6 +28,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Key Principles:**
 
 - Server-rendered HTML, not SPA
+- **URL-driven UI state.** Any state that picks a form variant, switches a
+  visible section, opens a modal, or selects a tab belongs in the URL
+  (path or query string). The server renders the right variant. JS may
+  enhance (live preview, async validation, autocomplete) but the page MUST
+  work — and be linkable — without it. **Do not** mutate forms client-side
+  to swap fields, swap mode choices, hide/show sections, or alter
+  validation. If you reach for `addEventListener('change', …)` to rewrite
+  a form, you've probably skipped a navigation. See the rationale and the
+  full rule in `.claude/skills/gyrinx-conventions/SKILL.md`.
 - Mobile-first design
 - Look up model definitions before use - don't assume field names
 - Always validate redirect URLs with `safe_redirect`

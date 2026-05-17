@@ -21,63 +21,77 @@
             house rule
         </h1>
         <p class="text-secondary mb-0">
-            Modifies the statline below for any List subscribed to
+            Modify the target below for any List subscribed to
             <em>{{ pack.name }}</em>.
         </p>
         {% if target_type == "weapon-profile" %}
-            <div class="card">
-                <div class="card-body p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0">
-                        {% if target.name %}
-                            {% include "core/includes/weapon_stat_headers.html" with first_col=target.equipment.name %}
-                        {% else %}
-                            {% include "core/includes/weapon_stat_headers.html" %}
-                        {% endif %}
-                        <tbody class="table-group-divider">
-                            <tr>
-                                <td>
-                                    <strong>
-                                        {% if target.name %}
-                                            {{ target.name }}
-                                        {% else %}
-                                            {{ target.equipment.name }}
-                                        {% endif %}
-                                    </strong>
-                                </td>
-                                {% for stat in target.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <table class="table table-sm table-borderless mb-0 border-bottom">
+                {% if target.name %}
+                    {% include "core/includes/weapon_stat_headers.html" with first_col=target.equipment.name %}
+                {% else %}
+                    {% include "core/includes/weapon_stat_headers.html" %}
+                {% endif %}
+                <tbody class="table-group-divider">
+                    <tr class="align-top">
+                        <td rowspan="{% if trait_view.entries %}2{% else %}1{% endif %}">
+                            <strong>
+                                {% if target.name %}
+                                    {{ target.name }}
+                                {% else %}
+                                    {{ target.equipment.name }}
+                                {% endif %}
+                            </strong>
+                        </td>
+                        {% for stat in target.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                    </tr>
+                    {% if trait_view.entries %}
+                        <tr>
+                            <td colspan="8">{% include "core/pack/includes/pack_mod_view_line.html" with view=trait_view %}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         {% else %}
-            <div class="card">
-                <div class="card-body p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0">
-                        <thead class="table-group-divider">
-                            <tr>
-                                <th scope="col"></th>
-                                {% for stat in target.statline %}
-                                    <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
-                                        scope="col">{{ stat.name }}</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody class="table-group-divider">
-                            <tr>
-                                <td>
-                                    <strong>{{ target.type }}</strong>
-                                    {% if target.house %}<span class="text-secondary">· {{ target.house.name }}</span>{% endif %}
-                                </td>
-                                {% for stat in target.statline %}
-                                    <td class="text-center {% if stat.first_of_group %}border-start{% endif %}">{{ stat.value }}</td>
-                                {% endfor %}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <table class="table table-sm table-borderless mb-0 border-bottom">
+                <thead class="table-group-divider">
+                    <tr>
+                        <th scope="col"></th>
+                        {% for stat in target.statline %}
+                            <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
+                                scope="col">{{ stat.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="table-group-divider">
+                    <tr class="align-top">
+                        <td rowspan="{% if rule_view.entries %}2{% else %}1{% endif %}">
+                            <strong>{{ target.type }}</strong>
+                            {% if target.house %}<span class="text-secondary">· {{ target.house.name }}</span>{% endif %}
+                        </td>
+                        {% for stat in target.statline %}
+                            <td class="text-center {% if stat.first_of_group %}border-start{% endif %}">{{ stat.value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% if rule_view.entries %}
+                        <tr>
+                            <td colspan="{{ target.statline|length }}">
+                                {% include "core/pack/includes/pack_mod_view_line.html" with view=rule_view %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         {% endif %}
+        <div>
+            <div class="form-label mb-1">What to modify</div>
+            <div class="btn-group" role="group" aria-label="Modification kind">
+                {% for entry in kind_picker %}
+                    <a href="{{ entry.url }}"
+                       class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                       {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
+                {% endfor %}
+            </div>
+        </div>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {{ form }}

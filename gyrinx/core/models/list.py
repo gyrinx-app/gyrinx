@@ -5107,12 +5107,30 @@ class VirtualListFighterEquipmentAssignment:
             rebuilt.append(VirtualWeaponProfile(vp.profile, vp.mods + extra))
         return rebuilt
 
+    def _wrap_profiles_with_pack_mods(self, profiles):
+        """Wrap raw ``ContentWeaponProfile`` rows in ``VirtualWeaponProfile``
+        with the list's pack mods applied.
+
+        Used when this virtual assignment was built without a backing
+        ``ListFighterEquipmentAssignment`` (Trading Post / weapons-edit
+        flow). The list's pack-scoped house-rule mods for each profile
+        still need to apply so the displayed stats and traits match what
+        the user will actually get after assignment.
+        """
+        list_obj = self.fighter.list if self.fighter else None
+        pack_aware = list_obj is not None and bool(list_obj.pack_mods_by_target)
+        wrapped = []
+        for p in profiles:
+            mods = list(list_obj.pack_mods_for(p)) if pack_aware else []
+            wrapped.append(VirtualWeaponProfile(p, mods))
+        return wrapped
+
     def all_profiles(self):
         """
         Return all profiles for this equipment.
         """
         if not self._assignment:
-            return self.profiles
+            return self._wrap_profiles_with_pack_mods(self.profiles)
 
         cached = getattr(self._assignment, "all_profiles_cached", None)
         if cached:
@@ -5129,7 +5147,9 @@ class VirtualListFighterEquipmentAssignment:
         Return only the standard (cost=0) weapon profiles for this equipment.
         """
         if not self._assignment:
-            return [profile for profile in self.profiles if profile.cost == 0]
+            return self._wrap_profiles_with_pack_mods(
+                [profile for profile in self.profiles if profile.cost == 0]
+            )
 
         if self._assignment.standard_profiles_cached:
             return self._rebuild_profiles_with_pack_mods(
@@ -5149,7 +5169,9 @@ class VirtualListFighterEquipmentAssignment:
         Return all weapon profiles for this equipment.
         """
         if not self._assignment:
-            return [profile for profile in self.profiles if profile.cost_int() > 0]
+            return self._wrap_profiles_with_pack_mods(
+                [profile for profile in self.profiles if profile.cost_int() > 0]
+            )
 
         if self._assignment.weapon_profiles_cached:
             return self._rebuild_profiles_with_pack_mods(

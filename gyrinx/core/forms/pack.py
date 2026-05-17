@@ -1533,19 +1533,73 @@ HOUSE_RULE_TARGET_CHOICES = [
 ]
 
 
-class ContentHouseRuleForm(forms.Form):
-    """Single-form house-rule definition: target + mod fields.
+VALID_MOD_KINDS = ("stat", "trait", "rule")
 
-    Backed by ``ContentModApplication`` + a freshly-created ``ContentMod``
-    (a ``ContentModStat`` for weapon-profile targets, a
-    ``ContentModFighterStat`` for fighter targets). The view creates the
-    mod, application, and ``CustomContentPackItem`` in one transaction.
+# Kind choices scoped per target type, in display order. These also determine
+# the order the kind picker is rendered in the template.
+WEAPON_MOD_KIND_CHOICES = [
+    ("stat", "Stat"),
+    ("trait", "Trait"),
+]
+FIGHTER_MOD_KIND_CHOICES = [
+    ("stat", "Stat"),
+    ("rule", "Special rule"),
+]
+
+
+def mod_kind_choices_for(target_type):
+    if target_type == "fighter":
+        return FIGHTER_MOD_KIND_CHOICES
+    return WEAPON_MOD_KIND_CHOICES
+
+
+def kind_valid_for_target(mod_kind, target_type):
+    """Return True if ``mod_kind`` is a legal pairing with ``target_type``."""
+    return mod_kind in {k for k, _ in mod_kind_choices_for(target_type)}
+
+
+class ContentHouseRuleForm(forms.Form):
+    """House-rule definition for ONE specific ``mod_kind``.
+
+    The kind (stat / trait / rule) is **not** a form field — it's a URL
+    parameter passed in via the ``mod_kind`` constructor kwarg. The form
+    only renders fields relevant to that kind:
+
+    - ``stat`` → ``stat`` + ``mode`` + ``value``
+    - ``trait`` → ``trait`` + ``mode``
+    - ``rule`` → ``rule`` + ``mode``
+
+    Switching kind is a URL navigation handled by the view, not an in-form
+    state change — see ``add_house_rule`` / ``edit_house_rule`` and the
+    server-rendered kind picker in ``house_rule_form.html``.
+
+    On valid POST the view creates the matching ``ContentMod`` subclass:
+    ``ContentModStat`` / ``ContentModFighterStat`` for ``stat``,
+    ``ContentModTrait`` for ``trait``, ``ContentModFighterRule`` for
+    ``rule`` — then wraps it in a ``ContentModApplication`` and links to
+    the pack via ``CustomContentPackItem``, all in one transaction.
     """
 
-    MODE_CHOICES = [
+    STAT_MODE_CHOICES = [
         ("improve", "Improve"),
         ("worsen", "Worsen"),
         ("set", "Set"),
+    ]
+    ADD_REMOVE_MODE_CHOICES = [
+        ("add", "Add"),
+        ("remove", "Remove"),
+    ]
+
+    # Weapon stat choices match ContentModStat.stat
+    WEAPON_STAT_CHOICES = [
+        ("strength", "Strength"),
+        ("range_short", "Range (Short)"),
+        ("range_long", "Range (Long)"),
+        ("accuracy_short", "Accuracy (Short)"),
+        ("accuracy_long", "Accuracy (Long)"),
+        ("armour_piercing", "Armour Piercing"),
+        ("damage", "Damage"),
+        ("ammo", "Ammo"),
     ]
 
     target_type = forms.ChoiceField(
@@ -1562,9 +1616,8 @@ class ContentHouseRuleForm(forms.Form):
         help_text="The statistic to modify.",
     )
     mode = forms.ChoiceField(
-        choices=MODE_CHOICES,
         widget=forms.Select(attrs={"class": "form-select"}),
-        help_text="Improve nudges the stat in the helpful direction; Worsen the opposite; Set replaces it.",
+        help_text="How to apply the change.",
     )
     value = forms.CharField(
         max_length=5,
@@ -1572,93 +1625,118 @@ class ContentHouseRuleForm(forms.Form):
         help_text="A number, e.g. 1.",
     )
 
-    # Weapon stat choices match ContentModStat.stat
-    WEAPON_STAT_CHOICES = [
-        ("strength", "Strength"),
-        ("range_short", "Range (Short)"),
-        ("range_long", "Range (Long)"),
-        ("accuracy_short", "Accuracy (Short)"),
-        ("accuracy_long", "Accuracy (Long)"),
-        ("armour_piercing", "Armour Piercing"),
-        ("damage", "Damage"),
-        ("ammo", "Ammo"),
-    ]
+    trait = forms.ModelChoiceField(
+        queryset=ContentWeaponTrait.objects.none(),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="The trait to add or remove on the weapon profile.",
+    )
+    rule = forms.ModelChoiceField(
+        queryset=ContentRule.objects.none(),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="The special rule to add or remove on the fighter.",
+    )
 
-    def __init__(self, *args, available_stat_field_names=None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        mod_kind,
+        target_type,
+        available_stat_field_names=None,
+        pack=None,
+        **kwargs,
+    ):
+        if mod_kind not in VALID_MOD_KINDS:
+            raise ValueError(f"Unknown mod_kind: {mod_kind!r}")
+        if not kind_valid_for_target(mod_kind, target_type):
+            raise ValueError(
+                f"mod_kind={mod_kind!r} is not valid for target_type={target_type!r}"
+            )
+        if pack is None:
+            raise TypeError("ContentHouseRuleForm requires a pack= keyword argument.")
+
         super().__init__(*args, **kwargs)
-        # Build fighter stat choices from ContentStat — mirrors the admin
-        # dynamic-choices pattern in ContentModFighterStatAdminForm.
-        # Exclude weapon-only stats so the dropdown for fighter targets
-        # only shows stats that actually exist on a fighter.
-        from gyrinx.content.models.statline import ContentStat
-
-        weapon_only_field_names = {fc for fc, _ in self.WEAPON_STAT_CHOICES} - {
-            "strength"
-        }
-        fighter_stat_choices = [
-            (s.field_name, s.full_name)
-            for s in ContentStat.objects.exclude(
-                field_name__in=weapon_only_field_names
-            ).order_by("full_name")
-        ]
-        # Narrow the stat choices to match the target type. Initial data
-        # carries the target_type from the picker; falling back to bound
-        # data covers POST.
-        target_type = (
-            (self.initial or {}).get("target_type")
-            or (self.data or {}).get("target_type")
-            or "weapon-profile"
-        )
-        if target_type == "fighter":
-            choices = fighter_stat_choices
-        else:
-            choices = self.WEAPON_STAT_CHOICES
-
-        # If the caller passes the specific target's available stat field
-        # names (e.g. a non-vehicle fighter has no Front/Rear/HP), narrow
-        # the dropdown further so it only offers stats that actually exist.
-        if available_stat_field_names is not None:
-            allowed = set(available_stat_field_names)
-            choices = [(k, v) for k, v in choices if k in allowed]
-
-        self.fields["stat"].choices = choices
-        self._fighter_stat_field_names = {fc for fc, _ in fighter_stat_choices}
-        self._weapon_stat_field_names = {fc for fc, _ in self.WEAPON_STAT_CHOICES}
+        self.mod_kind = mod_kind
+        self._target_type = target_type
         self._available_stat_field_names = (
             set(available_stat_field_names)
             if available_stat_field_names is not None
             else None
         )
 
+        # Remove the fields that don't belong to this kind. Hidden target
+        # fields are always kept; per-kind groups are pruned.
+        keep = {"target_type", "target_id", "mode"}
+        if mod_kind == "stat":
+            keep |= {"stat", "value"}
+        elif mod_kind == "trait":
+            keep |= {"trait"}
+        elif mod_kind == "rule":
+            keep |= {"rule"}
+        for name in list(self.fields):
+            if name not in keep:
+                del self.fields[name]
+
+        # Per-kind configuration.
+        if mod_kind == "stat":
+            self.fields["mode"].choices = self.STAT_MODE_CHOICES
+            self.fields["stat"].choices = self._stat_choices_for_target()
+        else:
+            self.fields["mode"].choices = self.ADD_REMOVE_MODE_CHOICES
+            if mod_kind == "trait":
+                self.fields["trait"].queryset = ContentWeaponTrait.objects.with_packs(
+                    [pack]
+                ).order_by("name")
+            elif mod_kind == "rule":
+                self.fields["rule"].queryset = ContentRule.objects.with_packs(
+                    [pack]
+                ).order_by("name")
+
+    def _stat_choices_for_target(self):
+        """Compute the stat dropdown choices for the form's target type."""
+        from gyrinx.content.models.statline import ContentStat
+
+        if self._target_type == "weapon-profile":
+            choices = list(self.WEAPON_STAT_CHOICES)
+        else:
+            weapon_only = {fc for fc, _ in self.WEAPON_STAT_CHOICES} - {"strength"}
+            choices = [
+                (s.field_name, s.full_name)
+                for s in ContentStat.objects.exclude(
+                    field_name__in=weapon_only
+                ).order_by("full_name")
+            ]
+        if self._available_stat_field_names is not None:
+            choices = [c for c in choices if c[0] in self._available_stat_field_names]
+        return choices
+
     def clean(self):
         cleaned = super().clean()
-        target_type = cleaned.get("target_type")
-        stat = cleaned.get("stat")
-        mode = cleaned.get("mode")
-        value = cleaned.get("value")
+        # The view already validated target_type / mod_kind against the URL,
+        # but defend against tampered hidden inputs here too.
+        if cleaned.get("target_type") != self._target_type:
+            self.add_error(
+                "target_type", "Target type doesn't match the URL — start again."
+            )
 
-        if stat and target_type == "weapon-profile":
-            if stat not in self._weapon_stat_field_names:
-                self.add_error("stat", "Pick a weapon stat for a weapon profile.")
-        elif stat and target_type == "fighter":
-            if stat not in self._fighter_stat_field_names:
-                self.add_error("stat", "Pick a fighter stat for a fighter target.")
+        if self.mod_kind == "stat":
+            value = cleaned.get("value")
+            mode = cleaned.get("mode")
+            stat = cleaned.get("stat")
+            if (
+                stat
+                and self._available_stat_field_names is not None
+                and stat not in self._available_stat_field_names
+            ):
+                self.add_error("stat", "That stat isn't on this target's statline.")
 
-        if (
-            stat
-            and self._available_stat_field_names is not None
-            and stat not in self._available_stat_field_names
-        ):
-            self.add_error("stat", "That stat isn't on this target's statline.")
-
-        # For improve/worsen modes, value must be an integer (the modifier
-        # operates numerically). 'set' allows non-numeric values (e.g. "S").
-        if mode in ("improve", "worsen") and value is not None:
-            try:
-                int(value)
-            except (TypeError, ValueError):
-                self.add_error(
-                    "value",
-                    "Value must be a whole number when improving or worsening a stat.",
-                )
+            # For improve/worsen modes, value must be an integer (the modifier
+            # operates numerically). 'set' allows non-numeric values (e.g. "S").
+            if mode in ("improve", "worsen") and value:
+                try:
+                    int(value)
+                except (TypeError, ValueError):
+                    self.add_error(
+                        "value",
+                        "Value must be a whole number when improving or worsening a stat.",
+                    )
         return cleaned

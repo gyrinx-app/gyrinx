@@ -581,6 +581,9 @@ class VirtualWeaponProfile:
     def cost_int(self):
         return self.profile.cost_int()
 
+    def cost_for_fighter_int(self):
+        return self.profile.cost_for_fighter_int()
+
     def cost_display(self):
         return f"{self.cost_int()}¢"
 

@@ -1,0 +1,108 @@
+{% comment %}
+Shared category-grouped weapon table for pack weapon pickers.
+
+Context vars:
+  weapon_groups  — list of {"category", "weapons": [{"weapon", "profiles",
+                   "profile_entries": [{"profile", "trait_view"}]}]}
+  picker_mode    — "post" (house-rule: button per profile submits target_id)
+                   or "weapon_link" (customise: link per row goes to weapon)
+  pack           — the CustomContentPack instance (only used for weapon_link)
+  hidden_inputs  — optional list of {"name","value"} dicts for the wrapping
+                   form (only used when picker_mode="post")
+{% endcomment %}
+{% if picker_mode == "post" %}
+    <form method="post" class="vstack gap-3">
+        {% csrf_token %}
+        {% for hi in hidden_inputs %}<input type="hidden" name="{{ hi.name }}" value="{{ hi.value }}">{% endfor %}
+    {% else %}
+        <div class="vstack gap-3">
+        {% endif %}
+        {% for group in weapon_groups %}
+            <section>
+                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                    <h2 class="h5 mb-0">{{ group.category }}</h2>
+                </div>
+                <div class="px-2">
+                    <table class="table table-sm table-borderless mb-0">
+                        {% include "core/includes/weapon_stat_headers.html" with first_col="Weapon" %}
+                        {% for entry in group.weapons %}
+                            <tbody class="table-group-divider">
+                                {% if not entry.profiles %}
+                                    <tr>
+                                        <td colspan="9">
+                                            {% if picker_mode == "weapon_link" %}
+                                                <a href="{% url 'core:pack-customise-weapon' pack.id entry.weapon.id %}"
+                                                   class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover">{{ entry.weapon.name }}</a>
+                                            {% else %}
+                                                {{ entry.weapon.name }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="9" class="text-secondary fst-italic">No profiles.</td>
+                                    </tr>
+                                {% else %}
+                                    {% if entry.profiles|length > 1 and entry.profiles.0.name %}
+                                        <tr>
+                                            <td colspan="9">
+                                                {% if picker_mode == "weapon_link" %}
+                                                    <a href="{% url 'core:pack-customise-weapon' pack.id entry.weapon.id %}"
+                                                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover">{{ entry.weapon.name }}</a>
+                                                {% else %}
+                                                    {{ entry.weapon.name }}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                    {% for pe in entry.profile_entries %}
+                                        <tr class="align-top">
+                                            <td rowspan="{% if pe.trait_view.entries %}2{% else %}1{% endif %}">
+                                                {% if picker_mode == "post" %}
+                                                    <button type="submit"
+                                                            name="target_id"
+                                                            value="{{ pe.profile.id }}"
+                                                            class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
+                                                        {% if entry.profiles|length == 1 or forloop.first and not pe.profile.name %}
+                                                            {{ entry.weapon.name }}
+                                                        {% else %}
+                                                            <i class="bi-dash"></i>{{ pe.profile.name }}
+                                                        {% endif %}
+                                                    </button>
+                                                {% else %}
+                                                    <a href="{% url 'core:pack-customise-weapon' pack.id entry.weapon.id %}"
+                                                       class="link-primary link-underline-opacity-25 link-underline-opacity-100-hover">
+                                                        {% if entry.profiles|length == 1 or forloop.first and not pe.profile.name %}
+                                                            {{ entry.weapon.name }}
+                                                        {% else %}
+                                                            <i class="bi-dash"></i>{{ pe.profile.name }}
+                                                        {% endif %}
+                                                    </a>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">{{ pe.profile.range_short|default:"-" }}</td>
+                                            <td class="text-center">{{ pe.profile.range_long|default:"-" }}</td>
+                                            <td class="text-center border-start">{{ pe.profile.accuracy_short|default:"-" }}</td>
+                                            <td class="text-center">{{ pe.profile.accuracy_long|default:"-" }}</td>
+                                            <td class="text-center border-start">{{ pe.profile.strength|default:"-" }}</td>
+                                            <td class="text-center">{{ pe.profile.armour_piercing|default:"-" }}</td>
+                                            <td class="text-center">{{ pe.profile.damage|default:"-" }}</td>
+                                            <td class="text-center">{{ pe.profile.ammo|default:"-" }}</td>
+                                        </tr>
+                                        {% if pe.trait_view.entries %}
+                                            <tr>
+                                                <td colspan="8">{% include "core/pack/includes/pack_mod_view_line.html" with view=pe.trait_view %}</td>
+                                            </tr>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            </tbody>
+                        {% endfor %}
+                    </table>
+                </div>
+            </section>
+        {% endfor %}
+        {% if picker_mode == "post" %}
+        </form>
+    {% else %}
+    </div>
+{% endif %}

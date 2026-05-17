@@ -1,0 +1,73 @@
+{% comment %}
+Shared search + category filter form for pack weapon pickers.
+
+Context vars expected:
+  categories         — list of {"id", "name"} dicts (may be empty)
+  cat_filter_active  — bool, True when user has explicitly filtered
+  selected_cats      — set of selected category ids (as strings)
+  search_query       — current q value
+  target_label       — placeholder text ("weapons", "fighters & vehicles")
+  hidden_inputs      — optional list of {"name", "value"} dicts to render as
+                       hidden inputs (e.g. target_type tab state). Optional.
+{% endcomment %}
+{% load custom_tags %}
+<form id="search" method="get" action="" class="row g-2 align-items-center">
+    {% for hi in hidden_inputs %}<input type="hidden" name="{{ hi.name }}" value="{{ hi.value }}">{% endfor %}
+    {% if categories %}
+        <div class="col-12 col-sm-auto">
+            <div class="btn-group">
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        data-bs-auto-close="outside">Category</button>
+                <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
+                    <label class="form-label">
+                        <a href="#" id="category-all-link">All</a>
+                        /
+                        <a href="#" id="category-none-link">None</a>
+                    </label>
+                    {% for cat in categories %}
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   form="search"
+                                   id="cat-{{ cat.id }}"
+                                   name="cat"
+                                   value="{{ cat.id }}"
+                                   {% if not cat_filter_active or cat.id in selected_cats %}checked{% endif %}>
+                            <label class="form-check-label" for="cat-{{ cat.id }}">{{ cat.name }}</label>
+                            •
+                            <a class="ms-auto" href="?{% qt request cat=cat.id page=None %}">only</a>
+                        </div>
+                    {% endfor %}
+                    <div class="btn-group align-items-center mt-1">
+                        <button class="btn btn-link icon-link btn-sm" type="submit" form="search">
+                            <i class="bi-arrow-clockwise"></i>
+                            Update
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    <div class="col-12 col-sm">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text">
+                <i class="bi-search"></i>
+            </span>
+            <input class="form-control"
+                   type="search"
+                   placeholder="Search {{ target_label }}"
+                   aria-label="Search {{ target_label }}"
+                   name="q"
+                   value="{{ search_query }}">
+            <button class="btn btn-primary" type="submit">Search</button>
+            {% if search_query or cat_filter_active %}
+                <a href="?{% qt request q=None page=None cat=None %}"
+                   class="btn btn-outline-secondary">Clear</a>
+            {% endif %}
+        </div>
+    </div>
+</form>

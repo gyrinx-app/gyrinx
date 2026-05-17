@@ -23,6 +23,14 @@ Working rules:
 - Never apply `|safe` directly to user-supplied content. Sanitize first — the project ships
   the `safe_rich_text` template filter (in `core/templatetags/custom_tags.py`) for this.
   Only use `|safe` on values you control or that have already been sanitized.
+- **No client-side form mutation.** Variant pickers (kind/mode switches that
+  change which fields are visible, which options a `<select>` has, or which
+  fields are required) are server-rendered `<a>` links pointing at the same
+  view with the new state in the query string. The page reloads and the
+  server returns the correct form. JS is only for enhancements that fail
+  gracefully. See the "URL-Driven UI" section in
+  `.claude/skills/gyrinx-conventions/SKILL.md`, and `house_rule_form.html` /
+  `add_house_rule` view for the canonical example.
 
 ## Microcopy Guidelines
 
