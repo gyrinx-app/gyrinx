@@ -5140,6 +5140,7 @@ def house_rule_picker(request, id):
         # Prefetch profiles for visible weapons (pack-aware).
         weapon_ids = [w.id for w in weapons_page]
         profiles_by_weapon = {}
+        all_profile_ids = []
         if weapon_ids:
             profiles = (
                 ContentWeaponProfile.objects.with_packs([pack])
@@ -5148,6 +5149,11 @@ def house_rule_picker(request, id):
             )
             for p in profiles:
                 profiles_by_weapon.setdefault(p.equipment_id, []).append(p)
+                all_profile_ids.append(p.id)
+
+        # Annotate each profile with its pack-mod-aware trait view so the
+        # picker shows the effect of this pack's house rules on traits.
+        trait_views = _pack_trait_views_for_profiles(pack, all_profile_ids)
 
         # Group weapons by category for the shop-style layout.
         from itertools import groupby
@@ -5158,10 +5164,21 @@ def house_rule_picker(request, id):
         ):
             weapons_in_cat = []
             for w in group:
+                weapon_profiles = profiles_by_weapon.get(w.id, [])
+                profile_entries = [
+                    {
+                        "profile": p,
+                        "trait_view": trait_views.get(
+                            p.id, {"entries": [], "html": ""}
+                        ),
+                    }
+                    for p in weapon_profiles
+                ]
                 weapons_in_cat.append(
                     {
                         "weapon": w,
-                        "profiles": profiles_by_weapon.get(w.id, []),
+                        "profiles": weapon_profiles,
+                        "profile_entries": profile_entries,
                     }
                 )
             if weapons_in_cat:
@@ -5245,6 +5262,10 @@ def house_rule_picker(request, id):
                 "cells": cells,
             }
 
+        # Pack-aware rule view for every visible fighter — same pattern as
+        # weapon traits above, but for ``ContentRule`` + ``ContentModFighterRule``.
+        rule_views = _pack_rule_views_for_fighters(pack, [f.id for f in fighters_page])
+
         fighters_page.sort(
             key=lambda f: (FighterCategoryChoices[f.category].label, f.type)
         )
@@ -5252,7 +5273,11 @@ def house_rule_picker(request, id):
             fighters_page,
             key=lambda f: FighterCategoryChoices[f.category].label,
         ):
-            rows = [_row(f) for f in group]
+            rows = []
+            for f in group:
+                row = _row(f)
+                row["rule_view"] = rule_views.get(f.id, {"entries": [], "html": ""})
+                rows.append(row)
             # Sub-group by statline schema so each sub-table has consistent
             # columns. Preserve stable ordering: group by first appearance.
             schema_order = []
@@ -5320,7 +5345,220 @@ def _statline_field_names(target):
     return names or None
 
 
-def _build_house_rule_mod(target_type, cleaned_data):
+_PACK_MOD_STATUS_HTML = {
+    "base": "<span>{name}</span>",
+    "removed": (
+        '<span class="text-decoration-line-through" data-bs-toggle="tooltip"'
+        ' data-bs-title="Removed by this pack’s house rules">{name}</span>'
+    ),
+    # The ``tooltipped`` class is the design-system primitive for an
+    # info-coloured underline that indicates "more info on hover".
+    "added": (
+        '<span class="tooltipped" data-bs-toggle="tooltip"'
+        ' data-bs-title="Added by this pack’s house rules">{name}</span>'
+    ),
+}
+
+
+def _render_pack_mod_view_html(entries):
+    """Render a ``[{name, status}]`` entry list to a comma-joined SafeString.
+
+    Used for both trait views (weapon profile targets) and rule views
+    (fighter targets) — the visual format is identical, only the source
+    differs.
+
+    Whitespace is controlled in Python because Django template formatters
+    insert breaks around control flow that would otherwise produce stray
+    " , " between names.
+    """
+    from django.utils.html import format_html
+    from django.utils.safestring import mark_safe
+
+    if not entries:
+        return mark_safe("")  # nosec B703 B308 - empty string is trivially safe
+    parts = []
+    for e in entries:
+        template = _PACK_MOD_STATUS_HTML.get(e["status"], _PACK_MOD_STATUS_HTML["base"])
+        # format_html escapes ``name`` (the only user-controlled value).
+        # The HTML templates above are literal/trusted.
+        parts.append(format_html(template, name=e["name"]))
+    # Every element of ``parts`` is a SafeString produced by format_html.
+    # str.join returns plain str so re-mark safe for Django's autoescape.
+    return mark_safe(", ".join(parts))  # nosec B703 B308 - parts are escape-safe
+
+
+def _pack_mod_views(
+    pack,
+    target_ids,
+    *,
+    target_model,
+    mod_subclass,
+    base_through,
+    base_fk_field_target,
+    base_fk_field_named,
+    mod_fk_field,
+    named_model,
+):
+    """Generic pack-mod view builder for "add/remove a named thing" mods.
+
+    Used by both the trait and rule views — the shape is identical:
+      - given a set of base ``named_model`` rows attached to each target
+      - apply this pack's ``mod_subclass`` mods (mode ``add`` / ``remove``)
+      - produce ``{target_id: {"entries": [{"name", "status"}], "html"}}``
+
+    Cost is bounded (5 queries) regardless of how many targets are passed.
+
+    Args:
+        target_ids: iterable of target object ids (profiles or fighters).
+        target_model: ``ContentWeaponProfile`` or ``ContentFighter``.
+        mod_subclass: ``ContentModTrait`` or ``ContentModFighterRule``.
+        base_through: through-model class for the target's M2M to named_model.
+        base_fk_field_target: column name on the through table that points at
+            the target (e.g. ``"contentweaponprofile_id"``).
+        base_fk_field_named: column name on the through table that points at
+            the named model (e.g. ``"contentweapontrait_id"``).
+        mod_fk_field: attribute name on the mod_subclass holding the FK id
+            (e.g. ``"trait_id"``, ``"rule_id"``).
+        named_model: ``ContentWeaponTrait`` or ``ContentRule``.
+
+    "base" — name on the target, not touched by any pack mod.
+    "removed" — name on the target, marked for removal by a pack rule.
+    "added" — name NOT on the target, marked for addition by a pack rule.
+    """
+    from gyrinx.content.models import ContentMod, ContentModApplication
+
+    target_ids = list(target_ids)
+    if not target_ids:
+        return {}
+
+    target_ct = ContentType.objects.get_for_model(target_model)
+    application_ct = ContentType.objects.get_for_model(ContentModApplication)
+
+    pack_item_object_ids = CustomContentPackItem.objects.filter(
+        pack=pack, content_type=application_ct, archived=False
+    ).values_list("object_id", flat=True)
+
+    apps = ContentModApplication.objects.all_content().filter(
+        pk__in=list(pack_item_object_ids),
+        target_content_type=target_ct,
+        target_object_id__in=target_ids,
+    )
+
+    mod_ids = [a.modifier_id for a in apps]
+    mods_by_id = {
+        m.pk: m
+        for m in ContentMod.objects.filter(pk__in=mod_ids).instance_of(mod_subclass)
+    }
+
+    add_ids_by_target = {}
+    remove_ids_by_target = {}
+    for a in apps:
+        m = mods_by_id.get(a.modifier_id)
+        if m is None:
+            continue
+        bucket = add_ids_by_target if m.mode == "add" else remove_ids_by_target
+        bucket.setdefault(a.target_object_id, set()).add(getattr(m, mod_fk_field))
+
+    referenced_named_ids = set()
+    for s in add_ids_by_target.values():
+        referenced_named_ids |= s
+    for s in remove_ids_by_target.values():
+        referenced_named_ids |= s
+
+    base_named_by_target = {}
+    for row in base_through.objects.filter(
+        **{f"{base_fk_field_target}__in": target_ids}
+    ).values(base_fk_field_target, base_fk_field_named):
+        base_named_by_target.setdefault(row[base_fk_field_target], []).append(
+            row[base_fk_field_named]
+        )
+        referenced_named_ids.add(row[base_fk_field_named])
+
+    names_by_id = {
+        n.pk: n.name for n in named_model.objects.filter(pk__in=referenced_named_ids)
+    }
+
+    result = {}
+    for tid in target_ids:
+        base_ids = base_named_by_target.get(tid, [])
+        base_id_set = set(base_ids)
+        remove_ids = remove_ids_by_target.get(tid, set())
+        add_ids = add_ids_by_target.get(tid, set())
+        entries = []
+        for nid in base_ids:
+            name = names_by_id.get(nid)
+            if name is None:
+                continue
+            entries.append(
+                {
+                    "name": name,
+                    "status": "removed" if nid in remove_ids else "base",
+                }
+            )
+        entries.sort(key=lambda e: e["name"].lower())
+        added_entries = [
+            {"name": names_by_id[nid], "status": "added"}
+            for nid in add_ids
+            if nid in names_by_id and nid not in base_id_set
+        ]
+        added_entries.sort(key=lambda e: e["name"].lower())
+        all_entries = entries + added_entries
+        result[tid] = {
+            "entries": all_entries,
+            "html": _render_pack_mod_view_html(all_entries),
+        }
+    return result
+
+
+def _pack_trait_views_for_profiles(pack, profile_ids):
+    """For every profile id, build an annotated trait view reflecting this
+    pack's ``ContentModTrait`` house rules. See ``_pack_mod_views`` for the
+    return shape and semantics.
+    """
+    from gyrinx.content.models import (
+        ContentModTrait,
+        ContentWeaponProfile,
+        ContentWeaponTrait,
+    )
+
+    return _pack_mod_views(
+        pack,
+        profile_ids,
+        target_model=ContentWeaponProfile,
+        mod_subclass=ContentModTrait,
+        base_through=ContentWeaponProfile.traits.through,
+        base_fk_field_target="contentweaponprofile_id",
+        base_fk_field_named="contentweapontrait_id",
+        mod_fk_field="trait_id",
+        named_model=ContentWeaponTrait,
+    )
+
+
+def _pack_rule_views_for_fighters(pack, fighter_ids):
+    """For every fighter id, build an annotated rule view reflecting this
+    pack's ``ContentModFighterRule`` house rules. See ``_pack_mod_views``
+    for the return shape and semantics.
+    """
+    from gyrinx.content.models import (
+        ContentFighter,
+        ContentModFighterRule,
+        ContentRule,
+    )
+
+    return _pack_mod_views(
+        pack,
+        fighter_ids,
+        target_model=ContentFighter,
+        mod_subclass=ContentModFighterRule,
+        base_through=ContentFighter.rules.through,
+        base_fk_field_target="contentfighter_id",
+        base_fk_field_named="contentrule_id",
+        mod_fk_field="rule_id",
+        named_model=ContentRule,
+    )
+
+
+def _build_house_rule_mod(mod_kind, target_type, cleaned_data):
     """Construct an unsaved ``ContentMod`` subclass instance from form data.
 
     Returns the instance ready for ``.save()``. The caller is responsible
@@ -5333,7 +5571,6 @@ def _build_house_rule_mod(target_type, cleaned_data):
         ContentModTrait,
     )
 
-    mod_kind = cleaned_data["mod_kind"]
     mode = cleaned_data["mode"]
     if mod_kind == "stat":
         stat = cleaned_data["stat"]
@@ -5348,16 +5585,47 @@ def _build_house_rule_mod(target_type, cleaned_data):
     raise ValueError(f"Unknown mod_kind: {mod_kind}")
 
 
+def _kind_picker_entries(pack, target_type, target_id, *, current_kind, base_url):
+    """Build the list of {label, url, is_current} entries for the kind picker.
+
+    ``base_url`` is the URL of the current page (add or edit), to which the
+    ``mod_kind`` query parameter is added.
+    """
+    from gyrinx.core.forms.pack import mod_kind_choices_for
+
+    entries = []
+    for slug, label in mod_kind_choices_for(target_type):
+        params = {"mod_kind": slug}
+        if target_type:
+            params["target_type"] = target_type
+        if target_id:
+            params["target_id"] = str(target_id)
+        entries.append(
+            {
+                "kind": slug,
+                "label": label,
+                "url": f"{base_url}?{urlencode(params)}",
+                "is_current": slug == current_kind,
+            }
+        )
+    return entries
+
+
 @login_required
 def add_house_rule(request, id):
     """Step 2 of the add-house-rule flow: define the mod for the chosen target.
 
-    Creates the ``ContentMod`` subclass appropriate for the chosen
-    ``mod_kind`` (stat / trait / rule), the ``ContentModApplication``, and
-    the ``CustomContentPackItem`` linking the application to the pack in a
-    single transaction.
+    The ``mod_kind`` is a URL query parameter — changing it is a navigation
+    (the kind picker in the template is a set of server-rendered links).
+    The form for the current kind is rendered server-side with only the
+    fields relevant to that kind. JS is not required.
+
+    Creates the matching ``ContentMod`` subclass, the
+    ``ContentModApplication``, and the ``CustomContentPackItem`` linking
+    the application to the pack in a single transaction.
     """
     from gyrinx.content.models import ContentModApplication
+    from gyrinx.core.forms.pack import VALID_MOD_KINDS, kind_valid_for_target
 
     pack = _get_pack_for_edit(id, request.user)
 
@@ -5372,6 +5640,15 @@ def add_house_rule(request, id):
             reverse("core:pack-house-rule-picker", args=(pack.id,))
         )
 
+    mod_kind = request.GET.get("mod_kind") or request.POST.get("mod_kind") or "stat"
+    if mod_kind not in VALID_MOD_KINDS or not kind_valid_for_target(
+        mod_kind, target_type
+    ):
+        # Silently coerce to the default kind for this target type rather
+        # than 404 — the URL is user-typeable and an invalid kind is a
+        # navigation accident, not an error.
+        mod_kind = "stat"
+
     target = _house_rule_target_for_slug(target_type, pack, target_id)
     target_label = _describe_house_rule_target(target)
     available_stat_field_names = _statline_field_names(target)
@@ -5380,18 +5657,17 @@ def add_house_rule(request, id):
         "target_type": target_type,
         "target_id": target_id,
     }
+    form_kwargs = dict(
+        mod_kind=mod_kind,
+        target_type=target_type,
+        available_stat_field_names=available_stat_field_names,
+        pack=pack,
+    )
     if request.method == "POST":
-        form = ContentHouseRuleForm(
-            request.POST,
-            initial=initial,
-            available_stat_field_names=available_stat_field_names,
-            pack=pack,
-        )
+        form = ContentHouseRuleForm(request.POST, initial=initial, **form_kwargs)
         if form.is_valid():
             with transaction.atomic():
-                mod = _build_house_rule_mod(
-                    form.cleaned_data["target_type"], form.cleaned_data
-                )
+                mod = _build_house_rule_mod(mod_kind, target_type, form.cleaned_data)
                 mod._history_user = request.user
                 mod.save()
 
@@ -5430,10 +5706,25 @@ def add_house_rule(request, id):
             messages.success(request, f"House rule added for {target_label}.")
             return HttpResponseRedirect(_pack_url(pack, f"item-{item.id}"))
     else:
-        form = ContentHouseRuleForm(
-            initial=initial,
-            available_stat_field_names=available_stat_field_names,
-            pack=pack,
+        form = ContentHouseRuleForm(initial=initial, **form_kwargs)
+
+    kind_picker = _kind_picker_entries(
+        pack,
+        target_type,
+        target_id,
+        current_kind=mod_kind,
+        base_url=reverse("core:pack-house-rule-add", args=(pack.id,)),
+    )
+
+    trait_view = None
+    rule_view = None
+    if target_type == "weapon-profile":
+        trait_view = _pack_trait_views_for_profiles(pack, [target.id]).get(
+            target.id, {"entries": [], "html": ""}
+        )
+    elif target_type == "fighter":
+        rule_view = _pack_rule_views_for_fighters(pack, [target.id]).get(
+            target.id, {"entries": [], "html": ""}
         )
 
     return render(
@@ -5445,6 +5736,10 @@ def add_house_rule(request, id):
             "target": target,
             "target_label": target_label,
             "target_type": target_type,
+            "trait_view": trait_view,
+            "rule_view": rule_view,
+            "mod_kind": mod_kind,
+            "kind_picker": kind_picker,
             "is_new": True,
             "back_url": reverse("core:pack-house-rule-picker", args=(pack.id,))
             + f"?target_type={target_type}",
@@ -5474,11 +5769,14 @@ def _kind_for_modifier(modifier):
 def edit_house_rule(request, id, item_id):
     """Edit an existing house-rule application's mod fields.
 
-    Pre-populates the form from the current application + modifier and saves
-    in-place — no new ``ContentModApplication`` row is created. The target
-    cannot be changed here; archive and re-add to retarget.
+    The ``mod_kind`` defaults to the kind of the existing modifier but can
+    be overridden via ``?mod_kind=...`` in the URL — clicking a different
+    kind in the picker reloads the form and, on save, recreates the
+    modifier with the new subclass. The target itself cannot be changed
+    here; archive and re-add to retarget.
     """
     from gyrinx.content.models import ContentModApplication
+    from gyrinx.core.forms.pack import VALID_MOD_KINDS, kind_valid_for_target
 
     pack = _get_pack_for_edit(id, request.user)
     pack_item = get_object_or_404(
@@ -5511,28 +5809,58 @@ def edit_house_rule(request, id, item_id):
         # other content type here means the DB has been tampered with.
         raise Http404
 
+    existing_kind = _kind_for_modifier(modifier) or "stat"
+    mod_kind = (
+        request.GET.get("mod_kind") or request.POST.get("mod_kind") or existing_kind
+    )
+    if mod_kind not in VALID_MOD_KINDS or not kind_valid_for_target(
+        mod_kind, target_type
+    ):
+        mod_kind = existing_kind
+
     target = application.target
     target_label = _describe_house_rule_target(target)
     available_stat_field_names = _statline_field_names(target)
 
+    # Initial only carries fields the current kind will render. Fields the
+    # form prunes are ignored.
     initial = {
         "target_type": target_type,
         "target_id": str(application.target_object_id),
-        "mod_kind": _kind_for_modifier(modifier) or "stat",
-        "stat": getattr(modifier, "stat", "") or "",
-        "mode": getattr(modifier, "mode", "") or "",
-        "value": getattr(modifier, "value", "") or "",
-        "trait": getattr(modifier, "trait_id", None),
-        "rule": getattr(modifier, "rule_id", None),
     }
+    if mod_kind == existing_kind:
+        # Pre-fill from the existing modifier so the user sees current values.
+        if mod_kind == "stat":
+            initial.update(
+                {
+                    "stat": getattr(modifier, "stat", "") or "",
+                    "mode": getattr(modifier, "mode", "") or "",
+                    "value": getattr(modifier, "value", "") or "",
+                }
+            )
+        elif mod_kind == "trait":
+            initial.update(
+                {
+                    "trait": getattr(modifier, "trait_id", None),
+                    "mode": getattr(modifier, "mode", "") or "",
+                }
+            )
+        elif mod_kind == "rule":
+            initial.update(
+                {
+                    "rule": getattr(modifier, "rule_id", None),
+                    "mode": getattr(modifier, "mode", "") or "",
+                }
+            )
 
+    form_kwargs = dict(
+        mod_kind=mod_kind,
+        target_type=target_type,
+        available_stat_field_names=available_stat_field_names,
+        pack=pack,
+    )
     if request.method == "POST":
-        form = ContentHouseRuleForm(
-            request.POST,
-            initial=initial,
-            available_stat_field_names=available_stat_field_names,
-            pack=pack,
-        )
+        form = ContentHouseRuleForm(request.POST, initial=initial, **form_kwargs)
         if form.is_valid():
             with transaction.atomic():
                 # Construct the modifier the form requested. If the subclass
@@ -5540,7 +5868,7 @@ def edit_house_rule(request, id, item_id):
                 # PK (and history continuity); otherwise create a new modifier
                 # and delete the old.
                 new_mod = _build_house_rule_mod(
-                    form.cleaned_data["target_type"], form.cleaned_data
+                    mod_kind, target_type, form.cleaned_data
                 )
                 if type(new_mod) is type(modifier):
                     for field in ("stat", "mode", "value", "trait", "rule"):
@@ -5572,11 +5900,27 @@ def edit_house_rule(request, id, item_id):
             messages.success(request, f"House rule updated for {target_label}.")
             return HttpResponseRedirect(_pack_url(pack, f"item-{pack_item.id}"))
     else:
-        form = ContentHouseRuleForm(
-            initial=initial,
-            available_stat_field_names=available_stat_field_names,
-            pack=pack,
-        )
+        form = ContentHouseRuleForm(initial=initial, **form_kwargs)
+
+    kind_picker = _kind_picker_entries(
+        pack,
+        target_type,
+        application.target_object_id,
+        current_kind=mod_kind,
+        base_url=reverse("core:pack-house-rule-edit", args=(pack.id, pack_item.id)),
+    )
+
+    trait_view = None
+    rule_view = None
+    if target is not None:
+        if target_type == "weapon-profile":
+            trait_view = _pack_trait_views_for_profiles(pack, [target.id]).get(
+                target.id, {"entries": [], "html": ""}
+            )
+        elif target_type == "fighter":
+            rule_view = _pack_rule_views_for_fighters(pack, [target.id]).get(
+                target.id, {"entries": [], "html": ""}
+            )
 
     return render(
         request,
@@ -5587,6 +5931,10 @@ def edit_house_rule(request, id, item_id):
             "target": target,
             "target_label": target_label,
             "target_type": target_type,
+            "trait_view": trait_view,
+            "rule_view": rule_view,
+            "mod_kind": mod_kind,
+            "kind_picker": kind_picker,
             "is_new": False,
             "back_url": _pack_url(pack, f"item-{pack_item.id}"),
         },

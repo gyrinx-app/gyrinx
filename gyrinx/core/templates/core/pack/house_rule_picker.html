@@ -113,29 +113,34 @@
                                                         <td colspan="9">{{ entry.weapon.name }}</td>
                                                     </tr>
                                                 {% endif %}
-                                                {% for profile in entry.profiles %}
-                                                    <tr>
-                                                        <td>
+                                                {% for pe in entry.profile_entries %}
+                                                    <tr class="align-top">
+                                                        <td rowspan="{% if pe.trait_view.entries %}2{% else %}1{% endif %}">
                                                             <button type="submit"
                                                                     name="target_id"
-                                                                    value="{{ profile.id }}"
+                                                                    value="{{ pe.profile.id }}"
                                                                     class="btn btn-link p-0 link-primary link-underline-opacity-25 link-underline-opacity-100-hover text-start">
-                                                                {% if entry.profiles|length == 1 or forloop.first and not profile.name %}
+                                                                {% if entry.profiles|length == 1 or forloop.first and not pe.profile.name %}
                                                                     {{ entry.weapon.name }}
                                                                 {% else %}
-                                                                    <i class="bi-dash"></i>{{ profile.name }}
+                                                                    <i class="bi-dash"></i>{{ pe.profile.name }}
                                                                 {% endif %}
                                                             </button>
                                                         </td>
-                                                        <td class="text-center">{{ profile.range_short|default:"-" }}</td>
-                                                        <td class="text-center">{{ profile.range_long|default:"-" }}</td>
-                                                        <td class="text-center border-start">{{ profile.accuracy_short|default:"-" }}</td>
-                                                        <td class="text-center">{{ profile.accuracy_long|default:"-" }}</td>
-                                                        <td class="text-center border-start">{{ profile.strength|default:"-" }}</td>
-                                                        <td class="text-center">{{ profile.armour_piercing|default:"-" }}</td>
-                                                        <td class="text-center">{{ profile.damage|default:"-" }}</td>
-                                                        <td class="text-center">{{ profile.ammo|default:"-" }}</td>
+                                                        <td class="text-center">{{ pe.profile.range_short|default:"-" }}</td>
+                                                        <td class="text-center">{{ pe.profile.range_long|default:"-" }}</td>
+                                                        <td class="text-center border-start">{{ pe.profile.accuracy_short|default:"-" }}</td>
+                                                        <td class="text-center">{{ pe.profile.accuracy_long|default:"-" }}</td>
+                                                        <td class="text-center border-start">{{ pe.profile.strength|default:"-" }}</td>
+                                                        <td class="text-center">{{ pe.profile.armour_piercing|default:"-" }}</td>
+                                                        <td class="text-center">{{ pe.profile.damage|default:"-" }}</td>
+                                                        <td class="text-center">{{ pe.profile.ammo|default:"-" }}</td>
                                                     </tr>
+                                                    {% if pe.trait_view.entries %}
+                                                        <tr>
+                                                            <td colspan="8">{% include "core/pack/includes/pack_mod_view_line.html" with view=pe.trait_view %}</td>
+                                                        </tr>
+                                                    {% endif %}
                                                 {% endfor %}
                                             {% endif %}
                                         </tbody>
@@ -179,8 +184,8 @@
                                         </thead>
                                         <tbody class="table-group-divider">
                                             {% for row in sub.rows %}
-                                                <tr>
-                                                    <td>
+                                                <tr class="align-top">
+                                                    <td rowspan="{% if row.rule_view.entries %}2{% else %}1{% endif %}">
                                                         <button type="submit"
                                                                 name="target_id"
                                                                 value="{{ row.fighter.id }}"
@@ -195,6 +200,13 @@
                                                         </td>
                                                     {% endfor %}
                                                 </tr>
+                                                {% if row.rule_view.entries %}
+                                                    <tr>
+                                                        <td colspan="{{ row.cells|length }}">
+                                                            {% include "core/pack/includes/pack_mod_view_line.html" with view=row.rule_view %}
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
                                             {% endfor %}
                                         </tbody>
                                     </table>

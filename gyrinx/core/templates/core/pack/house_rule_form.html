@@ -25,71 +25,76 @@
             <em>{{ pack.name }}</em>.
         </p>
         {% if target_type == "weapon-profile" %}
-            <div class="card">
-                <div class="card-body p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0">
-                        {% if target.name %}
-                            {% include "core/includes/weapon_stat_headers.html" with first_col=target.equipment.name %}
-                        {% else %}
-                            {% include "core/includes/weapon_stat_headers.html" %}
-                        {% endif %}
-                        <tbody class="table-group-divider">
-                            <tr>
-                                <td>
-                                    <strong>
-                                        {% if target.name %}
-                                            {{ target.name }}
-                                        {% else %}
-                                            {{ target.equipment.name }}
-                                        {% endif %}
-                                    </strong>
-                                </td>
-                                {% for stat in target.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <table class="table table-sm table-borderless mb-0 border-bottom">
+                {% if target.name %}
+                    {% include "core/includes/weapon_stat_headers.html" with first_col=target.equipment.name %}
+                {% else %}
+                    {% include "core/includes/weapon_stat_headers.html" %}
+                {% endif %}
+                <tbody class="table-group-divider">
+                    <tr class="align-top">
+                        <td rowspan="{% if trait_view.entries %}2{% else %}1{% endif %}">
+                            <strong>
+                                {% if target.name %}
+                                    {{ target.name }}
+                                {% else %}
+                                    {{ target.equipment.name }}
+                                {% endif %}
+                            </strong>
+                        </td>
+                        {% for stat in target.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
+                    </tr>
+                    {% if trait_view.entries %}
+                        <tr>
+                            <td colspan="8">{% include "core/pack/includes/pack_mod_view_line.html" with view=trait_view %}</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         {% else %}
-            <div class="card">
-                <div class="card-body p-0 p-sm-2">
-                    <table class="table table-sm table-borderless mb-0">
-                        <thead class="table-group-divider">
-                            <tr>
-                                <th scope="col"></th>
-                                {% for stat in target.statline %}
-                                    <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
-                                        scope="col">{{ stat.name }}</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody class="table-group-divider">
-                            <tr>
-                                <td>
-                                    <strong>{{ target.type }}</strong>
-                                    {% if target.house %}<span class="text-secondary">· {{ target.house.name }}</span>{% endif %}
-                                </td>
-                                {% for stat in target.statline %}
-                                    <td class="text-center {% if stat.first_of_group %}border-start{% endif %}">{{ stat.value }}</td>
-                                {% endfor %}
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <table class="table table-sm table-borderless mb-0 border-bottom">
+                <thead class="table-group-divider">
+                    <tr>
+                        <th scope="col"></th>
+                        {% for stat in target.statline %}
+                            <th class="text-center {% if stat.first_of_group %}border-start{% endif %}"
+                                scope="col">{{ stat.name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="table-group-divider">
+                    <tr class="align-top">
+                        <td rowspan="{% if rule_view.entries %}2{% else %}1{% endif %}">
+                            <strong>{{ target.type }}</strong>
+                            {% if target.house %}<span class="text-secondary">· {{ target.house.name }}</span>{% endif %}
+                        </td>
+                        {% for stat in target.statline %}
+                            <td class="text-center {% if stat.first_of_group %}border-start{% endif %}">{{ stat.value }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% if rule_view.entries %}
+                        <tr>
+                            <td colspan="{{ target.statline|length }}">
+                                {% include "core/pack/includes/pack_mod_view_line.html" with view=rule_view %}
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         {% endif %}
-        <form method="post" id="house-rule-form" class="vstack gap-3">
-            {% csrf_token %}
-            {{ form.target_type }}
-            {{ form.target_id }}
-            {% include "django/forms/field.html" with field=form.mod_kind %}
-            <div data-kind-fields="stat">
-                {% include "django/forms/field.html" with field=form.stat %}
-                {% include "django/forms/field.html" with field=form.value %}
+        <div>
+            <div class="form-label mb-1">What to modify</div>
+            <div class="btn-group" role="group" aria-label="Modification kind">
+                {% for entry in kind_picker %}
+                    <a href="{{ entry.url }}"
+                       class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                       {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
+                {% endfor %}
             </div>
-            <div data-kind-fields="trait">{% include "django/forms/field.html" with field=form.trait %}</div>
-            <div data-kind-fields="rule">{% include "django/forms/field.html" with field=form.rule %}</div>
-            {% include "django/forms/field.html" with field=form.mode %}
+        </div>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form }}
             <div class="mt-2 d-flex gap-2 align-items-center">
                 <button type="submit" class="btn btn-success">
                     <i class="bi-check-lg me-1"></i>
@@ -103,55 +108,4 @@
             </div>
         </form>
     </div>
-    <script>
-        (function () {
-            var form = document.getElementById("house-rule-form");
-            if (!form) return;
-            var kindSelect = form.querySelector('[name="mod_kind"]');
-            var modeSelect = form.querySelector('[name="mode"]');
-            if (!kindSelect || !modeSelect) return;
-
-            var statModeChoices = [
-                ["improve", "Improve"],
-                ["worsen", "Worsen"],
-                ["set", "Set"]
-            ];
-            var addRemoveChoices = [
-                ["add", "Add"],
-                ["remove", "Remove"]
-            ];
-
-            function setModeChoices(kind) {
-                var current = modeSelect.value;
-                var choices = (kind === "trait" || kind === "rule") ? addRemoveChoices : statModeChoices;
-                var validValues = choices.map(function (c) { return c[0]; });
-                // Clear and rebuild option list using DOM methods (avoids innerHTML).
-                while (modeSelect.firstChild) {
-                    modeSelect.removeChild(modeSelect.firstChild);
-                }
-                choices.forEach(function (c) {
-                    var opt = document.createElement("option");
-                    opt.value = c[0];
-                    opt.textContent = c[1];
-                    modeSelect.appendChild(opt);
-                });
-                if (validValues.indexOf(current) !== -1) {
-                    modeSelect.value = current;
-                }
-            }
-
-            function refreshVisibility() {
-                var kind = kindSelect.value;
-                var groups = form.querySelectorAll("[data-kind-fields]");
-                for (var i = 0; i < groups.length; i++) {
-                    var g = groups[i];
-                    g.style.display = (g.getAttribute("data-kind-fields") === kind) ? "" : "none";
-                }
-                setModeChoices(kind);
-            }
-
-            kindSelect.addEventListener("change", refreshVisibility);
-            refreshVisibility();
-        })();
-    </script>
 {% endblock content %}

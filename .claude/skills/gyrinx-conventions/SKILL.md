@@ -85,6 +85,48 @@ These are the canonical conventions for the Gyrinx project. All new code should 
 - Custom template tags: `{% load custom_tags %}`, `{% safe_referer '/fallback/' %}`
 - Context variable naming: plural for lists, singular for detail, `has_`/`is_`/`can_` for booleans
 
+## URL-Driven UI (no client-side form mutation)
+
+This is server-rendered HTML, not an SPA. Any UI state that determines **what
+fields/sections are visible**, **what choices a select has**, or **which
+variant of a form a user sees**, MUST live in the URL (path segment or query
+string) and be applied by the server. JS may enhance, never replace.
+
+**Rules:**
+
+- A "kind / mode / variant" selector that changes the form is a **navigation**.
+  Render it as `<a>` links (or a `GET` form) pointing at the same view with
+  the new state in the query string. The page reloads and the server renders
+  the right form.
+- Conditional field visibility, conditional choice lists, conditional
+  required-ness — all server-side, driven by what the view passes to the form
+  constructor. The form should only contain fields it actually needs for the
+  current variant (`del self.fields[name]` for the ones it doesn't).
+- `<select>` `<option>` lists are computed in `Form.__init__` from the
+  URL-driven variant, never rewritten by JS on `change`.
+- If you find yourself writing `addEventListener('change', …)` to swap
+  options, hide groups, or toggle required fields, stop. That's a
+  navigation, not an enhancement.
+
+**Allowed JS enhancement:**
+
+- Live preview / debounced search / async validation hints.
+- Autocomplete widgets that filter an existing server-rendered set.
+- Sticky table headers, focus management, scroll-into-view.
+- Anything that fails gracefully — the page still works with JS disabled.
+
+**Why:** Linkable state (someone can share `?mod_kind=trait` and land on the
+right variant). No client/server validation drift. No silent data loss when
+JS doesn't run. Browser back/forward works as expected. Lower test surface —
+the server-rendered HTML is the source of truth, exercised directly by view
+tests instead of needing a headless browser to verify JS toggles.
+
+**Example:** `add_house_rule` in `views/pack.py` reads `mod_kind` from the
+query string and passes it to `ContentHouseRuleForm(mod_kind=..., …)`. The
+form prunes its fields to only those relevant to the kind. The template
+renders a `<a>`-based picker that links to the same view with a different
+`mod_kind=`. No JS is involved in deciding which fields render.
+
 ## Test Conventions
 
 - `@pytest.mark.django_db` on every test function — no test classes

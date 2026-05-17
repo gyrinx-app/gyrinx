@@ -1,0 +1,15 @@
+{% comment %}
+Render an inline "named items, comma-joined" line annotated for the
+effect of the current pack's ``ContentMod*`` house rules. Used for
+weapon traits (ContentModTrait → ContentWeaponTrait) and fighter
+special rules (ContentModFighterRule → ContentRule).
+
+Expects ``view``: a dict ``{entries, html}`` produced by
+``_pack_trait_views_for_profiles`` or ``_pack_rule_views_for_fighters``
+in views/pack.py. The HTML is rendered in Python because Django's
+template formatter inserts whitespace around control flow that would
+otherwise produce stray spaces before commas.
+
+Renders nothing if the entry list is empty.
+{% endcomment %}
+{% if view.entries %}<span class="text-secondary">{{ view.html }}</span>{% endif %}
