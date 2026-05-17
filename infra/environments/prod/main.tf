@@ -26,13 +26,20 @@ module "gyrinx" {
   uploads_bucket_name = "gyrinx-app-bootstrap-uploads"
   db_instance_name    = "gyrinx-app-bootstrap-db"
 
-  # Cloud SQL — sized to whatever prod is actually running. These are
-  # placeholders pending an import; adjust before apply.
-  db_tier                   = "db-custom-1-3840"
-  db_disk_size_gb           = 20
-  db_deletion_protection    = true
-  db_backups_enabled        = true
-  db_backup_retention_count = 7
+  # Cloud SQL — matches the live prod instance so a future `terraform
+  # import` lands without drift. Shared-core db-g1-small, single zone,
+  # PITR on. If you change anything here, change it in the live instance
+  # too — or expect the next plan to be loud.
+  db_tier                           = "db-g1-small"
+  db_disk_size_gb                   = 10
+  db_disk_type                      = "PD_SSD"
+  db_availability_type              = "ZONAL"
+  db_deletion_protection            = true
+  db_backups_enabled                = true
+  db_backup_retention_count         = 7
+  db_point_in_time_recovery_enabled = true
+  db_iam_authentication             = false
+  db_query_insights_enabled         = false
 
   # Cloud Run
   cloud_run_min_instances = 0

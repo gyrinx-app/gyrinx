@@ -127,6 +127,16 @@ variable "db_deletion_protection" {
   default     = true
 }
 
+variable "db_availability_type" {
+  description = "ZONAL (single-zone) or REGIONAL (HA). Prod is currently ZONAL."
+  type        = string
+  default     = "ZONAL"
+  validation {
+    condition     = contains(["ZONAL", "REGIONAL"], var.db_availability_type)
+    error_message = "db_availability_type must be ZONAL or REGIONAL."
+  }
+}
+
 variable "db_backups_enabled" {
   description = "Whether automated backups are enabled."
   type        = bool
@@ -137,6 +147,29 @@ variable "db_backup_retention_count" {
   description = "Number of automated backups to retain."
   type        = number
   default     = 7
+}
+
+variable "db_point_in_time_recovery_enabled" {
+  description = "Whether point-in-time recovery is enabled (requires backups)."
+  type        = bool
+  default     = false
+}
+
+variable "db_iam_authentication" {
+  description = <<-EOT
+    Enable Cloud SQL IAM database authentication. Adds the
+    `cloudsql.iam_authentication=on` flag and a CLOUD_IAM_SERVICE_ACCOUNT
+    user for the runtime SA. Off by default — prod does not have this,
+    so leave off until we explicitly migrate.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "db_query_insights_enabled" {
+  description = "Enable Cloud SQL Query Insights."
+  type        = bool
+  default     = false
 }
 
 variable "db_name" {

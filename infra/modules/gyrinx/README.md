@@ -29,9 +29,11 @@ The application stack: Cloud Run service, Cloud SQL Postgres, uploads bucket
   deploy.** Cloud Build deploys handle `--image=...` and `--set-env-vars`.
   We set a placeholder and use `lifecycle.ignore_changes` to stop fighting
   the CI pipeline.
+- **Domain mapping.** TODO — prod has `gyrinx.app` mapped to Cloud Run
+  natively (`google_cloud_run_domain_mapping`). Not Terraformed yet;
+  add when we adopt prod.
 - **DNS.** The DNS zone for gyrinx.app lives at the registrar and is not
-  GCP-managed (yet). Cloud Run's native domain mapping (or LB pointing at
-  Cloud Run for prod) is the only DNS-adjacent piece we own here.
+  GCP-managed (yet).
 
 ## Variables of note
 

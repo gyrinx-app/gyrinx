@@ -9,14 +9,14 @@ resource "google_sql_database_instance" "main" {
   settings {
     tier              = var.db_tier
     edition           = "ENTERPRISE"
-    availability_type = var.environment == "prod" ? "REGIONAL" : "ZONAL"
+    availability_type = var.db_availability_type
     disk_type         = var.db_disk_type
     disk_size         = var.db_disk_size_gb
     disk_autoresize   = true
 
     backup_configuration {
       enabled                        = var.db_backups_enabled
-      point_in_time_recovery_enabled = var.environment == "prod"
+      point_in_time_recovery_enabled = var.db_point_in_time_recovery_enabled
       start_time                     = "03:00"
       transaction_log_retention_days = 7
       backup_retention_settings {
@@ -33,14 +33,17 @@ resource "google_sql_database_instance" "main" {
       ssl_mode = "ENCRYPTED_ONLY"
     }
 
-    database_flags {
-      name  = "cloudsql.iam_authentication"
-      value = "on"
+    dynamic "database_flags" {
+      for_each = var.db_iam_authentication ? [1] : []
+      content {
+        name  = "cloudsql.iam_authentication"
+        value = "on"
+      }
     }
 
     insights_config {
-      query_insights_enabled  = true
-      record_application_tags = true
+      query_insights_enabled  = var.db_query_insights_enabled
+      record_application_tags = var.db_query_insights_enabled
       record_client_address   = false
     }
 
@@ -49,7 +52,7 @@ resource "google_sql_database_instance" "main" {
     # If something else (Cloud Build, an operator) flips maintenance window
     # in the console, don't fight it from Terraform.
     maintenance_window {
-      day          = 7  # Sunday
+      day          = 7 # Sunday
       hour         = 4
       update_track = "stable"
     }
@@ -82,9 +85,12 @@ resource "google_sql_user" "app" {
   }
 }
 
-# Bind the runtime SA as a Cloud SQL IAM DB user too. Lets us migrate
-# off the password-based DB_CONFIG to IAM auth later without re-plumbing.
+# Bind the runtime SA as a Cloud SQL IAM DB user too. Only when IAM
+# authentication is enabled — without the database flag, this user is
+# meaningless and an import against prod would create false diff.
 resource "google_sql_user" "runtime_iam" {
+  count = var.db_iam_authentication ? 1 : 0
+
   project  = var.project_id
   instance = google_sql_database_instance.main.name
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
