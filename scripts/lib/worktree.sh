@@ -128,6 +128,47 @@ homebrew_postgres_data_dir() {
   fi
 }
 
+# provision_worktree_venv <worktree_root>
+#   Ensure <worktree_root>/.venv exists with gyrinx editable-installed from
+#   that worktree.  Idempotent — no-op if the venv already exists.
+#
+#   Used by dev.sh and activate_venv_hook.sh to give every child worktree
+#   (including the .claude/worktrees/* worktrees created by EnterWorktree)
+#   its own venv, so `import gyrinx` resolves to worktree-local code and
+#   pre-commit hooks see the worktree's migrations / models.  Without this,
+#   the main venv's editable install can get repointed to a child worktree
+#   by an errant `uv pip install --editable .`, corrupting every other
+#   session.  See issue #1772.
+#
+#   Echoes a one-line progress message to stderr on first provision so the
+#   ~1-minute delay isn't silent.  Returns 0 on success or skip; non-zero
+#   if uv is missing or provisioning fails.
+provision_worktree_venv() {
+  local wt_root="$1"
+  if [ -z "$wt_root" ] || [ ! -d "$wt_root" ]; then
+    return 1
+  fi
+  local venv="${wt_root}/.venv"
+  if [ -d "$venv" ]; then
+    return 0
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "[gyrinx] uv not on PATH; cannot auto-provision ${venv}." >&2
+    echo "[gyrinx] Install uv or create the venv manually:" >&2
+    echo "[gyrinx]   python -m venv ${venv} && ${venv}/bin/pip install --editable ${wt_root}" >&2
+    return 1
+  fi
+  echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
+  uv venv "$venv" >/dev/null || return 1
+  (
+    cd "$wt_root" || exit 1
+    uv pip install --python "$venv/bin/python" --editable . --quiet
+  ) || return 1
+  install_worktree_venv_hook "$venv/bin/activate" || true
+  echo "[gyrinx] Provisioned ${venv}." >&2
+  return 0
+}
+
 # install_worktree_venv_hook <activate_path>
 #   Append the per-worktree DB env block to a venv's bin/activate file so
 #   `source .venv/bin/activate` exports DB_NAME / DJANGO_PORT / DB_CONFIG

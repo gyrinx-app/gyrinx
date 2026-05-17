@@ -74,21 +74,7 @@ if [ "$WT_ROOT" != "$MAIN_WT" ]; then
     echo "Removing existing per-worktree venv at $WT_VENV..."
     rm -rf "$WT_VENV"
   fi
-  if [ ! -d "$WT_VENV" ]; then
-    if ! command -v uv >/dev/null 2>&1; then
-      echo "ERROR: \`uv\` is required to provision per-worktree venvs but isn't on PATH." >&2
-      echo "Install from https://docs.astral.sh/uv/ or re-create .venv manually:" >&2
-      echo "    python -m venv ${WT_VENV} && ${WT_VENV}/bin/pip install --editable ${WT_ROOT}" >&2
-      exit 1
-    fi
-    echo "Provisioning per-worktree venv at $WT_VENV (~1 min)..."
-    uv venv "$WT_VENV" >/dev/null
-    (
-      cd "$WT_ROOT"
-      uv pip install --python "$WT_VENV/bin/python" --editable . --quiet
-    )
-    echo "Provisioned: $WT_VENV"
-  fi
+  provision_worktree_venv "$WT_ROOT" || exit 1
   # Always (re-)ensure the activate hook is present.  Idempotent — no-op if
   # the marker is already there.  Catches the case where a child worktree
   # had a .venv from before this change and would otherwise never get the
