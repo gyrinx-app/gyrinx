@@ -133,6 +133,36 @@ Users create packs at `/packs/new/`. The form includes fields for name, summary 
 
 Editing a pack at `/pack/<id>/edit/` uses the same form. Only the pack owner can edit it.
 
+### Editing pack gear and weapons: the Modifiers tab
+
+When a pack owner edits a custom gear or weapon item, the item editor is split into two tabs:
+
+- **Details** -- the item's base fields (name, cost, statline, and so on).
+- **Modifiers** -- a picker for attaching fighter-level modifiers to the item.
+
+The Modifiers tab (at `/pack/<id>/item/<item_id>/modifiers/`) lets the owner attach three kinds of modifier:
+
+- **Stat modifiers** -- improve, worsen, or set a fighter stat. At most one modifier may be set per stat. Improve and worsen require a whole-number value; set accepts any value.
+- **Special rule modifiers** -- add or remove a fighter rule.
+- **Skill modifiers** -- add or remove a fighter skill.
+
+These map to `ContentModFighterStat`, `ContentModFighterRule`, and `ContentModFighterSkill` records, which are attached to the equipment's `modifiers` relationship. The picker finds or reuses matching modifier records rather than creating duplicates. It manages only these three fighter-level modifier kinds; any other modifiers set on a library item (for example skill-tree or psyker-discipline access modifiers configured through the admin) are preserved on save. The rule and skill pickers are pack-aware, so a pack's own custom rules and skills are selectable alongside the base library.
+
+The Modifiers tab is available only for gear and weapon items; other content types do not have it. When adding a new gear or weapon, only the Details fields are shown, with a hint pointing to the Modifiers tab -- which becomes available once the item has been saved. When a list subscribes to the pack and a fighter is equipped with the item, these modifiers surface on the fighter through the normal equipment-modifier runtime path (`ListFighterEquipmentAssignment._mods`). See [Modifiers](modifiers.md) for the underlying modifier model details.
+
+### Pack house rules
+
+A pack can define **house rules** -- pack-scoped modifications applied to a target through a `ContentModApplication`. Each house rule targets either a weapon profile or a fighter (or vehicle), and a *kind* selector controls what is modified. The available kinds depend on the target:
+
+| Target | Available kinds |
+|--------|-----------------|
+| Weapons | **Stat** (adjust a value on the weapon statline) or **Trait** (add or remove a weapon trait). |
+| Fighters & Vehicles | **Stat** (adjust a value on the fighter statline) or **Special rule** (add or remove a fighter rule). |
+
+The mode options follow the kind: stat modifications use `improve`, `worsen`, or `set` (improve and worsen require a whole-number value); trait and special-rule modifications use `add` or `remove`. The trait and rule selectors are pack-aware, so the pack's own custom traits and rules are offered alongside the base library.
+
+House rules are managed from the pack at `/pack/<id>/house-rule/`. When a list or campaign subscribes to the pack, a stat house rule adjusts the relevant statline, a weapon trait house rule surfaces through the weapon's trait line (`VirtualWeaponProfile.traits`), and a fighter special-rule house rule surfaces through the fighter's rule line (`ListFighter.ruleline`). See [Modifiers](modifiers.md) for the modifier types these house rules apply.
+
 ### Activity history
 
 Each pack has a full activity history at `/pack/<id>/activity/`. This combines history records from both the pack itself and its items into a single chronological feed. The activity feed shows:
