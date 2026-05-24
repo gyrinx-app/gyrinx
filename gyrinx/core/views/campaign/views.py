@@ -298,8 +298,13 @@ class CampaignDetailView(generic.DetailView):
         if user.is_authenticated:
             context["is_pinned"] = campaign.pinned_by.filter(pk=user.pk).exists()
             context["is_starred"] = campaign.starred_by.filter(pk=user.pk).exists()
+            # Owner or participant (has a list in the campaign) may pin.
+            context["can_pin"] = (
+                campaign.owner == user or campaign.lists.filter(owner=user).exists()
+            )
         else:
             context["is_pinned"] = False
             context["is_starred"] = False
+            context["can_pin"] = False
 
         return context

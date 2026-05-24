@@ -30,23 +30,25 @@
                 <h1 class="h2 mb-0">{{ campaign.name }}</h1>
                 {% if user.is_authenticated %}
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
-                        <form method="post"
-                              action="{% url 'core:campaign-pin' campaign.id %}"
-                              class="d-inline">
-                            {% csrf_token %}
-                            <button type="submit"
-                                    class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
-                                    title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this campaign">
-                                <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
-                                <span class="visually-hidden">
-                                    {% if is_pinned %}
-                                        Unpin
-                                    {% else %}
-                                        Pin
-                                    {% endif %}
-                                </span>
-                            </button>
-                        </form>
+                        {% if can_pin %}
+                            <form method="post"
+                                  action="{% url 'core:campaign-pin' campaign.id %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
+                                        title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this campaign">
+                                    <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
+                                    <span class="visually-hidden">
+                                        {% if is_pinned %}
+                                            Unpin
+                                        {% else %}
+                                            Pin
+                                        {% endif %}
+                                    </span>
+                                </button>
+                            </form>
+                        {% endif %}
                         <form method="post"
                               action="{% url 'core:campaign-star' campaign.id %}"
                               class="d-inline">

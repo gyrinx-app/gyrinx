@@ -3,7 +3,7 @@
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -300,11 +300,16 @@ def toggle_campaign_pin(request, id):
     Toggle whether the current user has pinned a :model:`core.Campaign`.
 
     Pins are private to each user and surface the campaign on their home page
-    and on the campaigns page sidebar. Any logged-in user who can see the
-    campaign may pin it. POST only; redirects back to where the request came
-    from.
+    and on the campaigns page sidebar. The owner and any participant (a user
+    with a list in the campaign) may pin it. POST only; redirects back to where
+    the request came from.
     """
     campaign = get_object_or_404(Campaign, id=id)
+    if (
+        campaign.owner != request.user
+        and not campaign.lists.filter(owner=request.user).exists()
+    ):
+        raise Http404("Campaign not found")
     pinned = toggle_membership(campaign.pinned_by, request.user)
     track("campaign_pin_toggle", campaign_id=str(campaign.id), pinned=pinned)
 

@@ -1141,10 +1141,12 @@ def toggle_list_pin(request, id):
     Toggle whether the current user has pinned a :model:`core.List`.
 
     Pins are private to each user and surface the list on their home page and
-    on the lists page sidebar. Any logged-in user who can see the list may pin
-    it. POST only; redirects back to where the request came from.
+    on the lists page sidebar. Only the list's owner may pin it. POST only;
+    redirects back to where the request came from.
     """
     lst = get_object_or_404(List, id=id)
+    if lst.owner != request.user:
+        raise Http404("List not found")
     pinned = toggle_membership(lst.pinned_by, request.user)
     track("list_pin_toggle", list_id=str(lst.id), pinned=pinned)
 

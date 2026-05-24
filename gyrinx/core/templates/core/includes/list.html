@@ -110,23 +110,25 @@
                                     <i class="bi-truck"></i> Add vehicle</a>
                             {% endif %}
                             {% if user.is_authenticated %}
-                                <form method="post"
-                                      action="{% url 'core:list-pin' list.id %}"
-                                      class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
-                                            title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this list">
-                                        <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
-                                        <span class="visually-hidden">
-                                            {% if is_pinned %}
-                                                Unpin
-                                            {% else %}
-                                                Pin
-                                            {% endif %}
-                                        </span>
-                                    </button>
-                                </form>
+                                {% if list.owner_cached == user %}
+                                    <form method="post"
+                                          action="{% url 'core:list-pin' list.id %}"
+                                          class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit"
+                                                class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
+                                                title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this list">
+                                            <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
+                                            <span class="visually-hidden">
+                                                {% if is_pinned %}
+                                                    Unpin
+                                                {% else %}
+                                                    Pin
+                                                {% endif %}
+                                            </span>
+                                        </button>
+                                    </form>
+                                {% endif %}
                                 <form method="post"
                                       action="{% url 'core:list-star' list.id %}"
                                       class="d-inline">

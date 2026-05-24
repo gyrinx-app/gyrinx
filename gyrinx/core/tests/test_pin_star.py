@@ -78,6 +78,17 @@ def test_toggle_list_pin_adds_and_removes(client, user, make_list):
     assert not lst.pinned_by.filter(pk=user.pk).exists()
 
 
+@pytest.mark.django_db
+def test_cannot_pin_another_users_list(client, user, make_user, make_list):
+    lst = make_list("Owned List")  # owned by `user`
+    other = make_user("other", "password")
+    client.force_login(other)
+
+    resp = client.post(reverse("core:list-pin", args=[lst.id]))
+    assert resp.status_code == 404
+    assert lst.pinned_by.count() == 0
+
+
 # ---------------------------------------------------------------------------
 # Campaign star / pin toggle
 # ---------------------------------------------------------------------------
@@ -107,6 +118,33 @@ def test_toggle_campaign_pin_adds_and_removes(client, user, make_campaign):
 
     client.post(url)
     assert not camp.pinned_by.filter(pk=user.pk).exists()
+
+
+@pytest.mark.django_db
+def test_campaign_participant_can_pin(client, make_user, make_campaign, make_list):
+    owner = make_user("camp_owner", "password")
+    participant = make_user("participant", "password")
+    camp = make_campaign("Shared Campaign", owner=owner)
+    # The participant owns a list that is part of the campaign.
+    participant_list = make_list("Participant List", owner=participant)
+    camp.lists.add(participant_list)
+
+    client.force_login(participant)
+    resp = client.post(reverse("core:campaign-pin", args=[camp.id]))
+    assert resp.status_code == 302
+    assert camp.pinned_by.filter(pk=participant.pk).exists()
+
+
+@pytest.mark.django_db
+def test_non_participant_cannot_pin_campaign(client, make_user, make_campaign):
+    owner = make_user("camp_owner2", "password")
+    camp = make_campaign("Private Campaign", owner=owner)
+    stranger = make_user("stranger", "password")
+
+    client.force_login(stranger)
+    resp = client.post(reverse("core:campaign-pin", args=[camp.id]))
+    assert resp.status_code == 404
+    assert camp.pinned_by.count() == 0
 
 
 # ---------------------------------------------------------------------------
