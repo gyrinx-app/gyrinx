@@ -173,10 +173,13 @@ class ListsListView(generic.ListView):
         context["current_sort"] = self.request.GET.get("sort", "recent")
 
         # Pinned lists/gangs for the sidebar (the user's own private pins).
+        # Mirror the main queryset so the shared row partial renders identically.
         if self.request.user.is_authenticated:
             context["pinned_lists"] = (
                 self.request.user.pinned_lists.filter(archived=False)
-                .select_related("content_house")
+                .with_latest_actions()
+                .select_related("content_house", "owner", "campaign")
+                .annotate(star_count=Count("starred_by", distinct=True))
                 .order_by("name")
             )
         else:

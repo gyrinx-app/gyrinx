@@ -56,6 +56,7 @@ def index(request):
             # These can include other users' public lists/campaigns the user pinned.
             pinned_all_lists = list(
                 request.user.pinned_lists.filter(archived=False)
+                .with_latest_actions()
                 .select_related("content_house", "campaign")
                 .order_by("name")
             )

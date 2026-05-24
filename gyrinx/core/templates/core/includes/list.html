@@ -115,7 +115,7 @@
                                       class="d-inline">
                                     {% csrf_token %}
                                     <button type="submit"
-                                            class="btn btn-secondary btn-sm"
+                                            class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
                                             title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this list">
                                         <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
                                         <span class="visually-hidden">
@@ -132,9 +132,9 @@
                                       class="d-inline">
                                     {% csrf_token %}
                                     <button type="submit"
-                                            class="btn btn-secondary btn-sm icon-link"
+                                            class="btn btn-sm icon-link {% if is_starred %}btn-warning{% else %}btn-secondary{% endif %}"
                                             title="{% if is_starred %}Unstar{% else %}Star{% endif %} this list">
-                                        <i class="bi-star{% if is_starred %}-fill text-warning{% endif %}"></i>
+                                        <i class="bi-star{% if is_starred %}-fill{% endif %}"></i>
                                         {{ star_count|default:0 }}
                                     </button>
                                 </form>

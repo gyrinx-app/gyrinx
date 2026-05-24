@@ -53,11 +53,10 @@
                         </div>
                         <div class="vstack gap-3">
                             {% if pinned_gangs %}
-                                <div class="vstack gap-2">
+                                <div class="vstack gap-3">
                                     <div class="caps-label">Pinned</div>
                                     {% for gang in pinned_gangs %}
-                                        {% url 'core:list' gang.id as gang_url %}
-                                        {% include "core/includes/pinned_card.html" with url=gang_url title=gang.name subtitle=gang.content_house.name %}
+                                        {% include "core/includes/home/gang_row.html" with gang=gang %}
                                     {% endfor %}
                                 </div>
                             {% endif %}
@@ -86,30 +85,7 @@
                                 </form>
                             {% endif %}
                             {% for gang in campaign_gangs %}
-                                <div class="hstack gap-3 position-relative">
-                                    <div class="d-flex flex-column gap-1">
-                                        <h3 class="mb-0 h5">
-                                            <a href="{% url 'core:list' gang.id %}">{% list_with_theme gang %}</a>
-                                        </h3>
-                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                            <div>{{ gang.content_house.name }}</div>
-                                            <div class="badge text-bg-primary">{% credits gang.facts_with_fallback.wealth %}</div>
-                                        </div>
-                                        <div class="fs-7">
-                                            <i class="bi-award"
-                                               data-bs-toggle="tooltip"
-                                               data-bs-title="Active in Campaign"></i>
-                                            <a class="d-none d-md-inline"
-                                               href="{% url 'core:campaign' gang.campaign.id %}">{{ gang.campaign.name }}</a>
-                                            <span class="d-inline d-md-none">{{ gang.campaign.name }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="ms-auto d-md-none">
-                                        <a href="{% url 'core:list' gang.id %}" class="p-3 stretched-link">
-                                            <i class="bi-chevron-right"></i>
-                                        </a>
-                                    </div>
-                                </div>
+                                {% include "core/includes/home/gang_row.html" with gang=gang %}
                             {% empty %}
                                 {% if search_gangs_query %}
                                     <p class="text-secondary">No Campaign Gangs matched your search.</p>
@@ -141,11 +117,10 @@
                         </div>
                         <div class="vstack gap-3">
                             {% if pinned_campaigns %}
-                                <div class="vstack gap-2">
+                                <div class="vstack gap-3">
                                     <div class="caps-label">Pinned</div>
                                     {% for campaign in pinned_campaigns %}
-                                        {% url 'core:campaign' campaign.id as campaign_url %}
-                                        {% include "core/includes/pinned_card.html" with url=campaign_url title=campaign.name subtitle=campaign.get_status_display %}
+                                        {% include "core/includes/home/campaign_row.html" with campaign=campaign %}
                                     {% endfor %}
                                 </div>
                             {% endif %}
@@ -172,24 +147,7 @@
                                 </form>
                             {% endif %}
                             {% for campaign in campaigns %}
-                                <div class="hstack gap-3 position-relative">
-                                    <div class="d-flex flex-column gap-1">
-                                        <h3 class="mb-0 h5">
-                                            <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
-                                        </h3>
-                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                            <div class="badge text-bg-{% if campaign.is_in_progress %}success{% else %}secondary{% endif %}">
-                                                {{ campaign.get_status_display }}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="ms-auto d-md-none">
-                                        <a href="{% url 'core:campaign' campaign.id %}"
-                                           class="p-3 stretched-link">
-                                            <i class="bi-chevron-right"></i>
-                                        </a>
-                                    </div>
-                                </div>
+                                {% include "core/includes/home/campaign_row.html" with campaign=campaign %}
                             {% empty %}
                                 {% if search_campaigns_query %}
                                     <p class="text-secondary">No Campaigns matched your search.</p>
@@ -216,11 +174,10 @@
                         </div>
                         <div class="vstack gap-3">
                             {% if pinned_lists %}
-                                <div class="vstack gap-2">
+                                <div class="vstack gap-3">
                                     <div class="caps-label">Pinned</div>
                                     {% for list in pinned_lists %}
-                                        {% url 'core:list' list.id as list_url %}
-                                        {% include "core/includes/pinned_card.html" with url=list_url title=list.name subtitle=list.content_house.name %}
+                                        {% include "core/includes/home/list_row.html" with list=list %}
                                     {% endfor %}
                                 </div>
                             {% endif %}
@@ -229,22 +186,7 @@
                                 {% include "core/includes/lists_filter.html" with action=action houses=houses compact=True %}
                             {% endif %}
                             {% for list in lists %}
-                                <div class="hstack gap-3 position-relative">
-                                    <div class="d-flex flex-column gap-1">
-                                        <h3 class="mb-0 h5">
-                                            <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
-                                        </h3>
-                                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                                            <div>{{ list.content_house_name }}</div>
-                                            <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
-                                        </div>
-                                    </div>
-                                    <div class="ms-auto d-md-none">
-                                        <a href="{% url 'core:list' list.id %}" class="p-3 stretched-link">
-                                            <i class="bi-chevron-right"></i>
-                                        </a>
-                                    </div>
-                                </div>
+                                {% include "core/includes/home/list_row.html" with list=list %}
                             {% empty %}
                                 {% if search_query and has_any_lists %}<p class="text-secondary">No lists matched your search.</p>{% endif %}
                                 <div class="py-2">
