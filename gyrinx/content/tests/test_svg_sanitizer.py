@@ -118,6 +118,30 @@ def test_fragment_use_href_preserved():
     assert 'href="#p"' in out
 
 
+def test_solid_fills_recoloured_to_currentcolor():
+    # Child elements with baked-in colours must be recoloured so the icon
+    # matches the surrounding text (the feature's core requirement).
+    svg = (
+        '<svg viewBox="0 0 4 4"><rect x="0" y="0" width="1" height="1" '
+        'fill="#000000"/><path d="M0 0" stroke="#ff0000"/></svg>'
+    )
+    out = sanitize_house_icon_svg(svg)
+    assert "#000000" not in out
+    assert "#ff0000" not in out
+    assert 'fill="currentColor"' in out
+    assert 'stroke="currentColor"' in out
+
+
+def test_fill_none_and_url_refs_preserved_when_recolouring():
+    svg = (
+        '<svg viewBox="0 0 4 4"><rect x="0" y="0" width="2" height="2" '
+        'fill="none"/><path d="M0 0" fill="url(#g)"/></svg>'
+    )
+    out = sanitize_house_icon_svg(svg)
+    assert 'fill="none"' in out
+    assert "url(#g)" in out
+
+
 def test_id_preserved_for_internal_references():
     # Internal refs (gradients, <use>, clipPath) need the target's id to survive.
     svg = (

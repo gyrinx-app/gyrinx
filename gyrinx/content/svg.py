@@ -120,6 +120,21 @@ _SCRIPT_STYLE_RE = re.compile(
     r"<(script|style|foreignObject)\b.*?</\1>", re.IGNORECASE | re.DOTALL
 )
 
+# Rewrite explicit solid fill/stroke colours to currentColor so the icon matches
+# the surrounding text colour (the feature's core requirement). Without this, a
+# child element's hardcoded ``fill="#000000"`` would override the root's
+# currentColor and the icon would render in its baked-in colour.
+_COLOR_ATTR_RE = re.compile(r'\b(fill|stroke)\s*=\s*"([^"]*)"', re.IGNORECASE)
+
+
+def _normalise_color(match):
+    value = match.group(2).strip().lower()
+    # Preserve "none" (intentionally unpainted) and url(#…) paint-server refs;
+    # any concrete colour becomes currentColor.
+    if value == "none" or value.startswith("url("):
+        return match.group(0)
+    return f'{match.group(1)}="currentColor"'
+
 
 def _find_attr(attrs, name):
     """Case-insensitive attribute lookup; returns the value or ``None``."""
@@ -152,6 +167,10 @@ def sanitize_house_icon_svg(raw: str, extra_classes: str = "") -> str:
         strip=True,
         strip_comments=True,
     )
+
+    # Recolour concrete fills/strokes to currentColor so the whole icon takes the
+    # surrounding text colour (root fill alone doesn't cascade past child fills).
+    cleaned = _COLOR_ATTR_RE.sub(_normalise_color, cleaned)
 
     match = _SVG_START_TAG_RE.search(cleaned)
     if not match:
