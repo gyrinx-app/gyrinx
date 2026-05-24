@@ -102,12 +102,20 @@ def handle_fighter_kill(
         category = assignment.content_equipment.category
         return bool(category and category.persistent)
 
-    to_transfer = [a for a in equipment_assignments if not _is_persistent(a)]
+    # Persistent gear stays on the fighter regardless of whether a stash
+    # exists. Non-persistent gear can only be transferred if there is a stash
+    # to receive it; without one nothing moves (matching the original
+    # no-stash behaviour), so transferred_count reflects actual transfers.
+    persistent_count = sum(1 for a in equipment_assignments if _is_persistent(a))
+    to_transfer = (
+        [a for a in equipment_assignments if not _is_persistent(a)]
+        if stash_fighter
+        else []
+    )
     transferred_count = len(to_transfer)
-    persistent_count = len(equipment_assignments) - transferred_count
 
     equipment_cost = 0
-    if stash_fighter and to_transfer:
+    if to_transfer:
         # Calculate transferred equipment cost before we delete assignments.
         # Only the transferred (non-persistent) gear bumps the stash — the
         # persistent items' value is absorbed into the rating reduction below.
