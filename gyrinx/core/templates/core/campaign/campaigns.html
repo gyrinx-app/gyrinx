@@ -17,7 +17,7 @@
         </div>
         <div class="grid">
             {% url 'core:campaigns' as action %}
-            {% include "core/includes/campaigns_filter.html" with action=action status_choices=status_choices %}
+            {% include "core/includes/campaigns_filter.html" with action=action status_choices=status_choices show_sort=True %}
         </div>
         <div class="row g-4">
             <div class="col-12 col-xl-8 order-2 order-xl-1 vstack gap-4">

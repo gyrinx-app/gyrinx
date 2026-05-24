@@ -54,7 +54,9 @@ def test_anyone_can_star_another_users_list(client, user, make_user, make_list):
 def test_get_does_not_toggle_star(client, user, make_list):
     lst = make_list("Star List")
     client.force_login(user)
-    client.get(reverse("core:list-star", args=[lst.id]))
+    # Toggle endpoints are POST-only; GET is rejected and must not mutate.
+    resp = client.get(reverse("core:list-star", args=[lst.id]))
+    assert resp.status_code == 405
     assert lst.starred_by.count() == 0
 
 

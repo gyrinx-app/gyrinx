@@ -91,6 +91,22 @@ def safe_redirect(request, url, fallback_url="/"):
     return HttpResponseRedirect(url)
 
 
+def toggle_membership(relation, user):
+    """
+    Toggle a user's membership in a many-to-many relation.
+
+    Used by the pin/star toggle views on lists and campaigns.
+
+    Returns:
+        True if the user is now a member, False if they were removed.
+    """
+    if relation.filter(pk=user.pk).exists():
+        relation.remove(user)
+        return False
+    relation.add(user)
+    return True
+
+
 def build_safe_url(request, path=None, query_string=None):
     """
     Build a safe URL from path and query string components.

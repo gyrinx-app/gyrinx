@@ -1,6 +1,7 @@
 import logging
 import random
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models, transaction
@@ -93,13 +94,13 @@ class Campaign(AppBase):
 
     # Per-user pins (private) and stars (public, with a count)
     pinned_by = models.ManyToManyField(
-        "auth.User",
+        settings.AUTH_USER_MODEL,
         blank=True,
         related_name="pinned_campaigns",
         help_text="Users who have pinned this campaign to their own home page.",
     )
     starred_by = models.ManyToManyField(
-        "auth.User",
+        settings.AUTH_USER_MODEL,
         blank=True,
         related_name="starred_campaigns",
         help_text="Users who have starred this campaign.",

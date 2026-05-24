@@ -11,6 +11,7 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
+from django.views.decorators.http import require_POST
 
 from gyrinx import messages
 from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
@@ -28,6 +29,7 @@ from gyrinx.core.utils import (
     get_return_url,
     safe_redirect,
     search_queryset,
+    toggle_membership,
 )
 from gyrinx.core.views.list.common import get_clean_list_or_404
 from gyrinx.models import is_valid_uuid
@@ -1129,16 +1131,8 @@ def refresh_list_cost(request, id):
     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
 
-def _toggle_membership(relation, user):
-    """Toggle a user's membership in a M2M relation. Returns True if now a member."""
-    if relation.filter(pk=user.pk).exists():
-        relation.remove(user)
-        return False
-    relation.add(user)
-    return True
-
-
 @login_required
+@require_POST
 def toggle_list_pin(request, id):
     """
     Toggle whether the current user has pinned a :model:`core.List`.
@@ -1148,10 +1142,8 @@ def toggle_list_pin(request, id):
     it. POST only; redirects back to where the request came from.
     """
     lst = get_object_or_404(List, id=id)
-
-    if request.method == "POST":
-        pinned = _toggle_membership(lst.pinned_by, request.user)
-        track("list_pin_toggle", list_id=str(lst.id), pinned=pinned)
+    pinned = toggle_membership(lst.pinned_by, request.user)
+    track("list_pin_toggle", list_id=str(lst.id), pinned=pinned)
 
     return safe_redirect(
         request,
@@ -1161,6 +1153,7 @@ def toggle_list_pin(request, id):
 
 
 @login_required
+@require_POST
 def toggle_list_star(request, id):
     """
     Toggle whether the current user has starred a :model:`core.List`.
@@ -1169,10 +1162,8 @@ def toggle_list_star(request, id):
     star it. POST only; redirects back to where the request came from.
     """
     lst = get_object_or_404(List, id=id)
-
-    if request.method == "POST":
-        starred = _toggle_membership(lst.starred_by, request.user)
-        track("list_star_toggle", list_id=str(lst.id), starred=starred)
+    starred = toggle_membership(lst.starred_by, request.user)
+    track("list_star_toggle", list_id=str(lst.id), starred=starred)
 
     return safe_redirect(
         request,
