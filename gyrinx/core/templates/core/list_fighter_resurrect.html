@@ -13,11 +13,15 @@
             <input type="hidden" name="target_state" value="{{ target_state }}">
             {% if reason %}<input type="hidden" name="reason" value="{{ reason }}">{% endif %}
             <p>
-                Are you sure you want to resurrect <strong>{{ fighter.name }}</strong>?
+                Are you sure you want to bring <strong>{{ fighter.name }}</strong> back from the dead?
             </p>
             <p>This will:</p>
             <ul>
-                <li>Return them to the gang roster</li>
+                {% if target_state == "active" %}
+                    <li>Return them to the gang roster</li>
+                {% else %}
+                    <li>Return them to the gang roster, in {{ target_state_display }}</li>
+                {% endif %}
                 <li>Set their rating back to its original value, minus equipment</li>
             </ul>
             <div class="alert alert-primary alert-icon mb-0" role="alert">

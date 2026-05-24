@@ -571,6 +571,9 @@ def resurrect_list_fighter(request, id, fighter_id):
             "fighter": fighter,
             "list": lst,
             "target_state": target_state,
+            "target_state_display": dict(ListFighter.INJURY_STATE_CHOICES).get(
+                target_state, ""
+            ),
             "reason": reason,
         },
     )
