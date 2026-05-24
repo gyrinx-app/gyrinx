@@ -415,6 +415,32 @@ def test_handle_fighter_resurrect_can_suppress_campaign_action(
     assert result.campaign_action is None
 
 
+@pytest.mark.django_db
+def test_handle_fighter_resurrect_appends_reason_to_campaign_action(
+    user, list_with_campaign, content_fighter
+):
+    """A reason is appended to the CampaignAction description (carried from the form)."""
+    lst = list_with_campaign
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+        cost_override=0,
+    )
+
+    result = handle_fighter_resurrect(
+        user=user,
+        fighter=fighter,
+        reason="Patched up by the Doc",
+    )
+
+    assert result.campaign_action is not None
+    assert "Patched up by the Doc" in result.campaign_action.description
+
+
 # ===== Stash accounting after kill (regression for stash_current 500) =====
 #
 # Bug: when a fighter is killed, handle_fighter_kill transfers their equipment

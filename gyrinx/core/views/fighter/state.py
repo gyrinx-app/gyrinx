@@ -145,8 +145,13 @@ def list_fighter_state_edit(request, id, fighter_id):
                     url = reverse(
                         "core:list-fighter-resurrect", args=(lst.id, fighter.id)
                     )
+                    params = {}
                     if new_state != ListFighter.ACTIVE:
-                        url += "?" + urlencode({"target_state": new_state})
+                        params["target_state"] = new_state
+                    if form.cleaned_data.get("reason"):
+                        params["reason"] = form.cleaned_data["reason"]
+                    if params:
+                        url += "?" + urlencode(params)
                     return HttpResponseRedirect(url)
 
                 with transaction.atomic():
@@ -486,6 +491,15 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
         list=lst,
         owner=lst.owner,
     )
+
+    # Check campaign mode — injuries (and the resurrect path the DEAD branch
+    # below routes through) only make sense for campaign-mode fighters.
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Injuries can only be removed from fighters in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
 
     if request.method == "POST":

@@ -218,11 +218,14 @@ def test_fighter_state_edit_active_redirects_to_resurrect(client, user, content_
         },
     )
 
-    # Should redirect to resurrect confirmation page
+    # Should redirect to resurrect confirmation page. ACTIVE is the default
+    # target so it isn't added to the query string, but the reason is carried
+    # over so it isn't lost (#1782).
     assert response.status_code == 302
-    assert response.url == reverse(
-        "core:list-fighter-resurrect", args=[lst.id, fighter.id]
-    )
+    base = reverse("core:list-fighter-resurrect", args=[lst.id, fighter.id])
+    assert response.url.startswith(base)
+    assert "target_state=" not in response.url
+    assert "reason=Resurrected" in response.url
 
     # Check state was NOT changed yet (resurrect view should handle it)
     fighter.refresh_from_db()
@@ -316,6 +319,47 @@ def test_state_edit_dead_to_recovery_routes_through_resurrect(
     fighter.refresh_from_db()
     assert fighter.injury_state == ListFighter.DEAD
     assert fighter.cost_override == 0
+
+
+@pytest.mark.django_db
+def test_state_edit_dead_exit_carries_reason_to_resurrect(
+    client, user, list_with_campaign, content_fighter
+):
+    """A reason entered on the state-edit form survives the redirect to resurrect (#1782)."""
+    lst = list_with_campaign
+    fighter = ListFighter.objects.create(
+        name="Dead Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+        cost_override=0,
+    )
+
+    client.force_login(user)
+    state_url = reverse("core:list-fighter-state-edit", args=[lst.id, fighter.id])
+    response = client.post(
+        state_url,
+        {"fighter_state": ListFighter.RECOVERY, "reason": "Back from the brink"},
+    )
+
+    # The redirect carries both target_state and the reason.
+    assert response.status_code == 302
+    assert "target_state=recovery" in response.url
+    assert "reason=" in response.url
+
+    # Completing the resurrect records the reason in the CampaignAction.
+    response = client.post(
+        response.url.split("?")[0],
+        {"target_state": ListFighter.RECOVERY, "reason": "Back from the brink"},
+    )
+    assert response.status_code == 302
+
+    action = CampaignAction.objects.filter(
+        description__startswith="Resurrection:"
+    ).last()
+    assert action is not None
+    assert "Back from the brink" in action.description
 
 
 @pytest.mark.django_db

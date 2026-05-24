@@ -517,6 +517,9 @@ def resurrect_list_fighter(request, id, fighter_id):
     target_state = source.get("target_state", ListFighter.ACTIVE)
     if target_state not in RESURRECT_TARGET_STATES:
         target_state = ListFighter.ACTIVE
+    # Optional reason carried over from the edit-state form so it isn't lost
+    # when that flow redirects here.
+    reason = source.get("reason", "")
 
     if request.method == "POST":
         if fighter.injury_state != ListFighter.DEAD:
@@ -528,6 +531,7 @@ def resurrect_list_fighter(request, id, fighter_id):
             user=request.user,
             fighter=fighter,
             target_state=target_state,
+            reason=reason,
         )
 
         # Log the resurrection event
@@ -563,7 +567,12 @@ def resurrect_list_fighter(request, id, fighter_id):
     return render(
         request,
         "core/list_fighter_resurrect.html",
-        {"fighter": fighter, "list": lst, "target_state": target_state},
+        {
+            "fighter": fighter,
+            "list": lst,
+            "target_state": target_state,
+            "reason": reason,
+        },
     )
 
 

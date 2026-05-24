@@ -42,6 +42,7 @@ def handle_fighter_resurrect(
     fighter: ListFighter,
     target_state: str = ListFighter.ACTIVE,
     create_campaign_action: bool = True,
+    reason: str = "",
 ) -> FighterResurrectResult:
     """
     Bring a dead fighter back out of the DEAD state, restoring their cost.
@@ -71,6 +72,8 @@ def handle_fighter_resurrect(
         create_campaign_action: Whether to log a CampaignAction. Callers that
             already log their own action (e.g. removing the last injury) can
             set this to False to avoid a duplicate log line.
+        reason: Optional free-text reason to append to the CampaignAction
+            description (e.g. from the edit-state form).
 
     Returns:
         FighterResurrectResult with fighter, restored cost, and actions
@@ -150,12 +153,15 @@ def handle_fighter_resurrect(
         else:
             target_display = dict(ListFighter.INJURY_STATE_CHOICES)[target_state]
             outcome = f"{fighter.name} is no longer dead and is now {target_display}."
+        action_description = f"Resurrection: {fighter.name} is no longer dead"
+        if reason:
+            action_description += f" - {reason}"
         campaign_action = CampaignAction.objects.create(
             user=user,
             owner=user,
             campaign=lst.campaign,
             list=lst,
-            description=f"Resurrection: {fighter.name} is no longer dead",
+            description=action_description,
             outcome=outcome,
         )
 
