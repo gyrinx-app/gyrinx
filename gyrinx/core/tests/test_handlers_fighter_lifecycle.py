@@ -334,6 +334,87 @@ def test_handle_fighter_resurrect_validates_not_stash(
         )
 
 
+@pytest.mark.django_db
+def test_handle_fighter_resurrect_into_recovery_clears_override(
+    user, list_with_campaign, content_fighter
+):
+    """Resurrecting into a non-ACTIVE state still clears cost_override (#1782)."""
+    lst = list_with_campaign
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+        cost_override=0,
+    )
+    restored_cost = fighter._base_cost_before_override()
+
+    result = handle_fighter_resurrect(
+        user=user,
+        fighter=fighter,
+        target_state=ListFighter.RECOVERY,
+    )
+
+    assert result.target_state == ListFighter.RECOVERY
+
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.RECOVERY
+    assert fighter.cost_override is None
+    assert fighter.cost_int() == restored_cost
+    assert restored_cost > 0
+
+
+@pytest.mark.django_db
+def test_handle_fighter_resurrect_rejects_dead_target(
+    user, list_with_campaign, content_fighter
+):
+    """A resurrection cannot target the DEAD state."""
+    lst = list_with_campaign
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+        cost_override=0,
+    )
+
+    with pytest.raises(ValueError, match="resurrect"):
+        handle_fighter_resurrect(
+            user=user,
+            fighter=fighter,
+            target_state=ListFighter.DEAD,
+        )
+
+
+@pytest.mark.django_db
+def test_handle_fighter_resurrect_can_suppress_campaign_action(
+    user, list_with_campaign, content_fighter
+):
+    """create_campaign_action=False skips the handler's CampaignAction."""
+    lst = list_with_campaign
+
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+        cost_override=0,
+    )
+
+    result = handle_fighter_resurrect(
+        user=user,
+        fighter=fighter,
+        create_campaign_action=False,
+    )
+
+    assert result.campaign_action is None
+
+
 # ===== Stash accounting after kill (regression for stash_current 500) =====
 #
 # Bug: when a fighter is killed, handle_fighter_kill transfers their equipment

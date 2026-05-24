@@ -14,6 +14,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from gyrinx import messages
 from gyrinx.core.forms.list import CloneListFighterForm, ListFighterForm
 from gyrinx.core.handlers.fighter import (
+    RESURRECT_TARGET_STATES,
     FighterCloneParams,
     handle_fighter_archive_toggle,
     handle_fighter_clone,
@@ -509,6 +510,14 @@ def resurrect_list_fighter(request, id, fighter_id):
         messages.error(request, "Cannot resurrect the stash.")
         return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
 
+    # The fighter can be brought back into ACTIVE (default) or, when routed here
+    # from the edit-state form, an injured non-DEAD state. Anything invalid
+    # falls back to ACTIVE.
+    source = request.POST if request.method == "POST" else request.GET
+    target_state = source.get("target_state", ListFighter.ACTIVE)
+    if target_state not in RESURRECT_TARGET_STATES:
+        target_state = ListFighter.ACTIVE
+
     if request.method == "POST":
         if fighter.injury_state != ListFighter.DEAD:
             messages.error(request, "Only dead fighters can be resurrected.")
@@ -518,6 +527,7 @@ def resurrect_list_fighter(request, id, fighter_id):
         handle_fighter_resurrect(
             user=request.user,
             fighter=fighter,
+            target_state=target_state,
         )
 
         # Log the resurrection event
@@ -533,17 +543,27 @@ def resurrect_list_fighter(request, id, fighter_id):
             action="resurrected",
         )
 
-        messages.success(
-            request,
-            f"{fighter.name} has been resurrected. They can now be re-equipped from the stash.",
-        )
+        if target_state == ListFighter.ACTIVE:
+            messages.success(
+                request,
+                f"{fighter.name} has been resurrected. They can now be re-equipped from the stash.",
+            )
+        else:
+            target_display = dict(ListFighter.INJURY_STATE_CHOICES)[target_state]
+            messages.success(
+                request,
+                f"{fighter.name} is no longer dead and is now {target_display}. "
+                "They can now be re-equipped from the stash.",
+            )
 
         return HttpResponseRedirect(
             reverse("core:list", args=(lst.id,)) + f"#{str(fighter.id)}"
         )
 
     return render(
-        request, "core/list_fighter_resurrect.html", {"fighter": fighter, "list": lst}
+        request,
+        "core/list_fighter_resurrect.html",
+        {"fighter": fighter, "list": lst, "target_state": target_state},
     )
 
 

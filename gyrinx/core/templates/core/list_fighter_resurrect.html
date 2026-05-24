@@ -10,6 +10,7 @@
         <form action="{% url 'core:list-fighter-resurrect' list.id fighter.id %}"
               method="post">
             {% csrf_token %}
+            <input type="hidden" name="target_state" value="{{ target_state }}">
             <p>
                 Are you sure you want to resurrect <strong>{{ fighter.name }}</strong>?
             </p>
