@@ -629,3 +629,62 @@ def test_non_owner_cannot_manage_injuries(
     # Cannot edit state
     url = reverse("core:list-fighter-state-edit", args=[co_list.id, co_fighter.id])
     assert client.get(url).status_code == 404
+
+
+@pytest.mark.django_db
+def test_remove_last_injury_on_dead_fighter_clears_cost_override(
+    client, user, list_with_campaign, content_fighter
+):
+    """Removing the last injury from a DEAD fighter routes through resurrect (#1782).
+
+    The auto-reset to ACTIVE must clear cost_override (set to 0 on death) and
+    restore the rating, rather than a bare save leaving it stuck at 0.
+
+    Uses ``list_with_campaign`` (which has an initial LIST_CREATE action) so the
+    rating propagation path is exercised, unlike the inline ``create_test_data``
+    helper whose list has no ``latest_action``.
+    """
+    lst = list_with_campaign
+    fighter = ListFighter.objects.create(
+        name="Dead Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+        cost_override=0,
+        rating_current=0,
+    )
+    restored_cost = fighter._base_cost_before_override()
+    assert restored_cost > 0
+
+    injury = ContentInjury.objects.create(
+        name="Test Lingering Injury",
+        description="Recovery",
+        phase=ContentInjuryDefaultOutcome.RECOVERY,
+    )
+    fighter_injury = ListFighterInjury.objects.create(
+        fighter=fighter,
+        injury=injury,
+        owner=user,
+    )
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-injury-remove", args=[lst.id, fighter.id, fighter_injury.id]
+    )
+    response = client.post(url)
+    assert response.status_code == 302
+
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.ACTIVE
+    assert fighter.cost_override is None
+    assert fighter.rating_current == restored_cost
+
+    lst.refresh_from_db()
+    assert lst.rating_current >= restored_cost
+
+    # The injury-removal CampaignAction is the single log line; the resurrect
+    # handler's own action is suppressed to avoid duplication.
+    actions = CampaignAction.objects.filter(campaign=lst.campaign)
+    assert actions.filter(outcome="Fighter became available").exists()
+    assert not actions.filter(description__startswith="Resurrection:").exists()

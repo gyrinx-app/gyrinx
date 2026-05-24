@@ -1,5 +1,7 @@
 """Fighter state, injuries, and capture views."""
 
+from urllib.parse import urlencode
+
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
@@ -9,6 +11,7 @@ from django.urls import reverse
 
 from gyrinx import messages
 from gyrinx.core.forms.list import AddInjuryForm, EditFighterStateForm
+from gyrinx.core.handlers.fighter import handle_fighter_resurrect
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
 from gyrinx.core.views.list.common import get_clean_list_or_404
@@ -134,17 +137,22 @@ def list_fighter_state_edit(request, id, fighter_id):
                     return HttpResponseRedirect(
                         reverse("core:list-fighter-kill", args=(lst.id, fighter.id))
                     )
-                # If resurrecting from dead to active, redirect to resurrect confirmation
-                elif (
-                    new_state == ListFighter.ACTIVE
-                    and fighter.injury_state == ListFighter.DEAD
-                ):
-                    # Don't save the state change here - let the resurrect view handle it
-                    return HttpResponseRedirect(
-                        reverse(
-                            "core:list-fighter-resurrect", args=(lst.id, fighter.id)
-                        )
+                # Leaving DEAD for any other state must go through the resurrect
+                # flow so cost_override (set to 0 on death) gets cleared and the
+                # rating restoration is propagated. A bare save here would leave
+                # the fighter active with cost_override=0 stuck (#1782).
+                elif fighter.injury_state == ListFighter.DEAD:
+                    url = reverse(
+                        "core:list-fighter-resurrect", args=(lst.id, fighter.id)
                     )
+                    params = {}
+                    if new_state != ListFighter.ACTIVE:
+                        params["target_state"] = new_state
+                    if form.cleaned_data.get("reason"):
+                        params["reason"] = form.cleaned_data["reason"]
+                    if params:
+                        url += "?" + urlencode(params)
+                    return HttpResponseRedirect(url)
 
                 with transaction.atomic():
                     fighter.injury_state = new_state
@@ -483,6 +491,15 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
         list=lst,
         owner=lst.owner,
     )
+
+    # Check campaign mode — injuries (and the resurrect path the DEAD branch
+    # below routes through) only make sense for campaign-mode fighters.
+    if lst.status != List.CAMPAIGN_MODE:
+        messages.error(
+            request, "Injuries can only be removed from fighters in campaign mode."
+        )
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
     injury = get_object_or_404(ListFighterInjury, id=injury_id, fighter=fighter)
 
     if request.method == "POST":
@@ -495,8 +512,20 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
             # If fighter has no more injuries, reset state to active
             if fighter.injuries.count() == 0:
-                fighter.injury_state = ListFighter.ACTIVE
-                fighter.save()
+                if fighter.injury_state == ListFighter.DEAD:
+                    # A dead fighter has cost_override=0; route through the
+                    # resurrect handler so the cost is restored rather than a
+                    # bare save leaving it stuck at 0 (#1782). We log our own
+                    # CampaignAction below, so suppress the handler's.
+                    handle_fighter_resurrect(
+                        user=request.user,
+                        fighter=fighter,
+                        target_state=ListFighter.ACTIVE,
+                        create_campaign_action=False,
+                    )
+                else:
+                    fighter.injury_state = ListFighter.ACTIVE
+                    fighter.save()
                 outcome = "Fighter became available"
             else:
                 outcome = "Injury removed"

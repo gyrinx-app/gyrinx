@@ -29,6 +29,7 @@ from gyrinx.core.handlers.fighter.removal import (
     handle_fighter_deletion,
 )
 from gyrinx.core.handlers.fighter.resurrect import (
+    RESURRECT_TARGET_STATES,
     FighterResurrectResult,
     handle_fighter_resurrect,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "FighterArchiveResult",
     "FighterCloneParams",
     "FighterCloneResult",
+    "RESURRECT_TARGET_STATES",
     "FighterDeletionResult",
     "FighterEditResult",
     "FighterHireResult",

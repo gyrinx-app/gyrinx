@@ -254,6 +254,41 @@ def test_resurrect_fighter_confirmation_page(client, user, content_house):
 
 
 @pytest.mark.django_db
+def test_resurrect_confirmation_reflects_non_active_target_state(
+    client, user, content_house
+):
+    """The confirmation page names the resulting state when it isn't Active (#1782)."""
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=content_house,
+        status=List.CAMPAIGN_MODE,
+    )
+    content_fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=50,
+    )
+    fighter = ListFighter.objects.create(
+        name="Deceased Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        injury_state=ListFighter.DEAD,
+    )
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-resurrect", args=[lst.id, fighter.id])
+    response = client.get(url, {"target_state": ListFighter.RECOVERY})
+
+    assert response.status_code == 200
+    # The hidden field round-trips the target, and the copy names the state.
+    assert b'name="target_state" value="recovery"' in response.content
+    assert b"Recovery" in response.content
+
+
+@pytest.mark.django_db
 def test_resurrect_fighter_creates_campaign_action(client, user, content_house):
     """Test that resurrecting a fighter creates a campaign action."""
     fighter_name = "Deceased Fighter"
