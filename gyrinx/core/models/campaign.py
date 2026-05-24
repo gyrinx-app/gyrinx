@@ -373,7 +373,17 @@ class Campaign(AppBase):
 
 class CampaignContentPack(models.Model):
     """Through-model for Campaign.packs. The `required` flag means every list
-    in the campaign must be subscribed to this pack."""
+    in the campaign must be subscribed to this pack.
+
+    Intentionally a bare ``models.Model`` (BigAutoField PK, no
+    ``HistoricalRecords``) rather than ``AppBase``. Promoting it was considered
+    and declined in #1774: ``AppBase`` mandates a UUID PK, which would force a
+    risky one-way PK swap on the live ``core_campaign_packs`` table for no
+    consumer benefit (nothing FKs to this leaf join, and the lock path keys on
+    ``(campaign, pack)``). History would also be near-useless here because
+    ``packs.add()/.remove()`` go through ``bulk_create``/bulk-delete and fire no
+    signals. If we ever want a `required`-flip audit trail, log a
+    ``CampaignAction`` instead."""
 
     campaign = models.ForeignKey(
         Campaign,
