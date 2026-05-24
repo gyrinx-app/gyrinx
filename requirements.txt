@@ -2,10 +2,10 @@ asgiref==3.11.1
 bandit==1.9.4
 beautifulsoup4==4.14.3
 bleach[css]==6.3.0
-click==8.3.3
+click==8.4.1
 daphne==4.2.1
 Django==6.0.5
-django-allauth==65.16.1
+django-allauth==65.17.0
 django-csp==4.0
 django-debug-toolbar==6.3.0
 django-extensions==4.1
@@ -35,7 +35,7 @@ opentelemetry-propagator-gcp>=1.12.0
 # OpenTelemetry - Cloud Trace integration
 opentelemetry-sdk>=1.42.1
 Pillow==12.2.0
-playwright==1.59.0
+playwright==1.60.0
 pre-commit==4.6.0
 psycopg2-binary==2.9.12
 pyasn1>=0.6.3
@@ -52,7 +52,7 @@ qrcode==8.2
 referencing==0.37.0
 requests>=2.34.2
 rich==15.0.0
-ruff==0.15.13
+ruff==0.15.14
 setuptools==81.0.0
 simpleeval==1.0.7
 sqlparse==0.5.5
