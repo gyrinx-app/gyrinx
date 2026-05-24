@@ -169,6 +169,23 @@ def test_lists_sort_by_stars(client, user, make_list):
 
 
 @pytest.mark.django_db
+def test_lists_your_lists_toggle_stays_checked_with_sort_param(client, user, make_list):
+    # Regression: the "Your Lists Only" toggle should remain checked when a
+    # sort (or any) query param is present, since `my` defaults to on.
+    import re
+
+    make_list("Alpha")
+    client.force_login(user)
+
+    resp = client.get(reverse("core:lists"), {"sort": "name"})
+    html = resp.content.decode()
+    # The your-lists checkbox input block should still carry `checked`.
+    match = re.search(r'id="your-lists".*?>', html, re.DOTALL)
+    assert match is not None
+    assert "checked" in match.group(0)
+
+
+@pytest.mark.django_db
 def test_lists_default_sort_recent_runs(client, user, make_list):
     # Default (recent) sort uses an action-time annotation; ensure it works.
     make_list("One")
