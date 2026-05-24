@@ -45,6 +45,21 @@ SVG_ALLOWED_TAGS = {
     "mask",
 }
 
+
+def _use_attr_allowed(tag, name, value):
+    """Attribute filter for ``<use>``: only same-document fragment ``href``.
+
+    Allowing arbitrary ``href`` on ``<use>`` would let an uploaded icon
+    reference external resources (``<use href="https://…">``), causing clients
+    to fetch third-party content when the inline icon renders. Restrict ``href``
+    to fragment-only references (``#id``) and otherwise fall back to the shared
+    geometry/presentation allowlist.
+    """
+    if name == "href":
+        return value.strip().startswith("#")
+    return name in _USE_ALLOWED_ATTRS
+
+
 # Geometry/presentation attributes only. bleach drops any attribute not listed
 # here, which removes every ``on*`` event handler. ``style`` is deliberately
 # omitted to avoid a CSS attack surface — icons colour themselves via fill.
@@ -65,6 +80,9 @@ _PRESENTATION_ATTRS = [
     "class",
 ]
 
+# Non-href attributes permitted on <use>; href is handled by _use_attr_allowed.
+_USE_ALLOWED_ATTRS = _PRESENTATION_ATTRS + ["x", "y", "width", "height"]
+
 SVG_ALLOWED_ATTRS = {
     "*": _PRESENTATION_ATTRS,
     "svg": _PRESENTATION_ATTRS
@@ -76,7 +94,7 @@ SVG_ALLOWED_ATTRS = {
     "line": _PRESENTATION_ATTRS + ["x1", "y1", "x2", "y2"],
     "polyline": _PRESENTATION_ATTRS + ["points"],
     "polygon": _PRESENTATION_ATTRS + ["points"],
-    "use": _PRESENTATION_ATTRS + ["href", "x", "y", "width", "height"],
+    "use": _use_attr_allowed,
     "symbol": _PRESENTATION_ATTRS + ["viewBox"],
     "stop": _PRESENTATION_ATTRS + ["offset", "stop-color", "stop-opacity"],
     "linearGradient": _PRESENTATION_ATTRS

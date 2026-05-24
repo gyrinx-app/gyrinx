@@ -708,7 +708,9 @@ class ContentFighterInline(ContentTabularInline):
 
 @admin.register(ContentHouse)
 class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
-    list_display = ["name", "icon"]
+    # ContentAdmin.__init__ builds list_display from the model's fields, so the
+    # new `icon` field appears in the changelist automatically — no override
+    # needed here. The icon is editable via the change form for the same reason.
     list_display_links = ["name"]
     search_fields = ["name"]
     inlines = [ContentFighterInline]

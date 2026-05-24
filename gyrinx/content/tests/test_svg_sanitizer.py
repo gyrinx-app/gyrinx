@@ -100,6 +100,24 @@ def test_extra_classes_appended():
     assert 'class="house-icon me-1 text-danger"' in out
 
 
+def test_external_use_href_removed():
+    # <use href="https://…"> would make clients fetch remote content inline.
+    svg = (
+        '<svg viewBox="0 0 10 10"><use href="https://evil.example/x.svg#i"/>'
+        '<path d="M0 0"/></svg>'
+    )
+    out = sanitize_house_icon_svg(svg)
+    assert "evil.example" not in out
+    assert "href" not in out
+
+
+def test_fragment_use_href_preserved():
+    # Same-document fragment references are safe and kept.
+    svg = '<svg viewBox="0 0 10 10"><use href="#p"/><path d="M0 0"/></svg>'
+    out = sanitize_house_icon_svg(svg)
+    assert 'href="#p"' in out
+
+
 def test_gradient_camelcase_attributes_preserved():
     svg = (
         '<svg viewBox="0 0 2 2"><linearGradient gradientUnits="userSpaceOnUse">'
