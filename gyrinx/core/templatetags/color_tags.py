@@ -1,3 +1,5 @@
+from hashlib import sha256
+
 from django import template
 from django.core.cache import cache
 from django.utils.safestring import mark_safe
@@ -72,7 +74,11 @@ def _house_icon_svg(icon, extra_classes):
     so re-uploads bust the cache) and the requested extra classes. Failures are
     cached as empty strings to avoid re-reading broken files every request.
     """
-    cache_key = f"house_icon_svg:{icon.name}:{extra_classes}"
+    # Hash the variable key material (file name + classes) so the cache key is
+    # safe for all backends (memcached rejects spaces/control chars and caps
+    # length), matching the hashing approach used by the `ref` tag.
+    digest = sha256(f"{icon.name}|{extra_classes}".encode("utf-8")).hexdigest()
+    cache_key = f"house_icon_svg:{digest}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

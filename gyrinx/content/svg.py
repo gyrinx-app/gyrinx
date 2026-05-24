@@ -63,7 +63,12 @@ def _use_attr_allowed(tag, name, value):
 # Geometry/presentation attributes only. bleach drops any attribute not listed
 # here, which removes every ``on*`` event handler. ``style`` is deliberately
 # omitted to avoid a CSS attack surface — icons colour themselves via fill.
+# ``id`` is allowed so internal references resolve (``<use href="#x">``,
+# ``fill="url(#grad)"``, clipPath/mask targets); without it those refs would
+# silently break. Ids from different icons can collide in the DOM, but that's a
+# cosmetic risk acceptable for this alpha-gated, monochrome-icon feature.
 _PRESENTATION_ATTRS = [
+    "id",
     "fill",
     "fill-rule",
     "fill-opacity",

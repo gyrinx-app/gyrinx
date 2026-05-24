@@ -118,6 +118,19 @@ def test_fragment_use_href_preserved():
     assert 'href="#p"' in out
 
 
+def test_id_preserved_for_internal_references():
+    # Internal refs (gradients, <use>, clipPath) need the target's id to survive.
+    svg = (
+        '<svg viewBox="0 0 10 10"><defs>'
+        '<linearGradient id="g"><stop offset="0" stop-color="#fff"/></linearGradient>'
+        '</defs><rect x="0" y="0" width="10" height="10" fill="url(#g)" id="r"/></svg>'
+    )
+    out = sanitize_house_icon_svg(svg)
+    assert 'id="g"' in out
+    assert 'id="r"' in out
+    assert 'fill="url(#g)"' in out
+
+
 def test_gradient_camelcase_attributes_preserved():
     svg = (
         '<svg viewBox="0 0 2 2"><linearGradient gradientUnits="userSpaceOnUse">'
