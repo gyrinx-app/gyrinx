@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 import requests
 from django.conf import settings
@@ -29,6 +30,136 @@ def refresh_list_facts(list_id: str):
         logger.info(f"Refreshed facts for list {list_id}")
     except List.DoesNotExist:
         logger.warning(f"List {list_id} not found for facts refresh")
+
+
+@task
+def propagate_default_child_fighter_assignment(default_assignment_id: str):
+    """Propagate a newly-created child-spawning default to existing gangs.
+
+    When a pack author adds a ``ContentFighterDefaultAssignment`` whose
+    equipment spawns a child fighter (a vehicle / exotic beast), every gang
+    already subscribed to a pack containing that fighter type — and holding a
+    list-fighter of that type — should get the child fighter materialised, not
+    just gangs created after the change (issue #1725).
+
+    Idempotent: re-running is safe (the materialisation helper skips disabled
+    and already-materialised defaults).
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from django.db import transaction
+
+    from gyrinx.content.models.default_assignment import (
+        ContentFighterDefaultAssignment,
+    )
+    from gyrinx.content.models.fighter import ContentFighter
+    from gyrinx.core.models.action import ListActionType
+    from gyrinx.core.models.list import (
+        ListFighter,
+        _materialise_child_fighter_defaults,
+    )
+    from gyrinx.core.models.pack import CustomContentPackItem
+
+    try:
+        default = ContentFighterDefaultAssignment.objects.get(pk=default_assignment_id)
+    except ContentFighterDefaultAssignment.DoesNotExist:
+        logger.warning(
+            f"Default assignment {default_assignment_id} not found for propagation"
+        )
+        return
+
+    # Re-verify at execution time: the profile may have been removed between
+    # enqueue and run. Only child-spawning defaults need materialising.
+    if not default.equipment.contentequipmentfighterprofile_set.exists():
+        return
+
+    # Packs containing this fighter type. This is a subscriber read path, so we
+    # must NOT filter `archived` on the pack or pack item — archived content
+    # stays visible to gangs already subscribed (see CLAUDE.md "Content packs:
+    # archive semantics", issue #1742).
+    fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+    pack_ids = list(
+        CustomContentPackItem.objects.filter(
+            content_type=fighter_ct, object_id=default.fighter_id
+        )
+        .values_list("pack_id", flat=True)
+        .distinct()
+    )
+    if not pack_ids:
+        return
+
+    # Affected list-fighters: of this fighter type, on lists subscribed to a
+    # pack that contains the fighter. Legacy-only fighters
+    # (legacy_content_fighter) are a documented gap — the materialisation
+    # helper acts on content_fighter defaults only, matching the hire-time
+    # path.
+    affected = (
+        ListFighter.objects.filter(
+            content_fighter=default.fighter,
+            archived=False,
+            list__packs__in=pack_ids,
+        )
+        .select_related("list")
+        .distinct()
+    )
+
+    # Group by list so we create at most one action per affected gang.
+    fighters_by_list: dict[str, list] = defaultdict(list)
+    for fighter in affected:
+        fighters_by_list[fighter.list_id].append(fighter)
+
+    equipment_name = default.equipment.name
+
+    propagated_count = 0
+    for list_id, fighters in fighters_by_list.items():
+        try:
+            with transaction.atomic():
+                created_total = 0
+                for fighter in fighters:
+                    created_total += _materialise_child_fighter_defaults(fighter)
+
+                # Idempotent no-op: already materialised on every fighter.
+                if created_total == 0:
+                    continue
+
+                # affected is select_related("list"), so reuse the loaded
+                # instance rather than re-fetching the list.
+                lst = fighters[0].list
+
+                # Keep the list's cached rating/stash consistent.
+                old_rating = lst.rating_current
+                old_stash = lst.stash_current
+                facts = lst.facts_from_db(update=True)
+                rating_delta = facts.rating - old_rating
+                stash_delta = facts.stash - old_stash
+
+                # Awareness-only action. Materialising a child-spawning default
+                # has a net-zero cost impact (the default is virtual/0-cost, the
+                # direct assignment uses cost_override=0, and child fighters
+                # don't contribute to list cost), so we never charge or refund
+                # credits — even in campaign mode. We still log it so gang
+                # owners see why a new fighter appeared.
+                lst.create_action(
+                    action_type=ListActionType.CONTENT_COST_CHANGE,
+                    description=f"Pack added a default {equipment_name}",
+                    rating_before=old_rating,
+                    stash_before=old_stash,
+                    rating_delta=rating_delta,
+                    stash_delta=stash_delta,
+                    credits_delta=0,
+                    update_credits=False,
+                    skip_apply=["rating", "stash"],
+                )
+                propagated_count += 1
+        except Exception:
+            logger.exception(
+                f"Failed to propagate default {default_assignment_id} to list {list_id}"
+            )
+
+    logger.info(
+        f"Propagated default {default_assignment_id}: "
+        f"materialised on {propagated_count} list(s), "
+        f"checked {len(fighters_by_list)}"
+    )
 
 
 @task
