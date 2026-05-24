@@ -3938,14 +3938,24 @@ def enqueue_propagate_default_child_fighter_assignment(
         return
     if not instance.equipment.contentequipmentfighterprofile_set.exists():
         return
-    try:
-        propagate_default_child_fighter_assignment.enqueue(
-            default_assignment_id=str(instance.pk)
-        )
-    except Exception as e:
-        logger.warning(
-            f"Failed to enqueue propagation for default assignment {instance.pk}: {e}"
-        )
+
+    default_assignment_id = str(instance.pk)
+
+    def _enqueue():
+        try:
+            propagate_default_child_fighter_assignment.enqueue(
+                default_assignment_id=default_assignment_id
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to enqueue propagation for default assignment "
+                f"{default_assignment_id}: {e}"
+            )
+
+    # Defer until the surrounding transaction commits: the worker runs in a
+    # separate process (prod Pub/Sub backend) and must not race the commit or
+    # run for an assignment that ends up rolled back.
+    transaction.on_commit(_enqueue)
 
 
 @receiver(

@@ -54,7 +54,6 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
     from gyrinx.content.models.fighter import ContentFighter
     from gyrinx.core.models.action import ListActionType
     from gyrinx.core.models.list import (
-        List,
         ListFighter,
         _materialise_child_fighter_defaults,
     )
@@ -110,6 +109,7 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
 
     equipment_name = default.equipment.name
 
+    propagated_count = 0
     for list_id, fighters in fighters_by_list.items():
         try:
             with transaction.atomic():
@@ -121,7 +121,9 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                 if created_total == 0:
                     continue
 
-                lst = List.objects.get(id=list_id)
+                # affected is select_related("list"), so reuse the loaded
+                # instance rather than re-fetching the list.
+                lst = fighters[0].list
 
                 # Keep the list's cached rating/stash consistent.
                 old_rating = lst.rating_current
@@ -147,16 +149,16 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                     update_credits=False,
                     skip_apply=["rating", "stash"],
                 )
-        except List.DoesNotExist:
-            continue
-        except Exception as e:
-            logger.error(
-                f"Failed to propagate default {default_assignment_id} "
-                f"to list {list_id}: {e}"
+                propagated_count += 1
+        except Exception:
+            logger.exception(
+                f"Failed to propagate default {default_assignment_id} to list {list_id}"
             )
 
     logger.info(
-        f"Propagated default {default_assignment_id} to {len(fighters_by_list)} list(s)"
+        f"Propagated default {default_assignment_id}: "
+        f"materialised on {propagated_count} list(s), "
+        f"checked {len(fighters_by_list)}"
     )
 
 

@@ -7,9 +7,6 @@ spawns a child fighter (a vehicle / exotic beast via
 *every* already-subscribed gang that has a list-fighter of the relevant type —
 not just gangs created after the change.
 
-These tests are written red-first: they describe the desired behaviour before
-the propagation signal + task land.
-
 Cost note: materialising a default child-spawning assignment produces a net
 rating delta of ZERO (the default assignment is virtual/0-cost, the direct
 assignment uses ``cost_override=0``, and child fighters don't contribute to
@@ -122,12 +119,26 @@ def _subscribed_list_with_parent(make_list, content_house, pack, parent_cf, user
     return lst, parent
 
 
+def _create_default(capture, fighter, equipment):
+    """Create a child-spawning default and run the deferred propagation.
+
+    The post_save signal defers the task enqueue to ``transaction.on_commit``;
+    pytest's wrapping transaction never commits, so we use
+    ``django_capture_on_commit_callbacks(execute=True)`` to fire it (the
+    ImmediateBackend then runs the task synchronously).
+    """
+    with capture(execute=True):
+        return ContentFighterDefaultAssignment.objects.create(
+            fighter=fighter, equipment=equipment
+        )
+
+
 # --- Signal gating -------------------------------------------------------------
 
 
 @pytest.mark.django_db
 def test_signal_enqueues_only_for_child_spawning_created_default(
-    child_spawning_setup, make_equipment
+    child_spawning_setup, make_equipment, django_capture_on_commit_callbacks
 ):
     """The post_save signal enqueues the task only when a default is *created*
     AND its equipment has a ContentEquipmentFighterProfile."""
@@ -141,21 +152,24 @@ def test_signal_enqueues_only_for_child_spawning_created_default(
         "gyrinx.core.models.list.propagate_default_child_fighter_assignment"
     ) as mock_task:
         # Non-child-spawning default -> must NOT enqueue.
-        ContentFighterDefaultAssignment.objects.create(
-            fighter=parent_cf, equipment=plain_equipment
-        )
+        with django_capture_on_commit_callbacks(execute=True):
+            ContentFighterDefaultAssignment.objects.create(
+                fighter=parent_cf, equipment=plain_equipment
+            )
         mock_task.enqueue.assert_not_called()
 
-        # Child-spawning default -> must enqueue exactly once.
-        default = ContentFighterDefaultAssignment.objects.create(
-            fighter=parent_cf, equipment=equipment
-        )
+        # Child-spawning default -> must enqueue exactly once (after commit).
+        with django_capture_on_commit_callbacks(execute=True):
+            default = ContentFighterDefaultAssignment.objects.create(
+                fighter=parent_cf, equipment=equipment
+            )
         mock_task.enqueue.assert_called_once_with(default_assignment_id=str(default.pk))
 
         # Editing the child-spawning default (created=False) -> must NOT re-enqueue.
         mock_task.enqueue.reset_mock()
-        default.cost = 5
-        default.save()
+        with django_capture_on_commit_callbacks(execute=True):
+            default.cost = 5
+            default.save()
         mock_task.enqueue.assert_not_called()
 
 
@@ -164,7 +178,11 @@ def test_signal_enqueues_only_for_child_spawning_created_default(
 
 @pytest.mark.django_db
 def test_propagation_reaches_existing_subscribed_gang(
-    child_spawning_setup, make_list, content_house, user
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
 ):
     """Creating a child-spawning default materialises the child fighter on an
     existing subscribed gang's matching list-fighter."""
@@ -180,9 +198,7 @@ def test_propagation_reaches_existing_subscribed_gang(
     # Sanity: no child yet.
     assert not ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
 
-    ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     # Child fighter materialised on the existing parent.
     assert ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
@@ -195,7 +211,13 @@ def test_propagation_reaches_existing_subscribed_gang(
 
 
 @pytest.mark.django_db
-def test_idempotent_rerun(child_spawning_setup, make_list, content_house, user):
+def test_idempotent_rerun(
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
+):
     """Re-running the task does not create duplicate child fighters/assignments."""
     parent_cf = child_spawning_setup["parent_cf"]
     child_cf = child_spawning_setup["child_cf"]
@@ -205,9 +227,7 @@ def test_idempotent_rerun(child_spawning_setup, make_list, content_house, user):
     lst, parent = _subscribed_list_with_parent(
         make_list, content_house, pack, parent_cf, user
     )
-    default = ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    default = _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     children_before = ListFighter.objects.filter(
         list=lst, content_fighter=child_cf
@@ -278,7 +298,11 @@ def test_existing_materialised_assignment_untouched(
 
 @pytest.mark.django_db
 def test_unsubscribed_gang_unaffected(
-    child_spawning_setup, make_list, content_house, user
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
 ):
     """A list NOT subscribed to the pack does not receive the child fighter."""
     parent_cf = child_spawning_setup["parent_cf"]
@@ -291,16 +315,18 @@ def test_unsubscribed_gang_unaffected(
         list=lst, content_fighter=parent_cf, name="Lone Driver", owner=user
     )
 
-    ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     assert not ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
 
 
 @pytest.mark.django_db
 def test_archived_pack_item_still_propagates_to_subscriber(
-    child_spawning_setup, make_list, content_house, user
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
 ):
     """Archive semantics: an archived pack item still propagates to gangs that
     are already subscribed (archived content stays visible to subscribers)."""
@@ -321,9 +347,7 @@ def test_archived_pack_item_still_propagates_to_subscriber(
     item.archived = True
     item.save()
 
-    ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     assert ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
 
@@ -332,7 +356,13 @@ def test_archived_pack_item_still_propagates_to_subscriber(
 
 
 @pytest.mark.django_db
-def test_action_log_entry_created(child_spawning_setup, make_list, content_house, user):
+def test_action_log_entry_created(
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
+):
     """An awareness action is logged per affected list, referencing the
     equipment, with a true (zero) rating delta and no credit charge."""
     parent_cf = child_spawning_setup["parent_cf"]
@@ -347,9 +377,7 @@ def test_action_log_entry_created(child_spawning_setup, make_list, content_house
         list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
     ).count()
 
-    ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     actions = ListAction.objects.filter(
         list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
@@ -363,7 +391,11 @@ def test_action_log_entry_created(child_spawning_setup, make_list, content_house
 
 @pytest.mark.django_db
 def test_campaign_mode_no_credit_charge(
-    child_spawning_setup, make_list, content_house, user
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
 ):
     """In campaign mode, propagation must not charge or refund credits."""
     from gyrinx.core.models.list import List
@@ -383,9 +415,7 @@ def test_campaign_mode_no_credit_charge(
         list=lst, content_fighter=parent_cf, name="Driver", owner=user
     )
 
-    ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     lst.refresh_from_db()
     assert lst.credits_current == 100
@@ -395,7 +425,11 @@ def test_campaign_mode_no_credit_charge(
 
 @pytest.mark.django_db
 def test_no_action_when_list_has_no_latest_action(
-    child_spawning_setup, make_list, content_house, user
+    child_spawning_setup,
+    make_list,
+    content_house,
+    user,
+    django_capture_on_commit_callbacks,
 ):
     """A subscribed list without an initial action still materialises the child
     but records no CONTENT_COST_CHANGE action."""
@@ -412,9 +446,7 @@ def test_no_action_when_list_has_no_latest_action(
         list=lst, content_fighter=parent_cf, name="Driver", owner=user
     )
 
-    ContentFighterDefaultAssignment.objects.create(
-        fighter=parent_cf, equipment=equipment
-    )
+    _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
     # Child still materialised.
     assert ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
