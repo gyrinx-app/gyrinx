@@ -42,6 +42,9 @@ def index(request):
         search_query = None
         search_gangs_query = None
         search_campaigns_query = None
+        pinned_lists = []
+        pinned_gangs = []
+        pinned_campaigns = []
     else:
         with span("fetch_user_dashboard_data"):
             # Check if user has ANY lists (for showing filter)
@@ -49,11 +52,34 @@ def index(request):
                 owner=request.user, status=List.LIST_BUILDING, archived=False
             ).exists()
 
+            # Pinned items (private to the user) shown at the top of each column.
+            # These can include other users' public lists/campaigns the user pinned.
+            pinned_all_lists = list(
+                request.user.pinned_lists.filter(archived=False)
+                .with_latest_actions()
+                .select_related("content_house", "campaign")
+                .order_by("name")
+            )
+            pinned_lists = [
+                lst for lst in pinned_all_lists if lst.status == List.LIST_BUILDING
+            ]
+            pinned_gangs = [
+                lst for lst in pinned_all_lists if lst.status == List.CAMPAIGN_MODE
+            ]
+            pinned_campaigns = list(
+                request.user.pinned_campaigns.filter(archived=False)
+                .select_related("owner")
+                .order_by("name")
+            )
+            pinned_list_ids = [lst.id for lst in pinned_all_lists]
+            pinned_campaign_ids = [c.id for c in pinned_campaigns]
+
             # Regular lists (not in campaigns) - show 5 most recent
             lists_queryset = (
                 List.objects.filter(
                     owner=request.user, status=List.LIST_BUILDING, archived=False
                 )
+                .exclude(id__in=pinned_list_ids)
                 .with_latest_actions()
                 .select_related("content_house")
             )
@@ -79,6 +105,7 @@ def index(request):
                     campaign__status=Campaign.IN_PROGRESS,
                     campaign__archived=False,
                 )
+                .exclude(id__in=pinned_list_ids)
                 .with_latest_actions()
                 .select_related("campaign", "content_house")
             )
@@ -95,13 +122,17 @@ def index(request):
             campaign_gangs = campaign_gangs_queryset.order_by("-modified")[:5]
 
             # Campaigns - where user is owner or has lists participating
-            campaigns_queryset = Campaign.objects.filter(
-                Q(archived=False)
-                & (
-                    Q(owner=request.user)  # User is campaign admin
-                    | Q(campaign_lists__owner=request.user)
-                )  # User has lists in the campaign
-            ).distinct()
+            campaigns_queryset = (
+                Campaign.objects.filter(
+                    Q(archived=False)
+                    & (
+                        Q(owner=request.user)  # User is campaign admin
+                        | Q(campaign_lists__owner=request.user)
+                    )  # User has lists in the campaign
+                )
+                .exclude(id__in=pinned_campaign_ids)
+                .distinct()
+            )
 
             # Apply search filter for campaigns
             search_campaigns_query = request.GET.get("q_campaigns")
@@ -158,6 +189,9 @@ def index(request):
             "search_gangs_query": search_gangs_query,
             "search_campaigns_query": search_campaigns_query,
             "featured_packs": featured_packs,
+            "pinned_lists": pinned_lists,
+            "pinned_gangs": pinned_gangs,
+            "pinned_campaigns": pinned_campaigns,
         },
     )
 

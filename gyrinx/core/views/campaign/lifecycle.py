@@ -3,15 +3,17 @@
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from gyrinx import messages
 from gyrinx.core.handlers.campaign_operations import handle_campaign_start
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
+from gyrinx.core.utils import safe_redirect, toggle_membership
 from gyrinx.tracker import track
 
 
@@ -288,4 +290,51 @@ def archive_campaign(request, id):
         request,
         "core/campaign/campaign_archive.html",
         {"campaign": campaign},
+    )
+
+
+@login_required
+@require_POST
+def toggle_campaign_pin(request, id):
+    """
+    Toggle whether the current user has pinned a :model:`core.Campaign`.
+
+    Pins are private to each user and surface the campaign on their home page
+    and on the campaigns page sidebar. The owner and any participant (a user
+    with a list in the campaign) may pin it. POST only; redirects back to where
+    the request came from.
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    if (
+        campaign.owner != request.user
+        and not campaign.lists.filter(owner=request.user).exists()
+    ):
+        raise Http404("Campaign not found")
+    pinned = toggle_membership(campaign.pinned_by, request.user)
+    track("campaign_pin_toggle", campaign_id=str(campaign.id), pinned=pinned)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:campaign", args=(campaign.id,)),
+    )
+
+
+@login_required
+@require_POST
+def toggle_campaign_star(request, id):
+    """
+    Toggle whether the current user has starred a :model:`core.Campaign`.
+
+    Stars are public and counted. Any logged-in user who can see the campaign
+    may star it. POST only; redirects back to where the request came from.
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    starred = toggle_membership(campaign.starred_by, request.user)
+    track("campaign_star_toggle", campaign_id=str(campaign.id), starred=starred)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:campaign", args=(campaign.id,)),
     )

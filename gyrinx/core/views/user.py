@@ -3,7 +3,7 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.core.forms import UsernameChangeForm
@@ -55,6 +55,7 @@ def user(request, slug_or_id):
         )
         .with_latest_actions()
         .select_related("content_house", "owner")
+        .annotate(star_count=Count("starred_by", distinct=True))
     )
     public_lists = public_lists_qs
 
@@ -70,6 +71,7 @@ def user(request, slug_or_id):
             )
             .with_latest_actions()
             .select_related("content_house", "owner")
+            .annotate(star_count=Count("starred_by", distinct=True))
         )
 
     # --- Campaign Gangs (campaign-mode lists) ---
@@ -80,13 +82,13 @@ def user(request, slug_or_id):
         campaign_gangs_qs = campaign_gangs_qs.filter(public=True)
     campaign_gangs = campaign_gangs_qs.select_related(
         "content_house", "owner", "campaign"
-    )
+    ).annotate(star_count=Count("starred_by", distinct=True))
 
     # --- Campaigns owned by the user ---
     campaigns_qs = Campaign.objects.filter(owner=profile_user, archived=False)
     if not is_own_profile:
         campaigns_qs = campaigns_qs.filter(public=True)
-    campaigns = campaigns_qs
+    campaigns = campaigns_qs.annotate(star_count=Count("starred_by", distinct=True))
 
     # --- Packs ---
     show_packs = True

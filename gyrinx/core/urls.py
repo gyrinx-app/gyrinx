@@ -67,6 +67,8 @@ urlpatterns = [
     path(
         "list/<id>/refresh-cost", list_views.refresh_list_cost, name="list-refresh-cost"
     ),
+    path("list/<id>/pin", list_views.toggle_list_pin, name="list-pin"),
+    path("list/<id>/star", list_views.toggle_list_star, name="list-star"),
     path("list/<id>/edit", list_views.edit_list, name="list-edit"),
     path("list/<id>/packs", pack_views.list_packs_manage, name="list-packs"),
     path("list/<id>/credits", list_views.edit_list_credits, name="list-credits-edit"),
@@ -537,6 +539,16 @@ urlpatterns = [
         "campaign/<id>/archive",
         campaign_lifecycle.archive_campaign,
         name="campaign-archive",
+    ),
+    path(
+        "campaign/<id>/pin",
+        campaign_lifecycle.toggle_campaign_pin,
+        name="campaign-pin",
+    ),
+    path(
+        "campaign/<id>/star",
+        campaign_lifecycle.toggle_campaign_star,
+        name="campaign-star",
     ),
     # Campaign Copy
     path(

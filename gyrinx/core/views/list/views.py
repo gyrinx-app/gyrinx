@@ -5,11 +5,13 @@ from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Max, Q
+from django.db.models.functions import Coalesce, Lower
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
+from django.views.decorators.http import require_POST
 
 from gyrinx import messages
 from gyrinx.content.models import ContentEquipment, ContentFighter, ContentHouse
@@ -27,6 +29,7 @@ from gyrinx.core.utils import (
     get_return_url,
     safe_redirect,
     search_queryset,
+    toggle_membership,
 )
 from gyrinx.core.views.list.common import get_clean_list_or_404
 from gyrinx.models import is_valid_uuid
@@ -126,6 +129,21 @@ class ListsListView(generic.ListView):
             if valid_house_ids:
                 queryset = queryset.filter(content_house_id__in=valid_house_ids)
 
+        # Star count is always available for display; sorting can use it.
+        queryset = queryset.annotate(star_count=Count("starred_by", distinct=True))
+
+        # Sorting: recently updated (default), alphabetical, or most starred.
+        sort = self.request.GET.get("sort", "recent")
+        if sort == "name":
+            queryset = queryset.order_by(Lower("name"))
+        elif sort == "stars":
+            queryset = queryset.order_by("-star_count", Lower("name"))
+        else:
+            # Most recent action, falling back to the list's own modified time.
+            queryset = queryset.annotate(
+                latest_action_at=Max("actions__created")
+            ).order_by(Coalesce("latest_action_at", "modified").desc())
+
         return queryset
 
     @traced("ListsListView_get_context_data")
@@ -150,6 +168,22 @@ class ListsListView(generic.ListView):
             context["current_tab"] = "gang"
         else:
             context["current_tab"] = "all"
+
+        # Current sort, for the sort control.
+        context["current_sort"] = self.request.GET.get("sort", "recent")
+
+        # Pinned lists/gangs for the sidebar (the user's own private pins).
+        # Mirror the main queryset so the shared row partial renders identically.
+        if self.request.user.is_authenticated:
+            context["pinned_lists"] = (
+                self.request.user.pinned_lists.filter(archived=False)
+                .with_latest_actions()
+                .select_related("content_house", "owner", "campaign")
+                .annotate(star_count=Count("starred_by", distinct=True))
+                .order_by("name")
+            )
+        else:
+            context["pinned_lists"] = []
 
         return context
 
@@ -304,6 +338,19 @@ class ListDetailView(generic.DetailView):
             for f in all_fighters:
                 f.from_pack_name = ""
             context["pack_content_map"] = {}
+
+        # Pin/star state for the header toggle buttons.
+        context["star_count"] = list_obj.starred_by.count()
+        if self.request.user.is_authenticated:
+            context["is_pinned"] = list_obj.pinned_by.filter(
+                pk=self.request.user.pk
+            ).exists()
+            context["is_starred"] = list_obj.starred_by.filter(
+                pk=self.request.user.pk
+            ).exists()
+        else:
+            context["is_pinned"] = False
+            context["is_starred"] = False
 
         return context
 
@@ -1085,6 +1132,49 @@ def refresh_list_cost(request, id):
         )
 
     return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+
+@login_required
+@require_POST
+def toggle_list_pin(request, id):
+    """
+    Toggle whether the current user has pinned a :model:`core.List`.
+
+    Pins are private to each user and surface the list on their home page and
+    on the lists page sidebar. Only the list's owner may pin it. POST only;
+    redirects back to where the request came from.
+    """
+    lst = get_object_or_404(List, id=id)
+    if lst.owner != request.user:
+        raise Http404("List not found")
+    pinned = toggle_membership(lst.pinned_by, request.user)
+    track("list_pin_toggle", list_id=str(lst.id), pinned=pinned)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:list", args=(lst.id,)),
+    )
+
+
+@login_required
+@require_POST
+def toggle_list_star(request, id):
+    """
+    Toggle whether the current user has starred a :model:`core.List`.
+
+    Stars are public and counted. Any logged-in user who can see the list may
+    star it. POST only; redirects back to where the request came from.
+    """
+    lst = get_object_or_404(List, id=id)
+    starred = toggle_membership(lst.starred_by, request.user)
+    track("list_star_toggle", list_id=str(lst.id), starred=starred)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:list", args=(lst.id,)),
+    )
 
 
 @login_required
