@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0165_add_content_mod_application"),
+        ("content", "0166_equipment_category_persistent"),
     ]
 
     operations = [

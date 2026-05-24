@@ -1,4 +1,4 @@
-{% load custom_tags tz %}
+{% load custom_tags tz color_tags %}
 {% comment %}A list/gang row for the lists index page and its pinned sidebar.
 Expects `list` in context.{% endcomment %}
 <div class="hstack gap-3 position-relative">
@@ -12,7 +12,7 @@ Expects `list` in context.{% endcomment %}
             </div>
         </div>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-            <div>{{ list.content_house_name }}</div>
+            <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
             <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
             {% if list.status == list.CAMPAIGN_MODE %}
                 <div class="badge text-bg-success">

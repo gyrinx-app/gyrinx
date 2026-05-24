@@ -18,7 +18,7 @@ def remove_house_icons_alpha_group(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0143_campaign_content_pack_through"),
+        ("core", "0144_list_campaign_pin_star"),
     ]
 
     operations = [

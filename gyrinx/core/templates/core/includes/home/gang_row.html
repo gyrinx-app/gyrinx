@@ -6,7 +6,7 @@
             <a href="{% url 'core:list' gang.id %}">{% list_with_theme gang %}</a>
         </h3>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-            <div>{{ gang.content_house.name }}</div>
+            <div>{{ gang.content_house.name }}{% house_icon gang.content_house %}</div>
             <div class="badge text-bg-primary">{% credits gang.facts_with_fallback.wealth %}</div>
         </div>
         <div class="fs-7">
