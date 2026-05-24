@@ -20,6 +20,17 @@ class ContentHouse(Content):
     help_text = "The Content House identifies the house or faction of a fighter."
     name = models.CharField(max_length=255, db_index=True)
     description = models.TextField(blank=True)
+    icon = models.FileField(
+        upload_to="house-icons/",
+        blank=True,
+        null=True,
+        help_text=(
+            "Optional SVG icon rendered inline next to the house name. "
+            "Stored SVGs are untrusted and only safe to render via the "
+            "house_icon template tag, which sanitises them. Display is "
+            "currently gated to the 'House Icons Alpha' group."
+        ),
+    )
     skill_categories = models.ManyToManyField(
         "ContentSkillCategory",
         blank=True,

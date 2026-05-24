@@ -1,7 +1,9 @@
 {% load custom_tags color_tags %}
 <h6 class="mb-1">
     <strong>{% list_with_theme list %}</strong>
-    {% if list.content_house %}• {{ list.content_house_name }}{% endif %}
+    {% if list.content_house %}
+        • {{ list.content_house_name }}{% house_icon list.content_house_cached %}
+    {% endif %}
 </h6>
 <p class="mb-0 text-secondary fs-7">
     <i class="bi-person"></i> {{ list.owner.username }}

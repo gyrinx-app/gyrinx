@@ -535,3 +535,15 @@ $width-em-sizes: (
 .stat-input-cell {
     width: 4rem;
 }
+
+// Inline house icons rendered next to house names. Sized and aligned to match
+// Bootstrap Icons (1em, baseline-aligned), and recoloured to the surrounding
+// text via currentColor (set as an attribute on the sanitised SVG).
+.house-icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    margin-inline-start: 0.25em;
+    fill: currentColor;
+}

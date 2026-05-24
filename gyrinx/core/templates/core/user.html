@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load custom_tags humanize %}
+{% load custom_tags humanize color_tags %}
 {% block head_title %}
     {{ profile_user.username }}
 {% endblock head_title %}
@@ -35,7 +35,7 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
                                             <a href="{% url 'core:list' list.id %}" class="fw-medium">{{ list.name }}</a>
-                                            <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}</span>
+                                            <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</span>
                                         </div>
                                         <span class="hstack gap-2 align-items-center">
                                             <span class="text-secondary fs-7" title="Stars"><i class="bi-star{% if list.star_count %}-fill text-warning{% endif %}"></i> {{ list.star_count|default:0 }}</span>
@@ -66,7 +66,7 @@
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <a href="{% url 'core:list' list.id %}" class="fw-medium">{{ list.name }}</a>
-                                        <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}</span>
+                                        <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</span>
                                     </div>
                                     <span class="hstack gap-2 align-items-center">
                                         <span class="text-secondary fs-7" title="Stars"><i class="bi-star{% if list.star_count %}-fill text-warning{% endif %}"></i> {{ list.star_count|default:0 }}</span>
@@ -99,7 +99,7 @@
                                                        class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ list.campaign.name }}</a>
                                                 </span>
                                             {% endif %}
-                                            <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}</span>
+                                            <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</span>
                                         </div>
                                         <span class="text-secondary fs-7" title="Stars"><i class="bi-star{% if list.star_count %}-fill text-warning{% endif %}"></i> {{ list.star_count|default:0 }}</span>
                                     </div>
