@@ -411,7 +411,10 @@ def restore_list_fighter(request, id, fighter_id):
 def kill_list_fighter(request, id, fighter_id):
     """
     Mark a :model:`core.ListFighter` as dead in campaign mode.
-    This transfers all equipment to the stash and sets cost to 0.
+    This transfers the fighter's equipment to the stash and sets cost to 0.
+    Equipment in a category flagged
+    :attr:`content.ContentEquipmentCategory.persistent` is the exception: it
+    stays attached to the dead fighter rather than transferring to the stash.
 
     **Context**
 

@@ -24,6 +24,7 @@ class FighterKillResult:
     fighter: ListFighter
     fighter_cost_before: int
     equipment_count: int
+    persistent_count: int
     list_action: Optional[ListAction]
     campaign_action: Optional[CampaignAction]
     description: str
@@ -43,8 +44,8 @@ def handle_fighter_kill(
     This handler performs the following operations atomically:
     1. Captures before values for ListAction
     2. Finds stash fighter
-    3. Transfers ALL equipment to stash (creates new assignments)
-    4. Deletes original equipment assignments
+    3. Transfers non-persistent equipment to stash (creates new assignments)
+    4. Deletes the transferred (non-persistent) assignments
     5. Marks fighter as DEAD
     6. Sets fighter cost_override = 0
     7. Creates UPDATE_FIGHTER ListAction for death
@@ -53,6 +54,12 @@ def handle_fighter_kill(
     The fighter's cost goes from X to 0, reducing rating by X.
     Equipment transfers from fighter to stash don't change overall wealth,
     but equipment is preserved in the stash for potential re-use.
+
+    Equipment in a category flagged ``persistent`` (see
+    ``ContentEquipmentCategory.persistent``) is the exception: it stays
+    attached to the dead fighter rather than transferring to the stash. It is
+    neither moved nor refunded — its value is absorbed into the rating
+    reduction (the dead fighter contributes 0 via ``should_have_zero_cost``).
 
     Args:
         user: User performing the kill
@@ -83,16 +90,38 @@ def handle_fighter_kill(
     # Find the stash fighter for this list
     stash_fighter = lst.listfighter_set.filter(content_fighter__is_stash=True).first()
 
-    # Transfer equipment to stash
-    equipment_count = 0
-    equipment_cost = 0
-    if stash_fighter:
-        equipment_assignments = fighter.listfighterequipmentassignment_set.all()
-        equipment_count = equipment_assignments.count()
-        # Calculate equipment cost before we delete assignments
-        equipment_cost = sum(a.cost_int() for a in equipment_assignments)
+    # Partition equipment: non-persistent gear transfers to the stash for
+    # re-use, while equipment in a persistent category stays attached to the
+    # (now dead) fighter. Persistent equipment is conceptually tied to the
+    # fighter it was issued to (e.g. Impressive Leadership) — it neither moves
+    # to the stash nor is refunded as credits; it simply remains on the corpse.
+    equipment_assignments = list(fighter.listfighterequipmentassignment_set.all())
 
-        for assignment in equipment_assignments:
+    def _is_persistent(assignment):
+        # category is nullable; equipment with no category is never persistent.
+        category = assignment.content_equipment.category
+        return bool(category and category.persistent)
+
+    # Persistent gear stays on the fighter regardless of whether a stash
+    # exists. Non-persistent gear can only be transferred if there is a stash
+    # to receive it; without one nothing moves (matching the original
+    # no-stash behaviour), so transferred_count reflects actual transfers.
+    persistent_count = sum(1 for a in equipment_assignments if _is_persistent(a))
+    to_transfer = (
+        [a for a in equipment_assignments if not _is_persistent(a)]
+        if stash_fighter
+        else []
+    )
+    transferred_count = len(to_transfer)
+
+    equipment_cost = 0
+    if to_transfer:
+        # Calculate transferred equipment cost before we delete assignments.
+        # Only the transferred (non-persistent) gear bumps the stash — the
+        # persistent items' value is absorbed into the rating reduction below.
+        equipment_cost = sum(a.cost_int() for a in to_transfer)
+
+        for assignment in to_transfer:
             # Create new assignment for stash with same equipment
             new_assignment = ListFighterEquipmentAssignment(
                 list_fighter=stash_fighter,
@@ -121,8 +150,11 @@ def handle_fighter_kill(
             if assignment.upgrades_field.exists():
                 new_assignment.upgrades_field.set(assignment.upgrades_field.all())
 
-        # Delete all equipment assignments from the dead fighter
-        equipment_assignments.delete()
+        # Delete only the transferred assignments from the dead fighter;
+        # persistent assignments stay attached and remain visible on the card.
+        ListFighterEquipmentAssignment.objects.filter(
+            id__in=[a.id for a in to_transfer]
+        ).delete()
 
     # Mark fighter as dead and set cost to 0
     fighter.injury_state = ListFighter.DEAD
@@ -141,12 +173,23 @@ def handle_fighter_kill(
     if stash_fighter and equipment_cost:
         propagate_from_fighter(stash_fighter, Delta(delta=equipment_cost, list=lst))
 
-    # Build description
-    equipment_desc = (
-        " All equipment transferred to stash."
-        if equipment_count > 0
-        else " No equipment to transfer."
-    )
+    # Build description. Persistent equipment stays with the fighter and is
+    # called out separately so the user can see what did and didn't move.
+    if transferred_count and persistent_count:
+        equipment_desc = (
+            f" {transferred_count} equipment transferred to stash,"
+            f" {persistent_count} stayed with the fighter."
+        )
+    elif transferred_count:
+        equipment_desc = " All equipment transferred to stash."
+    elif persistent_count:
+        equipment_desc = (
+            f" {persistent_count} equipment stayed with the fighter."
+            if persistent_count > 1
+            else " Equipment stayed with the fighter."
+        )
+    else:
+        equipment_desc = " No equipment to transfer."
     description = f"{fighter.name} was killed ({fighter_cost_before}¢).{equipment_desc}"
 
     # Create UPDATE_FIGHTER ListAction for death
@@ -184,7 +227,8 @@ def handle_fighter_kill(
     return FighterKillResult(
         fighter=fighter,
         fighter_cost_before=fighter_cost_before,
-        equipment_count=equipment_count,
+        equipment_count=transferred_count,
+        persistent_count=persistent_count,
         list_action=list_action,
         campaign_action=campaign_action,
         description=description,

@@ -62,6 +62,11 @@ class ContentEquipmentCategory(Content):
         default=False,
         help_text="If True, this category will only be visible on fighter cards if the fighter has equipment in this category in their equipment list.",
     )
+    persistent = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="If True, equipment in this category stays with a fighter when they die — it remains on the fighter rather than being transferred to the stash.",
+    )
     history = HistoricalRecords()
 
     def __str__(self):

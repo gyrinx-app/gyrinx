@@ -2,7 +2,12 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from gyrinx.content.models import ContentEquipment, ContentFighter
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentFighter,
+)
+from gyrinx.core.handlers.fighter.kill import handle_fighter_kill
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import List, ListFighter
 
@@ -281,7 +286,7 @@ def test_kill_fighter_confirmation_page(client, user, content_house):
     # Template uses fully_qualified_name which may include additional info
     assert b"Kill Fighter:" in response.content
     assert b"Doomed Fighter" in response.content
-    assert b"Transfer all their equipment to the stash" in response.content
+    assert b"Transfer their equipment to the stash" in response.content
     assert b"Set their rating to 0" in response.content
 
 
@@ -492,3 +497,183 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
         assert list_action is None, (
             "ListAction should not be created when flag disabled"
         )
+
+
+@pytest.fixture
+def campaign_list_with_stash(make_list, make_list_fighter, stash_fighter_type):
+    """A campaign-mode list with a stash fighter and a regular fighter.
+
+    Composed from the canonical conftest factories (``make_list``,
+    ``make_list_fighter``, ``stash_fighter_type``) rather than inline ORM
+    creation. The regular fighter uses the default ``content_fighter`` fixture.
+    """
+    lst = make_list("Test List", status=List.CAMPAIGN_MODE)
+    stash = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    fighter = make_list_fighter(lst, "Test Fighter")
+    return lst, stash, fighter
+
+
+@pytest.fixture
+def persistent_category():
+    """A persistent equipment category (gear stays with a dead fighter)."""
+    return ContentEquipmentCategory.objects.create(
+        name="Impressive Leadership",
+        group="Other",
+        persistent=True,
+    )
+
+
+@pytest.mark.django_db
+def test_kill_fighter_persistent_equipment_stays_with_fighter(
+    client, user, campaign_list_with_stash, persistent_category
+):
+    """Persistent-category equipment stays on the dead fighter, not the stash."""
+    lst, stash, fighter = campaign_list_with_stash
+
+    equipment = ContentEquipment.objects.create(
+        name="Impressive Leadership",
+        cost=20,
+        category=persistent_category,
+    )
+    fighter.assign(equipment)
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-kill", args=[lst.id, fighter.id])
+    response = client.post(url)
+    assert response.status_code == 302
+
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.DEAD
+    assert fighter.cost_override == 0
+
+    # The persistent assignment stays attached to the (now dead) fighter...
+    assert fighter.listfighterequipmentassignment_set.count() == 1
+    assert (
+        fighter.listfighterequipmentassignment_set.first().content_equipment
+        == equipment
+    )
+    # ...and is NOT transferred to the stash.
+    assert not stash.listfighterequipmentassignment_set.exists()
+
+    # A dead fighter contributes 0 regardless of equipment still attached.
+    assert fighter.cost_int() == 0
+
+
+@pytest.mark.django_db
+def test_kill_fighter_mixed_persistent_and_normal(
+    client, user, campaign_list_with_stash, persistent_category
+):
+    """A fighter with both kinds: persistent stays, non-persistent transfers."""
+    lst, stash, fighter = campaign_list_with_stash
+
+    persistent_equipment = ContentEquipment.objects.create(
+        name="Impressive Leadership",
+        cost=20,
+        category=persistent_category,
+    )
+    normal_equipment = ContentEquipment.objects.create(name="Lasgun", cost=15)
+    fighter.assign(persistent_equipment)
+    fighter.assign(normal_equipment)
+
+    client.force_login(user)
+    url = reverse("core:list-fighter-kill", args=[lst.id, fighter.id])
+    response = client.post(url)
+    assert response.status_code == 302
+
+    # Persistent item stays on the fighter; normal item moves to the stash.
+    fighter_assignments = fighter.listfighterequipmentassignment_set.all()
+    assert fighter_assignments.count() == 1
+    assert fighter_assignments.first().content_equipment == persistent_equipment
+
+    stash_assignments = stash.listfighterequipmentassignment_set.all()
+    assert stash_assignments.count() == 1
+    assert stash_assignments.first().content_equipment == normal_equipment
+
+
+@pytest.mark.django_db
+def test_kill_fighter_persistent_stash_delta_is_transferred_cost_only(
+    user, campaign_list_with_stash, persistent_category, settings
+):
+    """stash_delta counts only transferred gear; rating drops by the full cost."""
+    # The kill action is only created when this flag is on; set it explicitly
+    # so the test is deterministic regardless of config defaults.
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst, stash, fighter = campaign_list_with_stash
+    # make_list already seeds an initial LIST_CREATE action, so the kill action
+    # can be created.
+
+    fighter.assign(
+        ContentEquipment.objects.create(
+            name="Impressive Leadership",
+            cost=20,
+            category=persistent_category,
+        )
+    )
+    fighter.assign(ContentEquipment.objects.create(name="Lasgun", cost=15))
+
+    fighter_cost_before = fighter.cost_int()  # base + 20 (persistent) + 15
+    lst.rating_current = fighter_cost_before
+    lst.stash_current = 0
+    lst.save()
+
+    result = handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+
+    # Result reports one transferred and one kept.
+    assert result.equipment_count == 1
+    assert result.persistent_count == 1
+    assert "transferred to stash" in result.description
+    assert "stayed with the fighter" in result.description
+
+    # Only the non-persistent Lasgun (15¢) bumps the stash.
+    assert result.list_action is not None
+    assert result.list_action.stash_delta == 15
+    assert result.list_action.rating_delta == -fighter_cost_before
+
+    lst.refresh_from_db()
+    assert lst.rating_current == 0
+    assert lst.stash_current == 15
+
+
+@pytest.mark.django_db
+def test_dead_fighter_card_shows_persistent_equipment(
+    client, user, campaign_list_with_stash, persistent_category
+):
+    """The persistent item remains visible on the dead fighter's card."""
+    lst, stash, fighter = campaign_list_with_stash
+
+    fighter.assign(
+        ContentEquipment.objects.create(
+            name="Impressive Leadership",
+            cost=20,
+            category=persistent_category,
+        )
+    )
+
+    client.force_login(user)
+    kill_url = reverse("core:list-fighter-kill", args=[lst.id, fighter.id])
+    assert client.post(kill_url).status_code == 302
+
+    response = client.get(reverse("core:list", args=[lst.id]))
+    assert response.status_code == 200
+    assert "Impressive Leadership" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_kill_fighter_without_stash_does_not_claim_transfer(
+    user, make_list, make_list_fighter
+):
+    """With no stash, nothing transfers and the result doesn't claim it did."""
+    lst = make_list("No Stash List", status=List.CAMPAIGN_MODE)
+    fighter = make_list_fighter(lst, "Test Fighter")
+    fighter.assign(ContentEquipment.objects.create(name="Lasgun", cost=15))
+
+    assert not lst.listfighter_set.filter(content_fighter__is_stash=True).exists()
+
+    result = handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+
+    # Nothing was transferred (no stash to receive it).
+    assert result.equipment_count == 0
+    assert result.persistent_count == 0
+    assert "transferred to stash" not in result.description
+    # The non-persistent gear stays on the fighter rather than being deleted.
+    assert fighter.listfighterequipmentassignment_set.count() == 1
