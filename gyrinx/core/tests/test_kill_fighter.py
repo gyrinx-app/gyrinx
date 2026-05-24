@@ -286,7 +286,7 @@ def test_kill_fighter_confirmation_page(client, user, content_house):
     # Template uses fully_qualified_name which may include additional info
     assert b"Kill Fighter:" in response.content
     assert b"Doomed Fighter" in response.content
-    assert b"Transfer all their equipment to the stash" in response.content
+    assert b"Transfer their equipment to the stash" in response.content
     assert b"Set their rating to 0" in response.content
 
 
