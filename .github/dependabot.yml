@@ -7,7 +7,6 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
-    versioning-strategy: increase
     groups:
       python-minor-and-patch:
         applies-to: version-updates
