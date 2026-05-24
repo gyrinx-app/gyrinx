@@ -28,90 +28,120 @@
             {% include "core/includes/breadcrumb.html" with type="Campaign" owner=campaign.owner name=campaign.name type_url=campaigns_url only %}
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ campaign.name }}</h1>
-                {% if campaign.owner == user %}
-                    <div class="ms-md-auto d-flex gap-1 flex-nowrap">
-                        {% if campaign.can_start_campaign %}
-                            <a href="{% url 'core:campaign-start' campaign.id %}"
-                               class="btn btn-primary btn-sm">
-                                <i class="bi-play-circle"></i> Start
-                            </a>
-                        {% elif campaign.can_end_campaign %}
-                            <a href="{% url 'core:campaign-end' campaign.id %}"
-                               class="btn btn-danger btn-sm">
-                                <i class="bi-stop-circle"></i> End
-                            </a>
-                        {% elif campaign.can_reopen_campaign %}
-                            <a href="{% url 'core:campaign-reopen' campaign.id %}"
-                               class="btn btn-primary btn-sm">
-                                <i class="bi-arrow-clockwise"></i> Reopen
+                {% if user.is_authenticated %}
+                    <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
+                        <form method="post"
+                              action="{% url 'core:campaign-pin' campaign.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="btn btn-secondary btn-sm"
+                                    title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this campaign">
+                                <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
+                                <span class="visually-hidden">
+                                    {% if is_pinned %}
+                                        Unpin
+                                    {% else %}
+                                        Pin
+                                    {% endif %}
+                                </span>
+                            </button>
+                        </form>
+                        <form method="post"
+                              action="{% url 'core:campaign-star' campaign.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="btn btn-secondary btn-sm icon-link"
+                                    title="{% if is_starred %}Unstar{% else %}Star{% endif %} this campaign">
+                                <i class="bi-star{% if is_starred %}-fill text-warning{% endif %}"></i>
+                                {{ star_count|default:0 }}
+                            </button>
+                        </form>
+                        {% if campaign.owner == user %}
+                            {% if campaign.can_start_campaign %}
+                                <a href="{% url 'core:campaign-start' campaign.id %}"
+                                   class="btn btn-primary btn-sm">
+                                    <i class="bi-play-circle"></i> Start
+                                </a>
+                            {% elif campaign.can_end_campaign %}
+                                <a href="{% url 'core:campaign-end' campaign.id %}"
+                                   class="btn btn-danger btn-sm">
+                                    <i class="bi-stop-circle"></i> End
+                                </a>
+                            {% elif campaign.can_reopen_campaign %}
+                                <a href="{% url 'core:campaign-reopen' campaign.id %}"
+                                   class="btn btn-primary btn-sm">
+                                    <i class="bi-arrow-clockwise"></i> Reopen
+                                </a>
+                            {% endif %}
+                            <nav class="btn-group">
+                                <a href="{% url 'core:campaign-edit' campaign.id %}"
+                                   class="btn btn-secondary btn-sm">
+                                    <i class="bi-pencil"></i> Edit
+                                </a>
+                                <div class="btn-group" role="group">
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm dropdown-toggle"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            aria-label="More options">
+                                        <i class="bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        {% if not campaign.archived %}
+                                            <li>
+                                                <h6 class="dropdown-header">Assets, Resources & Attributes</h6>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:campaign-copy-in' campaign.id %}">
+                                                    <i class="bi-box-arrow-in-down"></i> Copy to this Campaign
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:campaign-copy-out' campaign.id %}">
+                                                    <i class="bi-box-arrow-up"></i> Copy from this Campaign
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:campaign-attributes' campaign.id %}">
+                                                    <i class="bi-tags"></i> Attributes
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   href="{% url 'core:campaign-packs' campaign.id %}">
+                                                    <i class="bi-box-seam"></i> Content Packs
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <hr class="dropdown-divider">
+                                            </li>
+                                        {% endif %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:campaign-archive' campaign.id %}">
+                                                <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
+                                                {% if campaign.archived %}
+                                                    Unarchive
+                                                {% else %}
+                                                    Archive
+                                                {% endif %}
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </nav>
+                        {% else %}
+                            <a href="{% url 'core:campaign-copy-out' campaign.id %}"
+                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                                <i class="bi-box-arrow-up"></i> Copy from this Campaign
                             </a>
                         {% endif %}
-                        <nav class="btn-group">
-                            <a href="{% url 'core:campaign-edit' campaign.id %}"
-                               class="btn btn-secondary btn-sm">
-                                <i class="bi-pencil"></i> Edit
-                            </a>
-                            <div class="btn-group" role="group">
-                                <button type="button"
-                                        class="btn btn-secondary btn-sm dropdown-toggle"
-                                        data-bs-toggle="dropdown"
-                                        aria-expanded="false"
-                                        aria-label="More options">
-                                    <i class="bi-three-dots"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    {% if not campaign.archived %}
-                                        <li>
-                                            <h6 class="dropdown-header">Assets, Resources & Attributes</h6>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item"
-                                               href="{% url 'core:campaign-copy-in' campaign.id %}">
-                                                <i class="bi-box-arrow-in-down"></i> Copy to this Campaign
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item"
-                                               href="{% url 'core:campaign-copy-out' campaign.id %}">
-                                                <i class="bi-box-arrow-up"></i> Copy from this Campaign
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item"
-                                               href="{% url 'core:campaign-attributes' campaign.id %}">
-                                                <i class="bi-tags"></i> Attributes
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item"
-                                               href="{% url 'core:campaign-packs' campaign.id %}">
-                                                <i class="bi-box-seam"></i> Content Packs
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <hr class="dropdown-divider">
-                                        </li>
-                                    {% endif %}
-                                    <li>
-                                        <a class="dropdown-item"
-                                           href="{% url 'core:campaign-archive' campaign.id %}">
-                                            <i class="bi-{% if campaign.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
-                                            {% if campaign.archived %}
-                                                Unarchive
-                                            {% else %}
-                                                Archive
-                                            {% endif %}
-                                        </a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </nav>
                     </div>
-                {% elif user.is_authenticated %}
-                    <a href="{% url 'core:campaign-copy-out' campaign.id %}"
-                       class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7 ms-md-auto">
-                        <i class="bi-box-arrow-up"></i> Copy from this Campaign
-                    </a>
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">

@@ -1,0 +1,14 @@
+{% comment %}Pinned item card, styled like featured content pack cards.
+    Parameters:
+    - url: The detail URL the card links to
+    - title: The item's name
+    - subtitle: Optional secondary line (e.g. house or owner)
+{% endcomment %}
+<a href="{{ url }}"
+   class="border rounded p-3 d-flex align-items-center gap-3 text-decoration-none h-100">
+    <div class="flex-grow-1">
+        <h2 class="h5 mb-1">{{ title }}</h2>
+        {% if subtitle %}<div class="text-secondary fs-7 mb-0">{{ subtitle }}</div>{% endif %}
+    </div>
+    <i class="bi-chevron-right flex-shrink-0"></i>
+</a>

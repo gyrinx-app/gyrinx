@@ -1,7 +1,8 @@
 """Campaign list and detail views."""
 
 from django.db import models
-from django.db.models import Q
+from django.db.models import Count, Max, Q
+from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404
 from django.views import generic
 
@@ -76,12 +77,39 @@ class Campaigns(generic.ListView):
                 queryset, search_query, ["name", "narrative", "owner__username"]
             )
 
-        return queryset.order_by("name")
+        # Star count is always available for display; sorting can use it.
+        queryset = queryset.annotate(star_count=Count("starred_by", distinct=True))
+
+        # Sorting: recently updated (default), alphabetical, or most starred.
+        sort = self.request.GET.get("sort", "recent")
+        if sort == "name":
+            return queryset.order_by(Lower("name"))
+        elif sort == "stars":
+            return queryset.order_by("-star_count", Lower("name"))
+        else:
+            # Most recent campaign action, falling back to modified time.
+            return queryset.annotate(latest_action_at=Max("actions__created")).order_by(
+                Coalesce("latest_action_at", "modified").desc()
+            )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         # Add status choices for the filter
         context["status_choices"] = Campaign.STATUS_CHOICES
+
+        # Current sort, for the sort control.
+        context["current_sort"] = self.request.GET.get("sort", "recent")
+
+        # Pinned campaigns for the sidebar (the user's own private pins).
+        if self.request.user.is_authenticated:
+            context["pinned_campaigns"] = (
+                self.request.user.pinned_campaigns.filter(archived=False)
+                .select_related("owner")
+                .order_by("name")
+            )
+        else:
+            context["pinned_campaigns"] = []
+
         return context
 
 
@@ -261,4 +289,14 @@ class CampaignDetailView(generic.DetailView):
 
         context["is_owner"] = user == campaign.owner
         context["campaign_packs"] = campaign.packs.all()
+
+        # Pin/star state for the header toggle buttons.
+        context["star_count"] = campaign.starred_by.count()
+        if user.is_authenticated:
+            context["is_pinned"] = campaign.pinned_by.filter(pk=user.pk).exists()
+            context["is_starred"] = campaign.starred_by.filter(pk=user.pk).exists()
+        else:
+            context["is_pinned"] = False
+            context["is_starred"] = False
+
         return context

@@ -109,6 +109,36 @@
                                    title="Add a vehicle to this list">
                                     <i class="bi-truck"></i> Add vehicle</a>
                             {% endif %}
+                            {% if user.is_authenticated %}
+                                <form method="post"
+                                      action="{% url 'core:list-pin' list.id %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-secondary btn-sm"
+                                            title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this list">
+                                        <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
+                                        <span class="visually-hidden">
+                                            {% if is_pinned %}
+                                                Unpin
+                                            {% else %}
+                                                Pin
+                                            {% endif %}
+                                        </span>
+                                    </button>
+                                </form>
+                                <form method="post"
+                                      action="{% url 'core:list-star' list.id %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-secondary btn-sm icon-link"
+                                            title="{% if is_starred %}Unstar{% else %}Star{% endif %} this list">
+                                        <i class="bi-star{% if is_starred %}-fill text-warning{% endif %}"></i>
+                                        {{ star_count|default:0 }}
+                                    </button>
+                                </form>
+                            {% endif %}
                             <a href="{% url 'core:print-config-index' list.id %}"
                                class="btn btn-secondary btn-sm d-none d-sm-inline-flex"
                                title="Print">

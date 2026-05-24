@@ -12,6 +12,7 @@ from gyrinx.core.handlers.campaign_operations import handle_campaign_start
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
+from gyrinx.core.utils import safe_redirect
 from gyrinx.tracker import track
 
 
@@ -288,4 +289,57 @@ def archive_campaign(request, id):
         request,
         "core/campaign/campaign_archive.html",
         {"campaign": campaign},
+    )
+
+
+def _toggle_membership(relation, user):
+    """Toggle a user's membership in a M2M relation. Returns True if now a member."""
+    if relation.filter(pk=user.pk).exists():
+        relation.remove(user)
+        return False
+    relation.add(user)
+    return True
+
+
+@login_required
+def toggle_campaign_pin(request, id):
+    """
+    Toggle whether the current user has pinned a :model:`core.Campaign`.
+
+    Pins are private to each user and surface the campaign on their home page
+    and on the campaigns page sidebar. Any logged-in user who can see the
+    campaign may pin it. POST only; redirects back to where the request came
+    from.
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    if request.method == "POST":
+        pinned = _toggle_membership(campaign.pinned_by, request.user)
+        track("campaign_pin_toggle", campaign_id=str(campaign.id), pinned=pinned)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:campaign", args=(campaign.id,)),
+    )
+
+
+@login_required
+def toggle_campaign_star(request, id):
+    """
+    Toggle whether the current user has starred a :model:`core.Campaign`.
+
+    Stars are public and counted. Any logged-in user who can see the campaign
+    may star it. POST only; redirects back to where the request came from.
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+
+    if request.method == "POST":
+        starred = _toggle_membership(campaign.starred_by, request.user)
+        track("campaign_star_toggle", campaign_id=str(campaign.id), starred=starred)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:campaign", args=(campaign.id,)),
     )

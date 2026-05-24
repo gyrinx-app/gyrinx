@@ -105,6 +105,21 @@
                     </div>
                 </div>
             </div>
+            {# Sort dropdown #}
+            <div class="btn-group">
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm dropdown-toggle"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">Sort</button>
+                <div class="dropdown-menu shadow-sm fs-7">
+                    <a class="dropdown-item{% if current_sort == 'recent' or not current_sort %} active{% endif %}"
+                       href="?{% qt request sort='recent' page=None %}#search">Recently updated</a>
+                    <a class="dropdown-item{% if current_sort == 'name' %} active{% endif %}"
+                       href="?{% qt request sort='name' page=None %}#search">Alphabetical</a>
+                    <a class="dropdown-item{% if current_sort == 'stars' %} active{% endif %}"
+                       href="?{% qt request sort='stars' page=None %}#search">Most starred</a>
+                </div>
+            </div>
             {% if not hide_toggles %}
                 {# Your Lists toggle #}
                 <div class="form-check form-switch mb-0">

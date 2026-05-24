@@ -347,6 +347,20 @@ class List(AppBase):
         help_text="Content packs subscribed to this list.",
     )
 
+    # Per-user pins (private) and stars (public, with a count)
+    pinned_by = models.ManyToManyField(
+        "auth.User",
+        blank=True,
+        related_name="pinned_lists",
+        help_text="Users who have pinned this list to their own home page.",
+    )
+    starred_by = models.ManyToManyField(
+        "auth.User",
+        blank=True,
+        related_name="starred_lists",
+        help_text="Users who have starred this list.",
+    )
+
     history = HistoricalRecords()
 
     #

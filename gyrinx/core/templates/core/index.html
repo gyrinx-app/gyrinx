@@ -52,6 +52,15 @@
                             {% endif %}
                         </div>
                         <div class="vstack gap-3">
+                            {% if pinned_gangs %}
+                                <div class="vstack gap-2">
+                                    <div class="caps-label">Pinned</div>
+                                    {% for gang in pinned_gangs %}
+                                        {% url 'core:list' gang.id as gang_url %}
+                                        {% include "core/includes/pinned_card.html" with url=gang_url title=gang.name subtitle=gang.content_house.name %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                             {% if campaign_gangs or search_gangs_query %}
                                 <form id="search-gangs"
                                       method="get"
@@ -131,6 +140,15 @@
                             </span>
                         </div>
                         <div class="vstack gap-3">
+                            {% if pinned_campaigns %}
+                                <div class="vstack gap-2">
+                                    <div class="caps-label">Pinned</div>
+                                    {% for campaign in pinned_campaigns %}
+                                        {% url 'core:campaign' campaign.id as campaign_url %}
+                                        {% include "core/includes/pinned_card.html" with url=campaign_url title=campaign.name subtitle=campaign.get_status_display %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                             {% if campaigns|length > 0 or search_campaigns_query %}
                                 <form id="search-campaigns"
                                       method="get"
@@ -197,6 +215,15 @@
                             </span>
                         </div>
                         <div class="vstack gap-3">
+                            {% if pinned_lists %}
+                                <div class="vstack gap-2">
+                                    <div class="caps-label">Pinned</div>
+                                    {% for list in pinned_lists %}
+                                        {% url 'core:list' list.id as list_url %}
+                                        {% include "core/includes/pinned_card.html" with url=list_url title=list.name subtitle=list.content_house.name %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                             {% if has_any_lists %}
                                 {% url 'core:index' as action %}
                                 {% include "core/includes/lists_filter.html" with action=action houses=houses compact=True %}

@@ -17,72 +17,90 @@
             {% url 'core:lists' as action %}
             {% include "core/includes/lists_filter.html" with action=action houses=houses %}
         </div>
-        <ul class="nav nav-tabs">
-            <li class="nav-item">
-                <a class="nav-link{% if current_tab == 'all' %} active{% endif %}"
-                   {% if current_tab == 'all' %}aria-current="page"{% endif %}
-                   href="?{% qt_rm request 'type' 'page' %}">All</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link{% if current_tab == 'list' %} active{% endif %}"
-                   {% if current_tab == 'list' %}aria-current="page"{% endif %}
-                   href="?{% qt request type="list" page=None %}">Lists</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link{% if current_tab == 'gang' %} active{% endif %}"
-                   {% if current_tab == 'gang' %}aria-current="page"{% endif %}
-                   href="?{% qt request type="gang" page=None %}">Campaign Gangs</a>
-            </li>
-        </ul>
-        <div class="vstack gap-4">
-            {% for list in lists %}
-                <div class="hstack gap-3 position-relative">
-                    {% comment %} {% include "core/includes/list.html" with list=list %} {% endcomment %}
-                    <div class="d-flex flex-column gap-1">
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
-                            <h2 class="mb-0 h5">
-                                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
-                            </h2>
-                            <div>
-                                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>
+        <div class="row g-4">
+            <div class="col-12 col-xl-8 order-2 order-xl-1 vstack gap-4">
+                <ul class="nav nav-tabs">
+                    <li class="nav-item">
+                        <a class="nav-link{% if current_tab == 'all' %} active{% endif %}"
+                           {% if current_tab == 'all' %}aria-current="page"{% endif %}
+                           href="?{% qt_rm request 'type' 'page' %}">All</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link{% if current_tab == 'list' %} active{% endif %}"
+                           {% if current_tab == 'list' %}aria-current="page"{% endif %}
+                           href="?{% qt request type="list" page=None %}">Lists</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link{% if current_tab == 'gang' %} active{% endif %}"
+                           {% if current_tab == 'gang' %}aria-current="page"{% endif %}
+                           href="?{% qt request type="gang" page=None %}">Campaign Gangs</a>
+                    </li>
+                </ul>
+                <div class="vstack gap-4">
+                    {% for list in lists %}
+                        <div class="hstack gap-3 position-relative">
+                            {% comment %} {% include "core/includes/list.html" with list=list %} {% endcomment %}
+                            <div class="d-flex flex-column gap-1">
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
+                                    <h2 class="mb-0 h5">
+                                        <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                                    </h2>
+                                    <div>
+                                        <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>
+                                    </div>
+                                </div>
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                    <div>{{ list.content_house_name }}</div>
+                                    <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
+                                    {% if list.status == list.CAMPAIGN_MODE %}
+                                        <div class="badge text-bg-success">
+                                            <i class="bi-award"></i> Campaign: {{ list.campaign.name }}
+                                        </div>
+                                    {% else %}
+                                        <div class="badge text-bg-secondary">
+                                            <i class="bi-list-ul"></i> List
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+                                    {% load tz %}
+                                    <div class="text-secondary fs-7">Last edit: {{ list.modified|timesince }} ago</div>
+                                    <div class="text-secondary fs-7" title="Stars">
+                                        <i class="bi-star{% if list.star_count %}-fill text-warning{% endif %}"></i> {{ list.star_count|default:0 }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ms-auto d-md-none">
+                                <a href="{% url 'core:list' list.id %}"
+                                   class="p-3 stretched-link"
+                                   aria-label="View {{ list.name }} details">
+                                    <i class="bi-chevron-right"></i>
+                                </a>
                             </div>
                         </div>
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                            <div>{{ list.content_house_name }}</div>
-                            <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
-                            {% if list.status == list.CAMPAIGN_MODE %}
-                                <div class="badge text-bg-success">
-                                    <i class="bi-award"></i> Campaign: {{ list.campaign.name }}
-                                </div>
+                    {% empty %}
+                        <div class="py-2">
+                            {% if request.GET.archived == "1" %}
+                                No archived lists found. Note: You can only view your own archived lists.
                             {% else %}
-                                <div class="badge text-bg-secondary">
-                                    <i class="bi-list-ul"></i> List
-                                </div>
+                                No lists available.
                             {% endif %}
                         </div>
-                        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
-                            {% load tz %}
-                            <div class="text-secondary fs-7">Last edit: {{ list.modified|timesince }} ago</div>
-                        </div>
-                    </div>
-                    <div class="ms-auto d-md-none">
-                        <a href="{% url 'core:list' list.id %}"
-                           class="p-3 stretched-link"
-                           aria-label="View {{ list.name }} details">
-                            <i class="bi-chevron-right"></i>
-                        </a>
+                    {% endfor %}
+                    {% include "core/includes/pagination.html" %}
+                </div>
+            </div>
+            {% if pinned_lists %}
+                <div class="col-12 col-xl-4 order-1 order-xl-2">
+                    <div class="caps-label mb-2">Pinned</div>
+                    <div class="vstack gap-2">
+                        {% for list in pinned_lists %}
+                            {% url 'core:list' list.id as list_url %}
+                            {% include "core/includes/pinned_card.html" with url=list_url title=list.name subtitle=list.content_house.name %}
+                        {% endfor %}
                     </div>
                 </div>
-            {% empty %}
-                <div class="py-2">
-                    {% if request.GET.archived == "1" %}
-                        No archived lists found. Note: You can only view your own archived lists.
-                    {% else %}
-                        No lists available.
-                    {% endif %}
-                </div>
-            {% endfor %}
-            {% include "core/includes/pagination.html" %}
+            {% endif %}
         </div>
     </div>
 {% endblock content %}
