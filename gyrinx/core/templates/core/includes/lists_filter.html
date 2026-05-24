@@ -1,4 +1,4 @@
-{% load custom_tags %}
+{% load custom_tags color_tags %}
 {% comment %}Filter component for lists, used on both lists page and homepage.
     Parameters:
     - action: The URL to submit the form to
@@ -87,7 +87,7 @@
                                    name="house"
                                    value="{{ house.id }}"
                                    {% if contains_id or request.GET.house == "all" or not house_key_exists %}checked{% endif %}>
-                            <label class="form-check-label" for="house-{{ house.id }}">{{ house.name }}</label>
+                            <label class="form-check-label" for="house-{{ house.id }}">{{ house.name }}{% house_icon house %}</label>
                             •
                             <a class="ms-auto" href="?{% qt request house=house.id %}#search">only</a>
                         </div>

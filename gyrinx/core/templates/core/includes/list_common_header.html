@@ -17,7 +17,7 @@
             </h2>
         </div>
         <div class="ms-md-auto fs-7 vstack align-items-start align-items-md-end justify-content-center">
-            <div>{{ list.content_house_name }}</div>
+            <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
             {% if list.campaign %}
                 <div>
                     {% if print %}

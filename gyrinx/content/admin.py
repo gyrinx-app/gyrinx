@@ -708,6 +708,7 @@ class ContentFighterInline(ContentTabularInline):
 
 @admin.register(ContentHouse)
 class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
+    list_display = ["name", "icon"]
     list_display_links = ["name"]
     search_fields = ["name"]
     inlines = [ContentFighterInline]
