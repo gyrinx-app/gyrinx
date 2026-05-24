@@ -267,7 +267,12 @@ class ContentEquipmentCategoryAdmin(ContentAdmin):
     search_fields = ["name", "group"]
     list_display_links = ["name"]
     list_display_fields = ["name"]
-    list_filter = ["group", "restricted_to", "visible_only_if_in_equipment_list"]
+    list_filter = [
+        "group",
+        "restricted_to",
+        "visible_only_if_in_equipment_list",
+        "persistent",
+    ]
     inlines = [
         ContentEquipmentCategoryFighterRestrictionInline,
         ContentFighterEquipmentCategoryLimitInline,
