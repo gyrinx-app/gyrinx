@@ -68,7 +68,10 @@ from gyrinx.core.models.facts import AssignmentFacts, FighterFacts, ListFacts
 from gyrinx.core.models.history_aware_manager import HistoryAwareManager
 from gyrinx.core.models.history_mixin import HistoryMixin
 from gyrinx.core.models.util import ModContext
-from gyrinx.core.tasks import refresh_list_facts
+from gyrinx.core.tasks import (
+    propagate_default_child_fighter_assignment,
+    refresh_list_facts,
+)
 from gyrinx.models import (
     Archived,
     Base,
@@ -3856,21 +3859,35 @@ class ListFighter(AppBase):
     objects = ListFighterManager.from_queryset(ListFighterQuerySet)()
 
 
-@receiver(post_save, sender=ListFighter, dispatch_uid="create_linked_objects")
-@traced("signal_create_linked_objects")
-def create_linked_objects(sender, instance, **kwargs):
+def _materialise_child_fighter_defaults(list_fighter) -> int:
+    """Materialise a list-fighter's child-spawning default assignments.
+
+    For each default assignment on the fighter's ``content_fighter`` whose
+    equipment spawns a child fighter (``ContentEquipmentFighterProfile``) or
+    child equipment (``ContentEquipmentEquipmentProfile``), disable the default
+    and create a direct assignment with ``cost_override=0``. The direct
+    assignment's ``post_save`` (``create_related_objects``) then spawns the
+    child fighter / linked equipment.
+
+    Idempotent: skips defaults that are disabled or already materialised, so it
+    is safe to call repeatedly (used both at hire time and by the #1725
+    propagation task).
+
+    Returns the number of direct assignments created.
+    """
     # Find the default assignments where the equipment has a fighter profile
-    default_assigns = instance.content_fighter.default_assignments.exclude(
+    default_assigns = list_fighter.content_fighter.default_assignments.exclude(
         Q(equipment__contentequipmentfighterprofile__isnull=True)
         & Q(equipment__contentequipmentequipmentprofile__isnull=True)
     )
+    created = 0
     for assign in default_assigns:
         # Find disabled default assignments
-        is_disabled = instance.disabled_default_assignments.contains(assign)
+        is_disabled = list_fighter.disabled_default_assignments.contains(assign)
 
         # Find assignments on this fighter of that equipment
         exists = (
-            instance._direct_assignments()
+            list_fighter._direct_assignments()
             .filter(content_equipment=assign.equipment, from_default_assignment=assign)
             .exists()
         )
@@ -3879,13 +3896,56 @@ def create_linked_objects(sender, instance, **kwargs):
             # Disable the default assignment and assign the equipment directly
             # This will trigger the ListFighterEquipmentAssignment logic to
             # create the linked objects
-            instance.toggle_default_assignment(assign, enable=False)
+            list_fighter.toggle_default_assignment(assign, enable=False)
             ListFighterEquipmentAssignment.objects.create_with_facts(
-                list_fighter=instance,
+                list_fighter=list_fighter,
                 content_equipment=assign.equipment,
                 cost_override=0,
                 from_default_assignment=assign,
             )
+            created += 1
+    return created
+
+
+@receiver(post_save, sender=ListFighter, dispatch_uid="create_linked_objects")
+@traced("signal_create_linked_objects")
+def create_linked_objects(sender, instance, **kwargs):
+    _materialise_child_fighter_defaults(instance)
+
+
+@receiver(
+    post_save,
+    sender=ContentFighterDefaultAssignment,
+    dispatch_uid="propagate_default_child_fighter_assignment",
+)
+@traced("signal_propagate_default_child_fighter_assignment")
+def enqueue_propagate_default_child_fighter_assignment(
+    sender, instance, created, **kwargs
+):
+    """Propagate a newly-created child-spawning default to existing gangs.
+
+    When a pack author adds a ``ContentFighterDefaultAssignment`` whose
+    equipment spawns a child fighter (a vehicle / exotic beast), existing gangs
+    subscribed to the pack should also get the child materialised — not just
+    gangs created after the change (issue #1725).
+
+    Only fires for newly-created defaults whose equipment actually spawns a
+    child fighter; ordinary gear/weapon defaults are virtual at display time
+    and need no materialisation. The work is offloaded to a task because it can
+    touch many list-fighters across all subscribed gangs.
+    """
+    if not created:
+        return
+    if not instance.equipment.contentequipmentfighterprofile_set.exists():
+        return
+    try:
+        propagate_default_child_fighter_assignment.enqueue(
+            default_assignment_id=str(instance.pk)
+        )
+    except Exception as e:
+        logger.warning(
+            f"Failed to enqueue propagation for default assignment {instance.pk}: {e}"
+        )
 
 
 @receiver(

@@ -35,12 +35,14 @@ def _get_tasks() -> list[TaskRoute]:
     if _tasks is None:
         from gyrinx.core.tasks import (
             hello_world,
+            propagate_default_child_fighter_assignment,
             refresh_list_facts,
             trigger_discord_issue_action,
         )
 
         _tasks = [
             TaskRoute(hello_world),
+            TaskRoute(propagate_default_child_fighter_assignment),
             TaskRoute(refresh_list_facts),
             TaskRoute(trigger_discord_issue_action),
         ]
