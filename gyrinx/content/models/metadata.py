@@ -40,7 +40,7 @@ class ContentRule(Content):
     Represents a specific rule from the game system.
     """
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True)
 
     history = HistoricalRecords()
