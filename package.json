@@ -30,7 +30,7 @@
   "devDependencies": {
     "@github/markdownlint-github": "^0.8.0",
     "autoprefixer": "^10.5.0",
-    "markdown-it": "^14.1.1",
+    "markdown-it": "^14.2.0",
     "markdownlint-cli2": "^0.22.1",
     "markdownlint-cli2-formatter-pretty": "^0.0.10",
     "nodemon": "^3.1.14",
