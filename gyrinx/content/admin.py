@@ -704,6 +704,14 @@ class ContentFighterPsykerPowerDefaultAssignmentAdmin(ContentAdmin):
 
 class ContentFighterInline(ContentTabularInline):
     model = ContentFighter
+    # Only render cheap scalar fields. The default (all fields) renders the
+    # fighter's M2M widgets (skills, primary/secondary skill categories, rules)
+    # as <select multiple> per row, evaluating each field's queryset per form.
+    # For a house with dozens of fighters that is tens of thousands of <option>
+    # elements and hundreds of full-table queries — the change page took minutes
+    # to load. Use show_change_link (inherited) to edit the rest of a fighter.
+    fields = ["type", "category", "base_cost"]
+    extra = 0
 
 
 @admin.register(ContentHouse)
