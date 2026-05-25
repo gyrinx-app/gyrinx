@@ -3957,30 +3957,18 @@ def _get_pack_fighter(pack, item_id):
     return pack_item, content_fighter
 
 
-def _build_default_equipment_choices(
-    pack, is_weapon, search_query=None, exclude_fighter_linked=False
-):
+def _build_default_equipment_choices(pack, is_weapon, search_query=None):
     """Build equipment choices for the default equipment picker.
 
     Returns a queryset of ContentEquipment filtered to the same category
     groups that pack creators can use when adding gear/weapons, with
     weapon profiles correctly loaded (including pack profiles).
-
-    ``exclude_fighter_linked`` filters out equipment with a
-    ``ContentEquipmentFighterProfile`` (i.e. vehicle / exotic-beast
-    spawners). The pack-fighter default-assignment picker passes True so
-    pack authors can't silently configure a default that would only
-    apply to gangs hired AFTER the change. See issue #1725 for the
-    follow-up retroactive-propagation work that will lift this block.
     """
     qs = ContentEquipment.objects.with_packs([pack])
     if is_weapon:
         qs = qs.weapons().filter(category__group="Weapons & Ammo")
     else:
         qs = qs.non_weapons().exclude(category__group__in=["Weapons & Ammo", "Other"])
-
-    if exclude_fighter_linked:
-        qs = qs.filter(contentequipmentfighterprofile__isnull=True)
 
     if search_query:
         qs = search_queryset(qs, search_query, ["name", "category__name"])
@@ -4172,9 +4160,7 @@ def add_pack_fighter_default_weapon(request, id, item_id):
             raise Http404
 
         equipment = get_object_or_404(
-            _build_default_equipment_choices(
-                pack, is_weapon=True, exclude_fighter_linked=True
-            ),
+            _build_default_equipment_choices(pack, is_weapon=True),
             pk=equipment_id,
         )
 
@@ -4226,7 +4212,6 @@ def add_pack_fighter_default_weapon(request, id, item_id):
         pack,
         is_weapon=True,
         search_query=search_q or None,
-        exclude_fighter_linked=True,
     )
 
     # Group by category.
@@ -4273,9 +4258,7 @@ def add_pack_fighter_default_gear(request, id, item_id):
             raise Http404
 
         equipment = get_object_or_404(
-            _build_default_equipment_choices(
-                pack, is_weapon=False, exclude_fighter_linked=True
-            ),
+            _build_default_equipment_choices(pack, is_weapon=False),
             pk=equipment_id,
         )
 
@@ -4318,7 +4301,6 @@ def add_pack_fighter_default_gear(request, id, item_id):
         pack,
         is_weapon=False,
         search_query=search_q or None,
-        exclude_fighter_linked=True,
     )
 
     # Group by category.

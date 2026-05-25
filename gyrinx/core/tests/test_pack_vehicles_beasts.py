@@ -8,6 +8,8 @@ These tests are written red-first — they describe the desired outcomes
 before the implementation lands.
 """
 
+from unittest.mock import patch
+
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
@@ -656,7 +658,7 @@ def test_subscribed_list_can_buy_pack_exotic_beast_via_equipment(
 
 
 @pytest.mark.django_db
-def test_default_assignment_picker_excludes_pack_vehicle(
+def test_default_assignment_picker_includes_pack_vehicle(
     client,
     user,
     pack,
@@ -665,13 +667,12 @@ def test_default_assignment_picker_excludes_pack_vehicle(
     vehicle_statline_type,
     vehicles_category,
 ):
-    """Until issue #1725 lands, fighter-linked equipment (vehicles / exotic
-    beasts) must NOT appear in the pack-fighter default-equipment picker.
+    """Fighter-linked equipment (vehicles / exotic beasts) appears in the
+    pack-fighter default-equipment picker.
 
-    Otherwise pack authors could silently configure a default that only
-    materialises for newly-hired list-fighters in subscribed gangs —
-    existing list-fighters of that type would not retroactively receive
-    the child fighter.
+    The interim block that hid such equipment was lifted in issue #1803 now
+    that issue #1725 propagates default child-fighter assignments to existing
+    subscribed gangs.
     """
     client.force_login(user)
     # Create a pack vehicle (auto-makes the equipment)
@@ -712,11 +713,11 @@ def test_default_assignment_picker_excludes_pack_vehicle(
     )
     response = client.get(url)
     assert response.status_code == 200
-    assert b"Goliath Mauler" not in response.content
+    assert b"Goliath Mauler" in response.content
 
 
 @pytest.mark.django_db
-def test_default_assignment_post_rejects_pack_vehicle(
+def test_default_assignment_post_accepts_pack_vehicle(
     client,
     user,
     pack,
@@ -724,9 +725,11 @@ def test_default_assignment_post_rejects_pack_vehicle(
     fighter_statline_type,
     vehicle_statline_type,
     vehicles_category,
+    django_capture_on_commit_callbacks,
 ):
-    """Defence in depth: even with a fabricated POST, the default-equipment
-    handler 404s when the equipment is fighter-linked."""
+    """Posting a fighter-linked equipment to the default-equipment handler
+    creates the default and enqueues propagation (issue #1803, building on
+    #1725)."""
     client.force_login(user)
     _create_pack_fighter_full(
         client,
@@ -765,11 +768,18 @@ def test_default_assignment_post_rejects_pack_vehicle(
     url = reverse(
         "core:pack-fighter-default-gear-add", args=(pack.id, ganger_pack_item.id)
     )
-    response = client.post(url, {"content_equipment": str(vehicle_equipment.id)})
-    assert response.status_code == 404
-    assert not ContentFighterDefaultAssignment.objects.filter(
-        fighter=ganger, equipment=vehicle_equipment
-    ).exists()
+    with patch(
+        "gyrinx.core.models.list.propagate_default_child_fighter_assignment"
+    ) as mock_task:
+        with django_capture_on_commit_callbacks(execute=True):
+            response = client.post(
+                url, {"content_equipment": str(vehicle_equipment.id)}
+            )
+        assert response.status_code == 302
+        default = ContentFighterDefaultAssignment.objects.get(
+            fighter=ganger, equipment=vehicle_equipment
+        )
+        mock_task.enqueue.assert_called_once_with(default_assignment_id=str(default.pk))
 
 
 @pytest.mark.django_db
@@ -786,11 +796,10 @@ def test_default_vehicle_assignment_spawns_child_when_fighter_hired(
     """When a pack fighter has a default vehicle assignment, hiring that
     fighter on a subscribed list automatically spawns the child vehicle.
 
-    The pack default-equipment picker currently blocks creation of such
-    defaults via the UI (see issue #1725 for the retroactive-propagation
-    follow-up). This test creates the default via the ORM directly to
-    document the underlying mechanism — once propagation lands, the UI
-    block lifts and this is the expected user-facing behaviour.
+    This exercises the hire-time materialisation path
+    (``create_linked_objects`` signal on ListFighter). For propagation to
+    existing list-fighters of an already-subscribed gang see the
+    ``test_propagate_default_child_fighter`` module.
     """
     client.force_login(user)
     vehicle_fighter = _create_pack_fighter_full(
