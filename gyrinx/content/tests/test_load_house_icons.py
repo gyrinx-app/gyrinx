@@ -3,10 +3,7 @@
 import pytest
 from django.core.management import call_command
 
-from gyrinx.content.management.commands.load_house_icons import (
-    ICON_HOUSE_MAP,
-    ICONS_DIR,
-)
+from gyrinx.content.house_icons import ICON_HOUSE_MAP, ICONS_DIR
 from gyrinx.content.models import ContentHouse
 
 
