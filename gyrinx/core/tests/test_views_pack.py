@@ -292,6 +292,38 @@ def test_pack_detail_shows_content_sections(client, group_user, pack):
 
 
 @pytest.mark.django_db
+def test_pack_detail_hides_empty_sections_for_viewer(
+    client, pack, pack_rule, make_user
+):
+    """A view-only user only sees categories that hold custom content."""
+    viewer = make_user("viewer", "password")
+    client.force_login(viewer)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    # The populated category is shown...
+    assert b"Special Rules" in response.content
+    assert b"Test Rule" in response.content
+    # ...but empty categories are hidden entirely.
+    assert b"Houses" not in response.content
+    assert b"Weapons" not in response.content
+    assert b"Gear" not in response.content
+
+
+@pytest.mark.django_db
+def test_pack_detail_shows_empty_sections_for_owner(
+    client, group_user, pack, pack_rule
+):
+    """The owner still sees every category, including empty ones."""
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    assert b"Special Rules" in response.content
+    # Empty categories remain visible to editors.
+    assert b"Houses" in response.content
+    assert b"Weapons" in response.content
+
+
+@pytest.mark.django_db
 def test_unlisted_pack_visible_to_owner(client, group_user):
     """Test that an unlisted pack is visible to its owner."""
     unlisted = CustomContentPack.objects.create(
