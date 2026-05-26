@@ -291,22 +291,37 @@ def test_pack_detail_shows_content_sections(client, group_user, pack):
     assert b"Houses" in response.content
 
 
+def _assert_only_populated_sections(content):
+    """The rule section is rendered; empty categories are omitted entirely.
+
+    Assert on the ``<section id="...">`` wrappers rather than bare words like
+    "Weapons", which also appear inside fighter preview cards.
+    """
+    assert b"Test Rule" in content
+    assert b'<section id="rule">' in content
+    assert b'<section id="house">' not in content
+    assert b'<section id="weapon">' not in content
+    assert b'<section id="gear">' not in content
+
+
 @pytest.mark.django_db
 def test_pack_detail_hides_empty_sections_for_viewer(
     client, pack, pack_rule, make_user
 ):
-    """A view-only user only sees categories that hold custom content."""
+    """An authenticated non-owner only sees categories with custom content."""
     viewer = make_user("viewer", "password")
     client.force_login(viewer)
     response = client.get(f"/pack/{pack.id}")
     assert response.status_code == 200
-    # The populated category is shown...
-    assert b"Special Rules" in response.content
-    assert b"Test Rule" in response.content
-    # ...but empty categories are hidden entirely.
-    assert b"Houses" not in response.content
-    assert b"Weapons" not in response.content
-    assert b"Gear" not in response.content
+    _assert_only_populated_sections(response.content)
+
+
+@pytest.mark.django_db
+def test_pack_detail_hides_empty_sections_for_anonymous(client, pack, pack_rule):
+    """A logged-out viewer also only sees categories with custom content."""
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    _assert_only_populated_sections(response.content)
 
 
 @pytest.mark.django_db
@@ -317,10 +332,10 @@ def test_pack_detail_shows_empty_sections_for_owner(
     client.force_login(group_user)
     response = client.get(f"/pack/{pack.id}")
     assert response.status_code == 200
-    assert b"Special Rules" in response.content
+    assert b'<section id="rule">' in response.content
     # Empty categories remain visible to editors.
-    assert b"Houses" in response.content
-    assert b"Weapons" in response.content
+    assert b'<section id="house">' in response.content
+    assert b'<section id="weapon">' in response.content
 
 
 @pytest.mark.django_db

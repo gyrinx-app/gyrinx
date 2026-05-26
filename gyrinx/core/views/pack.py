@@ -1004,7 +1004,7 @@ class PackDetailView(generic.DetailView):
             elif ct_entry.slug == "psyker-power":
                 section["has_content"] = bool(section["power_groups"])
             else:
-                section["has_content"] = len(items) > 0
+                section["has_content"] = section["count"] > 0
 
             content_sections.append(section)
 
