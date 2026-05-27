@@ -1,3 +1,5 @@
+from itertools import groupby
+
 from django import forms
 from django.contrib import admin, messages
 from django.db import models, transaction
@@ -175,15 +177,10 @@ class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
     Form for managing fighter equipment category limits.
 
     Validates that limits can only be set for categories with fighter restrictions.
-    Groups fighters by house for better UX in the admin interface.
+    The fighter field is rendered as a grouped-by-house dropdown; the inline
+    builds those choices once and shares them across rows (see
+    ``ContentFighterEquipmentCategoryLimitInline.get_formset``).
     """
-
-    def init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
 
     class Meta:
         model = ContentFighterEquipmentCategoryLimit
@@ -224,10 +221,14 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
 
     def get_formset(self, request, obj=None, **kwargs):
         """
-        Customize formset to pass parent instance to child forms.
+        Customize the formset to render the fighter field as a grouped-by-house
+        dropdown and to pass the parent instance to child forms for validation.
 
-        This allows child forms to access the parent equipment category
-        for validation purposes.
+        The grouped choices are built once here — with ``select_related`` on the
+        fighter's house — and shared across every inline row. Previously
+        ``group_select`` ran inside each row's form ``__init__``, re-iterating
+        all fighters and issuing an N+1 query for each fighter's house, which
+        made this page extremely slow on categories with many limits.
 
         Args:
             request: The current HTTP request
@@ -235,30 +236,39 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
             **kwargs: Additional formset parameters
 
         Returns:
-            Formset class with parent instance access
+            Formset class with shared grouped choices and parent instance access
         """
         formset = super().get_formset(request, obj, **kwargs)
-        if obj:
-            # Pass the parent instance to the form class
-            original_form = formset.form
 
-            class FormWithParentInstance(original_form):
-                """
-                Form wrapper that provides access to parent equipment category.
+        fighter_field = formset.form.base_fields["fighter"]
+        label = fighter_field.label_from_instance
+        fighters = ContentFighter.objects.select_related("house").order_by(
+            "house__name", "type"
+        )
+        grouped_choices = [("", "---------")] + [
+            (house_name, [(fighter.pk, label(fighter)) for fighter in items])
+            for house_name, items in groupby(
+                fighters, key=lambda f: f.house.name if f.house else "No House"
+            )
+        ]
 
-                Used for validation against the parent category's restrictions.
-                """
+        original_form = formset.form
+        parent_instance = obj
 
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, **kwargs)
-                    self.parent_instance = obj
-                    group_select(
-                        self,
-                        "fighter",
-                        key=lambda x: x.house.name if x.house else "No House",
-                    )
+        class FormWithGroupedFighters(original_form):
+            """
+            Form wrapper that reuses the precomputed grouped fighter choices and
+            exposes the parent equipment category for validation.
+            """
 
-            formset.form = FormWithParentInstance
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                if parent_instance is not None:
+                    self.parent_instance = parent_instance
+                # Reuse the shared grouped choices; no per-row requery / N+1.
+                self.fields["fighter"].widget.choices = grouped_choices
+
+        formset.form = FormWithGroupedFighters
         return formset
 
 
