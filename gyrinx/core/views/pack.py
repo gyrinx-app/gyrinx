@@ -992,6 +992,20 @@ class PackDetailView(generic.DetailView):
                     archived_by_slug.get("psyker-discipline", [])
                 )
 
+            # Whether the section has any custom content to display. Grouped
+            # types are "non-empty" when they have a group to show (an empty
+            # skill tree / discipline / attribute is itself authored content);
+            # everything else is driven by its item list. View-only users hide
+            # empty sections in the template; editors always see them.
+            if ct_entry.slug == "skill":
+                section["has_content"] = bool(section["skill_groups"])
+            elif ct_entry.slug == "attribute-value":
+                section["has_content"] = bool(section["attribute_groups"])
+            elif ct_entry.slug == "psyker-power":
+                section["has_content"] = bool(section["power_groups"])
+            else:
+                section["has_content"] = section["count"] > 0
+
             content_sections.append(section)
 
         # Surface library weapons that have pack-scoped profiles attached
@@ -1070,6 +1084,7 @@ class PackDetailView(generic.DetailView):
                         )
                     weapon_section["items"].extend(customised_entries)
                     weapon_section["count"] = len(weapon_section["items"])
+                    weapon_section["has_content"] = weapon_section["count"] > 0
 
         context["content_sections"] = content_sections
         context["house_rule_entries"] = _list_house_rule_applications(pack)
