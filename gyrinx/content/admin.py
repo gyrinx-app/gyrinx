@@ -175,15 +175,10 @@ class ContentFighterEquipmentCategoryLimitForm(forms.ModelForm):
     Form for managing fighter equipment category limits.
 
     Validates that limits can only be set for categories with fighter restrictions.
-    Groups fighters by house for better UX in the admin interface.
+    The fighter field uses an autocomplete widget rather than a full
+    grouped-by-house dropdown, which would render every ContentFighter (and
+    hit the database for each one's house) on every inline row.
     """
-
-    def init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
 
     class Meta:
         model = ContentFighterEquipmentCategoryLimit
@@ -219,6 +214,7 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
     model = ContentFighterEquipmentCategoryLimit
     form = ContentFighterEquipmentCategoryLimitForm
     extra = 0
+    autocomplete_fields = ["fighter"]
     verbose_name = "Fighter Equipment Category Limit"
     verbose_name_plural = "Fighter Equipment Category Limits"
 
@@ -252,11 +248,6 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
                 def __init__(self, *args, **kwargs):
                     super().__init__(*args, **kwargs)
                     self.parent_instance = obj
-                    group_select(
-                        self,
-                        "fighter",
-                        key=lambda x: x.house.name if x.house else "No House",
-                    )
 
             formset.form = FormWithParentInstance
         return formset
