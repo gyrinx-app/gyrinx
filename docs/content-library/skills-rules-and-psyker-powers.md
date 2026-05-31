@@ -58,11 +58,14 @@ Represents a named special rule or ability from the game system.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | CharField | The name of the rule (e.g., "Psyker", "Gang Fighter", "Mounted"). |
+| `name` | CharField (max 255, unique) | The name of the rule (e.g., "Psyker", "Gang Fighter", "Mounted"). Must be unique across all rules. |
+| `description` | TextField (blank) | Optional descriptive text for the rule. |
 
-Rules are intentionally simple -- just a name. The game semantics of each rule are understood by the players and the application; the content library just needs to track which rules exist and which fighters have them.
+Rules are intentionally simple -- just a name and an optional description. The game semantics of each rule are understood by the players and the application; the content library just needs to track which rules exist and which fighters have them.
 
 Certain rule names have special significance in the application. The names `Psyker`, `Non-Sanctioned Psyker`, and `Sanctioned Psyker` (case-insensitive) determine whether a fighter is considered a psyker, which unlocks the psyker powers section of their fighter card.
+
+**Uniqueness:** The `name` field carries a database-level unique constraint. Attempting to create a second rule with an existing name raises an `IntegrityError`. References from fighters, modifiers, equipment list expansions, content packs, and page references all match rules by name, so a single canonical record per name keeps these joins consistent.
 
 **Admin interface:** Rules have a simple admin with search by name.
 

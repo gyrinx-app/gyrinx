@@ -61,7 +61,8 @@ category belongs to a group that controls its position in the overall ordering.
 | `name` | CharField | Unique name for the category (e.g. "Heavy Weapons"). |
 | `group` | CharField (choices) | One of `Gear`, `Vehicle & Mount`, `Weapons & Ammo`, or `Other`. Controls sort order. |
 | `restricted_to` | ManyToManyField (`ContentHouse`) | If set, only fighters from these houses can access equipment in this category. Leave blank for universally available categories. |
-| `visible_only_if_in_equipment_list` | BooleanField | When `True`, this category is hidden on a fighter's card unless the fighter actually has equipment from this category assigned. Useful for categories like "Status Items" that should not appear as empty slots. |
+| `visible_only_if_in_equipment_list` | BooleanField (default `False`) | When `True`, this category is hidden on a fighter's card unless the fighter actually has equipment from this category assigned. Useful for categories like "Status Items" that should not appear as empty slots. |
+| `persistent` | BooleanField (default `False`, indexed) | When `True`, equipment in this category stays attached to a fighter when they die in campaign mode, rather than being transferred to the gang stash. The item remains visible on the dead fighter's card and is neither moved nor refunded. Used for categories like "Impressive Leadership" where the gear is tied to the individual. |
 
 #### Fighter Category Restrictions
 
@@ -79,8 +80,12 @@ only be configured on categories that already have fighter category restrictions
 #### Admin Interface
 
 - **Search:** by name and group.
-- **Filters:** group, restricted houses, and `visible_only_if_in_equipment_list`.
+- **Filters:** group, restricted houses, `visible_only_if_in_equipment_list`, and `persistent`.
 - **Inlines:** Fighter Category Restrictions, Fighter Equipment Category Limits.
+
+The Fighter Equipment Category Limits inline groups fighters by house (with `<optgroup>`s)
+in its fighter dropdown. The grouped choices are built once per change page and shared
+across all rows, so the page loads quickly even on categories with many limits.
 
 ---
 
@@ -323,6 +328,16 @@ When you change the `cost` field on any content model in this area, the system a
 This means you can correct a pricing error in the content library and have it automatically reflected across all user
 lists that use that item. No manual intervention is needed beyond saving the content change. This section is the
 canonical description of the dirty/cost recalculation system; other documentation files reference it.
+
+### Persistent Equipment on Dead Fighters
+
+In campaign mode, when a fighter dies the system normally transfers their equipment to
+the gang stash so it can be re-equipped on other fighters. Equipment in a category
+flagged `persistent` is the exception: it stays attached to the dead fighter rather
+than moving to the stash. The item is neither transferred nor refunded -- it remains
+visible on the dead fighter's card. The kill confirmation message distinguishes between
+transferred and persistent items, and the stash delta reported in the campaign action
+log only counts the value of the transferred (non-persistent) gear.
 
 ### Modifiers on Equipment
 

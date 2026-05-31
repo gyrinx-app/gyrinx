@@ -25,6 +25,8 @@ The content library also supports house-level cost overrides for individual figh
 | Field | Type | Description |
 |---|---|---|
 | `name` | CharField | The display name of the house (e.g., "House Escher", "Underhive Outcasts"). Indexed for search. |
+| `description` | TextField (blank) | Optional descriptive text for the house. |
+| `icon` | FileField (blank, nullable) | Optional SVG icon rendered inline next to the house name in the application. Uploads go to `house-icons/` in the storage bucket. Stored SVGs are untrusted -- they are sanitised at render time via the `house_icon` template tag, which strips scripts, styles, and event handlers, and injects `fill="currentColor"` so the icon picks up the surrounding text colour. Display is currently gated to members of the "House Icons Alpha" auth group; non-members and anonymous users see the house name unchanged. |
 | `generic` | BooleanField | When checked, fighters belonging to this house are available to lists of any other house. Generic houses cannot be selected as a primary house during list creation. Defaults to `false`. |
 | `legacy` | BooleanField | When checked, marks this house as a legacy/older faction. Legacy houses are grouped separately in the list creation form under a "Legacy House" heading. Defaults to `false`. |
 | `can_hire_any` | BooleanField | When checked, lists belonging to this house can hire any fighter from any house (except stash fighters). Used for factions like Underhive Outcasts that have unrestricted recruitment. Defaults to `false`. |
@@ -39,7 +41,14 @@ The content library also supports house-level cost overrides for individual figh
 
 **Admin interface:**
 
-The `ContentHouse` admin page displays all fields for the house and includes an inline listing of all `ContentFighter` records belonging to that house. You can search houses by name.
+The `ContentHouse` admin page displays all fields for the house, including the `icon`
+upload, and includes an inline listing of all `ContentFighter` records belonging to that
+house. You can search houses by name.
+
+The fighter inline is restricted to the scalar columns `type`, `category`, and
+`base_cost` to keep the change page fast on large houses. Use the inline's change link
+to open a fighter's full edit page when you need to manage its skills, rules, or other
+many-to-many relationships.
 
 ### ContentFighterHouseOverride
 
@@ -90,6 +99,30 @@ Each house can have unique skill categories linked via the `skill_categories` fi
 2. House-specific skill categories from the fighter's house, displayed in a separate section.
 
 This allows houses like Escher to have access to faction-specific skill trees alongside the universal ones.
+
+### House Icons
+
+When a house has an `icon` uploaded, the application can render it inline next to the
+house name in places like the list cards, list header, user profile, campaign rows, and
+the house filter. The icon is sized like the surrounding Bootstrap icons and inherits
+the text colour via `fill: currentColor`.
+
+Display is gated behind the "House Icons Alpha" auth group while the feature is in
+alpha. Users who are not members of that group -- including anonymous users -- see the
+house name without any icon, with no markup or layout change.
+
+The icon SVG is sanitised at render time: `<script>`, `<style>`, `<foreignObject>`, and
+any `on*` event handlers are stripped; hardcoded `width`/`height` are removed (CSS sizes
+the icon); and `role="img"` and `aria-hidden="true"` are injected on the root. The
+sanitised markup is cached per stored file name, so re-uploading an icon busts the
+cache.
+
+A full set of book-faction icons is committed to the repository under
+`gyrinx/content/data/house_icons/`. A data migration attaches each icon to its matching
+houses on deploy (covering every book-variant of a house -- the Cawdor icon, for
+example, applies to both Cawdor variants). The `manage load_house_icons` command runs
+the same logic on demand and accepts `--overwrite` to push updated SVGs to houses that
+already have an icon set.
 
 ### Lists Browsing and Filtering
 
@@ -157,6 +190,21 @@ For factions that can buy from any equipment list (e.g., Venators):
 1. Open the house in the admin.
 2. Check the `can_buy_any` flag.
 3. Save. Equipment pages for fighters in this house will default to showing all available equipment rather than just the fighter's equipment list.
+
+### Uploading or Replacing a House Icon
+
+1. Open the house in the admin.
+2. Use the `icon` file field to upload an SVG. The file is stored in the
+   `house-icons/` directory of the configured storage bucket.
+3. Save. The icon will be sanitised the first time it is rendered, and the sanitised
+   markup is cached per file name.
+
+To push a refreshed icon to many houses at once, replace the SVG in
+`gyrinx/content/data/house_icons/` and run `manage load_house_icons --overwrite`. The
+command iterates every house with a matching icon name and uploads the new SVG.
+
+The icon only appears for users in the "House Icons Alpha" auth group while the feature
+is in alpha -- manage membership via the standard Django admin group page.
 
 ### Linking Unique Skill Categories to a House
 

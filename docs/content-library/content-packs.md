@@ -127,6 +127,27 @@ Clicking a pack opens its detail page at `/pack/<id>`. This page shows:
 
 Pack owners see an "Edit" button. Unlisted packs return a 404 for users who are not the owner.
 
+**Empty section visibility.** The pack owner and other editors see every content section
+on the detail page, even empty ones, so they can use the Quick Add controls to populate
+each category. View-only users (anonymous viewers and logged-in non-editors) only see
+sections that hold custom content. An empty section is hidden from them, keeping the
+page focused on what the pack actually provides. Grouped sections such as skills,
+psyker powers, and attribute values count as non-empty when they contain at least one
+group, so an authored-but-empty skill tree, discipline, or attribute still appears.
+
+**Creating gear and weapons.** When an editor adds a new gear or weapon item from the
+Quick Add controls, the application redirects to that item's edit page rather than back
+to the pack index. This makes it easy to set stats, traits, modifiers, and any other
+fields without re-navigating. The "Save & add another" buttons keep their existing
+behaviour, returning to the add form for gear and to the mode-selection step for
+weapons.
+
+**Default equipment that spawns child fighters.** The pack-fighter default-equipment
+picker offers fighter-linked equipment (items whose
+`ContentEquipmentFighterProfile` spawns a vehicle or exotic beast). When such a default
+is added, the system propagates the child fighter to gangs already subscribed to the
+pack -- see "Propagation of child-spawning default assignments" below.
+
 ### Creating and editing packs
 
 Users create packs at `/packs/new/`. The form includes fields for name, summary (rich text), description (rich text), and the listed toggle. The pack is automatically owned by the current user.
@@ -147,6 +168,27 @@ Activity is paginated at 50 entries per page.
 ### Pack content visibility in lists and fighters
 
 When users build lists and add fighters or equipment, they interact with the normal content queries that exclude pack content by default. Pack content does not appear in fighter selection dropdowns, equipment lists, or any other content-driven interface unless the application explicitly uses `with_packs()` to include specific packs.
+
+### Propagation of child-spawning default assignments
+
+Some `ContentFighterDefaultAssignment` records grant equipment whose
+`ContentEquipmentFighterProfile` spawns a child fighter -- typically a vehicle or an
+exotic beast. When a pack author adds such a default to a fighter type, the application
+materialises the child fighter on every gang already subscribed to a pack containing
+that fighter type, not just gangs created after the change.
+
+The propagation runs as a background task triggered by the
+`ContentFighterDefaultAssignment` post-save signal, and only fires for newly-created,
+child-spawning defaults. It is idempotent -- re-running skips disabled and
+already-materialised defaults. For each affected gang it records a single awareness
+action in the gang's log so owners can see why a new fighter appeared. Materialising a
+child-spawning default has no impact on the gang's rating or credits: the default is
+virtual and zero-cost, the materialised assignment uses `cost_override=0`, and child
+fighters do not contribute to list cost.
+
+The propagation acts on `content_fighter` defaults only. Defaults driven by
+`legacy_content_fighter` are a documented gap that matches the hire-time path.
+Deleting or archiving a default does not retract already-spawned child fighters.
 
 ## Common Admin Tasks
 
