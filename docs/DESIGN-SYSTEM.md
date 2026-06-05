@@ -434,4 +434,4 @@ A `<br>` before the icon in real templates, or a `<div>` wrapper:
 | `.flash-warn` | 2s warning-colour fade animation for new items |
 | `.tooltipped` | Info-underline style with help cursor |
 | `.table-fixed` | `table-layout: fixed` for stat grids |
-| `.house-icon` | Inline house SVG badge; `transform`-scaled ~25% (line-height safe), `currentColor`; emitted by `{% house_icon %}` |
+| `.house-icon` | Inline house SVG badge; `transform`-scaled ~25% (line-height safe), `currentColor`; emitted by `{% house_icon house %}` |

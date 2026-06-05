@@ -8,6 +8,7 @@ from pathlib import Path
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils.safestring import mark_safe
 
 from gyrinx.core.models import List
 
@@ -66,6 +67,8 @@ def debug_test_plan_detail(request, filename):
 
 def debug_design_system(request):
     """Design system living reference page."""
+    if not settings.DEBUG:
+        raise Http404("Debug views are only available in development")
 
     theme_colours = [
         ("blue", "#0771ea"),
@@ -150,7 +153,7 @@ def debug_design_system(request):
         (
             ".house-icon",
             "Inline house SVG badge; transform-scaled ~25% (line-height safe), "
-            "currentColor; emitted by {% house_icon %}",
+            "currentColor; emitted by {% house_icon house %}",
         ),
     ]
 
@@ -173,6 +176,17 @@ def debug_design_system(request):
 
     ds_user = _DSUser()
 
+    # Sample house icon for the design system preview. Mirrors the markup that
+    # {% house_icon %} emits (class + fill + role/aria on the <svg> itself) so the
+    # .house-icon CSS can be previewed without the alpha-gated tag or a real
+    # house. Defined here as one source of truth for the section and table cell.
+    # nosec B703 B308 - hardcoded literal SVG, no user input
+    ds_house_icon_svg = mark_safe(  # nosec B703 B308
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" '
+        'class="house-icon" fill="currentColor" role="img" aria-hidden="true">'
+        '<path d="M8 1 1 5.5V15h4.5v-4h5v4H15V5.5L8 1Z" /></svg>'
+    )
+
     return render(
         request,
         "core/debug/design_system.html",
@@ -186,6 +200,7 @@ def debug_design_system(request):
             "custom_classes": custom_classes,
             "ds_campaign": ds_campaign,
             "ds_user": ds_user,
+            "ds_house_icon_svg": ds_house_icon_svg,
         },
     )
 

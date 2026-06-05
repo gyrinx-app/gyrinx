@@ -583,11 +583,10 @@
                 examples below show the badge at body and compact (<code>fs-7</code>) sizes.
             </p>
             <div class="d-flex flex-column gap-2">
-                {# djlint:off #}
-                <div>Squat Prospectors<span class="house-icon"><svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 1 1 5.5V15h4.5v-4h5v4H15V5.5L8 1Z" /></svg></span></div>
-                <div class="text-secondary fs-7">House name at <code>fs-7</code><span class="house-icon"><svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M8 1 1 5.5V15h4.5v-4h5v4H15V5.5L8 1Z" /></svg></span></div>
-                {# djlint:on #}
-                {# djlint:off H021 #}{# restore the file-level H021 suppression re-enabled by djlint:on above #}
+                <div>Squat Prospectors{{ ds_house_icon_svg }}</div>
+                <div class="text-secondary fs-7">
+                    House name at <code>fs-7</code>{{ ds_house_icon_svg }}
+                </div>
             </div>
         </section>
         <!-- ============================================================ -->
@@ -1583,6 +1582,8 @@
                             <span class="tooltipped">hover me</span>
                         {% elif cls == ".table-fixed" %}
                             <span class="text-secondary">(table-layout: fixed)</span>
+                        {% elif cls == ".house-icon" %}
+                            <span>House{{ ds_house_icon_svg }}</span>
                         {% endif %}
                     </td>
                 </tr>
