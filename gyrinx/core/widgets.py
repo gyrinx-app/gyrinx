@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from tinymce.widgets import TinyMCE
 
 # Additional TinyMCE configuration for forms
@@ -72,8 +73,9 @@ TINYMCE_UPLOAD_CONFIG = {
                     return tokenField.value;
                 }
 
-                // Fall back to cookie
-                const name = 'csrftoken';
+                // Fall back to cookie (name injected from settings.CSRF_COOKIE_NAME
+                // below, so per-worktree dev cookie renaming doesn't break uploads)
+                const name = '__CSRF_COOKIE_NAME__';
                 const cookies = document.cookie.split(';');
                 for (const cookie of cookies) {
                     const trimmed = cookie.trim();
@@ -114,6 +116,13 @@ TINYMCE_UPLOAD_CONFIG = {
         }
     """,
 }
+
+# Inject the configured CSRF cookie name into the upload handler's cookie-fallback
+# branch. Defaults to "csrftoken", but settings_dev.py renames it per-worktree so
+# concurrent dev servers don't share one cookie jar — the JS must read the same name.
+TINYMCE_UPLOAD_CONFIG["images_upload_handler"] = TINYMCE_UPLOAD_CONFIG[
+    "images_upload_handler"
+].replace("__CSRF_COOKIE_NAME__", settings.CSRF_COOKIE_NAME)
 
 
 class TinyMCEWithUpload(TinyMCE):
