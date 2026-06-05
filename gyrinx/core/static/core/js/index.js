@@ -345,7 +345,24 @@ setupFilterLinks({
 setupFilterLinks({ prefix: "house", param: "house", allValues: "all" });
 setupFilterLinks({ prefix: "status", param: "status", allValues: "all" });
 
-// Add loading spinner to form submit buttons
+// Site-wide form-submit "busy" affordance.
+//
+// This is a deliberate exception to our "JS is for one-off enhancements" rule:
+// it applies to *every* form on submit so the whole app feels responsive on
+// slow POSTs (content-pack saves, large list edits, etc.) and discourages
+// accidental double-submits. It is purely an enhancement — it never calls
+// preventDefault(), so forms still submit natively and redirects are followed
+// as normal even if this script fails to load.
+//
+// Two things keep it well-behaved:
+//   1. It is non-destructive. We keep the clicked button's original label/icon
+//      in the DOM and set aria-busy, rather than replacing the button's
+//      innerHTML. CSS (button[aria-busy]) then hides that content and shows a
+//      centred spinner over it, so nothing inside the button is thrown away and
+//      the original markup can be restored verbatim.
+//   2. It restores itself from the bfcache. A pageshow handler clears the busy
+//      state when a page is restored after pressing Back, so a form is never
+//      left stuck disabled/spinning.
 document.addEventListener("DOMContentLoaded", () => {
     const forms = document.querySelectorAll("form");
 
@@ -357,21 +374,72 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             submitButtons.forEach((button) => {
-                // Only modify the button if it is the one that was clicked
+                // Only add the spinner to the button that was clicked, and do
+                // it non-destructively: keep the existing label/icon in place
+                // and let CSS hide it behind a centred spinner.
                 if (button.isSameNode(event.submitter)) {
-                    button.style.width = `${button.offsetWidth}px`;
-                    button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>`;
+                    button.setAttribute("aria-busy", "true");
+
+                    // <input type="submit"> can't hold child markup, so only
+                    // <button> gets a spinner element prepended.
+                    if (button.tagName === "BUTTON") {
+                        const spinner = document.createElement("span");
+                        // Centred over the button via CSS (button[aria-busy])
+                        // rather than flowed beside the label, so small /
+                        // icon-only buttons collapse to just the spinner.
+                        spinner.className = "spinner-border spinner-border-sm";
+                        spinner.setAttribute("role", "status");
+                        spinner.setAttribute("aria-hidden", "true");
+                        spinner.dataset.submitSpinner = "true";
+                        button.prepend(spinner);
+                    }
                 }
 
-                // Disable all the buttons
+                // Skip buttons that were already disabled before this submit —
+                // they aren't ours to re-enable on pageshow, so we must not tag
+                // them.
+                if (button.disabled) {
+                    return;
+                }
+
+                // Disable the (previously-enabled) buttons to prevent
+                // double-submits. We tag each one we touch so pageshow can
+                // restore exactly these.
                 // This is setTimeout to ensure it runs after the form submission starts so that any
                 // name/value attributes are still submitted.
                 setTimeout(() => {
+                    button.dataset.submitDisabled = "true";
                     button.disabled = true;
                 }, 0);
             });
         });
     });
+});
+
+// Clear the form-submit busy state when a page is restored from the bfcache
+// (e.g. pressing Back after submitting). Without this the restored DOM keeps
+// the disabled buttons and spinners, leaving the form looking permanently busy.
+// We only undo what the submit handler above set, identified by our data-*
+// markers, so buttons disabled for other reasons are left alone.
+window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) {
+        return;
+    }
+
+    // Only touch buttons we tagged. aria-busy is cleared here too (rather than
+    // via a separate document-wide [aria-busy] sweep) so we never clobber other
+    // UI that legitimately uses aria-busy.
+    document
+        .querySelectorAll('[data-submit-disabled="true"]')
+        .forEach((button) => {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+            delete button.dataset.submitDisabled;
+        });
+
+    document
+        .querySelectorAll('[data-submit-spinner="true"]')
+        .forEach((spinner) => spinner.remove());
 });
 
 // Find all checkboxes and add change event listeners to any hidden fields

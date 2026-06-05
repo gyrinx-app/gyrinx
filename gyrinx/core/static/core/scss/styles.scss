@@ -94,6 +94,50 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Custom styles
 //
 
+// Form-submit busy state (driven by core/js/index.js).
+//
+// The submit handler keeps the clicked button's original label/icon in the DOM
+// (so it can be restored verbatim from the bfcache on Back) and only sets
+// aria-busy + prepends a spinner element. These rules hide the real content and
+// show just the centred spinner, so even small / icon-only buttons collapse to
+// the spinner — the way the old, destructive innerHTML swap looked. Removing
+// aria-busy (on submit-failure restore or pageshow) reverts all of this for
+// free, since every rule is keyed on the attribute.
+button[aria-busy="true"] {
+    position: relative;
+
+    // Snap the label out faster than Bootstrap's default .15s .btn colour
+    // transition, so the content disappears quickly when the spinner appears.
+    // Via the Bootstrap mixin so it still honours prefers-reduced-motion.
+    @include transition(color 0.06s ease-in-out);
+
+    // Hide bare text nodes and icon-font glyphs — both are painted by `color`.
+    // !important is required: the submit handler disables the button a tick
+    // after click, and Bootstrap's `.btn:disabled` / `.btn:hover` / `.btn:active`
+    // colour rules have higher specificity than `button[aria-busy]` and would
+    // otherwise restore the text colour, showing the label under the spinner.
+    color: transparent !important;
+
+    // Hide element children (nested icons, badges, images) without removing
+    // them, so the button keeps its intrinsic width and doesn't collapse.
+    > :not([data-submit-spinner]) {
+        visibility: hidden;
+    }
+
+    // Centre the spinner over the now-empty button and give it back a visible
+    // colour (the button variant's own text colour, since the button itself is
+    // now `color: transparent`). Fall back to the body colour rather than
+    // currentColor: on a submit <button> without a .btn variant (e.g. a
+    // dropdown-item), --bs-btn-color is unset and currentColor would resolve to
+    // the parent's transparent, hiding the spinner.
+    [data-submit-spinner] {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        color: var(--bs-btn-color, var(--bs-body-color));
+    }
+}
+
 // Lighten secondary in light mode, darken in dark mode
 :root,
 [data-bs-theme="light"] {
