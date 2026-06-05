@@ -1,25 +1,23 @@
 {% load custom_tags color_tags %}
-<div class="hstack gap-2 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} align-items-start break-inside-avoid">
-    <div class="d-flex flex-row flex-grow-1 align-items-start gap-2 gap-md-3">
-        <div class="vstack flex-grow-1 min-w-0">
-            {% url 'core:lists' as lists_url %}
-            {% if list.is_campaign_mode %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
-            {% else %}
-                {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
-            {% endif %}
-            <h2 class="mb-0 h2">
-                {% if link_list %}
-                    <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
-                {% else %}
-                    {% list_with_theme list %}
-                {% endif %}
-            </h2>
-        </div>
-        <div class="ms-auto fs-7 vstack align-items-end justify-content-center gap-1 flex-shrink-0">
-            <div class="text-end">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
+<div class="vstack gap-2 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} break-inside-avoid">
+    {% url 'core:lists' as lists_url %}
+    {% if list.is_campaign_mode %}
+        {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
+    {% else %}
+        {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
+    {% endif %}
+    <h2 class="mb-0 h2">
+        {% if link_list %}
+            <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
+        {% else %}
+            {% list_with_theme list %}
+        {% endif %}
+    </h2>
+    <div class="d-flex flex-row flex-wrap align-items-center column-gap-3 row-gap-1 fs-7">
+        <div class="d-flex flex-row flex-wrap align-items-center column-gap-3 row-gap-1 min-w-0">
+            <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
             {% if list.campaign %}
-                <div class="text-end">
+                <div>
                     {% if print %}
                         <i class="bi-award"></i> {{ list.campaign.name }}
                         {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
@@ -32,7 +30,9 @@
                     {% endif %}
                 </div>
             {% endif %}
-            <table class="table table-sm table-borderless table-responsive text-center mb-0">
+        </div>
+        <div class="ms-auto">
+            <table class="table table-sm table-borderless table-responsive text-center mb-0 w-auto">
                 <thead>
                     <tr class="fs-7 align-middle">
                         <th class="py-0 bg-transparent"

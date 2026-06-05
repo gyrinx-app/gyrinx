@@ -13,237 +13,231 @@
     <div class="hstack">
         <div class="vstack flex-grow-1 gap-0 mb-2">
             {% include "core/includes/list_common_header.html" with list=list %}
-            <div class="d-flex flex-row flex-wrap row-gap-2 column-gap-2 align-items-center">
-                <div class="d-flex flex-row flex-wrap row-gap-1 column-gap-2 fs-7">
-                    {% if not print %}
+            {% if not print %}
+                <div class="d-flex flex-row flex-wrap row-gap-1 column-gap-2 fs-7 mb-2">
+                    <div>
+                        {% if list.public %}
+                            <i class="bi-eye"></i>
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="This list is visible to all users"
+                                  class="tooltipped">Public</span>
+                        {% endif %}
+                        {% if list.owner_cached == user and not list.public %}
+                            <i class="bi-eye-slash"></i>
+                            <span data-bs-toggle="tooltip"
+                                  data-bs-title="This list can only be accessed by users with the direct link"
+                                  class="tooltipped">Unlisted</span>
+                        {% endif %}
+                    </div>
+                    {% if list.owner_cached == user and list.archived_fighters_cached.count > 0 %}
                         <div>
-                            {% if list.public %}
-                                <i class="bi-eye"></i>
-                                <span data-bs-toggle="tooltip"
-                                      data-bs-title="This list is visible to all users"
-                                      class="tooltipped">Public</span>
-                            {% endif %}
-                            {% if list.owner_cached == user and not list.public %}
-                                <i class="bi-eye-slash"></i>
-                                <span data-bs-toggle="tooltip"
-                                      data-bs-title="This list can only be accessed by users with the direct link"
-                                      class="tooltipped">Unlisted</span>
-                            {% endif %}
-                        </div>
-                        {% if list.owner_cached == user and list.archived_fighters_cached.count > 0 %}
-                            <div>
-                                <i class="bi-archive"></i>
-                                <a href="{% url 'core:list-archived-fighters' list.id %}" class="linked">
-                                    {{ list.archived_fighters_cached.count }} archived fighter{{ list.archived_fighters_cached.count|pluralize }}
-                                </a>
-                            </div>
-                        {% endif %}
-                        <div>
-                            <i class="bi-file-text"></i>
-                            <a class="linked" href="{% url 'core:list-about' list.id %}">Lore</a>
-                        </div>
-                        <div>
-                            <i class="bi-journal-text"></i>
-                            <a class="linked" href="{% url 'core:list-notes' list.id %}">Notes</a>
-                        </div>
-                        {% if list.is_campaign_mode and list.original_list %}
-                            <div>
-                                <i class="bi-copy"
-                                   data-bs-toggle="tooltip"
-                                   data-bs-title="This list was created via cloning"></i>
-                                Based on <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
-                            </div>
-                        {% endif %}
-                        {% if list.is_list_building and list.active_campaign_clones|length %}
-                            <div>
-                                <i class="bi-award"
-                                   data-bs-toggle="tooltip"
-                                   data-bs-title="Active in Campaign"></i>
-                                <a href="{% url 'core:list-campaign-clones' list.id %}" class="linked">Active in Campaigns</a>
-                            </div>
-                        {% endif %}
-                        {% if subscribed_packs %}
-                            <div>
-                                <i class="bi-box-seam"
-                                   data-bs-toggle="tooltip"
-                                   data-bs-title="Content Packs subscribed to this list"></i>
-                                {% if list.owner_cached == user %}
-                                    <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}</a>
-                                {% else %}
-                                    {{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}
-                                {% endif %}
-                                {% if suggested_campaign_packs_count %}
-                                    · <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
-                                {% endif %}
-                            </div>
-                        {% elif suggested_campaign_packs_count %}
-                            <div>
-                                <i class="bi-box-seam"></i>
-                                <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
-                            </div>
-                        {% elif list.owner_cached == user %}
-                            <div>
-                                <i class="bi-box-seam"></i>
-                                <a href="{% url 'core:list-packs' list.id %}" class="linked">Add Content Pack</a>
-                            </div>
-                        {% endif %}
-                    {% endif %}
-                </div>
-                <div class="flex-shrink-0 ms-auto">
-                    {% if not print %}
-                        <div class="nav hstack gap-1 flex-nowrap">
-                            {% if list.owner_cached == user and pending_invitations_count > 0 %}
-                                <a href="{% url 'core:list-invitations' list.id %}"
-                                   class="btn btn-info text-bg-info btn-sm">
-                                    <i class="bi-award"></i>
-                                    {{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}
-                                </a>
-                            {% endif %}
-                            {% if list.owner_cached == user and not list.archived %}
-                                <a href="{% url 'core:list-fighter-new' list.id %}"
-                                   class="btn btn-primary btn-sm"
-                                   title="Add a fighter to this list">
-                                    <i class="bi-person-add"></i> Add fighter</a>
-                                <a href="{% url 'core:list-vehicle-new' list.id %}"
-                                   class="btn btn-primary btn-sm"
-                                   title="Add a vehicle to this list">
-                                    <i class="bi-truck"></i> Add vehicle</a>
-                            {% endif %}
-                            {% if user.is_authenticated %}
-                                {% if list.owner_cached == user %}
-                                    <form method="post"
-                                          action="{% url 'core:list-pin' list.id %}"
-                                          class="d-inline">
-                                        {% csrf_token %}
-                                        <button type="submit"
-                                                class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
-                                                title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this list">
-                                            <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
-                                            <span class="visually-hidden">
-                                                {% if is_pinned %}
-                                                    Unpin
-                                                {% else %}
-                                                    Pin
-                                                {% endif %}
-                                            </span>
-                                        </button>
-                                    </form>
-                                {% endif %}
-                                <form method="post"
-                                      action="{% url 'core:list-star' list.id %}"
-                                      class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="btn btn-sm icon-link {% if is_starred %}btn-warning{% else %}btn-secondary{% endif %}"
-                                            title="{% if is_starred %}Unstar{% else %}Star{% endif %} this list">
-                                        <i class="bi-star{% if is_starred %}-fill{% endif %}"></i>
-                                        {{ star_count|default:0 }}
-                                    </button>
-                                </form>
-                            {% endif %}
-                            <a href="{% url 'core:print-config-index' list.id %}"
-                               class="btn btn-secondary btn-sm d-none d-sm-inline-flex"
-                               title="Print">
-                                <i class="bi-printer"></i>
-                                <span class="visually-hidden">Print</span>
+                            <i class="bi-archive"></i>
+                            <a href="{% url 'core:list-archived-fighters' list.id %}" class="linked">
+                                {{ list.archived_fighters_cached.count }} archived fighter{{ list.archived_fighters_cached.count|pluralize }}
                             </a>
-                            <nav class="btn-group">
-                                {% if list.owner_cached == user and not list.archived %}
-                                    <a href="{% url 'core:list-edit' list.id %}"
-                                       class="btn btn-secondary btn-sm"
-                                       title="Edit this list">
-                                        <i class="bi-pencil"></i> Edit
-                                    </a>
-                                {% endif %}
-                                <div class="btn-group" role="group">
-                                    <button type="button"
-                                            class="btn btn-secondary btn-sm dropdown-toggle"
-                                            data-bs-toggle="dropdown"
-                                            aria-expanded="false"
-                                            aria-label="More options">
-                                        <i class="bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <a href="{% url 'core:print-config-index' list.id %}"
-                                               class="dropdown-item icon-link">
-                                                <i class="bi-printer"></i> Print
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <button type="button"
-                                                    class="dropdown-item icon-link"
-                                                    data-bs-toggle="offcanvas"
-                                                    data-bs-target="#embedOffcanvas"
-                                                    aria-controls="embedOffcanvas">
-                                                <i class="bi-person-bounding-box"></i> Embed
-                                            </button>
-                                        </li>
-                                        <li>
-                                            <a href="{% url 'core:list-clone' list.id %}"
-                                               class="dropdown-item icon-link">
-                                                <i class="bi-copy"></i> Clone
-                                            </a>
-                                        </li>
-                                        {% if list.owner_cached == user %}
-                                            {% if pending_invitations_count > 0 %}
-                                                <li>
-                                                    <a href="{% url 'core:list-invitations' list.id %}"
-                                                       class="dropdown-item icon-link">
-                                                        <i class="bi-envelope"></i> Invitations
-                                                        <span class="badge text-bg-info ms-1">{{ pending_invitations_count }}</span>
-                                                    </a>
-                                                </li>
-                                            {% endif %}
-                                            <li>
-                                                {% if has_stash_fighter %}
-                                                    <a href="#"
-                                                       class="dropdown-item icon-link disabled"
-                                                       data-bs-toggle="tooltip"
-                                                       data-bs-title="This list already has a stash fighter"
-                                                       onclick="return false;">
-                                                        <i class="bi-plus-lg"></i> Show Stash
-                                                    </a>
-                                                {% else %}
-                                                    <a href="{% url 'core:list-show-stash' list.id %}"
-                                                       class="dropdown-item icon-link">
-                                                        <i class="bi-plus-lg"></i> Show Stash
-                                                    </a>
-                                                {% endif %}
-                                            </li>
-                                            <li>
-                                                <a href="{% url 'core:list-archive' list.id %}"
-                                                   class="dropdown-item icon-link">
-                                                    <i class="bi-archive"></i>
-                                                    {% if list.archived %}
-                                                        Unarchive
-                                                    {% else %}
-                                                        Archive
-                                                    {% endif %}
-                                                </a>
-                                            </li>
-                                        {% endif %}
-                                        {% if request.user.is_staff %}
-                                            <li>
-                                                <hr class="dropdown-divider">
-                                            </li>
-                                            <li>
-                                                <h6 class="dropdown-header text-uppercase fs-7">Internal</h6>
-                                            </li>
-                                            <li>
-                                                <a href="{% url 'debug_list_actions' list.id %}"
-                                                   class="dropdown-item icon-link">
-                                                    <i class="bi-flag"></i> Actions
-                                                </a>
-                                            </li>
-                                        {% endif %}
-                                    </ul>
-                                </div>
-                            </nav>
+                        </div>
+                    {% endif %}
+                    <div>
+                        <i class="bi-file-text"></i>
+                        <a class="linked" href="{% url 'core:list-about' list.id %}">Lore</a>
+                    </div>
+                    <div>
+                        <i class="bi-journal-text"></i>
+                        <a class="linked" href="{% url 'core:list-notes' list.id %}">Notes</a>
+                    </div>
+                    {% if list.is_campaign_mode and list.original_list %}
+                        <div>
+                            <i class="bi-copy"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="This list was created via cloning"></i>
+                            Based on <a href="{% url 'core:list' list.original_list.id %}" class="linked">{{ list.original_list.name }}</a>
+                        </div>
+                    {% endif %}
+                    {% if list.is_list_building and list.active_campaign_clones|length %}
+                        <div>
+                            <i class="bi-award"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="Active in Campaign"></i>
+                            <a href="{% url 'core:list-campaign-clones' list.id %}" class="linked">Active in Campaigns</a>
+                        </div>
+                    {% endif %}
+                    {% if subscribed_packs %}
+                        <div>
+                            <i class="bi-box-seam"
+                               data-bs-toggle="tooltip"
+                               data-bs-title="Content Packs subscribed to this list"></i>
+                            {% if list.owner_cached == user %}
+                                <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}</a>
+                            {% else %}
+                                {{ subscribed_packs|length }} Content Pack{{ subscribed_packs|length|pluralize }}
+                            {% endif %}
+                            {% if suggested_campaign_packs_count %}
+                                · <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
+                            {% endif %}
+                        </div>
+                    {% elif suggested_campaign_packs_count %}
+                        <div>
+                            <i class="bi-box-seam"></i>
+                            <a href="{% url 'core:list-packs' list.id %}" class="linked">{{ suggested_campaign_packs_count }} suggested</a>
+                        </div>
+                    {% elif list.owner_cached == user %}
+                        <div>
+                            <i class="bi-box-seam"></i>
+                            <a href="{% url 'core:list-packs' list.id %}" class="linked">Add Content Pack</a>
                         </div>
                     {% endif %}
                 </div>
-            </div>
+                <div class="nav hstack gap-1 flex-wrap">
+                    {% if list.owner_cached == user and pending_invitations_count > 0 %}
+                        <a href="{% url 'core:list-invitations' list.id %}"
+                           class="btn btn-info text-bg-info btn-sm">
+                            <i class="bi-award"></i>
+                            {{ pending_invitations_count }} invitation{{ pending_invitations_count|pluralize }}
+                        </a>
+                    {% endif %}
+                    {% if list.owner_cached == user and not list.archived %}
+                        <a href="{% url 'core:list-fighter-new' list.id %}"
+                           class="btn btn-primary btn-sm"
+                           title="Add a fighter to this list">
+                            <i class="bi-person-add"></i> Add fighter</a>
+                        <a href="{% url 'core:list-vehicle-new' list.id %}"
+                           class="btn btn-primary btn-sm"
+                           title="Add a vehicle to this list">
+                            <i class="bi-truck"></i> Add vehicle</a>
+                    {% endif %}
+                    {% if user.is_authenticated %}
+                        {% if list.owner_cached == user %}
+                            <form method="post"
+                                  action="{% url 'core:list-pin' list.id %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit"
+                                        class="btn btn-sm {% if is_pinned %}btn-success{% else %}btn-secondary{% endif %}"
+                                        title="{% if is_pinned %}Unpin{% else %}Pin{% endif %} this list">
+                                    <i class="bi-pin-angle{% if is_pinned %}-fill{% endif %}"></i>
+                                    <span class="visually-hidden">
+                                        {% if is_pinned %}
+                                            Unpin
+                                        {% else %}
+                                            Pin
+                                        {% endif %}
+                                    </span>
+                                </button>
+                            </form>
+                        {% endif %}
+                        <form method="post"
+                              action="{% url 'core:list-star' list.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="btn btn-sm icon-link {% if is_starred %}btn-warning{% else %}btn-secondary{% endif %}"
+                                    title="{% if is_starred %}Unstar{% else %}Star{% endif %} this list">
+                                <i class="bi-star{% if is_starred %}-fill{% endif %}"></i>
+                                {{ star_count|default:0 }}
+                            </button>
+                        </form>
+                    {% endif %}
+                    <a href="{% url 'core:print-config-index' list.id %}"
+                       class="btn btn-secondary btn-sm d-none d-sm-inline-flex"
+                       title="Print">
+                        <i class="bi-printer"></i>
+                        <span class="visually-hidden">Print</span>
+                    </a>
+                    <nav class="btn-group">
+                        {% if list.owner_cached == user and not list.archived %}
+                            <a href="{% url 'core:list-edit' list.id %}"
+                               class="btn btn-secondary btn-sm"
+                               title="Edit this list">
+                                <i class="bi-pencil"></i> Edit
+                            </a>
+                        {% endif %}
+                        <div class="btn-group" role="group">
+                            <button type="button"
+                                    class="btn btn-secondary btn-sm dropdown-toggle"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="More options">
+                                <i class="bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a href="{% url 'core:print-config-index' list.id %}"
+                                       class="dropdown-item icon-link">
+                                        <i class="bi-printer"></i> Print
+                                    </a>
+                                </li>
+                                <li>
+                                    <button type="button"
+                                            class="dropdown-item icon-link"
+                                            data-bs-toggle="offcanvas"
+                                            data-bs-target="#embedOffcanvas"
+                                            aria-controls="embedOffcanvas">
+                                        <i class="bi-person-bounding-box"></i> Embed
+                                    </button>
+                                </li>
+                                <li>
+                                    <a href="{% url 'core:list-clone' list.id %}"
+                                       class="dropdown-item icon-link">
+                                        <i class="bi-copy"></i> Clone
+                                    </a>
+                                </li>
+                                {% if list.owner_cached == user %}
+                                    {% if pending_invitations_count > 0 %}
+                                        <li>
+                                            <a href="{% url 'core:list-invitations' list.id %}"
+                                               class="dropdown-item icon-link">
+                                                <i class="bi-envelope"></i> Invitations
+                                                <span class="badge text-bg-info ms-1">{{ pending_invitations_count }}</span>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                    <li>
+                                        {% if has_stash_fighter %}
+                                            <a href="#"
+                                               class="dropdown-item icon-link disabled"
+                                               data-bs-toggle="tooltip"
+                                               data-bs-title="This list already has a stash fighter"
+                                               onclick="return false;">
+                                                <i class="bi-plus-lg"></i> Show Stash
+                                            </a>
+                                        {% else %}
+                                            <a href="{% url 'core:list-show-stash' list.id %}"
+                                               class="dropdown-item icon-link">
+                                                <i class="bi-plus-lg"></i> Show Stash
+                                            </a>
+                                        {% endif %}
+                                    </li>
+                                    <li>
+                                        <a href="{% url 'core:list-archive' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-archive"></i>
+                                            {% if list.archived %}
+                                                Unarchive
+                                            {% else %}
+                                                Archive
+                                            {% endif %}
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                {% if request.user.is_staff %}
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li>
+                                        <h6 class="dropdown-header text-uppercase fs-7">Internal</h6>
+                                    </li>
+                                    <li>
+                                        <a href="{% url 'debug_list_actions' list.id %}"
+                                           class="dropdown-item icon-link">
+                                            <i class="bi-flag"></i> Actions
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </nav>
+                </div>
+            {% endif %}
         </div>
         {% if print %}
             <div id="qr"
