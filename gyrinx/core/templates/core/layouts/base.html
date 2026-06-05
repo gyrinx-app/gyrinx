@@ -111,9 +111,21 @@
                             {{ user.username }}
                         </a>
                     {% else %}
-                        <a href="{% url 'account_login' %}" class="btn btn-outline-light">Sign In</a>
+                        {% url 'account_login' as login_url_ %}
                         {% url 'account_signup' as signup_url_ %}
-                        {% if signup_url_ %}<a href="{{ signup_url_ }}" class="btn btn-success">Sign Up</a>{% endif %}
+                        {% if request.path != login_url_ and request.path != signup_url_ %}
+                            {% with next_param=request.get_full_path|urlencode %}
+                                <a href="{{ login_url_ }}?next={{ next_param }}"
+                                   class="btn btn-outline-light">Sign In</a>
+                                {% if signup_url_ %}
+                                    <a href="{{ signup_url_ }}?next={{ next_param }}"
+                                       class="btn btn-success">Sign Up</a>
+                                {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            <a href="{{ login_url_ }}" class="btn btn-outline-light">Sign In</a>
+                            {% if signup_url_ %}<a href="{{ signup_url_ }}" class="btn btn-success">Sign Up</a>{% endif %}
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
