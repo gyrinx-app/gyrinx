@@ -33,6 +33,15 @@ CSRF_TRUSTED_ORIGINS = [
     f"http://127.0.0.1:{_dev_port}",
 ]
 
+# Per-worktree cookie isolation. Cookies are scoped by domain, not port, so every
+# worktree at localhost:<port> shares one cookie jar. With the default cookie names
+# (sessionid / csrftoken) each worktree's login overwrites the others' — and because
+# each worktree has its own database, the overwritten cookie resolves to a session
+# row that doesn't exist there, logging you out. Suffixing with the port gives each
+# worktree independent cookies so you can stay logged into all of them at once.
+SESSION_COOKIE_NAME = f"gyrinx_sessionid_{_dev_port}"
+CSRF_COOKIE_NAME = f"gyrinx_csrftoken_{_dev_port}"
+
 # Feature flags for development
 FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
