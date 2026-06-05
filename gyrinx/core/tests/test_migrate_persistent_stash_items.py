@@ -4,13 +4,19 @@ from io import StringIO
 
 import pytest
 from django.core.management import call_command
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
 )
+from gyrinx.core.maintenance.persistent_stash import find_candidates
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+
+
+_SCENARIO_SEQ = 0
 
 
 def _setup_scenario(
@@ -26,13 +32,18 @@ def _setup_scenario(
 ):
     """Build a campaign list with one dead fighter + a persistent-cat item on
     the stash, plus a matching kill ListAction. Returns the relevant objects."""
+    global _SCENARIO_SEQ
+    _SCENARIO_SEQ += 1
+    suffix = f" #{_SCENARIO_SEQ}"
     cat = ContentEquipmentCategory.objects.create(
-        name="Mutations Test",
+        name=f"Mutations Test{suffix}",
         group="Gear",
         persistent=persistent,
     )
     cat.restricted_to.add(content_house)
-    equipment = ContentEquipment.objects.create(name="Vast Bulk", category=cat, cost=10)
+    equipment = ContentEquipment.objects.create(
+        name=f"Vast Bulk{suffix}", category=cat, cost=10
+    )
 
     stash_cf = make_content_fighter(
         type="Stash",
@@ -292,3 +303,33 @@ def test_skip_when_matched_action_has_null_list_fighter(
     s["assignment"].refresh_from_db()
     assert s["assignment"].list_fighter_id == s["stash"].id
     assert "null_fighter" in out
+
+
+# ---------------------------------------------------------------- perf
+
+
+@pytest.mark.django_db
+def test_find_candidates_is_not_n_plus_1(
+    db, content_house, make_content_fighter, make_list, make_list_fighter
+):
+    """find_candidates must batch the kill-action lookup, not run one query
+    per candidate assignment. Locks in the fix for the dry-run page perf."""
+    # Build 8 independent scenarios → 8 candidate assignments to classify.
+    for _ in range(8):
+        _setup_scenario(
+            content_house, make_content_fighter, make_list, make_list_fighter
+        )
+
+    with CaptureQueriesContext(connection) as ctx:
+        candidates = find_candidates()
+    assert len(candidates) == 8
+
+    # Hard ceiling: well below 1-per-candidate. The actual count is small
+    # (a handful of SELECTs for the assignment query, prefetched joins, and
+    # a single batched kill-action query) but pinning the exact number is
+    # brittle — anything that grows with N is what we care about.
+    assert len(ctx.captured_queries) < 20, (
+        f"find_candidates issued {len(ctx.captured_queries)} queries for "
+        f"8 assignments — suspect N+1 regression. "
+        f"Queries: {[q['sql'][:80] for q in ctx.captured_queries]}"
+    )

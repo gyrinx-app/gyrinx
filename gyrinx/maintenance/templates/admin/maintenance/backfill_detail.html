@@ -81,7 +81,11 @@
                 <tbody>
                     {% for row in backfill.summary.per_list %}
                         <tr>
-                            <td>{{ row.list_name }}</td>
+                            <td>
+                                <a href="{% url 'core:list' row.list_id %}"
+                                   target="_blank"
+                                   rel="noopener">{{ row.list_name }}</a>
+                            </td>
                             <td>
                                 {% for item in row.items %}
                                     {{ item }}

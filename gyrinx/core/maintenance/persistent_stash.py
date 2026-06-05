@@ -11,6 +11,7 @@ Used by both the ``migrate_persistent_stash_items`` management command and the
 admin maintenance view at ``/admin/maintenance/persistent-stash/``.
 """
 
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 from typing import Optional
@@ -86,18 +87,35 @@ def _candidates_queryset(list_id=None):
     return qs
 
 
-def _classify(assignment):
-    """Return (decision, dying_fighter_or_None, detail_str)."""
-    list_id = assignment.list_fighter.list_id
-    cands = list(
+def _fetch_kills_by_list(list_ids) -> dict[str, list[ListAction]]:
+    """Batch-fetch kill ListActions for the candidate lists in a single query.
+
+    Replaces an N+1: previously _classify() ran one ListAction query per
+    assignment. With ~281 assignments in prod that meant ~282 round-trips
+    to Cloud SQL. Now it's one round-trip + Python filtering by window.
+    """
+    by_list: dict[str, list[ListAction]] = defaultdict(list)
+    if not list_ids:
+        return by_list
+    for k in (
         ListAction.objects.filter(
-            list_id=list_id,
+            list_id__in=list_ids,
             action_type=ListActionType.UPDATE_FIGHTER,
             description__icontains="killed",
-            created__gte=assignment.created - WINDOW,
-            created__lte=assignment.created + WINDOW,
-        ).select_related("list_fighter")
-    )
+        )
+        .select_related("list_fighter")
+        .iterator()
+    ):
+        by_list[k.list_id].append(k)
+    return by_list
+
+
+def _classify(assignment, kills_in_list: list[ListAction]):
+    """Return (decision, dying_fighter_or_None, detail_str). Pure Python."""
+    list_id = assignment.list_fighter.list_id
+
+    lo, hi = assignment.created - WINDOW, assignment.created + WINDOW
+    cands = [k for k in kills_in_list if lo <= k.created <= hi]
     if not cands:
         return ("no_match", None, "no kill action in ±1s window")
 
@@ -126,10 +144,20 @@ def _classify(assignment):
 
 
 def find_candidates(list_id=None) -> list[Candidate]:
-    """Return Candidate decisions for the current DB state (read-only)."""
+    """Return Candidate decisions for the current DB state (read-only).
+
+    Uses two queries total: one for the candidate assignments, one for all
+    kill ListActions on the affected lists. Window-filtering happens in
+    Python.
+    """
+    assignments = list(_candidates_queryset(list_id))
+    list_ids = {a.list_fighter.list_id for a in assignments}
+    kills_by_list = _fetch_kills_by_list(list_ids)
+
     out: list[Candidate] = []
-    for a in _candidates_queryset(list_id).iterator():
-        decision, dying, detail = _classify(a)
+    for a in assignments:
+        kills = kills_by_list.get(a.list_fighter.list_id, [])
+        decision, dying, detail = _classify(a, kills)
         cat = a.content_equipment.category
         out.append(
             Candidate(
