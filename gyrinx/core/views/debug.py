@@ -147,6 +147,11 @@ def debug_design_system(request):
         (".flash-warn", "2s warning-colour fade animation for new items"),
         (".tooltipped", "Info-underline style with help cursor"),
         (".table-fixed", "table-layout: fixed for stat grids"),
+        (
+            ".house-icon",
+            "Inline house SVG badge; transform-scaled ~25% (line-height safe), "
+            "currentColor; emitted by {% house_icon %}",
+        ),
     ]
 
     # Mock campaign for breadcrumb demo (needs .id and .name)
@@ -155,6 +160,18 @@ def debug_design_system(request):
     ds_campaign = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000000", name="Underhive Wars"
     )
+
+    # Mock owner for breadcrumb demo so the page renders logged-out too. The
+    # breadcrumb reverses {% url 'core:user' owner.username %} and displays
+    # str(owner); a fake object keeps the sample self-contained and avoids
+    # depending on request.user (AnonymousUser has no username when logged out).
+    class _DSUser:
+        username = "underhive-boss"
+
+        def __str__(self):
+            return "Underhive Boss"
+
+    ds_user = _DSUser()
 
     return render(
         request,
@@ -168,6 +185,7 @@ def debug_design_system(request):
             "page_shells": page_shells,
             "custom_classes": custom_classes,
             "ds_campaign": ds_campaign,
+            "ds_user": ds_user,
         },
     )
 
