@@ -93,6 +93,9 @@ def _fetch_kills_by_list(list_ids) -> dict[str, list[ListAction]]:
     Replaces an N+1: previously _classify() ran one ListAction query per
     assignment. With ~281 assignments in prod that meant ~282 round-trips
     to Cloud SQL. Now it's one round-trip + Python filtering by window.
+
+    Filters ``applied=True`` so we only match committed kills, not in-flight
+    rows that might be rolled back.
     """
     by_list: dict[str, list[ListAction]] = defaultdict(list)
     if not list_ids:
@@ -102,6 +105,7 @@ def _fetch_kills_by_list(list_ids) -> dict[str, list[ListAction]]:
             list_id__in=list_ids,
             action_type=ListActionType.UPDATE_FIGHTER,
             description__icontains="killed",
+            applied=True,
         )
         .select_related("list_fighter")
         .iterator()
@@ -191,7 +195,9 @@ def apply(list_id=None, *, triggered_by=None) -> ApplyResult:
 
     per_list: list[dict] = []
     moved = 0
+    skipped_at_apply: dict[str, int] = defaultdict(int)
     for lid, moves in moves_by_list.items():
+        applied_in_list: list[Candidate] = []
         with transaction.atomic():
             lst = List.objects.select_for_update().get(id=lid)
             rating_before = lst.rating_current
@@ -200,14 +206,49 @@ def apply(list_id=None, *, triggered_by=None) -> ApplyResult:
             fighters_to_dirty: set = set()
 
             for c in moves:
-                assignment = ListFighterEquipmentAssignment.objects.get(
-                    id=c.assignment_id
-                )
-                dying = ListFighter.objects.get(id=c.dying_fighter_id)
+                # Re-validate inside the lock — the owner could have edited
+                # the gang between find_candidates() (no lock) and now. A
+                # stale plan could otherwise move an assignment that's been
+                # reassigned, sold, or whose dying fighter resurrected.
+                try:
+                    assignment = ListFighterEquipmentAssignment.objects.get(
+                        id=c.assignment_id
+                    )
+                    dying = ListFighter.objects.get(id=c.dying_fighter_id)
+                except (
+                    ListFighterEquipmentAssignment.DoesNotExist,
+                    ListFighter.DoesNotExist,
+                ):
+                    skipped_at_apply["disappeared"] += 1
+                    continue
+                if assignment.archived:
+                    skipped_at_apply["archived_now"] += 1
+                    continue
+                # Only proceed if the assignment is still on a stash fighter
+                # on the *same* list, and the target dying fighter is still
+                # dead and not archived. Stringify the FK UUIDs because
+                # ``lid`` came through Candidate as str.
+                current_owner = assignment.list_fighter
+                if (
+                    str(current_owner.list_id) != str(lid)
+                    or not current_owner.content_fighter.is_stash
+                ):
+                    skipped_at_apply["moved_off_stash"] += 1
+                    continue
+                if dying.archived or dying.injury_state != ListFighter.DEAD:
+                    skipped_at_apply["fighter_state_changed"] += 1
+                    continue
+
                 fighters_to_dirty.add(assignment.list_fighter_id)
                 fighters_to_dirty.add(dying.id)
                 assignment.list_fighter = dying
                 assignment.save(update_fields=["list_fighter"])
+                applied_in_list.append(c)
+
+            # If every planned move for this list was invalidated at apply
+            # time, skip the recompute and don't write an empty audit row.
+            if not applied_in_list:
+                continue
 
             # The kill handler bumped the stash fighter's cached rating via a
             # delta when it transferred the gear; that bump never reconciles
@@ -220,7 +261,7 @@ def apply(list_id=None, *, triggered_by=None) -> ApplyResult:
             credits_after = lst.credits_current
 
             item_summary = ", ".join(
-                f"{c.equipment_name} → {c.dying_fighter_name}" for c in moves
+                f"{c.equipment_name} → {c.dying_fighter_name}" for c in applied_in_list
             )
             audit = ListAction.objects.create(
                 list=lst,
@@ -244,15 +285,18 @@ def apply(list_id=None, *, triggered_by=None) -> ApplyResult:
                     "list_id": lid,
                     "list_name": lst.name,
                     "items": [
-                        f"{c.equipment_name} → {c.dying_fighter_name}" for c in moves
+                        f"{c.equipment_name} → {c.dying_fighter_name}"
+                        for c in applied_in_list
                     ],
                     "audit_action_id": str(audit.id),
                     "stash_before": stash_before,
                     "stash_after": stash_after,
                 }
             )
-            moved += len(moves)
+            moved += len(applied_in_list)
 
+    # Surface any apply-time invalidations alongside the find-time skip counts.
+    skipped.update(dict(skipped_at_apply))
     return ApplyResult(
         moved=moved,
         affected_lists=len(per_list),

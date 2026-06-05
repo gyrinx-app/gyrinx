@@ -271,7 +271,7 @@ def test_skip_ambiguous_when_multiple_kill_actions_within_window(
         content_fighter=other_cf,
         injury_state=ListFighter.DEAD,
     )
-    ListAction.objects.create(
+    other_kill = ListAction.objects.create(
         list=s["list"],
         owner=s["list"].owner,
         applied=True,
@@ -279,6 +279,13 @@ def test_skip_ambiguous_when_multiple_kill_actions_within_window(
         description="Other was killed (50¢). All equipment transferred to stash.",
         list_fighter=other,
     )
+    # Pin both kill actions to the assignment's exact created time so the
+    # 0.1s ambiguity decision doesn't depend on test-runner scheduling.
+    # Without this the test relies on wall-clock proximity between three
+    # sequential .create() calls and can flake on a slow CI worker.
+    aligned = s["assignment"].created
+    ListAction.objects.filter(pk=s["kill_action"].pk).update(created=aligned)
+    ListAction.objects.filter(pk=other_kill.pk).update(created=aligned)
 
     out = _run(apply=True)
 
@@ -303,6 +310,53 @@ def test_skip_when_matched_action_has_null_list_fighter(
     s["assignment"].refresh_from_db()
     assert s["assignment"].list_fighter_id == s["stash"].id
     assert "null_fighter" in out
+
+
+# ---------------------------------------------------------------- race protection
+
+
+@pytest.mark.django_db
+def test_apply_revalidates_inside_lock_and_skips_stale_moves(
+    monkeypatch,
+    db,
+    content_house,
+    make_content_fighter,
+    make_list,
+    make_list_fighter,
+):
+    """If a stale plan reaches the per-list lock and the assignment has
+    since been moved off the stash, apply() must skip rather than overwrite
+    the new owner. Belt-and-braces against the cross-request race CodeRabbit
+    flagged (dry-run GET → apply POST window). Injects a stale Candidate via
+    monkeypatch since apply() otherwise self-rebuilds candidates and would
+    naturally re-classify the (now non-)stash assignment."""
+    from gyrinx.core.maintenance import persistent_stash as svc
+
+    s = _setup_scenario(
+        content_house, make_content_fighter, make_list, make_list_fighter
+    )
+    # Build the "still-valid at plan-time" snapshot.
+    stale = svc.find_candidates()
+    assert len(stale) == 1 and stale[0].decision == "move"
+
+    # Owner reassigns the item to another (alive) fighter between dry-run
+    # and apply — exactly the race window CodeRabbit pointed out.
+    other_cf = make_content_fighter(
+        type="Bystander", category="GANGER", house=content_house, base_cost=50
+    )
+    other = make_list_fighter(s["list"], "Bystander", content_fighter=other_cf)
+    s["assignment"].list_fighter = other
+    s["assignment"].save(update_fields=["list_fighter"])
+
+    monkeypatch.setattr(svc, "find_candidates", lambda list_id=None: stale)
+    result = svc.apply(triggered_by=s["list"].owner)
+
+    s["assignment"].refresh_from_db()
+    assert s["assignment"].list_fighter_id == other.id, (
+        "stale plan must not move the assignment back"
+    )
+    assert result.moved == 0
+    assert result.skipped.get("moved_off_stash", 0) == 1
 
 
 # ---------------------------------------------------------------- perf
