@@ -4,7 +4,7 @@
     {% if user.is_authenticated %}
         Home
     {% else %}
-        A new set of tools for the Necromunda community
+        A free set of tools for the Necromunda community
     {% endif %}
 {% endblock head_title %}
 {% block prebody %}
@@ -17,7 +17,7 @@
                     <strong>Welcome</strong> to Gyrinx’s Necromunda tools, <a class="link-light link-underline-opacity-50 link-underline-opacity-100-hover"
     href="{% url 'core:user' user.id %}">{{ user.username }}</a>.
                 {% else %}
-                    <strong>Gyrinx</strong> is a new set of tools for the Necromunda community.
+                    <strong>Gyrinx</strong> is a free set of tools for the Necromunda community.
                 {% endif %}
             </h2>
         </div>
@@ -241,44 +241,6 @@
             </div>
         {% else %}
             <div class="mt-4 vstack gap-4">
-                {% if featured_packs %}
-                    <div>
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h2 class="h4 mb-0">Featured Content Packs</h2>
-                            <span class="ms-auto fs-7">
-                                <a href="{% url 'core:packs' %}"
-                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Browse all</a>
-                            </span>
-                        </div>
-                        <div class="row g-3">
-                            {% for pack in featured_packs %}
-                                <div class="col-12 col-md-4">{% include "core/includes/featured_pack_card.html" with pack=pack %}</div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <hr class="col-1 my-4 align-self-center" />
-                {% endif %}
-                <div class="row">
-                    <div class="col-md-4">
-                        <h2>Build and manage your gangs</h2>
-                        <p>
-                            Gyrinx is a new set of tools for building and running your Necromunda gangs — making the game simpler whatever your level of experience.
-                        </p>
-                    </div>
-                    <div class="col-md-4">
-                        <h2>All the latest content</h2>
-                        <p>
-                            We’re combing the rulebooks so every gang — and anything else you might want to use — will be available from launch. Plus, our content team will keep Gyrinx up-to-date as new rules land.
-                        </p>
-                    </div>
-                    <div class="col-md-4">
-                        <h2>Take the hassle out of arbitration</h2>
-                        <p>
-                            Running a campaign can get complicated. We’ll offer support for managing all the fixed campaign types, and let arbitrators create their own with custom settings.
-                        </p>
-                    </div>
-                </div>
-                <hr class="col-1 my-4 align-self-center" />
                 {% get_page_by_url "/about/" as about_page %}
                 {% settings_value "ACCOUNT_ALLOW_SIGNUPS" as account_signups %}
                 <p class="lead fs-2 text-center">
@@ -297,44 +259,22 @@
                         {% endif %}
                     {% endif %}
                 </p>
-                <hr class="col-1 my-4 align-self-center" />
-                <div class="row justify-content-center align-items-center">
+                <div class="row">
                     <div class="col-md-4">
-                        <img src="{% static 'core/img/content/2daef2fe-5829-4052-93fb-c2007935fc1a.png' %}"
-                             class="img-fluid border rounded-2"
-                             alt="Two fighter cards from the Ironhead Squats gang">
-                    </div>
-                    <div class="col-md-6">
-                        <h2>Simplified gang creation</h2>
+                        <h2>Build and manage your gangs</h2>
                         <p>
-                            Forget the hassle of cards and spreadsheets — hire fighters and kit them out with an intuitive gang building system.
-                        </p>
-                        <p>Our tools are free to use, and we're committed to keeping them that way.</p>
-                    </div>
-                </div>
-                <hr class="col-1 my-4 align-self-center" />
-                <div class="row justify-content-center align-items-center">
-                    <div class="col-md-4 order-2">
-                        <img src="{% static 'core/img/content/1b07c211-5e06-4741-b588-edc2c37c2999.png' %}"
-                             class="img-fluid object-fit-contain border rounded-2"
-                             alt="">
-                    </div>
-                    <div class="col-md-6">
-                        <h2>Get to the rules you need</h2>
-                        <p>
-                            Tooltips for traits, skills and special rules will direct you to the right part of the rulebooks, so you can quickly find the information you need in the heat of battle.
+                            Gyrinx is a powerful set of tools for building and running your Necromunda gangs — making the game simpler whatever your level of experience.
                         </p>
                     </div>
-                </div>
-                <hr class="col-1 my-4 align-self-center" />
-                <div class="row text-center">
-                    <h2>And lots more...</h2>
-                </div>
-                <div class="row justify-content-center align-items-center">
-                    <div class="col-md-10">
-                        <img src="{% static 'core/img/content/773e6bb5-3a76-48bf-bf60-f70ad038c02e.png' %}"
-                             class="img-fluid object-fit-contain border rounded-2"
-                             alt="">
+                    <div class="col-md-4">
+                        <h2>All the latest content</h2>
+                        <p>Gyrinx is kept up to date with the latest Necromunda rules as they drop.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h2>Take the hassle out of arbitration</h2>
+                        <p>
+                            Running a campaign can get complicated. Gyrinx helps you manage all the key parts of campaigns, and supports custom content and rules.
+                        </p>
                     </div>
                 </div>
             </div>
