@@ -5301,6 +5301,10 @@ class VirtualListFighterEquipmentAssignment:
     def is_house_additional(self):
         return self.equipment.is_house_additional
 
+    @property
+    def is_in_persistent_category(self):
+        return self.equipment.is_in_persistent_category
+
     def is_weapon(self):
         return self.equipment.is_weapon()
 
