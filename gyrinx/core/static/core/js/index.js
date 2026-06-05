@@ -356,8 +356,10 @@ setupFilterLinks({ prefix: "status", param: "status", allValues: "all" });
 //
 // Two things keep it well-behaved:
 //   1. It is non-destructive. We keep the clicked button's original label/icon
-//      and add a spinner alongside it plus aria-busy, rather than replacing the
-//      button's innerHTML. Nothing inside the button is thrown away.
+//      in the DOM and set aria-busy, rather than replacing the button's
+//      innerHTML. CSS (button[aria-busy]) then hides that content and shows a
+//      centred spinner over it, so nothing inside the button is thrown away and
+//      the original markup can be restored verbatim.
 //   2. It restores itself from the bfcache. A pageshow handler clears the busy
 //      state when a page is restored after pressing Back, so a form is never
 //      left stuck disabled/spinning.
@@ -373,8 +375,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             submitButtons.forEach((button) => {
                 // Only add the spinner to the button that was clicked, and do
-                // it non-destructively: keep the existing label/icon and add a
-                // spinner alongside it.
+                // it non-destructively: keep the existing label/icon in place
+                // and let CSS hide it behind a centred spinner.
                 if (button.isSameNode(event.submitter)) {
                     button.setAttribute("aria-busy", "true");
 
@@ -382,8 +384,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     // <button> gets a spinner element prepended.
                     if (button.tagName === "BUTTON") {
                         const spinner = document.createElement("span");
-                        spinner.className =
-                            "spinner-border spinner-border-sm me-2";
+                        // Centred over the button via CSS (button[aria-busy])
+                        // rather than flowed beside the label, so small /
+                        // icon-only buttons collapse to just the spinner.
+                        spinner.className = "spinner-border spinner-border-sm";
                         spinner.setAttribute("role", "status");
                         spinner.setAttribute("aria-hidden", "true");
                         spinner.dataset.submitSpinner = "true";
