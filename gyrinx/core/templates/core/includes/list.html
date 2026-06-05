@@ -13,8 +13,8 @@
     <div class="hstack">
         <div class="vstack flex-grow-1 gap-0 mb-2">
             {% include "core/includes/list_common_header.html" with list=list %}
-            <div class="d-flex flex-column flex-md-row row-gap-1 column-gap-2 align-items-md-center">
-                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2 fs-7">
+            <div class="d-flex flex-row flex-wrap row-gap-2 column-gap-2 align-items-center">
+                <div class="d-flex flex-row flex-wrap row-gap-1 column-gap-2 fs-7">
                     {% if not print %}
                         <div>
                             {% if list.public %}
@@ -89,7 +89,7 @@
                         {% endif %}
                     {% endif %}
                 </div>
-                <div class="flex-shrink-0 ms-md-auto mt-2 mt-md-0">
+                <div class="flex-shrink-0 ms-auto">
                     {% if not print %}
                         <div class="nav hstack gap-1 flex-nowrap">
                             {% if list.owner_cached == user and pending_invitations_count > 0 %}
