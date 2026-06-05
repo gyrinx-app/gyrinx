@@ -580,14 +580,23 @@ $width-em-sizes: (
     width: 4rem;
 }
 
-// Inline house icons rendered next to house names. Sized and aligned to match
-// Bootstrap Icons (1em, baseline-aligned), and recoloured to the surrounding
-// text via currentColor (set as an attribute on the sanitised SVG).
+// Inline house icons rendered next to house names. Recoloured to the
+// surrounding text via currentColor (set as an attribute on the sanitised SVG).
+//
+// The glyph reads a touch small at 1em, so it's scaled up ~25% and nudged to
+// sit optically centred on the text. Both the size bump and the vertical
+// offset are done with a single `transform`, deliberately: a `transform` is
+// purely visual and never affects layout, whereas a larger width/height or a
+// `vertical-align` offset both feed into the line-box calculation and grow the
+// row's line-height in tight (line-height: 1) contexts like compact list rows.
+// The layout box stays 1em; the inline margins reserve horizontal room so the
+// visually-larger glyph doesn't crowd the surrounding text.
 .house-icon {
     display: inline-block;
     width: 1em;
     height: 1em;
-    vertical-align: -0.125em;
-    margin-inline-start: 0.25em;
+    margin-inline-start: 0.35em;
+    margin-inline-end: 0.1em;
     fill: currentColor;
+    transform: translateY(-0.2em) scale(1.25);
 }

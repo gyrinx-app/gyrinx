@@ -120,6 +120,28 @@ Bootstrap Icons only. **Hyphenated format**: `bi-pencil` not `bi bi-pencil`.
 
 Sizes: inherit from parent (default), `fs-7` for compact, `fs-4` for featured.
 
+### House icons
+
+Houses can carry an inline SVG badge rendered next to the house name (gang rows,
+list headers, house filters). Render it with the `{% house_icon house %}` template
+tag — never hand-roll the markup — which emits a sanitised, `currentColor`-filled
+`<svg class="house-icon">`. The icon inherits the surrounding text colour and sits
+inline with the name:
+
+```html
+{% load color_tags %}
+<div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
+```
+
+`.house-icon` scales the glyph ~25% larger than a Bootstrap Icon and nudges it
+to sit centred on the text, both via a single `transform` (`translateY(...) scale(...)`).
+The transform is deliberate: it is purely visual and never feeds the line-box
+calculation, so the badge does **not** inflate the row's line-height — whereas a larger
+`width`/`height` or a `vertical-align` offset both would, and noticeably so in tight
+(`line-height: 1`) rows. The inline margins reserve horizontal breathing room for the
+visually-larger glyph. The tag is currently gated to the **House Icons Alpha** group and
+renders nothing for houses without an icon or for users outside the group.
+
 ---
 
 ## Containers & Cards
@@ -412,3 +434,4 @@ A `<br>` before the icon in real templates, or a `<div>` wrapper:
 | `.flash-warn` | 2s warning-colour fade animation for new items |
 | `.tooltipped` | Info-underline style with help cursor |
 | `.table-fixed` | `table-layout: fixed` for stat grids |
+| `.house-icon` | Inline house SVG badge; `transform`-scaled ~25% (line-height safe), `currentColor`; emitted by `{% house_icon house %}` |

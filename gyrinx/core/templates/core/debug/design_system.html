@@ -573,6 +573,21 @@
                     </div>
                 {% endfor %}
             </div>
+            <h3 class="h6 caps-label mb-2 mt-4">House icons</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Inline badge rendered next to a house's name (gang rows, list headers, house
+                filters). Emit it with the
+                <code>{% templatetag openblock %} house_icon house {% templatetag closeblock %}</code>
+                template tag; it inherits the surrounding text colour and sits comfortably alongside
+                the name. Currently gated to the <strong>House Icons Alpha</strong> group. The
+                examples below show the badge at body and compact (<code>fs-7</code>) sizes.
+            </p>
+            <div class="d-flex flex-column gap-2">
+                <div>Squat Prospectors{{ ds_house_icon_svg }}</div>
+                <div class="text-secondary fs-7">
+                    House name at <code>fs-7</code>{{ ds_house_icon_svg }}
+                </div>
+            </div>
         </section>
         <!-- ============================================================ -->
         <!-- 6. CONTAINERS & CARDS -->
@@ -1091,7 +1106,7 @@
             <div class="border rounded p-3 mb-4">
                 <div class="col-lg-12 px-0 vstack gap-4">
                     <div class="vstack gap-0">
-                        {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" type_url="/lists/" only %}
+                        {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" type_url="/lists/" only %}
                         <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                             <h1 class="h2 mb-0">My Gang</h1>
                             <nav class="nav btn-group flex-nowrap ms-md-auto">
@@ -1151,16 +1166,16 @@
                 Sits above the page title on entity detail pages. Shows <code>owner / type / name</code> with optional campaign link.
                 Use <code>
                 {% verbatim %}
-                    {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" type_url="/lists/" only %}
+                    {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" type_url="/lists/" only %}
                 {% endverbatim %}
             </code>.
         </p>
         <div class="border rounded p-3 mb-4">
             <div class="vstack gap-1">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" type_url="/lists/" only %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=user name="Iron Hounds" type_url="/lists/" campaign=ds_campaign only %}
-                {% include "core/includes/breadcrumb.html" with type="Pack" owner=user name="Scavvy Pack" type_url="/packs/" only %}
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" print=True only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="Cawdor Facts" type_url="/lists/" only %}
+                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=ds_user name="Iron Hounds" type_url="/lists/" campaign=ds_campaign only %}
+                {% include "core/includes/breadcrumb.html" with type="Pack" owner=ds_user name="Scavvy Pack" type_url="/packs/" only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" print=True only %}
             </div>
         </div>
         <p class="text-secondary fs-7 mb-4">
@@ -1171,7 +1186,7 @@
         <p class="text-secondary fs-7 mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
         <div class="border rounded p-3 mb-4">
             <div class="vstack gap-0">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" type_url="/lists/" only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="Cawdor Facts" type_url="/lists/" only %}
                 <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                     <h1 class="h2 mb-0">Cawdor Facts</h1>
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap">
@@ -1567,6 +1582,8 @@
                             <span class="tooltipped">hover me</span>
                         {% elif cls == ".table-fixed" %}
                             <span class="text-secondary">(table-layout: fixed)</span>
+                        {% elif cls == ".house-icon" %}
+                            <span>House{{ ds_house_icon_svg }}</span>
                         {% endif %}
                     </td>
                 </tr>

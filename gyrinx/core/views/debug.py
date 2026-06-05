@@ -8,6 +8,7 @@ from pathlib import Path
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils.safestring import mark_safe
 
 from gyrinx.core.models import List
 
@@ -66,6 +67,8 @@ def debug_test_plan_detail(request, filename):
 
 def debug_design_system(request):
     """Design system living reference page."""
+    if not settings.DEBUG:
+        raise Http404("Debug views are only available in development")
 
     theme_colours = [
         ("blue", "#0771ea"),
@@ -147,6 +150,11 @@ def debug_design_system(request):
         (".flash-warn", "2s warning-colour fade animation for new items"),
         (".tooltipped", "Info-underline style with help cursor"),
         (".table-fixed", "table-layout: fixed for stat grids"),
+        (
+            ".house-icon",
+            "Inline house SVG badge; transform-scaled ~25% (line-height safe), "
+            "currentColor; emitted by {% house_icon house %}",
+        ),
     ]
 
     # Mock campaign for breadcrumb demo (needs .id and .name)
@@ -154,6 +162,29 @@ def debug_design_system(request):
 
     ds_campaign = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000000", name="Underhive Wars"
+    )
+
+    # Mock owner for breadcrumb demo so the page renders logged-out too. The
+    # breadcrumb reverses {% url 'core:user' owner.username %} and displays
+    # str(owner); a fake object keeps the sample self-contained and avoids
+    # depending on request.user (AnonymousUser has no username when logged out).
+    class _DSUser:
+        username = "underhive-boss"
+
+        def __str__(self):
+            return "Underhive Boss"
+
+    ds_user = _DSUser()
+
+    # Sample house icon for the design system preview. Mirrors the markup that
+    # {% house_icon %} emits (class + fill + role/aria on the <svg> itself) so the
+    # .house-icon CSS can be previewed without the alpha-gated tag or a real
+    # house. Defined here as one source of truth for the section and table cell.
+    # nosec B703 B308 - hardcoded literal SVG, no user input
+    ds_house_icon_svg = mark_safe(  # nosec B703 B308
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" '
+        'class="house-icon" fill="currentColor" role="img" aria-hidden="true">'
+        '<path d="M8 1 1 5.5V15h4.5v-4h5v4H15V5.5L8 1Z" /></svg>'
     )
 
     return render(
@@ -168,6 +199,8 @@ def debug_design_system(request):
             "page_shells": page_shells,
             "custom_classes": custom_classes,
             "ds_campaign": ds_campaign,
+            "ds_user": ds_user,
+            "ds_house_icon_svg": ds_house_icon_svg,
         },
     )
 
