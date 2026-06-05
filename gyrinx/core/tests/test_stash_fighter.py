@@ -209,7 +209,9 @@ def test_stash_fighter_card_display(db, user, content_house):
 
 
 @pytest.mark.django_db
-def test_stash_wargear_includes_house_additional(db, user, content_house):
+def test_stash_wargear_includes_house_additional(
+    db, content_house, make_content_fighter, make_list, make_list_fighter
+):
     """House-additional gear on the stash must appear in wargear (regression #1825).
 
     The stash card has no `house_additional_gearline_display` section — anything
@@ -224,9 +226,6 @@ def test_stash_wargear_includes_house_additional(db, user, content_house):
         group="Gear",
     )
     category.restricted_to.add(content_house)
-
-    assert category.restricted_to.exists()  # makes equipment is_house_additional
-
     equipment = ContentEquipment.objects.create(
         name="Vast Bulk Test",
         category=category,
@@ -235,25 +234,15 @@ def test_stash_wargear_includes_house_additional(db, user, content_house):
     assert equipment.is_house_additional is True
     assert equipment.is_weapon() is False
 
-    # Stash fighter on a list
-    stash_content = ContentFighter.objects.create(
+    stash_content = make_content_fighter(
         type="Stash",
         category="STASH",
+        house=content_house,
         base_cost=0,
         is_stash=True,
-        house=content_house,
     )
-    gang_list = List.objects.create(
-        name="Test Gang",
-        content_house=content_house,
-        owner=user,
-    )
-    stash = ListFighter.objects.create(
-        name="Stash",
-        content_fighter=stash_content,
-        list=gang_list,
-        owner=user,
-    )
+    gang_list = make_list("Test Gang")
+    stash = make_list_fighter(gang_list, "Stash", content_fighter=stash_content)
 
     ListFighterEquipmentAssignment.objects.create(
         list_fighter=stash,
@@ -263,3 +252,5 @@ def test_stash_wargear_includes_house_additional(db, user, content_house):
     wargear_names = [a.name() for a in stash.wargear()]
     assert "Vast Bulk Test" in wargear_names
     assert "Vast Bulk Test" in stash.wargearline_cached
+    # Sanity: should NOT slip into the weapons list either.
+    assert "Vast Bulk Test" not in [a.name() for a in stash.weapons()]
