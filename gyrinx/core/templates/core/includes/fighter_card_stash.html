@@ -61,7 +61,14 @@
                                                       class="tooltipped"
                                                       title="This is assigned to the fighter by default.">
                                                 {% endif %}
-                                                {{ assign.name }}
+                                                {% if assign.is_in_persistent_category %}
+                                                    <span bs-tooltip
+                                                          data-bs-toggle="tooltip"
+                                                          class="tooltipped"
+                                                          title="Transferred to Stash when a Fighter was killed">{{ assign.name }}</span>
+                                                {% else %}
+                                                    {{ assign.name }}
+                                                {% endif %}
                                                 {% if assign.active_upgrades_display|length > 0 %}
                                                     {% spaceless %}
                                                         <span>(</span>
@@ -74,11 +81,6 @@
                                                 {% endif %}
                                                 {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
-                                            {% if assign.is_in_persistent_category %}
-                                                <i class="bi-info-circle text-secondary fs-7"
-                                                   data-bs-toggle="tooltip"
-                                                   data-bs-title="Transferred to Stash when a Fighter was killed"></i>
-                                            {% endif %}
                                             {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print %}
                                                 {% if assign.kind == 'assigned' and not assign.is_linked %}
