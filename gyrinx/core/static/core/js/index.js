@@ -395,8 +395,16 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 }
 
-                // Disable all the buttons to prevent double-submits. We tag
-                // each one we touch so pageshow can restore exactly these.
+                // Skip buttons that were already disabled before this submit —
+                // they aren't ours to re-enable on pageshow, so we must not tag
+                // them.
+                if (button.disabled) {
+                    return;
+                }
+
+                // Disable the (previously-enabled) buttons to prevent
+                // double-submits. We tag each one we touch so pageshow can
+                // restore exactly these.
                 // This is setTimeout to ensure it runs after the form submission starts so that any
                 // name/value attributes are still submitted.
                 setTimeout(() => {
@@ -418,16 +426,16 @@ window.addEventListener("pageshow", (event) => {
         return;
     }
 
+    // Only touch buttons we tagged. aria-busy is cleared here too (rather than
+    // via a separate document-wide [aria-busy] sweep) so we never clobber other
+    // UI that legitimately uses aria-busy.
     document
         .querySelectorAll('[data-submit-disabled="true"]')
         .forEach((button) => {
             button.disabled = false;
+            button.removeAttribute("aria-busy");
             delete button.dataset.submitDisabled;
         });
-
-    document.querySelectorAll('[aria-busy="true"]').forEach((button) => {
-        button.removeAttribute("aria-busy");
-    });
 
     document
         .querySelectorAll('[data-submit-spinner="true"]')

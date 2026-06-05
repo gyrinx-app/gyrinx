@@ -126,12 +126,15 @@ button[aria-busy="true"] {
 
     // Centre the spinner over the now-empty button and give it back a visible
     // colour (the button variant's own text colour, since the button itself is
-    // now `color: transparent`).
+    // now `color: transparent`). Fall back to the body colour rather than
+    // currentColor: on a submit <button> without a .btn variant (e.g. a
+    // dropdown-item), --bs-btn-color is unset and currentColor would resolve to
+    // the parent's transparent, hiding the spinner.
     [data-submit-spinner] {
         position: absolute;
         inset: 0;
         margin: auto;
-        color: var(--bs-btn-color, currentColor);
+        color: var(--bs-btn-color, var(--bs-body-color));
     }
 }
 
