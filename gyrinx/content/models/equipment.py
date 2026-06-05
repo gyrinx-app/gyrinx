@@ -511,15 +511,6 @@ class ContentEquipment(FighterCostMixin, Content):
         return self.category.restricted_to.exists()
 
     @cached_property
-    def is_in_persistent_category(self):
-        """
-        Indicates whether this equipment's category is flagged persistent —
-        i.e. it stays with a fighter when they die, rather than transferring
-        to the stash.
-        """
-        return bool(self.category and self.category.persistent)
-
-    @cached_property
     def upgrade_mode_single(self):
         """
         Indicates whether this equipment is a multi-upgrade mode.

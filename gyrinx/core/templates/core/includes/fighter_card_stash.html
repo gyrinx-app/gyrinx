@@ -61,14 +61,7 @@
                                                       class="tooltipped"
                                                       title="This is assigned to the fighter by default.">
                                                 {% endif %}
-                                                {% if assign.is_in_persistent_category %}
-                                                    <span bs-tooltip
-                                                          data-bs-toggle="tooltip"
-                                                          class="tooltipped"
-                                                          title="Transferred to Stash when a Fighter was killed">{{ assign.name }}</span>
-                                                {% else %}
-                                                    {{ assign.name }}
-                                                {% endif %}
+                                                {{ assign.name }}
                                                 {% if assign.active_upgrades_display|length > 0 %}
                                                     {% spaceless %}
                                                         <span>(</span>
