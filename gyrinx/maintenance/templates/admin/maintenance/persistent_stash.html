@@ -1,0 +1,131 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-bottom: 1.5rem; }
+    .mt-table { width: 100%; margin-bottom: 2rem; }
+    .mt-uuid-input { width: 24rem; font-family: monospace; }
+    .mt-spacer { margin-left: 1rem; }
+    .mt-skips-section { margin-top: 3rem; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This is the dry-run view. Nothing has been changed. Review the table
+        of would-move items below, then click <strong>Apply repair</strong>
+        to commit. Items without a matching kill action in the ListAction
+        ledger are listed under <em>Skipped</em> with the reason.
+    </p>
+    <form method="get" class="mt-form">
+        <label for="list_id">Restrict to a single List UUID (optional):</label>
+        <input type="text"
+               id="list_id"
+               name="list_id"
+               value="{{ list_id }}"
+               class="mt-uuid-input">
+        <button type="submit" class="button">Re-run dry-run</button>
+        {% if list_id %}
+            <a href="{% url 'admin:maintenance_persistent_stash' %}"
+               class="mt-spacer">Clear scope</a>
+        {% endif %}
+    </form>
+    <h2>Summary</h2>
+    <ul>
+        <li>
+            <strong>Would move:</strong> {{ summary.would_move }}
+            (across {{ moves|length }} item{{ moves|length|pluralize }})
+        </li>
+        <li>
+            <strong>Skipped — no kill action:</strong> {{ summary.no_match }}
+        </li>
+        <li>
+            <strong>Skipped — ambiguous:</strong> {{ summary.ambiguous }}
+        </li>
+        <li>
+            <strong>Skipped — null fighter:</strong> {{ summary.null_fighter }}
+        </li>
+        <li>
+            <strong>Skipped — alive:</strong> {{ summary.alive }}
+        </li>
+        <li>
+            <strong>Skipped — archived:</strong> {{ summary.archived }}
+        </li>
+        <li>
+            <strong>Skipped — wrong list:</strong> {{ summary.wrong_list }}
+        </li>
+    </ul>
+    <h2>Would move ({{ moves|length }})</h2>
+    {% if moves %}
+        <table class="table mt-table">
+            <thead>
+                <tr>
+                    <th>List</th>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>→ Dying fighter</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in moves %}
+                    <tr>
+                        <td>{{ c.list_name }}</td>
+                        <td>{{ c.equipment_name }}</td>
+                        <td>{{ c.category_name }}</td>
+                        <td>{{ c.dying_fighter_name }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>
+            <em>No moves would be made under current conditions.</em>
+        </p>
+    {% endif %}
+    {% if moves %}
+        <h2>Apply</h2>
+        <form method="post"
+              action="{{ apply_url }}"
+              onsubmit="return confirm('Apply {{ moves|length }} move(s) and write audit ListActions?');">
+            {% csrf_token %}
+            {% if list_id %}<input type="hidden" name="list_id" value="{{ list_id }}">{% endif %}
+            <button type="submit" class="button default">
+                Apply repair ({{ moves|length }} move{{ moves|length|pluralize }})
+            </button>
+        </form>
+    {% endif %}
+    {% if skips %}
+        <h2 class="mt-skips-section">Skipped ({{ skips|length }})</h2>
+        <details>
+            <summary>Show skip detail</summary>
+            <table class="table mt-table">
+                <thead>
+                    <tr>
+                        <th>Reason</th>
+                        <th>List</th>
+                        <th>Item</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in skips %}
+                        <tr>
+                            <td>
+                                <code>{{ c.decision }}</code>
+                            </td>
+                            <td>{{ c.list_name }}</td>
+                            <td>{{ c.equipment_name }}</td>
+                            <td>{{ c.detail }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% endif %}
+{% endblock content %}

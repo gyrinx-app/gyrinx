@@ -1,0 +1,106 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-meta { margin-bottom: 2rem; }
+    .mt-table { width: 100%; }
+    .mt-error { background: #fee; padding: 1rem; overflow: auto; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ backfill.get_operation_display }}</h1>
+    <table class="table mt-meta">
+        <tr>
+            <th>ID</th>
+            <td>
+                <code>{{ backfill.pk }}</code>
+            </td>
+        </tr>
+        <tr>
+            <th>Status</th>
+            <td>{{ backfill.get_status_display }}</td>
+        </tr>
+        <tr>
+            <th>Triggered by</th>
+            <td>{{ backfill.triggered_by|default:"—" }}</td>
+        </tr>
+        <tr>
+            <th>Created</th>
+            <td>{{ backfill.created|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        <tr>
+            <th>Scope</th>
+            <td>
+                {% if backfill.list_id_scope %}
+                    list {{ backfill.list_id_scope }}
+                {% else %}
+                    all lists
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    {% if backfill.status == "failed" %}
+        <h2>Error</h2>
+        <pre class="mt-error">{{ backfill.error }}</pre>
+    {% else %}
+        <h2>Summary</h2>
+        <ul>
+            <li>
+                <strong>Moved:</strong> {{ backfill.summary.moved }}
+            </li>
+            <li>
+                <strong>Affected lists:</strong> {{ backfill.summary.affected_lists }}
+            </li>
+        </ul>
+        <h3>Skipped</h3>
+        <ul>
+            {% for reason, count in backfill.summary.skipped.items %}
+                <li>
+                    <code>{{ reason }}</code>: {{ count }}
+                </li>
+            {% endfor %}
+        </ul>
+        <h2>Per-list detail</h2>
+        {% if backfill.summary.per_list %}
+            <table class="table mt-table">
+                <thead>
+                    <tr>
+                        <th>List</th>
+                        <th>Items moved</th>
+                        <th>Stash before</th>
+                        <th>Stash after</th>
+                        <th>Audit action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in backfill.summary.per_list %}
+                        <tr>
+                            <td>{{ row.list_name }}</td>
+                            <td>
+                                {% for item in row.items %}
+                                    {{ item }}
+                                    {% if not forloop.last %};{% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>{{ row.stash_before }}</td>
+                            <td>{{ row.stash_after }}</td>
+                            <td>
+                                <code>{{ row.audit_action_id }}</code>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>
+                <em>No lists were affected by this run.</em>
+            </p>
+        {% endif %}
+    {% endif %}
+{% endblock content %}
