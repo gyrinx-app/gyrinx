@@ -1,9 +1,14 @@
 import pytest
 from django.core.exceptions import ValidationError
 
-from gyrinx.content.models import ContentFighter
+from gyrinx.content.models import (
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentFighter,
+)
 from gyrinx.core.models import List, ListFighter
 from gyrinx.core.models.campaign import Campaign
+from gyrinx.core.models.list import ListFighterEquipmentAssignment
 
 
 @pytest.mark.django_db
@@ -201,3 +206,60 @@ def test_stash_fighter_card_display(db, user, content_house):
     # Verify we can access the is_stash flag through the list fighter
     assert list_fighter.content_fighter.is_stash is True
     assert list_fighter.content_fighter_cached.is_stash is True
+
+
+@pytest.mark.django_db
+def test_stash_wargear_includes_house_additional(db, user, content_house):
+    """House-additional gear on the stash must appear in wargear (regression #1825).
+
+    The stash card has no `house_additional_gearline_display` section — anything
+    `wargear()` filters out is invisible to the user despite still being counted
+    in `cost_int`. After a fighter dies, kill-transfer can drop mutations (a
+    house-restricted category) into the stash; they must render in the gear list
+    so the owner can see / sell / delete them.
+    """
+    # House-restricted category (e.g. Mutations restricted to Underhive Outcasts)
+    category = ContentEquipmentCategory.objects.create(
+        name="Mutations Test",
+        group="Gear",
+    )
+    category.restricted_to.add(content_house)
+
+    assert category.restricted_to.exists()  # makes equipment is_house_additional
+
+    equipment = ContentEquipment.objects.create(
+        name="Vast Bulk Test",
+        category=category,
+        cost=10,
+    )
+    assert equipment.is_house_additional is True
+    assert equipment.is_weapon() is False
+
+    # Stash fighter on a list
+    stash_content = ContentFighter.objects.create(
+        type="Stash",
+        category="STASH",
+        base_cost=0,
+        is_stash=True,
+        house=content_house,
+    )
+    gang_list = List.objects.create(
+        name="Test Gang",
+        content_house=content_house,
+        owner=user,
+    )
+    stash = ListFighter.objects.create(
+        name="Stash",
+        content_fighter=stash_content,
+        list=gang_list,
+        owner=user,
+    )
+
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash,
+        content_equipment=equipment,
+    )
+
+    wargear_names = [a.name() for a in stash.wargear()]
+    assert "Vast Bulk Test" in wargear_names
+    assert "Vast Bulk Test" in stash.wargearline_cached
