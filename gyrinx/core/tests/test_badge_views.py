@@ -150,7 +150,7 @@ def test_profile_page_shows_default_badge_without_selection(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'title="Guilder"' in content
+    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
 
 
 @pytest.mark.django_db

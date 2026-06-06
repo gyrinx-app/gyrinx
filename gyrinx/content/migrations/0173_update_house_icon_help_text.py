@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0171_attach_custom_gang_icon"),
+        ("content", "0172_refresh_house_icons"),
     ]
 
     operations = [
