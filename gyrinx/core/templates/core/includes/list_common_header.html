@@ -1,22 +1,22 @@
 {% load custom_tags color_tags %}
-<div class="hstack gap-2 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} align-items-start align-items-md-center break-inside-avoid">
-    <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
-        <div class="vstack">
-            {% url 'core:lists' as lists_url %}
-            {% if list.is_campaign_mode %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
+<div class="d-flex flex-column flex-md-row gap-2 column-gap-md-3 {% if link_list %}mb-3 pb-4 border-bottom{% else %}mb-2{% endif %} align-items-md-center break-inside-avoid">
+    <div class="vstack">
+        {% url 'core:lists' as lists_url %}
+        {% if list.is_campaign_mode %}
+            {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
+        {% else %}
+            {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
+        {% endif %}
+        <h2 class="mb-0 h2">
+            {% if link_list %}
+                <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
             {% else %}
-                {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
+                {% list_with_theme list %}
             {% endif %}
-            <h2 class="mb-0 h2">
-                {% if link_list %}
-                    <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
-                {% else %}
-                    {% list_with_theme list %}
-                {% endif %}
-            </h2>
-        </div>
-        <div class="ms-md-auto fs-7 vstack align-items-start align-items-md-end justify-content-center">
+        </h2>
+    </div>
+    <div class="d-flex flex-row flex-nowrap align-items-center column-gap-3 fs-7 ms-md-auto">
+        <div class="d-flex flex-row flex-wrap align-items-center column-gap-3 row-gap-1">
             <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
             {% if list.campaign %}
                 <div>
@@ -33,8 +33,8 @@
                 </div>
             {% endif %}
         </div>
-        <div class="flex-shrink border-start-md ps-md-2">
-            <table class="table table-sm table-borderless table-responsive text-center mb-0">
+        <div class="ms-auto ms-md-0 border-start-md ps-md-2 flex-shrink-0">
+            <table class="table table-sm table-borderless table-responsive text-center mb-0 w-auto">
                 <thead>
                     <tr class="fs-7 align-middle">
                         <th class="py-0 bg-transparent"
