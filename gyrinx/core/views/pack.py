@@ -1,6 +1,7 @@
 """Pack list, detail, and CRUD views."""
 
 import itertools
+import mimetypes
 import uuid
 from collections import defaultdict
 from typing import NamedTuple
@@ -69,6 +70,7 @@ from gyrinx.core.forms.pack import (
     ContentWeaponProfilePackForm,
     ContentWeaponTraitPackForm,
     EquipmentModifiersForm,
+    PackAttachmentForm,
     PackForm,
     HOUSE_RULE_TARGET_CHOICES,
 )
@@ -76,7 +78,9 @@ from gyrinx.core.models.campaign import Campaign, CampaignContentPack
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import (
+    PACK_ATTACHMENT_MAX_PER_PACK,
     CustomContentPack,
+    CustomContentPackAttachment,
     CustomContentPackItem,
     CustomContentPackPermission,
 )
@@ -620,7 +624,14 @@ class PackDetailView(generic.DetailView):
             CustomContentPack.objects.filter(archived=False)
             # owner__profile is for the breadcrumb supporter badge.
             .select_related("owner", "owner__profile")
-            .prefetch_related("items__content_type"),
+            .prefetch_related(
+                "items__content_type",
+                Prefetch(
+                    "attachments",
+                    queryset=CustomContentPackAttachment.objects.filter(archived=False),
+                    to_attr="active_attachments",
+                ),
+            ),
             id=self.kwargs["id"],
         )
         _check_pack_visible(pack, self.request.user)
@@ -1089,6 +1100,12 @@ class PackDetailView(generic.DetailView):
 
         context["content_sections"] = content_sections
         context["house_rule_entries"] = _list_house_rule_applications(pack)
+        attachments = getattr(pack, "active_attachments", None)
+        if attachments is None:
+            attachments = list(pack.attachments.filter(archived=False))
+        context["attachments"] = attachments
+        context["max_attachments"] = PACK_ATTACHMENT_MAX_PER_PACK
+        context["pack_full"] = len(attachments) >= PACK_ATTACHMENT_MAX_PER_PACK
         all_activities = _get_pack_activity(pack)
         context["recent_activities"] = all_activities[:5]
         context["total_activity_count"] = len(all_activities)
@@ -6209,5 +6226,141 @@ def delete_house_rule(request, id, item_id):
         {
             "pack": pack,
             "pack_item": pack_item,
+        },
+    )
+
+
+@login_required
+def add_pack_attachment(request, id):
+    """Upload a supplementary file (PDF/image) to a content pack."""
+    pack = _get_pack_for_edit(id, request.user)
+
+    attachment_count = pack.attachments.filter(archived=False).count()
+    pack_full = attachment_count >= PACK_ATTACHMENT_MAX_PER_PACK
+
+    if request.method == "POST":
+        if pack_full:
+            messages.error(
+                request,
+                f"This pack already has the maximum of "
+                f"{PACK_ATTACHMENT_MAX_PER_PACK} files.",
+            )
+            return HttpResponseRedirect(_pack_url(pack, "files"))
+
+        form = PackAttachmentForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = form.cleaned_data["file"]
+            file_size = uploaded_file.size
+            file_name = uploaded_file.name
+            content_type = getattr(uploaded_file, "content_type", None)
+            if not content_type:
+                content_type, _ = mimetypes.guess_type(file_name)
+                if not content_type:
+                    content_type = "application/octet-stream"
+
+            # Enforce the separate daily upload quota for pack attachments.
+            can_upload, _remaining, quota_message = (
+                CustomContentPackAttachment.check_user_quota(request.user, file_size)
+            )
+            if not can_upload:
+                form.add_error("file", quota_message)
+            else:
+                attachment = form.save(commit=False)
+                attachment.pack = pack
+                attachment.owner = request.user
+                attachment.original_filename = file_name
+                attachment.file_size = file_size
+                attachment.content_type = content_type
+                try:
+                    attachment.full_clean(exclude=["order"])
+                except DjangoValidationError as e:
+                    for field, errors in e.message_dict.items():
+                        target = field if field in form.fields else "file"
+                        for error in errors:
+                            form.add_error(target, error)
+                else:
+                    # Serialize creation on the pack row so two concurrent
+                    # uploads can't both pass the cap check, and assign a
+                    # stable order = max(active order) + 1 (count() would
+                    # collide when an earlier attachment has been archived).
+                    with transaction.atomic():
+                        CustomContentPack.objects.select_for_update().get(pk=pack.pk)
+                        active = pack.attachments.filter(archived=False)
+                        if active.count() >= PACK_ATTACHMENT_MAX_PER_PACK:
+                            messages.error(
+                                request,
+                                f"This pack already has the maximum of "
+                                f"{PACK_ATTACHMENT_MAX_PER_PACK} files.",
+                            )
+                            return HttpResponseRedirect(_pack_url(pack, "files"))
+                        attachment.order = (
+                            active.aggregate(m=models.Max("order"))["m"] or 0
+                        ) + 1
+                        attachment.save_with_user(user=request.user)
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.UPLOAD,
+                        verb=EventVerb.CREATE,
+                        object=attachment,
+                        request=request,
+                        pack_name=pack.name,
+                        pack_id=str(pack.id),
+                        filename=attachment.original_filename,
+                        file_size=attachment.file_size,
+                        content_type=content_type,
+                    )
+                    messages.success(
+                        request, f"Added {attachment.display_name} to the pack."
+                    )
+                    return HttpResponseRedirect(_pack_url(pack, "files"))
+    else:
+        form = PackAttachmentForm()
+
+    return render(
+        request,
+        "core/pack/pack_attachment_add.html",
+        {
+            "pack": pack,
+            "form": form,
+            "pack_full": pack_full,
+            "attachment_count": attachment_count,
+            "max_attachments": PACK_ATTACHMENT_MAX_PER_PACK,
+        },
+    )
+
+
+@login_required
+def delete_pack_attachment(request, id, attachment_id):
+    """Archive (remove) an attachment from a content pack."""
+    pack = _get_pack_for_edit(id, request.user)
+    attachment = get_object_or_404(
+        CustomContentPackAttachment,
+        id=attachment_id,
+        pack=pack,
+        archived=False,
+    )
+
+    if request.method == "POST":
+        attachment._history_user = request.user
+        attachment.archive()
+        log_event(
+            user=request.user,
+            noun=EventNoun.UPLOAD,
+            verb=EventVerb.ARCHIVE,
+            object=attachment,
+            request=request,
+            pack_name=pack.name,
+            pack_id=str(pack.id),
+            filename=attachment.original_filename,
+        )
+        messages.success(request, f"Removed {attachment.display_name} from the pack.")
+        return HttpResponseRedirect(_pack_url(pack, "files"))
+
+    return render(
+        request,
+        "core/pack/pack_attachment_delete.html",
+        {
+            "pack": pack,
+            "attachment": attachment,
         },
     )

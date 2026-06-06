@@ -923,6 +923,17 @@ urlpatterns = [
         pack_views.delete_house_rule,
         name="pack-house-rule-delete",
     ),
+    # Attachments (supplementary files)
+    path(
+        "pack/<id>/attachments/add/",
+        pack_views.add_pack_attachment,
+        name="pack-attachment-add",
+    ),
+    path(
+        "pack/<id>/attachments/<attachment_id>/delete/",
+        pack_views.delete_pack_attachment,
+        name="pack-attachment-delete",
+    ),
     path(
         "pack/<id>/item/<item_id>/default-equipment/weapons/add/",
         pack_views.add_pack_fighter_default_weapon,

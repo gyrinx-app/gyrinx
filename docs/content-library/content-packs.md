@@ -72,6 +72,36 @@ A through model that links a content object to a pack. Uses Django's `ContentTyp
 
 The content object link in the admin navigates directly to the Django admin change page for the referenced content item.
 
+### `CustomContentPackAttachment`
+
+A supplementary file attached to a pack -- for example a scenario PDF, campaign rules document, or a reference image. Unlike `CustomContentPackItem`, this is **not** a polymorphic link to a content model; it stores an uploaded file directly. This lets a pack ship a full campaign package (rules + scenarios + reference sheets) alongside its structured content.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pack` | ForeignKey (`CustomContentPack`) | The pack this file belongs to. Deleting a pack cascades to delete its attachments. |
+| `file` | FileField | The uploaded file. Stored with a UUID filename via the shared `upload_to` helper (local filesystem in dev, GCS in production). |
+| `original_filename` | CharField | The filename as uploaded, shown to users. |
+| `file_size` | PositiveIntegerField | Size in bytes, used for display and quota accounting. |
+| `content_type` | CharField | The MIME type, captured from the upload. |
+| `title` | CharField (optional) | A display title. Falls back to `original_filename` when blank (`display_name`). |
+| `description` | TextField (optional) | A short caption shown beside the file. |
+| `order` | PositiveIntegerField | Sort order within the pack's file list. |
+| `owner` | ForeignKey (User) | The user who uploaded the file. Inherited from `AppBase`. |
+
+#### Constraints and validation
+
+- **Allowed types:** PDF and raster images only (`application/pdf`, JPEG, PNG, GIF, WebP). Validated in `clean()`.
+- **SVG is deliberately excluded.** Attachments are served from a public CDN via direct links (no `Content-Disposition: attachment`), so a file served as `image/svg+xml` would render as a document and execute any embedded `<script>` -- a stored-XSS vector. Raster images render inert and PDFs open in the viewer.
+- **Extension is validated too.** The stored object keeps the user-supplied extension and the CDN derives the served `Content-Type` from it, so a file named `evil.svg` uploaded with a spoofed `image/png` content type would still be served as SVG. `clean()` rejects any extension outside `{pdf, jpg, jpeg, png, gif, webp}`, closing that spoofing path.
+- **Size cap:** 20 MB per file (`PACK_ATTACHMENT_MAX_FILE_SIZE`).
+- **Per-pack cap:** at most 5 active attachments per pack (`PACK_ATTACHMENT_MAX_PER_PACK`), enforced in the upload view.
+- **Daily quota:** a per-user 100 MB/day upload budget (`PACK_ATTACHMENT_DAILY_QUOTA`), tracked separately from the image-upload quota on `UploadedFile`.
+- **Soft delete:** removing a file archives it (`archived=True`) rather than hard-deleting; archived files are hidden from everyone.
+
+#### Permissions
+
+Uploading and removing files requires pack **edit** permission (`pack.can_edit` -- owner or an editor). Downloading is available to anyone who can **view** the pack (`pack.can_view`), matching the rest of the pack detail page.
+
 ## Pack Filtering System
 
 The pack filtering system is the mechanism that keeps pack content separate from base content in application queries. It is built into the `ContentManager` and `ContentQuerySet` classes that all content models use.
@@ -123,9 +153,12 @@ Clicking a pack opens its detail page at `/pack/<id>`. This page shows:
 - The pack name, author, and public/unlisted status
 - The summary and description (if provided)
 - A content section for each supported content type (currently Houses), listing the items in the pack
+- A **Files** section listing any attachments as download links (with filename, size, and optional caption). Anyone who can view the pack sees the downloads; pack editors additionally see an "Add" control and a "Remove" link per file. The section is hidden for non-editors when the pack has no files.
 - A recent activity feed showing the last 5 changes, with a link to the full activity history
 
 Pack owners see an "Edit" button. Unlisted packs return a 404 for users who are not the owner.
+
+Editors upload files at `/pack/<id>/attachments/add/` (a standard multipart form, capped at 5 files per pack) and remove them at `/pack/<id>/attachment/<attachment_id>/delete/`. See [`CustomContentPackAttachment`](#customcontentpackattachment) above for the validation and storage rules.
 
 ### Creating and editing packs
 
