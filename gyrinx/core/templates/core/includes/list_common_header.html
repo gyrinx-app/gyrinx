@@ -1,5 +1,5 @@
 {% load custom_tags color_tags %}
-<div class="d-flex flex-column flex-md-row gap-2 column-gap-md-3 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} align-items-md-center break-inside-avoid">
+<div class="d-flex flex-column flex-md-row gap-2 column-gap-md-3 {% if link_list %}mb-3 pb-4 border-bottom{% else %}mb-2{% endif %} align-items-md-center break-inside-avoid">
     <div class="vstack">
         {% url 'core:lists' as lists_url %}
         {% if list.is_campaign_mode %}
