@@ -3,7 +3,7 @@
 # fail_fast: true
 repos:
   - repo: https://github.com/djlint/djLint
-    rev: v1.36.4
+    rev: v1.39.0
     hooks:
       - id: djlint-reformat-django
       - id: djlint-django

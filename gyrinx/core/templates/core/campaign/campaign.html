@@ -217,7 +217,9 @@
             </div>
             {% if campaign.summary or campaign.narrative %}
                 <div class="vstack gap-1 col-md-9">
-                    {% if campaign.summary %}<div class="mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>{% endif %}
+                    {% if campaign.summary %}
+                        <div class="mb-last-0">{{ campaign.summary|safe_rich_text|safe }}</div>
+                    {% endif %}
                     {% if campaign.narrative %}
                         <div class="text-secondary fs-7 mb-last-0">{{ campaign.narrative|safe_rich_text|safe }}</div>
                     {% endif %}
@@ -349,7 +351,9 @@
                                 <thead>
                                     <tr>
                                         <th class="caps-label">Gang</th>
-                                        {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
+                                        {% for resource_type in resource_types %}
+                                            <th class="caps-label text-end">{{ resource_type.name }}</th>
+                                        {% endfor %}
                                     </tr>
                                 </thead>
                                 <tbody>

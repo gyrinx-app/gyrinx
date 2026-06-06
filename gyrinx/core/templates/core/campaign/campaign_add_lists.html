@@ -27,7 +27,9 @@
                     uses Content Packs not yet added to this Campaign:
                 </p>
                 <ul class="mb-2">
-                    {% for pack in pack_confirm_packs %}<li>{{ pack.name }}</li>{% endfor %}
+                    {% for pack in pack_confirm_packs %}
+                        <li>{{ pack.name }}</li>
+                    {% endfor %}
                 </ul>
                 <p class="text-secondary fs-7 mb-3">
                     Adding these packs to the Campaign will allow this and other gangs using them to join.
