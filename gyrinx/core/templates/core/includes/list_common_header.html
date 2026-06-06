@@ -3,7 +3,7 @@
     <div class="vstack">
         {% url 'core:lists' as lists_url %}
         {% if list.is_campaign_mode %}
-            {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
+            {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url|add:"?type=gang" campaign=list.campaign print=print %}
         {% else %}
             {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
         {% endif %}
