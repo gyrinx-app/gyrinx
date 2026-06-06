@@ -32,9 +32,9 @@
                         <label class="d-flex align-items-center gap-2 border rounded p-2">
                             <input type="radio"
                                    name="selected_badge"
-                                   value="none"
+                                   value="{{ hide_badge_value }}"
                                    class="form-check-input mt-0"
-                                   {% if form.selected_badge.value == "none" %}checked{% endif %}>
+                                   {% if form.selected_badge.value == hide_badge_value %}checked{% endif %}>
                             <span>{% trans "Hide badge" %}</span>
                         </label>
                     </fieldset>

@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
+from gyrinx.core.badges import HIDE_BADGE
 from gyrinx.core.forms import BadgeSelectionForm, UsernameChangeForm
 from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.campaign import Campaign
@@ -246,5 +247,6 @@ def badge_settings(request):
         {
             "form": form,
             "unlocked_badges": profile.unlocked_badges,
+            "hide_badge_value": HIDE_BADGE,
         },
     )

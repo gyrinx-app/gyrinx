@@ -91,6 +91,8 @@ def test_badge_page_shows_unlocked_badges(client, user):
     assert "Guilder" in content
     assert "Uphiver" in content
     assert "Hide badge" in content
+    # The opt-out radio carries the sentinel value from context, not a literal.
+    assert f'value="{HIDE_BADGE}"' in content
 
 
 @pytest.mark.django_db
