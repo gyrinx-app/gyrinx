@@ -11,7 +11,7 @@ for local use and for re-running / overwriting after the migration has run.
 
 from django.core.management.base import BaseCommand
 
-from gyrinx.content.house_icons import attach_house_icons
+from gyrinx.content.house_icons import attach_custom_gang_icon, attach_house_icons
 from gyrinx.content.models import ContentHouse
 
 
@@ -42,8 +42,20 @@ class Command(BaseCommand):
             log=self.stdout.write,
         )
 
+        # Local import keeps the content app free of a module-level core import.
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        cg_applied, cg_skipped = attach_custom_gang_icon(
+            ContentHouse,
+            CustomContentPackItem,
+            overwrite=options["overwrite"],
+            dry_run=dry_run,
+            log=self.stdout.write,
+        )
+
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nDone. applied={applied} skipped={skipped} missing={missing}"
+                f"\nDone. applied={applied} skipped={skipped} missing={missing} "
+                f"custom_gang_applied={cg_applied} custom_gang_skipped={cg_skipped}"
             )
         )

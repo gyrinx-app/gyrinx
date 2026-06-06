@@ -26,11 +26,15 @@ from allauth.mfa.signals import (
 )
 from allauth.usersessions.signals import session_client_changed
 from django.contrib.auth.signals import user_logged_out
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from gyrinx.content.house_icons import CUSTOM_GANG_ICON_SLUG, set_house_icon
+from gyrinx.content.models.house import ContentHouse
 from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.events import Event, EventField, EventNoun, EventVerb, log_event
+from gyrinx.core.models.pack import CustomContentPackItem
 from gyrinx.tracing import traced
 
 
@@ -341,3 +345,30 @@ def update_campaign_modified_on_event(sender, instance, created, **kwargs):
     except Campaign.DoesNotExist:
         # Campaign doesn't exist, nothing to do
         pass
+
+
+@receiver(post_save, sender=CustomContentPackItem, dispatch_uid="custom_gang_icon")
+@traced("signal_custom_gang_icon")
+def attach_custom_gang_icon_on_pack_item(sender, instance, created, **kwargs):
+    """Give content-pack houses the generic custom-gang icon.
+
+    A ContentHouse becomes a "custom gang" the moment it's added to a content
+    pack. Pack houses have no bundled per-house artwork, so they share the
+    single custom_gang icon — stored here (once, only if the house has no icon
+    of its own) so the gated ``house_icon`` tag renders it with no extra queries
+    on hot paths, exactly like the official house icons.
+    """
+    if not created:
+        return
+
+    house_ct = ContentType.objects.get_for_model(ContentHouse)
+    if instance.content_type_id != house_ct.id:
+        return
+
+    # ``ContentHouse.objects`` hides pack content; the house we just linked is
+    # pack content, so reach past the default manager with ``all_content()``.
+    house = ContentHouse.objects.all_content().filter(pk=instance.object_id).first()
+    if house is None or house.icon:
+        return
+
+    set_house_icon(house, CUSTOM_GANG_ICON_SLUG)
