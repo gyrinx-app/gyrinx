@@ -107,481 +107,46 @@
             {% endif %}
         </div>
         <div class="row g-4">
-            <div class="col-12 col-xl-8 order-2 order-xl-1 px-0 px-xl-2 vstack gap-4">
-                <!-- House rules (library overrides) -->
-                {% if house_rule_entries or can_edit %}
-                    <section id="house-rule">
-                        <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                            <h2 class="h5 mb-0">House rules</h2>
-                            {% if can_edit %}
-                                <a href="{% url 'core:pack-house-rule-picker' pack.id %}"
-                                   class="btn btn-primary btn-sm">
-                                    <i class="bi-plus-lg"></i> Add
-                                </a>
-                            {% endif %}
-                        </div>
-                        <div class="px-2">
-                            {% if house_rule_entries %}
-                                <ul class="list-unstyled mb-0">
-                                    {% for entry in house_rule_entries %}
-                                        <li class="py-1" id="item-{{ entry.pack_item.id }}">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <span>
-                                                        <strong>{{ entry.target|default:"(unresolved target)" }}</strong>
-                                                        <span class="text-secondary fs-7">
-                                                            {% if entry.target_kind == "contentweaponprofile" %}
-                                                                weapon profile
-                                                            {% elif entry.target_kind == "contentfighter" %}
-                                                                fighter
-                                                            {% else %}
-                                                                equipment
-                                                            {% endif %}
-                                                        </span>
-                                                    </span>
-                                                    <div class="text-secondary fs-7">{{ entry.modifier }}</div>
-                                                </div>
-                                                {% if can_edit %}
-                                                    <span class="d-flex gap-2">
-                                                        <a href="{% url 'core:pack-house-rule-edit' pack.id entry.pack_item.id %}"
-                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
-                                                        <a href="{% url 'core:pack-house-rule-delete' pack.id entry.pack_item.id %}"
-                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
-                                                    </span>
-                                                {% endif %}
-                                            </div>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                            {% else %}
-                                <p class="text-secondary mb-0">
-                                    Override stats on library weapon profiles or fighters. Once created, the change applies to subscribed lists &amp; gangs.
-                                    {% if can_edit %}
-                                        <a href="{% url 'core:pack-house-rule-picker' pack.id %}"
-                                           class="linked fs-7">Add a house rule →</a>
-                                    {% endif %}
-                                </p>
-                            {% endif %}
-                        </div>
-                    </section>
-                    <hr class="my-2">
-                {% endif %}
-                {% if attachments or can_edit %}
-                    <section id="files">
-                        <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                            <h2 class="h5 mb-0">Files</h2>
-                            {% if can_edit and not pack_full %}
-                                <a href="{% url 'core:pack-attachment-add' pack.id %}"
-                                   class="btn btn-primary btn-sm">
-                                    <i class="bi-plus-lg"></i> Add
-                                </a>
-                            {% endif %}
-                        </div>
-                        <div class="px-2">
-                            {% if attachments %}
-                                <ul class="list-unstyled mb-0">
-                                    {% for attachment in attachments %}
-                                        <li class="py-1" id="attachment-{{ attachment.id }}">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <a href="{{ attachment.file_url }}"
-                                                       target="_blank"
-                                                       rel="noopener"
-                                                       class="linked">
-                                                        <i class="bi-file-earmark-arrow-down"></i>
-                                                        {{ attachment.display_name }}
-                                                    </a>
-                                                    <span class="text-secondary fs-7">{{ attachment.file_size|filesizeformat }}</span>
-                                                    {% if attachment.description %}<div class="text-secondary fs-7">{{ attachment.description }}</div>{% endif %}
-                                                </div>
-                                                {% if can_edit %}
-                                                    <span class="d-flex gap-2">
-                                                        <a href="{% url 'core:pack-attachment-delete' pack.id attachment.id %}"
-                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
-                                                    </span>
-                                                {% endif %}
-                                            </div>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
-                                {% if can_edit and pack_full %}
-                                    <p class="text-secondary fs-7 mb-0 mt-1">This pack has the maximum of {{ max_attachments }} files.</p>
-                                {% endif %}
-                            {% else %}
-                                <p class="text-secondary mb-0">
-                                    Attach scenarios, campaign rules, or reference sheets (PDFs and images) to share alongside this pack.
-                                    {% if can_edit %}
-                                        <a href="{% url 'core:pack-attachment-add' pack.id %}"
-                                           class="linked fs-7">Add a file →</a>
-                                    {% endif %}
-                                </p>
-                            {% endif %}
-                        </div>
-                    </section>
-                    <hr class="my-2">
-                {% endif %}
-                <!-- Content -->
-                {% for section in content_sections %}
-                    {% if section.slug == "skill-tree" %}
-                        {# Skill trees are rendered within the Skills section below #}
-                    {% elif section.slug == "psyker-discipline" %}
-                        {# Psyker disciplines are rendered within the Psyker Powers section below #}
-                    {% elif section.slug == "attribute" %}
-                        {# Attributes are rendered within the Gang Attribute Values section below #}
-                    {% elif can_edit or section.has_content %}
-                        {# View-only users only see categories that hold custom content. #}
-                        {% if section.slug == "gear" %}
-                            <hr class="my-2">
-                        {% endif %}
-                        <section id="{{ section.slug }}">
+            <div class="col-12 col-xl-8 order-2 order-xl-1 px-0 px-xl-2">
+                <div class="vstack gap-4">
+                    <!-- House rules (library overrides) -->
+                    {% if house_rule_entries or can_edit %}
+                        <section id="house-rule">
                             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                                <h2 class="h5 mb-0">{{ section.label }}</h2>
+                                <h2 class="h5 mb-0">House rules</h2>
                                 {% if can_edit %}
-                                    <span class="d-flex gap-2 align-items-center">
-                                        {% if section.slug == "skill" %}
-                                            {% if section.skill_tree_archived_count > 0 %}
-                                                <a href="{% url 'core:pack-archived-items' pack.id 'skill-tree' %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived trees ({{ section.skill_tree_archived_count }})</a>
-                                            {% endif %}
-                                            {% if section.archived_count > 0 %}
-                                                <a href="{% url 'core:pack-archived-items' pack.id 'skill' %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived skills ({{ section.archived_count }})</a>
-                                            {% endif %}
-                                        {% elif section.slug == "psyker-power" %}
-                                            {% if section.discipline_archived_count > 0 %}
-                                                <a href="{% url 'core:pack-archived-items' pack.id 'psyker-discipline' %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived disciplines ({{ section.discipline_archived_count }})</a>
-                                            {% endif %}
-                                            {% if section.archived_count > 0 %}
-                                                <a href="{% url 'core:pack-archived-items' pack.id 'psyker-power' %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived powers ({{ section.archived_count }})</a>
-                                            {% endif %}
-                                        {% elif section.slug == "attribute-value" %}
-                                            {% if section.attribute_archived_count > 0 %}
-                                                <a href="{% url 'core:pack-archived-items' pack.id 'attribute' %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived attributes ({{ section.attribute_archived_count }})</a>
-                                            {% endif %}
-                                            {% if section.archived_count > 0 %}
-                                                <a href="{% url 'core:pack-archived-items' pack.id 'attribute-value' %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived values ({{ section.archived_count }})</a>
-                                            {% endif %}
-                                        {% elif section.archived_count > 0 %}
-                                            <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
-                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
-                                        {% endif %}
-                                        {% if section.slug == "skill" %}
-                                            <a href="{% url 'core:pack-add-item' pack.id 'skill' %}"
-                                               class="linked fs-7">Add skill to existing tree</a>
-                                            <a href="{% url 'core:pack-add-item' pack.id 'skill-tree' %}"
-                                               class="btn btn-primary btn-sm">
-                                                <i class="bi-plus-lg"></i> Add
-                                            </a>
-                                        {% elif section.slug == "psyker-power" %}
-                                            <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}"
-                                               class="linked fs-7">Add power to existing discipline</a>
-                                            <a href="{% url 'core:pack-add-item' pack.id 'psyker-discipline' %}"
-                                               class="btn btn-primary btn-sm">
-                                                <i class="bi-plus-lg"></i> Add
-                                            </a>
-                                        {% elif section.slug == "attribute-value" %}
-                                            <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}"
-                                               class="linked fs-7">Add value to existing attribute</a>
-                                            <a href="{% url 'core:pack-add-item' pack.id 'attribute' %}"
-                                               class="btn btn-primary btn-sm">
-                                                <i class="bi-plus-lg"></i> Add
-                                            </a>
-                                        {% elif section.slug == "weapon" %}
-                                            <a href="{% url 'core:pack-customise-weapon-picker' pack.id %}"
-                                               class="linked fs-7">Customise existing weapon</a>
-                                            {% if section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
-                                                   class="btn btn-primary btn-sm">
-                                                    <i class="bi-plus-lg"></i> Add
-                                                </a>
-                                            {% endif %}
-                                        {% elif section.can_add %}
-                                            <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
-                                               class="btn btn-primary btn-sm">
-                                                <i class="bi-plus-lg"></i> Add
-                                            </a>
-                                        {% endif %}
-                                    </span>
+                                    <a href="{% url 'core:pack-house-rule-picker' pack.id %}"
+                                       class="btn btn-primary btn-sm">
+                                        <i class="bi-plus-lg"></i> Add
+                                    </a>
                                 {% endif %}
                             </div>
                             <div class="px-2">
-                                {% if section.slug == "weapon" %}
-                                    {% if section.items %}
-                                        <table class="table table-sm table-borderless mb-0 fs-7">
-                                            {% include "core/includes/weapon_stat_headers.html" with show_al=True %}
-                                            {% for entry in section.items %}
-                                                <tbody class="table-group-divider"
-                                                       {% if entry.pack_item %} id="item-{{ entry.pack_item.id }}"{% else %} id="weapon-{{ entry.content_object.id }}"{% endif %}>
-                                                    {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit show_al=True is_customised=entry.is_customised show_actions_row=True %}
-                                                </tbody>
-                                            {% endfor %}
-                                        </table>
-                                    {% else %}
-                                        <p class="text-secondary mb-0">
-                                            Custom weapons with one or more profiles. Once created, they can be added to fighters in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'weapon' %}"
-                                                   class="linked fs-7">Add a weapon →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% endif %}
-                                {% elif section.slug == "fighter" %}
-                                    {% if section.items %}
-                                        {% regroup section.items by content_object.house as fighters_by_house %}
-                                        <div class="vstack gap-3">
-                                            {% for house_group in fighters_by_house %}
-                                                <div>
-                                                    {% if house_group.grouper %}
-                                                        <div class="caps-label mb-2">{{ house_group.grouper }}</div>
-                                                    {% endif %}
-                                                    <div class="row g-3">
-                                                        {% for entry in house_group.list %}
-                                                            <div id="item-{{ entry.pack_item.id }}" class="col-12 col-lg-6">
-                                                                {% with content_fighter=entry.content_object preview_statline=entry.preview_statline preview_rules=entry.preview_rules preview_skills=entry.preview_skills preview_weapons=entry.preview_weapons preview_gear=entry.preview_gear preview_disciplines=entry.preview_disciplines preview_default_powers=entry.preview_default_powers auto_equipment=entry.auto_equipment %}
-                                                                    {% if can_edit %}
-                                                                        {% url 'core:pack-edit-item' pack.id entry.pack_item.id as edit_url %}
-                                                                        {% url 'core:pack-delete-item' pack.id entry.pack_item.id as archive_url %}
-                                                                        {% url 'core:pack-item-equipment' pack.id entry.pack_item.id as equipment_url %}
-                                                                        {% url 'core:pack-fighter-default-psyker-powers' pack.id entry.pack_item.id as psyker_url %}
-                                                                        {% include "core/pack/includes/fighter_preview_card.html" with fighter_edit_url=edit_url fighter_archive_url=archive_url fighter_can_add=section.can_add fighter_equipment_url=equipment_url fighter_psyker_url=psyker_url %}
-                                                                    {% else %}
-                                                                        {% include "core/pack/includes/fighter_preview_card.html" %}
-                                                                    {% endif %}
-                                                                {% endwith %}
-                                                            </div>
-                                                        {% endfor %}
-                                                    </div>
-                                                </div>
-                                            {% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <p class="text-secondary mb-0">
-                                            Custom fighter and vehicle archetypes that gangs in this pack can hire.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'fighter' %}"
-                                                   class="linked fs-7">Add a fighter →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% endif %}
-                                {% elif section.slug == "skill" %}
-                                    {% if section.skill_groups %}
-                                        <div class="vstack gap-3">
-                                            {% for group in section.skill_groups %}
-                                                <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
-                                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.category.name }}</div>
-                                                        <span class="d-flex gap-2 align-items-center">
-                                                            {% if can_edit %}
-                                                                <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
-                                                                   class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add skill</a>
-                                                                {% if group.pack_item %}
-                                                                    <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
-                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit tree</a>
-                                                                    <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
-                                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive tree</a>
-                                                                {% endif %}
-                                                            {% endif %}
-                                                        </span>
-                                                    </div>
-                                                    {% if group.skills %}
-                                                        <ul class="list-unstyled mb-0">
-                                                            {% for entry in group.skills %}
-                                                                <li class="py-1" id="item-{{ entry.pack_item.id }}">
-                                                                    <div class="d-flex justify-content-between align-items-center">
-                                                                        <div>
-                                                                            <span>{{ entry.content_object.name }}</span>
-                                                                            {% if entry.content_object.description %}
-                                                                                <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
-                                                                            {% endif %}
-                                                                        </div>
-                                                                        {% if can_edit %}
-                                                                            <span class="d-flex gap-2">
-                                                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
-                                                                                <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                                                                   class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
-                                                                            </span>
-                                                                        {% endif %}
-                                                                    </div>
-                                                                </li>
-                                                            {% endfor %}
-                                                        </ul>
-                                                    {% else %}
-                                                        <p class="text-secondary fs-7 mb-0">No skills in this tree yet.</p>
-                                                    {% endif %}
-                                                </div>
-                                            {% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <p class="text-secondary mb-0">
-                                            Custom Skill Trees and the skills inside them. Once created, they can be assigned to fighters in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'skill-tree' %}"
-                                                   class="linked fs-7">Add a skill tree →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% endif %}
-                                {% elif section.slug == "psyker-power" %}
-                                    {% if section.power_groups %}
-                                        <div class="vstack gap-3">
-                                            {% for group in section.power_groups %}
-                                                <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
-                                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.discipline.name }}</div>
-                                                        <span class="d-flex gap-2 align-items-center">
-                                                            {% if can_edit %}
-                                                                <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}?discipline={{ group.discipline.id }}"
-                                                                   class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add power</a>
-                                                                {% if group.pack_item %}
-                                                                    <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
-                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit discipline</a>
-                                                                    <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
-                                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive discipline</a>
-                                                                {% endif %}
-                                                            {% endif %}
-                                                        </span>
-                                                    </div>
-                                                    {% if group.discipline.generic or group.discipline.description %}
-                                                        <div class="text-secondary fs-7 mb-1">
-                                                            {% if group.discipline.generic %}
-                                                                Available to all psykers
-                                                                {% if group.discipline.description %}·{% endif %}
-                                                            {% endif %}
-                                                            {% if group.discipline.description %}{{ group.discipline.description|linebreaksbr }}{% endif %}
-                                                        </div>
-                                                    {% endif %}
-                                                    {% if group.powers %}
-                                                        <ul class="list-unstyled mb-0">
-                                                            {% for entry in group.powers %}
-                                                                <li class="py-1" id="item-{{ entry.pack_item.id }}">
-                                                                    <div class="d-flex justify-content-between align-items-center">
-                                                                        <div>
-                                                                            <span>{{ entry.content_object.name }}</span>
-                                                                            {% if entry.content_object.description %}
-                                                                                <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
-                                                                            {% endif %}
-                                                                        </div>
-                                                                        {% if can_edit %}
-                                                                            <span class="d-flex gap-2">
-                                                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
-                                                                                <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                                                                   class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
-                                                                            </span>
-                                                                        {% endif %}
-                                                                    </div>
-                                                                </li>
-                                                            {% endfor %}
-                                                        </ul>
-                                                    {% else %}
-                                                        <p class="text-secondary fs-7 mb-0">No powers in this discipline yet.</p>
-                                                    {% endif %}
-                                                </div>
-                                            {% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <p class="text-secondary mb-0">
-                                            Custom Wyrd Power Disciplines and the powers within them. Once created, they can be assigned to psykers in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'psyker-discipline' %}"
-                                                   class="linked fs-7">Add a discipline →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% endif %}
-                                {% elif section.slug == "attribute-value" %}
-                                    {% if section.attribute_groups %}
-                                        <div class="vstack gap-3">
-                                            {% for group in section.attribute_groups %}
-                                                <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
-                                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                                        <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.attribute.name }}</div>
-                                                        <span class="d-flex gap-2 align-items-center">
-                                                            {% if can_edit %}
-                                                                <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}?attribute={{ group.attribute.id }}"
-                                                                   class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add value</a>
-                                                                {% if group.pack_item %}
-                                                                    <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
-                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit attribute</a>
-                                                                    <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
-                                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive attribute</a>
-                                                                {% endif %}
-                                                            {% endif %}
-                                                        </span>
-                                                    </div>
-                                                    {% if group.attribute.restricted_to.exists %}
-                                                        <div class="text-secondary fs-7 mb-1">
-                                                            Restricted to:
-                                                            {% for h in group.attribute.restricted_to.all %}
-                                                                {{ h.name }}
-                                                                {% if not forloop.last %},{% endif %}
-                                                            {% endfor %}
-                                                        </div>
-                                                    {% endif %}
-                                                    {% if group.values %}
-                                                        <ul class="list-unstyled mb-0">
-                                                            {% for entry in group.values %}
-                                                                <li class="py-1" id="item-{{ entry.pack_item.id }}">
-                                                                    <div class="d-flex justify-content-between align-items-center">
-                                                                        <div>
-                                                                            <span>{{ entry.content_object.name }}</span>
-                                                                            {% if entry.content_object.description %}
-                                                                                <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
-                                                                            {% endif %}
-                                                                        </div>
-                                                                        {% if can_edit %}
-                                                                            <span class="d-flex gap-2">
-                                                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
-                                                                                <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
-                                                                                   class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
-                                                                            </span>
-                                                                        {% endif %}
-                                                                    </div>
-                                                                </li>
-                                                            {% endfor %}
-                                                        </ul>
-                                                    {% else %}
-                                                        <p class="text-secondary fs-7 mb-0">No values for this attribute yet.</p>
-                                                    {% endif %}
-                                                </div>
-                                            {% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <p class="text-secondary mb-0">
-                                            Custom gang-level traits and the values gangs can pick from.
-                                            {% if can_edit %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'attribute' %}"
-                                                   class="linked fs-7">Add an attribute →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% endif %}
-                                {% elif section.items %}
+                                {% if house_rule_entries %}
                                     <ul class="list-unstyled mb-0">
-                                        {% for entry in section.items %}
+                                        {% for entry in house_rule_entries %}
                                             <li class="py-1" id="item-{{ entry.pack_item.id }}">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>
-                                                        <span>{{ entry.content_object }}</span>
-                                                        {% if section.slug == "weapon-accessory" %}
-                                                            <span class="text-secondary fs-7">({{ entry.content_object.cost }}¢)</span>
-                                                        {% endif %}
-                                                        {% if section.slug == "rule" or section.slug == "weapon-trait" or section.slug == "house" or section.slug == "gear" or section.slug == "weapon-accessory" or section.slug == "psyker-discipline" %}
-                                                            {% if entry.content_object.description %}
-                                                                <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
-                                                            {% endif %}
-                                                        {% endif %}
+                                                        <span>
+                                                            <strong>{{ entry.target|default:"(unresolved target)" }}</strong>
+                                                            <span class="text-secondary fs-7">
+                                                                {% if entry.target_kind == "contentweaponprofile" %}
+                                                                    weapon profile
+                                                                {% elif entry.target_kind == "contentfighter" %}
+                                                                    fighter
+                                                                {% else %}
+                                                                    equipment
+                                                                {% endif %}
+                                                            </span>
+                                                        </span>
+                                                        <div class="text-secondary fs-7">{{ entry.modifier }}</div>
                                                     </div>
-                                                    {% if can_edit and not entry.is_auto_equipment %}
+                                                    {% if can_edit %}
                                                         <span class="d-flex gap-2">
-                                                            {% if section.can_add %}
-                                                                <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
-                                                            {% endif %}
-                                                            <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                            <a href="{% url 'core:pack-house-rule-edit' pack.id entry.pack_item.id %}"
+                                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                            <a href="{% url 'core:pack-house-rule-delete' pack.id entry.pack_item.id %}"
                                                                class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
                                                         </span>
                                                     {% endif %}
@@ -590,79 +155,521 @@
                                         {% endfor %}
                                     </ul>
                                 {% else %}
-                                    {% if section.slug == "house" %}
-                                        <p class="text-secondary mb-0">
-                                            Make custom factions or houses available to gangs using this pack.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'house' %}"
-                                                   class="linked fs-7">Add a house →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% elif section.slug == "rule" %}
-                                        <p class="text-secondary mb-0">
-                                            Short named special rules. Once created, they can be attached to fighters in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'rule' %}"
-                                                   class="linked fs-7">Add a special rule →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% elif section.slug == "gear" %}
-                                        <p class="text-secondary mb-0">
-                                            Custom non-weapon equipment. Once created, it can be added to fighters in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'gear' %}"
-                                                   class="linked fs-7">Add gear →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% elif section.slug == "weapon-trait" %}
-                                        <p class="text-secondary mb-0">
-                                            Custom weapon special rules. Once created, they can be attached to weapon profiles in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'weapon-trait' %}"
-                                                   class="linked fs-7">Add a trait →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% elif section.slug == "weapon-accessory" %}
-                                        <p class="text-secondary mb-0">
-                                            Custom weapon attachments that modify a weapon's stats when fitted. Once created, they can be added to fighters in this pack or subscribed lists &amp; gangs.
-                                            {% if can_edit and section.can_add %}
-                                                <a href="{% url 'core:pack-add-item' pack.id 'weapon-accessory' %}"
-                                                   class="linked fs-7">Add an accessory →</a>
-                                            {% endif %}
-                                        </p>
-                                    {% else %}
-                                        <p class="text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
-                                    {% endif %}
+                                    <p class="text-secondary mb-0">
+                                        Override stats on library weapon profiles or fighters. Once created, the change applies to subscribed lists &amp; gangs.
+                                        {% if can_edit %}
+                                            <a href="{% url 'core:pack-house-rule-picker' pack.id %}"
+                                               class="linked fs-7">Add a house rule →</a>
+                                        {% endif %}
+                                    </p>
                                 {% endif %}
                             </div>
                         </section>
+                        <hr class="my-2">
                     {% endif %}
-                {% endfor %}
-                <!-- Activity -->
-                <section>
-                    <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                        <h2 class="h5 mb-0">Activity</h2>
-                        {% if total_activity_count > 0 %}
-                            <a href="{% url 'core:pack-activity' pack.id %}"
-                               class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
-                        {% endif %}
-                    </div>
-                    <div class="px-2">
-                        {% if recent_activities %}
-                            <div class="list-group list-group-flush">
-                                {% for activity in recent_activities %}
-                                    {% include "core/includes/pack_activity_item.html" with activity=activity %}
-                                {% endfor %}
+                    {% if attachments or can_edit %}
+                        <section id="files">
+                            <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                                <h2 class="h5 mb-0">Files</h2>
+                                {% if can_edit and not pack_full %}
+                                    <a href="{% url 'core:pack-attachment-add' pack.id %}"
+                                       class="btn btn-primary btn-sm">
+                                        <i class="bi-plus-lg"></i> Add
+                                    </a>
+                                {% endif %}
                             </div>
-                            {% if total_activity_count > 5 %}
-                                <a href="{% url 'core:pack-activity' pack.id %}"
-                                   class="fs-7 mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
+                            <div class="px-2">
+                                {% if attachments %}
+                                    <ul class="list-unstyled mb-0">
+                                        {% for attachment in attachments %}
+                                            <li class="py-1" id="attachment-{{ attachment.id }}">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <a href="{{ attachment.file_url }}"
+                                                           target="_blank"
+                                                           rel="noopener"
+                                                           class="linked icon-link">
+                                                            <i class="bi-file-earmark-arrow-down"></i>
+                                                            {{ attachment.display_name }}
+                                                        </a>
+                                                        <span class="text-secondary fs-7">{{ attachment.file_size|filesizeformat }}</span>
+                                                        {% if attachment.description %}
+                                                            <div class="text-secondary fs-7">{{ attachment.description }}</div>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% if can_edit %}
+                                                        <span class="d-flex gap-2">
+                                                            <a href="{% url 'core:pack-attachment-delete' pack.id attachment.id %}"
+                                                               class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% if can_edit and pack_full %}
+                                        <p class="text-secondary fs-7 mb-0 mt-1">This pack has the maximum of {{ max_attachments }} files.</p>
+                                    {% endif %}
+                                {% else %}
+                                    <p class="text-secondary mb-0">
+                                        Attach scenarios, campaign rules, or reference sheets (PDFs and images) to share alongside this pack.
+                                        {% if can_edit %}
+                                            <a href="{% url 'core:pack-attachment-add' pack.id %}"
+                                               class="linked fs-7">Add a file →</a>
+                                        {% endif %}
+                                    </p>
+                                {% endif %}
+                            </div>
+                        </section>
+                        <hr class="my-2">
+                    {% endif %}
+                    <!-- Content -->
+                    {% for section in content_sections %}
+                        {% if section.slug == "skill-tree" %}
+                            {# Skill trees are rendered within the Skills section below #}
+                        {% elif section.slug == "psyker-discipline" %}
+                            {# Psyker disciplines are rendered within the Psyker Powers section below #}
+                        {% elif section.slug == "attribute" %}
+                            {# Attributes are rendered within the Gang Attribute Values section below #}
+                        {% elif can_edit or section.has_content %}
+                            {# View-only users only see categories that hold custom content. #}
+                            {% if section.slug == "gear" %}
+                                <hr class="my-2">
                             {% endif %}
-                        {% else %}
-                            <p class="text-secondary fs-7 mb-0">No activity yet.</p>
+                            <section id="{{ section.slug }}">
+                                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                                    <h2 class="h5 mb-0">{{ section.label }}</h2>
+                                    {% if can_edit %}
+                                        <span class="d-flex gap-2 align-items-center">
+                                            {% if section.slug == "skill" %}
+                                                {% if section.skill_tree_archived_count > 0 %}
+                                                    <a href="{% url 'core:pack-archived-items' pack.id 'skill-tree' %}"
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived trees ({{ section.skill_tree_archived_count }})</a>
+                                                {% endif %}
+                                                {% if section.archived_count > 0 %}
+                                                    <a href="{% url 'core:pack-archived-items' pack.id 'skill' %}"
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived skills ({{ section.archived_count }})</a>
+                                                {% endif %}
+                                            {% elif section.slug == "psyker-power" %}
+                                                {% if section.discipline_archived_count > 0 %}
+                                                    <a href="{% url 'core:pack-archived-items' pack.id 'psyker-discipline' %}"
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived disciplines ({{ section.discipline_archived_count }})</a>
+                                                {% endif %}
+                                                {% if section.archived_count > 0 %}
+                                                    <a href="{% url 'core:pack-archived-items' pack.id 'psyker-power' %}"
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived powers ({{ section.archived_count }})</a>
+                                                {% endif %}
+                                            {% elif section.slug == "attribute-value" %}
+                                                {% if section.attribute_archived_count > 0 %}
+                                                    <a href="{% url 'core:pack-archived-items' pack.id 'attribute' %}"
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived attributes ({{ section.attribute_archived_count }})</a>
+                                                {% endif %}
+                                                {% if section.archived_count > 0 %}
+                                                    <a href="{% url 'core:pack-archived-items' pack.id 'attribute-value' %}"
+                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived values ({{ section.archived_count }})</a>
+                                                {% endif %}
+                                            {% elif section.archived_count > 0 %}
+                                                <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
+                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
+                                            {% endif %}
+                                            {% if section.slug == "skill" %}
+                                                <a href="{% url 'core:pack-add-item' pack.id 'skill' %}"
+                                                   class="linked fs-7">Add skill to existing tree</a>
+                                                <a href="{% url 'core:pack-add-item' pack.id 'skill-tree' %}"
+                                                   class="btn btn-primary btn-sm">
+                                                    <i class="bi-plus-lg"></i> Add
+                                                </a>
+                                            {% elif section.slug == "psyker-power" %}
+                                                <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}"
+                                                   class="linked fs-7">Add power to existing discipline</a>
+                                                <a href="{% url 'core:pack-add-item' pack.id 'psyker-discipline' %}"
+                                                   class="btn btn-primary btn-sm">
+                                                    <i class="bi-plus-lg"></i> Add
+                                                </a>
+                                            {% elif section.slug == "attribute-value" %}
+                                                <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}"
+                                                   class="linked fs-7">Add value to existing attribute</a>
+                                                <a href="{% url 'core:pack-add-item' pack.id 'attribute' %}"
+                                                   class="btn btn-primary btn-sm">
+                                                    <i class="bi-plus-lg"></i> Add
+                                                </a>
+                                            {% elif section.slug == "weapon" %}
+                                                <a href="{% url 'core:pack-customise-weapon-picker' pack.id %}"
+                                                   class="linked fs-7">Customise existing weapon</a>
+                                                {% if section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
+                                                       class="btn btn-primary btn-sm">
+                                                        <i class="bi-plus-lg"></i> Add
+                                                    </a>
+                                                {% endif %}
+                                            {% elif section.can_add %}
+                                                <a href="{% url 'core:pack-add-item' pack.id section.slug %}"
+                                                   class="btn btn-primary btn-sm">
+                                                    <i class="bi-plus-lg"></i> Add
+                                                </a>
+                                            {% endif %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="px-2">
+                                    {% if section.slug == "weapon" %}
+                                        {% if section.items %}
+                                            <table class="table table-sm table-borderless mb-0 fs-7">
+                                                {% include "core/includes/weapon_stat_headers.html" with show_al=True %}
+                                                {% for entry in section.items %}
+                                                    <tbody class="table-group-divider"
+                                                           {% if entry.pack_item %} id="item-{{ entry.pack_item.id }}"{% else %} id="weapon-{{ entry.content_object.id }}"{% endif %}>
+                                                        {% include "core/pack/includes/weapon_profiles_display.html" with profiles=entry.profiles pack_item=entry.pack_item weapon=entry.content_object can_edit=can_edit show_al=True is_customised=entry.is_customised show_actions_row=True %}
+                                                    </tbody>
+                                                {% endfor %}
+                                            </table>
+                                        {% else %}
+                                            <p class="text-secondary mb-0">
+                                                Custom weapons with one or more profiles. Once created, they can be added to fighters in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'weapon' %}"
+                                                       class="linked fs-7">Add a weapon →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    {% elif section.slug == "fighter" %}
+                                        {% if section.items %}
+                                            {% regroup section.items by content_object.house as fighters_by_house %}
+                                            <div class="vstack gap-3">
+                                                {% for house_group in fighters_by_house %}
+                                                    <div>
+                                                        {% if house_group.grouper %}
+                                                            <div class="caps-label mb-2">{{ house_group.grouper }}</div>
+                                                        {% endif %}
+                                                        <div class="row g-3">
+                                                            {% for entry in house_group.list %}
+                                                                <div id="item-{{ entry.pack_item.id }}" class="col-12 col-lg-6">
+                                                                    {% with content_fighter=entry.content_object preview_statline=entry.preview_statline preview_rules=entry.preview_rules preview_skills=entry.preview_skills preview_weapons=entry.preview_weapons preview_gear=entry.preview_gear preview_disciplines=entry.preview_disciplines preview_default_powers=entry.preview_default_powers auto_equipment=entry.auto_equipment %}
+                                                                        {% if can_edit %}
+                                                                            {% url 'core:pack-edit-item' pack.id entry.pack_item.id as edit_url %}
+                                                                            {% url 'core:pack-delete-item' pack.id entry.pack_item.id as archive_url %}
+                                                                            {% url 'core:pack-item-equipment' pack.id entry.pack_item.id as equipment_url %}
+                                                                            {% url 'core:pack-fighter-default-psyker-powers' pack.id entry.pack_item.id as psyker_url %}
+                                                                            {% include "core/pack/includes/fighter_preview_card.html" with fighter_edit_url=edit_url fighter_archive_url=archive_url fighter_can_add=section.can_add fighter_equipment_url=equipment_url fighter_psyker_url=psyker_url %}
+                                                                        {% else %}
+                                                                            {% include "core/pack/includes/fighter_preview_card.html" %}
+                                                                        {% endif %}
+                                                                    {% endwith %}
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-secondary mb-0">
+                                                Custom fighter and vehicle archetypes that gangs in this pack can hire.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'fighter' %}"
+                                                       class="linked fs-7">Add a fighter →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    {% elif section.slug == "skill" %}
+                                        {% if section.skill_groups %}
+                                            <div class="vstack gap-3">
+                                                {% for group in section.skill_groups %}
+                                                    <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
+                                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                                            <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.category.name }}</div>
+                                                            <span class="d-flex gap-2 align-items-center">
+                                                                {% if can_edit %}
+                                                                    <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
+                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add skill</a>
+                                                                    {% if group.pack_item %}
+                                                                        <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
+                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit tree</a>
+                                                                        <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
+                                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive tree</a>
+                                                                    {% endif %}
+                                                                {% endif %}
+                                                            </span>
+                                                        </div>
+                                                        {% if group.skills %}
+                                                            <ul class="list-unstyled mb-0">
+                                                                {% for entry in group.skills %}
+                                                                    <li class="py-1" id="item-{{ entry.pack_item.id }}">
+                                                                        <div class="d-flex justify-content-between align-items-center">
+                                                                            <div>
+                                                                                <span>{{ entry.content_object.name }}</span>
+                                                                                {% if entry.content_object.description %}
+                                                                                    <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
+                                                                                {% endif %}
+                                                                            </div>
+                                                                            {% if can_edit %}
+                                                                                <span class="d-flex gap-2">
+                                                                                    <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                                    <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                                                                                </span>
+                                                                            {% endif %}
+                                                                        </div>
+                                                                    </li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        {% else %}
+                                                            <p class="text-secondary fs-7 mb-0">No skills in this tree yet.</p>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-secondary mb-0">
+                                                Custom Skill Trees and the skills inside them. Once created, they can be assigned to fighters in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'skill-tree' %}"
+                                                       class="linked fs-7">Add a skill tree →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    {% elif section.slug == "psyker-power" %}
+                                        {% if section.power_groups %}
+                                            <div class="vstack gap-3">
+                                                {% for group in section.power_groups %}
+                                                    <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
+                                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                                            <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.discipline.name }}</div>
+                                                            <span class="d-flex gap-2 align-items-center">
+                                                                {% if can_edit %}
+                                                                    <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}?discipline={{ group.discipline.id }}"
+                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add power</a>
+                                                                    {% if group.pack_item %}
+                                                                        <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
+                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit discipline</a>
+                                                                        <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
+                                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive discipline</a>
+                                                                    {% endif %}
+                                                                {% endif %}
+                                                            </span>
+                                                        </div>
+                                                        {% if group.discipline.generic or group.discipline.description %}
+                                                            <div class="text-secondary fs-7 mb-1">
+                                                                {% if group.discipline.generic %}
+                                                                    Available to all psykers
+                                                                    {% if group.discipline.description %}·{% endif %}
+                                                                {% endif %}
+                                                                {% if group.discipline.description %}{{ group.discipline.description|linebreaksbr }}{% endif %}
+                                                            </div>
+                                                        {% endif %}
+                                                        {% if group.powers %}
+                                                            <ul class="list-unstyled mb-0">
+                                                                {% for entry in group.powers %}
+                                                                    <li class="py-1" id="item-{{ entry.pack_item.id }}">
+                                                                        <div class="d-flex justify-content-between align-items-center">
+                                                                            <div>
+                                                                                <span>{{ entry.content_object.name }}</span>
+                                                                                {% if entry.content_object.description %}
+                                                                                    <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
+                                                                                {% endif %}
+                                                                            </div>
+                                                                            {% if can_edit %}
+                                                                                <span class="d-flex gap-2">
+                                                                                    <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                                    <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                                                                                </span>
+                                                                            {% endif %}
+                                                                        </div>
+                                                                    </li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        {% else %}
+                                                            <p class="text-secondary fs-7 mb-0">No powers in this discipline yet.</p>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-secondary mb-0">
+                                                Custom Wyrd Power Disciplines and the powers within them. Once created, they can be assigned to psykers in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'psyker-discipline' %}"
+                                                       class="linked fs-7">Add a discipline →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    {% elif section.slug == "attribute-value" %}
+                                        {% if section.attribute_groups %}
+                                            <div class="vstack gap-3">
+                                                {% for group in section.attribute_groups %}
+                                                    <div {% if group.pack_item %}id="item-{{ group.pack_item.id }}"{% endif %}>
+                                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                                            <div class="text-secondary text-uppercase fs-7 fw-semibold">{{ group.attribute.name }}</div>
+                                                            <span class="d-flex gap-2 align-items-center">
+                                                                {% if can_edit %}
+                                                                    <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}?attribute={{ group.attribute.id }}"
+                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add value</a>
+                                                                    {% if group.pack_item %}
+                                                                        <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
+                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit attribute</a>
+                                                                        <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
+                                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive attribute</a>
+                                                                    {% endif %}
+                                                                {% endif %}
+                                                            </span>
+                                                        </div>
+                                                        {% if group.attribute.restricted_to.exists %}
+                                                            <div class="text-secondary fs-7 mb-1">
+                                                                Restricted to:
+                                                                {% for h in group.attribute.restricted_to.all %}
+                                                                    {{ h.name }}
+                                                                    {% if not forloop.last %},{% endif %}
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% endif %}
+                                                        {% if group.values %}
+                                                            <ul class="list-unstyled mb-0">
+                                                                {% for entry in group.values %}
+                                                                    <li class="py-1" id="item-{{ entry.pack_item.id }}">
+                                                                        <div class="d-flex justify-content-between align-items-center">
+                                                                            <div>
+                                                                                <span>{{ entry.content_object.name }}</span>
+                                                                                {% if entry.content_object.description %}
+                                                                                    <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
+                                                                                {% endif %}
+                                                                            </div>
+                                                                            {% if can_edit %}
+                                                                                <span class="d-flex gap-2">
+                                                                                    <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                                    <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                                                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                                                                                </span>
+                                                                            {% endif %}
+                                                                        </div>
+                                                                    </li>
+                                                                {% endfor %}
+                                                            </ul>
+                                                        {% else %}
+                                                            <p class="text-secondary fs-7 mb-0">No values for this attribute yet.</p>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-secondary mb-0">
+                                                Custom gang-level traits and the values gangs can pick from.
+                                                {% if can_edit %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'attribute' %}"
+                                                       class="linked fs-7">Add an attribute →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% endif %}
+                                    {% elif section.items %}
+                                        <ul class="list-unstyled mb-0">
+                                            {% for entry in section.items %}
+                                                <li class="py-1" id="item-{{ entry.pack_item.id }}">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div>
+                                                            <span>{{ entry.content_object }}</span>
+                                                            {% if section.slug == "weapon-accessory" %}
+                                                                <span class="text-secondary fs-7">({{ entry.content_object.cost }}¢)</span>
+                                                            {% endif %}
+                                                            {% if section.slug == "rule" or section.slug == "weapon-trait" or section.slug == "house" or section.slug == "gear" or section.slug == "weapon-accessory" or section.slug == "psyker-discipline" %}
+                                                                {% if entry.content_object.description %}
+                                                                    <div class="text-secondary fs-7">{{ entry.content_object.description|linebreaksbr }}</div>
+                                                                {% endif %}
+                                                            {% endif %}
+                                                        </div>
+                                                        {% if can_edit and not entry.is_auto_equipment %}
+                                                            <span class="d-flex gap-2">
+                                                                {% if section.can_add %}
+                                                                    <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
+                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                {% endif %}
+                                                                <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
+                                                                   class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        {% if section.slug == "house" %}
+                                            <p class="text-secondary mb-0">
+                                                Make custom factions or houses available to gangs using this pack.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'house' %}"
+                                                       class="linked fs-7">Add a house →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% elif section.slug == "rule" %}
+                                            <p class="text-secondary mb-0">
+                                                Short named special rules. Once created, they can be attached to fighters in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'rule' %}"
+                                                       class="linked fs-7">Add a special rule →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% elif section.slug == "gear" %}
+                                            <p class="text-secondary mb-0">
+                                                Custom non-weapon equipment. Once created, it can be added to fighters in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'gear' %}"
+                                                       class="linked fs-7">Add gear →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% elif section.slug == "weapon-trait" %}
+                                            <p class="text-secondary mb-0">
+                                                Custom weapon special rules. Once created, they can be attached to weapon profiles in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'weapon-trait' %}"
+                                                       class="linked fs-7">Add a trait →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% elif section.slug == "weapon-accessory" %}
+                                            <p class="text-secondary mb-0">
+                                                Custom weapon attachments that modify a weapon's stats when fitted. Once created, they can be added to fighters in this pack or subscribed lists &amp; gangs.
+                                                {% if can_edit and section.can_add %}
+                                                    <a href="{% url 'core:pack-add-item' pack.id 'weapon-accessory' %}"
+                                                       class="linked fs-7">Add an accessory →</a>
+                                                {% endif %}
+                                            </p>
+                                        {% else %}
+                                            <p class="text-secondary mb-0">No {{ section.label|lower }} in this Content Pack yet.</p>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </section>
                         {% endif %}
-                    </div>
-                </section>
+                    {% endfor %}
+                    {% if content_sections %}
+                        <hr class="my-2">
+                    {% endif %}
+                    <!-- Activity -->
+                    <section>
+                        <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                            <h2 class="h5 mb-0">Activity</h2>
+                            {% if total_activity_count > 0 %}
+                                <a href="{% url 'core:pack-activity' pack.id %}"
+                                   class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                            {% endif %}
+                        </div>
+                        <div class="px-2">
+                            {% if recent_activities %}
+                                <div class="list-group list-group-flush">
+                                    {% for activity in recent_activities %}
+                                        {% include "core/includes/pack_activity_item.html" with activity=activity %}
+                                    {% endfor %}
+                                </div>
+                                {% if total_activity_count > 5 %}
+                                    <a href="{% url 'core:pack-activity' pack.id %}"
+                                       class="fs-7 mt-2 d-inline-block">View all {{ total_activity_count }} activities →</a>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-secondary fs-7 mb-0">No activity yet.</p>
+                            {% endif %}
+                        </div>
+                    </section>
+                </div>
             </div>
             {% if can_edit %}
                 <div class="col-12 col-xl-4 order-1 order-xl-2">
