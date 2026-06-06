@@ -133,4 +133,7 @@ class UserProfile(Base):
             return None
         if self.selected_badge in self.eligible_badge_slugs:
             return badge_by_slug(self.selected_badge)
-        return unlocked[-1]
+        # The current-tier badge is the highest-ranked unlocked one. Select by
+        # rank rather than list position so it doesn't depend on PATREON_BADGES
+        # ordering.
+        return max(unlocked, key=lambda b: b.rank)
