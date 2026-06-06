@@ -8,7 +8,9 @@
                 {% for option in options %}
                     <div class="hstack gap-2 align-items-start">{% include option.template_name with widget=option %}</div>
                 {% endfor %}
-                {% if group %}</div>{% endif %}
+                {% if group %}
+                </div>
+            {% endif %}
         {% endfor %}
     </div>
 {% endwith %}

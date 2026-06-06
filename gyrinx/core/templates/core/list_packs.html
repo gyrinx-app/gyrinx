@@ -70,7 +70,9 @@
                                             Required by {{ pack.required_by_campaigns|join:", " }}
                                         </span>
                                     {% endif %}
-                                    {% if pack.summary %}<div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
+                                    {% if pack.summary %}
+                                        <div class="text-secondary fs-7">{{ pack.summary|striptags|truncatewords:20 }}</div>
+                                    {% endif %}
                                 </div>
                                 {% if not pack.required_by_campaigns %}
                                     <form method="post"

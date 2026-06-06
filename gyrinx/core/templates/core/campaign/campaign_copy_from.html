@@ -205,7 +205,9 @@
                                         <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                                     </div>
                                 {% endfor %}
-                                {% if form.asset_types.errors %}<div class="text-danger fs-7 mt-1">{{ form.asset_types.errors.0 }}</div>{% endif %}
+                                {% if form.asset_types.errors %}
+                                    <div class="text-danger fs-7 mt-1">{{ form.asset_types.errors.0 }}</div>
+                                {% endif %}
                             </div>
                         {% else %}
                             <p class="text-secondary fs-7">This campaign has no asset types to copy.</p>
@@ -218,7 +220,9 @@
                                        class="fs-7 link-secondary"
                                        onclick="document.querySelectorAll('[name=resource_types]').forEach(cb => cb.checked = true); return false;">Select all</a>
                                 </div>
-                                {% if form.resource_types.help_text %}<div class="form-text mb-2">{{ form.resource_types.help_text }}</div>{% endif %}
+                                {% if form.resource_types.help_text %}
+                                    <div class="form-text mb-2">{{ form.resource_types.help_text }}</div>
+                                {% endif %}
                                 {% for choice in form.resource_types %}
                                     <div class="form-check">
                                         {{ choice.tag }}
@@ -264,18 +268,24 @@
                                        class="fs-7 link-secondary"
                                        onclick="document.querySelectorAll('[name=packs]').forEach(cb => cb.checked = true); return false;">Select all</a>
                                 </div>
-                                {% if form.packs.help_text %}<div class="form-text mb-2">{{ form.packs.help_text }}</div>{% endif %}
+                                {% if form.packs.help_text %}
+                                    <div class="form-text mb-2">{{ form.packs.help_text }}</div>
+                                {% endif %}
                                 {% for choice in form.packs %}
                                     <div class="form-check">
                                         {{ choice.tag }}
                                         <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
                                     </div>
                                 {% endfor %}
-                                {% if form.packs.errors %}<div class="text-danger fs-7 mt-1">{{ form.packs.errors.0 }}</div>{% endif %}
+                                {% if form.packs.errors %}
+                                    <div class="text-danger fs-7 mt-1">{{ form.packs.errors.0 }}</div>
+                                {% endif %}
                             </div>
                         {% endif %}
                     {% endif %}
-                    {% if form.non_field_errors %}<div class="text-danger fs-7">{{ form.non_field_errors.0 }}</div>{% endif %}
+                    {% if form.non_field_errors %}
+                        <div class="text-danger fs-7">{{ form.non_field_errors.0 }}</div>
+                    {% endif %}
                     <div class="hstack gap-2">
                         {% if source_campaign %}
                             <button type="submit" class="btn btn-primary">

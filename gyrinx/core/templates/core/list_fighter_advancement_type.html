@@ -51,7 +51,9 @@
                         <label for="{{ form.xp_cost.id_for_label }}" class="form-label">XP Spend</label>
                         {{ form.xp_cost }}
                         <div class="form-text">{{ form.xp_cost.help_text }}</div>
-                        {% if form.xp_cost.errors %}<div class="invalid-feedback d-block">{{ form.xp_cost.errors.0 }}</div>{% endif %}
+                        {% if form.xp_cost.errors %}
+                            <div class="invalid-feedback d-block">{{ form.xp_cost.errors.0 }}</div>
+                        {% endif %}
                     </div>
                     <div class="col-md-6">
                         <label for="{{ form.cost_increase.id_for_label }}" class="form-label">Fighter Rating Increase</label>

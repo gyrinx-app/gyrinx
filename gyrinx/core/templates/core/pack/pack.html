@@ -97,7 +97,9 @@
             <!-- Pack info -->
             {% if pack.summary or pack.description %}
                 <div class="vstack gap-1">
-                    {% if pack.summary %}<div class="mb-last-0">{{ pack.summary|safe_rich_text|safe }}</div>{% endif %}
+                    {% if pack.summary %}
+                        <div class="mb-last-0">{{ pack.summary|safe_rich_text|safe }}</div>
+                    {% endif %}
                     {% if pack.description %}
                         <div class="text-secondary fs-7 mb-last-0">{{ pack.description|safe_rich_text|safe }}</div>
                     {% endif %}
@@ -174,7 +176,9 @@
                         {# Attributes are rendered within the Gang Attribute Values section below #}
                     {% elif can_edit or section.has_content %}
                         {# View-only users only see categories that hold custom content. #}
-                        {% if section.slug == "gear" %}<hr class="my-2">{% endif %}
+                        {% if section.slug == "gear" %}
+                            <hr class="my-2">
+                        {% endif %}
                         <section id="{{ section.slug }}">
                             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                                 <h2 class="h5 mb-0">{{ section.label }}</h2>
@@ -277,7 +281,9 @@
                                         <div class="vstack gap-3">
                                             {% for house_group in fighters_by_house %}
                                                 <div>
-                                                    {% if house_group.grouper %}<div class="caps-label mb-2">{{ house_group.grouper }}</div>{% endif %}
+                                                    {% if house_group.grouper %}
+                                                        <div class="caps-label mb-2">{{ house_group.grouper }}</div>
+                                                    {% endif %}
                                                     <div class="row g-3">
                                                         {% for entry in house_group.list %}
                                                             <div id="item-{{ entry.pack_item.id }}" class="col-12 col-lg-6">

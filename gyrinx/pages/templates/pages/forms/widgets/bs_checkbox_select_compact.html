@@ -17,7 +17,9 @@
                     {% for option in options %}
                         <div class="mb-1" data-filter-label="{{ option.label }}">{% include option.template_name with widget=option %}</div>
                     {% endfor %}
-                    {% if group %}</div>{% endif %}
+                    {% if group %}
+                    </div>
+                {% endif %}
             {% endfor %}
             {# djlint:off H021 #}
             <div class="text-secondary fs-7" data-filter-empty style="display: none;">No matches.</div>

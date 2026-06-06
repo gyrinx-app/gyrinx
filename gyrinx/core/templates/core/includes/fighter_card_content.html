@@ -149,7 +149,9 @@
                                     aria-controls="lore-{{ fighter.id }}"
                                     aria-selected="false">
                                 Lore
-                                {% if fighter.has_lore_content %}<i class="bi-dot"></i>{% endif %}
+                                {% if fighter.has_lore_content %}
+                                    <i class="bi-dot"></i>
+                                {% endif %}
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -162,7 +164,9 @@
                                     aria-controls="notes-{{ fighter.id }}"
                                     aria-selected="false">
                                 Notes
-                                {% if fighter.has_notes_content %}<i class="bi-dot"></i>{% endif %}
+                                {% if fighter.has_notes_content %}
+                                    <i class="bi-dot"></i>
+                                {% endif %}
                             </button>
                         </li>
                     </ul>
