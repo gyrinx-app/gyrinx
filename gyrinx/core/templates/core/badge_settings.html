@@ -8,7 +8,7 @@
         <div class="card-body">
             <h1 class="h3 mb-2">{% trans "Badge" %}</h1>
             <p class="text-secondary">
-                Choose a badge to show next to your name. Patreon supporters can display the badges for their tier and below.
+                Your current Patreon tier badge shows next to your name by default. You can pick a different badge from your tier and below, or hide it.
             </p>
             {% if unlocked_badges %}
                 <form method="post" class="vstack gap-3">
@@ -32,10 +32,10 @@
                         <label class="d-flex align-items-center gap-2 border rounded p-2">
                             <input type="radio"
                                    name="selected_badge"
-                                   value=""
+                                   value="none"
                                    class="form-check-input mt-0"
-                                   {% if not form.selected_badge.value %}checked{% endif %}>
-                            <span>{% trans "No badge" %}</span>
+                                   {% if form.selected_badge.value == "none" %}checked{% endif %}>
+                            <span>{% trans "Hide badge" %}</span>
                         </label>
                     </fieldset>
                     <div class="hstack gap-2 mt-2">

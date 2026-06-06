@@ -3,6 +3,7 @@
 import pytest
 
 from gyrinx.core.badges import (
+    HIDE_BADGE,
     PATREON_BADGES,
     badge_by_slug,
     badge_choices,
@@ -42,10 +43,12 @@ def test_rank_for_tier_title_zero_for_free_empty_and_unknown():
     assert rank_for_tier_title("Nonsense") == 0
 
 
-def test_badge_choices_prefixes_no_badge():
+def test_badge_choices_appends_hide_option():
     choices = badge_choices(PATREON_BADGES)
-    assert choices[0] == ("", "No badge")
     assert ("scummer", "Scummer") in choices
+    assert choices[-1] == (HIDE_BADGE, "Hide badge")
+    # No empty "no badge" option — patrons show their tier badge by default.
+    assert ("", "No badge") not in choices
 
 
 def test_badge_by_slug():
@@ -114,20 +117,36 @@ def test_display_badge_returns_selected_when_eligible(user):
 
 
 @pytest.mark.django_db
-def test_display_badge_none_when_selection_above_tier(user):
+def test_display_badge_falls_back_to_current_tier_when_selection_above_tier(user):
+    # A stale selection above the user's current tier (e.g. after a downgrade)
+    # isn't shown; they fall back to their current-tier badge rather than nothing.
     profile = _profile(
         user,
         patreon_status=PatreonStatus.ACTIVE,
         patreon_tier="Scummer",
         selected_badge="uphiver",
     )
-    assert profile.display_badge is None
+    assert profile.display_badge.slug == "scummer"
 
 
 @pytest.mark.django_db
-def test_display_badge_none_when_no_selection(user):
+@pytest.mark.parametrize(
+    "tier,expected",
+    [("Scummer", "scummer"), ("Guilder", "guilder"), ("Uphiver", "uphiver")],
+)
+def test_display_badge_defaults_to_current_tier_when_no_selection(user, tier, expected):
+    # The headline behaviour: active patrons show their tier badge with no choice.
+    profile = _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier=tier)
+    assert profile.display_badge.slug == expected
+
+
+@pytest.mark.django_db
+def test_display_badge_hidden_with_opt_out(user):
     profile = _profile(
-        user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Uphiver"
+        user,
+        patreon_status=PatreonStatus.ACTIVE,
+        patreon_tier="Uphiver",
+        selected_badge=HIDE_BADGE,
     )
     assert profile.display_badge is None
 
