@@ -618,7 +618,8 @@ class PackDetailView(generic.DetailView):
     def get_object(self):
         pack = get_object_or_404(
             CustomContentPack.objects.filter(archived=False)
-            .select_related("owner")
+            # owner__profile is for the breadcrumb supporter badge.
+            .select_related("owner", "owner__profile")
             .prefetch_related("items__content_type"),
             id=self.kwargs["id"],
         )

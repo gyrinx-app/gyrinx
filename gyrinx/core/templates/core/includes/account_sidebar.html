@@ -19,6 +19,14 @@
                 </li>
             {% endif %}
         {% endif %}
+        {% url 'core:badge-settings' as badge_settings_url_ %}
+        {% if badge_settings_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'core:badge-settings' %}"
+                   {% active_aria 'core:badge-settings' %}
+                   href="{{ badge_settings_url_ }}"><i class="bi-patch-check me-2"></i>{% trans "Badge" %}</a>
+            </li>
+        {% endif %}
         {% url 'account_email' as email_url_ %}
         {% if email_url_ %}
             <li class="nav-item">

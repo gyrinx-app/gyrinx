@@ -1,12 +1,13 @@
 {# Breadcrumb component — sits above the page title. #}
 {# Required params: type (str), owner (User object), name (str) #}
 {# Optional params: type_url (str), campaign (Campaign object), print (bool) #}
+{% load badge_tags %}
 <div class="fs-7 text-secondary">
     {% if print %}
         {{ owner }}
     {% else %}
         <a class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
-           href="{% url 'core:user' owner.username %}">{{ owner }}</a>
+           href="{% url 'core:user' owner.username %}">{{ owner }}</a>{% user_badge owner %}
     {% endif %}
     <span class="mx-1">/</span>
     {% if print or not type_url %}

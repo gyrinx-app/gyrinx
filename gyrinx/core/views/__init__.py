@@ -12,7 +12,7 @@ from .csrf import csrf_failure
 from .dice import dice
 from .home import account_home, index
 from .upload import tinymce_upload
-from .user import change_username, user
+from .user import badge_settings, change_username, user
 
 
 def make_query_params_str(**kwargs) -> str:
@@ -29,6 +29,7 @@ __all__ = [
     # User views
     "user",
     "change_username",
+    "badge_settings",
     # Dice views
     "dice",
     # Banner views

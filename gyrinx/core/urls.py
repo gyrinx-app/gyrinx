@@ -46,6 +46,11 @@ urlpatterns = [
         gyrinx.core.views.change_username,
         name="change-username",
     ),
+    path(
+        "accounts/badge/",
+        gyrinx.core.views.badge_settings,
+        name="badge-settings",
+    ),
     path("dice/", gyrinx.core.views.dice, name="dice"),
     path("lists/", list_views.ListsListView.as_view(), name="lists"),
     path("lists/new/packs", list_views.new_list_packs, name="lists-new-packs"),
