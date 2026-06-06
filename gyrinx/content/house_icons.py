@@ -17,6 +17,13 @@ from django.utils.text import slugify
 
 ICONS_DIR = Path(__file__).resolve().parent / "data" / "house_icons"
 
+# The generic icon shared by every "custom gang" — i.e. any ContentHouse that
+# belongs to a content pack. Pack houses have no bundled per-house artwork, so
+# they all use this one. Deliberately absent from ``ICON_HOUSE_MAP`` (which is
+# keyed by exact house name); custom gangs are matched by pack membership
+# instead — see ``attach_custom_gang_icon``.
+CUSTOM_GANG_ICON_SLUG = "custom_gang"
+
 # Maps each bundled SVG (without extension) to the exact ContentHouse.name
 # records it should be applied to. House names taken from production.
 ICON_HOUSE_MAP = {
@@ -88,3 +95,96 @@ def attach_house_icons(house_model, *, overwrite=False, dry_run=False, log=None)
             )
 
     return applied, skipped, missing
+
+
+def read_icon_bytes(icon_slug):
+    """Return the bytes of a bundled icon SVG, or ``None`` if it's missing."""
+    svg_path = ICONS_DIR / f"{icon_slug}.svg"
+    if not svg_path.exists():
+        return None
+    return svg_path.read_bytes()
+
+
+def set_house_icon(house, icon_slug, *, overwrite=False, save=True):
+    """Store the bundled ``icon_slug`` SVG on ``house.icon``.
+
+    Skips houses that already have an icon unless ``overwrite`` is set. Returns
+    ``True`` if an icon was written, ``False`` otherwise (the house already had
+    one, or the bundled SVG is missing).
+    """
+    if house.icon and not overwrite:
+        return False
+    svg_bytes = read_icon_bytes(icon_slug)
+    if svg_bytes is None:
+        return False
+    if house.icon:
+        house.icon.delete(save=False)
+    house.icon.save(f"{slugify(house.name)}.svg", ContentFile(svg_bytes), save=save)
+    return True
+
+
+def attach_custom_gang_icon(
+    house_model, pack_item_model, *, overwrite=False, dry_run=False, log=None
+):
+    """Attach the generic custom-gang icon to every content-pack house.
+
+    A "custom gang" is any ``ContentHouse`` that belongs to a content pack
+    (i.e. is referenced by a ``CustomContentPackItem``). Such houses have no
+    bundled per-house artwork, so they all share the single ``custom_gang``
+    icon. Archived pack items still count — archiving is a pack-owner
+    soft-delete and doesn't change what the house is.
+
+    ``house_model`` / ``pack_item_model`` are passed in so this works from both
+    the management command (concrete models) and a data migration (historical
+    models from ``apps.get_model``). Houses that already have an icon are
+    skipped unless ``overwrite`` is set. ``log`` is an optional ``callable(str)``
+    for progress output. Returns ``(applied, skipped)`` counts.
+    """
+    emit = log or (lambda _msg: None)
+    svg_bytes = read_icon_bytes(CUSTOM_GANG_ICON_SLUG)
+    if svg_bytes is None:
+        emit(f"Missing bundled SVG: {CUSTOM_GANG_ICON_SLUG}.svg")
+        return 0, 0
+
+    # ``ContentHouse.objects`` excludes pack content by default — the exact
+    # houses we're after — so reach past it via ``all_content()``. The
+    # historical model passed from a data migration has a plain manager (which
+    # already returns everything and lacks ``all_content``), hence the guard.
+    house_manager = house_model.objects
+    all_houses = (
+        house_manager.all_content()
+        if hasattr(house_manager, "all_content")
+        else house_manager.all()
+    )
+
+    # All content models use globally-unique UUID PKs, so matching pack items
+    # by ``object_id`` alone reliably picks out houses — no ContentType lookup
+    # needed, which keeps this safe to run from a migration on a fresh DB.
+    house_ids = list(all_houses.values_list("pk", flat=True))
+    pack_house_ids = set(
+        pack_item_model.objects.filter(object_id__in=house_ids).values_list(
+            "object_id", flat=True
+        )
+    )
+
+    applied = skipped = 0
+    for house in all_houses.filter(pk__in=pack_house_ids):
+        if house.icon and not overwrite:
+            emit(f"  skip (has icon): {house.name}")
+            skipped += 1
+            continue
+
+        emit(f"  set custom_gang -> {house.name}")
+        applied += 1
+        if dry_run:
+            continue
+
+        if house.icon:
+            house.icon.delete(save=False)
+        house.icon.save(
+            f"{slugify(house.name)}.svg",
+            ContentFile(svg_bytes),
+            save=True,
+        )
+
+    return applied, skipped
