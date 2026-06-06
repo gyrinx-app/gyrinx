@@ -564,7 +564,7 @@ class PacksView(generic.ListView):
 
     def get_queryset(self):
         queryset = CustomContentPack.objects.filter(archived=False).select_related(
-            "owner"
+            "owner", "owner__profile"
         )
         user = self.request.user
 

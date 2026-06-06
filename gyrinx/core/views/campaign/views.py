@@ -24,7 +24,9 @@ class Campaigns(generic.ListView):
 
     def get_queryset(self):
         queryset = (
-            Campaign.objects.all().select_related("owner").prefetch_related("lists")
+            Campaign.objects.all()
+            .select_related("owner", "owner__profile")
+            .prefetch_related("lists")
         )
 
         # Apply "Your Campaigns Only" filter - default to user's campaigns if authenticated
@@ -105,7 +107,7 @@ class Campaigns(generic.ListView):
         if self.request.user.is_authenticated:
             context["pinned_campaigns"] = (
                 self.request.user.pinned_campaigns.filter(archived=False)
-                .select_related("owner")
+                .select_related("owner", "owner__profile")
                 .prefetch_related("lists")
                 .annotate(star_count=Count("starred_by", distinct=True))
                 .order_by("name")

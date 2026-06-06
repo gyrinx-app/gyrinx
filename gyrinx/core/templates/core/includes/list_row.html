@@ -1,4 +1,4 @@
-{% load custom_tags tz color_tags %}
+{% load custom_tags tz color_tags badge_tags %}
 {% comment %}A list/gang row for the lists index page and its pinned sidebar.
 Expects `list` in context.{% endcomment %}
 <div class="hstack gap-3 position-relative">
@@ -8,7 +8,7 @@ Expects `list` in context.{% endcomment %}
                 <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
             </h2>
             <div>
-                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>
+                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>{% user_badge list.owner %}
             </div>
         </div>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">

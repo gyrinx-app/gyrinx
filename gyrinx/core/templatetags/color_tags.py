@@ -8,11 +8,6 @@ from gyrinx.content.svg import sanitize_house_icon_svg
 
 register = template.Library()
 
-# Prototype gate: house icons are only displayed to members of this group.
-# The group is created by a core data migration. Remove the gate (and this
-# constant's use) when the feature graduates to general availability.
-HOUSE_ICONS_ALPHA_GROUP = "House Icons Alpha"
-
 
 @register.simple_tag
 def theme_square(list_obj, size="0.8em", extra_classes=""):
@@ -54,19 +49,6 @@ def list_with_theme(list_obj, extra_classes="", square_size="0.8em"):
         return mark_safe(f'<span class="{extra_classes}">{name}</span>')
 
 
-def _user_in_house_icons_alpha(request, user):
-    """Memoised per-request check for House Icons Alpha membership.
-
-    A gated page can call ``house_icon`` many times (once per list/fighter), so
-    cache the group lookup on the request to avoid a query per call.
-    """
-    if not hasattr(request, "_house_icons_alpha_member"):
-        request._house_icons_alpha_member = user.groups.filter(
-            name=HOUSE_ICONS_ALPHA_GROUP
-        ).exists()
-    return request._house_icons_alpha_member
-
-
 def _house_icon_svg(icon, extra_classes):
     """Read + sanitise a house icon's SVG, caching the result.
 
@@ -94,13 +76,12 @@ def _house_icon_svg(icon, extra_classes):
     return svg
 
 
-@register.simple_tag(takes_context=True)
-def house_icon(context, house, extra_classes=""):
-    """Render a house's inline SVG icon, gated to the House Icons Alpha group.
+@register.simple_tag
+def house_icon(house, extra_classes=""):
+    """Render a house's inline SVG icon.
 
-    Renders nothing (no markup, no layout shift) for anonymous users, users
-    outside the group, houses without an icon, or unreadable/invalid icons —
-    so non-members see house names exactly as before.
+    Renders nothing (no markup, no layout shift) for houses without an icon or
+    unreadable/invalid icons, so those houses show their name exactly as before.
 
     Usage:
         {{ list.content_house_name }}{% house_icon list.content_house_cached %}
@@ -108,19 +89,10 @@ def house_icon(context, house, extra_classes=""):
     if house is None:
         return ""
 
-    # Check the icon field (already loaded on the house, no query) before the
-    # group membership lookup, so houses without an icon — the common case
-    # during the prototype — add zero queries to hot paths like the list view.
+    # The icon field is already loaded on the house (no query), so houses
+    # without an icon add zero queries to hot paths like the list view.
     icon = getattr(house, "icon", None)
     if not icon:
-        return ""
-
-    request = context.get("request")
-    user = getattr(request, "user", None)
-    if user is None or not user.is_authenticated:
-        return ""
-
-    if not _user_in_house_icons_alpha(request, user):
         return ""
 
     svg = _house_icon_svg(icon, extra_classes)

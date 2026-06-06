@@ -99,11 +99,15 @@ def user_badge(profile_user, extra_classes=""):
         return ""
 
     classes = f"user-badge {extra_classes}".strip()
+    # Bootstrap tooltip (initialised globally in index.js) shows the short,
+    # user-facing description on hover. No underline — the badge is an icon-only
+    # span, so we deliberately avoid the `.tooltipped` link styling.
     # svg is a trusted static repo asset (no user input) — safe to mark_safe.
     return format_html(
-        '<span class="{}" title="{}" role="img" aria-label="{}">{}</span>',
+        '<span class="{}" data-bs-toggle="tooltip" data-bs-title="{}" '
+        'role="img" aria-label="{}">{}</span>',
         classes,
-        badge.title,
-        badge.title,
+        badge.description,
+        badge.description,
         mark_safe(svg),  # nosec B308 B703
     )

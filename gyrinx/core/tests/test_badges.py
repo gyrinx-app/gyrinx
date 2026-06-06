@@ -176,7 +176,9 @@ def test_user_badge_renders_for_eligible_user(user):
     )
     html = user_badge(user)
     assert "<svg" in html
-    assert 'title="Guilder"' in html
+    assert 'data-bs-toggle="tooltip"' in html
+    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in html
+    assert 'aria-label="Gyrinx supporter — Guilder tier"' in html
 
 
 @pytest.mark.django_db
