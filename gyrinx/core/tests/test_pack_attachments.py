@@ -177,6 +177,22 @@ def test_non_editor_cannot_upload(client, pack, user, make_user):
 
 
 @pytest.mark.django_db
+def test_upload_order_does_not_collide_after_archive(client, pack, user):
+    # Upload two, archive the first, upload a third: orders must stay distinct
+    # (regression for count()-based ordering colliding across gaps).
+    client.force_login(user)
+    url = reverse("core:pack-attachment-add", args=[pack.id])
+    client.post(url, {"file": _pdf(), "title": "first"})
+    client.post(url, {"file": _pdf(), "title": "second"})
+    pack.attachments.get(title="first").archive()
+    client.post(url, {"file": _pdf(), "title": "third"})
+
+    active = pack.attachments.filter(archived=False)
+    orders = list(active.values_list("order", flat=True))
+    assert len(orders) == len(set(orders)), f"orders collided: {orders}"
+
+
+@pytest.mark.django_db
 def test_upload_rejects_disallowed_type(client, pack, user):
     client.force_login(user)
     url = reverse("core:pack-attachment-add", args=[pack.id])
@@ -266,5 +282,7 @@ def test_viewer_of_listed_pack_sees_download(client, user, make_user):
     detail = client.get(reverse("core:pack", args=[listed_pack.id]))
     assert detail.status_code == 200
     assert b"Public Scenario" in detail.content
-    # A non-editor viewer must not see the add/remove controls.
-    assert b"pack-attachment-add" not in detail.content
+    # A non-editor viewer must not see the add/remove controls. Assert against
+    # the rendered URL paths (templates emit the reversed URL, not its name).
+    add_url = reverse("core:pack-attachment-add", args=[listed_pack.id])
+    assert add_url.encode() not in detail.content

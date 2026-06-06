@@ -298,7 +298,7 @@ class CustomContentPackAttachment(AppBase):
             if ext not in PACK_ATTACHMENT_ALLOWED_EXTENSIONS:
                 raise ValidationError(
                     f"File extension '.{ext}' is not allowed. "
-                    f"Allowed: PDF, JPG, PNG, GIF, WebP."
+                    f"Allowed: PDF, JPG, JPEG, PNG, GIF, WebP."
                 )
 
     @classmethod

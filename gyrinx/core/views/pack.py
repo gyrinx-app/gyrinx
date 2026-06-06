@@ -6271,16 +6271,32 @@ def add_pack_attachment(request, id):
                 attachment.original_filename = file_name
                 attachment.file_size = file_size
                 attachment.content_type = content_type
-                attachment.order = attachment_count
                 try:
-                    attachment.full_clean()
+                    attachment.full_clean(exclude=["order"])
                 except DjangoValidationError as e:
                     for field, errors in e.message_dict.items():
                         target = field if field in form.fields else "file"
                         for error in errors:
                             form.add_error(target, error)
                 else:
-                    attachment.save_with_user(user=request.user)
+                    # Serialize creation on the pack row so two concurrent
+                    # uploads can't both pass the cap check, and assign a
+                    # stable order = max(active order) + 1 (count() would
+                    # collide when an earlier attachment has been archived).
+                    with transaction.atomic():
+                        CustomContentPack.objects.select_for_update().get(pk=pack.pk)
+                        active = pack.attachments.filter(archived=False)
+                        if active.count() >= PACK_ATTACHMENT_MAX_PER_PACK:
+                            messages.error(
+                                request,
+                                f"This pack already has the maximum of "
+                                f"{PACK_ATTACHMENT_MAX_PER_PACK} files.",
+                            )
+                            return HttpResponseRedirect(_pack_url(pack, "files"))
+                        attachment.order = (
+                            active.aggregate(m=models.Max("order"))["m"] or 0
+                        ) + 1
+                        attachment.save_with_user(user=request.user)
                     log_event(
                         user=request.user,
                         noun=EventNoun.UPLOAD,

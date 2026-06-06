@@ -930,7 +930,7 @@ urlpatterns = [
         name="pack-attachment-add",
     ),
     path(
-        "pack/<id>/attachment/<attachment_id>/delete/",
+        "pack/<id>/attachments/<attachment_id>/delete/",
         pack_views.delete_pack_attachment,
         name="pack-attachment-delete",
     ),
