@@ -1,0 +1,35 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Add a file - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack' pack.id as pack_url %}
+    {% include "core/includes/back.html" with url=pack_url text=pack.name %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Add a file</h1>
+        <p class="text-secondary mb-0">
+            Attach a scenario, campaign rules, or a reference sheet to share alongside
+            this Content Pack. PDFs and images up to 20MB. {{ attachment_count }} of
+            {{ max_attachments }} files used.
+        </p>
+        {% if pack_full %}
+            <div class="border rounded p-2">
+                This pack already has the maximum of {{ max_attachments }} files. Remove
+                one before adding another.
+            </div>
+            <div>
+                <a href="{{ pack_url }}" class="btn btn-secondary btn-sm">Back to pack</a>
+            </div>
+        {% else %}
+            <form method="post" enctype="multipart/form-data" class="vstack gap-3">
+                {% csrf_token %}
+                {{ form }}
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-success">Add file</button>
+                    <a href="{{ pack_url }}" class="btn btn-link">Cancel</a>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock content %}

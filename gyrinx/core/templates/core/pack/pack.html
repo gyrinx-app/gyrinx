@@ -166,6 +166,60 @@
                     </section>
                     <hr class="my-2">
                 {% endif %}
+                {% if attachments or can_edit %}
+                    <section id="files">
+                        <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                            <h2 class="h5 mb-0">Files</h2>
+                            {% if can_edit and not pack_full %}
+                                <a href="{% url 'core:pack-attachment-add' pack.id %}"
+                                   class="btn btn-primary btn-sm">
+                                    <i class="bi-plus-lg"></i> Add
+                                </a>
+                            {% endif %}
+                        </div>
+                        <div class="px-2">
+                            {% if attachments %}
+                                <ul class="list-unstyled mb-0">
+                                    {% for attachment in attachments %}
+                                        <li class="py-1" id="attachment-{{ attachment.id }}">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <a href="{{ attachment.file_url }}"
+                                                       target="_blank"
+                                                       rel="noopener"
+                                                       class="linked">
+                                                        <i class="bi-file-earmark-arrow-down"></i>
+                                                        {{ attachment.display_name }}
+                                                    </a>
+                                                    <span class="text-secondary fs-7">{{ attachment.file_size|filesizeformat }}</span>
+                                                    {% if attachment.description %}<div class="text-secondary fs-7">{{ attachment.description }}</div>{% endif %}
+                                                </div>
+                                                {% if can_edit %}
+                                                    <span class="d-flex gap-2">
+                                                        <a href="{% url 'core:pack-attachment-delete' pack.id attachment.id %}"
+                                                           class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                                {% if can_edit and pack_full %}
+                                    <p class="text-secondary fs-7 mb-0 mt-1">This pack has the maximum of {{ max_attachments }} files.</p>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-secondary mb-0">
+                                    Attach scenarios, campaign rules, or reference sheets (PDFs and images) to share alongside this pack.
+                                    {% if can_edit %}
+                                        <a href="{% url 'core:pack-attachment-add' pack.id %}"
+                                           class="linked fs-7">Add a file →</a>
+                                    {% endif %}
+                                </p>
+                            {% endif %}
+                        </div>
+                    </section>
+                    <hr class="my-2">
+                {% endif %}
                 <!-- Content -->
                 {% for section in content_sections %}
                     {% if section.slug == "skill-tree" %}

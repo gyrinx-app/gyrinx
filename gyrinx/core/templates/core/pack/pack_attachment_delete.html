@@ -1,0 +1,21 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Remove file - {{ pack.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:pack' pack.id as pack_url %}
+    {% include "core/includes/back.html" with url=pack_url text=pack.name %}
+    <div class="col-12 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3 mb-1">Remove file</h1>
+        <p class="text-secondary mb-0">
+            Are you sure you want to remove <em>{{ attachment.display_name }}</em> from
+            <em>{{ pack.name }}</em>? It will no longer be available to download.
+        </p>
+        <form method="post" class="d-flex gap-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            <a href="{{ pack_url }}" class="btn btn-secondary btn-sm">Cancel</a>
+        </form>
+    </div>
+{% endblock content %}

@@ -19,7 +19,10 @@ from gyrinx.content.models.weapon import (
     ContentWeaponTrait,
 )
 from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
-from gyrinx.core.models.pack import CustomContentPack
+from gyrinx.core.models.pack import (
+    CustomContentPack,
+    CustomContentPackAttachment,
+)
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
@@ -62,6 +65,27 @@ class PackForm(forms.ModelForm):
                 mce_attrs=TINYMCE_EXTRA_ATTRS,
             ),
             "listed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class PackAttachmentForm(forms.ModelForm):
+    class Meta:
+        model = CustomContentPackAttachment
+        fields = ["file", "title", "description"]
+        labels = {
+            "file": "File",
+            "title": "Title",
+            "description": "Description",
+        }
+        help_texts = {
+            "file": "PDF or image, up to 20MB.",
+            "title": "An optional display title. Defaults to the file name.",
+            "description": "An optional description shown alongside the file.",
+        }
+        widgets = {
+            "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "title": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
 

@@ -5,12 +5,14 @@ from django.utils.html import format_html
 from gyrinx.core.admin.base import BaseAdmin
 from gyrinx.core.models.pack import (
     CustomContentPack,
+    CustomContentPackAttachment,
     CustomContentPackItem,
     CustomContentPackPermission,
 )
 
 __all__ = [
     "CustomContentPackAdmin",
+    "CustomContentPackAttachmentAdmin",
     "CustomContentPackItemAdmin",
     "CustomContentPackPermissionAdmin",
 ]
@@ -52,6 +54,24 @@ class CustomContentPackItemAdmin(BaseAdmin):
             args=[obj.object_id],
         )
         return format_html('<a href="{}">{}</a>', url, content_object)
+
+
+@admin.register(CustomContentPackAttachment)
+class CustomContentPackAttachmentAdmin(BaseAdmin):
+    list_display = ["pack", "display_name", "content_type", "file_size", "owner"]
+    search_fields = ["pack__name", "original_filename", "title", "owner__username"]
+    list_filter = ["pack", "content_type"]
+    fields = [
+        "pack",
+        "file",
+        "original_filename",
+        "file_size",
+        "content_type",
+        "title",
+        "description",
+        "order",
+        "owner",
+    ]
 
 
 @admin.register(CustomContentPackPermission)
