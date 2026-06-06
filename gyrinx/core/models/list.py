@@ -3032,13 +3032,12 @@ class ListFighter(AppBase):
 
     @traced("listfighter_wargear")
     def wargear(self):
-        # For stash fighters, show all non-weapon gear regardless of restrictions
+        # Stash shows all non-weapon gear in one flat list. The stash card
+        # doesn't render house_additional_gearline_display / category_restricted
+        # sections like normal fighter cards do, so anything filtered out here
+        # is invisible to the user despite being counted in cost_int.
         if self.is_stash:
-            return [
-                e
-                for e in self.assignments_cached
-                if not e.is_weapon_cached and not e.is_house_additional
-            ]
+            return [e for e in self.assignments_cached if not e.is_weapon_cached]
 
         # Get categories that have fighter restrictions
         restricted_category_ids = (

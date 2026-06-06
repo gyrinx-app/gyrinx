@@ -143,6 +143,9 @@ INSTALLED_APPS = [
     "gyrinx.core",
     "gyrinx.content",
     "gyrinx.analytics",
+    # Must be loaded AFTER gyrinx.analytics so MaintenanceAdminSite extends
+    # AnalyticsAdminSite (see gyrinx/maintenance/admin.py).
+    "gyrinx.maintenance",
     "gyrinx.pages",
     "gyrinx.api",
     "gyrinx.tasks.apps.TasksConfig",

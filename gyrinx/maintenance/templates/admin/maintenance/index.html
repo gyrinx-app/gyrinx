@@ -1,0 +1,76 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-page-intro { margin-bottom: 1.5rem; }
+    .mt-table { width: 100%; margin-bottom: 2rem; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <h1>{{ title }}</h1>
+    <p class="mt-page-intro">
+        One-off data repairs and admin-only maintenance operations. All actions
+        on these pages are gated to superusers and write an audit trail.
+    </p>
+    <h2>Available data repairs</h2>
+    <table class="table mt-table">
+        <thead>
+            <tr>
+                <th>Operation</th>
+                <th>Description</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for op in operations %}
+                <tr>
+                    <td>
+                        <strong>{{ op.name }}</strong>
+                    </td>
+                    <td>{{ op.description }}</td>
+                    <td>
+                        <a class="button" href="{{ op.url }}">Open</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <h2>Recent backfills</h2>
+    {% if recent_backfills %}
+        <table class="table mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Operation</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                    <th>Scope</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in recent_backfills %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' b.pk %}">{{ b.created|date:"Y-m-d H:i:s" }}</a>
+                        </td>
+                        <td>{{ b.get_operation_display }}</td>
+                        <td>{{ b.get_status_display }}</td>
+                        <td>{{ b.triggered_by|default:"—" }}</td>
+                        <td>
+                            {% if b.list_id_scope %}
+                                list {{ b.list_id_scope }}
+                            {% else %}
+                                all lists
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No backfills have been run yet.</p>
+    {% endif %}
+{% endblock content %}
