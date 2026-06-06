@@ -55,6 +55,12 @@ PATREON_BADGES: list[BadgeDef] = [
 # All badges, indexed for lookup. Patreon-only for now.
 ALL_BADGES: list[BadgeDef] = list(PATREON_BADGES)
 
+# Sentinel stored in ``UserProfile.selected_badge`` meaning "explicitly hide my
+# badge". This is distinct from the empty string: empty means "no explicit
+# choice — show the badge for my current tier by default", whereas ``HIDE_BADGE``
+# is a deliberate opt-out. No real badge uses this slug.
+HIDE_BADGE = "none"
+
 _BY_SLUG: dict[str, BadgeDef] = {b.slug: b for b in ALL_BADGES}
 
 # Map normalised Patreon tier titles to their rank. Built from the registry so
@@ -90,8 +96,9 @@ def rank_for_tier_title(title: str) -> int:
 
 
 def badge_choices(badges: list[BadgeDef]) -> list[tuple[str, str]]:
-    """Form choices for a set of badges, prefixed with an explicit "no badge".
+    """Form choices for a set of badges, with an explicit "hide" option last.
 
-    The empty value is the "show no badge" option.
+    Active patrons show their current-tier badge by default, so there's no
+    "no badge" choice — instead ``HIDE_BADGE`` lets a user opt out entirely.
     """
-    return [("", "No badge")] + [(b.slug, b.title) for b in badges]
+    return [(b.slug, b.title) for b in badges] + [(HIDE_BADGE, "Hide badge")]

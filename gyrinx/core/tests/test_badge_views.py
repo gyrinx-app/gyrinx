@@ -3,6 +3,7 @@
 import pytest
 from django.urls import reverse
 
+from gyrinx.core.badges import HIDE_BADGE
 from gyrinx.core.forms import BadgeSelectionForm
 from gyrinx.core.models.auth import PatreonStatus, UserProfile
 
@@ -21,7 +22,15 @@ def test_form_offers_only_unlocked_badges(user):
     _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Scummer")
     form = BadgeSelectionForm(user=user)
     values = [v for v, _ in form.fields["selected_badge"].choices]
-    assert values == ["", "scummer"]
+    assert values == ["scummer", HIDE_BADGE]
+
+
+@pytest.mark.django_db
+def test_form_preselects_current_tier_by_default(user):
+    # With no explicit choice, the form pre-selects the current-tier badge.
+    _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Guilder")
+    form = BadgeSelectionForm(user=user)
+    assert form.fields["selected_badge"].initial == "guilder"
 
 
 @pytest.mark.django_db
@@ -43,18 +52,22 @@ def test_form_rejects_ineligible_selection(user):
 
 
 @pytest.mark.django_db
-def test_form_allows_no_badge(user):
+def test_form_allows_hiding_badge(user):
     _profile(
         user,
         patreon_status=PatreonStatus.ACTIVE,
         patreon_tier="Uphiver",
         selected_badge="uphiver",
     )
-    form = BadgeSelectionForm({"selected_badge": ""}, user=user)
+    form = BadgeSelectionForm({"selected_badge": HIDE_BADGE}, user=user)
     assert form.is_valid()
     form.save()
     user.profile.refresh_from_db()
-    assert user.profile.selected_badge == ""
+    assert user.profile.selected_badge == HIDE_BADGE
+    # Opt-out hides the badge — verified on a fresh instance in test_badges.py
+    # (display_badge is a cached_property, so the form's pre-save read would
+    # otherwise mask the change on this reused instance).
+    assert UserProfile.objects.get(pk=user.profile.pk).display_badge is None
 
 
 # --- View ---
@@ -77,7 +90,9 @@ def test_badge_page_shows_unlocked_badges(client, user):
     assert "Scummer" in content
     assert "Guilder" in content
     assert "Uphiver" in content
-    assert "No badge" in content
+    assert "Hide badge" in content
+    # The opt-out radio carries the sentinel value from context, not a literal.
+    assert f'value="{HIDE_BADGE}"' in content
 
 
 @pytest.mark.django_db
@@ -125,6 +140,32 @@ def test_profile_page_shows_badge_for_supporter(client, user):
     content = response.content.decode()
     assert response.status_code == 200
     assert 'title="Guilder"' in content
+
+
+@pytest.mark.django_db
+def test_profile_page_shows_default_badge_without_selection(client, user):
+    # Active patron who never opened the picker still shows their tier badge.
+    _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Guilder")
+    url = reverse("core:user", args=[user.username])
+    response = client.get(url)
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'title="Guilder"' in content
+
+
+@pytest.mark.django_db
+def test_profile_page_hides_badge_when_opted_out(client, user):
+    _profile(
+        user,
+        patreon_status=PatreonStatus.ACTIVE,
+        patreon_tier="Guilder",
+        selected_badge=HIDE_BADGE,
+    )
+    url = reverse("core:user", args=[user.username])
+    response = client.get(url)
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert "user-badge" not in content
 
 
 @pytest.mark.django_db

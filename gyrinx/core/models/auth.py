@@ -5,6 +5,7 @@ from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.badges import (
+    HIDE_BADGE,
     PATREON_BADGES,
     BadgeDef,
     badge_by_slug,
@@ -115,11 +116,24 @@ class UserProfile(Base):
     def display_badge(self) -> BadgeDef | None:
         """The badge to render, or ``None``.
 
-        Returns the selected badge only if it's still unlocked, so a selection
-        that's no longer eligible (e.g. the user lapsed) renders nothing.
+        Active paid patrons display a badge by default — the one matching their
+        current tier — without having to choose. The rules, in order:
+
+        * Not an active paid patron → nothing (lapsed supporters lose badges).
+        * Explicit ``HIDE_BADGE`` opt-out → nothing.
+        * An explicit, still-unlocked selection → that badge (e.g. an Uphiver who
+          prefers to show the Scummer badge).
+        * Otherwise (no choice, or a stale selection above the current tier) →
+          the current-tier badge, i.e. the highest-ranked unlocked one.
         """
-        if not self.selected_badge:
+        unlocked = self.unlocked_badges
+        if not unlocked:
             return None
-        if self.selected_badge not in self.eligible_badge_slugs:
+        if self.selected_badge == HIDE_BADGE:
             return None
-        return badge_by_slug(self.selected_badge)
+        if self.selected_badge in self.eligible_badge_slugs:
+            return badge_by_slug(self.selected_badge)
+        # The current-tier badge is the highest-ranked unlocked one. Select by
+        # rank rather than list position so it doesn't depend on PATREON_BADGES
+        # ordering.
+        return max(unlocked, key=lambda b: b.rank)
