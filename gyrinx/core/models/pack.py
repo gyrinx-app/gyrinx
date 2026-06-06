@@ -321,7 +321,9 @@ class CustomContentPackAttachment(AppBase):
             tuple: (can_upload: bool, remaining_bytes: int, message: str)
         """
         current_usage = cls.get_user_usage_today(user)
-        remaining = PACK_ATTACHMENT_DAILY_QUOTA - current_usage
+        # Clamp to 0: if a user is already over quota (e.g. via admin edits or
+        # historical data) the remaining budget should never report negative.
+        remaining = max(0, PACK_ATTACHMENT_DAILY_QUOTA - current_usage)
 
         if file_size > remaining:
             message = (
