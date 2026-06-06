@@ -156,6 +156,17 @@ button[aria-busy="true"] {
     .navbar.bg-dark {
         background-color: #{lighten($dark, 5%)} !important;
     }
+
+    // In dark mode the raw `$primary` blue is too dark for an outline button on
+    // the dark surface. Use the (lightened) link colour for the resting text and
+    // border so it matches `.linked`. Hover/active keep Bootstrap's usual primary
+    // fill.
+    .btn-outline-primary {
+        --bs-btn-color: var(--bs-link-color);
+        --bs-btn-border-color: var(--bs-link-color);
+        --bs-btn-disabled-color: var(--bs-link-color);
+        --bs-btn-disabled-border-color: var(--bs-link-color);
+    }
 }
 
 // Alerts with icon pinned left, content flowing right.

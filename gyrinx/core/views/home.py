@@ -141,7 +141,8 @@ def index(request):
                     campaigns_queryset, search_campaigns_query, ["name"]
                 )
 
-            campaigns = campaigns_queryset.order_by("-created")
+            # Order by modified and limit to 5 (matches lists / campaign gangs)
+            campaigns = campaigns_queryset.order_by("-modified")[:5]
 
     # Log the dashboard view
     if request.user.is_authenticated:
@@ -153,7 +154,7 @@ def index(request):
             page="dashboard",
             lists_count=len(lists) if lists else 0,
             campaign_gangs_count=len(campaign_gangs) if campaign_gangs else 0,
-            campaigns_count=campaigns.count() if campaigns else 0,
+            campaigns_count=len(campaigns) if campaigns else 0,
         )
 
     # Derive houses from the user's actual lists so pack-defined

@@ -154,6 +154,12 @@
                                     </p>
                                 {% endif %}
                             {% endfor %}
+                            {% if campaigns %}
+                                <div class="text-secondary fs-7">
+                                    Showing most recently edited ·
+                                    <a href="{% url 'core:campaigns' %}?my=1" class="linked-secondary">Show all</a>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     <!-- Lists column -->
