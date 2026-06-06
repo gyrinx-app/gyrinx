@@ -27,7 +27,7 @@
                             <h3 class="h5 mb-0">{{ type_def.label_plural|default:type_def.label }}</h3>
                             {% if not campaign.archived %}
                                 <a href="{% url 'core:campaign-sub-asset-new' campaign.id asset.id type_key %}"
-                                   class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                                   class="icon-link linked fs-7">
                                     <i class="bi-plus-lg"></i> Add {{ type_def.label }}
                                 </a>
                             {% endif %}

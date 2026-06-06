@@ -13,7 +13,7 @@
                 {% if is_owner and not campaign.archived %}
                     <div class="hstack gap-3 ms-md-auto">
                         <a href="{% url 'core:campaign-attribute-type-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                           class="icon-link linked fs-7">
                             <i class="bi-plus-lg"></i> Add Attribute type
                         </a>
                     </div>
@@ -54,7 +54,7 @@
                     {% if is_owner and not campaign.archived %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}"
-                               class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                               class="icon-link linked fs-7">
                                 <i class="bi-plus-lg"></i> Add value
                             </a>
                             <a href="{% url 'core:campaign-attribute-type-edit' campaign.id attribute_type.id %}"

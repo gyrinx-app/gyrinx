@@ -380,7 +380,7 @@
                                                             <span class="d-flex gap-2 align-items-center">
                                                                 {% if can_edit %}
                                                                     <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
-                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add skill</a>
+                                                                       class="linked fs-7">Add skill</a>
                                                                     {% if group.pack_item %}
                                                                         <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
                                                                            class="linked-secondary fs-7">Edit tree</a>
@@ -438,7 +438,7 @@
                                                             <span class="d-flex gap-2 align-items-center">
                                                                 {% if can_edit %}
                                                                     <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}?discipline={{ group.discipline.id }}"
-                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add power</a>
+                                                                       class="linked fs-7">Add power</a>
                                                                     {% if group.pack_item %}
                                                                         <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
                                                                            class="linked-secondary fs-7">Edit discipline</a>
@@ -505,7 +505,7 @@
                                                             <span class="d-flex gap-2 align-items-center">
                                                                 {% if can_edit %}
                                                                     <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}?attribute={{ group.attribute.id }}"
-                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add value</a>
+                                                                       class="linked fs-7">Add value</a>
                                                                     {% if group.pack_item %}
                                                                         <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
                                                                            class="linked-secondary fs-7">Edit attribute</a>
@@ -649,8 +649,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                             <h2 class="h5 mb-0">Activity</h2>
                             {% if total_activity_count > 0 %}
-                                <a href="{% url 'core:pack-activity' pack.id %}"
-                                   class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                                <a href="{% url 'core:pack-activity' pack.id %}" class="linked fs-7">View all →</a>
                             {% endif %}
                         </div>
                         <div class="px-2">
