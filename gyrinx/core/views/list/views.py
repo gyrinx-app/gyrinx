@@ -256,7 +256,10 @@ class ListDetailView(generic.DetailView):
         list_id = self.kwargs["id"]
         packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
         return get_clean_list_or_404(
-            List.objects.with_related_data(with_fighters=True, packs=packs),
+            # owner__profile is for the breadcrumb supporter badge.
+            List.objects.with_related_data(
+                with_fighters=True, packs=packs
+            ).select_related("owner__profile"),
             id=list_id,
         )
 

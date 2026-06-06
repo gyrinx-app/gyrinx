@@ -6,6 +6,8 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
+from gyrinx.core.badges import badge_choices
+
 
 class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
     template_name = "pages/forms/widgets/bs_checkbox_select.html"
@@ -144,3 +146,45 @@ class UsernameChangeForm(forms.Form):
             self.user.username = self.cleaned_data["new_username"]
             self.user.save()
             return self.user
+
+
+class BadgeSelectionForm(forms.Form):
+    """Let a user choose which supporter badge to display.
+
+    The available choices are computed from the user's currently-unlocked badges
+    (see ``UserProfile.unlocked_badges``) plus an explicit "No badge" option, so
+    the form only ever offers valid selections. ``clean_selected_badge`` re-checks
+    eligibility to reject tampered submissions.
+    """
+
+    selected_badge = forms.ChoiceField(
+        required=False,
+        label="Badge",
+        widget=BsRadioSelect,
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user")
+        super().__init__(*args, **kwargs)
+        self.profile = self.user.profile
+        self.fields["selected_badge"].choices = badge_choices(
+            self.profile.unlocked_badges
+        )
+        # Pre-check the current selection, but only if it's still eligible — a
+        # stale selection shouldn't appear chosen.
+        current = self.profile.selected_badge
+        self.fields["selected_badge"].initial = (
+            current if current in self.profile.eligible_badge_slugs else ""
+        )
+
+    def clean_selected_badge(self):
+        value = self.cleaned_data.get("selected_badge", "")
+        if value and value not in self.profile.eligible_badge_slugs:
+            raise forms.ValidationError("That badge isn't available to you.")
+        return value
+
+    def save(self):
+        """Persist the selected badge to the user's profile."""
+        self.profile.selected_badge = self.cleaned_data["selected_badge"]
+        self.profile.save(update_fields=["selected_badge"])
+        return self.profile

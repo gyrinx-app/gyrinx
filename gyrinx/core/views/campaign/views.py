@@ -140,6 +140,8 @@ class CampaignDetailView(generic.DetailView):
         return get_object_or_404(
             Campaign.objects.select_related(
                 "group_attribute_type",
+                # owner__profile is for the breadcrumb supporter badge.
+                "owner__profile",
             ).prefetch_related(
                 "packs",
                 "lists",

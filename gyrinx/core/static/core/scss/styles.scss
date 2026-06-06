@@ -600,3 +600,27 @@ $width-em-sizes: (
     fill: currentColor;
     transform: translateY(-0.1em) scale(1.25);
 }
+
+// Supporter badges. Pixel-art SVGs that keep their own colours; only the black
+// outline is `currentColor`, so DON'T set `fill` here (CSS fill would override
+// the coloured rects). Inline next to a username, sized relative to the text.
+.user-badge {
+    display: inline-flex;
+    vertical-align: -0.15em;
+    margin-inline-start: 0.25em;
+
+    svg {
+        width: 1.15em;
+        height: 1.15em;
+    }
+}
+
+// Badge icon as used in the picker — a touch larger to show detail.
+.badge-icon {
+    display: inline-flex;
+
+    svg {
+        width: 1.5em;
+        height: 1.5em;
+    }
+}

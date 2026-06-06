@@ -1,0 +1,61 @@
+{% extends "account/base_manage.html" %}
+{% load i18n badge_tags %}
+{% block head_title %}
+    {% trans "Badge" %}
+{% endblock head_title %}
+{% block content %}
+    <div class="card">
+        <div class="card-body">
+            <h1 class="h3 mb-2">{% trans "Badge" %}</h1>
+            <p class="text-secondary">
+                Choose a badge to show next to your name. Patreon supporters can display the badges for their tier and below.
+            </p>
+            {% if unlocked_badges %}
+                <form method="post" class="vstack gap-3">
+                    {% csrf_token %}
+                    {% if form.selected_badge.errors %}
+                        <div class="invalid-feedback d-block">{{ form.selected_badge.errors.0 }}</div>
+                    {% endif %}
+                    <fieldset class="vstack gap-2">
+                        <legend class="visually-hidden">{% trans "Badge" %}</legend>
+                        {% for badge in unlocked_badges %}
+                            <label class="d-flex align-items-center gap-2 border rounded p-2">
+                                <input type="radio"
+                                       name="selected_badge"
+                                       value="{{ badge.slug }}"
+                                       class="form-check-input mt-0"
+                                       {% if form.selected_badge.value == badge.slug %}checked{% endif %}>
+                                <span class="fs-4">{% badge_icon badge %}</span>
+                                <span>{{ badge.title }}</span>
+                            </label>
+                        {% endfor %}
+                        <label class="d-flex align-items-center gap-2 border rounded p-2">
+                            <input type="radio"
+                                   name="selected_badge"
+                                   value=""
+                                   class="form-check-input mt-0"
+                                   {% if not form.selected_badge.value %}checked{% endif %}>
+                            <span>{% trans "No badge" %}</span>
+                        </label>
+                    </fieldset>
+                    <div class="hstack gap-2 mt-2">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi-check-lg"></i> {% trans "Save" %}
+                        </button>
+                        <a href="{% url 'core:account_home' %}" class="btn btn-link btn-sm">{% trans "Cancel" %}</a>
+                    </div>
+                </form>
+            {% else %}
+                <div class="border rounded p-3">
+                    <p class="mb-1">You don't have any badges yet.</p>
+                    <p class="text-secondary mb-0">
+                        Supporter badges unlock when you back Gyrinx on
+                        <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"
+                           target="_blank"
+                           rel="noopener">Patreon</a>.
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

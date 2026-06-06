@@ -6,7 +6,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from gyrinx.core.forms import UsernameChangeForm
+from gyrinx.core.forms import BadgeSelectionForm, UsernameChangeForm
+from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
@@ -44,7 +45,7 @@ def user(request, slug_or_id):
         query = Q(id=slug_or_id)
     else:
         query = Q(username__iexact=slug_or_id)
-    profile_user = get_object_or_404(User, query)
+    profile_user = get_object_or_404(User.objects.select_related("profile"), query)
 
     is_own_profile = request.user.is_authenticated and request.user == profile_user
 
@@ -189,5 +190,61 @@ def change_username(request):
         {
             "form": form,
             "can_change": can_change,
+        },
+    )
+
+
+@login_required
+def badge_settings(request):
+    """
+    Let the user choose which supporter badge to display next to their name.
+
+    Only badges the user has currently unlocked (from their live Patreon status)
+    are offered, plus an explicit "no badge" option. Non-supporters see an empty
+    state explaining how to unlock badges.
+
+    **Context**
+
+    ``form``
+        The badge selection form.
+    ``unlocked_badges``
+        The badges currently available to the user.
+
+    **Template**
+
+    :template:`core/badge_settings.html`
+    """
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = BadgeSelectionForm(request.POST, user=request.user)
+        if form.is_valid():
+            form.save()
+            log_event(
+                user=request.user,
+                noun=EventNoun.USER,
+                verb=EventVerb.UPDATE,
+                request=request,
+                field="selected_badge",
+                selected_badge=form.cleaned_data["selected_badge"],
+            )
+            messages.success(request, "Your badge has been updated.")
+            return redirect("core:account_home")
+    else:
+        log_event(
+            user=request.user,
+            noun=EventNoun.USER,
+            verb=EventVerb.VIEW,
+            request=request,
+            page="badge_settings",
+        )
+        form = BadgeSelectionForm(user=request.user)
+
+    return render(
+        request,
+        "core/badge_settings.html",
+        {
+            "form": form,
+            "unlocked_badges": profile.unlocked_badges,
         },
     )
