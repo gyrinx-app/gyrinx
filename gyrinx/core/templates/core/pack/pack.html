@@ -145,7 +145,7 @@
                                                     {% if can_edit %}
                                                         <span class="d-flex gap-2">
                                                             <a href="{% url 'core:pack-house-rule-edit' pack.id entry.pack_item.id %}"
-                                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                               class="linked-secondary fs-7">Edit</a>
                                                             <a href="{% url 'core:pack-house-rule-delete' pack.id entry.pack_item.id %}"
                                                                class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
                                                         </span>
@@ -244,33 +244,33 @@
                                             {% if section.slug == "skill" %}
                                                 {% if section.skill_tree_archived_count > 0 %}
                                                     <a href="{% url 'core:pack-archived-items' pack.id 'skill-tree' %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived trees ({{ section.skill_tree_archived_count }})</a>
+                                                       class="linked-secondary fs-7">Archived trees ({{ section.skill_tree_archived_count }})</a>
                                                 {% endif %}
                                                 {% if section.archived_count > 0 %}
                                                     <a href="{% url 'core:pack-archived-items' pack.id 'skill' %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived skills ({{ section.archived_count }})</a>
+                                                       class="linked-secondary fs-7">Archived skills ({{ section.archived_count }})</a>
                                                 {% endif %}
                                             {% elif section.slug == "psyker-power" %}
                                                 {% if section.discipline_archived_count > 0 %}
                                                     <a href="{% url 'core:pack-archived-items' pack.id 'psyker-discipline' %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived disciplines ({{ section.discipline_archived_count }})</a>
+                                                       class="linked-secondary fs-7">Archived disciplines ({{ section.discipline_archived_count }})</a>
                                                 {% endif %}
                                                 {% if section.archived_count > 0 %}
                                                     <a href="{% url 'core:pack-archived-items' pack.id 'psyker-power' %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived powers ({{ section.archived_count }})</a>
+                                                       class="linked-secondary fs-7">Archived powers ({{ section.archived_count }})</a>
                                                 {% endif %}
                                             {% elif section.slug == "attribute-value" %}
                                                 {% if section.attribute_archived_count > 0 %}
                                                     <a href="{% url 'core:pack-archived-items' pack.id 'attribute' %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived attributes ({{ section.attribute_archived_count }})</a>
+                                                       class="linked-secondary fs-7">Archived attributes ({{ section.attribute_archived_count }})</a>
                                                 {% endif %}
                                                 {% if section.archived_count > 0 %}
                                                     <a href="{% url 'core:pack-archived-items' pack.id 'attribute-value' %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived values ({{ section.archived_count }})</a>
+                                                       class="linked-secondary fs-7">Archived values ({{ section.archived_count }})</a>
                                                 {% endif %}
                                             {% elif section.archived_count > 0 %}
                                                 <a href="{% url 'core:pack-archived-items' pack.id section.slug %}"
-                                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived ({{ section.archived_count }})</a>
+                                                   class="linked-secondary fs-7">Archived ({{ section.archived_count }})</a>
                                             {% endif %}
                                             {% if section.slug == "skill" %}
                                                 <a href="{% url 'core:pack-add-item' pack.id 'skill' %}"
@@ -380,10 +380,10 @@
                                                             <span class="d-flex gap-2 align-items-center">
                                                                 {% if can_edit %}
                                                                     <a href="{% url 'core:pack-add-item' pack.id 'skill' %}?category={{ group.category.id }}"
-                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add skill</a>
+                                                                       class="linked fs-7">Add skill</a>
                                                                     {% if group.pack_item %}
                                                                         <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
-                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit tree</a>
+                                                                           class="linked-secondary fs-7">Edit tree</a>
                                                                         <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
                                                                            class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive tree</a>
                                                                     {% endif %}
@@ -404,7 +404,7 @@
                                                                             {% if can_edit %}
                                                                                 <span class="d-flex gap-2">
                                                                                     <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                                       class="linked-secondary fs-7">Edit</a>
                                                                                     <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
                                                                                        class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
                                                                                 </span>
@@ -438,10 +438,10 @@
                                                             <span class="d-flex gap-2 align-items-center">
                                                                 {% if can_edit %}
                                                                     <a href="{% url 'core:pack-add-item' pack.id 'psyker-power' %}?discipline={{ group.discipline.id }}"
-                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add power</a>
+                                                                       class="linked fs-7">Add power</a>
                                                                     {% if group.pack_item %}
                                                                         <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
-                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit discipline</a>
+                                                                           class="linked-secondary fs-7">Edit discipline</a>
                                                                         <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
                                                                            class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive discipline</a>
                                                                     {% endif %}
@@ -471,7 +471,7 @@
                                                                             {% if can_edit %}
                                                                                 <span class="d-flex gap-2">
                                                                                     <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                                       class="linked-secondary fs-7">Edit</a>
                                                                                     <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
                                                                                        class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
                                                                                 </span>
@@ -505,10 +505,10 @@
                                                             <span class="d-flex gap-2 align-items-center">
                                                                 {% if can_edit %}
                                                                     <a href="{% url 'core:pack-add-item' pack.id 'attribute-value' %}?attribute={{ group.attribute.id }}"
-                                                                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Add value</a>
+                                                                       class="linked fs-7">Add value</a>
                                                                     {% if group.pack_item %}
                                                                         <a href="{% url 'core:pack-edit-item' pack.id group.pack_item.id %}"
-                                                                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit attribute</a>
+                                                                           class="linked-secondary fs-7">Edit attribute</a>
                                                                         <a href="{% url 'core:pack-delete-item' pack.id group.pack_item.id %}"
                                                                            class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive attribute</a>
                                                                     {% endif %}
@@ -538,7 +538,7 @@
                                                                             {% if can_edit %}
                                                                                 <span class="d-flex gap-2">
                                                                                     <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                                       class="linked-secondary fs-7">Edit</a>
                                                                                     <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
                                                                                        class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
                                                                                 </span>
@@ -582,7 +582,7 @@
                                                             <span class="d-flex gap-2">
                                                                 {% if section.can_add %}
                                                                     <a href="{% url 'core:pack-edit-item' pack.id entry.pack_item.id %}"
-                                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                                                                       class="linked-secondary fs-7">Edit</a>
                                                                 {% endif %}
                                                                 <a href="{% url 'core:pack-delete-item' pack.id entry.pack_item.id %}"
                                                                    class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archive</a>
@@ -649,8 +649,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                             <h2 class="h5 mb-0">Activity</h2>
                             {% if total_activity_count > 0 %}
-                                <a href="{% url 'core:pack-activity' pack.id %}"
-                                   class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                                <a href="{% url 'core:pack-activity' pack.id %}" class="linked fs-7">View all →</a>
                             {% endif %}
                         </div>
                         <div class="px-2">

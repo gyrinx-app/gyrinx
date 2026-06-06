@@ -11,7 +11,7 @@
                 Browse and manage campaigns.
                 {% if user.is_authenticated %}
                     <br>
-                    <a href="{% url 'core:campaigns-new' %}">Create a new Campaign</a>.
+                    <a href="{% url 'core:campaigns-new' %}" class="linked">Create a new Campaign</a>.
                 {% endif %}
             </p>
         </div>

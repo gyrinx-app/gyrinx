@@ -123,8 +123,7 @@
                     <span class="text-secondary fs-7 d-block">Add / create</span>
                 </div>
                 <div>
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">link-secondary</a>
+                    <a href="#" class="linked-secondary">linked-secondary</a>
                     <span class="text-secondary fs-7 d-block">Edit / reset</span>
                 </div>
                 <div>
@@ -146,8 +145,7 @@
                     <div class="fs-7 text-body-tertiary mt-1">on dark bg</div>
                 </div>
                 <div class="bg-dark rounded p-3 text-center" style="min-width: 10rem">
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">link-secondary</a>
+                    <a href="#" class="linked-secondary">linked-secondary</a>
                     <div class="fs-7 text-body-tertiary mt-1">on dark bg</div>
                 </div>
             </div>
@@ -1393,12 +1391,11 @@
         </div>
         <div>
             <a href="#" class="linked">Linked style</a>
-            <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
+            <code class="ms-2 fs-7 text-secondary">.linked (underline on hover/focus)</code>
         </div>
         <div>
-            <a href="#"
-               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Secondary link</a>
-            <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
+            <a href="#" class="linked-secondary">Secondary link</a>
+            <code class="ms-2 fs-7 text-secondary">.linked-secondary (edit/reset actions)</code>
         </div>
         <div>
             <a href="#"
@@ -1416,8 +1413,9 @@
     </div>
     <p class="text-secondary fs-7 mb-0">
         All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
-        <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-50 .link-underline-opacity-100-hover</code>.
-        Underline opacity is <code>50</code> (not 25) for better visibility in dark mode.
+        <code>.linked</code> shows its underline only on hover/focus, at 50% opacity (tinted from
+        <code>currentColor</code>). <code>.linked-secondary</code> is the same behaviour in the secondary
+        text colour.
     </p>
 </section>
 <!-- ============================================================ -->

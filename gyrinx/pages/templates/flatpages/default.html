@@ -53,7 +53,7 @@
                                 {% if page == flatpage %}
                                     <span class="text-decoration-underline">{{ page.title }}</span>
                                 {% else %}
-                                    <a href="{{ page.url }}">{{ page.title }}</a>
+                                    <a href="{{ page.url }}" class="linked">{{ page.title }}</a>
                                 {% endif %}
                             </li>
                         {% endfor %}

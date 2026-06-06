@@ -56,12 +56,12 @@ Cases (from weapon-profiles-display-spec.md):
                            data-bs-title="Added by this Content Pack"></i>
                         {% if can_edit %}
                             <span class="fs-7"><a href="{% url 'core:pack-customise-weapon-profile-edit' pack.id weapon.id profile.id %}"
-   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a> · <a href="{% url 'core:pack-customise-weapon-profile-delete' pack.id weapon.id profile.id %}"
-    class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover text-danger">Archive</a></span>
+   class="linked-secondary">Edit</a> · <a href="{% url 'core:pack-customise-weapon-profile-delete' pack.id weapon.id profile.id %}"
+    class="linked-secondary text-danger">Archive</a></span>
                         {% endif %}
                     {% elif can_edit and not is_customised %}
                         <span class="text-secondary fs-7">· <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
-    class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit profile</a></span>
+    class="linked-secondary">Edit profile</a></span>
                     {% endif %}
                 {% endif %}
             </td>
@@ -88,19 +88,19 @@ Cases (from weapon-profiles-display-spec.md):
                 <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                 {% if is_customised %}
                     <a href="{% url 'core:pack-customise-weapon-profile-add' pack.id weapon.id %}"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Add profile</a>
+                       class="linked-secondary">Add profile</a>
                     ·
                     <a href="{% url 'core:pack-customise-weapon' pack.id weapon.id %}"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
+                       class="linked-secondary">Edit</a>
                 {% else %}
                     <a href="{% url 'core:pack-add-weapon-profile' pack.id pack_item.id %}"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Add profile</a>
+                       class="linked-secondary">Add profile</a>
                     ·
                     <a href="{% url 'core:pack-edit-item' pack.id pack_item.id %}"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
+                       class="linked-secondary">Edit</a>
                     ·
                     <a href="{% url 'core:pack-delete-item' pack.id pack_item.id %}"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover text-danger">Archive</a>
+                       class="linked-secondary text-danger">Archive</a>
                 {% endif %}
             </div>
         </td>

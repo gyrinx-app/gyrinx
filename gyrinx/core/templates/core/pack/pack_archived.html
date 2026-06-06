@@ -24,10 +24,7 @@
                                           method="post"
                                           class="d-inline">
                                         {% csrf_token %}
-                                        <button type="submit"
-                                                class="btn btn-link btn-sm p-0 link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
-                                            Restore
-                                        </button>
+                                        <button type="submit" class="btn btn-link btn-sm p-0 linked-secondary fs-7">Restore</button>
                                     </form>
                                 </li>
                             {% endfor %}
@@ -53,10 +50,7 @@
                                       class="d-inline">
                                     {% csrf_token %}
                                     {% if restore_next %}<input type="hidden" name="next" value="{{ restore_next }}">{% endif %}
-                                    <button type="submit"
-                                            class="btn btn-link btn-sm p-0 link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
-                                        Restore
-                                    </button>
+                                    <button type="submit" class="btn btn-link btn-sm p-0 linked-secondary fs-7">Restore</button>
                                 </form>
                             </td>
                         </tr>

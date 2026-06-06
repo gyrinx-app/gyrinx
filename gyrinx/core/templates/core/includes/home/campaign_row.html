@@ -2,7 +2,7 @@
 <div class="hstack gap-3 position-relative">
     <div class="d-flex flex-column gap-1">
         <h3 class="mb-0 h5">
-            <a href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+            <a href="{% url 'core:campaign' campaign.id %}" class="linked">{{ campaign.name }}</a>
         </h3>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
             <div class="badge text-bg-{% if campaign.is_in_progress %}success{% else %}secondary{% endif %}">

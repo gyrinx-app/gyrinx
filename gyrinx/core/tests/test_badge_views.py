@@ -139,7 +139,7 @@ def test_profile_page_shows_badge_for_supporter(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'title="Guilder"' in content
+    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
 
 
 @pytest.mark.django_db
@@ -150,7 +150,7 @@ def test_profile_page_shows_default_badge_without_selection(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'title="Guilder"' in content
+    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
 
 
 @pytest.mark.django_db
@@ -180,7 +180,7 @@ def test_profile_page_hides_badge_for_former_supporter(client, user):
     response = client.get(url)
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'title="Guilder"' not in content
+    assert "user-badge" not in content
 
 
 # --- Inline render in the breadcrumb (list detail page) ---
@@ -198,7 +198,7 @@ def test_breadcrumb_shows_badge_for_supporter(client, user, make_list):
     response = client.get(reverse("core:list", args=[lst.id]))
     content = response.content.decode()
     assert response.status_code == 200
-    assert 'title="Guilder"' in content
+    assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
 
 
 @pytest.mark.django_db

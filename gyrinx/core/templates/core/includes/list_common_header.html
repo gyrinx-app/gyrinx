@@ -3,7 +3,7 @@
     <div class="vstack">
         {% url 'core:lists' as lists_url %}
         {% if list.is_campaign_mode %}
-            {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
+            {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url|add:"?type=gang" campaign=list.campaign print=print %}
         {% else %}
             {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
         {% endif %}
@@ -16,7 +16,7 @@
         </h2>
     </div>
     <div class="d-flex flex-row flex-nowrap align-items-center column-gap-3 fs-7 ms-md-auto">
-        <div class="d-flex flex-row flex-wrap align-items-center column-gap-3 row-gap-1">
+        <div class="d-flex flex-column align-items-start align-items-md-end text-md-end">
             <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
             {% if list.campaign %}
                 <div>

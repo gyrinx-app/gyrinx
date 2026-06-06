@@ -20,13 +20,15 @@ class BadgeDef:
     """A displayable badge.
 
     ``rank`` orders the Patreon tiers (higher unlocks the lower ones). ``svg`` is
-    a static path resolved via the staticfiles finders.
+    a static path resolved via the staticfiles finders. ``description`` is the
+    short, user-facing tooltip shown next to a username explaining the badge.
     """
 
     slug: str
     title: str
     rank: int
     svg: str
+    description: str
 
 
 # Patreon tiers, lowest to highest. ``rank`` drives "tiers up to and including
@@ -37,18 +39,21 @@ PATREON_BADGES: list[BadgeDef] = [
         title="Scummer",
         rank=1,
         svg="core/img/badges/scummer.svg",
+        description="Gyrinx supporter — Scummer tier",
     ),
     BadgeDef(
         slug="guilder",
         title="Guilder",
         rank=2,
         svg="core/img/badges/guilder.svg",
+        description="Gyrinx supporter — Guilder tier",
     ),
     BadgeDef(
         slug="uphiver",
         title="Uphiver",
         rank=3,
         svg="core/img/badges/uphiver.svg",
+        description="Gyrinx supporter — Uphiver tier",
     ),
 ]
 

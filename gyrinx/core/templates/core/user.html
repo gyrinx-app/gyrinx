@@ -34,7 +34,7 @@
                                 <li class="py-1">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <a href="{% url 'core:list' list.id %}" class="fw-medium">{{ list.name }}</a>
+                                            <a href="{% url 'core:list' list.id %}" class="linked fw-medium">{{ list.name }}</a>
                                             <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</span>
                                         </div>
                                         <span class="hstack gap-2 align-items-center">
@@ -65,7 +65,7 @@
                             <li class="py-1">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <a href="{% url 'core:list' list.id %}" class="fw-medium">{{ list.name }}</a>
+                                        <a href="{% url 'core:list' list.id %}" class="linked fw-medium">{{ list.name }}</a>
                                         <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</span>
                                     </div>
                                     <span class="hstack gap-2 align-items-center">
@@ -92,11 +92,11 @@
                                 <li class="py-1">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <a href="{% url 'core:list' list.id %}" class="fw-medium">{{ list.name }}</a>
+                                            <a href="{% url 'core:list' list.id %}" class="linked fw-medium">{{ list.name }}</a>
                                             {% if list.campaign %}
                                                 <span class="text-secondary fs-7 ms-1">
                                                     <a href="{% url 'core:campaign' list.campaign.id %}"
-                                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ list.campaign.name }}</a>
+                                                       class="linked-secondary">{{ list.campaign.name }}</a>
                                                 </span>
                                             {% endif %}
                                             <span class="text-secondary fs-7 ms-1">{{ list.content_house_name }}{% house_icon list.content_house_cached %}</span>
@@ -130,7 +130,7 @@
                                 <li class="py-1">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <a href="{% url 'core:campaign' campaign.id %}" class="fw-medium">{{ campaign.name }}</a>
+                                            <a href="{% url 'core:campaign' campaign.id %}" class="linked fw-medium">{{ campaign.name }}</a>
                                         </div>
                                         <span class="hstack gap-2 align-items-center">
                                             <span class="text-secondary fs-7" title="Stars"><i class="bi-star{% if campaign.star_count %}-fill text-warning{% endif %}"></i> {{ campaign.star_count|default:0 }}</span>
@@ -164,7 +164,7 @@
                                 <li class="py-1">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <a href="{% url 'core:pack' pack.id %}" class="fw-medium">{{ pack.name }}</a>
+                                            <a href="{% url 'core:pack' pack.id %}" class="linked fw-medium">{{ pack.name }}</a>
                                         </div>
                                         {% if pack.listed %}
                                             <span class="text-secondary fs-7"><i class="bi-eye"></i> Public</span>

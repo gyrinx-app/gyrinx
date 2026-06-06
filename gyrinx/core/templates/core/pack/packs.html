@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load custom_tags %}
+{% load custom_tags badge_tags %}
 {% block head_title %}
     Customisation
 {% endblock head_title %}
@@ -11,7 +11,7 @@
                 Browse and manage Content Packs.
                 {% if user.is_authenticated %}
                     <br>
-                    <a href="{% url 'core:packs-new' %}">Create a new Content Pack</a>.
+                    <a href="{% url 'core:packs-new' %}" class="linked">Create a new Content Pack</a>.
                 {% endif %}
             </p>
         </div>
@@ -25,10 +25,10 @@
                             <div class="d-flex flex-column gap-1">
                                 <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
                                     <h2 class="mb-0 h5">
-                                        <a href="{% url 'core:pack' pack.id %}">{{ pack.name }}</a>
+                                        <a href="{% url 'core:pack' pack.id %}" class="linked">{{ pack.name }}</a>
                                     </h2>
                                     <div>
-                                        <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}">{{ pack.owner }}</a>
+                                        <i class="bi-person"></i> <a href="{% url 'core:user' pack.owner.username %}" class="linked">{{ pack.owner }}</a>{% user_badge pack.owner %}
                                     </div>
                                     {% if not pack.listed %}
                                         <div>

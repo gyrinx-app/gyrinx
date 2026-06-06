@@ -139,7 +139,7 @@
                             </nav>
                         {% else %}
                             <a href="{% url 'core:campaign-copy-out' campaign.id %}"
-                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                               class="icon-link linked-secondary fs-7">
                                 <i class="bi-box-arrow-up"></i> Copy from this Campaign
                             </a>
                         {% endif %}
@@ -194,8 +194,7 @@
                                 {% spaceless %}
                                     {% for pack in campaign_packs %}
                                         {% if pack.listed or pack.owner == request.user %}
-                                            <a href="{% url 'core:pack' pack.id %}"
-                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ pack.name }}</a>
+                                            <a href="{% url 'core:pack' pack.id %}" class="linked-secondary">{{ pack.name }}</a>
                                         {% else %}
                                             <span>{{ pack.name }}</span>
                                         {% endif %}
@@ -205,12 +204,12 @@
                             </div>
                             {% if is_owner %}
                                 <a href="{% url 'core:campaign-packs' campaign.id %}"
-                                   class="fs-7 link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
+                                   class="fs-7 linked-secondary">Edit</a>
                             {% endif %}
                         {% else %}
                             <div class="text-secondary">None – any gang can join</div>
                             <a href="{% url 'core:campaign-packs' campaign.id %}"
-                               class="fs-7 link-primary link-underline-opacity-50 link-underline-opacity-100-hover">Add packs</a>
+                               class="fs-7 linked">Add packs</a>
                         {% endif %}
                     </div>
                 {% endif %}
@@ -233,11 +232,11 @@
                 <div class="hstack gap-3">
                     {% if attribute_types %}
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
-                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Attributes →</a>
+                           class="linked fs-7">Manage Attributes →</a>
                     {% endif %}
                     {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                           class="icon-link linked fs-7">
                             <i class="bi-plus-lg"></i> Add Gangs
                         </a>
                     {% endif %}
@@ -259,7 +258,7 @@
                            data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-assets' campaign.id %}"
-                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Assets →</a>
+                       class="linked fs-7">Manage Assets →</a>
                 </div>
                 <div class="px-2">
                     {% if asset_types %}
@@ -306,7 +305,7 @@
                                                             {% endif %}
                                                             {% if is_owner and not campaign.archived %}
                                                                 <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                                   class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
+                                                                   class="icon-link linked fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
                                                             {% endif %}
                                                         </td>
                                                     </tr>
@@ -323,10 +322,11 @@
                         <p class="text-secondary fs-7 mb-0">
                             No asset types defined yet.
                             {% if campaign.owner == user and not campaign.archived %}
-                                <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
-                                or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">add an asset type →</a>
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
+                                or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
+    class="linked">add an asset type →</a>
                             {% elif campaign.owner == user %}
-                                <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
+                                <a href="{% url 'core:campaign-assets' campaign.id %}" class="linked">Manage Assets →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -342,7 +342,7 @@
                            data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-resources' campaign.id %}"
-                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Resources →</a>
+                       class="linked fs-7">Manage Resources →</a>
                 </div>
                 <div class="px-2">
                     {% if resource_types and campaign.has_lists %}
@@ -392,10 +392,11 @@
                         <p class="text-secondary fs-7 mb-0">
                             No resource types defined yet.
                             {% if campaign.owner == user and not campaign.archived %}
-                                <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
-                                or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">add a resource type →</a>
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
+                                or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
+    class="linked">add a resource type →</a>
                             {% elif campaign.owner == user %}
-                                <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
+                                <a href="{% url 'core:campaign-resources' campaign.id %}" class="linked">Manage Resources →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -410,7 +411,7 @@
                     <h2 class="h5 mb-0">Battle Reports</h2>
                     {% if can_log_actions %}
                         <a href="{% url 'core:battle-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> New Battle</a>
+                           class="icon-link linked fs-7"><i class="bi-plus-lg"></i> New Battle</a>
                     {% endif %}
                 </div>
                 <div class="px-2">
@@ -427,7 +428,7 @@
                         <p class="text-secondary fs-7 mb-0">
                             No battles reported yet.
                             {% if can_log_actions %}
-                                <a href="{% url 'core:battle-new' campaign.id %}">Create first battle →</a>
+                                <a href="{% url 'core:battle-new' campaign.id %}" class="linked">Create first battle →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -445,10 +446,10 @@
                     <div class="hstack gap-3">
                         {% if can_log_actions and not campaign.archived %}
                             <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
-                               class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> Log Action</a>
+                               class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Log Action</a>
                         {% endif %}
                         <a href="{% url 'core:campaign-actions' campaign.id %}"
-                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                           class="linked fs-7">View all →</a>
                     </div>
                 </div>
                 <div class="px-2">
@@ -476,7 +477,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Captured Fighters</h2>
                     <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                       class="linked fs-7">View all →</a>
                 </div>
                 <div class="px-2">
                     {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}

@@ -27,8 +27,7 @@ class ContentHouse(Content):
         help_text=(
             "Optional SVG icon rendered inline next to the house name. "
             "Stored SVGs are untrusted and only safe to render via the "
-            "house_icon template tag, which sanitises them. Display is "
-            "currently gated to the 'House Icons Alpha' group."
+            "house_icon template tag, which sanitises them."
         ),
     )
     skill_categories = models.ManyToManyField(

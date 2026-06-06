@@ -156,6 +156,17 @@ button[aria-busy="true"] {
     .navbar.bg-dark {
         background-color: #{lighten($dark, 5%)} !important;
     }
+
+    // In dark mode the raw `$primary` blue is too dark for an outline button on
+    // the dark surface. Use the (lightened) link colour for the resting text and
+    // border so it matches `.linked`. Hover/active keep Bootstrap's usual primary
+    // fill.
+    .btn-outline-primary {
+        --bs-btn-color: var(--bs-link-color);
+        --bs-btn-border-color: var(--bs-link-color);
+        --bs-btn-disabled-color: var(--bs-link-color);
+        --bs-btn-disabled-border-color: var(--bs-link-color);
+    }
 }
 
 // Alerts with icon pinned left, content flowing right.
@@ -204,10 +215,52 @@ a[data-bs-toggle="tooltip"] {
     cursor: pointer;
 }
 
+// No underline at rest; a 50%-opacity underline on hover and keyboard focus.
+// The base `a` rule (and Bootstrap's `.btn-link`) force an always-on underline,
+// and the `link-underline-opacity-*` utilities only bite via `.link-underline`.
+// So we control the underline directly. The colour is tinted from `currentColor`
+// so it works at any link colour. `:focus-visible` (not `:focus`) keeps the
+// underline off after a mouse click on a button.
+%underline-on-interact {
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+        text-decoration-line: underline;
+        text-decoration-color: color-mix(
+            in srgb,
+            currentcolor 50%,
+            transparent
+        );
+    }
+}
+
 .linked {
-    @extend .link-underline-opacity-25;
-    @extend .link-underline-opacity-100-hover;
     @extend .link-offset-1;
+    @extend %underline-on-interact;
+}
+
+// Secondary-coloured `.linked`. Replaces the old
+// `link-secondary link-underline-opacity-50 link-underline-opacity-100-hover`.
+// We set the colour directly rather than `@extend .link-secondary`, whose
+// `text-decoration-color: … !important` would override the 50% hover underline.
+.linked-secondary {
+    @extend .linked;
+    // `--bs-secondary-color` is the theme-adjusted secondary text colour (set
+    // per theme above) — the same colour `.text-secondary` uses — so the links
+    // and the converted `.btn-link` buttons match in both light and dark mode.
+    color: var(--bs-secondary-color);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-secondary-color);
+    }
+}
+
+// Bootstrap's `.btn-link` is underlined at rest; give link-style buttons the
+// same underline-only-on-hover/focus treatment as `.linked`.
+.btn-link {
+    @extend %underline-on-interact;
 }
 
 .link-sm {
