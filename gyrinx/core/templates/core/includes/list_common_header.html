@@ -15,7 +15,7 @@
             {% endif %}
         </h2>
     </div>
-    <div class="d-flex flex-row flex-wrap align-items-center column-gap-3 row-gap-1 fs-7 ms-md-auto">
+    <div class="d-flex flex-row flex-nowrap align-items-center column-gap-3 fs-7 ms-md-auto">
         <div class="d-flex flex-row flex-wrap align-items-center column-gap-3 row-gap-1">
             <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
             {% if list.campaign %}
@@ -33,7 +33,7 @@
                 </div>
             {% endif %}
         </div>
-        <div class="ms-auto ms-md-0 border-start-md ps-md-2">
+        <div class="ms-auto ms-md-0 border-start-md ps-md-2 flex-shrink-0">
             <table class="table table-sm table-borderless table-responsive text-center mb-0 w-auto">
                 <thead>
                     <tr class="fs-7 align-middle">
