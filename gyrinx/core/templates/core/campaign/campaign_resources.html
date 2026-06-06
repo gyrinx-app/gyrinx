@@ -15,7 +15,7 @@
                     <div class="hstack gap-3 ms-md-auto">
                         {% if not campaign.archived %}
                             <a href="{% url 'core:campaign-copy-in' campaign.id %}"
-                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                               class="icon-link linked-secondary fs-7">
                                 <i class="bi-box-arrow-in-down"></i> Copy from another Campaign
                             </a>
                         {% endif %}
@@ -34,7 +34,7 @@
                     {% if is_owner %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-resource-type-edit' campaign.id resource_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                               class="icon-link linked-secondary fs-7">
                                 <i class="bi-pencil"></i> Edit
                             </a>
                             <a href="{% url 'core:campaign-resource-type-remove' campaign.id resource_type.id %}"
@@ -70,7 +70,7 @@
                                                 <span class="text-secondary fs-7">Campaign not started</span>
                                             {% elif not campaign.archived and is_owner or not campaign.archived and resource.list in user_lists %}
                                                 <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                   class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                                                   class="icon-link linked-secondary fs-7">
                                                     <i class="bi-pencil"></i> Modify
                                                 </a>
                                             {% endif %}

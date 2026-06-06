@@ -3,7 +3,7 @@
 <div class="hstack gap-3 position-relative">
     <div class="d-flex flex-column gap-1">
         <h3 class="mb-0 h5">
-            <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
+            <a href="{% url 'core:list' list.id %}" class="linked">{% list_with_theme list %}</a>
         </h3>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
             <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>

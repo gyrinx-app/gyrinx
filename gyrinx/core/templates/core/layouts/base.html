@@ -173,17 +173,13 @@
                         <li class="mb-2">Designed and built in the UK.</li>
                         {% if user.is_staff %}
                             <li class="mb-2">
-                                <a class="link-secondary link-underline-opacity-50 link-underline-opacity-75-hover"
-                                   href="{% url 'admin:index' %}"
-                                   target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
+                                <a class="linked-secondary" href="{% url 'admin:index' %}" target="_new">Admin</a> <i class="bi-box-arrow-up-right"></i>
                             </li>
                         {% endif %}
                         <li class="mb-2">
                             <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"
                                target="_new"
-                               class="link-secondary icon-link link-secondary link-underline-opacity-50 link-underline-opacity-75-hover">
-                                Support Gyrinx
-                            </a>
+                               class="linked-secondary icon-link">Support Gyrinx</a>
                         </li>
                         <li class="mt-3 mb-2">
                             <div class="hstack gap-2">
@@ -193,7 +189,7 @@
                                        data-bs-toggle="tooltip"
                                        title="Contribute to Gyrinx on GitHub"
                                        target="_new"
-                                       class="link-secondary">
+                                       class="linked-secondary">
                                         <i class="bi-github"></i>
                                         <span class="visually-hidden">GitHub</span>
                                     </a>
@@ -202,7 +198,7 @@
                                        data-bs-toggle="tooltip"
                                        title="Join the Gyrinx Discord server"
                                        target="_new"
-                                       class="link-secondary ms-2">
+                                       class="linked-secondary ms-2">
                                         <i class="bi-discord"></i>
                                         <span class="visually-hidden">Discord</span>
                                     </a>
@@ -218,8 +214,7 @@
                         {% if flatpages|length > 0 %}
                             {% for page in flatpages %}
                                 <li class="mb-2">
-                                    <a href="{{ page.url }}"
-                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-75-hover">{{ page.title }}</a>
+                                    <a href="{{ page.url }}" class="linked-secondary">{{ page.title }}</a>
                                 </li>
                             {% endfor %}
                         {% endif %}
@@ -229,9 +224,7 @@
                     <h3 class="fs-6 mb-3">
                         <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"
                            target="_new"
-                           class="link-secondary icon-link link-secondary link-underline-opacity-50 link-underline-opacity-75-hover">
-                            Support Gyrinx on Patreon
-                        </a>
+                           class="linked-secondary icon-link">Support Gyrinx on Patreon</a>
                     </h3>
                     <p>
                         <a href="https://patreon.com/Gyrinx?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink"

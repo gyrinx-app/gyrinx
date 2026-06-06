@@ -6,23 +6,20 @@
     {% if print %}
         {{ owner }}
     {% else %}
-        <a class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
-           href="{% url 'core:user' owner.username %}">{{ owner }}</a>{% user_badge owner %}
+        <a class="linked-secondary" href="{% url 'core:user' owner.username %}">{{ owner }}</a>{% user_badge owner %}
     {% endif %}
     <span class="mx-1">/</span>
     {% if print or not type_url %}
         {{ type }}
     {% else %}
-        <a class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
-           href="{{ type_url }}">{{ type }}</a>
+        <a class="linked-secondary" href="{{ type_url }}">{{ type }}</a>
     {% endif %}
     <span class="mx-1">/</span>
     {% if campaign %}
         {% if print %}
             {{ campaign.name }}
         {% else %}
-            <a class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover"
-               href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+            <a class="linked-secondary" href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
         {% endif %}
         <span class="mx-1">/</span>
     {% endif %}

@@ -5,10 +5,10 @@ Expects `list` in context.{% endcomment %}
     <div class="d-flex flex-column gap-1">
         <div class="hstack column-gap-2 row-gap-1 flex-wrap align-items-baseline">
             <h2 class="mb-0 h5">
-                <a href="{% url 'core:list' list.id %}">{{ list.name }}</a>
+                <a href="{% url 'core:list' list.id %}" class="linked">{{ list.name }}</a>
             </h2>
             <div>
-                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}">{{ list.owner_cached }}</a>{% user_badge list.owner %}
+                <i class="bi-person"></i> <a href="{% url 'core:user' list.owner.username %}" class="linked">{{ list.owner_cached }}</a>{% user_badge list.owner %}
             </div>
         </div>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">

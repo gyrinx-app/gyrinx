@@ -11,7 +11,7 @@
                 <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span> Current
                 {% if list.owner_cached == user %}
                     <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}"
-                       class="fs-7 link-secondary link-underline-opacity-50 link-underline-opacity-100-hover ms-2">Add XP</a>
+                       class="fs-7 linked-secondary ms-2">Add XP</a>
                 {% endif %}
             </li>
             <li class="list-group-item">

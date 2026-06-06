@@ -58,7 +58,7 @@
                                 <i class="bi-plus-lg"></i> Add value
                             </a>
                             <a href="{% url 'core:campaign-attribute-type-edit' campaign.id attribute_type.id %}"
-                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                               class="icon-link linked-secondary fs-7">
                                 <i class="bi-pencil"></i> Edit
                             </a>
                             <a href="{% url 'core:campaign-attribute-type-remove' campaign.id attribute_type.id %}"
@@ -89,7 +89,7 @@
                                         {% if is_owner and not campaign.archived %}
                                             <div class="hstack gap-2">
                                                 <a href="{% url 'core:campaign-attribute-value-edit' campaign.id value.id %}"
-                                                   class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                                                   class="icon-link linked-secondary fs-7">
                                                     <i class="bi-pencil"></i>
                                                 </a>
                                                 <a href="{% url 'core:campaign-attribute-value-remove' campaign.id value.id %}"
@@ -143,7 +143,7 @@
                                                 {% if not campaign.archived %}
                                                     {% if is_owner or list.id in user_list_ids %}
                                                         <a href="{% url 'core:campaign-list-attribute-assign' campaign.id list.id attribute_type.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                           class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                                                           class="icon-link linked-secondary fs-7">
                                                             <i class="bi-pencil"></i> Assign
                                                         </a>
                                                     {% endif %}
