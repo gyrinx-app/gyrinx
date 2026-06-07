@@ -25,6 +25,7 @@ The content library also supports house-level cost overrides for individual figh
 | Field | Type | Description |
 |---|---|---|
 | `name` | CharField | The display name of the house (e.g., "House Escher", "Underhive Outcasts"). Indexed for search. |
+| `icon` | FileField (blank, null) | Optional SVG icon rendered inline next to the house name. Bundled icons for the official factions live in `gyrinx/content/data/house_icons/` and are attached by a data migration or by the `load_house_icons` management command. Content-pack houses are assigned a shared `custom_gang` icon automatically. Stored SVGs are untrusted and must only be rendered through the `house_icon` template tag, which sanitises them. |
 | `generic` | BooleanField | When checked, fighters belonging to this house are available to lists of any other house. Generic houses cannot be selected as a primary house during list creation. Defaults to `false`. |
 | `legacy` | BooleanField | When checked, marks this house as a legacy/older faction. Legacy houses are grouped separately in the list creation form under a "Legacy House" heading. Defaults to `false`. |
 | `can_hire_any` | BooleanField | When checked, lists belonging to this house can hire any fighter from any house (except stash fighters). Used for factions like Underhive Outcasts that have unrestricted recruitment. Defaults to `false`. |
@@ -40,6 +41,14 @@ The content library also supports house-level cost overrides for individual figh
 **Admin interface:**
 
 The `ContentHouse` admin page displays all fields for the house and includes an inline listing of all `ContentFighter` records belonging to that house. You can search houses by name.
+
+**House icons:**
+
+Houses can carry an SVG icon shown inline next to the house name across the application. The icon system has three pieces:
+
+- **Bundled icons** for the official factions live as static SVGs in `gyrinx/content/data/house_icons/`. The mapping between each SVG slug and the `ContentHouse.name` records it applies to is declared in `gyrinx/content/house_icons.py` (a single icon usually covers every book-variant of a house, e.g. the `cawdor` icon applies to both `Cawdor (GotU)` and `Cawdor (HoF)`).
+- **The `load_house_icons` management command** attaches bundled icons to their matching houses. It accepts `--overwrite` (replace existing icons) and `--dry-run` (report-only) flags. A data migration runs the same logic on deploy, so production picks up new or refreshed icons automatically.
+- **The custom-gang icon** is a generic `custom_gang.svg` shared by every house that belongs to a content pack. Pack houses have no bundled per-house artwork, so they all reuse this single icon. Assignment happens automatically via a `post_save` signal on `CustomContentPackItem` whenever a `ContentHouse` is added to a pack; the `load_house_icons` command back-fills existing pack houses (see [Content Packs](content-packs.md)). Houses that already have an icon of their own are never overwritten unless `--overwrite` is passed.
 
 ### ContentFighterHouseOverride
 

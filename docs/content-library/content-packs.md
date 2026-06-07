@@ -102,6 +102,17 @@ A supplementary file attached to a pack -- for example a scenario PDF, campaign 
 
 Uploading and removing files requires pack **edit** permission (`pack.can_edit` -- owner or an editor). Downloading is available to anyone who can **view** the pack (`pack.can_view`), matching the rest of the pack detail page.
 
+#### Admin interface
+
+- **List display:** `pack`, `display_name` (the title or original filename), `content_type`, `file_size`, `owner`
+- **Search:** By pack name, original filename, title, or owner username
+- **Filters:** By pack and content type
+- **Editable fields:** `pack`, `file`, `original_filename`, `file_size`, `content_type`, `title`, `description`, `order`, `owner`
+
+### Custom-gang icon for pack houses
+
+When a `ContentHouse` is added to a pack via `CustomContentPackItem`, a `post_save` signal automatically attaches a generic `custom_gang.svg` icon to the house (only if it has no icon of its own). This is what gives every content-pack house a visible badge in lists, gangs, and the homepage, matching the bundled icons used by the official factions. See [Houses & Factions](houses-and-factions.md) for the icon storage and `load_house_icons` back-fill command.
+
 ## Pack Filtering System
 
 The pack filtering system is the mechanism that keeps pack content separate from base content in application queries. It is built into the `ContentManager` and `ContentQuerySet` classes that all content models use.
