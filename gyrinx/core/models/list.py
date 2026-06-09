@@ -690,13 +690,32 @@ class List(AppBase):
     # Fighter & other properties
     #
 
+    @cached_property
+    @traced("list_subscribed_packs_cached")
+    def subscribed_packs_cached(self):
+        """The content packs this list is subscribed to, as a list.
+
+        Cached so repeated fighter queries (fighters/archived_fighters and
+        their derived properties) share a single lightweight pack lookup.
+        This is a subscriber read path, so it must NOT filter archived packs
+        out — archived packs still apply to already-subscribed lists.
+        """
+        return list(self.packs.all())
+
     @traced("list_fighters")
     def fighters(self) -> QuerySetOf["ListFighter"]:
-        return self.listfighter_set.with_related_data().filter(archived=False)
+        # Pass the subscribed packs so skill/rule prefetches are pack-aware,
+        # letting ruleline()/skilline() read from the prefetch cache instead
+        # of issuing ~6 fallback queries per fighter.
+        return self.listfighter_set.with_related_data(
+            packs=self.subscribed_packs_cached
+        ).filter(archived=False)
 
     @traced("list_archived_fighters")
     def archived_fighters(self) -> QuerySetOf["ListFighter"]:
-        return self.listfighter_set.with_related_data().filter(archived=True)
+        return self.listfighter_set.with_related_data(
+            packs=self.subscribed_packs_cached
+        ).filter(archived=True)
 
     @cached_property
     @traced("list_fighters_cached")

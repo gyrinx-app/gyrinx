@@ -502,10 +502,17 @@ class ListPrintView(generic.DetailView):
 
         # Get fighters with group keys for display grouping
         # Use with_related_data() to prefetch all equipment, profiles, and related data
-        # to avoid N+1 queries when templates access fighter properties
+        # to avoid N+1 queries when templates access fighter properties.
+        # Thread the list's subscribed packs through so skill/rule prefetches
+        # are pack-aware and ruleline()/skilline() read from the prefetch cache
+        # instead of issuing ~6 fallback queries per fighter (this print view
+        # renders every fighter card).
+        from gyrinx.core.models.pack import CustomContentPack
+
+        packs = list(CustomContentPack.objects.filter(subscribed_lists__id=list_obj.id))
         fighters_qs = (
             ListFighter.objects.with_group_keys()
-            .with_related_data()
+            .with_related_data(packs=packs)
             .filter(list=list_obj, archived=False)
         )
 
