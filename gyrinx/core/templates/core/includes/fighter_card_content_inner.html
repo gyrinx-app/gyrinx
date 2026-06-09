@@ -223,7 +223,7 @@
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">Gear</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
                     {% spaceless %}
-                        {% for assign in fighter.wargear %}
+                        {% for assign in fighter.wargear_cached %}
                             <span>{% include "core/includes/gear_assign_name.html" with assign=assign %}</span>
                             {% if assign.cost_int != 0 %}<span>&nbsp;({{ assign.cost_display }})</span>{% endif %}
                             {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}

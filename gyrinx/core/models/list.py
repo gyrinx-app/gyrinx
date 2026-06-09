@@ -709,6 +709,17 @@ class List(AppBase):
         return self.archived_fighters()
 
     @cached_property
+    @traced("list_archived_fighters_count_cached")
+    def archived_fighters_count_cached(self) -> int:
+        """Number of archived fighters, as a single memoised COUNT.
+
+        Avoids running a COUNT against the heavy annotated default-manager
+        queryset multiple times when a template needs the count more than
+        once (e.g. for a conditional plus the label).
+        """
+        return self.listfighter_set.filter(archived=True).count()
+
+    @cached_property
     @traced("list_fighters_minimal_cached")
     def fighters_minimal_cached(self):
         return self.listfighter_set.filter(archived=False).values("id", "name")
@@ -3503,7 +3514,22 @@ class ListFighter(AppBase):
     @property
     @traced("listfighter_active_advancement_count")
     def active_advancement_count(self):
-        """Return count of non-archived advancements."""
+        """Return count of non-archived advancements.
+
+        Uses the prefetched ``advancements`` set when available (the fighter
+        prefetch suite includes it) so rendering a fighter card doesn't issue
+        a COUNT query per fighter. ``.filter()`` would bypass the prefetch
+        cache and hit the database, so count in Python instead.
+        """
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "advancements" in self._prefetched_objects_cache
+        ):
+            return sum(
+                1
+                for adv in self._prefetched_objects_cache["advancements"]
+                if not adv.archived
+            )
         return self.advancements.filter(archived=False).count()
 
     def has_overridden_cost(self):

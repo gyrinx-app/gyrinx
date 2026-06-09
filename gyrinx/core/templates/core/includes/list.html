@@ -30,11 +30,11 @@
                                       class="tooltipped">Unlisted</span>
                             {% endif %}
                         </div>
-                        {% if list.owner_cached == user and list.archived_fighters_cached.count > 0 %}
+                        {% if list.owner_cached == user and list.archived_fighters_count_cached > 0 %}
                             <div>
                                 <i class="bi-archive"></i>
                                 <a href="{% url 'core:list-archived-fighters' list.id %}" class="linked">
-                                    {{ list.archived_fighters_cached.count }} archived fighter{{ list.archived_fighters_cached.count|pluralize }}
+                                    {{ list.archived_fighters_count_cached }} archived fighter{{ list.archived_fighters_count_cached|pluralize }}
                                 </a>
                             </div>
                         {% endif %}
