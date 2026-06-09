@@ -83,9 +83,12 @@
     </div>
 {% endblock content %}
 {% block extra_script %}
+    {{ advancement_configs|json_script:"advancement-configs" }}
     <script>
     // Advancement configurations passed from the server
-    const advancementConfigs = {{ advancement_configs_json|safe }};
+    const advancementConfigs = JSON.parse(
+        document.getElementById('advancement-configs').textContent
+    );
 
     // Get references to form elements
     const advancementSelect = document.getElementById('{{ form.advancement_choice.id_for_label }}');

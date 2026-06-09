@@ -1,6 +1,5 @@
 """Fighter advancement views."""
 
-import json
 import random
 import uuid
 from typing import Literal, Optional
@@ -588,7 +587,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "steps": 3 if is_campaign_mode else 2,
             "current_step": 2 if is_campaign_mode else 1,
             "progress": 66 if is_campaign_mode else 50,
-            "advancement_configs_json": json.dumps(form.get_all_configs_json()),
+            "advancement_configs": form.get_all_configs_json(),
         },
     )
 
