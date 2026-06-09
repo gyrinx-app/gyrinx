@@ -714,6 +714,47 @@ class List(AppBase):
         return self.listfighter_set.filter(archived=False).values("id", "name")
 
     @cached_property
+    @traced("list_active_fighters_minimal_cached")
+    def active_fighters_minimal_cached(self):
+        """Lightweight list of active (non-stash, non-archived) fighters.
+
+        Returns just the fields needed to render navigation/switcher UI
+        (id, name, content fighter type/category for its display name) as a
+        single ``.values()`` query, preserving the default manager's
+        category/sort ordering. Use this instead of ``active_fighters`` when
+        you only need names and links — it avoids evaluating the full
+        ~30-relation prefetch suite.
+
+        Each row exposes ``content_fighter_name``, the same composite the
+        ``ContentFighter.name`` property produces ("Type (Category)").
+        """
+        rows = (
+            self.listfighter_set.filter(archived=False)
+            .exclude(content_fighter__is_stash=True)
+            .values(
+                "id",
+                "name",
+                "content_fighter__type",
+                "content_fighter__category",
+            )
+        )
+        result = []
+        for row in rows:
+            category = row["content_fighter__category"]
+            try:
+                label = FighterCategoryChoices[category].label
+            except KeyError:
+                label = category
+            result.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "content_fighter_name": f"{row['content_fighter__type']} ({label})",
+                }
+            )
+        return result
+
+    @cached_property
     @traced("list_active_fighters")
     def active_fighters(self) -> QuerySetOf["ListFighter"]:
         """Get all fighters that could participate in a battle."""
