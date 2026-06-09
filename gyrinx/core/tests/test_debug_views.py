@@ -40,9 +40,10 @@ def test_design_system_404_when_debug_disabled(client):
 
 @override_settings(DEBUG=False)
 @pytest.mark.django_db
-def test_list_actions_404_when_debug_disabled(client, make_list):
+def test_list_actions_404_when_debug_disabled(client, user, make_list):
     """The list-actions debug view must 404 in production, even for the owner."""
     lst = make_list("Test Gang")
+    client.force_login(user)
     response = client.get(reverse("debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 404

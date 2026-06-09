@@ -84,6 +84,8 @@ def test_list_with_theme_escapes_extra_classes():
 
     display = list_with_theme(MockList(), extra_classes='"><script>alert(1)</script>')
     assert "<script>" not in display
+    # The payload must be escaped in place, not silently dropped.
+    assert "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" in display
 
 
 def test_theme_square_escapes_extra_classes():
@@ -95,3 +97,5 @@ def test_theme_square_escapes_extra_classes():
 
     square = theme_square(MockList(), extra_classes='"><script>alert(1)</script>')
     assert "<script>" not in square
+    # The payload must be escaped in place, not silently dropped.
+    assert "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" in square
