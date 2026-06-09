@@ -207,7 +207,20 @@ def debug_design_system(request):
 
 def debug_list_actions(request, list_id):
     """Display all actions for a list, sorted newest first."""
-    lst = get_object_or_404(List, id=list_id)
+    if not settings.DEBUG:
+        raise Http404("Debug views are only available in development")
+
+    # Anonymous users (and non-owners) get a 404 rather than another list's
+    # activity log. Anonymous is handled first so we never pass AnonymousUser
+    # as an owner filter value.
+    if not request.user.is_authenticated:
+        raise Http404("List not found")
+
+    # Restrict to the list owner; staff may view any list.
+    if request.user.is_staff:
+        lst = get_object_or_404(List, id=list_id)
+    else:
+        lst = get_object_or_404(List, id=list_id, owner=request.user)
     actions = lst.actions.select_related("user", "list_fighter").order_by("-created")
 
     return render(
