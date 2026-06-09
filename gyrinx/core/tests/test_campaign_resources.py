@@ -348,6 +348,37 @@ def test_campaign_resources_view():
 
 
 @pytest.mark.django_db
+def test_campaign_resources_view_sanitizes_description():
+    """Script tags in a resource-type description must be stripped on render."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+    )
+
+    CampaignResourceType.objects.create(
+        campaign=campaign,
+        name="Meat",
+        description="<script>alert(1)</script><p>Safe resource text</p>",
+        default_amount=10,
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign-resources", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Sanitised rich text drops the <script> wrapper so nothing executes (bleach
+    # keeps inert text content, and the page has its own legitimate <script>
+    # tags, so assert against the executable construct, not the word "alert").
+    assert "<script>alert" not in content
+    assert "Safe resource text" in content
+
+
+@pytest.mark.django_db
 def test_resource_modify_form_validation(content_house):
     """Test resource modification form validation."""
     user = User.objects.create_user(username="testuser", password="testpass")

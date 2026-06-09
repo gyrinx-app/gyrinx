@@ -45,7 +45,7 @@
                     {% endif %}
                 </div>
                 {% if resource_type.description %}
-                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ resource_type.description|safe }}</div>
+                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ resource_type.description|safe_rich_text|safe }}</div>
                 {% endif %}
                 {% with resources=resource_type.list_resources.all %}
                     {% if resources %}

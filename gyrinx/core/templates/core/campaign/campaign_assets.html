@@ -74,7 +74,7 @@
                     {% endif %}
                 </div>
                 {% if asset_type.description %}
-                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ asset_type.description|safe }}</div>
+                    <div class="text-secondary fs-7 mb-3 mb-last-0">{{ asset_type.description|safe_rich_text|safe }}</div>
                 {% endif %}
                 {% with assets=asset_type.assets.all %}
                     {% if assets %}
@@ -96,7 +96,7 @@
                                         <td class="ps-0">
                                             <div class="fw-semibold">{{ asset.name }}</div>
                                             {% if asset.description %}
-                                                <div class="fs-7 text-secondary mb-last-0">{{ asset.description|safe }}</div>
+                                                <div class="fs-7 text-secondary mb-last-0">{{ asset.description|safe_rich_text|safe }}</div>
                                             {% endif %}
                                             {% if asset.properties_with_labels %}
                                                 <div class="fs-7 text-secondary">
