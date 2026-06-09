@@ -111,13 +111,12 @@ class ContentFighterHouseOverride(Content):
         """
         from django.db.models import Q
 
-        from gyrinx.core.models.list import ListFighter
+        from gyrinx.core.models.list import ListFighter, bulk_mark_fighters_dirty
 
         list_fighters = ListFighter.objects.filter(
             Q(content_fighter=self.fighter) | Q(legacy_content_fighter=self.fighter),
             list__content_house=self.house,
             archived=False,
-        ).select_related("list")
+        )
 
-        for list_fighter in list_fighters:
-            list_fighter.set_dirty(save=True)
+        bulk_mark_fighters_dirty(list_fighters)

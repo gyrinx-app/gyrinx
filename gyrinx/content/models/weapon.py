@@ -363,15 +363,17 @@ class ContentWeaponProfile(FighterCostMixin, Content):
         Called when this profile's cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find all assignments using this weapon profile (via M2M)
         assignments = ListFighterEquipmentAssignment.objects.filter(
             weapon_profiles_field=self, archived=False
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     objects = ContentWeaponProfileManager.from_queryset(ContentWeaponProfileQuerySet)()
 
@@ -541,15 +543,17 @@ class ContentWeaponAccessory(FighterCostMixin, Content):
         Called when this accessory's cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find all assignments using this weapon accessory (via M2M)
         assignments = ListFighterEquipmentAssignment.objects.filter(
             weapon_accessories_field=self, archived=False
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     class Meta:
         verbose_name = "Weapon Accessory"

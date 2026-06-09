@@ -297,7 +297,10 @@ class ContentEquipmentListExpansionItem(Content):
         we conservatively mark all assignments with this equipment dirty. Expansion cost
         changes are rare admin operations, so this is safe and correct.
         """
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         filter_kwargs = {
             "content_equipment": self.equipment,
@@ -308,12 +311,9 @@ class ContentEquipmentListExpansionItem(Content):
         if self.weapon_profile is not None:
             filter_kwargs["weapon_profiles_field"] = self.weapon_profile
 
-        assignments = ListFighterEquipmentAssignment.objects.filter(
-            **filter_kwargs
-        ).select_related("list_fighter__list")
+        assignments = ListFighterEquipmentAssignment.objects.filter(**filter_kwargs)
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     class Meta:
         verbose_name = "Equipment List Expansion Item"
