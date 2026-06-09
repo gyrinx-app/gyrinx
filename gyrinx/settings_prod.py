@@ -41,10 +41,14 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 # This is handled by the load balancer
 SECURE_SSL_REDIRECT = False
-SECURE_HSTS_SECONDS = 60
+SECURE_HSTS_SECONDS = 31536000  # 1 year
 SESSION_COOKIE_SECURE = True
+# includeSubDomains is left off: we cannot verify that every subdomain serves
+# HTTPS only, so asserting it could break a plain-HTTP subdomain.
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-SECURE_HSTS_PRELOAD = True
+# Preload requires includeSubDomains (and is a one-way commitment that is hard
+# to undo), so it stays disabled until that is a deliberate, verified decision.
+SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
 

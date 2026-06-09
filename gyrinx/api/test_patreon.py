@@ -85,15 +85,33 @@ def test_matches_case_insensitive():
 
 
 @pytest.mark.django_db
-def test_falls_back_to_user_email():
+def test_unverified_email_does_not_match():
+    # A user whose email is set on the User row but never verified via a
+    # allauth EmailAddress must NOT be matched — we require proven ownership.
     User.objects.create_user("patron3", email="fallback@example.com", password="test")  # nosec B106
-    # No EmailAddress record — should fall back to User.email
 
     payload = _make_payload("fallback@example.com", "Test Patron")
     result = process_patreon_webhook(payload, "members:create")
 
-    assert result["matched"] is True
-    assert result["user"] == "patron3"
+    assert result["matched"] is False
+    assert result["user"] is None
+
+
+@pytest.mark.django_db
+def test_unverified_email_address_does_not_match():
+    # An EmailAddress that exists but is not verified must not match either.
+    user = User.objects.create_user(
+        "patron4", email="other@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="unverified@example.com", verified=False, primary=False
+    )
+
+    payload = _make_payload("unverified@example.com", "Test Patron")
+    result = process_patreon_webhook(payload, "members:create")
+
+    assert result["matched"] is False
+    assert result["user"] is None
 
 
 @pytest.mark.django_db

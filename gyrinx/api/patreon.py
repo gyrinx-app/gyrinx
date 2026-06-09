@@ -1,7 +1,6 @@
 import logging
 
 from allauth.account.models import EmailAddress
-from django.contrib.auth.models import User
 
 from gyrinx.core.badges import rank_for_tier_title
 from gyrinx.core.models.auth import PatreonStatus, UserProfile
@@ -62,12 +61,18 @@ def _extract_tier_title(payload):
 
 
 def _find_user_by_email(email):
-    """Match an email to a Django user, checking allauth EmailAddress first."""
+    """Match an email to a Django user via a verified allauth EmailAddress.
+
+    Only a verified ``EmailAddress`` counts: a match means the user has proven
+    ownership of that address. We deliberately do not fall back to the raw
+    ``User.email`` column, which can be set without verification and would let a
+    Patreon-supplied email attach supporter status to an unproven account.
+    """
     email_obj = EmailAddress.objects.filter(email__iexact=email, verified=True).first()
     if email_obj:
         return email_obj.user
 
-    return User.objects.filter(email__iexact=email).first()
+    return None
 
 
 def process_patreon_webhook(payload, event):

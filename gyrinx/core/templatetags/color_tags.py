@@ -2,6 +2,7 @@ from hashlib import sha256
 
 from django import template
 from django.core.cache import cache
+from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
 
 from gyrinx.content.svg import sanitize_house_icon_svg
@@ -21,11 +22,17 @@ def theme_square(list_obj, size="0.8em", extra_classes=""):
     theme_color = getattr(list_obj, "theme_color", None)
 
     if theme_color:
-        return mark_safe(
-            f'<span class="d-inline-block rounded {extra_classes}" '
-            f'style="width: {size}; height: {size}; '
-            f"background-color: {theme_color}; "
-            f'border: 1px solid rgba(0,0,0,0.15);"></span>'
+        # theme_color is a validated hex colour and size is internal, but
+        # escape extra_classes for hygiene since it is interpolated into markup.
+        return format_html(
+            '<span class="d-inline-block rounded {}" '
+            'style="width: {}; height: {}; '
+            "background-color: {}; "
+            'border: 1px solid rgba(0,0,0,0.15);"></span>',
+            extra_classes,
+            size,
+            size,
+            theme_color,
         )
     else:
         return ""
@@ -44,9 +51,16 @@ def list_with_theme(list_obj, extra_classes="", square_size="0.8em"):
 
     if theme_color:
         square = theme_square(list_obj, extra_classes="me-1", size=square_size)
-        return mark_safe(f'<span class="{extra_classes}">{square}{name}</span>')
+        # square is already-safe markup from theme_square; escape the
+        # user-controlled name and extra_classes via format_html.
+        return format_html(
+            '<span class="{}">{}{}</span>',
+            extra_classes,
+            conditional_escape(square),
+            name,
+        )
     else:
-        return mark_safe(f'<span class="{extra_classes}">{name}</span>')
+        return format_html('<span class="{}">{}</span>', extra_classes, name)
 
 
 def _house_icon_svg(icon, extra_classes):
