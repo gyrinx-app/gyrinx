@@ -899,7 +899,12 @@ def test_expansion_item_cost_change_marks_assignment_dirty(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_creates_action(
-    user, make_list, content_fighter, content_equipment, settings
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
 ):
     """When ContentEquipment.cost changes, a CONTENT_COST_CHANGE action should be created."""
     from gyrinx.core.models.action import ListAction, ListActionType
@@ -933,9 +938,11 @@ def test_equipment_cost_change_creates_action(
 
     initial_action_count = ListAction.objects.filter(list=lst).count()
 
-    # Change equipment cost from 100 to 150 (increase of 50)
+    # Change equipment cost from 100 to 150 (increase of 50).
+    # Action creation is now enqueued on commit, so fire on-commit callbacks.
     content_equipment.cost = "150"
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # Check action was created
     lst.refresh_from_db()
@@ -953,7 +960,12 @@ def test_equipment_cost_change_creates_action(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_campaign_mode_credits_increase(
-    user, make_list, content_fighter, content_equipment, settings
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
 ):
     """In campaign mode, cost increase should charge credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
@@ -988,7 +1000,8 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
 
     # Change equipment cost from 100 to 150 (increase of 50)
     content_equipment.cost = "150"
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # Check credits were charged
     lst.refresh_from_db()
@@ -1002,7 +1015,12 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_campaign_mode_credits_decrease(
-    user, make_list, content_fighter, content_equipment, settings
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
 ):
     """In campaign mode, cost decrease should refund credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
@@ -1037,7 +1055,8 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
 
     # Change equipment cost from 100 to 60 (decrease of 40)
     content_equipment.cost = "60"
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # Check credits were refunded
     lst.refresh_from_db()
@@ -1051,7 +1070,12 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
 
 @pytest.mark.django_db
 def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
-    user, make_list, content_fighter, content_equipment, settings
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
 ):
     """In campaign mode, credits can go negative when cost increases."""
     from gyrinx.core.models.action import ListAction, ListActionType
@@ -1085,7 +1109,8 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
 
     # Change equipment cost from 100 to 200 (increase of 100, more than credits)
     content_equipment.cost = "200"
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # Check credits went negative
     lst.refresh_from_db()
@@ -1098,7 +1123,11 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
 
 @pytest.mark.django_db
 def test_no_action_created_for_list_without_initial_action(
-    user, content_house, content_fighter, content_equipment
+    user,
+    content_house,
+    content_fighter,
+    content_equipment,
+    django_capture_on_commit_callbacks,
 ):
     """Lists without an initial action should not get CONTENT_COST_CHANGE actions."""
     from gyrinx.core.models.action import ListAction
@@ -1128,7 +1157,8 @@ def test_no_action_created_for_list_without_initial_action(
 
     # Change equipment cost
     content_equipment.cost = "150"
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # No action should be created
     final_action_count = ListAction.objects.filter(list=lst).count()
@@ -1137,7 +1167,12 @@ def test_no_action_created_for_list_without_initial_action(
 
 @pytest.mark.django_db
 def test_content_cost_change_clears_dirty_flags_on_children(
-    user, make_list, content_fighter, content_equipment, settings
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
 ):
     """Content cost change should clear dirty flags on list, fighter, and assignment."""
     from gyrinx.core.models.action import ListAction, ListActionType
@@ -1170,9 +1205,11 @@ def test_content_cost_change_clears_dirty_flags_on_children(
     assert fighter.dirty is False
     assert assignment.dirty is False
 
-    # Change equipment cost (triggers set_dirty on assignment -> fighter -> list)
+    # Change equipment cost (triggers set_dirty on assignment -> fighter -> list).
+    # The recalc/action creation runs in the on-commit task.
     content_equipment.cost = "200"
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # Verify action was created
     action = ListAction.objects.filter(list=lst).order_by("-created").first()
@@ -1195,7 +1232,12 @@ def test_content_cost_change_clears_dirty_flags_on_children(
 
 @pytest.mark.django_db
 def test_no_action_when_equipment_cost_change_has_zero_delta(
-    user, make_list, content_fighter, content_equipment, settings
+    user,
+    make_list,
+    content_fighter,
+    content_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
 ):
     """
     When ContentEquipment.cost changes but an override (ContentFighterEquipmentListItem)
@@ -1242,7 +1284,8 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
 
     # Change the BASE equipment cost (which is overridden for this fighter)
     content_equipment.cost = "200"  # Changed from 100 to 200
-    content_equipment.save()
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
 
     # No action should be created because the override (75) still applies
     # and the list's actual cost hasn't changed

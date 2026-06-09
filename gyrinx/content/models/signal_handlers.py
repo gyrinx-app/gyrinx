@@ -496,6 +496,47 @@ def _create_content_cost_change_actions(instance):
 # Post-save signal handlers that create actions after content saves
 
 
+def _enqueue_content_cost_propagation(instance):
+    """Enqueue async recalculation/action-creation for a content cost change.
+
+    The fan-out (recalculating facts and creating CONTENT_COST_CHANGE actions
+    for every affected list) used to run synchronously in the request that saved
+    the content object. For a popular item that could mean a multi-minute,
+    many-thousand-query request. Instead we enqueue the
+    ``propagate_content_cost_change`` task and let it run off the request thread.
+
+    The dirty flags were already set synchronously in the pre_save handler, so
+    anyone reading an affected list between commit and task completion sees a
+    dirty cache and recalculates lazily via ``get_clean_list_or_404`` — the
+    behaviour is correct either way; the task just also writes the audit action.
+
+    Deferred to ``transaction.on_commit``: the worker runs in a separate process
+    (prod Pub/Sub backend) and must see the committed new cost, and must not run
+    for a save that ends up rolled back. Under the test/dev ImmediateBackend the
+    task runs inline when the on_commit callbacks fire.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from gyrinx.core.tasks import propagate_content_cost_change
+
+    content_type_id = ContentType.objects.get_for_model(instance.__class__).id
+    object_id = str(instance.pk)
+
+    def _enqueue():
+        try:
+            propagate_content_cost_change.enqueue(
+                content_type_id=content_type_id, object_id=object_id
+            )
+        except Exception:
+            logger.exception(
+                "Failed to enqueue content cost propagation for %s %s",
+                content_type_id,
+                object_id,
+            )
+
+    transaction.on_commit(_enqueue)
+
+
 @receiver(
     post_save, sender=ContentEquipment, dispatch_uid="content_equipment_cost_action"
 )
@@ -504,7 +545,7 @@ def create_equipment_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after equipment cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False  # Clear flag
 
 
@@ -514,7 +555,7 @@ def create_fighter_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after fighter base cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -577,7 +618,7 @@ def create_profile_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after weapon profile cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -591,7 +632,7 @@ def create_accessory_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after weapon accessory cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -605,7 +646,7 @@ def create_upgrade_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after equipment upgrade cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -619,7 +660,7 @@ def create_equipment_list_item_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after equipment list item cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -633,7 +674,7 @@ def create_equipment_list_accessory_cost_action(sender, instance, created, **kwa
     """Create CONTENT_COST_CHANGE actions after equipment list accessory cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -647,7 +688,7 @@ def create_equipment_list_upgrade_cost_action(sender, instance, created, **kwarg
     """Create CONTENT_COST_CHANGE actions after equipment list upgrade cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -661,7 +702,7 @@ def create_fighter_house_override_cost_action(sender, instance, created, **kwarg
     """Create CONTENT_COST_CHANGE actions after fighter house override cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
 
 
@@ -675,5 +716,5 @@ def create_expansion_item_cost_action(sender, instance, created, **kwargs):
     """Create CONTENT_COST_CHANGE actions after expansion item cost change."""
     if created or not getattr(instance, "_cost_changed", False):
         return
-    _create_content_cost_change_actions(instance)
+    _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False

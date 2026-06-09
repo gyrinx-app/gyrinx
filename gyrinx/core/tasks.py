@@ -33,6 +33,68 @@ def refresh_list_facts(list_id: str):
 
 
 @task
+def propagate_content_cost_change(content_type_id: int, object_id: str):
+    """Recalculate cached costs and create audit actions for a content cost change.
+
+    Enqueued (after commit) when a content model's cost field changes. Re-fetches
+    the instance via its ContentType + pk, then runs the existing
+    ``_create_content_cost_change_actions`` helper, which finds every affected
+    list, recalculates its facts with the new cost, and creates a
+    CONTENT_COST_CHANGE action (applying credit adjustments in campaign mode).
+
+    Running this off the request thread is the whole point: a popular base item
+    can touch thousands of lists, and the recalculation walks each list's full
+    fighter suite. Doing it inline in the admin save blew the request budget.
+
+    Idempotent: re-running re-reads current DB state. The per-list delta check in
+    the helper skips lists whose totals didn't move, so a redelivery doesn't
+    create spurious actions. References to deleted instances are handled
+    gracefully (the instance lookup returns None and the task is a no-op).
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from gyrinx.content.models.signal_handlers import (
+        _create_content_cost_change_actions,
+    )
+
+    try:
+        content_type = ContentType.objects.get_for_id(content_type_id)
+    except ContentType.DoesNotExist:
+        logger.warning(
+            "propagate_content_cost_change: unknown content_type_id %s",
+            content_type_id,
+        )
+        return
+
+    model_class = content_type.model_class()
+    if model_class is None:
+        logger.warning(
+            "propagate_content_cost_change: content_type %s has no model class",
+            content_type_id,
+        )
+        return
+
+    # Use all_content() where available so pack-scoped content still resolves
+    # (the default ContentManager excludes pack items); fall back to the default
+    # manager for any sender without it.
+    manager = model_class._default_manager
+    base_qs = (
+        manager.all_content() if hasattr(manager, "all_content") else manager.all()
+    )
+    try:
+        instance = base_qs.get(pk=object_id)
+    except model_class.DoesNotExist:
+        logger.warning(
+            "propagate_content_cost_change: %s %s no longer exists",
+            content_type,
+            object_id,
+        )
+        return
+
+    _create_content_cost_change_actions(instance)
+
+
+@task
 def propagate_default_child_fighter_assignment(default_assignment_id: str):
     """Propagate a newly-created child-spawning default to existing gangs.
 
