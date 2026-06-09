@@ -1,5 +1,6 @@
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.db import transaction
 
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.core.admin.base import BaseAdmin
@@ -128,9 +129,61 @@ class ListFighterPsykerPowerAssignmentInline(admin.TabularInline):
     fields = ["psyker_power"]
 
 
+@admin.action(description="Recompute cached cost/rating from facts (fix drift)")
+def recompute_cost_caches(modeladmin, request, queryset):
+    """
+    Force-recompute the cached cost/rating chain for the selected fighters
+    straight from the source-of-truth assignments.
+
+    Fixes cached-value drift (e.g. an inflated stash after a fighter death,
+    where a fighter's ``rating_current`` is wrong but ``dirty=False`` so the
+    normal lazy "Refresh Cost" recompute trusts the stale value and never
+    re-derives it). This rebuilds the whole subtree explicitly:
+    assignments -> fighter -> list, ignoring the dirty flags.
+    """
+    changed = []
+    affected_lists = {}
+    fighter_count = 0
+
+    with transaction.atomic():
+        for fighter in queryset.select_related("list", "content_fighter"):
+            fighter_count += 1
+            before = fighter.rating_current
+
+            # Rebuild each real assignment's cache from cost_int()...
+            for assignment in ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=fighter
+            ):
+                assignment.facts_from_db(update=True)
+
+            # ...then the fighter's own cache from the (now-correct) assignments.
+            after = fighter.facts_from_db(update=True).rating
+
+            affected_lists[fighter.list_id] = fighter.list
+            if before != after:
+                changed.append((fighter, before, after))
+
+        # Reconcile each affected list's aggregate caches (rating/stash).
+        for lst in affected_lists.values():
+            lst.facts_from_db(update=True)
+
+    for fighter, before, after in changed:
+        messages.success(
+            request,
+            f"{fighter.name}: rating_current {before} → {after}",
+        )
+
+    messages.info(
+        request,
+        f"Recomputed {fighter_count} fighter(s) across "
+        f"{len(affected_lists)} list(s); {len(changed)} had drift corrected.",
+    )
+
+
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
+    actions = [recompute_cost_caches]
     fields = [
         "name",
         "content_fighter",
@@ -146,7 +199,8 @@ class ListFighterAdmin(BaseAdmin):
     ]
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", "list"]
-    search_fields = ["name", "content_fighter__type", "list__name"]
+    # "=id" allows pasting a fighter UUID into the search box for an exact match.
+    search_fields = ["=id", "name", "content_fighter__type", "list__name"]
 
     inlines = [
         ListFighterEquipmentAssignmentInline,
