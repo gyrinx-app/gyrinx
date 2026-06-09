@@ -33,7 +33,9 @@ def refresh_list_facts(list_id: str):
 
 
 @task
-def propagate_content_cost_change(content_type_id: int, object_id: str):
+def propagate_content_cost_change(
+    content_type_id: int, object_id: str, before_snapshots: dict | None = None
+):
     """Recalculate cached costs and create audit actions for a content cost change.
 
     Enqueued (after commit) when a content model's cost field changes. Re-fetches
@@ -42,14 +44,21 @@ def propagate_content_cost_change(content_type_id: int, object_id: str):
     list, recalculates its facts with the new cost, and creates a
     CONTENT_COST_CHANGE action (applying credit adjustments in campaign mode).
 
+    ``before_snapshots`` is the ``{str(list_id): [rating, stash]}`` map captured
+    synchronously at enqueue time (pre-change baselines). The helper uses it as
+    the delta baseline so a list viewed (and lazily recalculated) before this
+    task runs doesn't cause a zero delta — which would silently drop the action
+    and the campaign credit adjustment.
+
     Running this off the request thread is the whole point: a popular base item
     can touch thousands of lists, and the recalculation walks each list's full
     fighter suite. Doing it inline in the admin save blew the request budget.
 
-    Idempotent: re-running re-reads current DB state. The per-list delta check in
-    the helper skips lists whose totals didn't move, so a redelivery doesn't
-    create spurious actions. References to deleted instances are handled
-    gracefully (the instance lookup returns None and the task is a no-op).
+    Idempotent: each created action records the content instance as its subject
+    with the pre-change baseline, and the helper skips a list that already has a
+    matching applied action — so a redelivery doesn't create spurious actions or
+    double-charge credits. References to deleted instances are handled gracefully
+    (the instance lookup returns and the task is a no-op).
     """
     from django.contrib.contenttypes.models import ContentType
 
@@ -91,7 +100,7 @@ def propagate_content_cost_change(content_type_id: int, object_id: str):
         )
         return
 
-    _create_content_cost_change_actions(instance)
+    _create_content_cost_change_actions(instance, before_snapshots=before_snapshots)
 
 
 @task

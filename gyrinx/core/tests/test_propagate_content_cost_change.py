@@ -127,3 +127,95 @@ def test_signal_does_not_enqueue_when_cost_unchanged(
         with django_capture_on_commit_callbacks(execute=True):
             cost_equipment.save()
         mock_task.enqueue.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_view_before_task_still_records_action(
+    make_list,
+    make_list_fighter,
+    cost_equipment,
+    settings,
+    django_capture_on_commit_callbacks,
+):
+    """A lazy recalc-on-view before the async task must not steal the delta.
+
+    The task runs after commit, so a user can view the affected list first. That
+    view recalculates and writes the new rating_current WITHOUT recording an
+    action. Because the pre-change baseline is snapshotted synchronously at
+    enqueue time, the task must still record the CONTENT_COST_CHANGE action.
+    (Regression: previously the delta was read from the already-updated
+    rating_current, computed as zero, and the action was silently dropped.)
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
+    before = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+
+    # Change the cost via the real signal flow, but hold the on_commit enqueue so
+    # we can interleave a view before the task runs. The pre-change snapshot is
+    # captured synchronously inside the post_save handler (not in the callback).
+    with django_capture_on_commit_callbacks(execute=False) as callbacks:
+        cost_equipment.cost = "150"
+        cost_equipment.save()
+
+    # The racing view: viewing a dirty list recalculates and writes the new
+    # rating_current (this is what get_clean_list_or_404 does), clearing dirty.
+    lst.refresh_from_db()
+    assert lst.dirty is True
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+    assert lst.dirty is False
+
+    # Now the deferred enqueue fires; under ImmediateBackend the task runs inline.
+    for cb in callbacks:
+        cb()
+
+    after = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+    assert after == before + 1
+
+
+@pytest.mark.django_db
+def test_idempotent_after_view_race(
+    make_list, make_list_fighter, cost_equipment, settings
+):
+    """A redelivery carrying the same frozen snapshot must not duplicate the
+    action or re-apply credits, even when a view recalculated the list first."""
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
+    old_rating = lst.rating_current
+    old_stash = lst.stash_current
+
+    ContentEquipment = cost_equipment.__class__
+    ContentEquipment.objects.filter(pk=cost_equipment.pk).update(cost="150")
+    cost_equipment.refresh_from_db()
+    cost_equipment.set_dirty()
+    lst.facts_from_db(update=True)  # the racing view moves rating_current
+
+    # The snapshot captured synchronously at enqueue time holds the pre-change
+    # baseline; the same payload is delivered on a redelivery.
+    snapshot = {str(lst.id): [old_rating, old_stash]}
+    ct = ContentType.objects.get_for_model(ContentEquipment)
+
+    propagate_content_cost_change.enqueue(
+        content_type_id=ct.id,
+        object_id=str(cost_equipment.pk),
+        before_snapshots=snapshot,
+    )
+    after_first = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+
+    propagate_content_cost_change.enqueue(
+        content_type_id=ct.id,
+        object_id=str(cost_equipment.pk),
+        before_snapshots=snapshot,
+    )
+    after_second = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+
+    assert after_first == 1
+    assert after_second == after_first
