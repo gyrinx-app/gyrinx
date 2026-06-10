@@ -72,7 +72,10 @@ class ContentFighterEquipmentListItem(CostMixin, Content):
         """
         from django.db.models import Q
 
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find assignments for this equipment on fighters using this content fighter
         assignments = ListFighterEquipmentAssignment.objects.filter(
@@ -80,10 +83,9 @@ class ContentFighterEquipmentListItem(CostMixin, Content):
             | Q(list_fighter__legacy_content_fighter=self.fighter),
             content_equipment=self.equipment,
             archived=False,
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
 
 class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
@@ -130,7 +132,10 @@ class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
         """
         from django.db.models import Q
 
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find assignments with this accessory on fighters using this content fighter
         assignments = ListFighterEquipmentAssignment.objects.filter(
@@ -138,10 +143,9 @@ class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
             | Q(list_fighter__legacy_content_fighter=self.fighter),
             weapon_accessories_field=self.weapon_accessory,
             archived=False,
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
 
 class ContentFighterEquipmentListUpgrade(CostMixin, Content):
@@ -188,7 +192,10 @@ class ContentFighterEquipmentListUpgrade(CostMixin, Content):
         """
         from django.db.models import Q
 
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find assignments with this upgrade on fighters using this content fighter
         assignments = ListFighterEquipmentAssignment.objects.filter(
@@ -196,7 +203,6 @@ class ContentFighterEquipmentListUpgrade(CostMixin, Content):
             | Q(list_fighter__legacy_content_fighter=self.fighter),
             upgrades_field=self.upgrade,
             archived=False,
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)

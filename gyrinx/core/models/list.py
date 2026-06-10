@@ -104,6 +104,48 @@ def validate_category_override(value):
         )
 
 
+def bulk_mark_assignments_dirty(assignments) -> None:
+    """Mark a set of assignments, their fighters, and those fighters' lists dirty.
+
+    Equivalent in effect to calling ``assignment.set_dirty(save=True)`` on every
+    assignment in ``assignments`` (which propagates assignment -> fighter -> list),
+    but using three bulk ``UPDATE``s instead of O(rows) individual statements.
+
+    This is the hot path for content-cost-change fan-out: a popular base item can
+    have tens of thousands of assignments, and the per-row chain issued up to
+    ~3 UPDATEs each. ``QuerySet.update()`` bypasses signals/history exactly like
+    the per-instance ``set_dirty`` did, so semantics are preserved.
+
+    ``assignments`` may be any queryset of ListFighterEquipmentAssignment; the
+    caller is responsible for the ``archived=False`` (and any other) filtering.
+    """
+    # Capture ids before any UPDATE so the membership snapshots are stable.
+    fighter_ids = set(assignments.values_list("list_fighter_id", flat=True))
+    list_ids = set(
+        ListFighter.objects.filter(pk__in=fighter_ids).values_list("list_id", flat=True)
+    )
+    assignments.update(dirty=True)
+    ListFighter.objects.filter(pk__in=fighter_ids).update(dirty=True)
+    List.objects.filter(pk__in=list_ids).update(dirty=True)
+
+
+def bulk_mark_fighters_dirty(fighters) -> None:
+    """Mark a set of fighters and their lists dirty.
+
+    Equivalent to calling ``fighter.set_dirty(save=True)`` on every fighter in
+    ``fighters`` (which propagates fighter -> list), using two bulk ``UPDATE``s.
+
+    ``fighters`` may be any queryset of ListFighter; the caller is responsible
+    for the ``archived=False`` (and any other) filtering.
+    """
+    fighter_ids = set(fighters.values_list("pk", flat=True))
+    list_ids = set(
+        ListFighter.objects.filter(pk__in=fighter_ids).values_list("list_id", flat=True)
+    )
+    ListFighter.objects.filter(pk__in=fighter_ids).update(dirty=True)
+    List.objects.filter(pk__in=list_ids).update(dirty=True)
+
+
 ##
 ## Application Models
 ##
@@ -690,13 +732,32 @@ class List(AppBase):
     # Fighter & other properties
     #
 
+    @cached_property
+    @traced("list_subscribed_packs_cached")
+    def subscribed_packs_cached(self):
+        """The content packs this list is subscribed to, as a list.
+
+        Cached so repeated fighter queries (fighters/archived_fighters and
+        their derived properties) share a single lightweight pack lookup.
+        This is a subscriber read path, so it must NOT filter archived packs
+        out — archived packs still apply to already-subscribed lists.
+        """
+        return list(self.packs.all())
+
     @traced("list_fighters")
     def fighters(self) -> QuerySetOf["ListFighter"]:
-        return self.listfighter_set.with_related_data().filter(archived=False)
+        # Pass the subscribed packs so skill/rule prefetches are pack-aware,
+        # letting ruleline()/skilline() read from the prefetch cache instead
+        # of issuing ~6 fallback queries per fighter.
+        return self.listfighter_set.with_related_data(
+            packs=self.subscribed_packs_cached
+        ).filter(archived=False)
 
     @traced("list_archived_fighters")
     def archived_fighters(self) -> QuerySetOf["ListFighter"]:
-        return self.listfighter_set.with_related_data().filter(archived=True)
+        return self.listfighter_set.with_related_data(
+            packs=self.subscribed_packs_cached
+        ).filter(archived=True)
 
     @cached_property
     @traced("list_fighters_cached")
@@ -709,9 +770,61 @@ class List(AppBase):
         return self.archived_fighters()
 
     @cached_property
+    @traced("list_archived_fighters_count_cached")
+    def archived_fighters_count_cached(self) -> int:
+        """Number of archived fighters, as a single memoised COUNT.
+
+        Avoids running a COUNT against the heavy annotated default-manager
+        queryset multiple times when a template needs the count more than
+        once (e.g. for a conditional plus the label).
+        """
+        return self.listfighter_set.filter(archived=True).count()
+
+    @cached_property
     @traced("list_fighters_minimal_cached")
     def fighters_minimal_cached(self):
         return self.listfighter_set.filter(archived=False).values("id", "name")
+
+    @cached_property
+    @traced("list_active_fighters_minimal_cached")
+    def active_fighters_minimal_cached(self):
+        """Lightweight list of active (non-stash, non-archived) fighters.
+
+        Returns just the fields needed to render navigation/switcher UI
+        (id, name, content fighter type/category for its display name) as a
+        single ``.values()`` query, preserving the default manager's
+        category/sort ordering. Use this instead of ``active_fighters`` when
+        you only need names and links — it avoids evaluating the full
+        ~30-relation prefetch suite.
+
+        Each row exposes ``content_fighter_name``, the same composite the
+        ``ContentFighter.name`` property produces ("Type (Category)").
+        """
+        rows = (
+            self.listfighter_set.filter(archived=False)
+            .exclude(content_fighter__is_stash=True)
+            .values(
+                "id",
+                "name",
+                "content_fighter__type",
+                "content_fighter__category",
+            )
+        )
+        result = []
+        for row in rows:
+            category = row["content_fighter__category"]
+            try:
+                label = FighterCategoryChoices[category].label
+            except KeyError:
+                label = category
+            result.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "content_fighter_name": f"{row['content_fighter__type']} ({label})",
+                }
+            )
+        return result
 
     @cached_property
     @traced("list_active_fighters")
@@ -3462,7 +3575,22 @@ class ListFighter(AppBase):
     @property
     @traced("listfighter_active_advancement_count")
     def active_advancement_count(self):
-        """Return count of non-archived advancements."""
+        """Return count of non-archived advancements.
+
+        Uses the prefetched ``advancements`` set when available (the fighter
+        prefetch suite includes it) so rendering a fighter card doesn't issue
+        a COUNT query per fighter. ``.filter()`` would bypass the prefetch
+        cache and hit the database, so count in Python instead.
+        """
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "advancements" in self._prefetched_objects_cache
+        ):
+            return sum(
+                1
+                for adv in self._prefetched_objects_cache["advancements"]
+                if not adv.archived
+            )
         return self.advancements.filter(archived=False).count()
 
     def has_overridden_cost(self):

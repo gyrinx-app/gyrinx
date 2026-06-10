@@ -556,15 +556,17 @@ class ContentEquipment(FighterCostMixin, Content):
         Called when this equipment's cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find all assignments using this equipment
         assignments = ListFighterEquipmentAssignment.objects.filter(
             content_equipment=self, archived=False
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     class Meta:
         verbose_name = "Equipment"
@@ -686,15 +688,17 @@ class ContentEquipmentUpgrade(CostMixin, Content):
         Called when this upgrade's cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find all assignments using this equipment upgrade (via M2M)
         assignments = ListFighterEquipmentAssignment.objects.filter(
             upgrades_field=self, archived=False
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     objects = ContentEquipmentUpgradeManager.from_queryset(
         ContentEquipmentUpgradeQuerySet

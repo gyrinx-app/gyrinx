@@ -52,6 +52,20 @@ SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
 
+# Persistent database connections.
+#
+# Django's default (CONN_MAX_AGE=0) opens a brand-new Postgres connection on
+# every request. On Cloud SQL each connect pays TLS + auth latency (tens of ms)
+# and adds connection-churn load on the instance. Reuse connections for up to
+# 60s, with a health check at the start of each request so a connection dropped
+# by the server (or the Cloud SQL proxy) is transparently re-established rather
+# than surfacing as an error.
+#
+# Dev/tests intentionally keep the Django default (0) — short-lived processes
+# and pytest don't benefit, and persistent connections complicate test teardown.
+DATABASES["default"]["CONN_MAX_AGE"] = 60  # noqa: F405
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
+
 STORAGES = {
     **STORAGES,
     "staticfiles": {
