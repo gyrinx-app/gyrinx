@@ -150,10 +150,15 @@ def recompute_cost_caches(modeladmin, request, queryset):
             fighter_count += 1
             before = fighter.rating_current
 
-            # Rebuild each real assignment's cache from cost_int()...
-            for assignment in ListFighterEquipmentAssignment.objects.filter(
-                list_fighter=fighter
-            ):
+            # Rebuild each real assignment's cache from cost_int(). Use
+            # with_related_data() to prefetch the equipment/profiles/accessories/
+            # upgrades that cost_int() touches and avoid N+1 across fighters.
+            assignments = (
+                ListFighterEquipmentAssignment.objects.with_related_data().filter(
+                    list_fighter=fighter
+                )
+            )
+            for assignment in assignments:
                 assignment.facts_from_db(update=True)
 
             # ...then the fighter's own cache from the (now-correct) assignments.

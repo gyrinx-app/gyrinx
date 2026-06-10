@@ -66,6 +66,34 @@ def test_recompute_cost_caches_fixes_drift(make_list, make_list_fighter):
 
 
 @pytest.mark.django_db
+def test_recompute_cost_caches_fixes_stash_drift(make_list):
+    """The reported bug: an inflated stash fighter reconciles list.stash_current."""
+    lst = make_list("Stashy Gang")
+    stash = lst.ensure_stash()
+
+    correct = stash.cost_int()
+
+    # Stash fighter's cache inflated but clean, with the same inflation baked
+    # into the list's stash aggregate (the kill-handler drift scenario).
+    inflated = correct + 45
+    ListFighter.objects.filter(pk=stash.pk).update(rating_current=inflated, dirty=False)
+    type(lst).objects.filter(pk=lst.pk).update(stash_current=inflated, dirty=False)
+
+    site = AdminSite()
+    admin_instance = ListFighterAdmin(ListFighter, site)
+    request = _admin_request()
+    queryset = ListFighter.objects.filter(pk=stash.pk)
+
+    recompute_cost_caches(admin_instance, request, queryset)
+
+    stash.refresh_from_db()
+    lst.refresh_from_db()
+
+    assert stash.rating_current == correct
+    assert lst.stash_current == correct
+
+
+@pytest.mark.django_db
 def test_recompute_cost_caches_noop_when_in_sync(make_list, make_list_fighter):
     """Running on an already-correct fighter leaves the cache untouched."""
     lst = make_list("Tidy Gang")
