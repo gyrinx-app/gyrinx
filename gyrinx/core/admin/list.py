@@ -1,6 +1,10 @@
+import uuid
+
 from django import forms
 from django.contrib import admin, messages
 from django.db import transaction
+from django.urls import reverse
+from django.utils.html import format_html
 
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.core.admin.base import BaseAdmin
@@ -208,6 +212,12 @@ def recompute_cost_caches(modeladmin, request, queryset):
     )
 
 
+@admin.display(description="List", ordering="list__name")
+def list_link(obj):
+    url = reverse("admin:core_list_change", args=[obj.list_id])
+    return format_html('<a href="{}">{}</a>', url, obj.list)
+
+
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
@@ -226,10 +236,25 @@ class ListFighterAdmin(BaseAdmin):
         "disabled_pskyer_default_powers",
     ]
     readonly_fields = [cost]
-    list_display = ["name", "content_fighter", "list"]
+    list_display = ["name", "content_fighter", list_link]
+    list_select_related = ["content_fighter__house", "list"]
     # "=id" allows pasting a fighter UUID into the search box for an exact match.
     search_fields = ["=id", "name", "content_fighter__type", "list__name"]
     autocomplete_fields = ["list", "owner"]
+
+    def get_search_results(self, request, queryset, search_term):
+        queryset, may_have_duplicates = super().get_search_results(
+            request, queryset, search_term
+        )
+        # UUIDs can't go in search_fields: a non-UUID term against a UUID
+        # column is a database error, so match exact IDs separately.
+        try:
+            uuid_term = uuid.UUID(search_term.strip())
+        except ValueError:
+            pass
+        else:
+            queryset |= self.model.objects.filter(pk=uuid_term)
+        return queryset, may_have_duplicates
 
     inlines = [
         ListFighterEquipmentAssignmentInline,
