@@ -1,6 +1,10 @@
+import uuid
+
 from django import forms
 from django.contrib import admin, messages
 from django.db import transaction
+from django.urls import reverse
+from django.utils.html import format_html
 
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.core.admin.base import BaseAdmin
@@ -24,6 +28,10 @@ class ListFighterInline(admin.TabularInline):
     model = ListFighter
     extra = 1
     fields = ["name", "owner", "content_fighter", "cost_override"]
+    # Without autocomplete, every inline row renders a <select> of all users and
+    # all content fighters — and each ContentFighter option label fetches its
+    # house, so a single List change page runs thousands of queries.
+    autocomplete_fields = ["owner", "content_fighter"]
     show_change_link = True
 
 
@@ -64,6 +72,7 @@ class ListAdmin(BaseAdmin):
         "owner__username",
         "owner__email",
     ]
+    autocomplete_fields = ["owner"]
 
     inlines = [ListFighterInline, ListAttributeAssignmentInline]
 
@@ -71,6 +80,19 @@ class ListAdmin(BaseAdmin):
 class ListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # group_select below iterates every option and renders its label;
+        # ContentFighter.__str__ touches house and ContentSkill groups by
+        # category, so without select_related each option costs a query.
+        for field, related in [
+            ("content_fighter", "house"),
+            ("legacy_content_fighter", "house"),
+            ("skills", "category"),
+        ]:
+            if field in self.fields:
+                self.fields[field].queryset = self.fields[
+                    field
+                ].queryset.select_related(related)
+
         if hasattr(self.instance, "list"):
             if "disabled_default_assignments" in self.fields:
                 self.fields["disabled_default_assignments"].queryset = self.fields[
@@ -112,6 +134,8 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
     extra = 1
     fields = ["content_equipment", weapon_profiles_list, weapon_accessories_list, cost]
     readonly_fields = [weapon_profiles_list, weapon_accessories_list, cost]
+    # Avoid rendering a <select> of the entire equipment catalogue per row.
+    autocomplete_fields = ["content_equipment"]
     show_change_link = True
     fk_name = "list_fighter"
 
@@ -119,6 +143,9 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
 class ListFighterPsykerPowerAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["psyker_power"].queryset = self.fields[
+            "psyker_power"
+        ].queryset.select_related("discipline")
         group_select(self, "psyker_power", key=lambda x: x.discipline.name)
 
 
@@ -185,6 +212,12 @@ def recompute_cost_caches(modeladmin, request, queryset):
     )
 
 
+@admin.display(description="List", ordering="list__name")
+def list_link(obj):
+    url = reverse("admin:core_list_change", args=[obj.list_id])
+    return format_html('<a href="{}">{}</a>', url, obj.list)
+
+
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
@@ -203,9 +236,26 @@ class ListFighterAdmin(BaseAdmin):
         "disabled_pskyer_default_powers",
     ]
     readonly_fields = [cost]
-    list_display = ["name", "content_fighter", "list"]
+    list_display = ["name", "content_fighter", list_link]
+    list_select_related = ["content_fighter__house", "list"]
     # "=id" allows pasting a fighter UUID into the search box for an exact match.
     search_fields = ["=id", "name", "content_fighter__type", "list__name"]
+    autocomplete_fields = ["list", "owner"]
+
+    def get_search_results(self, request, queryset, search_term):
+        results, may_have_duplicates = super().get_search_results(
+            request, queryset, search_term
+        )
+        # UUIDs can't go in search_fields: a non-UUID term against a UUID
+        # column is a database error, so match exact IDs separately. Filter
+        # the incoming queryset so changelist filters still apply.
+        try:
+            uuid_term = uuid.UUID(search_term.strip())
+        except ValueError:
+            pass
+        else:
+            results |= queryset.filter(pk=uuid_term)
+        return results, may_have_duplicates
 
     inlines = [
         ListFighterEquipmentAssignmentInline,
@@ -216,6 +266,20 @@ class ListFighterAdmin(BaseAdmin):
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # The group_select keys and option labels below reach through FKs
+        # (fighter's list and content_fighter via __str__, equipment's
+        # category, profile's equipment) — select_related keeps each grouped
+        # dropdown to a single query.
+        for field, related in [
+            ("list_fighter", ("list", "content_fighter")),
+            ("content_equipment", ("category",)),
+            ("weapon_profiles_field", ("equipment",)),
+        ]:
+            if field in self.fields:
+                self.fields[field].queryset = self.fields[
+                    field
+                ].queryset.select_related(*related)
+
         exists = ListFighterEquipmentAssignment.objects.filter(
             pk=self.instance.pk
         ).exists()
