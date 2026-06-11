@@ -243,18 +243,19 @@ class ListFighterAdmin(BaseAdmin):
     autocomplete_fields = ["list", "owner"]
 
     def get_search_results(self, request, queryset, search_term):
-        queryset, may_have_duplicates = super().get_search_results(
+        results, may_have_duplicates = super().get_search_results(
             request, queryset, search_term
         )
         # UUIDs can't go in search_fields: a non-UUID term against a UUID
-        # column is a database error, so match exact IDs separately.
+        # column is a database error, so match exact IDs separately. Filter
+        # the incoming queryset so changelist filters still apply.
         try:
             uuid_term = uuid.UUID(search_term.strip())
         except ValueError:
             pass
         else:
-            queryset |= self.model.objects.filter(pk=uuid_term)
-        return queryset, may_have_duplicates
+            results |= queryset.filter(pk=uuid_term)
+        return results, may_have_duplicates
 
     inlines = [
         ListFighterEquipmentAssignmentInline,
@@ -265,18 +266,19 @@ class ListFighterAdmin(BaseAdmin):
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # The group_select keys below reach through FKs (fighter's list,
-        # equipment's category, profile's equipment) — select_related keeps
-        # each grouped dropdown to a single query.
+        # The group_select keys and option labels below reach through FKs
+        # (fighter's list and content_fighter via __str__, equipment's
+        # category, profile's equipment) — select_related keeps each grouped
+        # dropdown to a single query.
         for field, related in [
-            ("list_fighter", "list"),
-            ("content_equipment", "category"),
-            ("weapon_profiles_field", "equipment"),
+            ("list_fighter", ("list", "content_fighter")),
+            ("content_equipment", ("category",)),
+            ("weapon_profiles_field", ("equipment",)),
         ]:
             if field in self.fields:
                 self.fields[field].queryset = self.fields[
                     field
-                ].queryset.select_related(related)
+                ].queryset.select_related(*related)
 
         exists = ListFighterEquipmentAssignment.objects.filter(
             pk=self.instance.pk
