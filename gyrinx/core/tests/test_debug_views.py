@@ -49,6 +49,24 @@ def test_list_actions_404_when_debug_disabled(client, user, make_list):
     assert response.status_code == 404
 
 
+@override_settings(DEBUG=False)
+@pytest.mark.django_db
+def test_list_actions_visible_to_staff_in_production(client, make_list, make_user):
+    """Staff retain access in production — the view is admin support tooling.
+
+    Regression test: the original security fix 404'd on DEBUG=False before the
+    staff check ever ran, locking admins out in production.
+    """
+    lst = make_list("Test Gang")
+    staff = make_user("admin", "password")
+    staff.is_staff = True
+    staff.save()
+    client.force_login(staff)
+    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+
+    assert response.status_code == 200
+
+
 @override_settings(DEBUG=True, **_no_toolbar)
 @pytest.mark.django_db
 def test_list_actions_404_for_anonymous(client, make_list):
