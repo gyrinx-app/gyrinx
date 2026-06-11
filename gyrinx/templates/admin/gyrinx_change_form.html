@@ -1,0 +1,37 @@
+{% extends "admin/change_form.html" %}
+{% block extrastyle %}
+    {{ block.super }}
+    <style>
+  .object-tools form.gyrinx-object-action {
+    display: inline;
+  }
+  .object-tools form.gyrinx-object-action button {
+    background: var(--object-tools-bg);
+    color: var(--object-tools-fg);
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    display: inline-block;
+    font-size: 0.625rem;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    padding: 3px 12px;
+    text-transform: uppercase;
+  }
+  .object-tools form.gyrinx-object-action button:hover {
+    background: var(--object-tools-hover-bg);
+  }
+    </style>
+{% endblock extrastyle %}
+{% block object-tools-items %}
+    {% for action in object_actions %}
+        <li>
+            <form method="post" class="gyrinx-object-action">
+                {% csrf_token %}
+                <input type="hidden" name="_object_action" value="{{ action.name }}">
+                <button type="submit">{{ action.description }}</button>
+            </form>
+        </li>
+    {% endfor %}
+    {{ block.super }}
+{% endblock object-tools-items %}

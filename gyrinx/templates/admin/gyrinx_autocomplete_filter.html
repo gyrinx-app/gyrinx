@@ -1,0 +1,39 @@
+{% load i18n %}
+<details data-filter-title="{{ title }}" open>
+    <summary>{% blocktranslate with filter_title=title %} By {{ filter_title }} {% endblocktranslate %}</summary>
+    <style>
+    .gyrinx-autocomplete-filter {
+      padding: 0 15px 10px;
+    }
+    </style>
+    <div class="gyrinx-autocomplete-filter">{{ spec.rendered_widget }}</div>
+    <script>
+    (function () {
+      function init() {
+        var select = document.getElementById("{{ spec.widget_id }}");
+        if (!select || !window.django || !window.django.jQuery) return;
+        // select2 fires change through jQuery, so bind with django.jQuery.
+        django.jQuery(select).on("change", function () {
+          var values = Array.prototype.map.call(
+            select.selectedOptions,
+            function (option) {
+              return option.value;
+            },
+          );
+          var params = new URLSearchParams(window.location.search);
+          if (values.length) {
+            params.set("{{ spec.parameter_name }}", values.join(","));
+          } else {
+            params.delete("{{ spec.parameter_name }}");
+          }
+          window.location.search = params.toString();
+        });
+      }
+      if (document.readyState !== "loading") {
+        init();
+      } else {
+        document.addEventListener("DOMContentLoaded", init);
+      }
+    })();
+    </script>
+</details>

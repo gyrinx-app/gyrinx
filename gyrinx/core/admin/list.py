@@ -1,5 +1,3 @@
-import uuid
-
 from django import forms
 from django.contrib import admin, messages
 from django.db import transaction
@@ -8,6 +6,10 @@ from django.utils.html import format_html
 
 from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.core.admin.base import BaseAdmin
+from gyrinx.core.admin.filters import (
+    AutocompleteRelatedFilter,
+    autocomplete_filter_media,
+)
 from gyrinx.forms import group_select
 
 from ..models.list import (
@@ -46,9 +48,27 @@ class ListForm(forms.ModelForm):
     pass
 
 
+@admin.action(description="Recompute cached cost/rating from facts (fix drift)")
+def recompute_list_cost_caches(modeladmin, request, queryset):
+    """
+    List-level wrapper around recompute_cost_caches: rebuild every fighter in
+    the selected lists (including the stash), then reconcile the lists'
+    aggregate caches.
+    """
+    fighters = ListFighter.objects.filter(list__in=queryset)
+    recompute_cost_caches(modeladmin, request, fighters)
+    # recompute_cost_caches only reconciles lists it saw fighters for; cover
+    # fighterless lists too.
+    with transaction.atomic():
+        for lst in queryset:
+            lst.facts_from_db(update=True)
+
+
 @admin.register(List)
 class ListAdmin(BaseAdmin):
     form = ListForm
+    actions = [recompute_list_cost_caches]
+    object_actions = ["recompute_list_cost_caches"]
     fields = [
         "name",
         "content_house",
@@ -218,10 +238,17 @@ def list_link(obj):
     return format_html('<a href="{}">{}</a>', url, obj.list)
 
 
+class ListFilter(AutocompleteRelatedFilter):
+    title = "list"
+    parameter_name = "list_id_in"
+    field_name = "list"
+
+
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
     actions = [recompute_cost_caches]
+    object_actions = ["recompute_cost_caches"]
     fields = [
         "name",
         "content_fighter",
@@ -237,25 +264,19 @@ class ListFighterAdmin(BaseAdmin):
     ]
     readonly_fields = [cost]
     list_display = ["name", "content_fighter", list_link]
+    list_filter = [ListFilter]
     list_select_related = ["content_fighter__house", "list"]
-    # "=id" allows pasting a fighter UUID into the search box for an exact match.
-    search_fields = ["=id", "name", "content_fighter__type", "list__name"]
+    # Fighter UUIDs are searchable via BaseAdmin.get_search_results.
+    search_fields = ["name", "content_fighter__type", "list__name"]
     autocomplete_fields = ["list", "owner"]
 
-    def get_search_results(self, request, queryset, search_term):
-        results, may_have_duplicates = super().get_search_results(
-            request, queryset, search_term
+    @property
+    def media(self):
+        # The changelist doesn't collect filter media; ListFilter's select2
+        # widget needs the autocomplete assets.
+        return super().media + autocomplete_filter_media(
+            ListFighter, "list", self.admin_site
         )
-        # UUIDs can't go in search_fields: a non-UUID term against a UUID
-        # column is a database error, so match exact IDs separately. Filter
-        # the incoming queryset so changelist filters still apply.
-        try:
-            uuid_term = uuid.UUID(search_term.strip())
-        except ValueError:
-            pass
-        else:
-            results |= queryset.filter(pk=uuid_term)
-        return results, may_have_duplicates
 
     inlines = [
         ListFighterEquipmentAssignmentInline,
