@@ -1,0 +1,60 @@
+{% extends "admin/change_form.html" %}
+{% block extrastyle %}
+    {{ block.super }}
+    <style>
+  /* Mirror the .object-tools a rules from admin/css/base.css — buttons don't
+     inherit font or line-height, so set them explicitly. */
+  .object-tools form.gyrinx-object-action,
+  .object-tools form.gyrinx-object-action button {
+    display: block;
+    float: left;
+  }
+  .object-tools form.gyrinx-object-action button {
+    border: none;
+    cursor: pointer;
+    border-radius: 15px;
+    padding: 3px 12px;
+    background: var(--object-tools-bg);
+    color: var(--object-tools-fg);
+    font-family: inherit;
+    font-weight: 400;
+    font-size: 0.6875rem;
+    line-height: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .object-tools form.gyrinx-object-action button:focus,
+  .object-tools form.gyrinx-object-action button:hover {
+    background-color: var(--object-tools-hover-bg);
+  }
+    </style>
+{% endblock extrastyle %}
+{% block object-tools-items %}
+    {% for action in object_actions %}
+        <li>
+            <form method="post" class="gyrinx-object-action">
+                {% csrf_token %}
+                <input type="hidden" name="_object_action" value="{{ action.name }}">
+                <button type="submit">{{ action.description }}</button>
+            </form>
+        </li>
+    {% endfor %}
+    {{ block.super }}
+{% endblock object-tools-items %}
+{% block admin_change_form_document_ready %}
+    {{ block.super }}
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document
+        .querySelectorAll("form.gyrinx-object-action")
+        .forEach(function (form) {
+          form.addEventListener("submit", function (event) {
+            var label = form.querySelector("button").textContent.trim();
+            if (!window.confirm('Run "' + label + '" now?')) {
+              event.preventDefault();
+            }
+          });
+        });
+    });
+    </script>
+{% endblock admin_change_form_document_ready %}
