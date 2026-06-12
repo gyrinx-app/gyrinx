@@ -2,24 +2,30 @@
 {% block extrastyle %}
     {{ block.super }}
     <style>
-  .object-tools form.gyrinx-object-action {
-    display: inline;
+  /* Mirror the .object-tools a rules from admin/css/base.css — buttons don't
+     inherit font or line-height, so set them explicitly. */
+  .object-tools form.gyrinx-object-action,
+  .object-tools form.gyrinx-object-action button {
+    display: block;
+    float: left;
   }
   .object-tools form.gyrinx-object-action button {
+    border: none;
+    cursor: pointer;
+    border-radius: 15px;
+    padding: 3px 12px;
     background: var(--object-tools-bg);
     color: var(--object-tools-fg);
-    border: none;
-    border-radius: 15px;
-    cursor: pointer;
-    display: inline-block;
-    font-size: 0.625rem;
+    font-family: inherit;
     font-weight: 400;
-    letter-spacing: 0.5px;
-    padding: 3px 12px;
+    font-size: 0.6875rem;
+    line-height: inherit;
     text-transform: uppercase;
+    letter-spacing: 0.5px;
   }
+  .object-tools form.gyrinx-object-action button:focus,
   .object-tools form.gyrinx-object-action button:hover {
-    background: var(--object-tools-hover-bg);
+    background-color: var(--object-tools-hover-bg);
   }
     </style>
 {% endblock extrastyle %}
@@ -35,3 +41,20 @@
     {% endfor %}
     {{ block.super }}
 {% endblock object-tools-items %}
+{% block admin_change_form_document_ready %}
+    {{ block.super }}
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document
+        .querySelectorAll("form.gyrinx-object-action")
+        .forEach(function (form) {
+          form.addEventListener("submit", function (event) {
+            var label = form.querySelector("button").textContent.trim();
+            if (!window.confirm('Run "' + label + '" now?')) {
+              event.preventDefault();
+            }
+          });
+        });
+    });
+    </script>
+{% endblock admin_change_form_document_ready %}
