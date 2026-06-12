@@ -26,6 +26,10 @@
           } else {
             params.delete("{{ spec.parameter_name }}");
           }
+          // Changing the filter changes the result set, so the current page
+          // number may be out of range — reset pagination like Django's own
+          // filter links do.
+          params.delete("p");
           window.location.search = params.toString();
         });
       }
