@@ -635,9 +635,14 @@ def new_list(request):
 
     skip_packs = request.GET.get("skip_packs") == "1"
 
-    # Users who haven't visited the interstitial yet get redirected there
+    # Users who haven't visited the interstitial yet get redirected there.
+    # Preserve any name typed into the home-page quick-create box.
     if request.method == "GET" and not skip_packs and not pack_ids:
-        return HttpResponseRedirect(reverse("core:lists-new-packs"))
+        packs_url = reverse("core:lists-new-packs")
+        name = request.GET.get("name", "").strip()
+        if name:
+            packs_url += "?" + urlencode({"name": name})
+        return HttpResponseRedirect(packs_url)
 
     # Resolve selected packs
     selected_packs = CustomContentPack.objects.none()
@@ -737,12 +742,15 @@ def new_list_packs(request):
             )
         )
         pack_ids = [pid for pid in sanitised_ids if pid in valid_ids]
-        # Redirect with pack IDs as URL params
+        # Redirect with pack IDs as URL params, preserving any quick-create name
+        name = request.POST.get("name", "").strip()
         url = reverse("core:lists-new")
-        if pack_ids:
-            url = f"{url}?{urlencode([('packs', pid) for pid in pack_ids], doseq=True)}"
-        else:
-            url = f"{url}?{urlencode({'skip_packs': '1'})}"
+        params = (
+            [("packs", pid) for pid in pack_ids] if pack_ids else [("skip_packs", "1")]
+        )
+        if name:
+            params.append(("name", name))
+        url = f"{url}?{urlencode(params, doseq=True)}"
         return safe_redirect(request, url, fallback_url=reverse("core:lists-new"))
 
     # Display filtering for GET requests
@@ -766,6 +774,9 @@ def new_list_packs(request):
             )
         else:
             available_packs = available_packs.filter(owner=request.user)
+
+    # Quick-create name carried through from the home-page box
+    new_list_name = request.GET.get("name", "").strip()
 
     # Search
     search_query = request.GET.get("q", "").strip()
@@ -830,6 +841,7 @@ def new_list_packs(request):
             "available_packs": available_packs,
             "search_query": search_query,
             "preselected_pack_ids": preselected_pack_ids,
+            "name": new_list_name,
         },
     )
 

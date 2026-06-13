@@ -2,6 +2,7 @@
 {% comment %}Filter component for packs, used on the customisation page.
     Parameters:
     - action: The URL to submit the form to
+    - name: (optional) a new-list name to preserve across search submissions
 {% endcomment %}
 <form id="search"
       method="get"
@@ -9,6 +10,7 @@
       class="vstack gap-3">
     <input type="hidden" name="flash" value="search">
     <input type="hidden" name="cb" value="{% cachebuster %}">
+    {% if name %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
     {# Search row #}
     <div>
         <div class="hstack gap-2 align-items-end">

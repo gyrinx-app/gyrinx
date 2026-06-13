@@ -267,6 +267,53 @@ class TestNewListPacksInterstitial:
         assert response.status_code == 302
         assert "skip_packs=1" in response.url
 
+    def test_name_carried_to_interstitial_on_redirect(
+        self, client, cc_user, content_house
+    ):
+        """A name typed in the home-page quick-create box survives the redirect
+        to the pack interstitial (regression: name was dropped)."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?name=Shadowskin+Spectres"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "name=Shadowskin" in response.url
+
+    def test_name_rendered_on_interstitial(self, client, cc_user, content_house):
+        """The carried name is embedded in the interstitial forms so it survives
+        search submissions and the final pack selection."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs") + "?name=Shadowskin+Spectres"
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b'name="name" value="Shadowskin Spectres"' in response.content
+
+    def test_name_carried_through_pack_selection(
+        self, client, cc_user, content_house, pack
+    ):
+        """Posting the interstitial with a name carries it back to the new-list
+        form so it pre-fills the name field."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs")
+        response = client.post(
+            url, {"pack_ids": [str(pack.id)], "name": "Shadowskin Spectres"}
+        )
+        assert response.status_code == 302
+        assert "name=Shadowskin" in response.url
+
+        # Following the redirect pre-fills the name on the new-list form
+        response = client.get(response.url)
+        assert response.status_code == 200
+        assert b'value="Shadowskin Spectres"' in response.content
+
+    def test_name_carried_through_skip_packs(self, client, cc_user, content_house):
+        """Skipping packs (no selection) still preserves the name."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs")
+        response = client.post(url, {"name": "Shadowskin Spectres"})
+        assert response.status_code == 302
+        assert "skip_packs=1" in response.url
+        assert "name=Shadowskin" in response.url
+
     def test_packs_interstitial_shows_other_users_preselected_pack(
         self, client, make_user, make_pack
     ):
