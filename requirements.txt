@@ -1,6 +1,6 @@
 asgiref==3.11.1
 bandit==1.9.4
-beautifulsoup4==4.14.3
+beautifulsoup4==4.15.0
 bleach[css]==6.4.0
 click==8.4.1
 daphne==4.2.2
@@ -15,10 +15,10 @@ django-recaptcha==4.1.0
 django-simple-history==3.11.0
 django-storages[google]==1.14.6
 django-tinymce==5.0.0
-djlint==1.39.0
+djlint==1.39.2
 docutils==0.23
 fido2==2.2.0
-filelock==3.29.1
+filelock==3.29.3
 google-cloud-logging==3.16.0
 google-cloud-pubsub==2.39.0
 google-cloud-scheduler==2.20.0
@@ -52,7 +52,7 @@ qrcode==8.2
 referencing==0.37.0
 requests==2.34.2
 rich==15.0.0
-ruff==0.15.16
+ruff==0.15.17
 setuptools==81.0.0
 simpleeval==1.0.7
 sqlparse==0.5.5
