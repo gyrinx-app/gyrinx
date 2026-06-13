@@ -457,5 +457,40 @@ def test_list_with_campaign_mode_but_no_campaign(client):
     # The page should render successfully and contain the list name
     assert b"Campaign List without Campaign" in response.content
 
-    # Should NOT show campaign info since there's no campaign
-    assert b"bi-award" not in response.content  # Campaign icon should not appear
+    # Should NOT show campaign-only UI (the campaign Actions/Assets cards) since
+    # there's no campaign.
+    assert b"list-card-actions" not in response.content
+    assert b"list-card-assets" not in response.content
+
+
+@pytest.mark.django_db
+def test_summary_cards_collapse_state_from_url(client, user, list_with_campaign):
+    """Campaign summary cards collapse by default; they open only for ?<card>_open=1."""
+    client.force_login(user)
+    url = reverse("core:list", args=[list_with_campaign.id])
+
+    # Default: cards present (with URL-sync hooks) but not expanded.
+    html = client.get(url).content.decode()
+    assert 'id="list-card-actions"' in html
+    assert 'data-gy-collapse-url="actions_open"' in html
+    assert "list-card-collapse show" not in html
+
+    # Explicit open via the "1" value.
+    html_open = client.get(url + "?actions_open=1").content.decode()
+    assert "list-card-collapse show" in html_open
+
+    # A non-"1" value must NOT open the card (guards against a truthy-string bug
+    # where ?actions_open=0 would expand it).
+    html_zero = client.get(url + "?actions_open=0").content.decode()
+    assert "list-card-collapse show" not in html_zero
+
+
+@pytest.mark.django_db
+def test_summary_cards_not_collapsible_in_print(client, user, list_with_campaign):
+    """Print output renders the card bodies without a collapse wrapper or toggles."""
+    client.force_login(user)
+    html = client.get(
+        reverse("core:list-print", args=[list_with_campaign.id])
+    ).content.decode()
+    assert "list-card-collapse" not in html
+    assert 'data-bs-toggle="collapse"' not in html
