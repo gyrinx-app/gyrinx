@@ -1,12 +1,12 @@
 {# Collapse toggle for the campaign list summary cards. Shown only in single-column view (below lg). #}
-{# Params: target (collapse id, no leading #), label (str), open (bool) #}
+{# Params: target (collapse id, no leading #), label (str), open (raw GET value — open only when "1") #}
 <button class="btn btn-link link-body-emphasis p-0 ms-2 lh-1 d-lg-none flex-shrink-0"
         type="button"
         data-bs-toggle="collapse"
         data-bs-target="#{{ target }}"
-        aria-expanded="{{ open|yesno:'true,false' }}"
+        aria-expanded="{% if open == '1' %}true{% else %}false{% endif %}"
         aria-controls="{{ target }}"
         aria-label="Toggle {{ label }}">
-    <i class="bi-chevron-{% if open %}up{% else %}down{% endif %} fs-6"
+    <i class="bi-chevron-{% if open == '1' %}up{% else %}down{% endif %} fs-6"
        data-gy-collapse-icon="{{ target }}"></i>
 </button>

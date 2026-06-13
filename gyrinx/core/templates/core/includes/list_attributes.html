@@ -7,7 +7,7 @@
         {% endif %}
     </div>
     <div id="list-card-attributes"
-         class="{% if not print %}collapse list-card-collapse{% if request.GET.attributes_open %} show{% endif %}{% endif %}"
+         class="{% if not print %}collapse list-card-collapse{% if request.GET.attributes_open == '1' %} show{% endif %}{% endif %}"
          data-gy-collapse-url="attributes_open">
         <div class="px-2">
             {% if list.all_attributes %}

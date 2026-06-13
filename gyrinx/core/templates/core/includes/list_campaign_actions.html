@@ -14,7 +14,7 @@
             {% endif %}
         </div>
         <div id="list-card-actions"
-             class="{% if not print %}collapse list-card-collapse{% if request.GET.actions_open %} show{% endif %}{% endif %}"
+             class="{% if not print %}collapse list-card-collapse{% if request.GET.actions_open == '1' %} show{% endif %}{% endif %}"
              data-gy-collapse-url="actions_open">
             <div class="px-2">
                 <p class="text-secondary fs-7 mb-2">

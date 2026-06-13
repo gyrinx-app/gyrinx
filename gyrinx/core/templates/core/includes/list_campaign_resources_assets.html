@@ -8,7 +8,7 @@
             {% endif %}
         </div>
         <div id="list-card-assets"
-             class="{% if not print %}collapse list-card-collapse{% if request.GET.assets_open %} show{% endif %}{% endif %}"
+             class="{% if not print %}collapse list-card-collapse{% if request.GET.assets_open == '1' %} show{% endif %}{% endif %}"
              data-gy-collapse-url="assets_open">
             <div class="px-2">
                 <div class="vstack gap-3">
