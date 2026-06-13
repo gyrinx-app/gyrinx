@@ -34,11 +34,11 @@ def rich_text_description_widget(height="200px"):
     """TinyMCE widget for short rich-text description fields on pack content.
 
     Mirrors the editor used for ``PackForm.summary`` so that custom rules,
-    skills, gear, traits, etc. support formatted text — but with image
-    support removed. These descriptions are short and sit in a dense listing
-    where embedded images render awkwardly, so authors keep text formatting,
-    links, and lists only. Rendered output is sanitised on display via the
-    ``safe_rich_text`` template filter.
+    skills, gear, traits, etc. support rich text formatting — but with image
+    insertion removed (these are short descriptions in a dense listing where
+    embedded images render awkwardly). The rest of the standard toolbar
+    (headings, lists, links, formatting, etc.) is retained. Rendered output is
+    sanitised on display via the ``safe_rich_text`` template filter.
 
     Returns a fresh instance per call so each form owns its own widget.
     """
