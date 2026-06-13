@@ -259,6 +259,7 @@
             {% include "core/includes/list_campaign_actions.html" with list=list %}
             {% include "core/includes/list_campaign_resources_assets.html" with list=list campaign_resources=campaign_resources held_assets=held_assets %}
             {% include "core/includes/list_attributes.html" with list=list %}
+            {% include "core/includes/list_skill_trees.html" with list=list %}
         {% elif print %}
             {% comment %} In print mode, show cards based on print configuration {% endcomment %}
             {% if recent_actions %}

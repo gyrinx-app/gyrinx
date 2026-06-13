@@ -51,6 +51,7 @@ from .models import (
     ContentFighterPsykerDisciplineAssignment,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
+    ContentHouseSkillRankAccess,
     ContentCounter,
     ContentInjury,
     ContentInjuryGroup,
@@ -724,6 +725,12 @@ class ContentFighterInline(ContentTabularInline):
     extra = 0
 
 
+class ContentHouseSkillRankAccessInline(ContentTabularInline):
+    model = ContentHouseSkillRankAccess
+    fields = ["fighter_category", "slot", "role"]
+    extra = 0
+
+
 @admin.register(ContentHouse)
 class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
     # ContentAdmin.__init__ builds list_display from the model's fields, so the
@@ -731,7 +738,15 @@ class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
     # needed here. The icon is editable via the change form for the same reason.
     list_display_links = ["name"]
     search_fields = ["name"]
-    inlines = [ContentFighterInline]
+    filter_horizontal = ["skill_categories", "gang_skill_tree_choices"]
+    inlines = [ContentHouseSkillRankAccessInline, ContentFighterInline]
+
+
+@admin.register(ContentHouseSkillRankAccess)
+class ContentHouseSkillRankAccessAdmin(ContentAdmin, admin.ModelAdmin):
+    list_filter = ["house", "fighter_category", "role"]
+    list_display_links = ["fighter_category"]
+    search_fields = ["house__name"]
 
 
 @admin.register(ContentWeaponTrait)

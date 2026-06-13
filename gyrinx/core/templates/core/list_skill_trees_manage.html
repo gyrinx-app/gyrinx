@@ -1,0 +1,43 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Gang skill trees - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:list' list.id as list_url %}
+    {% url 'core:list-skill-trees-manage' list.id as manage_url %}
+    {% include "core/includes/back.html" with url=list_url text="Back to list" %}
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-6">
+            <h1 class="h3">Gang skill trees</h1>
+            <p class="text-secondary">
+                {{ list.content_house.name }} gangs pick {{ list.content_house.gang_skill_tree_count }}
+                ranked skill trees. Fighters gain these as primary or secondary skills based on
+                their rank.
+            </p>
+            {% if assignments %}
+                <table class="table table-sm fs-7">
+                    <tbody>
+                        {% for assignment in assignments %}
+                            <tr>
+                                <td class="ps-0 text-nowrap">Tree {{ assignment.slot }}</td>
+                                <td>{{ assignment.skill_category.name }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="border rounded p-2 mb-3 text-secondary">
+                    No skill trees picked yet. Fighters won't gain gang skill trees until you
+                    choose them.
+                </div>
+            {% endif %}
+            {% if not list.archived %}
+                <a href="{% url 'core:list-skill-trees-edit' list.id %}?return_url={{ manage_url|urlencode }}"
+                   class="btn btn-primary btn-sm">
+                    <i class="bi-pencil" aria-hidden="true"></i> Edit skill trees
+                </a>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

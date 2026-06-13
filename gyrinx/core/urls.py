@@ -29,6 +29,7 @@ from .views.fighter import stats as fighter_stats
 from .views.fighter import xp as fighter_xp
 from .views.list import attributes as list_attributes
 from .views.list import invitations as list_invitations
+from .views.list import skill_trees as list_skill_trees
 from .views.list import views as list_views
 from .views import pack as pack_views
 
@@ -487,6 +488,16 @@ urlpatterns = [
         "list/<id>/attribute/<attribute_id>/edit",
         list_attributes.edit_list_attribute,
         name="list-attribute-edit",
+    ),
+    path(
+        "list/<id>/skill-trees",
+        list_skill_trees.manage_list_skill_trees,
+        name="list-skill-trees-manage",
+    ),
+    path(
+        "list/<id>/skill-trees/edit",
+        list_skill_trees.edit_list_skill_trees,
+        name="list-skill-trees-edit",
     ),
     path(
         "list/<id>/campaign-clones",

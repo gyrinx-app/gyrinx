@@ -37,6 +37,7 @@ from .metadata import (
 
 # Core domain models
 from .house import ContentFighterHouseOverride, ContentHouse
+from .gang_skills import ContentHouseSkillRankAccess
 from .equipment import (
     ContentEquipment,
     ContentEquipmentCategory,
@@ -157,6 +158,7 @@ __all__ = [
     # Houses
     "ContentFighterHouseOverride",
     "ContentHouse",
+    "ContentHouseSkillRankAccess",
     # Equipment
     "ContentEquipment",
     "ContentEquipmentCategory",
