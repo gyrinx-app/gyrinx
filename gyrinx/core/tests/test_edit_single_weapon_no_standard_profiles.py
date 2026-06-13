@@ -1,23 +1,12 @@
 import pytest
-from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import (
     ContentEquipment,
-    ContentEquipmentCategory,
     ContentFighterEquipmentListItem,
     ContentWeaponProfile,
 )
 from gyrinx.core.models.list import ListFighterEquipmentAssignment
-
-
-@pytest.fixture
-def weapon_category():
-    """Get or create test weapon category."""
-    return ContentEquipmentCategory.objects.get_or_create(
-        name="Basic Weapons",
-        defaults={"group": "Weapons & Ammo"},
-    )[0]
 
 
 @pytest.fixture
@@ -32,17 +21,9 @@ def list_fighter(test_list, make_list_fighter):
     return make_list_fighter(test_list, "Test Fighter")
 
 
-@pytest.fixture
-def client(user):
-    """Create a logged-in test client."""
-    c = Client()
-    c.login(username="testuser", password="password")
-    return c
-
-
 @pytest.mark.django_db
 def test_standard_profiles_not_in_available_list(
-    client, test_list, list_fighter, weapon_category
+    logged_in_client, test_list, list_fighter, weapon_category
 ):
     """Test that standard (free) profiles are not shown in available profiles."""
     # Create a weapon with both standard and paid profiles
@@ -110,7 +91,7 @@ def test_standard_profiles_not_in_available_list(
         "core:list-fighter-weapon-edit",
         args=[test_list.id, list_fighter.id, assignment.id],
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     assert response.status_code == 200
 

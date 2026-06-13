@@ -1,5 +1,4 @@
 import pytest
-from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import (
@@ -91,21 +90,12 @@ def list_psyker(psyker_list, make_list_fighter, psyker_fighter):
     return make_list_fighter(psyker_list, "Test Psyker", content_fighter=psyker_fighter)
 
 
-@pytest.fixture
-def client(user):
-    """Create a logged-in test client."""
-    c = Client()
-    c.login(username="testuser", password="password")
-    return c
-
-
 # Basic View Tests
 
 
 @pytest.mark.django_db
-def test_psyker_powers_view_requires_login(psyker_list, list_psyker):
+def test_psyker_powers_view_requires_login(client, psyker_list, list_psyker):
     """Test that the view requires authentication."""
-    client = Client()
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
@@ -115,7 +105,9 @@ def test_psyker_powers_view_requires_login(psyker_list, list_psyker):
 
 
 @pytest.mark.django_db
-def test_psyker_powers_view_requires_owner(client, psyker_list, list_psyker, user):
+def test_psyker_powers_view_requires_owner(
+    logged_in_client, psyker_list, list_psyker, user
+):
     """Test that only the list owner can access the view."""
     # Create another user
     from django.contrib.auth import get_user_model
@@ -130,13 +122,13 @@ def test_psyker_powers_view_requires_owner(client, psyker_list, list_psyker, use
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
     assert response.status_code == 404
 
 
 @pytest.mark.django_db
 def test_psyker_powers_view_get(
-    client,
+    logged_in_client,
     psyker_list,
     list_psyker,
     biomancy_power,
@@ -147,7 +139,7 @@ def test_psyker_powers_view_get(
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     assert response.status_code == 200
     assert "list" in response.context
@@ -171,7 +163,7 @@ def test_psyker_powers_view_get(
 
 @pytest.mark.django_db
 def test_default_power_display(
-    client, psyker_list, list_psyker, biomancy_power, psyker_fighter
+    logged_in_client, psyker_list, list_psyker, biomancy_power, psyker_fighter
 ):
     """Test that default powers are displayed correctly."""
     # Add default power assignment
@@ -183,7 +175,7 @@ def test_default_power_display(
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     assert response.status_code == 200
 
@@ -201,7 +193,7 @@ def test_default_power_display(
 
 @pytest.mark.django_db
 def test_disable_default_power(
-    client, psyker_list, list_psyker, biomancy_power, psyker_fighter
+    logged_in_client, psyker_list, list_psyker, biomancy_power, psyker_fighter
 ):
     """Test disabling a default power."""
     # Add default power assignment
@@ -215,7 +207,7 @@ def test_disable_default_power(
     )
 
     # Disable the default power
-    response = client.post(
+    response = logged_in_client.post(
         url,
         {
             "action": "remove",
@@ -231,7 +223,7 @@ def test_disable_default_power(
     assert default_assignment in list_psyker.disabled_pskyer_default_powers.all()
 
     # Verify it still shows as current power but disabled
-    response = client.get(url)
+    response = logged_in_client.get(url)
     current_powers = response.context["current_powers"]
     assert len(current_powers) == 1
     assert current_powers[0].is_disabled is True
@@ -245,7 +237,7 @@ def test_disable_default_power(
 
 @pytest.mark.django_db
 def test_enable_disabled_default_power(
-    client, psyker_list, list_psyker, biomancy_power, psyker_fighter
+    logged_in_client, psyker_list, list_psyker, biomancy_power, psyker_fighter
 ):
     """Test re-enabling a disabled default power."""
     # Add default power assignment
@@ -262,13 +254,13 @@ def test_enable_disabled_default_power(
     )
 
     # Verify it shows as disabled
-    response = client.get(url)
+    response = logged_in_client.get(url)
     current_powers = response.context["current_powers"]
     assert len(current_powers) == 1
     assert current_powers[0].is_disabled is True
 
     # Enable the power
-    response = client.post(
+    response = logged_in_client.post(
         url,
         {
             "action": "enable",
@@ -284,7 +276,7 @@ def test_enable_disabled_default_power(
     assert default_assignment not in list_psyker.disabled_pskyer_default_powers.all()
 
     # Verify it shows as current power without disabled flag
-    response = client.get(url)
+    response = logged_in_client.get(url)
     current_powers = response.context["current_powers"]
     assert len(current_powers) == 1
     assert (
@@ -304,14 +296,14 @@ def test_enable_disabled_default_power(
 
 
 @pytest.mark.django_db
-def test_add_power(client, psyker_list, list_psyker, biomancy_power):
+def test_add_power(logged_in_client, psyker_list, list_psyker, biomancy_power):
     """Test adding a power to a fighter."""
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
 
     # Add the power
-    response = client.post(
+    response = logged_in_client.post(
         url,
         {
             "action": "add",
@@ -328,7 +320,7 @@ def test_add_power(client, psyker_list, list_psyker, biomancy_power):
     ).exists()
 
     # Verify it shows as current power
-    response = client.get(url)
+    response = logged_in_client.get(url)
     current_powers = response.context["current_powers"]
     assert len(current_powers) == 1
     assert current_powers[0].psyker_power == biomancy_power
@@ -336,7 +328,9 @@ def test_add_power(client, psyker_list, list_psyker, biomancy_power):
 
 
 @pytest.mark.django_db
-def test_remove_assigned_power(client, psyker_list, list_psyker, biomancy_power):
+def test_remove_assigned_power(
+    logged_in_client, psyker_list, list_psyker, biomancy_power
+):
     """Test removing an assigned power."""
     # First add the power
     ListFighterPsykerPowerAssignment.objects.create(
@@ -349,7 +343,7 @@ def test_remove_assigned_power(client, psyker_list, list_psyker, biomancy_power)
     )
 
     # Remove the power
-    response = client.post(
+    response = logged_in_client.post(
         url,
         {
             "action": "remove",
@@ -372,7 +366,7 @@ def test_remove_assigned_power(client, psyker_list, list_psyker, biomancy_power)
 
 @pytest.mark.django_db
 def test_search_powers(
-    client,
+    logged_in_client,
     psyker_list,
     list_psyker,
     biomancy_power,
@@ -384,7 +378,7 @@ def test_search_powers(
     )
 
     # Search for "mind"
-    response = client.get(url, {"q": "mind"})
+    response = logged_in_client.get(url, {"q": "mind"})
 
     assert response.status_code == 200
 
@@ -400,7 +394,7 @@ def test_search_powers(
 
 @pytest.mark.django_db
 def test_search_by_discipline(
-    client,
+    logged_in_client,
     psyker_list,
     list_psyker,
     biomancy_power,
@@ -412,7 +406,7 @@ def test_search_by_discipline(
     )
 
     # Search for "bio"
-    response = client.get(url, {"q": "bio"})
+    response = logged_in_client.get(url, {"q": "bio"})
 
     assert response.status_code == 200
 
@@ -424,7 +418,7 @@ def test_search_by_discipline(
 
 @pytest.mark.django_db
 def test_search_does_not_filter_current_powers(
-    client, psyker_list, list_psyker, biomancy_power, telepathy_power
+    logged_in_client, psyker_list, list_psyker, biomancy_power, telepathy_power
 ):
     """Test that search doesn't filter current powers section."""
     # Add both powers
@@ -442,7 +436,7 @@ def test_search_does_not_filter_current_powers(
     )
 
     # Search for "mind" (should only match telepathy power)
-    response = client.get(url, {"q": "mind"})
+    response = logged_in_client.get(url, {"q": "mind"})
 
     assert response.status_code == 200
 
@@ -457,7 +451,7 @@ def test_search_does_not_filter_current_powers(
 
 @pytest.mark.django_db
 def test_show_restricted_powers(
-    client,
+    logged_in_client,
     psyker_list,
     list_psyker,
     biomancy_power,
@@ -470,12 +464,12 @@ def test_show_restricted_powers(
     )
 
     # Without restricted flag, non-generic discipline shouldn't show
-    response = client.get(url)
+    response = logged_in_client.get(url)
     content = response.content.decode()
     assert "Chronomancy" not in content
 
     # With restricted flag, it should show
-    response = client.get(url, {"restricted": "1"})
+    response = logged_in_client.get(url, {"restricted": "1"})
     content = response.content.decode()
     assert "Chronomancy" in content
     assert "Freeze Time" in content
@@ -485,7 +479,9 @@ def test_show_restricted_powers(
 
 
 @pytest.mark.django_db
-def test_empty_disciplines_not_shown(client, psyker_list, list_psyker, biomancy_power):
+def test_empty_disciplines_not_shown(
+    logged_in_client, psyker_list, list_psyker, biomancy_power
+):
     """Test that disciplines with all powers assigned are not shown."""
     # Assign the only biomancy power
     ListFighterPsykerPowerAssignment.objects.create(
@@ -496,7 +492,7 @@ def test_empty_disciplines_not_shown(client, psyker_list, list_psyker, biomancy_
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     # Biomancy should not appear in available disciplines
     available_disciplines = response.context["available_disciplines"]
@@ -506,7 +502,7 @@ def test_empty_disciplines_not_shown(client, psyker_list, list_psyker, biomancy_
 
 @pytest.mark.django_db
 def test_discipline_with_fighter_assignment(
-    client,
+    logged_in_client,
     psyker_list,
     list_psyker,
     psyker_fighter,
@@ -523,7 +519,7 @@ def test_discipline_with_fighter_assignment(
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     # Chronomancy should now be available
     content = response.content.decode()
@@ -532,7 +528,7 @@ def test_discipline_with_fighter_assignment(
 
 
 @pytest.mark.django_db
-def test_no_psyker_powers_message(client, psyker_list, list_psyker):
+def test_no_psyker_powers_message(logged_in_client, psyker_list, list_psyker):
     """Test message when no powers are available."""
     # Create a list without any psyker powers in the database
     ContentPsykerPower.objects.all().delete()
@@ -540,7 +536,7 @@ def test_no_psyker_powers_message(client, psyker_list, list_psyker):
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     assert response.status_code == 200
     content = response.content.decode()
@@ -549,14 +545,14 @@ def test_no_psyker_powers_message(client, psyker_list, list_psyker):
 
 
 @pytest.mark.django_db
-def test_invalid_power_id(client, psyker_list, list_psyker):
+def test_invalid_power_id(logged_in_client, psyker_list, list_psyker):
     """Test handling of invalid power ID."""
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
 
     # Try to add non-existent power
-    response = client.post(
+    response = logged_in_client.post(
         url,
         {
             "action": "add",
@@ -569,13 +565,13 @@ def test_invalid_power_id(client, psyker_list, list_psyker):
 
 
 @pytest.mark.django_db
-def test_missing_action(client, psyker_list, list_psyker, biomancy_power):
+def test_missing_action(logged_in_client, psyker_list, list_psyker, biomancy_power):
     """Test POST without action parameter."""
     url = reverse(
         "core:list-fighter-powers-edit", args=[psyker_list.id, list_psyker.id]
     )
 
-    response = client.post(
+    response = logged_in_client.post(
         url,
         {
             "psyker_power_id": biomancy_power.id,

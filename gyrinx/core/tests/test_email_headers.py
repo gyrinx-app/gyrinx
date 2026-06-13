@@ -1,22 +1,16 @@
 import json
 
 import pytest
-from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import RequestFactory
 
 from gyrinx.core.adapter import CustomAccountAdapter
 
-User = get_user_model()
-
 
 @pytest.mark.django_db
-def test_adapter_adds_email_headers(settings):
+def test_adapter_adds_email_headers(settings, user):
     """Test that the adapter adds EMAIL_EXTRA_HEADERS to emails."""
     adapter = CustomAccountAdapter()
-
-    # Create a test user
-    user = User.objects.create_user(username="testuser", email="test@example.com")
 
     # Set up test headers
     test_headers = {
@@ -59,12 +53,9 @@ def test_adapter_adds_email_headers(settings):
 
 
 @pytest.mark.django_db
-def test_adapter_handles_no_extra_headers_setting(settings):
+def test_adapter_handles_no_extra_headers_setting(settings, user):
     """Test that the adapter works when EMAIL_EXTRA_HEADERS is not set."""
     adapter = CustomAccountAdapter()
-
-    # Create a test user
-    user = User.objects.create_user(username="testuser", email="test@example.com")
 
     # Remove the setting if it exists
     if hasattr(settings, "EMAIL_EXTRA_HEADERS"):
