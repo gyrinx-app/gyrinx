@@ -5,11 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:list' list.id as list_url %}
-    {% if return_url %}
-        {% include "core/includes/back.html" with url=return_url text="Back" %}
-    {% else %}
-        {% include "core/includes/back.html" with url=list_url text="Back to list" %}
-    {% endif %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     <div class="row g-3 mb-3">
         <div class="col-12 col-xl-6">
             <h1 class="h3">Gang skill trees</h1>

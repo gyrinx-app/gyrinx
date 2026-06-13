@@ -4,9 +4,9 @@
     {{ form.instance.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" %}
+    {% include "core/includes/list_common_header.html" with list=form.instance link_list="true" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">Edit {{ form.instance.name }}</h1>
+        <h1 class="h3">Edit gang</h1>
         <form action="{% url 'core:list-edit' form.instance.id %}"
               method="post"
               class="vstack gap-3">
