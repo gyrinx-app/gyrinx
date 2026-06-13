@@ -692,6 +692,13 @@ def new_list(request):
                 public=result.lst.public,
             )
 
+            # Gang-wide-skills houses pick their ranked skill trees as the next
+            # step. Selection is optional (deferrable), so we don't force it.
+            if result.lst.content_house.gang_wide_skills:
+                return HttpResponseRedirect(
+                    reverse("core:list-skill-trees-edit", args=(result.lst.id,))
+                )
+
             return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
     else:
         form = NewListForm(

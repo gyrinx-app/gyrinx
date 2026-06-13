@@ -18,6 +18,10 @@ from gyrinx.core.views.list.invitations import (
     decline_invitation,
     list_invitations,
 )
+from gyrinx.core.views.list.skill_trees import (
+    edit_list_skill_trees,
+    manage_list_skill_trees,
+)
 from gyrinx.core.views.list.views import (
     ListAboutDetailView,
     ListCampaignClonesView,
@@ -40,6 +44,9 @@ __all__ = [
     # attributes.py
     "manage_list_attributes",
     "edit_list_attribute",
+    # skill_trees.py
+    "manage_list_skill_trees",
+    "edit_list_skill_trees",
     # invitations.py
     "list_invitations",
     "accept_invitation",

@@ -10,6 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.db.models import (
     Case,
@@ -52,6 +53,7 @@ from gyrinx.content.models import (
     ContentModStatApplyMixin,
     ContentPsykerPower,
     ContentSkill,
+    ContentSkillCategory,
     ContentStat,
     ContentStatline,
     ContentStatlineTypeStat,
@@ -1010,6 +1012,38 @@ class List(AppBase):
         )
 
     @cached_property
+    @traced("list_active_skill_trees_cached")
+    def active_skill_trees_cached(self):
+        return list(
+            self.listskilltreeassignment_set.filter(archived=False).select_related(
+                "skill_category"
+            )
+        )
+
+    @cached_property
+    @traced("list_gang_skill_slot_map")
+    def gang_skill_slot_map(self):
+        """Map of slot number -> chosen ContentSkillCategory for this gang."""
+        return {a.slot: a.skill_category for a in self.active_skill_trees_cached}
+
+    @cached_property
+    @traced("list_gang_skill_rank_rules")
+    def gang_skill_rank_rules(self):
+        """
+        House skill-rank rules grouped by (fighter_category, role) -> set of slots.
+
+        Empty for non-gang-wide-skills houses. Cached once per list so the
+        per-fighter skill-category resolution issues no extra queries.
+        """
+        if not self.content_house_cached.gang_wide_skills:
+            return {}
+
+        rules = defaultdict(set)
+        for rule in self.content_house_cached.skill_rank_rules.all():
+            rules[(rule.fighter_category, rule.role)].add(rule.slot)
+        return rules
+
+    @cached_property
     @traced("list_all_attributes")
     def all_attributes(self):
         # Build a map of attribute_id to value names
@@ -1486,6 +1520,16 @@ class List(AppBase):
             ListAttributeAssignment.objects.create(
                 list=clone,
                 attribute_value=attribute_assignment.attribute_value,
+            )
+
+        # Clone gang-wide skill-tree picks
+        for skill_tree_assignment in self.listskilltreeassignment_set.filter(
+            archived=False
+        ):
+            ListSkillTreeAssignment.objects.create(
+                list=clone,
+                slot=skill_tree_assignment.slot,
+                skill_category=skill_tree_assignment.skill_category,
             )
 
         with span("list_clone_fighters"):
@@ -2680,6 +2724,36 @@ class ListFighter(AppBase):
                 )
         return current_value
 
+    def _base_skill_categories(self, role):
+        """
+        Base (pre-equipment-mod) primary/secondary skill categories for this fighter.
+
+        For a gang-wide-skills house, the categories come from the gang's ranked
+        skill-tree picks combined with the house's rank rules for this fighter's
+        rank (``get_category()``); the fighter template's own primary/secondary
+        skill trees are ignored. For all other houses, the categories come from
+        the fighter template's M2M fields (pack-aware).
+
+        ``role`` is "primary" or "secondary".
+        """
+        if self.list.content_house_cached.gang_wide_skills:
+            slot_map = self.list.gang_skill_slot_map
+            slots = self.list.gang_skill_rank_rules.get(
+                (self.get_category(), role), set()
+            )
+            return {slot_map[slot] for slot in slots if slot in slot_map}
+
+        # Default: base categories from the content fighter template.
+        # Use with_packs() to include pack skill categories — the default
+        # manager on ContentSkillCategory excludes pack content.
+        filter_kwarg = "primary_fighters" if role == "primary" else "secondary_fighters"
+        packs = self.list.packs.all()
+        return set(
+            ContentSkillCategory.objects.with_packs(
+                packs, include_archived_items=True
+            ).filter(**{filter_kwarg: self.content_fighter})
+        )
+
     @traced("listfighter_get_primary_skill_categories")
     def get_primary_skill_categories(self):
         """
@@ -2687,17 +2761,7 @@ class ListFighter(AppBase):
         """
         from gyrinx.content.models import ContentModSkillTreeAccess
 
-        # Start with base primary skill categories from content fighter.
-        # Use with_packs() to include pack skill categories — the default
-        # manager on ContentSkillCategory excludes pack content.
-        from gyrinx.content.models.skill import ContentSkillCategory
-
-        packs = self.list.packs.all()
-        categories = set(
-            ContentSkillCategory.objects.with_packs(
-                packs, include_archived_items=True
-            ).filter(primary_fighters=self.content_fighter)
-        )
+        categories = self._base_skill_categories("primary")
 
         # Apply equipment modifications
         for mod in self._mods:
@@ -2718,16 +2782,7 @@ class ListFighter(AppBase):
         """
         from gyrinx.content.models import ContentModSkillTreeAccess
 
-        # Start with base secondary skill categories from content fighter.
-        # Use with_packs() to include pack skill categories.
-        from gyrinx.content.models.skill import ContentSkillCategory
-
-        packs = self.list.packs.all()
-        categories = set(
-            ContentSkillCategory.objects.with_packs(
-                packs, include_archived_items=True
-            ).filter(secondary_fighters=self.content_fighter)
-        )
+        categories = self._base_skill_categories("secondary")
 
         # Apply equipment modifications
         for mod in self._mods:
@@ -6192,6 +6247,59 @@ class ListAttributeAssignment(Base, Archived):
                     raise ValidationError(
                         f"The attribute '{attribute.name}' is single-select and already has a value assigned to this list."
                     )
+
+
+class ListSkillTreeAssignment(Base, Archived):
+    """
+    A gang-wide skill-tree pick: links a List to a ContentSkillCategory at a
+    given ranked slot.
+
+    Only meaningful for lists whose house has ``gang_wide_skills`` enabled. The
+    ranked picks here are combined with the house's ``skill_rank_rules`` to
+    derive each fighter's primary/secondary skill trees by rank.
+    """
+
+    help_text = "A ranked gang skill-tree choice for a list (gang-wide skills)."
+
+    list = models.ForeignKey(
+        List,
+        on_delete=models.CASCADE,
+        help_text="The list this skill-tree pick belongs to.",
+    )
+    slot = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1)],
+        help_text="1-based rank of this skill tree within the gang's selection.",
+    )
+    skill_category = models.ForeignKey(
+        ContentSkillCategory,
+        on_delete=models.CASCADE,
+        help_text="The skill tree chosen for this slot.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "List Skill Tree Assignment"
+        verbose_name_plural = "List Skill Tree Assignments"
+        ordering = ["list", "slot"]
+        constraints = [
+            # Only one active pick per slot, and a given tree can't be picked
+            # twice while active. Enforced in the form too, but guard the DB
+            # against races / direct edits.
+            models.UniqueConstraint(
+                fields=["list", "slot"],
+                condition=Q(archived=False),
+                name="uniq_active_list_skill_tree_slot",
+            ),
+            models.UniqueConstraint(
+                fields=["list", "skill_category"],
+                condition=Q(archived=False),
+                name="uniq_active_list_skill_tree_category",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.list.name} — slot {self.slot}: {self.skill_category.name}"
 
 
 class CapturedFighter(AppBase):
