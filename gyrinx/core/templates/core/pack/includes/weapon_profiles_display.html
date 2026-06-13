@@ -57,7 +57,7 @@ Cases (from weapon-profiles-display-spec.md):
                         {% if can_edit %}
                             <span class="fs-7"><a href="{% url 'core:pack-customise-weapon-profile-edit' pack.id weapon.id profile.id %}"
    class="linked-secondary">Edit</a> · <a href="{% url 'core:pack-customise-weapon-profile-delete' pack.id weapon.id profile.id %}"
-    class="linked-secondary text-danger">Archive</a></span>
+    class="linked-danger">Archive</a></span>
                         {% endif %}
                     {% elif can_edit and not is_customised %}
                         <span class="text-secondary fs-7">· <a href="{% url 'core:pack-edit-weapon-profile' pack.id pack_item.id profile.id %}"
@@ -100,7 +100,7 @@ Cases (from weapon-profiles-display-spec.md):
                        class="linked-secondary">Edit</a>
                     ·
                     <a href="{% url 'core:pack-delete-item' pack.id pack_item.id %}"
-                       class="linked-secondary text-danger">Archive</a>
+                       class="linked-danger">Archive</a>
                 {% endif %}
             </div>
         </td>

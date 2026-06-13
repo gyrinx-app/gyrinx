@@ -4534,3 +4534,134 @@ def test_add_gear_duplicate_name_integrity_error(
     assert response.status_code == 200
     content = response.content.decode()
     assert "already exists" in content
+
+
+# --- Rich-text (TinyMCE) description fields (issue #1851) ---
+
+
+def test_pack_content_forms_use_tinymce_for_description():
+    """Pack content forms expose a rich-text editor for ``description``.
+
+    The custom rules editor (and its siblings) should use the TinyMCE
+    widget so authors can format text (bold, lists, links). Image insertion
+    is deliberately disabled for these short descriptions — see
+    ``test_rich_text_description_widget_has_no_image_support``.
+    ``PackAttachmentForm`` is intentionally excluded — its description is a
+    plain caption.
+    """
+    from gyrinx.core.forms.pack import (
+        ContentAttributeValuePackForm,
+        ContentGearPackForm,
+        ContentHouseForm,
+        ContentPsykerDisciplinePackForm,
+        ContentPsykerPowerPackForm,
+        ContentRuleForm,
+        ContentSkillPackForm,
+        ContentWeaponAccessoryPackForm,
+        ContentWeaponTraitPackForm,
+        PackAttachmentForm,
+    )
+    from gyrinx.core.widgets import TinyMCEWithUpload
+
+    rich_text_forms = [
+        ContentRuleForm,
+        ContentWeaponTraitPackForm,
+        ContentWeaponAccessoryPackForm,
+        ContentSkillPackForm,
+        ContentAttributeValuePackForm,
+        ContentGearPackForm,
+        ContentHouseForm,
+        ContentPsykerDisciplinePackForm,
+        ContentPsykerPowerPackForm,
+    ]
+    for form_cls in rich_text_forms:
+        widget = form_cls.base_fields["description"].widget
+        assert isinstance(widget, TinyMCEWithUpload), (
+            f"{form_cls.__name__}.description should use TinyMCEWithUpload, "
+            f"got {type(widget).__name__}"
+        )
+
+    # The attachment caption stays a plain textarea.
+    from django.forms import Textarea
+
+    assert isinstance(PackAttachmentForm.base_fields["description"].widget, Textarea)
+
+
+@pytest.mark.django_db
+def test_pack_rule_description_renders_rich_text(client, group_user, pack):
+    """A rule description containing HTML renders as sanitised rich text.
+
+    Safe markup is preserved (not HTML-escaped) and dangerous markup is
+    stripped, mirroring the pack summary/description rendering.
+    """
+    rule = ContentRule.objects.create(
+        name="Rich Rule",
+        description="<strong>Bold</strong> rule<script>alert(1)</script>",
+    )
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentRule),
+        object_id=rule.pk,
+        owner=group_user,
+    )
+
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}")
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # Safe HTML is rendered as markup, not escaped text.
+    assert "<strong>Bold</strong> rule" in content
+    assert "&lt;strong&gt;" not in content
+    # Dangerous markup is stripped by safe_rich_text.
+    assert "<script>alert(1)</script>" not in content
+
+
+@pytest.mark.django_db
+def test_pack_rule_add_page_loads_tinymce_editor(client, group_user, pack):
+    """The add-rule page must emit the TinyMCE media so the editor initialises.
+
+    Regression guard: the widget alone is not enough — the template has to
+    render ``{{ form.media }}`` or the field silently falls back to a plain
+    textarea.
+    """
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/add/rule/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "tinymce" in content.lower()
+    assert "id_description" in content
+
+
+@pytest.mark.django_db
+def test_pack_rule_edit_page_loads_tinymce_editor(client, group_user, pack):
+    """The edit-rule page must also emit the TinyMCE media."""
+    rule = ContentRule.objects.create(name="Editable Rule", description="<p>Hi</p>")
+    item = CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentRule),
+        object_id=rule.pk,
+        owner=group_user,
+    )
+    client.force_login(group_user)
+    response = client.get(f"/pack/{pack.id}/item/{item.id}/edit/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "tinymce" in content.lower()
+    assert "id_description" in content
+
+
+def test_rich_text_description_widget_has_no_image_support():
+    """The content-description editor must not offer image insertion.
+
+    These descriptions sit in a dense listing where embedded images render
+    awkwardly, so the image plugin, toolbar button, insert-menu item, and
+    empty-line quick-insert bar are all removed.
+    """
+    from gyrinx.core.forms.pack import rich_text_description_widget
+
+    mce = rich_text_description_widget().mce_attrs
+    assert "image" not in mce["plugins"]
+    assert "image" not in mce["toolbar"]
+    assert "image" not in mce["menu"]["insert"]["items"]
+    assert mce["quickbars_insert_toolbar"] is False

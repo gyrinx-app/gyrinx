@@ -4,6 +4,7 @@
     Edit {{ label }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
+    {{ form.media }}
     {% include "core/includes/back.html" with url=back_url text=pack.name %}
     {% if is_fighter %}
         <div class="vstack gap-3">
@@ -67,7 +68,7 @@
     class="linked-secondary">Edit</a>
                                                             {% if can_archive_profiles %}
                                                                 · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
-    class="linked-secondary text-danger">Archive</a>
+    class="linked-danger">Archive</a>
                                                             {% endif %}
                                                         </span>
                                                     </td>
@@ -145,7 +146,7 @@
     class="linked-secondary">Edit</a>
                                                     {% if can_archive_profiles %}
                                                         · <a href="{% url 'core:pack-delete-weapon-profile' pack.id pack_item.id profile.id %}"
-    class="linked-secondary text-danger">Archive</a>
+    class="linked-danger">Archive</a>
                                                     {% endif %}
                                                 </span>
                                             </td>

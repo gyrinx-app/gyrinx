@@ -257,6 +257,21 @@ a[data-bs-toggle="tooltip"] {
     }
 }
 
+// Danger-coloured `.linked`. Replaces the old
+// `link-danger link-underline-opacity-50 link-underline-opacity-100-hover`.
+// Colour is set directly (not `@extend .link-danger`) for the same reason as
+// `.linked-secondary`: `.link-danger`'s `text-decoration-color: … !important`
+// would override the hover-only underline.
+.linked-danger {
+    @extend .linked;
+    color: var(--bs-danger);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-danger);
+    }
+}
+
 // Bootstrap's `.btn-link` is underlined at rest; give link-style buttons the
 // same underline-only-on-hover/focus treatment as `.linked`.
 .btn-link {
@@ -393,6 +408,16 @@ label {
 
 img {
     max-width: 100%;
+    height: auto;
+}
+
+// Rich-text descriptions on pack content (rules, gear, skills, etc.) sit in a
+// dense listing. Image insertion is disabled in the editor, but any legacy
+// embedded images are kept to a small thumbnail so they don't dominate the row.
+.pack-rich-desc img {
+    max-width: 8em;
+    max-height: 8em;
+    width: auto;
     height: auto;
 }
 
