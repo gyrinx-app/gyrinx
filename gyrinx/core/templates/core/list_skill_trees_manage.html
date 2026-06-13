@@ -4,9 +4,9 @@
     Gang skill trees - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:list' list.id as list_url %}
+    {% url 'core:list-edit' list.id as edit_url %}
     {% url 'core:list-skill-trees-manage' list.id as manage_url %}
-    {% include "core/includes/back.html" with url=list_url text="Back to list" %}
+    {% include "core/includes/back.html" with url=edit_url text="Back to edit" %}
     <div class="row g-3 mb-3">
         <div class="col-12 col-xl-6">
             <h1 class="h3">Gang skill trees</h1>

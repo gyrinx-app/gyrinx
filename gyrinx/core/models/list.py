@@ -202,13 +202,6 @@ class ListQuerySet(models.QuerySet):
                     to_attr="active_attribute_assignments",
                 ),
                 Prefetch(
-                    "listskilltreeassignment_set",
-                    queryset=ListSkillTreeAssignment.objects.filter(
-                        archived=False
-                    ).select_related("skill_category"),
-                    to_attr="active_skill_tree_assignments",
-                ),
-                Prefetch(
                     "campaign_clones",
                     queryset=List.objects.filter(
                         status=List.CAMPAIGN_MODE, campaign__status=Campaign.IN_PROGRESS

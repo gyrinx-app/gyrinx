@@ -5,7 +5,6 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:list' list.id as list_url %}
-    {% url 'core:list-skill-trees-edit' list.id as edit_url %}
     {% if return_url %}
         {% include "core/includes/back.html" with url=return_url text="Back" %}
     {% else %}
@@ -19,6 +18,23 @@
                 gang. Fighters gain these as primary or secondary skills based on their rank.
                 You can leave trees unset and finish later.
             </p>
+            <form method="get" class="mb-3">
+                {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
+                <div class="form-check form-switch">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="include_restricted"
+                           name="include_restricted"
+                           value="1"
+                           {% if include_restricted %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    <label class="form-check-label" for="include_restricted">Show restricted skill trees</label>
+                </div>
+                <noscript>
+                    <button type="submit" class="btn btn-secondary btn-sm mt-1">Apply</button>
+                </noscript>
+            </form>
             <form method="post">
                 {% csrf_token %}
                 {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
@@ -48,15 +64,6 @@
                     {% endif %}
                 </div>
             </form>
-            <div class="mt-3 fs-7">
-                {% if include_restricted %}
-                    <a href="{{ edit_url }}{% if return_url %}?return_url={{ return_url|urlencode }}{% endif %}"
-                       class="link-secondary">Hide restricted skill trees</a>
-                {% else %}
-                    <a href="{{ edit_url }}?include_restricted=1{% if return_url %}&return_url={{ return_url|urlencode }}{% endif %}"
-                       class="link-secondary">Show restricted skill trees</a>
-                {% endif %}
-            </div>
         </div>
     </div>
 {% endblock content %}

@@ -27,5 +27,15 @@
                 <i class="bi-box-seam"></i> Manage Content Packs
             </a>
         </div>
+        {% if form.instance.content_house.gang_wide_skills %}
+            <div class="border-top pt-3 mt-2">
+                <h2 class="h5">Skill trees</h2>
+                <p class="text-secondary fs-7">Pick and rank the skill trees your gang's fighters draw their primary and secondary skills from, by rank.</p>
+                <a href="{% url 'core:list-skill-trees-manage' form.instance.id %}"
+                   class="btn btn-secondary btn-sm">
+                    <i class="bi-diagram-3"></i> Manage skill trees
+                </a>
+            </div>
+        {% endif %}
     </div>
 {% endblock content %}

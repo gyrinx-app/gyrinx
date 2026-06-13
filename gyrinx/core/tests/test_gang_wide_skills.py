@@ -275,6 +275,30 @@ def test_creation_redirects_to_skill_trees_for_gang_wide_house(
 
 
 @pytest.mark.django_db
+def test_edit_page_shows_skill_trees_link_only_for_gang_wide_house(
+    client, user, gang_list, make_list, content_house
+):
+    client.force_login(user)
+
+    # Gang-wide house: the list edit page links to the skill-tree manager.
+    resp = client.get(reverse("core:list-edit", args=[gang_list.id]))
+    assert resp.status_code == 200
+    assert (
+        reverse("core:list-skill-trees-manage", args=[gang_list.id])
+        in resp.content.decode()
+    )
+
+    # Normal house: no skill-tree section.
+    normal = make_list("Normal gang", content_house=content_house)
+    resp = client.get(reverse("core:list-edit", args=[normal.id]))
+    assert resp.status_code == 200
+    assert (
+        reverse("core:list-skill-trees-manage", args=[normal.id])
+        not in resp.content.decode()
+    )
+
+
+@pytest.mark.django_db
 def test_restricted_trees_hidden_by_default_revealed_by_filter(client, user, gang_list):
     restricted = ContentSkillCategory.objects.create(
         name="Secret Tree", restricted=True
