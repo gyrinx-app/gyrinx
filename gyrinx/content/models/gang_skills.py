@@ -11,6 +11,7 @@ gang of such a house picks a ranked set of skill trees (stored on the list as
 skill trees from these rules based on its rank.
 """
 
+from django.core.validators import MinValueValidator
 from django.db import models
 from simple_history.models import HistoricalRecords
 
@@ -52,6 +53,7 @@ class ContentHouseSkillRankAccess(Content):
         help_text="The fighter rank this rule applies to.",
     )
     slot = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1)],
         help_text="1-based rank of the gang skill tree this rule refers to.",
     )
     role = models.CharField(

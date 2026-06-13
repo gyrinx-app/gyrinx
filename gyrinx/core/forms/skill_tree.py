@@ -46,15 +46,30 @@ class ListSkillTreeForm(forms.Form):
             )
 
     def _pool_queryset(self, house):
-        """The set of skill trees a gang may pick from."""
-        packs = self.list_obj.packs.all()
-        explicit = house.gang_skill_tree_choices.all()
-        if explicit.exists():
-            return explicit.order_by("name")
+        """The set of skill trees a gang may pick from.
 
+        Always pack-aware (so pack-authored trees are pickable), and the
+        ``include_restricted`` toggle is applied uniformly — including when the
+        house defines an explicit ``gang_skill_tree_choices`` pool, which only
+        narrows the pack-aware queryset rather than replacing it.
+        """
+        packs = self.list_obj.packs.all()
         qs = ContentSkillCategory.objects.with_packs(packs, include_archived_items=True)
+
+        # Read the explicit pool membership straight from the M2M through table:
+        # the related manager uses the pack-excluding ContentManager, which would
+        # silently drop pack-authored categories that the house added to its pool.
+        explicit_ids = list(
+            house.gang_skill_tree_choices.through.objects.filter(
+                contenthouse=house
+            ).values_list("contentskillcategory_id", flat=True)
+        )
+        if explicit_ids:
+            qs = qs.filter(id__in=explicit_ids)
+
         if not self.include_restricted:
             qs = qs.filter(restricted=False)
+
         return qs.order_by("name")
 
     @property

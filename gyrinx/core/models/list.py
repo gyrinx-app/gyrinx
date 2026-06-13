@@ -10,6 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.db.models import (
     Case,
@@ -1013,10 +1014,6 @@ class List(AppBase):
     @cached_property
     @traced("list_active_skill_trees_cached")
     def active_skill_trees_cached(self):
-        if hasattr(self, "active_skill_tree_assignments"):
-            return self.active_skill_tree_assignments
-
-        # If not prefetched, filter directly
         return list(
             self.listskilltreeassignment_set.filter(archived=False).select_related(
                 "skill_category"
@@ -6270,6 +6267,7 @@ class ListSkillTreeAssignment(Base, Archived):
         help_text="The list this skill-tree pick belongs to.",
     )
     slot = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1)],
         help_text="1-based rank of this skill tree within the gang's selection.",
     )
     skill_category = models.ForeignKey(
@@ -6284,6 +6282,21 @@ class ListSkillTreeAssignment(Base, Archived):
         verbose_name = "List Skill Tree Assignment"
         verbose_name_plural = "List Skill Tree Assignments"
         ordering = ["list", "slot"]
+        constraints = [
+            # Only one active pick per slot, and a given tree can't be picked
+            # twice while active. Enforced in the form too, but guard the DB
+            # against races / direct edits.
+            models.UniqueConstraint(
+                fields=["list", "slot"],
+                condition=Q(archived=False),
+                name="uniq_active_list_skill_tree_slot",
+            ),
+            models.UniqueConstraint(
+                fields=["list", "skill_category"],
+                condition=Q(archived=False),
+                name="uniq_active_list_skill_tree_category",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.list.name} — slot {self.slot}: {self.skill_category.name}"

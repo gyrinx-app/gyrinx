@@ -1,6 +1,8 @@
 """Tests for gang-wide skill-tree selection (issue #1817)."""
 
 import pytest
+from django.contrib.contenttypes.models import ContentType
+from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from gyrinx.content.models import (
@@ -8,8 +10,18 @@ from gyrinx.content.models import (
     ContentHouseSkillRankAccess,
     ContentSkillCategory,
 )
+from gyrinx.core.forms.skill_tree import ListSkillTreeForm
 from gyrinx.core.models.list import List, ListFighter, ListSkillTreeAssignment
+from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
+
+
+def _add_to_pack(pack, obj):
+    """Attach a content object to a pack (makes it pack-scoped)."""
+    ct = ContentType.objects.get_for_model(type(obj))
+    CustomContentPackItem.objects.create(
+        pack=pack, content_type=ct, object_id=obj.pk, owner=pack.owner
+    )
 
 
 @pytest.fixture
@@ -315,3 +327,112 @@ def test_restricted_trees_hidden_by_default_revealed_by_filter(client, user, gan
     assert restricted.id in [
         c.pk for c in resp.context["form"].fields["slot_1"].queryset
     ]
+
+
+# --- DB constraints (PR feedback: active uniqueness) ---
+
+
+@pytest.mark.django_db
+def test_duplicate_active_slot_is_rejected(gang_list, skill_trees):
+    agility, brawn, *_ = skill_trees
+    ListSkillTreeAssignment.objects.create(
+        list=gang_list, slot=1, skill_category=agility
+    )
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            ListSkillTreeAssignment.objects.create(
+                list=gang_list, slot=1, skill_category=brawn
+            )
+
+
+@pytest.mark.django_db
+def test_duplicate_active_category_is_rejected(gang_list, skill_trees):
+    agility, *_ = skill_trees
+    ListSkillTreeAssignment.objects.create(
+        list=gang_list, slot=1, skill_category=agility
+    )
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            ListSkillTreeAssignment.objects.create(
+                list=gang_list, slot=2, skill_category=agility
+            )
+
+
+@pytest.mark.django_db
+def test_archived_rows_do_not_block_new_active_picks(gang_list, skill_trees):
+    agility, *_ = skill_trees
+    old = ListSkillTreeAssignment.objects.create(
+        list=gang_list, slot=1, skill_category=agility
+    )
+    old.archived = True
+    old.save()
+
+    # Re-picking the same slot + tree is fine once the old row is archived.
+    ListSkillTreeAssignment.objects.create(
+        list=gang_list, slot=1, skill_category=agility
+    )
+    assert (
+        gang_list.listskilltreeassignment_set.filter(archived=False, slot=1).count()
+        == 1
+    )
+
+
+# --- Pack-authored skill trees (PR feedback: pool must be pack-aware) ---
+
+
+@pytest.mark.django_db
+def test_pool_includes_pack_authored_trees(gang_list, user):
+    pack = CustomContentPack.objects.create(name="Skill Pack", owner=user, listed=True)
+    pack_cat = ContentSkillCategory.objects.create(name="Pack Tree")
+    _add_to_pack(pack, pack_cat)
+    gang_list.packs.add(pack)
+
+    form = ListSkillTreeForm(list_obj=gang_list, request=None)
+    pool = set(form.fields["slot_1"].queryset)
+    assert pack_cat in pool
+
+
+@pytest.mark.django_db
+def test_explicit_pool_is_pack_aware_and_respects_restricted_filter(
+    gang_house, gang_list, skill_trees, user
+):
+    agility, *_ = skill_trees
+    restricted = ContentSkillCategory.objects.create(
+        name="Restricted Tree", restricted=True
+    )
+    pack = CustomContentPack.objects.create(name="Skill Pack", owner=user, listed=True)
+    pack_cat = ContentSkillCategory.objects.create(name="Pack Tree")
+    _add_to_pack(pack, pack_cat)
+    gang_list.packs.add(pack)
+
+    # Explicit pool contains a normal tree, a restricted tree, and a pack tree.
+    gang_house.gang_skill_tree_choices.set([agility, restricted, pack_cat])
+
+    # Default: restricted hidden, but the pack-authored tree is still pickable.
+    form = ListSkillTreeForm(list_obj=gang_list, request=None, include_restricted=False)
+    pool = set(form.fields["slot_1"].queryset)
+    assert agility in pool
+    assert pack_cat in pool
+    assert restricted not in pool
+
+    # Reveal filter on: restricted tree now appears too.
+    form = ListSkillTreeForm(list_obj=gang_list, request=None, include_restricted=True)
+    pool = set(form.fields["slot_1"].queryset)
+    assert restricted in pool
+    assert pack_cat in pool
+
+
+@pytest.mark.django_db
+def test_resolution_with_pack_authored_tree(
+    make_content_fighter, gang_house, gang_list, rank_rules, user
+):
+    pack = CustomContentPack.objects.create(name="Skill Pack", owner=user, listed=True)
+    pack_cat = ContentSkillCategory.objects.create(name="Pack Tree")
+    _add_to_pack(pack, pack_cat)
+    gang_list.packs.add(pack)
+    _pick(gang_list, 1, pack_cat)
+
+    leader = _make_fighter(
+        make_content_fighter, gang_house, gang_list, user, FighterCategoryChoices.LEADER
+    )
+    assert pack_cat in leader.get_primary_skill_categories()
