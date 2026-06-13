@@ -9,24 +9,31 @@
                     <i class="bi-plus-lg" aria-hidden="true"></i> Log Action
                 </a>
             {% endif %}
-        </div>
-        <div class="px-2">
-            <p class="text-secondary fs-7 mb-2">
-                From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
-            </p>
-            {% if recent_actions %}
-                <div class="vstack gap-2">
-                    {% for action in recent_actions %}
-                        {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
-                    {% endfor %}
-                </div>
-                {% if not print %}
-                    <a href="{% url 'core:campaign-actions' list.campaign.id %}{% querystring gang=list.id %}"
-                       class="fs-7 mt-2 d-inline-block">View all actions →</a>
-                {% endif %}
-            {% else %}
-                <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
+            {% if not print %}
+                {% include "core/includes/_list_card_toggle.html" with target="list-card-actions" label="Actions" open=request.GET.actions_open %}
             {% endif %}
+        </div>
+        <div id="list-card-actions"
+             class="{% if not print %}collapse list-card-collapse{% if request.GET.actions_open %} show{% endif %}{% endif %}"
+             data-gy-collapse-url="actions_open">
+            <div class="px-2">
+                <p class="text-secondary fs-7 mb-2">
+                    From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>
+                </p>
+                {% if recent_actions %}
+                    <div class="vstack gap-2">
+                        {% for action in recent_actions %}
+                            {% include "core/includes/campaign_action_item.html" with action=action campaign=list.campaign user=user show_truncated=True show_list_link=False print=print %}
+                        {% endfor %}
+                    </div>
+                    {% if not print %}
+                        <a href="{% url 'core:campaign-actions' list.campaign.id %}{% querystring gang=list.id %}"
+                           class="fs-7 mt-2 d-inline-block">View all actions →</a>
+                    {% endif %}
+                {% else %}
+                    <p class="text-secondary fs-7 mb-0">No actions logged yet.</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 {% endif %}

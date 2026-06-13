@@ -677,3 +677,18 @@ $width-em-sizes: (
         height: 1.5em;
     }
 }
+
+// Campaign list summary cards (Actions / Assets & Resources / Attributes).
+// In single-column view (below lg) each card body collapses behind a chevron
+// toggle in its header (state persisted in the URL). At lg+ the cards sit side
+// by side and are always expanded, so ignore the Bootstrap collapse state and
+// reset any leftover inline height from an in-flight animation.
+@include media-breakpoint-up(lg) {
+    .list-card-collapse {
+        height: auto !important;
+
+        &:not(.show) {
+            display: block;
+        }
+    }
+}

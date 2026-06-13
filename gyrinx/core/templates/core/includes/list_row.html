@@ -18,7 +18,7 @@ Expects `list` in context.{% endcomment %}
                 <div>
                     <a href="{% url 'core:campaign' list.campaign.id %}"
                        class="icon-link linked">
-                        <i class="bi-award"></i> {{ list.campaign.name }}
+                        {{ list.campaign.name }}
                         {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
                     </a>
                 </div>

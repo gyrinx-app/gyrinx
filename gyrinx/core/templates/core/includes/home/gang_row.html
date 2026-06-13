@@ -10,9 +10,7 @@
             <div class="badge text-bg-primary">{% credits gang.facts_with_fallback.wealth %}</div>
             <div>
                 <a href="{% url 'core:campaign' gang.campaign.id %}"
-                   class="icon-link linked">
-                    <i class="bi-award"></i> {{ gang.campaign.name }}
-                </a>
+                   class="icon-link linked">{{ gang.campaign.name }}</a>
             </div>
         </div>
     </div>

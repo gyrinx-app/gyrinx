@@ -506,6 +506,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
+// Persist collapse open/closed state in the URL.
+//
+// Used by the campaign list summary cards (Actions / Assets / Attributes),
+// which collapse in single-column view. The server renders the initial state
+// from the query param; here we mirror each Bootstrap collapse toggle back into
+// the URL (via replaceState, so it survives reload and is linkable) without a
+// navigation. The slide animation is Bootstrap's; this is purely state-syncing.
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("[data-gy-collapse-url]").forEach((el) => {
+        const key = el.getAttribute("data-gy-collapse-url");
+        if (!key) return;
+
+        const setParam = (open) => {
+            const url = new URL(window.location.href);
+            if (open) {
+                url.searchParams.set(key, "1");
+            } else {
+                url.searchParams.delete(key);
+            }
+            window.history.replaceState(null, "", url);
+        };
+
+        // Guard on event.target so we only react to this element's own
+        // transitions, not those of any nested collapse that bubbles up.
+        el.addEventListener("shown.bs.collapse", (event) => {
+            if (event.target === el) setParam(true);
+        });
+        el.addEventListener("hidden.bs.collapse", (event) => {
+            if (event.target === el) setParam(false);
+        });
+    });
+});
+
 // Handle collapse chevron icon rotation
 document.addEventListener("DOMContentLoaded", () => {
     // Find all elements with data-gy-collapse-icon attribute

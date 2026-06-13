@@ -1,0 +1,14 @@
+{# Renders a campaign status. With `collapse` set, the pill becomes a coloured dot (with tooltip) below that breakpoint. #}
+{# Params: label (str), color (str — Bootstrap variant), collapse (str breakpoint e.g. "sm", optional) #}
+{% if collapse %}
+    <span class="d-inline-block d-{{ collapse }}-none rounded-circle bg-{{ color }} align-middle"
+          style="width: 0.6rem;
+                 height: 0.6rem"
+          bs-tooltip
+          data-bs-toggle="tooltip"
+          title="{{ label }}"
+          aria-label="{{ label }}"></span>
+    <span class="d-none d-{{ collapse }}-inline-block badge text-bg-{{ color }} align-middle">{{ label }}</span>
+{% else %}
+    <span class="badge text-bg-{{ color }}">{{ label }}</span>
+{% endif %}
