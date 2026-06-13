@@ -16,7 +16,7 @@
                     <div class="fw-medium">Default Game Content</div>
                     <div class="text-secondary fs-7">Standard fighters, equipment, and rules from the core rulebooks.</div>
                 </div>
-                <a href="{% url 'core:lists-new' %}?skip_packs=1"
+                <a href="{% url 'core:lists-new' %}?skip_packs=1{% if name %}&name={{ name|urlencode }}{% endif %}"
                    class="btn btn-primary ms-auto">Use default content <i class="bi-arrow-right"></i></a>
             </div>
         </div>
@@ -26,8 +26,10 @@
             <span class="text-secondary fs-7">Optionally add content packs</span>
             <hr class="flex-grow-1">
         </div>
-        <!-- Submit button + Filter bar -->
-        <div class="d-flex flex-column flex-xl-row-reverse gap-3 align-items-xl-start">
+        <!-- Filter bar + Submit button -->
+        <div class="vstack gap-3">
+            {% url 'core:lists-new-packs' as action %}
+            {% include "core/includes/packs_filter.html" with action=action name=name %}
             <button type="submit"
                     form="pack-form"
                     class="btn btn-primary align-self-end flex-shrink-0"
@@ -35,16 +37,13 @@
                     disabled>
                 Include selected packs <i class="bi-arrow-right"></i>
             </button>
-            <div class="flex-grow-1">
-                {% url 'core:lists-new-packs' as action %}
-                {% include "core/includes/packs_filter.html" with action=action %}
-            </div>
         </div>
         <!-- Pack list (form wraps only the checkboxes) -->
         <form method="post"
               action="{% url 'core:lists-new-packs' %}"
               id="pack-form">
             {% csrf_token %}
+            {% if name %}<input type="hidden" name="name" value="{{ name }}">{% endif %}
             <div class="vstack gap-2" id="pack-list">
                 {% for pack in available_packs %}
                     <label class="border rounded p-2 d-flex align-items-start gap-2 pack-item">
