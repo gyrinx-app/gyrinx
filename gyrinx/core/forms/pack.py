@@ -38,6 +38,24 @@ _EXCLUDED_FIGHTER_CATEGORIES = {
 }
 
 
+# Appended to the ``cost`` / ``base_cost`` help text on pack forms when editing
+# an existing item. Cost propagation to subscribed gangs runs as a background
+# task (see ``propagate_content_cost_change``), so the change may take a moment
+# to appear on every list using this item.
+COST_PROPAGATION_HELP_SUFFIX = (
+    " Changing the cost of an existing item updates lists already using it in "
+    "the background — it may take a moment to appear on every gang."
+)
+
+
+def _append_cost_propagation_help(form, field_name="cost"):
+    """If editing an existing instance, append the propagation-delay note to
+    the named field's help text. No-op on create (nothing to propagate to)."""
+    if form.instance.pk and field_name in form.fields:
+        existing = form.fields[field_name].help_text or ""
+        form.fields[field_name].help_text = existing + COST_PROPAGATION_HELP_SUFFIX
+
+
 class PackForm(forms.ModelForm):
     class Meta:
         model = CustomContentPack
@@ -169,6 +187,7 @@ class ContentFighterPackForm(forms.ModelForm):
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._pack = pack
+        _append_cost_propagation_help(self, "base_cost")
 
         # Filter category choices.
         self.fields["category"].choices = [("", "---------")] + [
@@ -668,6 +687,7 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._pack = pack
+        _append_cost_propagation_help(self, "cost")
 
         for stat_key, stat_label in self.STAT_FIELD_KEYS:
             self.fields[f"stat_mod_{stat_key}_mode"] = forms.ChoiceField(
@@ -1296,6 +1316,7 @@ class ContentGearPackForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _append_cost_propagation_help(self, "cost")
 
         # Filter to gear categories only (exclude weapons), ordered by group then name.
         # "Vehicles" is also excluded — pack vehicles are auto-created from
@@ -1365,6 +1386,7 @@ class ContentWeaponPackForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _append_cost_propagation_help(self, "cost")
 
         # Filter to weapon categories only (exclude Ammo), ordered by name.
         self.fields["category"].queryset = (
@@ -1420,6 +1442,7 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
 
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
+        _append_cost_propagation_help(self, "cost")
         if pack is not None:
             self.fields["traits"].queryset = ContentWeaponTrait.objects.with_packs(
                 [pack]
