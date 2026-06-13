@@ -1,3 +1,5 @@
+import copy
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
@@ -26,6 +28,42 @@ from gyrinx.core.models.pack import (
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
+
+
+def rich_text_description_widget(height="200px"):
+    """TinyMCE widget for short rich-text description fields on pack content.
+
+    Mirrors the editor used for ``PackForm.summary`` so that custom rules,
+    skills, gear, traits, etc. support formatted text — but with image
+    support removed. These descriptions are short and sit in a dense listing
+    where embedded images render awkwardly, so authors keep text formatting,
+    links, and lists only. Rendered output is sanitised on display via the
+    ``safe_rich_text`` template filter.
+
+    Returns a fresh instance per call so each form owns its own widget.
+    """
+    # Drop the image item from the insert menu (deep-copied so the shared
+    # TINYMCE_EXTRA_ATTRS dict used by PackForm is left untouched).
+    menu = copy.deepcopy(TINYMCE_EXTRA_ATTRS["menu"])
+    menu["insert"]["items"] = (
+        "link media addcomment pageembed codesample inserttable | math "
+        "| charmap emoticons hr | pagebreak nonbreaking anchor "
+        "tableofcontents | insertdatetime"
+    )
+    return TinyMCEWithUpload(
+        attrs={"cols": 80, "rows": 5},
+        mce_attrs={
+            **TINYMCE_EXTRA_ATTRS,
+            "menu": menu,
+            "height": height,
+            # No image support: drop the image plugin, its toolbar button,
+            # and the empty-line quick-insert bar (which offers quickimage).
+            "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
+            "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
+            "quickbars_insert_toolbar": False,
+        },
+    )
+
 
 # Fighter categories excluded from pack creation.
 # STASH is auto-managed (one per gang); GANG_TERRAIN has its own territory
@@ -469,7 +507,7 @@ class ContentHouseForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def clean_name(self):
@@ -498,7 +536,7 @@ class ContentRuleForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
+            "description": rich_text_description_widget(),
         }
 
     def clean_name(self):
@@ -529,7 +567,7 @@ class ContentWeaponTraitPackForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -630,7 +668,7 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
             "cost": forms.NumberInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
             "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
@@ -845,7 +883,7 @@ class ContentSkillPackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-select"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -964,7 +1002,7 @@ class ContentAttributeValuePackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "attribute": forms.Select(attrs={"class": "form-select"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -1287,7 +1325,7 @@ class ContentGearPackForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
             "category": forms.Select(attrs={"class": "form-select"}),
             "cost": forms.TextInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
@@ -1460,7 +1498,7 @@ class ContentPsykerDisciplinePackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "generic": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def clean_name(self):
@@ -1495,7 +1533,7 @@ class ContentPsykerPowerPackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "discipline": forms.Select(attrs={"class": "form-select"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):

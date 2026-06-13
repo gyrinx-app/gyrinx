@@ -4,6 +4,7 @@
     Edit {{ label }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
+    {{ form.media }}
     {% include "core/includes/back.html" with url=back_url text=pack.name %}
     {% if is_fighter %}
         <div class="vstack gap-3">

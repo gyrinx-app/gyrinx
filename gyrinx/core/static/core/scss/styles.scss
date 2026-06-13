@@ -396,6 +396,16 @@ img {
     height: auto;
 }
 
+// Rich-text descriptions on pack content (rules, gear, skills, etc.) sit in a
+// dense listing. Image insertion is disabled in the editor, but any legacy
+// embedded images are kept to a small thumbnail so they don't dominate the row.
+.pack-rich-desc img {
+    max-width: 8em;
+    max-height: 8em;
+    width: auto;
+    height: auto;
+}
+
 .img-link-transform img {
     transition:
         transform 0.2s ease,

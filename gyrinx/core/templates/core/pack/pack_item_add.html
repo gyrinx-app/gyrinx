@@ -4,6 +4,7 @@
     Add {{ label }} to {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
+    {{ form.media }}
     {% include "core/includes/back.html" with url=back_url text=pack.name %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
