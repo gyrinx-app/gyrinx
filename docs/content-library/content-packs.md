@@ -166,6 +166,12 @@ Users create packs at `/packs/new/`. The form includes fields for name, summary 
 
 Editing a pack at `/pack/<id>/edit/` uses the same form. Only the pack owner can edit it.
 
+### Editing pack content items
+
+When pack editors author content items inside a pack (special rules, gear, weapons, weapon traits, weapon accessories, skills, gang attribute values, houses, psyker disciplines and psyker powers), the **description** field uses the TinyMCE rich-text editor with text formatting, links, and lists. Image insertion is deliberately disabled in these per-item description editors -- the descriptions are short and sit in a dense listing -- so the image toolbar button, insert-menu entry, plugin, and quick-insert bar are all removed. The main pack summary/description editor at the pack level still supports images. Descriptions are stored as HTML and rendered as sanitised rich text on the pack detail page (any legacy embedded images are visually capped to a small thumbnail).
+
+The `PackAttachment` caption is intentionally left as a plain textarea.
+
 ### Activity history
 
 Each pack has a full activity history at `/pack/<id>/activity/`. This combines history records from both the pack itself and its items into a single chronological feed. The activity feed shows:

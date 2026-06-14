@@ -18,6 +18,8 @@ Content configured in this area flows directly into what users see on their figh
 
 **Default skill** -- A skill that comes pre-assigned to a fighter type by the content library. Users can disable but not permanently remove default skills.
 
+**Gang-wide skills** -- For houses with `gang_wide_skills` enabled (e.g., Venators), each fighter's primary and secondary skill trees come from the gang's ranked skill-tree picks rather than from the fighter template's `primary_skill_categories` and `secondary_skill_categories` fields. See [Houses & Factions](houses-and-factions.md#gang-wide-skill-trees) for the full mechanism.
+
 **Rule** -- A named special ability or trait assigned to a fighter type. Rules are simpler than skills -- they have no category hierarchy, just a name.
 
 **Psyker** -- A fighter who possesses one of the psyker rules ("Psyker", "Non-Sanctioned Psyker", or "Sanctioned Psyker"). Psyker status is derived automatically from the fighter's rules, not set as a separate flag.
@@ -178,6 +180,10 @@ Only available for fighters with a psyker rule. The powers editing page shows:
 The skill trees a fighter can access are not fixed -- they can be modified by equipment. The modifier system includes `ContentModSkillTreeAccess`, which can add or remove primary/secondary skill tree access, and `ContentModPsykerDisciplineAccess`, which can add or remove psyker discipline access. This means equipping certain items can grant a fighter access to new skill trees or psyker disciplines. See [Modifiers](modifiers.md) for details on how `ContentModSkillTreeAccess` and `ContentModPsykerDisciplineAccess` work.
 
 Similarly, `ContentModFighterRule` can add or remove rules from a fighter via equipment, and `ContentModFighterSkill` can add or remove specific skills. These modifiers are applied automatically when the user equips or unequips items.
+
+### Gang-wide Skill Trees
+
+For lists whose house has `gang_wide_skills` enabled, the *base* primary and secondary skill trees of every fighter come from the gang's ranked skill-tree picks (one `ListSkillTreeAssignment` per slot) combined with the house's per-rank `ContentHouseSkillRankAccess` rules, rather than from the fighter template's `primary_skill_categories` and `secondary_skill_categories` fields. Equipment modifiers (`ContentModSkillTreeAccess`) are then layered on top in the usual way. This affects the skill picker and advancement forms transparently -- they keep using the fighter's resolved primary/secondary tree set without caring where it came from. See [Houses & Factions](houses-and-factions.md#gang-wide-skill-trees) for configuration and rank rules.
 
 ## Common Admin Tasks
 
