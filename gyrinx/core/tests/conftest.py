@@ -20,7 +20,7 @@ def logged_in_client(user):
     default) for views that require authentication.
     """
     c = Client()
-    c.login(username="testuser", password="password")
+    c.force_login(user)
     return c
 
 

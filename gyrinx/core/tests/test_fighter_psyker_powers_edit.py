@@ -105,9 +105,7 @@ def test_psyker_powers_view_requires_login(client, psyker_list, list_psyker):
 
 
 @pytest.mark.django_db
-def test_psyker_powers_view_requires_owner(
-    logged_in_client, psyker_list, list_psyker, user
-):
+def test_psyker_powers_view_requires_owner(logged_in_client, psyker_list, list_psyker):
     """Test that only the list owner can access the view."""
     # Create another user
     from django.contrib.auth import get_user_model
