@@ -12,7 +12,6 @@ from gyrinx import messages
 from gyrinx.core.handlers.campaign_operations import handle_campaign_start
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
-from gyrinx.core.models.list import List
 from gyrinx.core.utils import safe_redirect, toggle_membership
 from gyrinx.tracker import track
 
@@ -75,12 +74,10 @@ def start_campaign(request, id):
         messages.error(request, "This campaign cannot be started.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
-    # Prefetch lists with latest actions for efficient facts_with_fallback() in template
-    lists = (
-        List.objects.filter(campaign=campaign)
-        .select_related("owner")
-        .with_latest_actions()
-    )
+    # Prefetch lists with latest actions for efficient facts_with_fallback() in template.
+    # Pre-campaign gangs are linked via the `lists` M2M; the `campaign` FK on List is only
+    # populated when clones are created at start, so it must not be used here (see #1886).
+    lists = campaign.lists.select_related("owner").with_latest_actions()
 
     return render(
         request,
