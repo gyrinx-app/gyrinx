@@ -106,6 +106,41 @@ def test_campaign_status_transitions(client):
 
 
 @pytest.mark.django_db
+def test_campaign_start_page_lists_precampaign_gangs(client):
+    """Regression test for #1886.
+
+    Gangs added during the pre-campaign phase are linked via the `lists` M2M, not
+    the `campaign` FK (which is only set on clones created at start). The start
+    confirmation page must read from the M2M so those gangs are displayed.
+    """
+    user = User.objects.create_user(username="testuser", password="password")
+    client.login(username="testuser", password="password")
+
+    house = ContentHouse.objects.create(name="Test House")
+
+    campaign = Campaign.objects.create_with_user(
+        user=user,
+        name="Test Campaign",
+        owner=user,
+        status=Campaign.PRE_CAMPAIGN,
+    )
+
+    gang = List.objects.create_with_user(
+        user=user,
+        name="Pre-Campaign Gang",
+        owner=user,
+        content_house=house,
+    )
+    # Linked via the pre-campaign M2M only; the `campaign` FK stays unset.
+    campaign.lists.add(gang)
+    assert gang.campaign_id is None
+
+    response = client.get(reverse("core:campaign-start", args=[campaign.id]))
+    assert response.status_code == 200
+    assert b"Pre-Campaign Gang" in response.content
+
+
+@pytest.mark.django_db
 def test_campaign_reopen_functionality(client):
     """Test that ended campaigns can be reopened."""
     owner = User.objects.create_user(username="owner", password="password")
