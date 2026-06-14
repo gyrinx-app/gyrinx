@@ -40,15 +40,6 @@ def pack_fighter(pack, make_content_fighter, content_house):
 
 
 @pytest.fixture
-def weapon_category():
-    cat, _ = ContentEquipmentCategory.objects.get_or_create(
-        name="Basic Weapons",
-        defaults={"group": "Weapons & Ammo"},
-    )
-    return cat
-
-
-@pytest.fixture
 def gear_category():
     cat, _ = ContentEquipmentCategory.objects.get_or_create(
         name="Personal Equipment",
