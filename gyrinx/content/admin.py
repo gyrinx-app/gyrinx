@@ -149,7 +149,9 @@ class _AllContentInlineMixin:
     the errors below" with no visible error and the row can never be saved.
 
     To keep the display and validation querysets consistent, ``get_formset``
-    widens the pk field's queryset to ``all_content()`` as well.
+    binds the pk field's queryset to the formset's own queryset (which uses
+    ``all_content()`` and is filtered to the parent instance) instead of the
+    default manager.
     """
 
     show_change_link = True
@@ -177,10 +179,13 @@ class _AllContentInlineMixin:
                 super().add_fields(form, index)
                 pk_field = form.fields.get(pk_name)
                 # The pk field is a ModelChoiceField bound to the default
-                # manager (no pack content). Widen it so pack-content rows that
-                # this inline displays also validate.
+                # manager, which excludes pack content — so pack-content rows
+                # this inline displays would fail validation on their hidden id.
+                # Bind it to the formset's queryset instead: it includes pack
+                # content (all_content()) yet stays scoped to this parent, so a
+                # crafted POST can't smuggle in an unrelated object's pk.
                 if pk_field is not None and hasattr(pk_field, "queryset"):
-                    pk_field.queryset = manager.all_content()
+                    pk_field.queryset = self.get_queryset()
 
         return AllContentFormSet
 

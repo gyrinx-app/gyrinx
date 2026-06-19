@@ -124,8 +124,11 @@ def test_house_inline_formset_pk_field_includes_pack_content(admin_user):
     request = RequestFactory().get(f"/admin/content/contenthouse/{house.pk}/change/")
     request.user = admin_user
     admin = ContentHouseAdmin(ContentHouse, AdminSite())
-    inline = admin.get_inline_instances(request, house)[1]
-    assert isinstance(inline, ContentFighterInline)
+    inline = next(
+        i
+        for i in admin.get_inline_instances(request, house)
+        if isinstance(i, ContentFighterInline)
+    )
 
     fighters = list(inline.get_queryset(request).filter(house=house))
     assert {f.pk for f in fighters} == {normal.pk, pack_fighter.pk}
