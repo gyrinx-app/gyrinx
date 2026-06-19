@@ -1,7 +1,7 @@
 import pytest
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory
+from django.test import Client, RequestFactory
 
 from gyrinx.content.admin import ContentFighterInline, ContentHouseAdmin
 from gyrinx.content.models import (
@@ -81,3 +81,106 @@ def test_house_change_page_does_not_render_m2m_option_explosion(admin_user):
     assert 'name="contentfighter_set-0-secondary_skill_categories"' not in html
     # The cheap scalar field is present, and the inline still lists the fighters.
     assert 'name="contentfighter_set-0-base_cost"' in html
+
+
+@pytest.mark.django_db
+def test_house_inline_formset_pk_field_includes_pack_content(
+    admin_user, make_pack_fighter
+):
+    """The inline displays pack-content fighters (via ``all_content()``), so the
+    formset's hidden pk field must validate against ``all_content()`` too.
+
+    Otherwise the pk field's ``ModelChoiceField`` (built from the default
+    manager, which excludes pack content) rejects pack-content rows with a
+    "Select a valid choice…" error on the hidden ``id`` field — counted by
+    ``AdminErrorList`` (so the "Please correct the errors below" banner shows)
+    but never rendered, leaving the house unsaveable. Regression for the silent
+    admin error.
+    """
+    house = ContentHouse.objects.create(name="Packed House")
+    normal = ContentFighter.objects.create(
+        house=house, type="Normal Leader", category="LEADER", base_cost=100
+    )
+    pack_fighter = make_pack_fighter(
+        house, admin_user, type="Pack Ganger", category="GANGER", base_cost=50
+    )
+
+    request = RequestFactory().get(f"/admin/content/contenthouse/{house.pk}/change/")
+    request.user = admin_user
+    admin = ContentHouseAdmin(ContentHouse, AdminSite())
+    inline = next(
+        i
+        for i in admin.get_inline_instances(request, house)
+        if isinstance(i, ContentFighterInline)
+    )
+
+    fighters = list(inline.get_queryset(request).filter(house=house))
+    assert {f.pk for f in fighters} == {normal.pk, pack_fighter.pk}
+
+    FormSet = inline.get_formset(request, house)
+    data = {
+        "contentfighter_set-TOTAL_FORMS": str(len(fighters)),
+        "contentfighter_set-INITIAL_FORMS": str(len(fighters)),
+        "contentfighter_set-MIN_NUM_FORMS": "0",
+        "contentfighter_set-MAX_NUM_FORMS": "1000",
+    }
+    for i, f in enumerate(fighters):
+        data[f"contentfighter_set-{i}-id"] = str(f.id)
+        data[f"contentfighter_set-{i}-house"] = str(house.id)
+        data[f"contentfighter_set-{i}-type"] = f.type
+        data[f"contentfighter_set-{i}-category"] = f.category
+        data[f"contentfighter_set-{i}-base_cost"] = str(f.base_cost)
+
+    formset = FormSet(data=data, instance=house, queryset=inline.get_queryset(request))
+    assert formset.is_valid(), formset.errors
+    # No form carries a hidden-field error on its pk.
+    for form in formset.forms:
+        assert "id" not in form.errors
+
+
+@pytest.mark.django_db
+def test_house_change_page_saves_with_pack_content_fighter(
+    admin_user, make_pack_fighter
+):
+    """End-to-end: saving a house whose inline includes a pack-content fighter
+    must succeed (redirect), not silently fail with the no-error banner.
+    """
+    house = ContentHouse.objects.create(name="Packed House E2E")
+    normal = ContentFighter.objects.create(
+        house=house, type="Normal Leader", category="LEADER", base_cost=100
+    )
+    pack_fighter = make_pack_fighter(
+        house, admin_user, type="Pack Ganger", category="GANGER", base_cost=50
+    )
+    fighters = [normal, pack_fighter]
+
+    client = Client()
+    client.force_login(admin_user)
+    url = f"/admin/content/contenthouse/{house.pk}/change/"
+
+    data = {
+        "name": house.name,
+        "description": "",
+        "gang_skill_tree_count": "0",
+        "skill_rank_rules-TOTAL_FORMS": "0",
+        "skill_rank_rules-INITIAL_FORMS": "0",
+        "skill_rank_rules-MIN_NUM_FORMS": "0",
+        "skill_rank_rules-MAX_NUM_FORMS": "1000",
+        "contentfighter_set-TOTAL_FORMS": str(len(fighters)),
+        "contentfighter_set-INITIAL_FORMS": str(len(fighters)),
+        "contentfighter_set-MIN_NUM_FORMS": "0",
+        "contentfighter_set-MAX_NUM_FORMS": "1000",
+    }
+    for i, f in enumerate(fighters):
+        data[f"contentfighter_set-{i}-id"] = str(f.id)
+        data[f"contentfighter_set-{i}-house"] = str(house.id)
+        data[f"contentfighter_set-{i}-type"] = f.type
+        data[f"contentfighter_set-{i}-category"] = f.category
+        data[f"contentfighter_set-{i}-base_cost"] = str(f.base_cost)
+
+    response = client.post(url, data)
+    assert response.status_code == 302, (
+        "expected a redirect on successful save; got "
+        f"{response.status_code} with errors banner present="
+        f"{b'Please correct the errors below' in response.content}"
+    )

@@ -133,7 +133,27 @@ class ContentAdmin(admin.ModelAdmin):
         return fields
 
 
-class ContentTabularInline(admin.TabularInline):
+class _AllContentInlineMixin:
+    """Shared behaviour for content inlines that surface pack content.
+
+    Content managers exclude pack content by default; ``all_content()``
+    bypasses that filter. These inlines display *all* content (including pack
+    items) so it can be managed from the admin.
+
+    The catch: Django builds the inline formset's primary-key field as a
+    ``ModelChoiceField`` whose queryset comes from ``model._default_manager``,
+    which excludes pack content. So a pack-content row renders fine but fails
+    validation on its hidden ``id`` field with "Select a valid choice…". That
+    error is never displayed (the tabular template doesn't render hidden-field
+    errors), yet ``AdminErrorList`` counts it — the page shows "Please correct
+    the errors below" with no visible error and the row can never be saved.
+
+    To keep the display and validation querysets consistent, ``get_formset``
+    binds the pk field's queryset to the formset's own queryset (which uses
+    ``all_content()`` and is filtered to the parent instance) instead of the
+    default manager.
+    """
+
     show_change_link = True
 
     def get_queryset(self, request):
@@ -146,19 +166,36 @@ class ContentTabularInline(admin.TabularInline):
             return qs
         return super().get_queryset(request)
 
-
-class ContentStackedInline(admin.StackedInline):
-    show_change_link = True
-
-    def get_queryset(self, request):
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
         manager = self.model._default_manager
-        if hasattr(manager, "all_content"):
-            qs = manager.all_content()
-            ordering = self.get_ordering(request)
-            if ordering:
-                qs = qs.order_by(*ordering)
-            return qs
-        return super().get_queryset(request)
+        if not hasattr(manager, "all_content"):
+            return formset
+
+        pk_name = self.model._meta.pk.name
+
+        class AllContentFormSet(formset):
+            def add_fields(self, form, index):
+                super().add_fields(form, index)
+                pk_field = form.fields.get(pk_name)
+                # The pk field is a ModelChoiceField bound to the default
+                # manager, which excludes pack content — so pack-content rows
+                # this inline displays would fail validation on their hidden id.
+                # Bind it to the formset's queryset instead: it includes pack
+                # content (all_content()) yet stays scoped to this parent, so a
+                # crafted POST can't smuggle in an unrelated object's pk.
+                if pk_field is not None and hasattr(pk_field, "queryset"):
+                    pk_field.queryset = self.get_queryset()
+
+        return AllContentFormSet
+
+
+class ContentTabularInline(_AllContentInlineMixin, admin.TabularInline):
+    pass
+
+
+class ContentStackedInline(_AllContentInlineMixin, admin.StackedInline):
+    pass
 
 
 class ContentStackedPolymorphicInline(
