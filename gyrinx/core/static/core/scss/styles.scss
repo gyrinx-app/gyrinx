@@ -595,6 +595,17 @@ $width-em-sizes: (
 
 // Flatpage heading link icons - only visible on hover/focus
 // Icons are positioned absolutely so they don't affect layout
+// The wrapping anchor is inline by default, so consecutive short headings can
+// flow onto the same line. Force it to block so each heading occupies its own row.
+.flatpage-content a:has(> h1),
+.flatpage-content a:has(> h2),
+.flatpage-content a:has(> h3),
+.flatpage-content a:has(> h4),
+.flatpage-content a:has(> h5),
+.flatpage-content a:has(> h6) {
+    display: block;
+}
+
 .flatpage-content a > h1,
 .flatpage-content a > h2,
 .flatpage-content a > h3,
