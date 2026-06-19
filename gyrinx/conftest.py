@@ -631,6 +631,43 @@ def pack_fighter(pack, content_house):
 
 
 @pytest.fixture
+def make_pack_fighter(make_pack, make_content_fighter, user):
+    """Factory fixture to create a fighter that belongs to a content pack.
+
+    Pack content is excluded by the default content manager but surfaced by
+    ``all_content()`` (and so by the content admin inlines).
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    def make_pack_fighter_(
+        house,
+        owner=None,
+        type="Pack Fighter",
+        category=FighterCategoryChoices.GANGER,
+        base_cost=50,
+        **kwargs,
+    ):
+        owner = owner or user
+        fighter = make_content_fighter(
+            type=type,
+            category=category,
+            house=house,
+            base_cost=base_cost,
+            **kwargs,
+        )
+        pack = make_pack(name="Test Pack", owner=owner)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ContentType.objects.get_for_model(ContentFighter),
+            object_id=fighter.pk,
+            owner=pack.owner,
+        )
+        return fighter
+
+    return make_pack_fighter_
+
+
+@pytest.fixture
 def pack_rule(pack, cc_user):
     """A rule in a pack."""
     from gyrinx.content.models import ContentRule

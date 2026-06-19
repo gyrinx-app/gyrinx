@@ -1,7 +1,6 @@
 import pytest
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.models import ContentType
 from django.test import Client, RequestFactory
 
 from gyrinx.content.admin import ContentFighterInline, ContentHouseAdmin
@@ -12,25 +11,8 @@ from gyrinx.content.models import (
     ContentSkill,
     ContentSkillCategory,
 )
-from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 
 User = get_user_model()
-
-
-def _make_pack_fighter(house, owner, **kwargs):
-    """Create a fighter and attach it to a pack so it becomes pack content.
-
-    Pack content is excluded by the default content manager but surfaced by
-    ``all_content()`` — which is what the admin inlines display.
-    """
-    fighter = ContentFighter.objects.create(house=house, **kwargs)
-    pack = CustomContentPack.objects.create(name="Test Pack", owner=owner)
-    CustomContentPackItem.objects.create(
-        pack=pack,
-        content_type=ContentType.objects.get_for_model(ContentFighter),
-        object_id=fighter.id,
-    )
-    return fighter
 
 
 @pytest.fixture
@@ -102,7 +84,9 @@ def test_house_change_page_does_not_render_m2m_option_explosion(admin_user):
 
 
 @pytest.mark.django_db
-def test_house_inline_formset_pk_field_includes_pack_content(admin_user):
+def test_house_inline_formset_pk_field_includes_pack_content(
+    admin_user, make_pack_fighter
+):
     """The inline displays pack-content fighters (via ``all_content()``), so the
     formset's hidden pk field must validate against ``all_content()`` too.
 
@@ -117,7 +101,7 @@ def test_house_inline_formset_pk_field_includes_pack_content(admin_user):
     normal = ContentFighter.objects.create(
         house=house, type="Normal Leader", category="LEADER", base_cost=100
     )
-    pack_fighter = _make_pack_fighter(
+    pack_fighter = make_pack_fighter(
         house, admin_user, type="Pack Ganger", category="GANGER", base_cost=50
     )
 
@@ -155,7 +139,9 @@ def test_house_inline_formset_pk_field_includes_pack_content(admin_user):
 
 
 @pytest.mark.django_db
-def test_house_change_page_saves_with_pack_content_fighter(admin_user):
+def test_house_change_page_saves_with_pack_content_fighter(
+    admin_user, make_pack_fighter
+):
     """End-to-end: saving a house whose inline includes a pack-content fighter
     must succeed (redirect), not silently fail with the no-error banner.
     """
@@ -163,7 +149,7 @@ def test_house_change_page_saves_with_pack_content_fighter(admin_user):
     normal = ContentFighter.objects.create(
         house=house, type="Normal Leader", category="LEADER", base_cost=100
     )
-    pack_fighter = _make_pack_fighter(
+    pack_fighter = make_pack_fighter(
         house, admin_user, type="Pack Ganger", category="GANGER", base_cost=50
     )
     fighters = [normal, pack_fighter]
