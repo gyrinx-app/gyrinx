@@ -17,10 +17,11 @@ register = template.Library()
 def _badge_svg(badge: BadgeDef) -> str:
     """Read a badge's static SVG, cached by slug.
 
-    The committed SVGs are already inline-ready (``currentColor`` outlines,
-    ``viewBox``, ``aria-hidden``), so there's nothing to sanitise — they're
-    trusted repo assets, not user uploads. Failures cache as an empty string so a
-    missing/broken file doesn't re-hit the filesystem every render.
+    The committed SVGs are already inline-ready (``viewBox``, ``aria-hidden``;
+    the Patreon badges also use ``currentColor`` outlines, the staff badge is
+    fixed-colour), so there's nothing to sanitise — they're trusted repo assets,
+    not user uploads. Failures cache as an empty string so a missing/broken file
+    doesn't re-hit the filesystem every render.
     """
     cache_key = f"badge_svg:{sha256(badge.slug.encode('utf-8')).hexdigest()}"
     cached = cache.get(cache_key)

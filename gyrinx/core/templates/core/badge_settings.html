@@ -5,10 +5,8 @@
 {% endblock head_title %}
 {% block content %}
     <h1 class="h3 mb-2">{% trans "Badge" %}</h1>
-    <p class="text-secondary">
-        Your current Patreon tier badge shows next to your name by default. You can pick a different badge from your tier and below, or hide it.
-    </p>
-    {% if unlocked_badges %}
+    {% if available_badges %}
+        <p class="text-secondary">A badge shows next to your name by default. You can pick which one to show, or hide it.</p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {% if form.selected_badge.errors %}
@@ -16,7 +14,7 @@
             {% endif %}
             <fieldset class="vstack gap-2">
                 <legend class="visually-hidden">{% trans "Badge" %}</legend>
-                {% for badge in unlocked_badges %}
+                {% for badge in available_badges %}
                     <label class="d-flex align-items-center gap-2 border rounded p-2">
                         <input type="radio"
                                name="selected_badge"

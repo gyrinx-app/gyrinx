@@ -7,6 +7,7 @@ from simple_history.models import HistoricalRecords
 from gyrinx.core.badges import (
     HIDE_BADGE,
     PATREON_BADGES,
+    STAFF_BADGE,
     BadgeDef,
     badge_by_slug,
     rank_for_tier_title,
@@ -83,11 +84,12 @@ class UserProfile(Base):
 
     # --- Supporter badges ---
     #
-    # Eligibility is derived live from Patreon status, never stored as a grant,
-    # so former/declined supporters automatically lose their badges. The single
-    # load-bearing gate is ``patreon_status == ACTIVE``: a lapsed supporter can
-    # carry a stale ``patreon_tier`` (the webhook doesn't always clear it), so we
-    # never trust the stored tier on its own.
+    # Eligibility is derived live from the user's state, never stored as a grant,
+    # so former/declined supporters (and ex-staff) automatically lose their
+    # badges. Patreon badges gate on ``patreon_status == ACTIVE``: a lapsed
+    # supporter can carry a stale ``patreon_tier`` (the webhook doesn't always
+    # clear it), so we never trust the stored tier on its own. The staff badge
+    # gates on ``User.is_staff``.
 
     @property
     def current_tier_rank(self) -> int:
@@ -101,39 +103,53 @@ class UserProfile(Base):
 
     @property
     def unlocked_badges(self) -> list[BadgeDef]:
-        """Badges the user is currently allowed to display (tiers up to theirs)."""
+        """Patreon badges the user is allowed to display (tiers up to theirs)."""
         rank = self.current_tier_rank
         if rank <= 0:
             return []
         return [b for b in PATREON_BADGES if b.rank <= rank]
 
     @property
+    def available_badges(self) -> list[BadgeDef]:
+        """Every badge the user may display — Patreon tiers plus staff.
+
+        Staff is just another badge here (opt-out, shown by default like the
+        Patreon ones), gated on ``User.is_staff`` so it retracts automatically
+        when staff access is removed.
+        """
+        badges = list(self.unlocked_badges)
+        if self.user.is_staff:
+            badges.append(STAFF_BADGE)
+        return badges
+
+    @property
     def eligible_badge_slugs(self) -> set[str]:
-        """Slugs of currently-unlocked badges."""
-        return {b.slug for b in self.unlocked_badges}
+        """Slugs of every badge currently available to the user."""
+        return {b.slug for b in self.available_badges}
 
     @cached_property
     def display_badge(self) -> BadgeDef | None:
         """The badge to render, or ``None``.
 
-        Active paid patrons display a badge by default — the one matching their
-        current tier — without having to choose. The rules, in order:
+        Eligible users display a badge by default — the highest-ranked one they
+        have — without having to choose. The rules, in order:
 
-        * Not an active paid patron → nothing (lapsed supporters lose badges).
+        * No available badges → nothing (lapsed supporters / ex-staff).
         * Explicit ``HIDE_BADGE`` opt-out → nothing.
-        * An explicit, still-unlocked selection → that badge (e.g. an Uphiver who
-          prefers to show the Scummer badge).
-        * Otherwise (no choice, or a stale selection above the current tier) →
-          the current-tier badge, i.e. the highest-ranked unlocked one.
+        * An explicit, still-available selection → that badge (e.g. an Uphiver
+          who prefers to show the Scummer badge, or a staff member showing a
+          Patreon tier instead).
+        * Otherwise (no choice, or a stale selection) → the highest-ranked
+          available badge. Staff outranks the Patreon tiers, so staff members
+          show the staff badge by default.
         """
-        unlocked = self.unlocked_badges
-        if not unlocked:
+        available = self.available_badges
+        if not available:
             return None
         if self.selected_badge == HIDE_BADGE:
             return None
         if self.selected_badge in self.eligible_badge_slugs:
             return badge_by_slug(self.selected_badge)
-        # The current-tier badge is the highest-ranked unlocked one. Select by
-        # rank rather than list position so it doesn't depend on PATREON_BADGES
-        # ordering.
-        return max(unlocked, key=lambda b: b.rank)
+        # Select by rank rather than list position so it doesn't depend on
+        # registry ordering.
+        return max(available, key=lambda b: b.rank)

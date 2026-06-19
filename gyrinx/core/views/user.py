@@ -198,17 +198,17 @@ def change_username(request):
 @login_required
 def badge_settings(request):
     """
-    Let the user choose which supporter badge to display next to their name.
+    Let the user choose which badge to display next to their name.
 
-    Only badges the user has currently unlocked (from their live Patreon status)
-    are offered, plus an explicit "no badge" option. Non-supporters see an empty
-    state explaining how to unlock badges.
+    Only badges the user can currently display (from their live Patreon status
+    and staff access) are offered, plus an explicit "no badge" option. Users with
+    no badges see an empty state explaining how to unlock them.
 
     **Context**
 
     ``form``
         The badge selection form.
-    ``unlocked_badges``
+    ``available_badges``
         The badges currently available to the user.
 
     **Template**
@@ -246,7 +246,7 @@ def badge_settings(request):
         "core/badge_settings.html",
         {
             "form": form,
-            "unlocked_badges": profile.unlocked_badges,
+            "available_badges": profile.available_badges,
             "hide_badge_value": HIDE_BADGE,
         },
     )

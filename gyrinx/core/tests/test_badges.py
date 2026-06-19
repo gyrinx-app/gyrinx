@@ -3,8 +3,10 @@
 import pytest
 
 from gyrinx.core.badges import (
+    ALL_BADGES,
     HIDE_BADGE,
     PATREON_BADGES,
+    STAFF_BADGE,
     badge_by_slug,
     badge_choices,
     rank_for_tier_title,
@@ -22,8 +24,20 @@ def test_patreon_tiers_ranked_scummer_guilder_uphiver():
 
 
 def test_slugs_are_unique():
-    slugs = [b.slug for b in PATREON_BADGES]
+    slugs = [b.slug for b in ALL_BADGES]
     assert len(slugs) == len(set(slugs))
+
+
+def test_staff_badge_registered_and_outranks_patreon_tiers():
+    assert STAFF_BADGE in ALL_BADGES
+    assert badge_by_slug("staff").title == "Staff"
+    # Staff outranks every Patreon tier so it's the default for staff members.
+    assert STAFF_BADGE.rank > max(b.rank for b in PATREON_BADGES)
+
+
+def test_staff_rank_not_in_patreon_tier_machinery():
+    # Staff isn't a Patreon tier, so its title must not map to a tier rank.
+    assert rank_for_tier_title("Staff") == 0
 
 
 def test_rank_for_tier_title_maps_known_tiers():
@@ -151,6 +165,68 @@ def test_display_badge_hidden_with_opt_out(user):
     assert profile.display_badge is None
 
 
+# --- Staff badge eligibility ---
+
+
+@pytest.mark.django_db
+def test_staff_user_shows_staff_badge_by_default(user):
+    user.is_staff = True
+    user.save()
+    profile = _profile(user)
+    assert [b.slug for b in profile.available_badges] == ["staff"]
+    assert profile.eligible_badge_slugs == {"staff"}
+    # Opt-out semantics: shown by default with no explicit choice.
+    assert profile.display_badge.slug == "staff"
+
+
+@pytest.mark.django_db
+def test_non_staff_user_has_no_staff_badge(user):
+    profile = _profile(user)
+    assert profile.available_badges == []
+    assert profile.display_badge is None
+
+
+@pytest.mark.django_db
+def test_staff_plus_patreon_defaults_to_staff(user):
+    user.is_staff = True
+    user.save()
+    profile = _profile(
+        user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Uphiver"
+    )
+    assert profile.eligible_badge_slugs == {"scummer", "guilder", "uphiver", "staff"}
+    # Staff outranks the tiers, so it wins the no-selection default.
+    assert profile.display_badge.slug == "staff"
+
+
+@pytest.mark.django_db
+def test_staff_user_can_select_a_patreon_badge(user):
+    user.is_staff = True
+    user.save()
+    profile = _profile(
+        user,
+        patreon_status=PatreonStatus.ACTIVE,
+        patreon_tier="Guilder",
+        selected_badge="guilder",
+    )
+    assert profile.display_badge.slug == "guilder"
+
+
+@pytest.mark.django_db
+def test_staff_user_can_hide_badge(user):
+    user.is_staff = True
+    user.save()
+    profile = _profile(user, selected_badge=HIDE_BADGE)
+    assert profile.display_badge is None
+
+
+@pytest.mark.django_db
+def test_losing_staff_retracts_staff_badge(user):
+    # A stored "staff" selection self-heals once staff access is removed.
+    profile = _profile(user, selected_badge="staff")  # user.is_staff is False
+    assert profile.available_badges == []
+    assert profile.display_badge is None
+
+
 # --- Template tags ---
 
 
@@ -179,6 +255,17 @@ def test_user_badge_renders_for_eligible_user(user):
     assert 'data-bs-toggle="tooltip"' in html
     assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in html
     assert 'aria-label="Gyrinx supporter — Guilder tier"' in html
+
+
+@pytest.mark.django_db
+def test_user_badge_renders_staff_badge(user):
+    user.is_staff = True
+    user.save()
+    _profile(user)
+    html = user_badge(user)
+    assert "<svg" in html
+    assert 'data-bs-title="Gyrinx staff"' in html
+    assert 'aria-label="Gyrinx staff"' in html
 
 
 @pytest.mark.django_db

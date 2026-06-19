@@ -1,9 +1,9 @@
 """Supporter badge registry.
 
-Badges a user can display next to their name. Today the only badges are the
-three Patreon supporter tiers; eligibility is *derived* from a user's live
-Patreon status (see :class:`gyrinx.core.models.auth.UserProfile`), not stored as
-a grant.
+Badges a user can display next to their name. These are the three Patreon
+supporter tiers plus a staff badge; eligibility is *derived* from a user's live
+state (Patreon status / ``is_staff``; see
+:class:`gyrinx.core.models.auth.UserProfile`), not stored as a grant.
 
 This is deliberately a small in-code registry rather than a database model: the
 tiers are fixed and their eligibility logic is computed regardless of where the
@@ -57,8 +57,21 @@ PATREON_BADGES: list[BadgeDef] = [
     ),
 ]
 
-# All badges, indexed for lookup. Patreon-only for now.
-ALL_BADGES: list[BadgeDef] = list(PATREON_BADGES)
+# Staff badge. Eligibility derives from ``User.is_staff`` rather than Patreon, so
+# it's kept out of ``PATREON_BADGES`` (and thus out of the tier-rank machinery).
+# Its ``rank`` only matters as the default-selection tie-break in
+# ``display_badge``: above the Patreon tiers, so a staff member who also supports
+# on Patreon shows the staff badge by default (either can still be picked).
+STAFF_BADGE = BadgeDef(
+    slug="staff",
+    title="Staff",
+    rank=100,
+    svg="core/img/badges/staff.svg",
+    description="Gyrinx staff",
+)
+
+# All badges, indexed for lookup.
+ALL_BADGES: list[BadgeDef] = [*PATREON_BADGES, STAFF_BADGE]
 
 # Sentinel stored in ``UserProfile.selected_badge`` meaning "explicitly hide my
 # badge". This is distinct from the empty string: empty means "no explicit
