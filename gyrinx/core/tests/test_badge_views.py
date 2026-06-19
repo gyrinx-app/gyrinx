@@ -34,6 +34,45 @@ def test_form_preselects_current_tier_by_default(user):
 
 
 @pytest.mark.django_db
+def test_form_offers_staff_badge_for_staff_user(user):
+    user.is_staff = True
+    user.save()
+    _profile(user)
+    form = BadgeSelectionForm(user=user)
+    values = [v for v, _ in form.fields["selected_badge"].choices]
+    assert values == ["staff", HIDE_BADGE]
+
+
+@pytest.mark.django_db
+def test_form_preselects_staff_by_default_for_staff_user(user):
+    user.is_staff = True
+    user.save()
+    _profile(user)
+    form = BadgeSelectionForm(user=user)
+    assert form.fields["selected_badge"].initial == "staff"
+
+
+@pytest.mark.django_db
+def test_form_lets_staff_supporter_pick_a_patreon_badge(user):
+    user.is_staff = True
+    user.save()
+    _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Uphiver")
+    form = BadgeSelectionForm({"selected_badge": "guilder"}, user=user)
+    assert form.is_valid()
+    form.save()
+    user.profile.refresh_from_db()
+    assert user.profile.selected_badge == "guilder"
+
+
+@pytest.mark.django_db
+def test_form_rejects_staff_badge_for_non_staff_user(user):
+    _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Uphiver")
+    form = BadgeSelectionForm({"selected_badge": "staff"}, user=user)
+    assert not form.is_valid()
+    assert "selected_badge" in form.errors
+
+
+@pytest.mark.django_db
 def test_form_accepts_eligible_selection(user):
     _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Uphiver")
     form = BadgeSelectionForm({"selected_badge": "guilder"}, user=user)
@@ -105,6 +144,20 @@ def test_badge_page_empty_state_for_non_supporter(client, user):
 
 
 @pytest.mark.django_db
+def test_badge_page_shows_picker_for_staff_user(client, user):
+    user.is_staff = True
+    user.save()
+    _profile(user)
+    client.force_login(user)
+    response = client.get(BADGE_URL)
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert "don't have any badges yet" not in content
+    assert "Staff" in content
+    assert "Hide badge" in content
+
+
+@pytest.mark.django_db
 def test_badge_page_post_saves_selection(client, user):
     _profile(user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Guilder")
     client.force_login(user)
@@ -151,6 +204,18 @@ def test_profile_page_shows_default_badge_without_selection(client, user):
     content = response.content.decode()
     assert response.status_code == 200
     assert 'data-bs-title="Gyrinx supporter — Guilder tier"' in content
+
+
+@pytest.mark.django_db
+def test_profile_page_shows_staff_badge(client, user):
+    user.is_staff = True
+    user.save()
+    _profile(user)
+    url = reverse("core:user", args=[user.username])
+    response = client.get(url)
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert 'data-bs-title="Gyrinx staff"' in content
 
 
 @pytest.mark.django_db

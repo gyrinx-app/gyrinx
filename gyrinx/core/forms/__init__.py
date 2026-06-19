@@ -149,13 +149,13 @@ class UsernameChangeForm(forms.Form):
 
 
 class BadgeSelectionForm(forms.Form):
-    """Let a user choose which supporter badge to display.
+    """Let a user choose which badge to display.
 
-    The available choices are the user's currently-unlocked badges (see
-    ``UserProfile.unlocked_badges``) plus an explicit "Hide badge" option. Active
-    patrons show their current-tier badge by default, so the form pre-selects
-    whatever is actually displayed. ``clean_selected_badge`` re-checks eligibility
-    to reject tampered submissions.
+    The available choices are every badge the user can display (see
+    ``UserProfile.available_badges`` — Patreon tiers plus staff) plus an explicit
+    "Hide badge" option. Eligible users show a badge by default, so the form
+    pre-selects whatever is actually displayed. ``clean_selected_badge`` re-checks
+    eligibility to reject tampered submissions.
     """
 
     selected_badge = forms.ChoiceField(
@@ -169,10 +169,10 @@ class BadgeSelectionForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.profile = self.user.profile
         self.fields["selected_badge"].choices = badge_choices(
-            self.profile.unlocked_badges
+            self.profile.available_badges
         )
         # Pre-select whatever the profile actually displays: an explicit
-        # still-eligible pick, the opt-out, or the current-tier default.
+        # still-eligible pick, the opt-out, or the highest-ranked default.
         if self.profile.selected_badge == HIDE_BADGE:
             initial = HIDE_BADGE
         else:
