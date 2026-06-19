@@ -5,8 +5,8 @@
 {% endblock head_title %}
 {% block content %}
     <h1 class="h3 mb-2">{% trans "Badge" %}</h1>
-    <p class="text-secondary">A badge shows next to your name by default. You can pick which one to show, or hide it.</p>
     {% if available_badges %}
+        <p class="text-secondary">A badge shows next to your name by default. You can pick which one to show, or hide it.</p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {% if form.selected_badge.errors %}
