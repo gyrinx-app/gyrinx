@@ -149,7 +149,7 @@ def test_signal_enqueues_only_for_child_spawning_created_default(
     plain_equipment = make_equipment("Bolt Pistol", category="Pistols", cost="10")
 
     with patch(
-        "gyrinx.core.models.list.propagate_default_child_fighter_assignment"
+        "gyrinx.core.models.list.signal_handlers.propagate_default_child_fighter_assignment"
     ) as mock_task:
         # Non-child-spawning default -> must NOT enqueue.
         with django_capture_on_commit_callbacks(execute=True):
@@ -269,7 +269,9 @@ def test_existing_materialised_assignment_untouched(
         make_list, content_house, pack, parent_cf, user
     )
     # Create the default WITHOUT propagation firing, then materialise once.
-    with patch("gyrinx.core.models.list.propagate_default_child_fighter_assignment"):
+    with patch(
+        "gyrinx.core.models.list.signal_handlers.propagate_default_child_fighter_assignment"
+    ):
         default = ContentFighterDefaultAssignment.objects.create(
             fighter=parent_cf, equipment=equipment
         )
