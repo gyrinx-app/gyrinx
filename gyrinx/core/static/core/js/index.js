@@ -202,10 +202,9 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
 
 // Support syncing two or more form elements
 document.querySelectorAll("[data-gy-sync]").forEach((element) => {
+    const key = element.getAttribute("data-gy-sync");
     const targets = Array.from(
-        document.querySelectorAll(
-            `[data-gy-sync=${element.getAttribute("data-gy-sync")}`,
-        ),
+        document.querySelectorAll(`[data-gy-sync="${CSS.escape(key)}"]`),
     ).filter((target) => target !== element);
 
     if (targets.length === 0) return;
@@ -222,76 +221,11 @@ document.querySelectorAll("[data-gy-sync]").forEach((element) => {
     element.addEventListener("input", dispatch);
 });
 
-// Equipment list filter toggle functionality
-document.addEventListener("DOMContentLoaded", () => {
-    const filterSwitch = document.getElementById("filter-switch");
-
-    // Find the availability button by its ID
-    const availabilityButton = document.getElementById(
-        "availability-dropdown-button",
-    );
-
-    if (filterSwitch && availabilityButton) {
-        filterSwitch.addEventListener("change", (event) => {
-            if (event.target.checked) {
-                // Equipment list is ON - disable availability
-                availabilityButton.classList.add("disabled");
-                availabilityButton.setAttribute("disabled", "");
-                availabilityButton.removeAttribute("data-bs-toggle");
-                availabilityButton.removeAttribute("aria-expanded");
-                availabilityButton.removeAttribute("data-bs-auto-close");
-
-                // Remove existing tooltip if any
-                const existingTooltip = bootstrap.Tooltip.getInstance(
-                    availabilityButton.parentElement,
-                );
-                if (existingTooltip) {
-                    existingTooltip.dispose();
-                }
-
-                // Add tooltip
-                availabilityButton.parentElement.setAttribute(
-                    "data-bs-toggle",
-                    "tooltip",
-                );
-                availabilityButton.parentElement.setAttribute(
-                    "data-bs-placement",
-                    "top",
-                );
-                availabilityButton.parentElement.setAttribute(
-                    "title",
-                    "Availability filters are disabled when Equipment List is toggled on. All equipment on the fighter's equipment list is shown regardless of availability.",
-                );
-                new bootstrap.Tooltip(availabilityButton.parentElement);
-            } else {
-                // Equipment list is OFF - enable availability
-                availabilityButton.classList.remove("disabled");
-                availabilityButton.removeAttribute("disabled");
-                availabilityButton.setAttribute("data-bs-toggle", "dropdown");
-                availabilityButton.setAttribute("aria-expanded", "false");
-                availabilityButton.setAttribute(
-                    "data-bs-auto-close",
-                    "outside",
-                );
-
-                // Remove tooltip
-                const tooltip = bootstrap.Tooltip.getInstance(
-                    availabilityButton.parentElement,
-                );
-                if (tooltip) {
-                    tooltip.dispose();
-                }
-                availabilityButton.parentElement.removeAttribute(
-                    "data-bs-toggle",
-                );
-                availabilityButton.parentElement.removeAttribute(
-                    "data-bs-placement",
-                );
-                availabilityButton.parentElement.removeAttribute("title");
-            }
-        });
-    }
-});
+// The availability dropdown's disabled state + tooltip when the equipment-list
+// filter is on is rendered server-side in
+// core/includes/fighter_gear_filter.html (the filter-switch is a GET
+// navigation, so the server re-renders the correct state on each toggle). No
+// client-side JS is needed to mirror it.
 
 // Generic handler for "All/None" filter links in dropdown menus
 function setupFilterLinks(config) {
@@ -451,26 +385,30 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     checkboxes.forEach((checkbox) => {
-        checkbox.addEventListener("change", (event) => {
-            // If this is a checkbox, find any hidden input with the same name in the same form
-            // and disable it when the checkbox is checked
+        // Find any hidden input with the same name in the same form and disable
+        // it when the checkbox is checked, so only one value is submitted.
+        const sync = () => {
             const form = checkbox.form || checkbox.closest("form");
-            if (form) {
-                // The input may not be within (DOM Child) of the form, so we need to use
-                // document.querySelector as a fallback to find it by name and form ID.
-                const hiddenInput =
-                    form.querySelector(
-                        `input[type="hidden"][name="${checkbox.name}"]`,
-                    ) ||
-                    document.querySelector(
-                        `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
-                    );
-                if (hiddenInput) {
-                    // Set initial state
-                    hiddenInput.disabled = checkbox.checked;
-                }
+            if (!form) return;
+            // The input may not be within (DOM Child) of the form, so we need to use
+            // document.querySelector as a fallback to find it by name and form ID.
+            const hiddenInput =
+                form.querySelector(
+                    `input[type="hidden"][name="${checkbox.name}"]`,
+                ) ||
+                document.querySelector(
+                    `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
+                );
+            if (hiddenInput) {
+                hiddenInput.disabled = checkbox.checked;
             }
-        });
+        };
+
+        checkbox.addEventListener("change", sync);
+        // Set initial state on load — a pre-checked checkbox must disable its
+        // paired hidden input immediately, otherwise both values submit until
+        // the box is first toggled.
+        sync();
     });
 });
 
@@ -499,8 +437,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (form) {
-                // Submit the form
-                form.submit();
+                // Use requestSubmit() rather than submit() so the form's
+                // submit event fires (busy spinner) and HTML5 constraint
+                // validation runs, matching a real submit-button click.
+                form.requestSubmit();
             }
         });
     });
