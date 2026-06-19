@@ -53,7 +53,11 @@ def handle_fighter_kill(
 
     The fighter's cost goes from X to 0, reducing rating by X.
     Equipment transfers from fighter to stash don't change overall wealth,
-    but equipment is preserved in the stash for potential re-use.
+    but equipment is preserved in the stash for potential re-use. The
+    transferred gear's value is frozen at what it cost on the dying fighter
+    (pinned via ``total_cost_override``) so it doesn't re-price in the stash's
+    context — keeping the value that leaves the rating equal to the value that
+    lands in the stash, and keeping the stash cost cache in sync (issue #1826).
 
     Equipment in a category flagged ``persistent`` (see
     ``ContentEquipmentCategory.persistent``) is the exception: it stays
@@ -116,18 +120,31 @@ def handle_fighter_kill(
 
     equipment_cost = 0
     if to_transfer:
-        # Calculate transferred equipment cost before we delete assignments.
-        # Only the transferred (non-persistent) gear bumps the stash — the
-        # persistent items' value is absorbed into the rating reduction below.
-        equipment_cost = sum(a.cost_int() for a in to_transfer)
-
         for assignment in to_transfer:
-            # Create new assignment for stash with same equipment
+            # Freeze each assignment's value as costed on the *dying* fighter
+            # (issue #1826). cost_int() here is evaluated in the dying fighter's
+            # context — its equipment list, house overrides, expansions. The
+            # same gear re-prices in the stash's context (which has no equipment
+            # list), so without pinning the value the delta we propagate into
+            # the stash cache below would never match the stash fighter's own
+            # recomputed cost_int(), and the cache would drift permanently.
+            # Only the transferred (non-persistent) gear bumps the stash — the
+            # persistent items' value is absorbed into the rating reduction.
+            #
+            # Read before the delete below, while the assignment is still
+            # attached to the dying fighter.
+            frozen_cost = assignment.cost_int()
+            equipment_cost += frozen_cost
+
+            # Create new assignment for stash with same equipment, pinned to the
+            # value it carried on the dying fighter via total_cost_override. The
+            # pin persists through any later reassignment out of the stash — the
+            # gear keeps this price rather than re-pricing to a new fighter.
             new_assignment = ListFighterEquipmentAssignment(
                 list_fighter=stash_fighter,
                 content_equipment=assignment.content_equipment,
                 cost_override=assignment.cost_override,
-                total_cost_override=assignment.total_cost_override,
+                total_cost_override=frozen_cost,
                 from_default_assignment=assignment.from_default_assignment,
             )
             new_assignment.save()

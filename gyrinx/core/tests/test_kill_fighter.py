@@ -6,10 +6,18 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
     ContentFighter,
+    ContentFighterEquipmentListItem,
+)
+from gyrinx.core.handlers.equipment.reassignment import (
+    handle_equipment_reassignment,
 )
 from gyrinx.core.handlers.fighter.kill import handle_fighter_kill
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.list import List, ListFighter
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
 
 User = get_user_model()
 
@@ -195,6 +203,120 @@ def test_kill_fighter_transfers_equipment_to_stash(client, user, content_house):
     stash_assignment = stash.listfighterequipmentassignment_set.first()
     assert stash_assignment.content_equipment == equipment
     assert stash_assignment.cost_int() == 15
+
+
+@pytest.mark.django_db
+def test_kill_freezes_transferred_equipment_value(
+    user, make_list, make_content_fighter, make_list_fighter, content_house
+):
+    """Gear transferred to the stash on death keeps its dying-fighter price.
+
+    Regression for #1826. A weapon priced by the dying fighter's equipment list
+    must not re-price to the stash's context (which has no equipment list).
+    Freezing the value via total_cost_override keeps the cached stash total in
+    sync with the stash fighter's own recomputed cost_int() — no drift.
+    """
+    lst = make_list("Freeze Gang", status=List.CAMPAIGN_MODE)
+    stash = lst.ensure_stash()
+
+    # A fighter whose equipment list discounts the Lasgun to 5¢, while its full
+    # price (what the stash, with no equipment list, would charge) is 15¢.
+    cf = make_content_fighter(
+        type="Ganger",
+        category="GANGER",
+        house=content_house,
+        base_cost=50,
+    )
+    fighter = make_list_fighter(lst, "Bob", content_fighter=cf)
+
+    lasgun = ContentEquipment.objects.create(name="Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(fighter=cf, equipment=lasgun, cost=5)
+
+    fighter.assign(lasgun)
+
+    # Sanity: the Lasgun costs 5¢ on Bob (equipment-list price), not 15¢.
+    bob_assignment = fighter.listfighterequipmentassignment_set.get()
+    assert bob_assignment.cost_int() == 5
+
+    handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+
+    # The gear moved to the stash pinned at its frozen 5¢ — not re-priced to 15¢.
+    stash_assignment = stash.listfighterequipmentassignment_set.get()
+    assert stash_assignment.total_cost_override == 5
+    assert stash_assignment.cost_int() == 5
+
+    # The cached stash total agrees with a fresh recompute of the stash
+    # fighter's contents: the cache did not drift.
+    lst.refresh_from_db()
+    stash.refresh_from_db()
+    assert stash.cost_int() == 5
+    assert lst.stash_current == 5
+
+
+@pytest.mark.django_db
+def test_frozen_stash_value_survives_reassignment_out(
+    user, make_list, make_content_fighter, make_list_fighter, content_house, campaign
+):
+    """Frozen stash gear keeps its price when re-equipped onto another fighter.
+
+    Confirms the #1826 decision: gear stays frozen through reassignment — it
+    does not re-price to the receiving fighter's equipment list. The
+    reassignment handler moves the existing assignment row, so the
+    total_cost_override pinned on death rides along.
+    """
+    lst = make_list("Freeze Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    campaign.lists.add(lst)
+    stash = lst.ensure_stash()
+
+    # Bob's equipment list prices the Lasgun at 5¢.
+    dying_cf = make_content_fighter(
+        type="Ganger", category="GANGER", house=content_house, base_cost=50
+    )
+    fighter = make_list_fighter(lst, "Bob", content_fighter=dying_cf)
+    lasgun = ContentEquipment.objects.create(name="Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=dying_cf, equipment=lasgun, cost=5
+    )
+    fighter.assign(lasgun)
+
+    handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+    stash_assignment = stash.listfighterequipmentassignment_set.get()
+    assert stash_assignment.cost_int() == 5  # frozen at Bob's price
+
+    # A new fighter whose own equipment list would price the Lasgun at 12¢.
+    heir_cf = make_content_fighter(
+        type="Champion", category="CHAMPION", house=content_house, base_cost=80
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=heir_cf, equipment=lasgun, cost=12
+    )
+    heir = make_list_fighter(lst, "Heir", content_fighter=heir_cf)
+
+    # Re-fetch participants so the handler reads current cached values.
+    lst.refresh_from_db()
+    stash = ListFighter.objects.get(pk=stash.pk)
+    stash_assignment = ListFighterEquipmentAssignment.objects.get(
+        pk=stash_assignment.pk
+    )
+
+    result = handle_equipment_reassignment(
+        user=user,
+        lst=lst,
+        from_fighter=stash,
+        to_fighter=heir,
+        assignment=stash_assignment,
+    )
+
+    # Still 5¢ on the heir — not re-priced to the heir's 12¢ list price.
+    assert result.equipment_cost == 5
+    stash_assignment.refresh_from_db()
+    assert stash_assignment.cost_int() == 5
+
+    # Wealth bookkeeping: 5¢ left the stash, 5¢ joined the rating; no drift.
+    lst.refresh_from_db()
+    heir.refresh_from_db()
+    assert lst.stash_current == 0
+    assert heir.cost_int() == 80 + 5
 
 
 @pytest.mark.django_db
