@@ -21,31 +21,51 @@
                 </div>
             </div>
         {% endif %}
-        <form method="post"
-              class="vstack gap-4"
-              aria-label="Select advancement form">
-            {% csrf_token %}
-            {{ form.campaign_action_id }}
+        <div class="vstack gap-4">
             {% if form.non_field_errors %}
                 <div class="alert alert-danger alert-icon mb-last-0 mb-0" role="alert">
                     <i class="bi-exclamation-triangle"></i>
                     <div>{{ form.non_field_errors }}</div>
                 </div>
             {% endif %}
-            <div class="vstack gap-3">
-                <div class="alert alert-secondary alert-icon mb-0" role="alert">
-                    <i class="bi-info-circle"></i>
-                    <div>
-                        Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
-                    </div>
-                </div>
+            <div class="alert alert-secondary alert-icon mb-0" role="alert">
+                <i class="bi-info-circle"></i>
                 <div>
-                    <label class="form-label">Advancement</label>
-                    <div class="vstack gap-2">{{ form.advancement_choice }}</div>
-                    {% if form.advancement_choice.errors %}
-                        <div class="invalid-feedback d-block">{{ form.advancement_choice.errors.0 }}</div>
-                    {% endif %}
+                    Available XP: <span class="badge text-bg-primary">{{ fighter.xp_current }}</span>
                 </div>
+            </div>
+            {# Advancement picker: a GET form that reloads this page with the #}
+            {# chosen advancement so the server can render the matching cost #}
+            {# defaults. Auto-submits on change via data-gy-toggle-submit; the #}
+            {# "Update costs" button covers the no-JS path. #}
+            <form method="get"
+                  class="vstack gap-1"
+                  aria-label="Choose advancement form">
+                {% if form.campaign_action_id.value %}
+                    <input type="hidden"
+                           name="campaign_action_id"
+                           value="{{ form.campaign_action_id.value }}">
+                {% endif %}
+                <label for="{{ form.advancement_choice.id_for_label }}" class="form-label">Advancement</label>
+                <div class="vstack gap-2">{{ form.advancement_choice }}</div>
+                {% if form.advancement_choice.errors %}
+                    <div class="invalid-feedback d-block">{{ form.advancement_choice.errors.0 }}</div>
+                {% endif %}
+                <noscript>
+                    <button type="submit" class="btn btn-secondary btn-sm mt-2 align-self-start">Update costs</button>
+                </noscript>
+            </form>
+            {# Action form: submits the chosen advancement and (editable) costs. #}
+            {# The advancement choice is mirrored as a hidden field so the chosen #}
+            {# value posts even though the visible select lives in the GET form. #}
+            <form method="post"
+                  class="vstack gap-4"
+                  aria-label="Select advancement form">
+                {% csrf_token %}
+                {{ form.campaign_action_id }}
+                <input type="hidden"
+                       name="advancement_choice"
+                       value="{{ form.advancement_choice.value }}">
                 <div class="row">
                     <div class="col-md-6">
                         <label for="{{ form.xp_cost.id_for_label }}" class="form-label">XP Spend</label>
@@ -64,57 +84,21 @@
                         {% endif %}
                     </div>
                 </div>
-            </div>
-            <nav class="vstack gap-3" aria-label="Form navigation">
-                <div class="hstack gap-3">
-                    {% if step > 1 %}
-                        <a href="{% url 'core:list-fighter-advancement-dice-choice' list.id fighter.id %}"
-                           class="icon-link">
-                            <i class="bi-chevron-left"></i> Back
-                        </a>
-                    {% endif %}
-                    <button type="submit" class="btn btn-primary" aria-describedby="nav-help">
-                        Next <i class="bi-arrow-right" aria-hidden="true"></i>
-                    </button>
-                </div>
-                <span id="nav-help" class="visually-hidden">Navigate to the next step of the advancement workflow</span>
-            </nav>
-        </form>
+                <nav class="vstack gap-3" aria-label="Form navigation">
+                    <div class="hstack gap-3">
+                        {% if step > 1 %}
+                            <a href="{% url 'core:list-fighter-advancement-dice-choice' list.id fighter.id %}"
+                               class="icon-link">
+                                <i class="bi-chevron-left"></i> Back
+                            </a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary" aria-describedby="nav-help">
+                            Next <i class="bi-arrow-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <span id="nav-help" class="visually-hidden">Navigate to the next step of the advancement workflow</span>
+                </nav>
+            </form>
+        </div>
     </div>
 {% endblock content %}
-{% block extra_script %}
-    {{ advancement_configs|json_script:"advancement-configs" }}
-    <script>
-    // Advancement configurations passed from the server
-    const advancementConfigs = JSON.parse(
-        document.getElementById('advancement-configs').textContent
-    );
-
-    // Get references to form elements
-    const advancementSelect = document.getElementById('{{ form.advancement_choice.id_for_label }}');
-    const xpCostInput = document.getElementById('{{ form.xp_cost.id_for_label }}');
-    const costIncreaseInput = document.getElementById('{{ form.cost_increase.id_for_label }}');
-
-    // Update costs when advancement type changes
-    function updateCosts() {
-        const selectedValue = advancementSelect.value;
-        const config = advancementConfigs[selectedValue];
-
-        if (config) {
-            // Update XP cost and fighter cost increase
-            xpCostInput.value = config.xp_cost;
-            costIncreaseInput.value = config.cost_increase;
-        }
-    }
-
-    // Listen for changes to the advancement selection
-    if (advancementSelect) {
-        advancementSelect.addEventListener('change', updateCosts);
-
-        // Update costs on page load if a value is already selected
-        if (advancementSelect.value) {
-            updateCosts();
-        }
-    }
-    </script>
-{% endblock extra_script %}
