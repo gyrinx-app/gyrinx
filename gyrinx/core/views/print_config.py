@@ -10,6 +10,20 @@ from gyrinx.core.models import List, PrintConfig
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.utils import safe_redirect
 
+# Valid fighter-selection modes, used to validate the URL-driven variant.
+_VALID_SELECTION_MODES = {value for value, _ in PrintConfig.FIGHTER_SELECTION_CHOICES}
+
+
+def _resolve_selection_mode(source, default):
+    """Resolve the URL-driven fighter-selection mode from a request dict.
+
+    Falls back to ``default`` when the value is missing or not a valid choice.
+    """
+    mode = source.get("fighter_selection_mode")
+    if mode in _VALID_SELECTION_MODES:
+        return mode
+    return default
+
 
 class PrintConfigIndexView(generic.ListView):
     """
@@ -62,7 +76,12 @@ def print_config_create(request, list_id):
     )
 
     if request.method == "POST":
-        form = PrintConfigForm(request.POST, list_obj=list_obj)
+        # The selection mode is URL-driven: the posted hidden field carries the
+        # variant the form was rendered for, so it stays the source of truth.
+        selection_mode = _resolve_selection_mode(request.POST, PrintConfig.ALL_FIGHTERS)
+        form = PrintConfigForm(
+            request.POST, list_obj=list_obj, selection_mode=selection_mode
+        )
         if form.is_valid():
             with transaction.atomic():
                 print_config = form.save(commit=False)
@@ -96,8 +115,13 @@ def print_config_create(request, list_id):
             "include_dead_fighters": False,
         }
 
+        # The selection mode is chosen by navigation (?fighter_selection_mode=...);
+        # the form renders the matching variant. Default to "all fighters".
+        selection_mode = _resolve_selection_mode(request.GET, PrintConfig.ALL_FIGHTERS)
         # Don't pre-select any fighters since we default to "all fighters"
-        form = PrintConfigForm(initial=initial, list_obj=list_obj)
+        form = PrintConfigForm(
+            initial=initial, list_obj=list_obj, selection_mode=selection_mode
+        )
 
     return render(
         request,
@@ -121,7 +145,17 @@ def print_config_edit(request, list_id, config_id):
     )
 
     if request.method == "POST":
-        form = PrintConfigForm(request.POST, instance=print_config, list_obj=list_obj)
+        # The posted hidden field carries the URL-driven variant; fall back to the
+        # saved mode if it is somehow absent.
+        selection_mode = _resolve_selection_mode(
+            request.POST, print_config.fighter_selection_mode
+        )
+        form = PrintConfigForm(
+            request.POST,
+            instance=print_config,
+            list_obj=list_obj,
+            selection_mode=selection_mode,
+        )
         if form.is_valid():
             with transaction.atomic():
                 old_name = print_config.name
@@ -144,7 +178,16 @@ def print_config_edit(request, list_id, config_id):
                 )
                 return redirect("core:print-config-index", list_id=list_obj.id)
     else:
-        form = PrintConfigForm(instance=print_config, list_obj=list_obj)
+        # On GET the mode comes from the URL when switching variants, otherwise
+        # from the saved configuration.
+        selection_mode = _resolve_selection_mode(
+            request.GET, print_config.fighter_selection_mode
+        )
+        form = PrintConfigForm(
+            instance=print_config,
+            list_obj=list_obj,
+            selection_mode=selection_mode,
+        )
 
     return render(
         request,

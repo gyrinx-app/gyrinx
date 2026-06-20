@@ -160,6 +160,8 @@ def test_specific_fighters_requires_selection(test_list_with_stash):
             "blank_vehicle_cards": 0,
         },
         list_obj=test_list,
+        # The variant is URL-driven; the view passes the chosen mode to the form.
+        selection_mode=PrintConfig.SPECIFIC_FIGHTERS,
     )
 
     assert not form.is_valid()
@@ -180,6 +182,8 @@ def test_specific_fighters_valid_with_selection(test_list_with_stash):
             "blank_vehicle_cards": 0,
         },
         list_obj=test_list,
+        # The variant is URL-driven; the view passes the chosen mode to the form.
+        selection_mode=PrintConfig.SPECIFIC_FIGHTERS,
     )
 
     assert form.is_valid()

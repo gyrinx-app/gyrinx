@@ -52,9 +52,20 @@ class PrintConfigForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self.list_obj = kwargs.pop("list_obj", None)
+        # The selection mode is URL-driven: the view passes the mode selected via
+        # navigation so the form renders the matching variant. The
+        # ``included_fighters`` field is only present when the mode is "specific".
+        self.selection_mode = kwargs.pop("selection_mode", PrintConfig.ALL_FIGHTERS)
         super().__init__(*args, **kwargs)
 
-        if self.list_obj:
+        # Keep the stored mode in sync with the URL-driven variant so the hidden
+        # field that posts the value matches the section being rendered.
+        self.fields["fighter_selection_mode"].initial = self.selection_mode
+
+        if self.selection_mode != PrintConfig.SPECIFIC_FIGHTERS:
+            # Only the "specific" variant shows (and submits) fighter checkboxes.
+            del self.fields["included_fighters"]
+        elif self.list_obj:
             # Filter fighters to only show those belonging to this list
             self.fields["included_fighters"].queryset = ListFighter.objects.filter(
                 list=self.list_obj, archived=False, content_fighter__is_stash=False
@@ -68,7 +79,10 @@ class PrintConfigForm(forms.ModelForm):
     def clean(self):
         """Validate fighter selection and clear included_fighters for non-specific modes."""
         cleaned_data = super().clean()
-        mode = cleaned_data.get("fighter_selection_mode")
+        # The mode the form was built for is the source of truth - it drives which
+        # fields exist. The posted radios can't override the URL-driven variant.
+        mode = self.selection_mode
+        cleaned_data["fighter_selection_mode"] = mode
 
         if mode == PrintConfig.SPECIFIC_FIGHTERS:
             if not cleaned_data.get("included_fighters"):
