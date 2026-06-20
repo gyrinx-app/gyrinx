@@ -442,7 +442,7 @@ def test_check_wealth_sync_no_latest_action(user, make_list):
     lst = make_list("Test List", create_initial_action=False)
 
     # No latest_action, so check_wealth_sync should do nothing
-    with patch("gyrinx.core.models.list.track") as mock_track:
+    with patch("gyrinx.core.models.list.list.track") as mock_track:
         lst.check_wealth_sync(wealth_calculated=1000)
         # track should not be called
         mock_track.assert_not_called()
@@ -479,7 +479,7 @@ def test_check_wealth_sync_in_sync(user, make_list):
     # Calculated cost = rating_current + credits_current = 500 + 500 = 1000
     # Action total = rating_after + credits_after = 500 + 500 = 1000
     # Both match, so track should not be called
-    with patch("gyrinx.core.models.list.track") as mock_track:
+    with patch("gyrinx.core.models.list.list.track") as mock_track:
         lst.check_wealth_sync(wealth_calculated=1000)
         mock_track.assert_not_called()
 
@@ -514,7 +514,7 @@ def test_check_wealth_sync_out_of_sync_current(user, make_list):
     # Calculated cost = 1000
     # rating_current + credits_current = 400 + 500 = 900 (out of sync by 100)
     # rating_after + credits_after = 500 + 500 = 1000 (in sync)
-    with patch("gyrinx.core.models.list.track") as mock_track:
+    with patch("gyrinx.core.models.list.list.track") as mock_track:
         lst.check_wealth_sync(wealth_calculated=1000)
         mock_track.assert_called_once()
         call_args = mock_track.call_args[1]
@@ -557,7 +557,7 @@ def test_check_wealth_sync_out_of_sync_action(user, make_list):
     lst.credits_current = 500
     lst.save()
 
-    with patch("gyrinx.core.models.list.track") as mock_track:
+    with patch("gyrinx.core.models.list.list.track") as mock_track:
         lst.check_wealth_sync(wealth_calculated=1000)
         mock_track.assert_called_once()
         call_args = mock_track.call_args[1]

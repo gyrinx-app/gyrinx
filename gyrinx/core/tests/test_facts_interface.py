@@ -354,8 +354,8 @@ def test_list_facts_with_fallback_calculates_when_dirty(
     # Mock track and the background task enqueue
     # (ImmediateBackend runs tasks synchronously, which would update dirty flag)
     with (
-        patch("gyrinx.core.models.list.track") as mock_track,
-        patch("gyrinx.core.models.list.refresh_list_facts") as mock_task,
+        patch("gyrinx.core.models.list.list.track") as mock_track,
+        patch("gyrinx.core.models.list.list.refresh_list_facts") as mock_task,
     ):
         # Should calculate and emit track event
         facts = lst.facts_with_fallback()
