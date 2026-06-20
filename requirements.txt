@@ -18,7 +18,7 @@ django-tinymce==5.0.0
 djlint==1.39.2
 docutils==0.23
 fido2==2.2.0
-filelock==3.29.3
+filelock==3.29.4
 google-cloud-logging==3.16.0
 google-cloud-pubsub==2.39.0
 google-cloud-scheduler==2.20.0
@@ -43,7 +43,7 @@ pydantic==2.13.4
 pydot==4.0.1
 PyNaCl==1.6.2
 pyparsing==3.3.2
-pytest==9.0.3
+pytest==9.1.1
 pytest-django==4.12.0
 pytest-watcher==0.6.3
 pytest-xdist==3.8.0
@@ -52,7 +52,7 @@ qrcode==8.2
 referencing==0.37.0
 requests==2.34.2
 rich==15.0.0
-ruff==0.15.17
+ruff==0.15.18
 setuptools==81.0.0
 simpleeval==1.0.7
 sqlparse==0.5.5
