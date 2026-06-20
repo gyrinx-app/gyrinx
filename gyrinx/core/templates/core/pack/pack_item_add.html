@@ -22,6 +22,25 @@
                 {% include "core/pack/includes/_mod_picker_shared.html" %}
             {% else %}
                 {{ form }}
+                {% if slug == "fighter" %}
+                    {% comment %}
+                        URL-driven statline override: the link flips
+                        ?override_statline=1 (a navigation), and the server
+                        renders the statline_type field accordingly. The hidden
+                        input carries the flag through the create POST. No JS.
+                    {% endcomment %}
+                    {% if override_statline %}
+                        <input type="hidden" name="override_statline" value="1">
+                    {% endif %}
+                    <div>
+                        <a href="{{ override_statline_toggle_url }}"
+                           class="btn btn-sm {% if override_statline %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                           {% if override_statline %}aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>
+                            <i class="{% if override_statline %}bi-check-square{% else %}bi-square{% endif %} me-1"></i>
+                            Override default statline for this Category
+                        </a>
+                    </div>
+                {% endif %}
             {% endif %}
             {% if slug == "gear" or slug == "weapon" %}
                 <div class="alert alert-secondary alert-icon" role="alert">
@@ -93,24 +112,3 @@
         </form>
     </div>
 {% endblock content %}
-{% block extra_script %}
-    <script>
-        (function () {
-            const checkbox = document.getElementById("id_override_statline");
-            const select = document.getElementById("id_statline_type");
-            if (!checkbox || !select) return;
-
-            function toggle() {
-                if (checkbox.checked) {
-                    select.removeAttribute("disabled");
-                } else {
-                    select.setAttribute("disabled", "disabled");
-                    select.value = "";
-                }
-            }
-
-            checkbox.addEventListener("change", toggle);
-            toggle();
-        })();
-    </script>
-{% endblock extra_script %}
