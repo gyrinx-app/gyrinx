@@ -94,6 +94,101 @@ def _append_cost_propagation_help(form, field_name="cost"):
         form.fields[field_name].help_text = existing + COST_PROPAGATION_HELP_SUFFIX
 
 
+class PackItemFormMixin:
+    """Shared helpers for the ``Content*PackForm`` family.
+
+    Collapses three repeated shapes without forcing a single ``clean_name``
+    (the variants genuinely differ — base vs ``all_content()`` manager,
+    extra-field scoping, per-pack uniqueness, and message text). Each form's
+    ``clean_name`` / ``__init__`` calls these helpers with its own specifics:
+
+    - ``_raise_if_name_taken`` — the "exclude self, then raise if any match"
+      tail shared by every uniqueness check. The caller builds the filtered
+      queryset (choosing manager + filters + message).
+    - ``_pack_item_object_ids`` — the canonical ``CustomContentPackItem``
+      object-id lookup for ``self._pack`` and a content model, used by both
+      the per-pack uniqueness check and the Default/Custom choice grouping.
+    - ``_check_name_unique_in_pack`` — the second half of the two-step checks
+      in the weapon-trait / weapon-accessory forms.
+    - ``_apply_grouped_pack_choices`` — the "split choices into Custom (pack)
+      and Default (base)" ``__init__`` block.
+
+    CRITICAL — archive semantics (see CLAUDE.md "Content packs: archive
+    semantics"): every ``CustomContentPackItem`` lookup here filters
+    ``archived=False``. This is a form-validation / unique-constraint write
+    path, and the ``CustomContentPackItem`` unique constraint is itself
+    conditional on ``archived=False`` — so the "live" item lookup MUST match.
+    Do not broaden these to include archived items.
+    """
+
+    def _raise_if_name_taken(self, qs, message):
+        """Exclude the current instance, then raise ``ValidationError`` if any
+        row in ``qs`` still matches. ``qs`` must already be filtered to the
+        candidate duplicates (by name, manager, and any extra scoping)."""
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(message)
+
+    def _pack_item_object_ids(self, model):
+        """Object ids of the current pack's (non-archived) items for ``model``.
+
+        ``archived=False`` matches the conditional unique constraint — see the
+        class docstring's archive-semantics note. Returns an empty queryset
+        when the form has no pack.
+        """
+        from django.contrib.contenttypes.models import ContentType
+
+        from gyrinx.core.models.pack import CustomContentPackItem
+
+        if self._pack is None:
+            return CustomContentPackItem.objects.none().values_list(
+                "object_id", flat=True
+            )
+        ct = ContentType.objects.get_for_model(model)
+        return CustomContentPackItem.objects.filter(
+            pack=self._pack, content_type=ct, archived=False
+        ).values_list("object_id", flat=True)
+
+    def _check_name_unique_in_pack(self, model, value, message):
+        """Raise if ``value`` collides with another of the current pack's items.
+
+        No-op when the form has no pack. Mirrors the base-library check but
+        scopes to the pack's (non-archived) items via ``all_content()``.
+        """
+        if self._pack is None:
+            return
+        pack_item_ids = self._pack_item_object_ids(model)
+        qs = model.objects.all_content().filter(
+            pk__in=pack_item_ids, name__iexact=value
+        )
+        self._raise_if_name_taken(qs, message)
+
+    def _apply_grouped_pack_choices(self, field_name, queryset, model):
+        """Group ``field_name``'s choices into "Custom" (this pack's items) and
+        "Default" (base game), matching the existing dropdown grouping.
+
+        No-op when the form has no pack (the plain queryset choices stand).
+        """
+        if self._pack is None:
+            return
+        pack_ids = set(self._pack_item_object_ids(model))
+        default_choices = []
+        custom_choices = []
+        for obj in queryset.order_by("name"):
+            choice = (obj.pk, str(obj))
+            if obj.pk in pack_ids:
+                custom_choices.append(choice)
+            else:
+                default_choices.append(choice)
+        grouped = [("", "---------")]
+        if custom_choices:
+            grouped.append(("Custom", custom_choices))
+        if default_choices:
+            grouped.append(("Default", default_choices))
+        self.fields[field_name].choices = grouped
+
+
 class PackForm(forms.ModelForm):
     class Meta:
         model = CustomContentPack
@@ -145,7 +240,7 @@ class PackAttachmentForm(forms.ModelForm):
         }
 
 
-class ContentFighterPackForm(forms.ModelForm):
+class ContentFighterPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing fighters in a content pack.
 
     On create (no instance): shows type, category, house, base_cost.
@@ -422,13 +517,10 @@ class ContentFighterPackForm(forms.ModelForm):
 
     def clean_type(self):
         value = self.cleaned_data["type"]
-        qs = ContentFighter.objects.filter(type__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A fighter with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentFighter.objects.filter(type__iexact=value),
+            "A fighter with this name already exists in the content library.",
+        )
         return value
 
     def _save_m2m(self):
@@ -512,7 +604,7 @@ class ContentFighterPackForm(forms.ModelForm):
             )
 
 
-class ContentHouseForm(forms.ModelForm):
+class ContentHouseForm(PackItemFormMixin, forms.ModelForm):
     class Meta:
         model = ContentHouse
         fields = ["name", "description"]
@@ -531,17 +623,14 @@ class ContentHouseForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentHouse.objects.filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A house with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentHouse.objects.filter(name__iexact=value),
+            "A house with this name already exists in the content library.",
+        )
         return value
 
 
-class ContentRuleForm(forms.ModelForm):
+class ContentRuleForm(PackItemFormMixin, forms.ModelForm):
     class Meta:
         model = ContentRule
         fields = ["name", "description"]
@@ -560,17 +649,14 @@ class ContentRuleForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentRule.objects.filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A rule with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentRule.objects.filter(name__iexact=value),
+            "A rule with this name already exists in the content library.",
+        )
         return value
 
 
-class ContentWeaponTraitPackForm(forms.ModelForm):
+class ContentWeaponTraitPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing weapon traits in a content pack."""
 
     class Meta:
@@ -596,32 +682,16 @@ class ContentWeaponTraitPackForm(forms.ModelForm):
     def clean_name(self):
         value = self.cleaned_data["name"]
         # Check uniqueness among base (non-pack) traits.
-        qs = ContentWeaponTrait.objects.filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A weapon trait with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentWeaponTrait.objects.filter(name__iexact=value),
+            "A weapon trait with this name already exists in the content library.",
+        )
         # Check uniqueness within the current pack.
-        if self._pack is not None:
-            from django.contrib.contenttypes.models import ContentType
-
-            from gyrinx.core.models.pack import CustomContentPackItem
-
-            trait_ct = ContentType.objects.get_for_model(ContentWeaponTrait)
-            pack_trait_ids = CustomContentPackItem.objects.filter(
-                pack=self._pack, content_type=trait_ct, archived=False
-            ).values_list("object_id", flat=True)
-            qs = ContentWeaponTrait.objects.all_content().filter(
-                pk__in=pack_trait_ids, name__iexact=value
-            )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(
-                    "A weapon trait with this name already exists in this Content Pack."
-                )
+        self._check_name_unique_in_pack(
+            ContentWeaponTrait,
+            value,
+            "A weapon trait with this name already exists in this Content Pack.",
+        )
         return value
 
 
@@ -638,7 +708,9 @@ class StandardFieldsMixin:
             yield self[name]
 
 
-class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
+class ContentWeaponAccessoryPackForm(
+    PackItemFormMixin, StandardFieldsMixin, forms.ModelForm
+):
     """Form for adding/editing weapon accessories in a content pack.
 
     Includes a synthetic mod picker (weapon stat mods + weapon trait mods)
@@ -803,31 +875,15 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentWeaponAccessory.objects.filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A weapon accessory with this name already exists in the content library."
-            )
-        if self._pack is not None:
-            from django.contrib.contenttypes.models import ContentType
-
-            from gyrinx.core.models.pack import CustomContentPackItem
-
-            accessory_ct = ContentType.objects.get_for_model(ContentWeaponAccessory)
-            pack_accessory_ids = CustomContentPackItem.objects.filter(
-                pack=self._pack, content_type=accessory_ct, archived=False
-            ).values_list("object_id", flat=True)
-            qs = ContentWeaponAccessory.objects.all_content().filter(
-                pk__in=pack_accessory_ids, name__iexact=value
-            )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(
-                    "A weapon accessory with this name already exists in this Content Pack."
-                )
+        self._raise_if_name_taken(
+            ContentWeaponAccessory.objects.filter(name__iexact=value),
+            "A weapon accessory with this name already exists in the content library.",
+        )
+        self._check_name_unique_in_pack(
+            ContentWeaponAccessory,
+            value,
+            "A weapon accessory with this name already exists in this Content Pack.",
+        )
         return value
 
     def _save_m2m(self):
@@ -856,7 +912,7 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
         instance.modifiers.set(mods)
 
 
-class ContentSkillCategoryPackForm(forms.ModelForm):
+class ContentSkillCategoryPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing skill categories (skill trees) in a content pack."""
 
     class Meta:
@@ -874,17 +930,14 @@ class ContentSkillCategoryPackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentSkillCategory.objects.all_content().filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A skill tree with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentSkillCategory.objects.all_content().filter(name__iexact=value),
+            "A skill tree with this name already exists in the content library.",
+        )
         return value
 
 
-class ContentSkillPackForm(forms.ModelForm):
+class ContentSkillPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing skills in a content pack."""
 
     class Meta:
@@ -916,48 +969,22 @@ class ContentSkillPackForm(forms.ModelForm):
         self.fields["category"].queryset = qs
 
         # Group choices into "Default" (base game) and "Custom" (pack content)
-        if pack is not None:
-            from gyrinx.core.models.pack import CustomContentPackItem
-
-            pack_cat_ids = set(
-                CustomContentPackItem.objects.filter(
-                    pack=pack,
-                    content_type__model="contentskillcategory",
-                    archived=False,
-                ).values_list("object_id", flat=True)
-            )
-            default_choices = []
-            custom_choices = []
-            for cat in qs.order_by("name"):
-                choice = (cat.pk, str(cat))
-                if cat.pk in pack_cat_ids:
-                    custom_choices.append(choice)
-                else:
-                    default_choices.append(choice)
-            grouped = [("", "---------")]
-            if custom_choices:
-                grouped.append(("Custom", custom_choices))
-            if default_choices:
-                grouped.append(("Default", default_choices))
-            self.fields["category"].choices = grouped
+        self._apply_grouped_pack_choices("category", qs, ContentSkillCategory)
 
     def clean_name(self):
         value = self.cleaned_data["name"]
         category = self.cleaned_data.get("category")
         if category:
-            qs = ContentSkill.objects.all_content().filter(
-                name__iexact=value, category=category
+            self._raise_if_name_taken(
+                ContentSkill.objects.all_content().filter(
+                    name__iexact=value, category=category
+                ),
+                "A skill with this name already exists in this skill tree.",
             )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(
-                    "A skill with this name already exists in this skill tree."
-                )
         return value
 
 
-class ContentAttributePackForm(forms.ModelForm):
+class ContentAttributePackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing gang attributes in a content pack."""
 
     class Meta:
@@ -992,18 +1019,15 @@ class ContentAttributePackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentAttribute.objects.all_content().filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "An attribute with this name already exists. "
-                "Attribute names are unique across the library and all packs."
-            )
+        self._raise_if_name_taken(
+            ContentAttribute.objects.all_content().filter(name__iexact=value),
+            "An attribute with this name already exists. "
+            "Attribute names are unique across the library and all packs.",
+        )
         return value
 
 
-class ContentAttributeValuePackForm(forms.ModelForm):
+class ContentAttributeValuePackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing gang-attribute values in a content pack."""
 
     class Meta:
@@ -1035,44 +1059,18 @@ class ContentAttributeValuePackForm(forms.ModelForm):
         self.fields["attribute"].queryset = qs
 
         # Group choices into "Default" (base game) and "Custom" (pack content)
-        if pack is not None:
-            from gyrinx.core.models.pack import CustomContentPackItem
-
-            pack_attr_ids = set(
-                CustomContentPackItem.objects.filter(
-                    pack=pack,
-                    content_type__model="contentattribute",
-                    archived=False,
-                ).values_list("object_id", flat=True)
-            )
-            default_choices = []
-            custom_choices = []
-            for attr in qs.order_by("name"):
-                choice = (attr.pk, str(attr))
-                if attr.pk in pack_attr_ids:
-                    custom_choices.append(choice)
-                else:
-                    default_choices.append(choice)
-            grouped = [("", "---------")]
-            if custom_choices:
-                grouped.append(("Custom", custom_choices))
-            if default_choices:
-                grouped.append(("Default", default_choices))
-            self.fields["attribute"].choices = grouped
+        self._apply_grouped_pack_choices("attribute", qs, ContentAttribute)
 
     def clean_name(self):
         value = self.cleaned_data["name"]
         attribute = self.cleaned_data.get("attribute")
         if attribute:
-            qs = ContentAttributeValue.objects.all_content().filter(
-                name__iexact=value, attribute=attribute
+            self._raise_if_name_taken(
+                ContentAttributeValue.objects.all_content().filter(
+                    name__iexact=value, attribute=attribute
+                ),
+                "A value with this name already exists for this attribute.",
             )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(
-                    "A value with this name already exists for this attribute."
-                )
         return value
 
 
@@ -1321,7 +1319,7 @@ class EquipmentModifiersForm(FighterModPickerMixin, forms.ModelForm):
         fields = []
 
 
-class ContentGearPackForm(forms.ModelForm):
+class ContentGearPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing gear (non-weapon equipment) in a content pack."""
 
     class Meta:
@@ -1381,17 +1379,14 @@ class ContentGearPackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentEquipment.objects.filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "Gear with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentEquipment.objects.filter(name__iexact=value),
+            "Gear with this name already exists in the content library.",
+        )
         return value
 
 
-class ContentWeaponPackForm(forms.ModelForm):
+class ContentWeaponPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing weapons in a content pack.
 
     Filters categories to "Weapons & Ammo" only (inverse of the gear form).
@@ -1435,13 +1430,10 @@ class ContentWeaponPackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentEquipment.objects.filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A weapon with this name already exists in the content library."
-            )
+        self._raise_if_name_taken(
+            ContentEquipment.objects.filter(name__iexact=value),
+            "A weapon with this name already exists in the content library.",
+        )
         return value
 
 
@@ -1498,7 +1490,7 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
             )
 
 
-class ContentPsykerDisciplinePackForm(forms.ModelForm):
+class ContentPsykerDisciplinePackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing psyker disciplines in a content pack."""
 
     class Meta:
@@ -1526,18 +1518,14 @@ class ContentPsykerDisciplinePackForm(forms.ModelForm):
 
     def clean_name(self):
         value = self.cleaned_data["name"]
-        qs = ContentPsykerDiscipline.objects.all_content().filter(name__iexact=value)
-        if self.instance.pk:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError(
-                "A psyker discipline with this name already exists in the content "
-                "library."
-            )
+        self._raise_if_name_taken(
+            ContentPsykerDiscipline.objects.all_content().filter(name__iexact=value),
+            "A psyker discipline with this name already exists in the content library.",
+        )
         return value
 
 
-class ContentPsykerPowerPackForm(forms.ModelForm):
+class ContentPsykerPowerPackForm(PackItemFormMixin, forms.ModelForm):
     """Form for adding/editing psyker powers in a content pack."""
 
     class Meta:
@@ -1569,44 +1557,18 @@ class ContentPsykerPowerPackForm(forms.ModelForm):
         self.fields["discipline"].queryset = qs
 
         # Group choices into "Custom" (pack content) and "Default" (base game).
-        if pack is not None:
-            from gyrinx.core.models.pack import CustomContentPackItem
-
-            pack_disc_ids = set(
-                CustomContentPackItem.objects.filter(
-                    pack=pack,
-                    content_type__model="contentpsykerdiscipline",
-                    archived=False,
-                ).values_list("object_id", flat=True)
-            )
-            default_choices = []
-            custom_choices = []
-            for disc in qs.order_by("name"):
-                choice = (disc.pk, str(disc))
-                if disc.pk in pack_disc_ids:
-                    custom_choices.append(choice)
-                else:
-                    default_choices.append(choice)
-            grouped = [("", "---------")]
-            if custom_choices:
-                grouped.append(("Custom", custom_choices))
-            if default_choices:
-                grouped.append(("Default", default_choices))
-            self.fields["discipline"].choices = grouped
+        self._apply_grouped_pack_choices("discipline", qs, ContentPsykerDiscipline)
 
     def clean_name(self):
         value = self.cleaned_data["name"]
         discipline = self.cleaned_data.get("discipline")
         if discipline:
-            qs = ContentPsykerPower.objects.all_content().filter(
-                name__iexact=value, discipline=discipline
+            self._raise_if_name_taken(
+                ContentPsykerPower.objects.all_content().filter(
+                    name__iexact=value, discipline=discipline
+                ),
+                "A psyker power with this name already exists in this discipline.",
             )
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError(
-                    "A psyker power with this name already exists in this discipline."
-                )
         return value
 
 
