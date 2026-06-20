@@ -440,7 +440,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Use requestSubmit() rather than submit() so the form's
                 // submit event fires (busy spinner) and HTML5 constraint
                 // validation runs, matching a real submit-button click.
-                form.requestSubmit();
+                // Fall back to submit() where requestSubmit is unavailable
+                // (e.g. Safari < 16), which would otherwise throw.
+                if (form.requestSubmit) {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
             }
         });
     });

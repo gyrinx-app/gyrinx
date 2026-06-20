@@ -63,7 +63,7 @@
         <link rel="dns-prefetch" href="https://use.typekit.net">
         <link rel="preconnect" href="https://use.typekit.net" crossorigin>
         <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
-        {# bootstrap-icons version is pinned here AND in package.json — bump both together (and the integrity hash). #}
+        {# bootstrap-icons is loaded only from this CDN (not a package.json dependency) — bump the version and the integrity hash together here. #}
         <link rel="stylesheet"
               href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
               integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+"
@@ -94,7 +94,7 @@
         <!-- End Google Tag Manager (noscript) -->
         {% block base %}
         {% endblock base %}
-        {# bootstrap version is pinned here AND in package.json — bump both together (and the integrity hash). #}
+        {# bootstrap JS bundle version + integrity hash are pinned here; package.json carries bootstrap "^5.3.8" for the SCSS build — keep them in sync when bumping. #}
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
                 integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
                 crossorigin="anonymous"></script>
