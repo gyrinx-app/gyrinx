@@ -105,10 +105,6 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         env:
-          START_DATE: ${{ steps.dates.outputs.start_date }}
-          END_DATE: ${{ steps.dates.outputs.end_date }}
-          SINCE_DATE: ${{ steps.dates.outputs.since_date }}
-          UNTIL_DATE: ${{ steps.dates.outputs.until_date }}
           GH_TOKEN: ${{ github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -125,18 +121,18 @@ jobs:
           prompt: |
             Create a summary of what landed in Gyrinx since the last summary.
 
-            The date range is $START_DATE to $END_DATE.
+            The date range is ${{ steps.dates.outputs.start_date }} to ${{ steps.dates.outputs.end_date }}.
 
             ## Step 1: Get the merged PRs
 
             Run this command to get the PRs merged in this period:
             ```bash
-            gh pr list --state merged --search "merged:>=$START_DATE" --json number,title,body --limit 50
+            gh pr list --state merged --search "merged:>=${{ steps.dates.outputs.start_date }}" --json number,title,body --limit 50
             ```
 
             ## Step 2: Write the summary
 
-            Start with a short intro using EXACTLY these formatted dates: "Changes from $SINCE_DATE to $UNTIL_DATE:" followed by a one-sentence overall summary.
+            Start with a short intro using EXACTLY these formatted dates: "Changes from ${{ steps.dates.outputs.since_date }} to ${{ steps.dates.outputs.until_date }}:" followed by a one-sentence overall summary.
 
             Then write bullet points that:
             - Use British English spellings (e.g., "organised" not "organized", "colour" not "color")
@@ -162,7 +158,7 @@ jobs:
             - **Dead fighters no longer appear in gang counts** - they were sneaking into the summary even after dying
             - **Equipment filters persist** when adding items, instead of resetting each time
 
-            If there were no meaningful user-facing changes, return: "Changes from $SINCE_DATE to $UNTIL_DATE: No major updates this time."
+            If there were no meaningful user-facing changes, return: "Changes from ${{ steps.dates.outputs.since_date }} to ${{ steps.dates.outputs.until_date }}: No major updates this time."
 
             Return the full summary in the structured output.
 
