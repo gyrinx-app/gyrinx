@@ -36,6 +36,14 @@ class Campaign(AppBase):
         help_text="Public Campaigns are visible to all users.",
         db_index=True,
     )
+
+    admins = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="administered_campaigns",
+        blank=True,
+        help_text="Users who have shared administrative rights for this campaign.",
+    )
+
     summary = models.TextField(
         blank=True,
         validators=[HTMLTextMaxLengthValidator(300)],
