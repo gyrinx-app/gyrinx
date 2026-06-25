@@ -30,6 +30,21 @@ from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
 
 
+def get_or_create_mod(model, **fields):
+    """Duplicate-tolerant ``get_or_create`` for ``ContentMod`` subclasses.
+
+    Production accumulated duplicate modifier rows before any uniqueness
+    constraint existed (#1915), so a plain ``Model.objects.get_or_create``
+    raises ``MultipleObjectsReturned`` when it matches more than one row. Reuse
+    the earliest existing match (ordered by ``pk`` for determinism) instead,
+    creating a row only when none exists.
+    """
+    existing = model.objects.filter(**fields).order_by("pk").first()
+    if existing is not None:
+        return existing
+    return model.objects.create(**fields)
+
+
 def rich_text_description_widget(height="200px"):
     """TinyMCE widget for short rich-text description fields on pack content.
 
@@ -842,16 +857,14 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
             mode = self.cleaned_data.get(f"stat_mod_{stat_key}_mode")
             value = self.cleaned_data.get(f"stat_mod_{stat_key}_value")
             if mode and value:
-                mod, _created = ContentModStat.objects.get_or_create(
-                    stat=stat_key, mode=mode, value=value
+                mod = get_or_create_mod(
+                    ContentModStat, stat=stat_key, mode=mode, value=value
                 )
                 mods.append(mod)
         for trait in self._traits:
             mode = self.cleaned_data.get(f"trait_mod_{trait.pk}")
             if mode:
-                mod, _created = ContentModTrait.objects.get_or_create(
-                    trait=trait, mode=mode
-                )
+                mod = get_or_create_mod(ContentModTrait, trait=trait, mode=mode)
                 mods.append(mod)
         instance.modifiers.set(mods)
 
@@ -1273,23 +1286,22 @@ class FighterModPickerMixin(StandardFieldsMixin):
             mode = self.cleaned_data.get(f"fmod_stat_{stat.field_name}_mode")
             value = self.cleaned_data.get(f"fmod_stat_{stat.field_name}_value")
             if mode and value:
-                mod, _ = ContentModFighterStat.objects.get_or_create(
-                    stat=stat.field_name, mode=mode, value=value
+                mod = get_or_create_mod(
+                    ContentModFighterStat,
+                    stat=stat.field_name,
+                    mode=mode,
+                    value=value,
                 )
                 new_mods.append(mod)
         for rule in self._fmod_rules:
             mode = self.cleaned_data.get(f"fmod_rule_{rule.pk}")
             if mode:
-                mod, _ = ContentModFighterRule.objects.get_or_create(
-                    rule=rule, mode=mode
-                )
+                mod = get_or_create_mod(ContentModFighterRule, rule=rule, mode=mode)
                 new_mods.append(mod)
         for skill in self._fmod_skills:
             mode = self.cleaned_data.get(f"fmod_skill_{skill.pk}")
             if mode:
-                mod, _ = ContentModFighterSkill.objects.get_or_create(
-                    skill=skill, mode=mode
-                )
+                mod = get_or_create_mod(ContentModFighterSkill, skill=skill, mode=mode)
                 new_mods.append(mod)
 
         # Preserve any existing mods this picker doesn't manage (e.g. skill-tree

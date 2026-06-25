@@ -440,6 +440,50 @@ def test_add_accessory_with_trait_mod(client, user, pack):
 
 
 @pytest.mark.django_db
+def test_add_accessory_tolerates_preexisting_duplicate_mods(client, user, pack):
+    """Regression for #1915: production accumulated duplicate ContentMod rows
+    before any uniqueness constraint existed, so the picker's get_or_create
+    raised MultipleObjectsReturned. The form must reuse an existing duplicate
+    instead of crashing."""
+    # Seed duplicate shared mod rows, mirroring the production state.
+    for _ in range(3):
+        ContentModStat.objects.create(stat="damage", mode="improve", value="1")
+    base_trait = ContentWeaponTrait.objects.create(name="Knockback")
+    for _ in range(2):
+        ContentModTrait.objects.create(trait=base_trait, mode="add")
+
+    client.force_login(user)
+    response = client.post(
+        f"/pack/{pack.id}/add/weapon-accessory/",
+        {
+            "name": "Dup Tolerant",
+            "description": "",
+            "cost": "5",
+            "rarity": "C",
+            "rarity_roll": "",
+            "stat_mod_damage_mode": "improve",
+            "stat_mod_damage_value": "1",
+            f"trait_mod_{base_trait.pk}": "add",
+        },
+    )
+    assert response.status_code == 302
+
+    accessory = ContentWeaponAccessory.objects.all_content().get(name="Dup Tolerant")
+    stat_dupes = ContentModStat.objects.filter(
+        stat="damage", mode="improve", value="1"
+    ).order_by("pk")
+    trait_dupes = ContentModTrait.objects.filter(trait=base_trait, mode="add").order_by(
+        "pk"
+    )
+    # An existing duplicate is reused — no new rows created.
+    assert stat_dupes.count() == 3
+    assert trait_dupes.count() == 2
+    # The reused mods are the deterministic earliest (ordered by pk).
+    assert stat_dupes.first() in accessory.modifiers.all()
+    assert trait_dupes.first() in accessory.modifiers.all()
+
+
+@pytest.mark.django_db
 def test_add_accessory_rejects_non_integer_value_for_improve(client, user, pack):
     """Improve/worsen modes must have integer values — anything else would
     crash in ContentModStat.apply() at runtime."""

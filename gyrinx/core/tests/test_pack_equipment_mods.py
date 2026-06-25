@@ -174,6 +174,37 @@ def test_modifiers_form_save_attaches_fighter_stat_mod(pack, pack_gear):
 
 
 @pytest.mark.django_db
+def test_modifiers_form_tolerates_preexisting_duplicate_mods(pack, pack_gear):
+    """Regression for #1915: duplicate ContentModFighterStat rows in the library
+    must not crash the modifiers form with MultipleObjectsReturned."""
+    movement = ContentStat.objects.get(field_name="movement")
+    for _ in range(3):
+        ContentModFighterStat.objects.create(
+            stat=movement.field_name, mode="improve", value="1"
+        )
+
+    form = EquipmentModifiersForm(
+        data={
+            f"fmod_stat_{movement.field_name}_mode": "improve",
+            f"fmod_stat_{movement.field_name}_value": "1",
+        },
+        instance=pack_gear,
+        pack=pack,
+    )
+    assert form.is_valid(), form.errors
+    obj = form.save()
+
+    dupes = ContentModFighterStat.objects.filter(
+        stat=movement.field_name, mode="improve", value="1"
+    ).order_by("pk")
+    # Reuses an existing duplicate; no new row created.
+    assert dupes.count() == 3
+    attached = list(obj.modifiers.all())
+    assert len(attached) == 1
+    assert attached[0] == dupes.first()
+
+
+@pytest.mark.django_db
 def test_modifiers_form_save_attaches_rule_and_skill_mods(pack, pack_weapon):
     rule = ContentRule.objects.create(name="Pack Frenzy")
     _add_to_pack(pack, rule)
