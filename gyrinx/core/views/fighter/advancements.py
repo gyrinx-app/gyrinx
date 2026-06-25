@@ -575,22 +575,6 @@ def list_fighter_advancement_type(request, id, fighter_id):
         }
         form = AdvancementTypeForm(initial=initial, fighter=fighter)
 
-        # URL-driven cost prefill: when the user picks an advancement the select
-        # reloads this view with ?advancement_choice=..., and the server renders
-        # the matching xp_cost/cost_increase as the form's initial values (which
-        # stay editable). cost_initial_for_choice resolves against the form's
-        # fighter-specific configs, so dynamically-generated stat and equipment
-        # choices prefill correctly. An unknown/empty choice leaves the
-        # action-based defaults from get_initial_for_action in place.
-        url_choice = request.GET.get("advancement_choice")
-        if url_choice:
-            valid_choices = {
-                value for value, _ in form.fields["advancement_choice"].choices
-            }
-            if url_choice in valid_choices:
-                form.initial["advancement_choice"] = url_choice
-                form.initial.update(form.cost_initial_for_choice(url_choice))
-
     return render(
         request,
         "core/list_fighter_advancement_type.html",
@@ -603,6 +587,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
             "steps": 3 if is_campaign_mode else 2,
             "current_step": 2 if is_campaign_mode else 1,
             "progress": 66 if is_campaign_mode else 50,
+            "advancement_configs": form.get_all_configs_json(),
         },
     )
 
