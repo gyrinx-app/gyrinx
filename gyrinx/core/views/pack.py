@@ -1720,15 +1720,6 @@ def add_pack_item(request, id, content_type_slug):
     is_fighter = entry.model_class is ContentFighter
     is_weapon = content_type_slug == "weapon"
 
-    # URL-driven variant: the statline-override section is shown only when
-    # ``?override_statline=1`` is set (fighters only). Flipping it is a
-    # navigation (a link in the template), not a client-side toggle. Any
-    # non-empty value counts as on, so it round-trips through the create POST.
-    override_statline = is_fighter and bool(
-        request.GET.get("override_statline") or request.POST.get("override_statline")
-    )
-    fighter_form_kwargs = {"override_statline": override_statline} if is_fighter else {}
-
     # Weapons require a profile mode — redirect to mode selection if missing.
     if is_weapon and "profile_mode" not in request.GET and request.method != "POST":
         return HttpResponseRedirect(
@@ -1747,9 +1738,7 @@ def add_pack_item(request, id, content_type_slug):
             )
 
     if request.method == "POST":
-        form = entry.form_class(
-            request.POST, **_form_kwargs(entry, pack), **fighter_form_kwargs
-        )
+        form = entry.form_class(request.POST, **_form_kwargs(entry, pack))
 
         # Validate multi-mode profile names before attempting to save.
         wp_name_errors = []
@@ -1854,7 +1843,7 @@ def add_pack_item(request, id, content_type_slug):
             for err in wp_name_errors:
                 form.add_error(None, err)
     else:
-        form = entry.form_class(**_form_kwargs(entry, pack), **fighter_form_kwargs)
+        form = entry.form_class(**_form_kwargs(entry, pack))
         # Pre-select category from query param (e.g., skill tree → skill)
         if "category" in request.GET and "category" in form.fields:
             form.initial["category"] = request.GET["category"]
@@ -1881,17 +1870,6 @@ def add_pack_item(request, id, content_type_slug):
             "this Fighter — open it from the pack and use Edit."
         )
         context["next_step_button"] = "Next →"
-        context["override_statline"] = override_statline
-        # Link that flips the override flag, preserving other query params.
-        toggle_params = request.GET.copy()
-        toggle_params.pop("override_statline", None)
-        if not override_statline:
-            toggle_params["override_statline"] = "1"
-        toggle_qs = toggle_params.urlencode()
-        toggle_url = reverse("core:pack-add-item", args=(pack.id, "fighter"))
-        if toggle_qs:
-            toggle_url += f"?{toggle_qs}"
-        context["override_statline_toggle_url"] = toggle_url
 
     if is_weapon:
         context["profile_mode"] = profile_mode

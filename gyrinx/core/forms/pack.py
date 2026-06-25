@@ -153,18 +153,26 @@ class ContentFighterPackForm(forms.ModelForm):
 
     Accepts an optional ``pack`` kwarg to filter house/rules querysets
     to include both base library content and pack-specific content.
-
-    Whether the statline-override section is shown is a URL-driven variant:
-    the view reads ``?override_statline=1`` and passes ``override_statline``
-    to this form. When off, the ``statline_type`` field is removed entirely
-    so it can never submit a value (no client-side disabling needed).
     """
 
+    override_statline = forms.BooleanField(
+        required=False,
+        label="Override default statline for this Category?",
+        widget=forms.CheckboxInput(
+            attrs={"class": "form-check-input", "id": "id_override_statline"}
+        ),
+    )
     statline_type = forms.ModelChoiceField(
         queryset=ContentStatlineType.objects.none(),
         required=False,
         label="Statline type",
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=forms.Select(
+            attrs={
+                "class": "form-select",
+                "disabled": "disabled",
+                "id": "id_statline_type",
+            }
+        ),
     )
 
     class Meta:
@@ -214,10 +222,9 @@ class ContentFighterPackForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, pack=None, override_statline=False, **kwargs):
+    def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._pack = pack
-        self._override_statline = override_statline
         _append_cost_propagation_help(self, "base_cost")
 
         # Filter category choices.
@@ -243,19 +250,18 @@ class ContentFighterPackForm(forms.ModelForm):
             pk__in=relevant_ids
         )
         self.fields["statline_type"].empty_label = "Default"
+        # Remove disabled attr when override is checked so the value submits.
+        if self.data.get("override_statline"):
+            del self.fields["statline_type"].widget.attrs["disabled"]
 
-        # URL-driven variant: only include statline_type when overriding.
-        # When the override is off the field is removed so it can never
-        # submit a value, and clean() forces statline_type to None.
-        if self._override_statline:
-            # Place the statline-type field right after category.
-            field_order = list(self.fields.keys())
-            cat_idx = field_order.index("category") + 1
-            field_order.remove("statline_type")
-            field_order.insert(cat_idx, "statline_type")
-            self.order_fields(field_order)
-        else:
-            del self.fields["statline_type"]
+        # Place the override/statline fields right after category.
+        field_order = list(self.fields.keys())
+        cat_idx = field_order.index("category") + 1
+        for name in ("override_statline", "statline_type"):
+            field_order.remove(name)
+        field_order.insert(cat_idx, "override_statline")
+        field_order.insert(cat_idx + 1, "statline_type")
+        self.order_fields(field_order)
 
         # House is required for pack fighters.
         self.fields["house"].required = True
@@ -363,7 +369,8 @@ class ContentFighterPackForm(forms.ModelForm):
                 del self.fields[field_name]
         else:
             # Override statline is only relevant during creation.
-            self.fields.pop("statline_type", None)
+            for field_name in ["override_statline", "statline_type"]:
+                self.fields.pop(field_name, None)
 
             # Psyker discipline picker. Only non-generic disciplines are
             # shown — generic disciplines are pooled and cannot be assigned
@@ -408,9 +415,8 @@ class ContentFighterPackForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        # Server-side enforcement: ignore statline_type unless the
-        # URL-driven override variant is active.
-        if not self._override_statline:
+        # Server-side enforcement: ignore statline_type unless override is checked.
+        if not cleaned.get("override_statline"):
             cleaned["statline_type"] = None
         return cleaned
 
