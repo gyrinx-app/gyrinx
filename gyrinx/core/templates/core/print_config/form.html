@@ -49,22 +49,45 @@
             <!-- Fighter Selection Section -->
             <div>
                 <h2 class="h5 mb-3">Fighter Selection</h2>
-                <p class="text-secondary fs-7 mb-3">{{ form.included_fighters.help_text }}</p>
+                <p class="text-secondary fs-7 mb-3">Choose which fighters to include in the print output.</p>
                 <div class="border rounded p-3 overflow-auto">
-                    <div class="vstack gap-2 mb-3 border-bottom pb-3">
-                        {% for choice in form.fighter_selection_mode %}
+                    {# The selection mode is URL-driven: switching it is a navigation #}
+                    {# (a GET submission to this same page) so the server renders the #}
+                    {# matching variant. JS auto-submits on change; without JS the #}
+                    {# "Update" button below performs the same navigation. The chosen #}
+                    {# mode is carried into the main POST form by the hidden field. #}
+                    <form method="get"
+                          class="vstack gap-2 mb-3 border-bottom pb-3"
+                          data-gy-selection-mode-picker>
+                        {% for value, label in form.fields.fighter_selection_mode.choices %}
                             <div class="form-check">
-                                {{ choice.tag }}
-                                <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                                <input class="form-check-input"
+                                       type="radio"
+                                       name="fighter_selection_mode"
+                                       id="fighter_selection_mode_{{ value }}"
+                                       value="{{ value }}"
+                                       {% if value == form.selection_mode %}checked{% endif %}>
+                                <label class="form-check-label" for="fighter_selection_mode_{{ value }}">{{ label }}</label>
                             </div>
                         {% endfor %}
-                    </div>
-                    {% if form.included_fighters.field.queryset %}
-                        <div class="vstack gap-2" id="fighter-checkboxes">
-                            {% for choice in form.included_fighters %}{{ choice }}{% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-secondary mb-0" id="no-fighters-message">No fighters available.</p>
+                        <noscript>
+                            <button type="submit" class="btn btn-secondary btn-sm align-self-start mt-1">Update selection mode</button>
+                        </noscript>
+                    </form>
+                    {# Mirror the chosen mode into the main POST form so it submits #}
+                    {# with the rest of the configuration. #}
+                    <input type="hidden"
+                           name="fighter_selection_mode"
+                           value="{{ form.selection_mode }}">
+                    {% if form.included_fighters %}
+                        {{ form.included_fighters.errors }}
+                        {% if form.included_fighters.field.queryset %}
+                            <div class="vstack gap-2" id="fighter-checkboxes">
+                                {% for choice in form.included_fighters %}{{ choice }}{% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-secondary mb-0" id="no-fighters-message">No fighters available.</p>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -120,41 +143,15 @@
         </form>
     </div>
     <script>
+        // Enhancement only: auto-submit the selection-mode picker (a GET form) so
+        // switching mode navigates without an extra click. The page works without
+        // this — the picker's <noscript> submit button performs the same GET.
         document.addEventListener('DOMContentLoaded', () => {
-            const modeRadios = document.querySelectorAll('input[name="fighter_selection_mode"]');
-            const fighterCheckboxes = document.querySelectorAll('#fighter-checkboxes input[type="checkbox"]');
-            const fighterCheckboxesContainer = document.getElementById('fighter-checkboxes');
-
-            function updateFighterCheckboxesState() {
-                const selectedMode = document.querySelector('input[name="fighter_selection_mode"]:checked')?.value;
-
-                if (selectedMode === 'specific') {
-                    // Enable fighter checkboxes
-                    fighterCheckboxes.forEach(checkbox => {
-                        checkbox.disabled = false;
-                    });
-                    if (fighterCheckboxesContainer) {
-                        fighterCheckboxesContainer.style.opacity = '1';
-                    }
-                } else {
-                    // Disable and uncheck fighter checkboxes
-                    fighterCheckboxes.forEach(checkbox => {
-                        checkbox.disabled = true;
-                        checkbox.checked = false;
-                    });
-                    if (fighterCheckboxesContainer) {
-                        fighterCheckboxesContainer.style.opacity = '0.5';
-                    }
-                }
-            }
-
-            // Update state when mode changes
-            modeRadios.forEach(radio => {
-                radio.addEventListener('change', updateFighterCheckboxesState);
+            document.querySelectorAll('[data-gy-selection-mode-picker]').forEach((picker) => {
+                picker.querySelectorAll('input[type="radio"]').forEach((radio) => {
+                    radio.addEventListener('change', () => picker.requestSubmit());
+                });
             });
-
-            // Set initial state
-            updateFighterCheckboxesState();
         });
     </script>
 {% endblock content %}
