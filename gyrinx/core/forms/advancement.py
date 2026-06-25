@@ -235,12 +235,7 @@ class AdvancementTypeForm(forms.Form):
     advancement_choice = forms.ChoiceField(
         # Note that these choices are overridden by __init__()
         choices=ADVANCEMENT_CHOICES,
-        # data-gy-toggle-submit auto-submits the (GET) form on change so the
-        # server re-renders with the matching cost defaults; the page still
-        # works without JS via the explicit "Update costs" button.
-        widget=forms.Select(
-            attrs={"class": "form-select", "data-gy-toggle-submit": ""}
-        ),
+        widget=forms.Select(attrs={"class": "form-select"}),
         help_text="Select the type of advancement for this fighter.",
     )
 
@@ -475,25 +470,19 @@ class AdvancementTypeForm(forms.Form):
         """Get the AdvancementConfig for a given choice."""
         return cls.ADVANCEMENT_CONFIGS.get(advancement_choice)
 
-    def cost_initial_for_choice(self, advancement_choice: str) -> dict:
-        """
-        Return the ``xp_cost``/``cost_increase`` form initial values for a
-        choice, resolved against this form's fighter-specific configs.
-
-        ``__init__`` builds ``self.advancement_configs`` from the static
-        ``ADVANCEMENT_CONFIGS`` plus the dynamic stat and equipment configs for
-        the fighter, so this lookup covers stat advancements that aren't in the
-        static config and equipment advancements whose costs come from
-        ``ContentAdvancementEquipment``. Returns an empty dict for an unknown
-        choice so callers can fall back to their own defaults.
-        """
-        config = self.advancement_configs.get(advancement_choice)
-        if config is None:
-            return {}
-        return {
-            "xp_cost": config.xp_cost,
-            "cost_increase": config.cost_increase,
-        }
+    def get_all_configs_json(self) -> dict:
+        """Get all advancement configs as JSON-serializable dict."""
+        configs = {}
+        for key, config in self.advancement_configs.items():
+            configs[key] = {
+                "name": config.name,
+                "display_name": config.display_name,
+                "xp_cost": config.xp_cost,
+                "cost_increase": config.cost_increase,
+                "roll": config.roll,
+                "restricted_to_fighter_categories": config.restricted_to_fighter_categories,
+            }
+        return configs
 
 
 class StatSelectionForm(forms.Form):
