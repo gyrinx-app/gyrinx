@@ -1643,8 +1643,7 @@ def test_add_fighter_statline_type_includes_vehicle(pack, fighter_statline_type)
         name="Vehicle", defaults={"default_for_categories": ["VEHICLE"]}
     )
 
-    # statline_type only exists in the override variant (?override_statline=1).
-    form = ContentFighterPackForm(pack=pack, override_statline=True)
+    form = ContentFighterPackForm(pack=pack)
     statline_type_names = {st.name for st in form.fields["statline_type"].queryset}
     assert "Vehicle" in statline_type_names
     assert "Fighter" in statline_type_names
@@ -1722,39 +1721,6 @@ def test_add_fighter_default_statline_no_override(
     )
     assert response.status_code == 302
     assert "statline_type_id" not in response.url
-
-
-@pytest.mark.django_db
-def test_add_fighter_statline_override_is_url_driven(
-    client, group_user, pack, fighter_statline_type, content_house
-):
-    """The statline-override section is a URL-driven variant: the
-    ``statline_type`` field (and its rendered ``<select>``) appears only with
-    ``?override_statline=1``. The page works without JS — no client-side
-    toggle is involved.
-    """
-    client.force_login(group_user)
-    add_url = f"/pack/{pack.id}/add/fighter/"
-
-    # Default variant (no flag): statline_type is absent from the form.
-    response = client.get(add_url)
-    assert response.status_code == 200
-    form = response.context["form"]
-    assert "statline_type" not in form.fields
-    assert "id_statline_type" not in response.content.decode()
-    # The toggle is a link that navigates to the override variant.
-    assert response.context["override_statline"] is False
-    assert "override_statline=1" in response.context["override_statline_toggle_url"]
-
-    # Override variant: statline_type is present in the form and rendered.
-    response = client.get(add_url + "?override_statline=1")
-    assert response.status_code == 200
-    form = response.context["form"]
-    assert "statline_type" in form.fields
-    assert "id_statline_type" in response.content.decode()
-    assert response.context["override_statline"] is True
-    # The toggle now points back to the default (flag removed).
-    assert "override_statline" not in response.context["override_statline_toggle_url"]
 
 
 @pytest.mark.django_db
