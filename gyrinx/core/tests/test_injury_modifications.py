@@ -175,20 +175,17 @@ def test_multiple_injuries_stat_stacking():
         defaults={"phase": ContentInjuryDefaultOutcome.RECOVERY},
     )
 
-    # Both reduce strength by 1
-    strength_mod1 = ContentModFighterStat.objects.create(
-        stat="strength",
-        mode="worsen",
-        value="1",
-    )
-    strength_mod2 = ContentModFighterStat.objects.create(
+    # Both reduce strength by 1. A unique constraint now forbids duplicate mod
+    # rows, so a single shared mod row is attached to both injuries — it still
+    # stacks because mods apply per-source (once per injury).
+    strength_mod = ContentModFighterStat.objects.create(
         stat="strength",
         mode="worsen",
         value="1",
     )
 
-    injury1.modifiers.add(strength_mod1)
-    injury2.modifiers.add(strength_mod2)
+    injury1.modifiers.add(strength_mod)
+    injury2.modifiers.add(strength_mod)
 
     # Apply both injuries
     ListFighterInjury.objects.create(fighter=fighter, injury=injury1, owner=user)
