@@ -292,15 +292,6 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
             ),
         ]
 
-    def clean(self):
-        # Check that there isn't a duplicate of this already
-        duplicate = ContentModFighterStat.objects.filter(
-            stat=self.stat, mode=self.mode, value=self.value
-        ).exists()
-
-        if duplicate:
-            raise ValidationError("This fighter stat modifier already exists.")
-
 
 class ContentModTrait(ContentMod):
     """

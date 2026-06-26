@@ -42,9 +42,14 @@ def dedup_mods(apps, schema_editor):
     *source* (see ``ListFighterEquipmentAssignment._mods`` and
     ``List.pack_mods_by_target``), never deduplicated by row identity, so two
     sources that referenced two duplicate rows still apply twice once both
-    point at the canonical row. ``_base_manager`` is used throughout so no
-    custom manager (e.g. the pack-excluding content managers) can hide a row
-    that needs re-pointing.
+    point at the canonical row.
+
+    ``_base_manager`` is used throughout (rather than ``objects``) so the dedup
+    runs against an unfiltered queryset in every context. Frozen migration
+    models already expose a plain manager, but this function is also exercised
+    in tests against the real models — whose ``objects`` is the polymorphic /
+    pack-excluding content manager — and ``_base_manager`` keeps both paths
+    identical and unable to hide a row that needs re-pointing.
     """
     m2m_owners = [
         (apps.get_model("content", name), field) for name, field in M2M_OWNERS
