@@ -289,6 +289,20 @@ def test_list_fighter_statline_query_count(user, content_house):
         name="Weapons",
     )
 
+    # Shared mod rows — a unique constraint forbids duplicate (stat, mode,
+    # value) rows, so the same two mods are attached to every equipment item.
+    # They still stack because mods apply once per equipment source.
+    ws_mod = ContentModFighterStat.objects.create(
+        stat="weapon_skill",
+        mode="improve",
+        value="1",
+    )
+    str_mod = ContentModFighterStat.objects.create(
+        stat="strength",
+        mode="improve",
+        value="1",
+    )
+
     # Create multiple equipment items with mods
     equipment_items = []
     for i in range(3):
@@ -298,18 +312,7 @@ def test_list_fighter_statline_query_count(user, content_house):
         )
         equipment_items.append(equipment)
 
-        # Add various mods
-        ws_mod = ContentModFighterStat.objects.create(
-            stat="weapon_skill",
-            mode="improve",
-            value="1",
-        )
-        str_mod = ContentModFighterStat.objects.create(
-            stat="strength",
-            mode="improve",
-            value="1",
-        )
-        # Add mods to equipment
+        # Add the shared mods to each equipment
         equipment.modifiers.add(ws_mod, str_mod)
 
     # Create list and fighter

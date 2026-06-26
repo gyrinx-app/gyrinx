@@ -5,149 +5,66 @@ from gyrinx.content.models import ContentModFighterStat, ContentModStat, Content
 
 @pytest.mark.django_db
 def test_stat_mod():
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="improve",
-            value="1",
-        ).apply("3")
-        == "4"
+    # A unique constraint now prevents duplicate (stat, mode, value) rows, so
+    # create each distinct mod once and reuse it — apply() is stateless.
+    str_improve = ContentModStat.objects.create(
+        stat="strength", mode="improve", value="1"
     )
+    assert str_improve.apply("3") == "4"
+    assert str_improve.apply("S") == "S+1"
+    assert str_improve.apply("S+1") == "S+2"
+    assert str_improve.apply("S-1") == "S"
 
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="worsen",
-            value="1",
-        ).apply("3")
-        == "2"
+    str_worsen = ContentModStat.objects.create(
+        stat="strength", mode="worsen", value="1"
     )
+    assert str_worsen.apply("3") == "2"
+    assert str_worsen.apply("S") == "S-1"
+    assert str_worsen.apply("S+1") == "S"
 
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="improve",
-            value="1",
-        ).apply("S")
-        == "S+1"
+    rng_improve = ContentModStat.objects.create(
+        stat="range_short", mode="improve", value="2"
     )
+    assert rng_improve.apply('4"') == '6"'
 
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="improve",
-            value="1",
-        ).apply("S+1")
-        == "S+2"
+    rng_worsen = ContentModStat.objects.create(
+        stat="range_short", mode="worsen", value="2"
     )
-
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="improve",
-            value="1",
-        ).apply("S-1")
-        == "S"
-    )
-
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="worsen",
-            value="1",
-        ).apply("S")
-        == "S-1"
-    )
-
-    assert (
-        ContentModStat.objects.create(
-            stat="strength",
-            mode="worsen",
-            value="1",
-        ).apply("S+1")
-        == "S"
-    )
-
-    assert (
-        ContentModStat.objects.create(
-            stat="range_short",
-            mode="improve",
-            value="2",
-        ).apply('4"')
-        == '6"'
-    )
-
-    assert (
-        ContentModStat.objects.create(
-            stat="range_short",
-            mode="worsen",
-            value="2",
-        ).apply('4"')
-        == '2"'
-    )
-
-    assert (
-        ContentModStat.objects.create(
-            stat="range_short",
-            mode="worsen",
-            value="2",
-        ).apply('2"')
-        == ""
-    )
+    assert rng_worsen.apply('4"') == '2"'
+    assert rng_worsen.apply('2"') == ""
 
 
 @pytest.mark.django_db
 def test_fighter_stat_mod():
+    # Reuse each distinct mod — the unique constraint forbids duplicate rows.
     assert (
         ContentModFighterStat.objects.create(
-            stat="strength",
-            mode="improve",
-            value="1",
+            stat="strength", mode="improve", value="1"
         ).apply("3")
         == "4"
     )
 
-    assert (
-        ContentModFighterStat.objects.create(
-            stat="weapon_skill",
-            mode="improve",
-            value="1",
-        ).apply("3+")
-        == "2+"
+    ws_improve = ContentModFighterStat.objects.create(
+        stat="weapon_skill", mode="improve", value="1"
     )
-
+    assert ws_improve.apply("3+") == "2+"
     assert (
         ContentModFighterStat.objects.create(
-            stat="weapon_skill",
-            mode="worsen",
-            value="1",
+            stat="weapon_skill", mode="worsen", value="1"
         ).apply("3+")
         == "4+"
     )
+    assert ws_improve.apply("3+") == "2+"
 
     assert (
         ContentModFighterStat.objects.create(
-            stat="weapon_skill",
-            mode="improve",
-            value="1",
-        ).apply("3+")
-        == "2+"
-    )
-
-    assert (
-        ContentModFighterStat.objects.create(
-            stat="movement",
-            mode="improve",
-            value="1",
+            stat="movement", mode="improve", value="1"
         ).apply('2"')
         == '3"'
     )
-
     assert (
         ContentModFighterStat.objects.create(
-            stat="movement",
-            mode="worsen",
-            value="1",
+            stat="movement", mode="worsen", value="1"
         ).apply('2"')
         == '1"'
     )

@@ -245,6 +245,12 @@ class ContentModStat(ContentMod, ContentModStatApplyMixin):
         verbose_name = "Weapon Stat Modifier"
         verbose_name_plural = "Weapon Stat Modifiers"
         ordering = ["stat"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["stat", "mode", "value"],
+                name="uniq_contentmodstat_stat_mode_value",
+            ),
+        ]
 
 
 class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
@@ -279,15 +285,12 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
         verbose_name = "Fighter Stat Modifier"
         verbose_name_plural = "Fighter Stat Modifiers"
         ordering = ["stat"]
-
-    def clean(self):
-        # Check that there isn't a duplicate of this already
-        duplicate = ContentModFighterStat.objects.filter(
-            stat=self.stat, mode=self.mode, value=self.value
-        ).exists()
-
-        if duplicate:
-            raise ValidationError("This fighter stat modifier already exists.")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["stat", "mode", "value"],
+                name="uniq_contentmodfighterstat_stat_mode_value",
+            ),
+        ]
 
 
 class ContentModTrait(ContentMod):
@@ -316,6 +319,12 @@ class ContentModTrait(ContentMod):
         verbose_name = "Weapon Trait Modifier"
         verbose_name_plural = "Weapon Trait Modifiers"
         ordering = ["trait__name", "mode"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["trait", "mode"],
+                name="uniq_contentmodtrait_trait_mode",
+            ),
+        ]
 
 
 class ContentModFighterRule(ContentMod):
@@ -344,6 +353,12 @@ class ContentModFighterRule(ContentMod):
         verbose_name = "Fighter Rule Modifier"
         verbose_name_plural = "Fighter Rule Modifiers"
         ordering = ["rule__name", "mode"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rule", "mode"],
+                name="uniq_contentmodfighterrule_rule_mode",
+            ),
+        ]
 
 
 class ContentModFighterSkill(ContentMod):
@@ -372,6 +387,12 @@ class ContentModFighterSkill(ContentMod):
         verbose_name = "Fighter Skill Modifier"
         verbose_name_plural = "Fighter Skill Modifiers"
         ordering = ["skill__name", "mode"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["skill", "mode"],
+                name="uniq_contentmodfighterskill_skill_mode",
+            ),
+        ]
 
 
 class ContentModSkillTreeAccess(ContentMod):
@@ -408,6 +429,12 @@ class ContentModSkillTreeAccess(ContentMod):
         verbose_name = "Skill Tree Access Modifier"
         verbose_name_plural = "Skill Tree Access Modifiers"
         ordering = ["skill_category__name", "mode"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["skill_category", "mode"],
+                name="uniq_contentmodskilltreeaccess_skillcat_mode",
+            ),
+        ]
 
 
 class ContentModPsykerDisciplineAccess(ContentMod):
@@ -442,6 +469,12 @@ class ContentModPsykerDisciplineAccess(ContentMod):
         verbose_name = "Psyker Discipline Access Modifier"
         verbose_name_plural = "Psyker Discipline Access Modifiers"
         ordering = ["discipline__name", "mode"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["discipline", "mode"],
+                name="uniq_contentmodpsykerdiscaccess_disc_mode",
+            ),
+        ]
 
 
 class ContentModApplication(Content):
