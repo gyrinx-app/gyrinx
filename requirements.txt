@@ -2,7 +2,7 @@ asgiref==3.11.1
 bandit==1.9.4
 beautifulsoup4==4.15.0
 bleach[css]==6.4.0
-click==8.4.1
+click==8.4.2
 daphne==4.2.2
 Django==6.0.6
 django-allauth==65.18.0
@@ -12,13 +12,13 @@ django-extensions==4.1
 django-multiselectfield==1.0.1
 django-polymorphic==4.11.5
 django-recaptcha==4.1.0
-django-simple-history==3.11.0
+django-simple-history==3.12.0
 django-storages[google]==1.14.6
 django-tinymce==5.0.0
-djlint==1.39.2
+djlint==1.39.4
 docutils==0.23
 fido2==2.2.0
-filelock==3.29.3
+filelock==3.29.4
 google-cloud-logging==3.16.0
 google-cloud-pubsub==2.39.0
 google-cloud-scheduler==2.20.0
@@ -27,13 +27,13 @@ jsonschema==4.26.0
 nbstripout==0.9.1
 nodeenv==1.10.0
 opentelemetry-exporter-gcp-trace==1.12.0
-opentelemetry-instrumentation-asgi==0.63b1
-opentelemetry-instrumentation-django==0.63b1
-opentelemetry-instrumentation-logging==0.63b1
+opentelemetry-instrumentation-asgi==0.64b0
+opentelemetry-instrumentation-django==0.64b0
+opentelemetry-instrumentation-logging==0.64b0
 opentelemetry-propagator-gcp==1.12.0
 
 # OpenTelemetry - Cloud Trace integration
-opentelemetry-sdk==1.42.1
+opentelemetry-sdk==1.43.0
 Pillow==12.2.0
 playwright==1.60.0
 pre-commit==4.6.0
@@ -43,7 +43,7 @@ pydantic==2.13.4
 pydot==4.0.1
 PyNaCl==1.6.2
 pyparsing==3.3.2
-pytest==9.0.3
+pytest==9.1.1
 pytest-django==4.12.0
 pytest-watcher==0.6.3
 pytest-xdist==3.8.0
@@ -52,7 +52,7 @@ qrcode==8.2
 referencing==0.37.0
 requests==2.34.2
 rich==15.0.0
-ruff==0.15.17
+ruff==0.15.20
 setuptools==81.0.0
 simpleeval==1.0.7
 sqlparse==0.5.5
