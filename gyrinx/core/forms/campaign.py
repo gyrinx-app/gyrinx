@@ -189,6 +189,7 @@ class EditCampaignForm(forms.ModelForm):
 
         if commit:
             instance.save()
+            self.save_m2m()
 
             # Log phase change if it changed and user is provided
             if phase_changed and user:

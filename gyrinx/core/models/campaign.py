@@ -162,14 +162,7 @@ class Campaign(AppBase):
         return self.status == self.POST_CAMPAIGN
 
     def is_admin(self, user):
-        """Check if user has admin permissions on this campaign.
-
-        Currently, only the campaign owner is an admin.
-        This method exists to allow future expansion of admin permissions.
-        """
-
-        """implemention of many admins"""""
-
+        """Return True when the authenticated user owns this campaign or is a shared admin."""
         if not user or not user.is_authenticated:
             return False
         # They are an admin if they are the owner OR if they are in the admins list
