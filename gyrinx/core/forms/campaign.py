@@ -2,7 +2,6 @@ import json
 
 from django import forms
 
-from gyrinx.core.widgets import ColorRadioSelect
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -14,7 +13,7 @@ from gyrinx.core.models.campaign import (
     CampaignResourceType,
     CampaignSubAsset,
 )
-from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
+from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
 
 
 class NewCampaignForm(forms.ModelForm):
@@ -135,6 +134,7 @@ class EditCampaignForm(forms.ModelForm):
             "summary",
             "narrative",
             "public",
+            "admins",
             "budget",
             "phase",
             "phase_notes",

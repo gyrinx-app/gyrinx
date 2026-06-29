@@ -167,7 +167,13 @@ class Campaign(AppBase):
         Currently, only the campaign owner is an admin.
         This method exists to allow future expansion of admin permissions.
         """
-        return self.owner == user
+
+        """implemention of many admins"""""
+
+        if not user or not user.is_authenticated:
+            return False
+        # They are an admin if they are the owner OR if they are in the admins list
+        return self.owner == user or self.admins.filter(id=user.id).exists()
 
     def _distribute_budget_to_list(self, campaign_list):
         """Distribute budget credits to a list based on campaign budget and list cost.

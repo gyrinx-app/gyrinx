@@ -60,7 +60,7 @@
                                 {{ star_count|default:0 }}
                             </button>
                         </form>
-                        {% if campaign.owner == user %}
+                        {% if campaign.owner == user or user in campaign.admins.all %}
                             {% if campaign.can_start_campaign %}
                                 <a href="{% url 'core:campaign-start' campaign.id %}"
                                    class="btn btn-primary btn-sm">
@@ -146,6 +146,15 @@
                     </div>
                 {% endif %}
             </div>
+
+            <div class="text-secondary mb-2">
+                <i class="bi-shield-check"></i>
+                <strong>Arbitrators:</strong> {{ campaign.owner }}
+                {% for admin in campaign.admins.all %}
+                , {{ admin }}
+                {% endfor %}
+            </div>
+
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 {% if campaign.public %}
                     <span data-bs-toggle="tooltip"
@@ -233,7 +242,7 @@
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
                            class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Attributes →</a>
                     {% endif %}
-                    {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
+                    {% if (campaign.owner == user or user in campaign.admins.all) and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
                             <i class="bi-plus-lg"></i> Add Gangs
@@ -320,10 +329,10 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No asset types defined yet.
-                            {% if campaign.owner == user and not campaign.archived %}
+                            {% if (campaign.owner == user or user in campaign.admins.all) and not campaign.archived %}
                                 <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
                                 or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">add an asset type →</a>
-                            {% elif campaign.owner == user %}
+                            {% elif campaign.owner == user or user in campaign.admins.all %}
                                 <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
                             {% endif %}
                         </p>
@@ -387,10 +396,10 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No resource types defined yet.
-                            {% if campaign.owner == user and not campaign.archived %}
+                            {% if (campaign.owner == user or user in campaign.admins.all) and not campaign.archived %}
                                 <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
                                 or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">add a resource type →</a>
-                            {% elif campaign.owner == user %}
+                            {% elif campaign.owner == user or user in campaign.admins.all %}
                                 <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
                             {% endif %}
                         </p>

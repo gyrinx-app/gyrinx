@@ -64,7 +64,7 @@
                                     {% endif %}
                                 {% endfor %}
                                 <td class="text-end pe-0">
-                                    {% if campaign.owner == user or list.owner == user %}
+                                    {% if (campaign.owner == user or user in campaign.admins.all) or list.owner == user %}
                                         {% if not campaign.is_post_campaign %}
                                             <div class="dropdown">
                                                 <button class="btn btn-link btn-sm p-0 text-secondary"
@@ -119,7 +119,7 @@
                                 </td>
                             {% endfor %}
                             <td class="text-end pe-0">
-                                {% if campaign.owner == user or list.owner == user %}
+                                {% if (campaign.owner == user or user in campaign.admins.all) or list.owner == user %}
                                     {% if not campaign.is_post_campaign %}
                                         <div class="dropdown">
                                             <button class="btn btn-link btn-sm p-0 text-secondary"
@@ -167,7 +167,7 @@
 {% else %}
     <div class="p-3 text-center text-secondary">
         No gangs have been added to this campaign yet.
-        {% if campaign.owner == user and campaign.is_pre_campaign and not campaign.archived %}
+        {% if (campaign.owner == user or user in campaign.admins.all) and campaign.is_pre_campaign and not campaign.archived %}
             <br>
             <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                class="btn btn-primary btn-sm mt-2">
