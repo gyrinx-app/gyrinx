@@ -173,7 +173,7 @@ def index(request):
     # Pick up to 3 random featured packs to showcase on the front page.
     featured_packs = (
         CustomContentPack.objects.filter(featured=True, listed=True, archived=False)
-        .select_related("owner")
+        .select_related("owner", "owner__profile")
         .order_by("?")[:3]
     )
 
