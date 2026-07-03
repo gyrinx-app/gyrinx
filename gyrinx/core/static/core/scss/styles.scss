@@ -775,17 +775,22 @@ $width-em-sizes: (
 // the coloured rects). Inline next to a username, sized relative to the text.
 .user-badge {
     display: inline-flex;
-    vertical-align: -0.15em;
+    // Centre the badge on the surrounding text at any font size. A fixed em
+    // offset (previously -0.15em) is fine inline with body text but drifts
+    // off-centre in larger text like headings, where the badge is a fixed px
+    // size but the offset scales with the em.
+    vertical-align: middle;
     margin-inline-start: 0.25em;
 
     // The badges are 24×24 pixel art (shape-rendering: crispEdges). At a
     // fractional display size each source pixel maps to a fraction of a screen
     // pixel, so crispEdges snaps cells unevenly — some edges end up 1px, others
     // 2px. Pin a whole-pixel size and let them anti-alias smoothly instead, so
-    // they scale down cleanly at any size or device pixel ratio.
+    // they scale down cleanly at any size or device pixel ratio. --badge-size
+    // overrides the default (see the design-system reference).
     svg {
-        width: 16px;
-        height: 16px;
+        width: var(--badge-size, 16px);
+        height: var(--badge-size, 16px);
         shape-rendering: geometricPrecision;
     }
 }
@@ -793,10 +798,11 @@ $width-em-sizes: (
 // Badge icon as used in the picker — a touch larger to show detail.
 .badge-icon {
     display: inline-flex;
+    vertical-align: middle;
 
     svg {
-        width: 24px;
-        height: 24px;
+        width: var(--badge-size, 24px);
+        height: var(--badge-size, 24px);
         shape-rendering: geometricPrecision;
     }
 }
