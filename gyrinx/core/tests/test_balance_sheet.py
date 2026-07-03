@@ -52,6 +52,12 @@ def fresh(obj):
     view would. Chaining handlers against stale in-memory instances writes
     stale absolute values — a harness artifact, not an app flow.
     """
+    if isinstance(obj, ListFighterEquipmentAssignment):
+        # Views hand handlers assignments fetched via with_related_data(),
+        # whose accessory prefetch (all_content) includes pack-scoped
+        # accessories; a plain fetch would silently drop them and make the
+        # harness blind to pack-gear pricing bugs.
+        return ListFighterEquipmentAssignment.objects.with_related_data().get(pk=obj.pk)
     return type(obj).objects.get(pk=obj.pk)
 
 
@@ -630,12 +636,9 @@ def test_matrix_legacy_raw_fighter_detected_after_recompute(
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P1 (#1925): component purchase onto a total_cost_override'd "
-    "assignment propagates a delta that cost_int() ignores; fixed in Phase 2",
-)
 def test_matrix_p1_1925_accessory_onto_overridden_assignment(healthy_list, user):
+    """P1 (#1925), fixed in Phase 2: a component purchase onto a fixed-total
+    assignment moves credits but not the book value — and reconciles."""
     lst, fighter, assignment = healthy_list
     handle_equipment_cost_override(
         user=user,
@@ -649,7 +652,7 @@ def test_matrix_p1_1925_accessory_onto_overridden_assignment(healthy_list, user)
 
     accessory = ContentWeaponAccessory.objects.create(name="Scope", cost=8)
     buy_accessory(user, lst, fighter, assignment, accessory)
-    assert_reconciles(lst)  # FAILS: cache 58, cost_int() pinned at 50
+    assert_reconciles(lst)  # book value stays at the 50 override; credits moved
 
 
 @pytest.mark.django_db
@@ -767,11 +770,6 @@ def test_matrix_p5_bare_form_accessory_removal(healthy_list, user, client):
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P6: reassignment computes cost_after on the same instance; "
-    "cached_property staleness masks context re-pricing; fixed in Phase 2",
-)
 def test_matrix_p6_reassign_discounted_gear_reprices(
     campaign_list,
     user,
@@ -800,4 +798,94 @@ def test_matrix_p6_reassign_discounted_gear_reprices(
         to_fighter=fresh(fighter_b),
         assignment=fresh(assignment),
     )
-    assert_reconciles(lst)  # FAILS: moved at 5, B's context recomputes to 15
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_p6_repricing_telemetry_fires(
+    campaign_list,
+    user,
+    make_content_fighter,
+    content_house,
+    content_fighter,
+    make_equipment,
+    monkeypatch,
+):
+    """The cost-changed-on-reassignment telemetry fires with real values."""
+    from gyrinx.core.handlers.equipment import reassignment as reassignment_module
+
+    events = []
+    monkeypatch.setattr(
+        reassignment_module,
+        "track",
+        lambda name, **kw: events.append((name, kw)),
+    )
+
+    lst, stash = campaign_list
+    cf_a = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = make_equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=cf_a, equipment=equipment, cost=5
+    )
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+
+    reprice_events = [
+        kw for name, kw in events if name == "equipment_cost_changed_on_reassignment"
+    ]
+    assert len(reprice_events) == 1
+    assert reprice_events[0]["cost_before"] == 5
+    assert reprice_events[0]["cost_after"] == 15
+
+
+@pytest.mark.django_db
+def test_matrix_reassign_gear_with_pack_accessory(
+    campaign_list, user, content_fighter, make_equipment, pack
+):
+    """Pack-scoped accessories survive the reassignment repricing math.
+
+    A plain refetch resolves accessories through the pack-excluding default
+    manager, so a pack accessory would vanish from cost_after and the handler
+    would book a phantom repricing. The handler (and this harness's fresh())
+    must fetch with the same semantics the views use.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from gyrinx.core.models.pack import CustomContentPackItem
+
+    lst, stash = campaign_list
+    lst.packs.add(pack)
+    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = make_equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+
+    accessory = ContentWeaponAccessory.objects.create(name="Pack Scope", cost=8)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentWeaponAccessory),
+        object_id=accessory.pk,
+        owner=pack.owner,
+    )
+    buy_accessory(user, lst, fighter_a, assignment, accessory)
+    assert_reconciles(lst)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)
