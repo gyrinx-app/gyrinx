@@ -51,14 +51,6 @@
                             {% endif %}
                         </div>
                         <div class="vstack gap-3">
-                            {% if pinned_gangs %}
-                                <div class="vstack gap-3">
-                                    <div class="caps-label">Pinned</div>
-                                    {% for gang in pinned_gangs %}
-                                        {% include "core/includes/home/gang_row.html" with gang=gang %}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
                             {% if campaign_gangs or search_gangs_query %}
                                 <form id="search-gangs"
                                       method="get"
@@ -82,6 +74,16 @@
                                         <button class="btn btn-primary btn-sm" type="submit">Search</button>
                                     </div>
                                 </form>
+                            {% endif %}
+                            {% if pinned_gangs %}
+                                <div class="border-bottom pb-3">
+                                    <div class="caps-label mb-2">Pinned</div>
+                                    <div class="vstack gap-3">
+                                        {% for gang in pinned_gangs %}
+                                            {% include "core/includes/home/gang_row.html" with gang=gang %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
                             {% endif %}
                             {% for gang in campaign_gangs %}
                                 {% include "core/includes/home/gang_row.html" with gang=gang %}
@@ -113,14 +115,6 @@
                             </span>
                         </div>
                         <div class="vstack gap-3">
-                            {% if pinned_campaigns %}
-                                <div class="vstack gap-3">
-                                    <div class="caps-label">Pinned</div>
-                                    {% for campaign in pinned_campaigns %}
-                                        {% include "core/includes/home/campaign_row.html" with campaign=campaign %}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
                             {% if campaigns|length > 0 or search_campaigns_query %}
                                 <form id="search-campaigns"
                                       method="get"
@@ -142,6 +136,16 @@
                                         <button class="btn btn-primary btn-sm" type="submit">Search</button>
                                     </div>
                                 </form>
+                            {% endif %}
+                            {% if pinned_campaigns %}
+                                <div class="border-bottom pb-3">
+                                    <div class="caps-label mb-2">Pinned</div>
+                                    <div class="vstack gap-3">
+                                        {% for campaign in pinned_campaigns %}
+                                            {% include "core/includes/home/campaign_row.html" with campaign=campaign %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
                             {% endif %}
                             {% for campaign in campaigns %}
                                 {% include "core/includes/home/campaign_row.html" with campaign=campaign %}
@@ -175,17 +179,19 @@
                             </span>
                         </div>
                         <div class="vstack gap-3">
-                            {% if pinned_lists %}
-                                <div class="vstack gap-3">
-                                    <div class="caps-label">Pinned</div>
-                                    {% for list in pinned_lists %}
-                                        {% include "core/includes/home/list_row.html" with list=list %}
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
                             {% if has_any_lists %}
                                 {% url 'core:index' as action %}
                                 {% include "core/includes/lists_filter.html" with action=action houses=houses compact=True %}
+                            {% endif %}
+                            {% if pinned_lists %}
+                                <div class="border-bottom pb-3">
+                                    <div class="caps-label mb-2">Pinned</div>
+                                    <div class="vstack gap-3">
+                                        {% for list in pinned_lists %}
+                                            {% include "core/includes/home/list_row.html" with list=list %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
                             {% endif %}
                             {% for list in lists %}
                                 {% include "core/includes/home/list_row.html" with list=list %}
