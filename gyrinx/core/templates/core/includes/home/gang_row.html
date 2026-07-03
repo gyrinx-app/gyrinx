@@ -5,7 +5,7 @@
         <h3 class="mb-0 h5">
             <a href="{% url 'core:list' gang.id %}" class="linked">{% list_with_theme gang %}</a>
         </h3>
-        <div class="hstack column-gap-2 row-gap-1 flex-wrap">
+        <div class="hstack column-gap-2 row-gap-1 flex-wrap home-row-meta">
             <div>{{ gang.content_house.name }}{% house_icon gang.content_house %}</div>
             <div class="badge text-bg-primary">{% credits gang.facts_with_fallback.wealth %}</div>
             <div>

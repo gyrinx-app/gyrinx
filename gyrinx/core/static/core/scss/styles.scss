@@ -372,6 +372,15 @@ label {
     letter-spacing: 0.03em;
 }
 
+// Home row meta line (house/credits, campaign status, etc). Reserve one text
+// line of height so a line holding only a badge — badges use font-size .75em /
+// line-height 1, so they're shorter than base text — stays as tall as a line
+// with base-size text. Keeps pinned/home rows the same height across the
+// Campaign Gangs / Campaigns / Lists columns.
+.home-row-meta {
+    min-height: 1.5em;
+}
+
 // Responsive font sizes - small by default, normal at breakpoint
 @each $bp, $bp-value in $grid-breakpoints {
     @include media-breakpoint-up($bp) {
