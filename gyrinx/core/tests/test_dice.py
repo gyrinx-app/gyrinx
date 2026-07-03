@@ -7,6 +7,7 @@ from django.test import RequestFactory
 from django.urls import reverse
 
 from gyrinx.core.templatetags.custom_tags import qt, qt_append, qt_nth
+from gyrinx.core.views.dice import MAX_DICE_PER_GROUP, MAX_GROUPS
 
 # Rolled dice carry an aria-label the Roll-button icons don't, so this only
 # matches dice in the tray, not the D6/D3 button glyphs.
@@ -91,3 +92,52 @@ def test_qt_drop_removes_named_keys():
     assert "seed" not in appended
     # Without drop, existing params (including seed) are preserved.
     assert "seed=keep" in qt(req, m="d6")
+
+
+# --- Untrusted input: the dice config comes from a hand-editable URL ----------
+
+
+@pytest.mark.django_db
+def test_non_numeric_dice_are_ignored_not_500(client, user):
+    """A non-numeric ``d`` used to raise ValueError -> HTTP 500."""
+    client.force_login(user)
+    resp = client.get(reverse("core:dice"), {"m": "d6", "d": "abc"})
+    assert resp.status_code == 200
+    # 'abc' is dropped, leaving no dice -> the bare-visit default (one die).
+    assert _placeholders(resp) == 1
+
+
+@pytest.mark.django_db
+def test_mixed_valid_and_invalid_dice_keeps_the_valid(client, user):
+    client.force_login(user)
+    resp = client.get(
+        reverse("core:dice"), {"m": "d6", "d": ["2", "oops", "3"], "seed": "s"}
+    )
+    assert resp.status_code == 200
+    assert len(_rolled(resp)) == 5  # 2 + 3; 'oops' skipped
+
+
+@pytest.mark.django_db
+def test_dice_per_group_is_clamped(client, user):
+    """A huge count must not allocate/render an unbounded number of dice."""
+    client.force_login(user)
+    resp = client.get(reverse("core:dice"), {"m": "d6", "d": "999999999", "seed": "s"})
+    assert resp.status_code == 200
+    assert len(_rolled(resp)) == MAX_DICE_PER_GROUP
+
+
+@pytest.mark.django_db
+def test_group_count_is_capped(client, user):
+    """A flood of groups must not render an unbounded number of columns."""
+    client.force_login(user)
+    resp = client.get(reverse("core:dice"), {"m": "d6", "d": ["1"] * 50})
+    assert resp.status_code == 200
+    assert _placeholders(resp) == MAX_GROUPS  # one die per capped group
+
+
+@pytest.mark.django_db
+def test_negative_dice_clamped_to_zero(client, user):
+    client.force_login(user)
+    resp = client.get(reverse("core:dice"), {"m": "d6", "d": ["-5", "3"], "seed": "s"})
+    assert resp.status_code == 200
+    assert len(_rolled(resp)) == 3  # -5 -> 0 dice, 3 -> 3 dice
