@@ -842,6 +842,7 @@ def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
     accessory = gear.accessory()
     buy_accessory(user, lst, stash, assignment, accessory)
     assert_reconciles(lst)  # clean before the removal
+    stash_before_removal = fresh(lst).stash_current
 
     handle_equipment_component_removal(
         user=user,
@@ -854,6 +855,7 @@ def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
     )
     # P4, fixed in Phase 3: the removal decrements the assignment and stash
     # fighter caches by the component's value, and the books reconcile.
+    assert stash_before_removal - fresh(lst).stash_current == 8  # booked movement
     assert_reconciles(lst)
 
 
