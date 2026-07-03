@@ -75,7 +75,7 @@
                 </tr>
             </thead>
             <tbody>
-                <tr class="summary {% if not sheet.dirty and sheet.computed_rating != sheet.cached_rating %}mismatch{% endif %}">
+                <tr class="summary {% if sheet.rating_mismatch %}mismatch{% endif %}">
                     <td>Rating</td>
                     <td class="num">{{ sheet.computed_rating }}¢</td>
                     <td class="num">
@@ -83,7 +83,7 @@
                         {% if sheet.dirty %}<span class="tag tag-dirty">dirty</span>{% endif %}
                     </td>
                 </tr>
-                <tr class="summary {% if not sheet.dirty and sheet.computed_stash != sheet.cached_stash %}mismatch{% endif %}">
+                <tr class="summary {% if sheet.stash_mismatch %}mismatch{% endif %}">
                     <td>Stash</td>
                     <td class="num">{{ sheet.computed_stash }}¢</td>
                     <td class="num">{{ sheet.cached_stash }}¢</td>
@@ -107,7 +107,7 @@
             </thead>
             <tbody>
                 {% for fighter in all_fighters %}
-                    <tr class="fighter-row {% if not fighter.dirty and fighter.computed != fighter.cached_rating %}mismatch{% endif %}">
+                    <tr class="fighter-row {% if fighter.is_mismatch %}mismatch{% endif %}">
                         <td>
                             {{ fighter.name }}
                             {% if fighter.is_stash %}<span class="tag tag-stash">stash</span>{% endif %}
@@ -125,7 +125,7 @@
                         <td class="num muted">—</td>
                     </tr>
                     {% for assignment in fighter.assignments %}
-                        <tr class="assignment-row {% if not assignment.dirty and assignment.cached_rating is not None and assignment.computed != assignment.cached_rating %}mismatch{% endif %}">
+                        <tr class="assignment-row {% if assignment.is_mismatch %}mismatch{% endif %}">
                             <td>
                                 {{ assignment.equipment_name }}
                                 {% if assignment.kind == "default" %}<span class="tag">default</span>{% endif %}

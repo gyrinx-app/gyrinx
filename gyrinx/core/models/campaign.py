@@ -161,11 +161,12 @@ class Campaign(AppBase):
         """
         return self.owner == user
 
-    def _distribute_budget_to_list(self, campaign_list):
+    def _distribute_budget_to_list(self, campaign_list, user=None):
         """Distribute budget credits to a list based on campaign budget and list cost.
 
         Args:
             campaign_list: The List to distribute budget credits to
+            user: The user performing the action (defaults to campaign owner)
         """
         if self.budget > 0:
             # Calculate credits to give: max(0, budget - list cost)
@@ -183,7 +184,7 @@ class Campaign(AppBase):
                 from gyrinx.core.models.action import ListActionType
 
                 campaign_list.create_action(
-                    user=self.owner,
+                    user=user or self.owner,
                     update_credits=True,
                     action_type=ListActionType.CAMPAIGN_START,
                     subject_app="core",
@@ -385,7 +386,7 @@ class Campaign(AppBase):
             self.lists.add(campaign_clone)
 
             # Distribute budget credits to the new gang
-            self._distribute_budget_to_list(campaign_clone)
+            self._distribute_budget_to_list(campaign_clone, user=user)
 
             # Allocate default resources to the new list
             for resource_type in self.resource_types.all():

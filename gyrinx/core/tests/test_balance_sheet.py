@@ -255,7 +255,7 @@ def test_meta_dirty_rows_are_not_problems(healthy_list):
 
 
 @pytest.mark.django_db
-def test_meta_build_is_read_only(healthy_list, django_assert_max_num_queries):
+def test_meta_build_is_read_only(healthy_list):
     """build_balance_sheet issues no writes."""
     lst, _, _ = healthy_list
     lst.refresh_from_db()

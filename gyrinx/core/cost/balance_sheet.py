@@ -68,6 +68,19 @@ class AssignmentBalance:
     cached_rating: Optional[int]  # LFEA.rating_current; None for defaults
     dirty: bool
 
+    @property
+    def is_mismatch(self) -> bool:
+        """Computed disagrees with a comparable (clean, present) cache.
+
+        The single source of truth for family-1 assignment checks — used by
+        both reconcile() and the debug template so they cannot drift.
+        """
+        return (
+            self.cached_rating is not None
+            and not self.dirty
+            and self.computed != self.cached_rating
+        )
+
 
 @dataclass(frozen=True)
 class FighterBalance:
@@ -81,6 +94,11 @@ class FighterBalance:
     computed: int  # what cost_int() returns for this fighter
     cached_rating: int
     dirty: bool
+
+    @property
+    def is_mismatch(self) -> bool:
+        """Computed disagrees with a clean cache (family-1 fighter check)."""
+        return not self.dirty and self.computed != self.cached_rating
 
 
 @dataclass(frozen=True)
@@ -132,6 +150,19 @@ class ListBalance:
         return bool(self.actions)
 
     @property
+    def all_fighters(self) -> tuple[FighterBalance, ...]:
+        """Active fighters plus the stash, for uniform iteration."""
+        return self.fighters + ((self.stash,) if self.stash else ())
+
+    @property
+    def rating_mismatch(self) -> bool:
+        return not self.dirty and self.computed_rating != self.cached_rating
+
+    @property
+    def stash_mismatch(self) -> bool:
+        return not self.dirty and self.computed_stash != self.cached_stash
+
+    @property
     def computed_rating(self) -> int:
         return sum(f.computed for f in self.fighters)
 
@@ -144,32 +175,31 @@ class ListBalance:
         problems: list[str] = []
 
         # --- Family 1: computed vs cached, bottom-up -----------------------
-        for f in list(self.fighters) + ([self.stash] if self.stash else []):
+        # The mismatch predicates live on the dataclasses (is_mismatch,
+        # rating_mismatch, stash_mismatch) so the debug template highlights
+        # exactly what reconcile() reports.
+        for f in self.all_fighters:
             for a in f.assignments:
-                if a.cached_rating is None or a.dirty:
-                    continue
-                if a.computed != a.cached_rating:
+                if a.is_mismatch:
                     problems.append(
                         f"assignment '{a.equipment_name}' on '{f.name}': "
                         f"cached={a.cached_rating} computed={a.computed}"
                     )
-            if not f.dirty and f.computed != f.cached_rating:
+            if f.is_mismatch:
                 problems.append(
                     f"fighter '{f.name}': cached={f.cached_rating} "
                     f"computed={f.computed}"
                 )
 
-        if not self.dirty:
-            if self.computed_rating != self.cached_rating:
-                problems.append(
-                    f"list rating: cached={self.cached_rating} "
-                    f"computed={self.computed_rating}"
-                )
-            if self.computed_stash != self.cached_stash:
-                problems.append(
-                    f"list stash: cached={self.cached_stash} "
-                    f"computed={self.computed_stash}"
-                )
+        if self.rating_mismatch:
+            problems.append(
+                f"list rating: cached={self.cached_rating} "
+                f"computed={self.computed_rating}"
+            )
+        if self.stash_mismatch:
+            problems.append(
+                f"list stash: cached={self.cached_stash} computed={self.computed_stash}"
+            )
 
         # Families 2 and 3 only apply to lists with an action chain.
         if not self.actions:
@@ -338,7 +368,7 @@ def build_balance_sheet(lst: List) -> ListBalance:
     )
 
     dirty_rows = []
-    for f in fighters + ([stash] if stash else []):
+    for f in fighters + ([stash] if stash else []):  # ListBalance not built yet
         if f.dirty:
             dirty_rows.append(f"fighter '{f.name}'")
         for a in f.assignments:
