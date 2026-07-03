@@ -104,6 +104,30 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
         return obj
 
 
+class PinState(models.TextChoices):
+    """Attribution state for a pinned component price (#1826, design §4.1).
+
+    The state cannot be inferred from FK nullness — a bare null FK would be
+    triple-overloaded (catalog vs derived vs orphaned), and sweeps keying on
+    it would re-price rows that deletion promised were frozen, or overwrite
+    derived amounts with raw catalog copies. The enum partitions the sweep
+    domains by construction.
+    """
+
+    # Legacy row awaiting backfill; amount null; live resolution applies.
+    # The only state with a null amount.
+    UNPINNED = "unpinned", "Unpinned"
+    # Priced by an override row; the pin FK names it.
+    SOURCE = "source", "Source"
+    # Priced at catalog; the component's own content FK is the attribution.
+    CATALOG = "catalog", "Catalog"
+    # Amount is an evaluated derivation (expression accessories, SINGLE-mode
+    # cumulative upgrades); maintained only by re-derivation sweeps.
+    DERIVED = "derived", "Derived"
+    # Price-setting source deleted; amount frozen; excluded from all sweeps.
+    ORPHANED = "orphaned", "Orphaned"
+
+
 class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     """A ListFighterEquipmentAssignment is a link between a ListFighter and an Equipment."""
 
@@ -138,6 +162,38 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         help_text="If set, this will be the total cost of this assignment, ignoring profiles, accessories, and upgrades",
     )
 
+    # --- Cost-pinning (#1826): base-component pin ---------------------------
+    # One base price per assignment, so the pin lives here rather than on a
+    # through row. Inert until the resolution phase reads amounts and the
+    # acquisition phase writes them.
+    pinned_equipment_list_item = models.ForeignKey(
+        ContentFighterEquipmentListItem,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pinned_base_assignments",
+        help_text="The equipment-list row whose price was captured for the base cost at acquisition.",
+    )
+    pinned_expansion_item = models.ForeignKey(
+        "content.ContentEquipmentListExpansionItem",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pinned_base_assignments",
+        help_text="The expansion item whose price was captured for the base cost at acquisition.",
+    )
+    pinned_base_amount = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="The resolved base cost at acquisition. Null only while unpinned.",
+    )
+    pinned_base_state = models.CharField(
+        max_length=16,
+        choices=PinState.choices,
+        default=PinState.UNPINNED,
+        help_text="Attribution state for the base-cost pin.",
+    )
+
     rating_current = models.IntegerField(
         default=0,
         help_text="Cached total rating of this assignment. Can be negative if equipment or upgrades have negative cost.",
@@ -156,6 +212,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         blank=True,
         related_name="weapon_profiles",
         verbose_name="weapon profiles",
+        through="ListFighterEquipmentAssignmentProfile",
         help_text="Select the costed weapon profiles to assign to this equipment. The standard profiles are automatically included in the cost of the equipment.",
     )
 
@@ -164,6 +221,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         blank=True,
         related_name="weapon_accessories",
         verbose_name="weapon accessories",
+        through="ListFighterEquipmentAssignmentAccessory",
         help_text="Select the weapon accessories to assign to this equipment.",
     )
 
@@ -171,6 +229,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         ContentEquipmentUpgrade,
         blank=True,
         related_name="fighter_equipment_assignments",
+        through="ListFighterEquipmentAssignmentUpgrade",
         help_text="The upgrades that this equipment assignment has.",
     )
 
@@ -906,3 +965,164 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                 name="idx_assignment_content_equip",
             ),
         ]
+
+
+class ListFighterEquipmentAssignmentProfile(models.Model):
+    """Through row linking an assignment to a paid weapon profile.
+
+    Declared in place on the join table Django originally auto-created for
+    ``weapon_profiles_field`` (state-only migration; the table, its BigAuto
+    pk, column names, and unique constraint are unchanged). Exists so the
+    cost-pinning programme (#1826) can hang per-component pin columns on the
+    relationship. Plain M2M writes (`.add()`/`.set()`/`.remove()`) keep
+    working because every extra field is nullable or defaulted.
+    """
+
+    listfighterequipmentassignment = models.ForeignKey(
+        "ListFighterEquipmentAssignment",
+        on_delete=models.CASCADE,
+        related_name="profile_rows",
+    )
+    contentweaponprofile = models.ForeignKey(
+        ContentWeaponProfile,
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+
+    pinned_equipment_list_item = models.ForeignKey(
+        ContentFighterEquipmentListItem,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pinned_profile_rows",
+        help_text="The equipment-list row whose price was captured at acquisition.",
+    )
+    pinned_expansion_item = models.ForeignKey(
+        "content.ContentEquipmentListExpansionItem",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pinned_profile_rows",
+        help_text="The expansion item whose price was captured at acquisition.",
+    )
+    pinned_amount = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="The resolved cost at acquisition. Null only while unpinned.",
+    )
+    pin_state = models.CharField(
+        max_length=16,
+        choices=PinState.choices,
+        default=PinState.UNPINNED,
+        help_text="Attribution state for this component's pin.",
+    )
+
+    # History is sparse by design: M2M .add()/.set() and bulk backfills skip
+    # signals, so rows appear here only when saved individually (pin writes).
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = "core_listfighterequipmentassignment_weapon_profiles_field"
+        unique_together = [["listfighterequipmentassignment", "contentweaponprofile"]]
+        verbose_name = "weapon profile row"
+        verbose_name_plural = "weapon profile rows"
+
+
+class ListFighterEquipmentAssignmentAccessory(models.Model):
+    """Through row linking an assignment to a weapon accessory.
+
+    See ListFighterEquipmentAssignmentProfile — same in-place declaration,
+    same purpose.
+    """
+
+    listfighterequipmentassignment = models.ForeignKey(
+        "ListFighterEquipmentAssignment",
+        on_delete=models.CASCADE,
+        related_name="accessory_rows",
+    )
+    contentweaponaccessory = models.ForeignKey(
+        ContentWeaponAccessory,
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+
+    pinned_equipment_list_accessory = models.ForeignKey(
+        ContentFighterEquipmentListWeaponAccessory,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pinned_accessory_rows",
+        help_text="The equipment-list accessory row whose price was captured at acquisition.",
+    )
+    pinned_amount = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="The resolved cost at acquisition. Null only while unpinned.",
+    )
+    pin_state = models.CharField(
+        max_length=16,
+        choices=PinState.choices,
+        default=PinState.UNPINNED,
+        help_text="Attribution state for this component's pin.",
+    )
+
+    # History is sparse by design: M2M .add()/.set() and bulk backfills skip
+    # signals, so rows appear here only when saved individually (pin writes).
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = "core_listfighterequipmentassignment_weapon_accessories_field"
+        unique_together = [["listfighterequipmentassignment", "contentweaponaccessory"]]
+        verbose_name = "weapon accessory row"
+        verbose_name_plural = "weapon accessory rows"
+
+
+class ListFighterEquipmentAssignmentUpgrade(models.Model):
+    """Through row linking an assignment to an equipment upgrade.
+
+    See ListFighterEquipmentAssignmentProfile — same in-place declaration,
+    same purpose.
+    """
+
+    listfighterequipmentassignment = models.ForeignKey(
+        "ListFighterEquipmentAssignment",
+        on_delete=models.CASCADE,
+        related_name="upgrade_rows",
+    )
+    contentequipmentupgrade = models.ForeignKey(
+        ContentEquipmentUpgrade,
+        on_delete=models.CASCADE,
+        related_name="+",
+    )
+
+    pinned_equipment_list_upgrade = models.ForeignKey(
+        ContentFighterEquipmentListUpgrade,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pinned_upgrade_rows",
+        help_text="The equipment-list upgrade row whose price was captured at acquisition.",
+    )
+    pinned_amount = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="The resolved cost at acquisition. Null only while unpinned.",
+    )
+    pin_state = models.CharField(
+        max_length=16,
+        choices=PinState.choices,
+        default=PinState.UNPINNED,
+        help_text="Attribution state for this component's pin.",
+    )
+
+    # History is sparse by design: M2M .add()/.set() and bulk backfills skip
+    # signals, so rows appear here only when saved individually (pin writes).
+    history = HistoricalRecords()
+
+    class Meta:
+        db_table = "core_listfighterequipmentassignment_upgrades_field"
+        unique_together = [
+            ["listfighterequipmentassignment", "contentequipmentupgrade"]
+        ]
+        verbose_name = "equipment upgrade row"
+        verbose_name_plural = "equipment upgrade rows"

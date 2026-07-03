@@ -4,7 +4,6 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils.html import format_html
 
-from gyrinx.content.models import ContentWeaponProfile
 from gyrinx.core.admin.base import BaseAdmin
 from gyrinx.core.admin.filters import (
     AutocompleteRelatedFilter,
@@ -17,6 +16,9 @@ from ..models.list import (
     ListAttributeAssignment,
     ListFighter,
     ListFighterEquipmentAssignment,
+    ListFighterEquipmentAssignmentAccessory,
+    ListFighterEquipmentAssignmentProfile,
+    ListFighterEquipmentAssignmentUpgrade,
     ListFighterPsykerPowerAssignment,
 )
 
@@ -294,7 +296,6 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
         for field, related in [
             ("list_fighter", ("list", "content_fighter")),
             ("content_equipment", ("category",)),
-            ("weapon_profiles_field", ("equipment",)),
         ]:
             if field in self.fields:
                 self.fields[field].queryset = self.fields[
@@ -308,41 +309,72 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
             # Disable the fighter field if it's already set
             self.fields["list_fighter"].disabled = True
             self.fields["content_equipment"].disabled = True
-            # Filter available weapon profiles and upgrade based on the equipment
-            if hasattr(self.instance, "content_equipment"):
-                self.fields["weapon_profiles_field"].queryset = self.fields[
-                    "weapon_profiles_field"
-                ].queryset.filter(equipment=self.instance.content_equipment)
-
-                self.fields["upgrades_field"].queryset = self.fields[
-                    "upgrades_field"
-                ].queryset.filter(equipment=self.instance.content_equipment)
 
         group_select(self, "list_fighter", key=lambda x: x.list.name)
         group_select(self, "content_equipment", key=lambda x: x.cat())
-        group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
+
+
+class AssignmentProfileRowInline(admin.TabularInline):
+    """Weapon profile rows, with pin provenance visible once pins land."""
+
+    model = ListFighterEquipmentAssignmentProfile
+    extra = 0
+    autocomplete_fields = ["contentweaponprofile"]
+    readonly_fields = [
+        "pinned_equipment_list_item",
+        "pinned_expansion_item",
+        "pinned_amount",
+        "pin_state",
+    ]
+    verbose_name = "Weapon profile"
+    verbose_name_plural = "Weapon profiles"
+
+
+class AssignmentAccessoryRowInline(admin.TabularInline):
+    model = ListFighterEquipmentAssignmentAccessory
+    extra = 0
+    autocomplete_fields = ["contentweaponaccessory"]
+    readonly_fields = [
+        "pinned_equipment_list_accessory",
+        "pinned_amount",
+        "pin_state",
+    ]
+    verbose_name = "Weapon accessory"
+    verbose_name_plural = "Weapon accessories"
+
+
+class AssignmentUpgradeRowInline(admin.TabularInline):
+    model = ListFighterEquipmentAssignmentUpgrade
+    extra = 0
+    autocomplete_fields = ["contentequipmentupgrade"]
+    readonly_fields = [
+        "pinned_equipment_list_upgrade",
+        "pinned_amount",
+        "pin_state",
+    ]
+    verbose_name = "Equipment upgrade"
+    verbose_name_plural = "Equipment upgrades"
 
 
 @admin.register(ListFighterEquipmentAssignment)
 class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
     form = ListFighterEquipmentAssignmentForm
 
-    def formfield_for_manytomany(self, db_field, request, **kwargs):
-        # Only show weapon profiles that have a cost
-        if db_field.name == "weapon_profiles_field":
-            kwargs["queryset"] = ContentWeaponProfile.objects.filter(cost__gt=0)
-        return super().formfield_for_manytomany(db_field, request, **kwargs)
-
+    # The component M2Ms have explicit through models (cost-pinning
+    # programme, #1826) and cannot render as plain multi-selects
+    # (admin.E013); they are edited via the through-row inlines below.
     fields = [
         "list_fighter",
         "content_equipment",
-        "weapon_profiles_field",
-        "weapon_accessories_field",
         "child_fighter",
-        "upgrades_field",
         cost,
     ]
     readonly_fields = ["child_fighter", cost]
+    inlines = [
+        AssignmentProfileRowInline,
+        AssignmentAccessoryRowInline,
+        AssignmentUpgradeRowInline,
+    ]
     list_display = [
         "list_fighter",
         "list_fighter__list__name",
