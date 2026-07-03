@@ -205,6 +205,41 @@ def debug_design_system(request):
     )
 
 
+def debug_list_balance_sheet(request, list_id):
+    """Itemised cost balance sheet for a list, with reconciliation problems.
+
+    The read-only companion to debug_list_actions: decomposes every fighter
+    and assignment into priced component lines, compares computed values with
+    the caches, and checks the credits ledger and action-chain continuity.
+    Part of the cost-pinning programme (#1826).
+    """
+    from gyrinx.core.cost.balance_sheet import build_balance_sheet
+
+    # Same gate as debug_list_actions: staff may view any list in any
+    # environment (production support tooling); owners get it in development.
+    if request.user.is_staff:
+        lst = get_object_or_404(List, id=list_id)
+    elif settings.DEBUG and request.user.is_authenticated:
+        lst = get_object_or_404(List, id=list_id, owner=request.user)
+    else:
+        raise Http404("List not found")
+
+    sheet = build_balance_sheet(lst)
+    problems = sheet.reconcile()
+
+    return render(
+        request,
+        "core/debug/list_balance_sheet.html",
+        {
+            "list": lst,
+            "sheet": sheet,
+            "problems": problems,
+            "all_fighters": list(sheet.fighters)
+            + ([sheet.stash] if sheet.stash else []),
+        },
+    )
+
+
 def debug_list_actions(request, list_id):
     """Display all actions for a list, sorted newest first."""
     # Staff may view any list's actions in any environment — this doubles as

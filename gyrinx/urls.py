@@ -50,6 +50,11 @@ _debug_urls = [
         debug_views.debug_list_actions,
         name="debug_list_actions",
     ),
+    path(
+        "_debug/list/<uuid:list_id>/balance-sheet/",
+        debug_views.debug_list_balance_sheet,
+        name="debug_list_balance_sheet",
+    ),
 ]
 
 urlpatterns = (
