@@ -372,6 +372,90 @@ label {
     letter-spacing: 0.03em;
 }
 
+// Home row meta line (house/credits, campaign status, etc). Reserve one text
+// line of height so a line holding only a badge — badges use font-size .75em /
+// line-height 1, so they're shorter than base text — stays as tall as a line
+// with base-size text. Keeps pinned/home rows the same height across the
+// Campaign Gangs / Campaigns / Lists columns.
+.home-row-meta {
+    min-height: 1.5em;
+}
+
+// Dice roller
+@keyframes dice-roll-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.15em) scale(0.85);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.dice-tray {
+    // Big, legible dice. Everything below sizes in em, so tweak here to scale.
+    font-size: 2.5rem;
+    line-height: 1;
+
+    // Rolled dice drop/fade in on load for a bit of drama. dice.js staggers
+    // each die's animation-delay for a cascade; without JS they fade in
+    // together. Placeholders (spans) are untouched — only rolled dice (i).
+    i {
+        animation: dice-roll-in 260ms ease-out both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        i {
+            animation: none;
+        }
+    }
+
+    // An empty die: rounded outline with a muted "?" until a roll fills it in.
+    // 1em square (with border-box) matches the bi-dice glyphs, which render at
+    // exactly 1em, so placeholders and rolled dice are the same size.
+    .dice-placeholder {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1em;
+        height: 1em;
+        border: 0.045em solid var(--bs-border-color);
+        border-radius: 0.15em;
+        color: var(--bs-secondary-color);
+
+        &::before {
+            content: "?";
+            font-size: 0.5em;
+            font-weight: 700;
+        }
+    }
+}
+
+// The first dice group is the baseline and can't be removed; its remove-group
+// button is rendered (so JS can clone a group from it) but hidden.
+.js-dice-groups > .dice-group:first-child .js-remove-group {
+    display: none;
+}
+
+// Danger nav-pill — e.g. the account "Sign out" link. Red text at rest; when
+// active it fills with danger and flips to white text, instead of the default
+// blue (primary) pill that would leave red text sitting on a blue fill.
+.nav-pills .nav-link.nav-link-danger {
+    color: var(--bs-danger);
+
+    &:hover,
+    &:focus {
+        color: var(--bs-danger);
+    }
+
+    &.active {
+        color: #fff;
+        background-color: var(--bs-danger);
+    }
+}
+
 // Responsive font sizes - small by default, normal at breakpoint
 @each $bp, $bp-value in $grid-breakpoints {
     @include media-breakpoint-up($bp) {
@@ -691,23 +775,47 @@ $width-em-sizes: (
 // the coloured rects). Inline next to a username, sized relative to the text.
 .user-badge {
     display: inline-flex;
+    // Size the badge in em so it scales with the surrounding text: bigger in a
+    // heading, smaller in fs-7 (where a fixed 16px badge was oversized and
+    // stretched the line box). Because both the badge and the offset below
+    // scale with the em, a single vertical-align value stays optically centred
+    // at every size — a fixed-px badge could not (`middle` reads low in large
+    // text, a fixed em offset drifts). -0.15em lifts it from the x-height
+    // midline (`middle`) up onto the cap-height optical centre.
     vertical-align: -0.15em;
     margin-inline-start: 0.25em;
 
+    // The badges are 24×24 pixel art (shape-rendering: crispEdges). At a
+    // fractional display size each source pixel maps to a fraction of a screen
+    // pixel, so crispEdges snaps cells unevenly — some edges end up 1px, others
+    // 2px. Let them anti-alias smoothly instead, so they scale cleanly at any
+    // size or device pixel ratio. --badge-size overrides the em default (see
+    // the design-system reference).
     svg {
-        width: 1.15em;
-        height: 1.15em;
+        width: var(--badge-size, 1em);
+        height: var(--badge-size, 1em);
+        shape-rendering: geometricPrecision;
     }
 }
 
-// Badge icon as used in the picker — a touch larger to show detail.
+// Generic slug badge (e.g. the badge picker). Shares the inline sizing and
+// centring above; the picker centres it via flex, so vertical-align is moot
+// there but keeps it correct anywhere it sits inline in text.
 .badge-icon {
     display: inline-flex;
+    vertical-align: -0.15em;
 
     svg {
-        width: 1.5em;
-        height: 1.5em;
+        width: var(--badge-size, 1em);
+        height: var(--badge-size, 1em);
+        shape-rendering: geometricPrecision;
     }
+}
+
+// Badge preview in the picker — larger than the inline default (1em) so the
+// pixel art's detail stays legible while choosing.
+.badge-preview {
+    --badge-size: 1.5em;
 }
 
 // Campaign list summary cards (Actions / Assets & Resources / Attributes).

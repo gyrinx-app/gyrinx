@@ -1,5 +1,6 @@
 {# djlint:off H021 #}
 {% extends "core/layouts/base.html" %}
+{% load badge_tags %}
 {% block head_title %}
     Design system
 {% endblock head_title %}
@@ -585,6 +586,66 @@
                 <div class="text-secondary fs-7">
                     House name at <code>fs-7</code>{{ ds_house_icon_svg }}
                 </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- SUPPORTER BADGES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Supporter badges</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Pixel-art badges shown next to a user's name — the staff badge and Patreon tiers.
+                Emit a user's chosen badge with
+                <code>{% templatetag openblock %} user_badge user {% templatetag closeblock %}</code>
+                (renders <code>.user-badge</code>), or a specific badge by slug with
+                <code>{% templatetag openblock %} badge_icon "staff" {% templatetag closeblock %}</code>.
+                They are 24×24 pixel art sized in <code>em</code>, so they scale with the
+                surrounding text — larger in a heading, smaller in <code>fs-7</code> — and are
+                rendered with <code>shape-rendering: geometricPrecision</code> so they anti-alias
+                cleanly instead of aliasing to uneven edges. Override the size with the
+                <code>--badge-size</code> custom property.
+            </p>
+            <h3 class="h6 caps-label mb-2">Staff badge at different sizes</h3>
+            <div class="d-flex flex-wrap align-items-end gap-4 mb-4">
+                <div class="text-center" style="--badge-size: 16px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">16px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 24px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">24px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 32px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">32px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 48px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">48px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 64px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">64px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 96px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">96px</div>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2 mt-4">Vertical alignment in headings</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Sized in <code>em</code>, the badge scales with the text and stays optically
+                centred on it at every size — from a heading down to <code>fs-7</code>.
+            </p>
+            <div class="vstack gap-2">
+                <h1 class="mb-0">Heading 1 {% badge_icon "staff" %}</h1>
+                <h2 class="mb-0">Heading 2 {% badge_icon "staff" %}</h2>
+                <h3 class="mb-0">Heading 3 {% badge_icon "staff" %}</h3>
+                <h4 class="mb-0">Heading 4 {% badge_icon "staff" %}</h4>
+                <h5 class="mb-0">Heading 5 {% badge_icon "staff" %}</h5>
+                <h6 class="mb-0">Heading 6 {% badge_icon "staff" %}</h6>
+                <p class="mb-0">Body text {% badge_icon "staff" %}</p>
+                <div class="text-secondary fs-7">Compact text (fs-7) {% badge_icon "staff" %}</div>
             </div>
         </section>
         <!-- ============================================================ -->
