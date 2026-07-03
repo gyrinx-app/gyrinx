@@ -34,13 +34,13 @@ from gyrinx.content.models import (
 from gyrinx.core.forms.list import (
     EquipmentReassignForm,
     EquipmentSellSelectionForm,
-    ListFighterEquipmentAssignmentAccessoriesForm,
     ListFighterEquipmentAssignmentCostForm,
     ListFighterEquipmentAssignmentForm,
     ListFighterEquipmentAssignmentUpgradeForm,
 )
 from gyrinx.core.handlers.equipment import (
     SaleItemDetail,
+    component_delta,
     handle_accessory_purchase,
     handle_equipment_component_removal,
     handle_equipment_cost_override,
@@ -1065,17 +1065,12 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
                 }
             )
 
-    form = ListFighterEquipmentAssignmentAccessoriesForm(
-        instance=assignment,
-    )
-
     return render(
         request,
         "core/list_fighter_weapons_accessories_edit.html",
         {
             "list": lst,
             "fighter": fighter,
-            "form": form,
             "error_message": error_message,
             "assign": VirtualListFighterEquipmentAssignment.from_assignment(assignment),
             "accessories": accessories,
@@ -1725,18 +1720,7 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
         assignment = None
     else:
         assignment = get_object_or_404(
-            ListFighterEquipmentAssignment.objects.select_related(
-                "content_equipment", "list_fighter"
-            ).prefetch_related(
-                "weapon_profiles_field",
-                # Use all_content() so pack-scoped accessories are not hidden
-                # by the default M2M manager.
-                Prefetch(
-                    "weapon_accessories_field",
-                    queryset=ContentWeaponAccessory.objects.all_content(),
-                ),
-                "upgrades_field",
-            ),
+            ListFighterEquipmentAssignment.objects.with_related_data(),
             pk=assign_id,
             list_fighter=fighter,
         )
@@ -1764,61 +1748,90 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
     items_to_sell = []
 
     if step != "summary" and sell_assign:
-        # Selling entire assignment (equipment + upgrades)
-        base_cost = assignment.content_equipment.cost_int()
-        print(f"Base cost for {assignment.content_equipment.name}: {base_cost}")
-        for upgrade in assignment.upgrades_field.all():
-            print(f"Adding upgrade cost: {upgrade.cost_int_cached} for {upgrade.name}")
-            base_cost += upgrade.cost_int_cached
+        # Selling the entire assignment. Price every line from the
+        # assignment's own component resolution — NOT raw catalog costs — so
+        # what leaves the stash books equals what the caches carry (P3):
+        # selling discounted, overridden, or pack gear at catalog permanently
+        # drifted the stash. The lines must sum to assignment.cost_int()
+        # (which honours total_cost_override), so the equipment line is the
+        # remainder after the resolved profile and accessory lines.
+        profile_lines = [
+            (
+                profile,
+                assignment.profile_cost_int(VirtualWeaponProfile(profile=profile)),
+            )
+            for profile in assignment.weapon_profiles_field.all()
+        ]
+        accessory_lines = [
+            (accessory, assignment.accessory_cost_int(accessory))
+            for accessory in assignment.weapon_accessories_field.all()
+        ]
+        equipment_line_cost = (
+            assignment.cost_int()
+            - sum(cost for _, cost in profile_lines)
+            - sum(cost for _, cost in accessory_lines)
+        )
 
         items_to_sell.append(
             {
                 "type": "equipment",
                 "name": assignment.content_equipment.name,
                 "upgrades": list(assignment.upgrades_field.all()),
-                "base_cost": base_cost,
-                "total_cost": base_cost,  # Total cost including upgrades
+                "base_cost": equipment_line_cost,
+                "total_cost": equipment_line_cost,  # includes upgrades
                 "assignment": assignment,
             }
         )
 
-        # Add all profiles
-        for profile in assignment.weapon_profiles_field.all():
+        for profile, profile_cost in profile_lines:
             items_to_sell.append(
                 {
                     "type": "profile",
                     "name": f"- {profile.name}",
-                    "base_cost": profile.cost,
-                    "total_cost": profile.cost,  # No upgrades for profiles
+                    "base_cost": profile_cost,
+                    "total_cost": profile_cost,
                     "profile": profile,
                 }
             )
 
-        # Add all accessories. The assignment is fetched with a pack-aware
-        # prefetch on weapon_accessories_field, so .all() here returns
-        # pack-scoped accessories from the prefetch cache without an extra
-        # query.
-        for accessory in assignment.weapon_accessories_field.all():
+        # The assignment is fetched with pack-aware prefetches, so .all()
+        # returns pack-scoped accessories from the prefetch cache.
+        for accessory, accessory_cost in accessory_lines:
             items_to_sell.append(
                 {
                     "type": "accessory",
                     "name": accessory.name,
-                    "base_cost": accessory.cost,
-                    "total_cost": accessory.cost,  # No upgrades for accessories
+                    "base_cost": accessory_cost,
+                    "total_cost": accessory_cost,
                     "accessory": accessory,
                 }
             )
     elif step != "summary":
-        # Selling individual components
+        # Selling individual components. Book each part at its resolved
+        # component cost; under a total_cost_override the assignment's
+        # cost_int() ignores components, so the book delta is zero (the same
+        # policy as component purchase/removal, #1925) — sale proceeds can
+        # still be set manually.
         for profile_id in sell_profiles:
-            profile = assignment.weapon_profiles_field.filter(id=profile_id).first()
+            # all_content() so pack-scoped profiles can be selected for sale —
+            # the M2M related manager filters through the pack-excluding
+            # default manager, matching the accessory lookup below.
+            profile = (
+                ContentWeaponProfile.objects.all_content()
+                .filter(weapon_profiles=assignment, id=profile_id)
+                .first()
+            )
             if profile:
+                profile_cost = component_delta(
+                    assignment,
+                    assignment.profile_cost_int(VirtualWeaponProfile(profile=profile)),
+                )
                 items_to_sell.append(
                     {
                         "type": "profile",
                         "name": profile.name,
-                        "base_cost": profile.cost,
-                        "total_cost": profile.cost,  # No upgrades for profiles
+                        "base_cost": profile_cost,
+                        "total_cost": profile_cost,
                         "profile": profile,
                     }
                 )
@@ -1830,12 +1843,15 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
                 .first()
             )
             if accessory:
+                accessory_cost = component_delta(
+                    assignment, assignment.accessory_cost_int(accessory)
+                )
                 items_to_sell.append(
                     {
                         "type": "accessory",
                         "name": accessory.name,
-                        "base_cost": accessory.cost,
-                        "total_cost": accessory.cost,  # No upgrades for accessories
+                        "base_cost": accessory_cost,
+                        "total_cost": accessory_cost,
                         "accessory": accessory,
                     }
                 )
@@ -1972,9 +1988,13 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
                 if not sell_assign:
                     for profile_id in request.session.get("sell_profiles", []):
-                        profile = assignment.weapon_profiles_field.filter(
-                            id=profile_id
-                        ).first()
+                        # all_content() so pack-scoped profiles resolve here
+                        # too (see the selection-step lookup above).
+                        profile = (
+                            ContentWeaponProfile.objects.all_content()
+                            .filter(weapon_profiles=assignment, id=profile_id)
+                            .first()
+                        )
                         if profile:
                             profiles_to_remove.append(profile)
 

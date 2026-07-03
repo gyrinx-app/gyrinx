@@ -79,11 +79,10 @@ def fresh(obj):
     stale absolute values — a harness artifact, not an app flow.
     """
     if isinstance(obj, ListFighterEquipmentAssignment):
-        # Views hand handlers assignments fetched via with_related_data().
-        # Its accessory prefetch routes through all_content() so pack
-        # accessories survive; note its profile/upgrade prefetches do NOT
-        # (pack-excluding managers) — that divergence is producer P8
-        # (#1933), pinned in the matrix.
+        # Views hand handlers assignments fetched via with_related_data(),
+        # whose component prefetches all route through all_content() so
+        # pack-scoped profiles, accessories, and upgrades survive the fetch
+        # (#1933). A plain fetch would drop them and misprice pack gear.
         return ListFighterEquipmentAssignment.objects.with_related_data().get(pk=obj.pk)
     return type(obj).objects.get(pk=obj.pk)
 
@@ -380,8 +379,8 @@ def test_meta_build_is_read_only(healthy_list):
 # Situation matrix
 #
 # Each cell drives a real app flow (handler or view) and applies the two-beat
-# check. Known drift producers are pinned as strict xfails, grouped P1-P6;
-# they flip to passing in the phase that fixes them (see
+# check. Known drift producers are pinned as strict xfails and flip to
+# passing assertions in the phase that fixes them (see
 # .claude/notes/cost-pinning-design.md §6).
 # ---------------------------------------------------------------------------
 
@@ -450,22 +449,7 @@ def test_matrix_buy_accessory(healthy_list, user, gear):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(
-    "side",
-    [
-        "catalog",
-        pytest.param(
-            "pack",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="P8 (#1933): pack upgrades book at zero — the SINGLE-mode "
-                "stack sum excludes pack rows from its own total, and the "
-                "recompute path is equally pack-blind, so reconciliation alone "
-                "cannot see it; fixed in Phase 3",
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_buy_upgrade(
     side, user, make_list, content_fighter, make_equipment, make_pack
 ):
@@ -814,11 +798,6 @@ def test_matrix_p2_1826_kill_fighter_with_discounted_gear(
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P3: the sale flow prices lines at raw catalog cost, ignoring "
-    "overrides; cache decrements diverge from cost_int(); fixed in Phase 3",
-)
 def test_matrix_p3_sell_overridden_gear_from_stash(campaign_list, user, client, gear):
     lst, stash = campaign_list
     equipment = gear.equipment("Stash Gun", cost=50)
@@ -832,6 +811,7 @@ def test_matrix_p3_sell_overridden_gear_from_stash(campaign_list, user, client, 
         new_total_cost_override=80,
     )
     assert_reconciles(lst)  # clean before the sale
+    stash_before_sale = fresh(lst).stash_current
 
     client.force_login(user)
     url = reverse(
@@ -847,15 +827,14 @@ def test_matrix_p3_sell_overridden_gear_from_stash(campaign_list, user, client, 
     )
     assert response.status_code == 302
     client.post(url, {"step": "confirm"})
-    assert_reconciles(lst)  # FAILS: sale removed 50 (catalog) from a cache holding 80
+    # P3, fixed in Phase 3: the sale books what the caches carry (the 80
+    # override), not raw catalog — and the books reconcile.
+    lst.refresh_from_db()
+    assert stash_before_sale - lst.stash_current == 80
+    assert_reconciles(lst)
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P4: stash component removal propagates rating_delta (0 for "
-    "stash) instead of the component's value; fixed in Phase 3",
-)
 def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
     lst, stash = campaign_list
     equipment = gear.equipment("Stash Gun", cost=50)
@@ -863,6 +842,7 @@ def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
     accessory = gear.accessory()
     buy_accessory(user, lst, stash, assignment, accessory)
     assert_reconciles(lst)  # clean before the removal
+    stash_before_removal = fresh(lst).stash_current
 
     handle_equipment_component_removal(
         user=user,
@@ -873,7 +853,10 @@ def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
         component=accessory,
         request_refund=False,
     )
-    assert_reconciles(lst)  # FAILS: assignment/fighter caches keep the 8
+    # P4, fixed in Phase 3: the removal decrements the assignment and stash
+    # fighter caches by the component's value, and the books reconcile.
+    assert stash_before_removal - fresh(lst).stash_current == 8  # booked movement
+    assert_reconciles(lst)
 
 
 @pytest.mark.django_db
@@ -1035,13 +1018,6 @@ def test_matrix_reassign_gear_with_pack_accessory(
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P8 (#1933): the assignment-level with_related_data() prefetches "
-    "profiles/upgrades through pack-excluding managers (only accessories go "
-    "via all_content()), so reassignment re-prices gear carrying a pack "
-    "profile without it; fixed in Phase 3",
-)
 def test_matrix_p8_reassign_gear_with_pack_profile(
     user, make_list, content_fighter, make_equipment, make_pack
 ):
@@ -1070,4 +1046,62 @@ def test_matrix_p8_reassign_gear_with_pack_profile(
         to_fighter=fresh(fighter_b),
         assignment=fresh(assignment),
     )
-    assert_reconciles(lst)  # FAILS: cost_after misses the pack profile
+    # P8 (#1933), fixed in Phase 3: with_related_data() now prefetches all
+    # three component types via all_content(), so the move prices the pack
+    # profile on both ends and the books reconcile.
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_sell_pack_profile_from_stash(
+    campaign_list, user, client, make_equipment, make_pack, make_weapon_profile
+):
+    """Selling an individual pack-scoped profile from stash gear works.
+
+    The parts-only sale path used to look profiles up through the
+    pack-excluding default manager, silently skipping pack profiles at both
+    the selection and confirm steps; the handler's M2M .remove() no-opped for
+    them too. The sale must actually remove the profile, book its resolved
+    value out of the stash, and reconcile.
+    """
+    lst, stash = campaign_list
+    source = ContentSource(make_pack("Profile Pack"))
+    source.subscribe(lst)
+    equipment = make_equipment("Stash Gun", cost=50)
+    assignment = buy_equipment(user, lst, stash, equipment)
+    profile = source.register(
+        make_weapon_profile(equipment, name="Pack Hotshot", cost=10)
+    )
+    handle_weapon_profile_purchase(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(stash),
+        assignment=fresh(assignment),
+        profile=profile,
+    )
+    assert_reconciles(lst)
+    stash_before_sale = fresh(lst).stash_current
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_profile=" + str(profile.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "5",
+        },
+    )
+    assert response.status_code == 302
+    client.post(url, {"step": "confirm"})
+
+    # The profile actually sold: gone from the assignment, 10 booked out.
+    assert not (
+        ContentWeaponProfile.objects.all_content()
+        .filter(weapon_profiles=fresh(assignment))
+        .exists()
+    )
+    assert stash_before_sale - fresh(lst).stash_current == 10
+    assert_reconciles(lst)

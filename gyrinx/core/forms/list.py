@@ -4,7 +4,6 @@ from gyrinx.content.models import (
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentHouse,
-    ContentWeaponAccessory,
 )
 from gyrinx.core.forms import (
     BsCheckboxSelectMultiple,
@@ -453,38 +452,6 @@ class ListFighterWeaponAccessoryField(forms.ModelMultipleChoiceField):
                 cost = obj.cost
         unit = "¢" if str(cost).strip().isnumeric() else ""
         return f"{obj.name} ({cost}{unit})"
-
-
-class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        inst: ListFighterEquipmentAssignment | None = kwargs.get("instance", None)
-        if inst is not None:
-            # Pack-aware queryset so subscribed pack accessories appear and
-            # already-attached pack accessories are recognised as initial
-            # values (the default M2M manager would silently exclude them).
-            packs = inst.list_fighter.list.packs.all()
-            choices_qs = ContentWeaponAccessory.objects.with_packs(
-                packs, include_archived_items=True
-            ).with_cost_for_fighter(inst.list_fighter.content_fighter)
-            initial_qs = ContentWeaponAccessory.objects.all_content().filter(
-                weapon_accessories=inst
-            )
-            self.fields["weapon_accessories_field"] = ListFighterWeaponAccessoryField(
-                label="Accessories",
-                queryset=choices_qs,
-                widget=BsCheckboxSelectMultiple(
-                    attrs={"class": "form-check-input"},
-                ),
-                help_text="Costs reflect the Fighter's Equipment List.",
-                required=False,
-                assignment=inst,
-            )
-            self.fields["weapon_accessories_field"].initial = initial_qs
-
-    class Meta:
-        model = ListFighterEquipmentAssignment
-        fields = ["weapon_accessories_field"]
 
 
 class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
