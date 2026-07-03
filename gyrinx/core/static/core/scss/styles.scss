@@ -381,6 +381,31 @@ label {
     min-height: 1.5em;
 }
 
+// Dice roller
+.dice-tray {
+    // Big, legible dice. Everything below sizes in em, so tweak here to scale.
+    font-size: 2.5rem;
+    line-height: 1;
+
+    // An empty die: rounded outline with a muted "?" until a roll fills it in.
+    .dice-placeholder {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 0.9em;
+        height: 0.9em;
+        border: 0.045em solid var(--bs-border-color);
+        border-radius: 0.15em;
+        color: var(--bs-secondary-color);
+
+        &::before {
+            content: "?";
+            font-size: 0.5em;
+            font-weight: 700;
+        }
+    }
+}
+
 // Responsive font sizes - small by default, normal at breakpoint
 @each $bp, $bp-value in $grid-breakpoints {
     @include media-breakpoint-up($bp) {

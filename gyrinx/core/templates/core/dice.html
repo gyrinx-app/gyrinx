@@ -5,68 +5,82 @@
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/home.html" %}
-    <div class="col-lg-12 px-0 vstack gap-3">
+    <div class="col-lg-12 px-0 vstack gap-4">
         <h1 class="visually-hidden">Roll some dice</h1>
-        <div class="d-grid gap-2 d-md-block">
+        {% comment %}
+            Roll buttons carry a fresh seed, so pressing one produces a new — and
+            thereafter reproducible — roll (the seed lives in the URL). Editing the
+            dice/groups drops the seed, so values hide again until the next roll.
+        {% endcomment %}
+        <div class="d-grid gap-2 d-sm-flex align-items-center">
             <a rel="nofollow"
-               class="btn {% if mode == 'd6' %}btn-primary{% else %}btn-outline-secondary{% endif %} "
-               href="?{% qt request m="d6" %}">Roll D6</a>
+               class="btn btn-lg {% if mode == 'd6' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+               href="?{% qt request m="d6" seed=next_seed %}">
+                <i class="bi-dice-6"></i> Roll D6
+            </a>
             <a rel="nofollow"
-               class="btn {% if mode == 'd3' %}btn-primary{% else %}btn-outline-secondary{% endif %} "
-               href="?{% qt request m="d3" %}">Roll D3</a>
-            <a rel="nofollow" class="btn btn-outline" href="?m=d6&d=1">Reset</a>
+               class="btn btn-lg {% if mode == 'd3' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+               href="?{% qt request m="d3" seed=next_seed %}">
+                <i class="bi-dice-3"></i> Roll D3
+            </a>
+            <a rel="nofollow"
+               class="btn btn-lg btn-outline-secondary ms-sm-auto"
+               href="?m=d6&d=1">Reset</a>
         </div>
-        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 h1">
+        <div class="row g-3">
             {% for group in groups %}
-                <div class="col vstack gap-2 py-3">
-                    <div class="btn-group">
-                        {% if group.dice_n > 1 %}
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="border rounded p-3 vstack gap-3 h-100">
+                        <div class="btn-group">
+                            {% if group.dice_n > 1 %}
+                                <a rel="nofollow"
+                                   class="btn btn-outline-secondary"
+                                   href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"-1"|max:"1" %}"
+                                   aria-label="Remove one die">
+                                    <i class="bi-dash-lg"></i>
+                                </a>
+                                <a rel="nofollow"
+                                   class="btn btn-outline-secondary"
+                                   href="?{% qt_nth request nth=forloop.counter0 drop="seed" d="1" %}">1</a>
+                            {% else %}
+                                <a rel="nofollow"
+                                   class="btn btn-outline-secondary disabled"
+                                   aria-label="Remove one die (disabled)">
+                                    <i class="bi-dash-lg"></i>
+                                </a>
+                                <a rel="nofollow" class="btn btn-outline-secondary disabled">1</a>
+                            {% endif %}
                             <a rel="nofollow"
-                               class="btn btn-outline-secondary"
-                               href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"-1"|max:"1" %}"
-                               aria-label="Remove one die">
-                                <i class="bi-dash-lg"></i>
+                               class="btn btn-outline-primary"
+                               href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"1" %}"
+                               aria-label="Add one die">
+                                <i class="bi-plus-lg"></i>
                             </a>
-                            <a rel="nofollow"
-                               class="btn btn-outline-secondary"
-                               href="?{% qt_nth request nth=forloop.counter0 d="1" %}">1</a>
-                        {% else %}
-                            <a rel="nofollow"
-                               class="btn btn-outline-secondary disabled"
-                               aria-label="Remove one die (disabled)">
-                                <i class="bi-dash-lg"></i>
-                            </a>
-                            <a rel="nofollow" class="btn btn-outline-secondary disabled">1</a>
-                        {% endif %}
-                        <a rel="nofollow"
-                           class="btn btn-outline-primary"
-                           href="?{% qt_nth request nth=forloop.counter0 d=group.dice_n|add:"1" %}"
-                           aria-label="Add one die">
-                            <i class="bi-plus-lg"></i>
-                        </a>
-                        {% if forloop.counter0 > 0 %}
-                            <a rel="nofollow"
-                               class="ms-auto ms-md-0 btn btn-outline-danger"
-                               href="?{% qt_rm_nth request nth=forloop.counter0 d=1 fp=1 i=1 %}"
-                               aria-label="Remove dice group">
-                                <i class="bi-x-lg"></i>
-                            </a>
-                        {% endif %}
-                    </div>
-                    <div class="hstack gap-2 align-items-start">
-                        <div class="hstack gap-2 flex-wrap">
-                            {% for i in group.dice %}<i class="bi-dice-{{ i }}" aria-label="Dice showing {{ i }}"></i>{% endfor %}
+                            {% if forloop.counter0 > 0 %}
+                                <a rel="nofollow"
+                                   class="ms-auto btn btn-outline-danger"
+                                   href="?{% qt_rm_nth request nth=forloop.counter0 drop="seed" d=1 fp=1 i=1 %}"
+                                   aria-label="Remove dice group">
+                                    <i class="bi-x-lg"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                        <div class="dice-tray hstack gap-2 flex-wrap">
+                            {% for value in group.dice %}
+                                {% if value %}
+                                    <i class="bi-dice-{{ value }}" aria-label="Dice showing {{ value }}"></i>
+                                {% else %}
+                                    <span class="dice-placeholder" role="img" aria-label="Not yet rolled"></span>
+                                {% endif %}
+                            {% endfor %}
                         </div>
                     </div>
-                    {% comment %} {% if group.firepower|length > 0 %}<div class="vr"></div>{% endif %}
-                                {% for i in group.firepower %}<i class="bi-dice-{{ i }}"></i>{% endfor %}
-                                {% if group.injury|length > 0 %}<div class="vr"></div>{% endif %}
-                    {% for i in group.injury %}<i class="bi-dice-{{ i }}"></i>{% endfor %} {% endcomment %}
                 </div>
             {% endfor %}
         </div>
-        <div class="hstack justify-content-center mt-3">
-            <a class="btn btn-primary" href="?{% qt_append request d=1 fp=0 i=0 %}">
+        <div class="hstack justify-content-center">
+            <a class="btn btn-outline-primary"
+               href="?{% qt_append request drop="seed" d=1 fp=0 i=0 %}">
                 <i class="bi-plus-lg"></i> New dice group
             </a>
         </div>
