@@ -778,9 +778,15 @@ $width-em-sizes: (
     vertical-align: -0.15em;
     margin-inline-start: 0.25em;
 
+    // The badges are 24×24 pixel art (shape-rendering: crispEdges). At a
+    // fractional display size each source pixel maps to a fraction of a screen
+    // pixel, so crispEdges snaps cells unevenly — some edges end up 1px, others
+    // 2px. Pin a whole-pixel size and let them anti-alias smoothly instead, so
+    // they scale down cleanly at any size or device pixel ratio.
     svg {
-        width: 1.15em;
-        height: 1.15em;
+        width: 16px;
+        height: 16px;
+        shape-rendering: geometricPrecision;
     }
 }
 
@@ -789,8 +795,9 @@ $width-em-sizes: (
     display: inline-flex;
 
     svg {
-        width: 1.5em;
-        height: 1.5em;
+        width: 24px;
+        height: 24px;
+        shape-rendering: geometricPrecision;
     }
 }
 
