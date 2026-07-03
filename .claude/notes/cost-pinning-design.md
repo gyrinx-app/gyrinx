@@ -54,7 +54,7 @@ stash visibly contains.
 **Cache-vs-recompute divergence (the drift class).** Any mechanism that makes
 `cost_int()` disagree with the delta-accumulated cache is invisible until the next
 recompute snaps the cache to a different number — no error, just wealth jumping.
-There are six live producers of this class today:
+There are seven live producers of this class today:
 
 - **#1925 — component purchase under `total_cost_override`.** Buy an accessory on an
   assignment that has the override set. The handler computes the accessory's live
@@ -93,6 +93,13 @@ There are six live producers of this class today:
   `cost_after == cost_before` always. Context-priced gear moves at the old holder's
   price; the next recompute re-prices it to the new holder's context and the caches
   jump. (The `equipment_cost_changed_on_reassignment` telemetry can never fire.)
+- **Pack-scoped price corrections never sweep (#1930).** `get_old_cost()`
+  (`gyrinx/content/signals.py:28`) reads the pre-save price through the
+  pack-excluding default manager; for a `CustomContentPackItem`-scoped row it
+  gets `DoesNotExist` and every cost-change signal treats the save as a new
+  instance — nothing is marked dirty, no audit action is enqueued, no campaign
+  credits move. (The downstream task is already pack-hardened; the upstream
+  signal never fires.) Found by the pack axis (§5.2).
 - **The accessories-edit bare-form fallback rewrites the accessory set unaudited.**
   The weapon-accessories edit view's fallback POST branch
   (`gyrinx/core/views/fighter/equipment.py:1001-1011`) binds
@@ -109,7 +116,7 @@ A note on the **admin** as a mutation surface: the assignment admin's change for
 writes all three component M2Ms with no delta propagation either. That is *policy*,
 not a bug: admin writes bypass delta propagation by design, are remediated by the
 existing "recompute cost caches" admin action, and are explicitly allowlisted in the
-acquisition-path CI guard (§4.6). The six producers above are user-facing flows and
+acquisition-path CI guard (§4.6). The seven producers above are user-facing flows and
 are bugs.
 
 **Why whole-total freezing cannot be the fix.** The obvious wealth-stability
@@ -917,6 +924,18 @@ xfails below); others would go red under a mis-ordered rollout (e.g. handlers
 becoming price-neutral before the backfill pinned legacy gear). The matrix is the
 tool that catches that ordering mistake mechanically instead of by review.
 
+**The catalog-vs-pack axis.** Every matrix cell that consumes content runs
+twice — once with plain catalog rows, once with identical content scoped to a
+subscribed `CustomContentPack` (parametrized fixtures, not duplicated tests).
+Pack content is invisible to the default `ContentManager` and only surfaced by
+`all_content()`/`with_packs()`, so any cost path that fetches content
+carelessly prices pack gear differently — a class of drift the catalog variant
+can never see. The axis has already earned its place twice: the Phase 2 review
+caught a pack-only regression in the reassignment refetch, and the axis's
+first run surfaced producer #1930. Cells whose *expected* behaviour differs by
+side (the price-change sweep cells, the bare-form endpoint) use explicit
+per-side parameters with per-side xfail marks instead of the shared fixture.
+
 The **holder context changed** column (set/clear `legacy_content_fighter`, change
 fighter type — §4.6) asserts the intended end state: existing gear does *not*
 reprice, and every invariant family holds. On current code these cells expose
@@ -925,10 +944,10 @@ green as amounts land (Phase 5) and the backfill pins legacy rows (Phase 8) — 
 second example of the "green only under the right rollout order" class the matrix
 exists to police.
 
-### 5.3 Known-red cells: six strict-xfail tripwires, not one
+### 5.3 Known-red cells: seven strict-xfail tripwires, not one
 
-Six drift producers are live today (§1.2), so Phase 1 lands **six** strict-xfail
-groups, each owned by a named phase:
+Seven drift producers are live today (§1.2), so the matrix carries **seven**
+strict-xfail groups, each owned by a named phase:
 
 - **#1925 override-purchase divergence** — set `total_cost_override` via its handler,
   buy a component via its handler, reconcile. Fails: cached rating carries the
@@ -951,6 +970,10 @@ groups, each owned by a named phase:
   context prices it differently; the caches take the old-context price, recompute
   takes the new. Fixed in Phase 2 alongside #1925 (same `cached_property` hazard
   family, §3.3).
+- **Pack price corrections never sweep (#1930)** — change a subscribed pack
+  item's cost; nothing is dirtied and no action lands, so caches diverge on the
+  next recompute with no audit trail. Fixed in Phase 3 (mirror the task's
+  `all_content()` pattern in `get_old_cost()`).
 
 Each is marked `xfail(strict=True)`: it documents the bug, proves the harness can see
 it, and strictness forces the mark to be removed in the same change that fixes it.
