@@ -1813,7 +1813,14 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
         # policy as component purchase/removal, #1925) — sale proceeds can
         # still be set manually.
         for profile_id in sell_profiles:
-            profile = assignment.weapon_profiles_field.filter(id=profile_id).first()
+            # all_content() so pack-scoped profiles can be selected for sale —
+            # the M2M related manager filters through the pack-excluding
+            # default manager, matching the accessory lookup below.
+            profile = (
+                ContentWeaponProfile.objects.all_content()
+                .filter(weapon_profiles=assignment, id=profile_id)
+                .first()
+            )
             if profile:
                 profile_cost = component_delta(
                     assignment,
@@ -1981,9 +1988,13 @@ def sell_list_fighter_equipment(request, id, fighter_id, assign_id):
 
                 if not sell_assign:
                     for profile_id in request.session.get("sell_profiles", []):
-                        profile = assignment.weapon_profiles_field.filter(
-                            id=profile_id
-                        ).first()
+                        # all_content() so pack-scoped profiles resolve here
+                        # too (see the selection-step lookup above).
+                        profile = (
+                            ContentWeaponProfile.objects.all_content()
+                            .filter(weapon_profiles=assignment, id=profile_id)
+                            .first()
+                        )
                         if profile:
                             profiles_to_remove.append(profile)
 

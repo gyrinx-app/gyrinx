@@ -1050,3 +1050,58 @@ def test_matrix_p8_reassign_gear_with_pack_profile(
     # three component types via all_content(), so the move prices the pack
     # profile on both ends and the books reconcile.
     assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_sell_pack_profile_from_stash(
+    campaign_list, user, client, make_equipment, make_pack, make_weapon_profile
+):
+    """Selling an individual pack-scoped profile from stash gear works.
+
+    The parts-only sale path used to look profiles up through the
+    pack-excluding default manager, silently skipping pack profiles at both
+    the selection and confirm steps; the handler's M2M .remove() no-opped for
+    them too. The sale must actually remove the profile, book its resolved
+    value out of the stash, and reconcile.
+    """
+    lst, stash = campaign_list
+    source = ContentSource(make_pack("Profile Pack"))
+    source.subscribe(lst)
+    equipment = make_equipment("Stash Gun", cost=50)
+    assignment = buy_equipment(user, lst, stash, equipment)
+    profile = source.register(
+        make_weapon_profile(equipment, name="Pack Hotshot", cost=10)
+    )
+    handle_weapon_profile_purchase(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(stash),
+        assignment=fresh(assignment),
+        profile=profile,
+    )
+    assert_reconciles(lst)
+    stash_before_sale = fresh(lst).stash_current
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_profile=" + str(profile.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "5",
+        },
+    )
+    assert response.status_code == 302
+    client.post(url, {"step": "confirm"})
+
+    # The profile actually sold: gone from the assignment, 10 booked out.
+    assert not (
+        ContentWeaponProfile.objects.all_content()
+        .filter(weapon_profiles=fresh(assignment))
+        .exists()
+    )
+    assert stash_before_sale - fresh(lst).stash_current == 10
+    assert_reconciles(lst)

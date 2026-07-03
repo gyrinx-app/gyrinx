@@ -135,9 +135,14 @@ def handle_equipment_sale(
     else:
         # Selling individual components - update both assignment and fighter
         propagate_from_assignment(assignment, delta)
-        # Remove individual profiles
+        # Remove individual profiles. Bypass M2M .remove() — it filters via
+        # the target's default manager, which excludes pack content and
+        # silently no-ops on pack profiles (same workaround as accessories).
         for profile in profiles_to_remove:
-            assignment.weapon_profiles_field.remove(profile)
+            assignment.weapon_profiles_field.through.objects.filter(
+                listfighterequipmentassignment=assignment,
+                contentweaponprofile=profile,
+            ).delete()
         # Remove individual accessories. Bypass M2M .remove() — it filters
         # via the target's default manager, which excludes pack content and
         # silently no-ops on pack accessories.
