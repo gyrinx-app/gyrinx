@@ -775,34 +775,39 @@ $width-em-sizes: (
 // the coloured rects). Inline next to a username, sized relative to the text.
 .user-badge {
     display: inline-flex;
-    // Centre the badge on the surrounding text at any font size. A fixed em
-    // offset (previously -0.15em) is fine inline with body text but drifts
-    // off-centre in larger text like headings, where the badge is a fixed px
-    // size but the offset scales with the em.
-    vertical-align: middle;
+    // Size the badge in em so it scales with the surrounding text: bigger in a
+    // heading, smaller in fs-7 (where a fixed 16px badge was oversized and
+    // stretched the line box). Because both the badge and the offset below
+    // scale with the em, a single vertical-align value stays optically centred
+    // at every size — a fixed-px badge could not (`middle` reads low in large
+    // text, a fixed em offset drifts). -0.15em lifts it from the x-height
+    // midline (`middle`) up onto the cap-height optical centre.
+    vertical-align: -0.15em;
     margin-inline-start: 0.25em;
 
     // The badges are 24×24 pixel art (shape-rendering: crispEdges). At a
     // fractional display size each source pixel maps to a fraction of a screen
     // pixel, so crispEdges snaps cells unevenly — some edges end up 1px, others
-    // 2px. Pin a whole-pixel size and let them anti-alias smoothly instead, so
-    // they scale down cleanly at any size or device pixel ratio. --badge-size
-    // overrides the default (see the design-system reference).
+    // 2px. Let them anti-alias smoothly instead, so they scale cleanly at any
+    // size or device pixel ratio. --badge-size overrides the em default (see
+    // the design-system reference).
     svg {
-        width: var(--badge-size, 16px);
-        height: var(--badge-size, 16px);
+        width: var(--badge-size, 1em);
+        height: var(--badge-size, 1em);
         shape-rendering: geometricPrecision;
     }
 }
 
-// Badge icon as used in the picker — a touch larger to show detail.
+// Generic slug badge (e.g. the badge picker). Shares the inline sizing and
+// centring above; the picker centres it via flex, so vertical-align is moot
+// there but keeps it correct anywhere it sits inline in text.
 .badge-icon {
     display: inline-flex;
-    vertical-align: middle;
+    vertical-align: -0.15em;
 
     svg {
-        width: var(--badge-size, 24px);
-        height: var(--badge-size, 24px);
+        width: var(--badge-size, 1em);
+        height: var(--badge-size, 1em);
         shape-rendering: geometricPrecision;
     }
 }

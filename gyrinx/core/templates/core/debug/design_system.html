@@ -599,20 +599,21 @@
                 <code>{% templatetag openblock %} user_badge user {% templatetag closeblock %}</code>
                 (renders <code>.user-badge</code>), or a specific badge by slug with
                 <code>{% templatetag openblock %} badge_icon "staff" {% templatetag closeblock %}</code>.
-                They are 24×24 pixel art rendered at a whole-pixel size with
-                <code>shape-rendering: geometricPrecision</code>, so they scale down cleanly instead
-                of aliasing to uneven edges. Override the size with the
+                They are 24×24 pixel art sized in <code>em</code>, so they scale with the
+                surrounding text — larger in a heading, smaller in <code>fs-7</code> — and are
+                rendered with <code>shape-rendering: geometricPrecision</code> so they anti-alias
+                cleanly instead of aliasing to uneven edges. Override the size with the
                 <code>--badge-size</code> custom property.
             </p>
             <h3 class="h6 caps-label mb-2">Staff badge at different sizes</h3>
             <div class="d-flex flex-wrap align-items-end gap-4 mb-4">
                 <div class="text-center" style="--badge-size: 16px">
                     {% badge_icon "staff" %}
-                    <div class="fs-7 text-secondary mt-1">16px (inline)</div>
+                    <div class="fs-7 text-secondary mt-1">16px</div>
                 </div>
                 <div class="text-center" style="--badge-size: 24px">
                     {% badge_icon "staff" %}
-                    <div class="fs-7 text-secondary mt-1">24px (picker)</div>
+                    <div class="fs-7 text-secondary mt-1">24px</div>
                 </div>
                 <div class="text-center" style="--badge-size: 32px">
                     {% badge_icon "staff" %}
@@ -633,10 +634,10 @@
             </div>
             <h3 class="h6 caps-label mb-2 mt-4">Vertical alignment in headings</h3>
             <p class="text-secondary fs-7 mb-2">
-                The badge is a fixed 16px inline (as next to a username) and should stay vertically
-                centred on the text at every heading size.
+                Sized in <code>em</code>, the badge scales with the text and stays optically
+                centred on it at every size — from a heading down to <code>fs-7</code>.
             </p>
-            <div class="vstack gap-2" style="--badge-size: 16px">
+            <div class="vstack gap-2">
                 <h1 class="mb-0">Heading 1 {% badge_icon "staff" %}</h1>
                 <h2 class="mb-0">Heading 2 {% badge_icon "staff" %}</h2>
                 <h3 class="mb-0">Heading 3 {% badge_icon "staff" %}</h3>
