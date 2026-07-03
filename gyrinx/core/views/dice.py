@@ -8,6 +8,34 @@ from django.shortcuts import render
 
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 
+# The dice configuration comes straight from the (shareable, hand-editable) URL,
+# so it is untrusted: a non-numeric value would otherwise raise (HTTP 500) and a
+# huge count or a flood of groups would allocate and render an unbounded page.
+# Counts are clamped per group and the number of groups is capped.
+MAX_GROUPS = 20
+MAX_DICE_PER_GROUP = 100
+
+
+def _dice_counts(request, key):
+    """Parse a repeated integer query param (``d`` / ``fp`` / ``i``) into a
+    bounded list of dice counts.
+
+    Non-numeric entries are skipped, each count is clamped to
+    ``0..MAX_DICE_PER_GROUP``, and at most ``MAX_GROUPS`` entries are returned —
+    so a hand-edited or hostile URL can neither crash the view nor make it render
+    an unbounded page.
+    """
+    counts = []
+    for raw in request.GET.getlist(key):
+        if len(counts) >= MAX_GROUPS:
+            break
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            continue
+        counts.append(max(0, min(n, MAX_DICE_PER_GROUP)))
+    return counts
+
 
 @login_required
 def dice(request):
@@ -55,9 +83,9 @@ def dice(request):
     :template:`core/dice.html`
     """
     mode = request.GET.get("m", "d6")
-    d = [int(x) for x in request.GET.getlist("d")]
-    fp = [int(x) for x in request.GET.getlist("fp")]
-    i = [int(x) for x in request.GET.getlist("i")]
+    d = _dice_counts(request, "d")
+    fp = _dice_counts(request, "fp")
+    i = _dice_counts(request, "i")
     # A bare visit (no dice configured in the URL) still renders one group of a
     # single die, so the page is always a usable roller and the client script
     # always has a group to clone / reset.
