@@ -52,6 +52,12 @@ def fresh(obj):
     view would. Chaining handlers against stale in-memory instances writes
     stale absolute values — a harness artifact, not an app flow.
     """
+    if isinstance(obj, ListFighterEquipmentAssignment):
+        # Views hand handlers assignments fetched via with_related_data(),
+        # whose accessory prefetch (all_content) includes pack-scoped
+        # accessories; a plain fetch would silently drop them and make the
+        # harness blind to pack-gear pricing bugs.
+        return ListFighterEquipmentAssignment.objects.with_related_data().get(pk=obj.pk)
     return type(obj).objects.get(pk=obj.pk)
 
 
@@ -792,7 +798,7 @@ def test_matrix_p6_reassign_discounted_gear_reprices(
         to_fighter=fresh(fighter_b),
         assignment=fresh(assignment),
     )
-    assert_reconciles(lst)  # FAILS: moved at 5, B's context recomputes to 15
+    assert_reconciles(lst)
 
 
 @pytest.mark.django_db
@@ -841,3 +847,45 @@ def test_matrix_p6_repricing_telemetry_fires(
     assert len(reprice_events) == 1
     assert reprice_events[0]["cost_before"] == 5
     assert reprice_events[0]["cost_after"] == 15
+
+
+@pytest.mark.django_db
+def test_matrix_reassign_gear_with_pack_accessory(
+    campaign_list, user, content_fighter, make_equipment, pack
+):
+    """Pack-scoped accessories survive the reassignment repricing math.
+
+    A plain refetch resolves accessories through the pack-excluding default
+    manager, so a pack accessory would vanish from cost_after and the handler
+    would book a phantom repricing. The handler (and this harness's fresh())
+    must fetch with the same semantics the views use.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from gyrinx.core.models.pack import CustomContentPackItem
+
+    lst, stash = campaign_list
+    lst.packs.add(pack)
+    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = make_equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+
+    accessory = ContentWeaponAccessory.objects.create(name="Pack Scope", cost=8)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentWeaponAccessory),
+        object_id=accessory.pk,
+        owner=pack.owner,
+    )
+    buy_accessory(user, lst, fighter_a, assignment, accessory)
+    assert_reconciles(lst)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)

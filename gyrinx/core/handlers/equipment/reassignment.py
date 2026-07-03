@@ -92,7 +92,15 @@ def handle_equipment_reassignment(
     # cost_before call and never invalidate, so re-calling it on the same
     # object would always return cost_before and silently mask re-pricing
     # (the #1826-class drift this handler used to produce).
-    refreshed = ListFighterEquipmentAssignment.objects.get(pk=assignment.pk)
+    #
+    # The refetch MUST use with_related_data(): its accessory prefetch goes
+    # through all_content(), like the instances views hand this handler and
+    # like the canonical recompute path. A plain fetch resolves accessories
+    # through the pack-excluding default manager, so pack-scoped accessories
+    # would vanish from cost_after and book a phantom repricing.
+    refreshed = ListFighterEquipmentAssignment.objects.with_related_data().get(
+        pk=assignment.pk
+    )
     cost_after = refreshed.cost_int()
 
     # The assignment's own cache still holds the old-context value; shift it
@@ -196,7 +204,9 @@ def handle_equipment_reassignment(
         )
 
     return EquipmentReassignmentResult(
-        assignment=assignment,
+        # Return the refreshed instance: its cached rating reflects the
+        # propagation applied above; the original's in-memory state predates it.
+        assignment=refreshed,
         equipment_cost=equipment_cost,
         from_fighter=from_fighter,
         to_fighter=to_fighter,
