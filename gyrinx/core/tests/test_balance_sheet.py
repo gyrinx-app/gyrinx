@@ -22,6 +22,7 @@ from gyrinx.content.models import (
     ContentEquipmentUpgrade,
     ContentFighterEquipmentListItem,
     ContentWeaponAccessory,
+    ContentWeaponProfile,
 )
 from gyrinx.core.cost.balance_sheet import build_balance_sheet
 from gyrinx.core.handlers.equipment.cost_override import (
@@ -78,10 +79,11 @@ def fresh(obj):
     stale absolute values — a harness artifact, not an app flow.
     """
     if isinstance(obj, ListFighterEquipmentAssignment):
-        # Views hand handlers assignments fetched via with_related_data(),
-        # whose accessory prefetch (all_content) includes pack-scoped
-        # accessories; a plain fetch would silently drop them and make the
-        # harness blind to pack-gear pricing bugs.
+        # Views hand handlers assignments fetched via with_related_data().
+        # Its accessory prefetch routes through all_content() so pack
+        # accessories survive; note its profile/upgrade prefetches do NOT
+        # (pack-excluding managers) — that divergence is producer P8
+        # (#1933), pinned in the matrix.
         return ListFighterEquipmentAssignment.objects.with_related_data().get(pk=obj.pk)
     return type(obj).objects.get(pk=obj.pk)
 
@@ -184,8 +186,6 @@ def gear(content_source, make_equipment, make_weapon_profile):
     """Content factory building gear on the current side of the axis."""
 
     class Gear:
-        source = content_source
-
         def equipment(self, name="Lasgun", cost=15, **kwargs):
             return content_source.register(make_equipment(name, cost=cost, **kwargs))
 
@@ -423,6 +423,7 @@ def buy_accessory(user, lst, fighter, assignment, accessory):
 @pytest.mark.django_db
 def test_matrix_buy_weapon_profile(healthy_list, user, gear):
     lst, fighter, assignment = healthy_list
+    rating_before = fresh(lst).rating_current
     profile = gear.profile(assignment.content_equipment, name="Hotshot", cost=10)
     handle_weapon_profile_purchase(
         user=user,
@@ -431,21 +432,52 @@ def test_matrix_buy_weapon_profile(healthy_list, user, gear):
         assignment=fresh(assignment),
         profile=profile,
     )
+    # Reconciliation alone cannot see a bug where the write path and the
+    # recompute path are identically blind (both book the wrong number and
+    # agree) — so healthy cells also assert the actual booked movement.
+    assert fresh(lst).rating_current == rating_before + 10
     assert_reconciles(lst)
 
 
 @pytest.mark.django_db
 def test_matrix_buy_accessory(healthy_list, user, gear):
     lst, fighter, assignment = healthy_list
+    rating_before = fresh(lst).rating_current
     accessory = gear.accessory()
     buy_accessory(user, lst, fighter, assignment, accessory)
+    assert fresh(lst).rating_current == rating_before + 8  # booked movement
     assert_reconciles(lst)
 
 
 @pytest.mark.django_db
-def test_matrix_buy_upgrade(healthy_list, user, gear):
-    lst, fighter, assignment = healthy_list
-    upgrade = gear.upgrade(assignment.content_equipment)
+@pytest.mark.parametrize(
+    "side",
+    [
+        "catalog",
+        pytest.param(
+            "pack",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="P8 (#1933): pack upgrades book at zero — the SINGLE-mode "
+                "stack sum excludes pack rows from its own total, and the "
+                "recompute path is equally pack-blind, so reconciliation alone "
+                "cannot see it; fixed in Phase 3",
+            ),
+        ),
+    ],
+)
+def test_matrix_buy_upgrade(
+    side, user, make_list, content_fighter, make_equipment, make_pack
+):
+    lst, fighter, assignment, equipment, source = build_weapon_list(
+        side, user, make_list, content_fighter, make_equipment, make_pack
+    )
+    rating_before = fresh(lst).rating_current
+    upgrade = source.register(
+        ContentEquipmentUpgrade.objects.create(
+            name="Extended mag", equipment=equipment, cost=12
+        )
+    )
     handle_equipment_upgrade(
         user=user,
         lst=fresh(lst),
@@ -453,6 +485,7 @@ def test_matrix_buy_upgrade(healthy_list, user, gear):
         assignment=fresh(assignment),
         new_upgrades=[upgrade],
     )
+    assert fresh(lst).rating_current == rating_before + 12  # booked movement
     assert_reconciles(lst)
 
 
@@ -461,6 +494,7 @@ def test_matrix_remove_accessory_from_fighter(healthy_list, user, gear):
     lst, fighter, assignment = healthy_list
     accessory = gear.accessory()
     buy_accessory(user, lst, fighter, assignment, accessory)
+    rating_before = fresh(lst).rating_current
     handle_equipment_component_removal(
         user=user,
         lst=fresh(lst),
@@ -470,6 +504,7 @@ def test_matrix_remove_accessory_from_fighter(healthy_list, user, gear):
         component=accessory,
         request_refund=False,
     )
+    assert fresh(lst).rating_current == rating_before - 8  # booked movement
     assert_reconciles(lst)
 
 
@@ -961,7 +996,7 @@ def test_matrix_p6_repricing_telemetry_fires(
 
 @pytest.mark.django_db
 def test_matrix_reassign_gear_with_pack_accessory(
-    campaign_list, user, content_fighter, make_equipment, pack
+    campaign_list, user, content_fighter, gear, pack
 ):
     """Pack-scoped accessories survive the reassignment repricing math.
 
@@ -974,7 +1009,9 @@ def test_matrix_reassign_gear_with_pack_accessory(
     lst.packs.add(pack)
     fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
     fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
-    equipment = make_equipment("Lasgun", cost=15)
+    # Equipment rides the axis (so this cell is meaningfully doubled); the
+    # accessory deliberately comes from its own separate pack.
+    equipment = gear.equipment("Lasgun", cost=15)
     assignment = buy_equipment(user, lst, fighter_a, equipment)
 
     accessory = ContentWeaponAccessory.objects.create(name="Pack Scope", cost=8)
@@ -995,3 +1032,42 @@ def test_matrix_reassign_gear_with_pack_accessory(
         assignment=fresh(assignment),
     )
     assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="P8 (#1933): the assignment-level with_related_data() prefetches "
+    "profiles/upgrades through pack-excluding managers (only accessories go "
+    "via all_content()), so reassignment re-prices gear carrying a pack "
+    "profile without it; fixed in Phase 3",
+)
+def test_matrix_p8_reassign_gear_with_pack_profile(
+    user, make_list, content_fighter, make_equipment, make_pack
+):
+    lst, fighter_a, assignment, equipment, source = build_weapon_list(
+        "pack", user, make_list, content_fighter, make_equipment, make_pack
+    )
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    profile = source.register(
+        ContentWeaponProfile.objects.create(
+            equipment=equipment, name="Hotshot", cost=10
+        )
+    )
+    handle_weapon_profile_purchase(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter_a),
+        assignment=fresh(assignment),
+        profile=profile,
+    )
+    assert_reconciles(lst)  # clean before the move
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)  # FAILS: cost_after misses the pack profile
