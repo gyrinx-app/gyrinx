@@ -231,3 +231,33 @@ def test_balance_sheet_view_is_read_only_and_bounded(client, user, sheet_list):
     assert len(ctx.captured_queries) < 80, (
         f"query count blew the ceiling: {len(ctx.captured_queries)}"
     )
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True, **_no_toolbar)
+def test_balance_sheet_and_actions_pages_interlink(client, user, sheet_list):
+    """The two internal views link to each other."""
+    lst, _ = sheet_list
+    client.force_login(user)
+
+    sheet_url = reverse("debug_list_balance_sheet", args=[lst.id])
+    actions_url = reverse("debug_list_actions", args=[lst.id])
+
+    assert actions_url in client.get(sheet_url).content.decode()
+    assert sheet_url in client.get(actions_url).content.decode()
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True, **_no_toolbar)
+def test_list_dropdown_internal_section_links_balance_sheet(
+    client, sheet_list, make_user
+):
+    """Staff see the Balance Sheet item next to Actions in the list dropdown."""
+    lst, _ = sheet_list
+    staff = make_user("staffuser2", "password")
+    staff.is_staff = True
+    staff.save()
+    client.force_login(staff)
+    content = client.get(reverse("core:list", args=[lst.id])).content.decode()
+    assert reverse("debug_list_balance_sheet", args=[lst.id]) in content
+    assert reverse("debug_list_actions", args=[lst.id]) in content
