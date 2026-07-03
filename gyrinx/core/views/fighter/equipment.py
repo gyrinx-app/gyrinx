@@ -998,17 +998,13 @@ def edit_list_fighter_weapon_accessories(request, id, fighter_id, assign_id):
                 + query_string
             )
 
-    # Handle removing accessories via form
-    elif request.method == "POST":
-        form = ListFighterEquipmentAssignmentAccessoriesForm(
-            request.POST, instance=assignment
-        )
-        if form.is_valid():
-            form.save()
-
-        return HttpResponseRedirect(
-            reverse("core:list-fighter-weapons-edit", args=(lst.id, fighter.id))
-        )
+    # A POST without accessory_id falls through to the page render below.
+    # There used to be a bare-form branch here that rewrote the whole
+    # accessory M2M via form.save() with no cost propagation, no ListAction,
+    # and no credits movement — no template posted to it, but the endpoint
+    # was live and silently drifted every cache above it (and could not
+    # remove pack accessories at all, since the M2M rewrite listed current
+    # rows through the pack-excluding default manager).
 
     # Get filter parameters
     filter_mode = request.GET.get("filter", "equipment-list")

@@ -54,7 +54,9 @@ stash visibly contains.
 **Cache-vs-recompute divergence (the drift class).** Any mechanism that makes
 `cost_int()` disagree with the delta-accumulated cache is invisible until the next
 recompute snaps the cache to a different number — no error, just wealth jumping.
-There are six live producers of this class today:
+Eight producers of this class have been found so far; two (the pack-sweep
+gap and the bare-form endpoint) were fixed in the pack-axis PR, leaving six
+live:
 
 - **#1925 — component purchase under `total_cost_override`.** Buy an accessory on an
   assignment that has the override set. The handler computes the accessory's live
@@ -93,24 +95,37 @@ There are six live producers of this class today:
   `cost_after == cost_before` always. Context-priced gear moves at the old holder's
   price; the next recompute re-prices it to the new holder's context and the caches
   jump. (The `equipment_cost_changed_on_reassignment` telemetry can never fire.)
-- **The accessories-edit bare-form fallback rewrites the accessory set unaudited.**
-  The weapon-accessories edit view's fallback POST branch
-  (`gyrinx/core/views/fighter/equipment.py:1001-1011`) binds
-  `ListFighterEquipmentAssignmentAccessoriesForm` and calls `form.save()`, rewriting
-  `weapon_accessories_field` wholesale with no delta propagation, no ListAction, and
-  no credits movement. No template posts to it — the page's only POST forms are
-  per-accessory add forms carrying `accessory_id`, which the first branch consumes —
-  so the branch is UI-dead but **endpoint-live**: any POST without `accessory_id`
-  (crafted request, stale tab, future template change) silently mutates the M2M and
-  drifts every cache above it. The likely fix is simply deleting the branch; until
-  then it is a live producer.
+- **Pack-scoped price corrections never sweep (#1930) — FIXED (pack-axis PR).**
+  `get_old_cost()` (`gyrinx/content/signals.py`) read the pre-save price through
+  the pack-excluding default manager; a pack row raised `DoesNotExist` and every
+  cost-change signal treated the save as a new instance — nothing dirtied, no
+  audit action, no campaign credits. Fixed by mirroring the task's
+  `all_content()` fallback. Found by the pack axis (§5.2).
+- **Pack upgrades book at zero (#1933).** For SINGLE-mode equipment,
+  `ContentEquipmentUpgrade.cost_int()` sums the cumulative stack through the
+  pack-excluding reverse manager, so a pack-registered upgrade is excluded
+  from its own stack sum and prices at 0 — no rating movement, no credits
+  charged, and the recompute path is equally pack-blind (the fighter-level
+  upgrade prefetch and `upgrade_cost_int` don't use `all_content()`), so
+  cache and recompute agree at the wrong number. The same root leaves the
+  assignment-level `with_related_data()` pack-aware for accessories only:
+  reassignment re-prices gear carrying a pack profile without it. Caught only
+  after the healthy cells gained **booked-movement assertions** (§5.1) —
+  reconciliation alone cannot see a bug both paths share.
+- **The accessories-edit bare-form fallback — FIXED (pack-axis PR, deleted).**
+  The weapon-accessories edit view carried a fallback POST branch that rewrote
+  `weapon_accessories_field` wholesale via `form.save()` with no delta
+  propagation, no ListAction, and no credits movement. UI-dead but endpoint-live;
+  it also could not remove pack accessories at all (the M2M rewrite listed
+  current rows through the default manager). A bare POST now falls through to
+  the page render; a both-sides matrix cell pins the inert behaviour.
 
 A note on the **admin** as a mutation surface: the assignment admin's change form
 writes all three component M2Ms with no delta propagation either. That is *policy*,
 not a bug: admin writes bypass delta propagation by design, are remediated by the
 existing "recompute cost caches" admin action, and are explicitly allowlisted in the
-acquisition-path CI guard (§4.6). The six producers above are user-facing flows and
-are bugs.
+acquisition-path CI guard (§4.6). The producers above are user-facing flows and
+are bugs; the five still live are owned by Phases 2/3/9.
 
 **Why whole-total freezing cannot be the fix.** The obvious wealth-stability
 mechanism — freeze the assignment's *total* at transfer time — is unsound for exactly
@@ -917,6 +932,24 @@ xfails below); others would go red under a mis-ordered rollout (e.g. handlers
 becoming price-neutral before the backfill pinned legacy gear). The matrix is the
 tool that catches that ordering mistake mechanically instead of by review.
 
+**The catalog-vs-pack axis.** Every matrix cell that consumes content runs
+twice — once with plain catalog rows, once with identical content scoped to a
+subscribed `CustomContentPack` (parametrized fixtures, not duplicated tests).
+Pack content is invisible to the default `ContentManager` and only surfaced by
+`all_content()`/`with_packs()`, so any cost path that fetches content
+carelessly prices pack gear differently — a class of drift the catalog variant
+can never see. The axis has already earned its place twice: the Phase 2 review
+caught a pack-only regression in the reassignment refetch, and the axis's
+first run surfaced producer #1930. Cells whose *expected* behaviour differs by
+side (the price-change sweep cells, the bare-form endpoint) use explicit
+per-side parameters with per-side xfail marks instead of the shared fixture.
+
+**Booked-movement assertions.** Reconciliation is blind to bugs where the
+write path and the recompute path are *identically* wrong — both book the
+wrong number and agree (#1933 was exactly this). Healthy component cells
+therefore also assert the actual movement: after a purchase/removal, the
+list's rating changed by the component's price.
+
 The **holder context changed** column (set/clear `legacy_content_fighter`, change
 fighter type — §4.6) asserts the intended end state: existing gear does *not*
 reprice, and every invariant family holds. On current code these cells expose
@@ -925,10 +958,10 @@ green as amounts land (Phase 5) and the backfill pins legacy rows (Phase 8) — 
 second example of the "green only under the right rollout order" class the matrix
 exists to police.
 
-### 5.3 Known-red cells: six strict-xfail tripwires, not one
+### 5.3 Known-red cells: strict-xfail tripwires, one group per live producer
 
-Six drift producers are live today (§1.2), so Phase 1 lands **six** strict-xfail
-groups, each owned by a named phase:
+Each live producer (§1.2) is a strict-xfail group owned by a named phase
+(fixed producers' groups have flipped to passing assertions):
 
 - **#1925 override-purchase divergence** — set `total_cost_override` via its handler,
   buy a component via its handler, reconcile. Fails: cached rating carries the
@@ -938,11 +971,8 @@ groups, each owned by a named phase:
   drifts by (cached value − catalog price). Fixed in Phase 3.
 - **Stash component-removal zero-delta** — remove a component from stash gear; the
   assignment/fighter caches keep its value. Fixed in Phase 3.
-- **Accessories bare-form unaudited rewrite** — POST the weapon-accessories edit
-  endpoint without `accessory_id` and with a changed accessory set (a Django test
-  client can; no template does); `form.save()` rewrites the M2M with no
-  propagation, no action, no credits, and every invariant family above it breaks.
-  Fixed — most likely by deleting the branch — in Phase 3.
+- ~~Accessories bare-form unaudited rewrite~~ — branch deleted in the pack-axis
+  PR; a both-sides cell asserts the bare POST is inert.
 - **Death-transfer re-pricing (#1826)** — kill a fighter carrying equipment-list
   discounted gear; the stash caches take the dying-fighter value while the stash
   assignment recomputes at catalog. Fixed by pinning in Phase 9 (price-neutral
@@ -951,6 +981,14 @@ groups, each owned by a named phase:
   context prices it differently; the caches take the old-context price, recompute
   takes the new. Fixed in Phase 2 alongside #1925 (same `cached_property` hazard
   family, §3.3).
+- ~~Pack price corrections never sweep (#1930)~~ — fixed in the pack-axis PR;
+  both price-change cells now pass on both sides.
+- **Pack upgrades book at zero / assignment-level pack-blind re-pricing
+  (#1933)** — the pack side of the buy-upgrade cell and the
+  reassign-after-pack-profile cell; fixed in Phase 3 by applying the
+  `all_content()` pattern at the stack sum and the profile/upgrade prefetches
+  (the fighter-level prefetch touches the hot path — re-snapshot
+  `performance_view_queries.json`).
 
 Each is marked `xfail(strict=True)`: it documents the bug, proves the harness can see
 it, and strictness forces the mark to be removed in the same change that fixes it.
