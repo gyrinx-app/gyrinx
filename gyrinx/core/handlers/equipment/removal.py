@@ -23,6 +23,7 @@ from gyrinx.core.cost.propagation import (
     propagate_from_assignment,
     propagate_from_fighter,
 )
+from gyrinx.core.handlers.equipment.deltas import component_delta
 from gyrinx.core.handlers.refund import calculate_refund_credits
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
@@ -228,10 +229,14 @@ def handle_equipment_component_removal(
     else:
         raise ValueError(f"Unknown component_type: {component_type}")
 
+    # Book delta is 0 when a total_cost_override pins the assignment (#1925);
+    # the refund below stays based on the component's real cost.
+    book_delta = component_delta(assignment, component_cost)
+
     # Calculate deltas based on fighter type
     is_stash = fighter.is_stash
-    rating_delta = -component_cost if not is_stash else 0
-    stash_delta = -component_cost if is_stash else 0
+    rating_delta = -book_delta if not is_stash else 0
+    stash_delta = -book_delta if is_stash else 0
 
     # Validate and calculate refund
     credits_delta, refund_applied = calculate_refund_credits(
