@@ -209,10 +209,13 @@ def test_two_packs_stack_mods(
     weapon, profile = weapon_with_profile
     pack_a = make_pack(name="Pack A")
     pack_b = make_pack(name="Pack B")
-    mod_a = ContentModStat.objects.create(stat="strength", mode="worsen", value="1")
-    mod_b = ContentModStat.objects.create(stat="strength", mode="worsen", value="1")
-    _make_application(profile, mod_a, pack_a, user)
-    _make_application(profile, mod_b, pack_b, user)
+    # A unique constraint now forbids duplicate mod rows. A single shared mod
+    # row referenced by two pack applications still stacks, because mods are
+    # applied per-application (see List.pack_mods_by_target) — which is exactly
+    # the production scenario after duplicate rows are merged.
+    mod = ContentModStat.objects.create(stat="strength", mode="worsen", value="1")
+    _make_application(profile, mod, pack_a, user)
+    _make_application(profile, mod, pack_b, user)
 
     lst = make_list("Both packs")
     lst.packs.add(pack_a, pack_b)
