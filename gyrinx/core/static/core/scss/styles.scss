@@ -439,6 +439,23 @@ label {
     display: none;
 }
 
+// Danger nav-pill — e.g. the account "Sign out" link. Red text at rest; when
+// active it fills with danger and flips to white text, instead of the default
+// blue (primary) pill that would leave red text sitting on a blue fill.
+.nav-pills .nav-link.nav-link-danger {
+    color: var(--bs-danger);
+
+    &:hover,
+    &:focus {
+        color: var(--bs-danger);
+    }
+
+    &.active {
+        color: #fff;
+        background-color: var(--bs-danger);
+    }
+}
+
 // Responsive font sizes - small by default, normal at breakpoint
 @each $bp, $bp-value in $grid-breakpoints {
     @include media-breakpoint-up($bp) {
