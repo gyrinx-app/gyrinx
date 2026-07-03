@@ -388,12 +388,14 @@ label {
     line-height: 1;
 
     // An empty die: rounded outline with a muted "?" until a roll fills it in.
+    // 1em square (with border-box) matches the bi-dice glyphs, which render at
+    // exactly 1em, so placeholders and rolled dice are the same size.
     .dice-placeholder {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 0.9em;
-        height: 0.9em;
+        width: 1em;
+        height: 1em;
         border: 0.045em solid var(--bs-border-color);
         border-radius: 0.15em;
         color: var(--bs-secondary-color);
@@ -404,6 +406,12 @@ label {
             font-weight: 700;
         }
     }
+}
+
+// The first dice group is the baseline and can't be removed; its remove-group
+// button is rendered (so JS can clone a group from it) but hidden.
+.js-dice-groups > .dice-group:first-child .js-remove-group {
+    display: none;
 }
 
 // Responsive font sizes - small by default, normal at breakpoint
