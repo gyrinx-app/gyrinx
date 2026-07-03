@@ -34,30 +34,30 @@
             {% for group in groups %}
                 <div class="col-12 col-md-6 col-xl-3 dice-group">
                     <div class="border rounded p-3 vstack gap-3 h-100">
-                        <div class="btn-group">
+                        <div class="hstack gap-2">
+                            <div class="btn-group">
+                                <a rel="nofollow"
+                                   class="js-sub-die btn btn-outline-secondary{% if group.dice_n <= 1 %} disabled{% endif %}"
+                                   href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"-1"|max:"1" %}"
+                                   aria-label="Remove one die"
+                                   {% if group.dice_n <= 1 %}aria-disabled="true"{% endif %}>
+                                    <i class="bi-dash-lg"></i>
+                                </a>
+                                <a rel="nofollow"
+                                   class="js-set-one btn btn-outline-secondary{% if group.dice_n <= 1 %} disabled{% endif %}"
+                                   href="?{% qt_nth request nth=forloop.counter0 drop="seed" d="1" %}"
+                                   {% if group.dice_n <= 1 %}aria-disabled="true"{% endif %}>1</a>
+                                <a rel="nofollow"
+                                   class="js-add-die btn btn-outline-primary"
+                                   href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"1" %}"
+                                   aria-label="Add one die">
+                                    <i class="bi-plus-lg"></i>
+                                </a>
+                            </div>
                             <a rel="nofollow"
-                               class="js-sub-die btn btn-outline-secondary{% if group.dice_n <= 1 %} disabled{% endif %}"
-                               href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"-1"|max:"1" %}"
-                               aria-label="Remove one die"
-                               {% if group.dice_n <= 1 %}aria-disabled="true"{% endif %}>
-                                <i class="bi-dash-lg"></i>
-                            </a>
-                            <a rel="nofollow"
-                               class="js-set-one btn btn-outline-secondary{% if group.dice_n <= 1 %} disabled{% endif %}"
-                               href="?{% qt_nth request nth=forloop.counter0 drop="seed" d="1" %}"
-                               {% if group.dice_n <= 1 %}aria-disabled="true"{% endif %}>1</a>
-                            <a rel="nofollow"
-                               class="js-add-die btn btn-outline-primary"
-                               href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"1" %}"
-                               aria-label="Add one die">
-                                <i class="bi-plus-lg"></i>
-                            </a>
-                            <a rel="nofollow"
-                               class="js-remove-group ms-auto btn btn-outline-danger"
+                               class="js-remove-group ms-auto small link-danger link-underline-opacity-25 link-underline-opacity-100-hover"
                                href="?{% qt_rm_nth request nth=forloop.counter0 drop="seed" d=1 fp=1 i=1 %}"
-                               aria-label="Remove dice group">
-                                <i class="bi-x-lg"></i>
-                            </a>
+                               aria-label="Remove dice group">Remove</a>
                         </div>
                         <div class="dice-tray hstack gap-2 flex-wrap">
                             {% for value in group.dice %}
