@@ -116,6 +116,16 @@ if (root) {
         afterEdit();
     };
 
+    // On a fresh roll (server-rendered dice), give each die a random delay
+    // under 300ms so the values cascade in rather than all landing at once.
+    // The fade itself is CSS; here we just stagger the start.
+    const animateRoll = () => {
+        root.querySelectorAll(".dice-tray i").forEach((die) => {
+            die.style.animationDelay = Math.floor(Math.random() * 300) + "ms";
+        });
+    };
+    animateRoll();
+
     root.addEventListener("click", (event) => {
         const link = event.target.closest("a");
         if (!link || !root.contains(link)) return;

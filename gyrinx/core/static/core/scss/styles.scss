@@ -382,10 +382,35 @@ label {
 }
 
 // Dice roller
+@keyframes dice-roll-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.15em) scale(0.85);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
 .dice-tray {
     // Big, legible dice. Everything below sizes in em, so tweak here to scale.
     font-size: 2.5rem;
     line-height: 1;
+
+    // Rolled dice drop/fade in on load for a bit of drama. dice.js staggers
+    // each die's animation-delay for a cascade; without JS they fade in
+    // together. Placeholders (spans) are untouched — only rolled dice (i).
+    i {
+        animation: dice-roll-in 260ms ease-out both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        i {
+            animation: none;
+        }
+    }
 
     // An empty die: rounded outline with a muted "?" until a roll fills it in.
     // 1em square (with border-box) matches the bi-dice glyphs, which render at
