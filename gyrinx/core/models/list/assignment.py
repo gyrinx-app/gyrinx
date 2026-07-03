@@ -1017,9 +1017,38 @@ class ListFighterEquipmentAssignmentProfile(models.Model):
         help_text="Attribution state for this component's pin.",
     )
 
-    # History is sparse by design: M2M .add()/.set() and bulk backfills skip
-    # signals, so rows appear here only when saved individually (pin writes).
+    # History is asymmetric by design: adds via M2M .add()/.set() and bulk
+    # backfills skip signals (no '+' rows), while deletes — .remove(),
+    # .clear(), and cascade deletes — DO write '-' rows via post_delete.
+    # Deletion audit is deliberate; the cost is a per-row history INSERT on
+    # delete-heavy paths. Individually saved rows (admin inlines, pin
+    # writes) record normally.
     history = HistoricalRecords()
+
+    def clean(self):
+        """Guard the admin-inline seam.
+
+        The old admin form scoped profile choices to the assignment's own
+        equipment and to costed profiles; inline autocompletes cannot scope,
+        so the through row validates instead. Handler/view paths already
+        scope their choices and never run full_clean here.
+        """
+        super().clean()
+        profile = getattr(self, "contentweaponprofile", None)
+        assignment = getattr(self, "listfighterequipmentassignment", None)
+        if profile and assignment:
+            if profile.equipment_id != assignment.content_equipment_id:
+                raise ValidationError(
+                    {
+                        "contentweaponprofile": "Profile belongs to different equipment than this assignment."
+                    }
+                )
+            if (profile.cost or 0) <= 0:
+                raise ValidationError(
+                    {
+                        "contentweaponprofile": "Standard (zero-cost) profiles are included automatically and cannot be assigned as paid profiles."
+                    }
+                )
 
     class Meta:
         db_table = "core_listfighterequipmentassignment_weapon_profiles_field"
@@ -1066,8 +1095,12 @@ class ListFighterEquipmentAssignmentAccessory(models.Model):
         help_text="Attribution state for this component's pin.",
     )
 
-    # History is sparse by design: M2M .add()/.set() and bulk backfills skip
-    # signals, so rows appear here only when saved individually (pin writes).
+    # History is asymmetric by design: adds via M2M .add()/.set() and bulk
+    # backfills skip signals (no '+' rows), while deletes — .remove(),
+    # .clear(), and cascade deletes — DO write '-' rows via post_delete.
+    # Deletion audit is deliberate; the cost is a per-row history INSERT on
+    # delete-heavy paths. Individually saved rows (admin inlines, pin
+    # writes) record normally.
     history = HistoricalRecords()
 
     class Meta:
@@ -1115,9 +1148,28 @@ class ListFighterEquipmentAssignmentUpgrade(models.Model):
         help_text="Attribution state for this component's pin.",
     )
 
-    # History is sparse by design: M2M .add()/.set() and bulk backfills skip
-    # signals, so rows appear here only when saved individually (pin writes).
+    # History is asymmetric by design: adds via M2M .add()/.set() and bulk
+    # backfills skip signals (no '+' rows), while deletes — .remove(),
+    # .clear(), and cascade deletes — DO write '-' rows via post_delete.
+    # Deletion audit is deliberate; the cost is a per-row history INSERT on
+    # delete-heavy paths. Individually saved rows (admin inlines, pin
+    # writes) record normally.
     history = HistoricalRecords()
+
+    def clean(self):
+        """Guard the admin-inline seam: upgrades must belong to the
+        assignment's own equipment (the old form scoped choices; inline
+        autocompletes cannot)."""
+        super().clean()
+        upgrade = getattr(self, "contentequipmentupgrade", None)
+        assignment = getattr(self, "listfighterequipmentassignment", None)
+        if upgrade and assignment:
+            if upgrade.equipment_id != assignment.content_equipment_id:
+                raise ValidationError(
+                    {
+                        "contentequipmentupgrade": "Upgrade belongs to different equipment than this assignment."
+                    }
+                )
 
     class Meta:
         db_table = "core_listfighterequipmentassignment_upgrades_field"

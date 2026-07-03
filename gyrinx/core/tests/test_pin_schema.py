@@ -147,3 +147,83 @@ def test_assignment_admin_change_form_loads_and_saves(
         reverse("admin:core_listfighterequipmentassignment_changelist")
     )
     assert response.status_code == 200
+
+
+def _inline_management_data(assignment, row=None, profile=None):
+    """POST payload for the three inline formsets on the assignment admin."""
+    data = {}
+    for prefix in ["profile_rows", "accessory_rows", "upgrade_rows"]:
+        data[f"{prefix}-TOTAL_FORMS"] = "0"
+        data[f"{prefix}-INITIAL_FORMS"] = "0"
+        data[f"{prefix}-MIN_NUM_FORMS"] = "0"
+        data[f"{prefix}-MAX_NUM_FORMS"] = "1000"
+    if row is not None:
+        data["profile_rows-TOTAL_FORMS"] = "1"
+        data["profile_rows-INITIAL_FORMS"] = "1"
+        data["profile_rows-0-id"] = str(row.pk)
+        data["profile_rows-0-listfighterequipmentassignment"] = str(assignment.pk)
+        data["profile_rows-0-contentweaponprofile"] = str(profile.pk)
+    return data
+
+
+@pytest.mark.django_db
+def test_assignment_admin_inline_post_round_trip(
+    client, make_user, assignment, make_weapon_profile
+):
+    """The inline formsets accept a POST and preserve the component rows."""
+    profile = make_weapon_profile(assignment.content_equipment, name="Hotshot", cost=10)
+    assignment.weapon_profiles_field.add(profile)
+    row = assignment.profile_rows.get()
+
+    staff = make_user("staffposter", "password")
+    staff.is_staff = True
+    staff.is_superuser = True
+    staff.save()
+    client.force_login(staff)
+
+    url = reverse(
+        "admin:core_listfighterequipmentassignment_change", args=[assignment.pk]
+    )
+    response = client.post(
+        url,
+        {
+            **_inline_management_data(assignment, row=row, profile=profile),
+            "_continue": "1",
+        },
+    )
+    assert response.status_code == 302, getattr(response, "context_data", None)
+    assert list(assignment.weapon_profiles_field.all()) == [profile]
+
+
+@pytest.mark.django_db
+def test_assignment_admin_rejects_mismatched_profile(
+    client, make_user, assignment, make_weapon_profile, make_equipment
+):
+    """A profile from different equipment is rejected by through-row clean()."""
+    other_equipment = make_equipment("Autogun", cost=20, category="Basic Weapons")
+    foreign_profile = make_weapon_profile(other_equipment, name="Wrong Gun", cost=10)
+
+    staff = make_user("staffmismatch", "password")
+    staff.is_staff = True
+    staff.is_superuser = True
+    staff.save()
+    client.force_login(staff)
+
+    data = _inline_management_data(assignment)
+    data.update(
+        {
+            "profile_rows-TOTAL_FORMS": "1",
+            "profile_rows-INITIAL_FORMS": "0",
+            "profile_rows-0-id": "",
+            "profile_rows-0-listfighterequipmentassignment": str(assignment.pk),
+            "profile_rows-0-contentweaponprofile": str(foreign_profile.pk),
+        }
+    )
+    url = reverse(
+        "admin:core_listfighterequipmentassignment_change", args=[assignment.pk]
+    )
+    response = client.post(url, data)
+    # Validation error: page re-renders (200) and no row is created.
+    assert response.status_code == 200
+    assert b"different equipment" in response.content
+    assert assignment.weapon_profiles_field.count() == 0
