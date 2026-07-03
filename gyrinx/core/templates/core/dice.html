@@ -35,7 +35,7 @@
                 <div class="col-12 col-md-6 col-xl-3 dice-group">
                     <div class="border rounded p-3 vstack gap-3 h-100">
                         <div class="hstack gap-2">
-                            <div class="btn-group">
+                            <div class="btn-group flex-grow-1">
                                 <a rel="nofollow"
                                    class="js-sub-die btn btn-outline-secondary{% if group.dice_n <= 1 %} disabled{% endif %}"
                                    href="?{% qt_nth request nth=forloop.counter0 drop="seed" d=group.dice_n|add:"-1"|max:"1" %}"
@@ -55,9 +55,11 @@
                                 </a>
                             </div>
                             <a rel="nofollow"
-                               class="js-remove-group ms-auto small link-danger link-underline-opacity-25 link-underline-opacity-100-hover"
+                               class="js-remove-group link-danger text-decoration-none lh-1"
                                href="?{% qt_rm_nth request nth=forloop.counter0 drop="seed" d=1 fp=1 i=1 %}"
-                               aria-label="Remove dice group">Remove</a>
+                               aria-label="Remove dice group">
+                                <i class="bi-x-lg"></i>
+                            </a>
                         </div>
                         <div class="dice-tray hstack gap-2 flex-wrap">
                             {% for value in group.dice %}
