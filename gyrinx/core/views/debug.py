@@ -10,6 +10,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils.safestring import mark_safe
 
+from gyrinx.core.cost.balance_sheet import build_balance_sheet
 from gyrinx.core.models import List
 
 # Test plans directory relative to project root
@@ -205,19 +206,50 @@ def debug_design_system(request):
     )
 
 
+def _get_debug_list_or_404(request, list_id):
+    """Fetch a list for the internal debug views.
+
+    Staff may view any list in any environment — these views double as
+    production support tooling. Everyone else gets them only in development,
+    and only for lists they own; anonymous users and non-owners get a 404
+    rather than another list's data. (AnonymousUser has is_staff=False, so
+    the staff branch never matches logged-out requests.)
+    """
+    if request.user.is_staff:
+        return get_object_or_404(List, id=list_id)
+    if settings.DEBUG and request.user.is_authenticated:
+        return get_object_or_404(List, id=list_id, owner=request.user)
+    raise Http404("List not found")
+
+
+def debug_list_balance_sheet(request, list_id):
+    """Itemised cost balance sheet for a list, with reconciliation problems.
+
+    The read-only companion to debug_list_actions: decomposes every fighter
+    and assignment into priced component lines, compares computed values with
+    the caches, and checks the credits ledger and action-chain continuity.
+    Part of the cost-pinning programme (#1826).
+    """
+    lst = _get_debug_list_or_404(request, list_id)
+
+    sheet = build_balance_sheet(lst)
+    problems = sheet.reconcile()
+
+    return render(
+        request,
+        "core/debug/list_balance_sheet.html",
+        {
+            "list": lst,
+            "sheet": sheet,
+            "problems": problems,
+            "all_fighters": sheet.all_fighters,
+        },
+    )
+
+
 def debug_list_actions(request, list_id):
     """Display all actions for a list, sorted newest first."""
-    # Staff may view any list's actions in any environment — this doubles as
-    # admin support tooling in production. Everyone else gets the view only in
-    # development, and only for lists they own; anonymous users and non-owners
-    # get a 404 rather than another list's activity log. (AnonymousUser has
-    # is_staff=False, so the staff branch never matches logged-out requests.)
-    if request.user.is_staff:
-        lst = get_object_or_404(List, id=list_id)
-    elif settings.DEBUG and request.user.is_authenticated:
-        lst = get_object_or_404(List, id=list_id, owner=request.user)
-    else:
-        raise Http404("List not found")
+    lst = _get_debug_list_or_404(request, list_id)
     actions = lst.actions.select_related("user", "list_fighter").order_by("-created")
 
     return render(
