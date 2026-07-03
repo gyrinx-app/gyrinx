@@ -54,9 +54,9 @@ stash visibly contains.
 **Cache-vs-recompute divergence (the drift class).** Any mechanism that makes
 `cost_int()` disagree with the delta-accumulated cache is invisible until the next
 recompute snaps the cache to a different number — no error, just wealth jumping.
-Eight producers of this class have been found so far; two (the pack-sweep
-gap and the bare-form endpoint) were fixed in the pack-axis PR, leaving six
-live:
+Eight producers of this class have been found so far. All but one are now
+fixed (Phases 2-3 and the pack-axis PR); the death-transfer re-pricing —
+the programme's headline bug — remains live until pinning lands (Phase 9):
 
 - **#1925 — component purchase under `total_cost_override`.** Buy an accessory on an
   assignment that has the override set. The handler computes the accessory's live
@@ -65,7 +65,7 @@ live:
   short-circuits to the override and ignores components entirely. Cache says
   `override + accessory`; recompute says `override`. The next sweep or admin
   recompute discards the cost of an accessory the user paid credits for.
-- **Sales price at catalog, not at what the caches hold.** The sale view prices every
+- **Sales price at catalog, not at what the caches hold — FIXED (Phase 3).** The sale view prices every
   line from raw content — `assignment.content_equipment.cost_int()` at
   `gyrinx/core/views/fighter/equipment.py:1772`, raw `profile.cost` and
   `accessory.cost` at `:1789-1815` — and `handle_equipment_sale` propagates those
@@ -73,7 +73,7 @@ live:
   deleting the assignment. Whenever the cached value differs from catalog (discounted
   gear, kill-frozen gear), each sale subtracts the wrong number and the stash cache
   drifts permanently.
-- **Stash component removal never decrements the assignment chain.**
+- **Stash component removal never decrements the assignment chain — FIXED (Phase 3).**
   `handle_equipment_component_removal` computes `rating_delta = 0` for stash fighters
   (the value rides `stash_delta` instead,
   `gyrinx/core/handlers/equipment/removal.py:233`), then propagates
@@ -101,7 +101,9 @@ live:
   cost-change signal treated the save as a new instance — nothing dirtied, no
   audit action, no campaign credits. Fixed by mirroring the task's
   `all_content()` fallback. Found by the pack axis (§5.2).
-- **Pack upgrades book at zero (#1933).** For SINGLE-mode equipment,
+- **Pack upgrades book at zero (#1933) — FIXED (Phase 3).** (Packs cannot
+  currently define upgrades through the product, so this leg was synthetic;
+  the pack-profile re-pricing leg was the reachable part.) For SINGLE-mode equipment,
   `ContentEquipmentUpgrade.cost_int()` sums the cumulative stack through the
   pack-excluding reverse manager, so a pack-registered upgrade is excluded
   from its own stack sum and prices at 0 — no rating movement, no credits
@@ -125,7 +127,7 @@ writes all three component M2Ms with no delta propagation either. That is *polic
 not a bug: admin writes bypass delta propagation by design, are remediated by the
 existing "recompute cost caches" admin action, and are explicitly allowlisted in the
 acquisition-path CI guard (§4.6). The producers above are user-facing flows and
-are bugs; the five still live are owned by Phases 2/3/9.
+are bugs; only the death-transfer re-pricing remains live, owned by Phase 9.
 
 **Why whole-total freezing cannot be the fix.** The obvious wealth-stability
 mechanism — freeze the assignment's *total* at transfer time — is unsound for exactly
@@ -967,10 +969,10 @@ Each live producer (§1.2) is a strict-xfail group owned by a named phase
   buy a component via its handler, reconcile. Fails: cached rating carries the
   component; recompute returns the bare override. Fixed in Phase 2. (The legacy
   kill-frozen row's purchase cells are the same divergence class and flip with it.)
-- **Sale catalog-mispricing** — sell discounted or frozen gear; the stash cache
-  drifts by (cached value − catalog price). Fixed in Phase 3.
-- **Stash component-removal zero-delta** — remove a component from stash gear; the
-  assignment/fighter caches keep its value. Fixed in Phase 3.
+- ~~Sale catalog-mispricing~~ — fixed in Phase 3; the sale books what the
+  caches carry (overrides honoured), pinned by a booked-movement assertion.
+- ~~Stash component-removal zero-delta~~ — fixed in Phase 3; the true book
+  delta propagates into the assignment chain regardless of fighter type.
 - ~~Accessories bare-form unaudited rewrite~~ — branch deleted in the pack-axis
   PR; a both-sides cell asserts the bare POST is inert.
 - **Death-transfer re-pricing (#1826)** — kill a fighter carrying equipment-list
@@ -983,12 +985,10 @@ Each live producer (§1.2) is a strict-xfail group owned by a named phase
   family, §3.3).
 - ~~Pack price corrections never sweep (#1930)~~ — fixed in the pack-axis PR;
   both price-change cells now pass on both sides.
-- **Pack upgrades book at zero / assignment-level pack-blind re-pricing
-  (#1933)** — the pack side of the buy-upgrade cell and the
-  reassign-after-pack-profile cell; fixed in Phase 3 by applying the
-  `all_content()` pattern at the stack sum and the profile/upgrade prefetches
-  (the fighter-level prefetch touches the hot path — re-snapshot
-  `performance_view_queries.json`).
+- ~~Pack upgrades book at zero / assignment-level pack-blind re-pricing
+  (#1933)~~ — fixed in Phase 3: `all_content()` at the stack sums and the
+  profile/upgrade prefetches at both levels (hot-path snapshot re-baselined;
+  query count unchanged).
 
 Each is marked `xfail(strict=True)`: it documents the bug, proves the harness can see
 it, and strictness forces the mark to be removed in the same change that fixes it.

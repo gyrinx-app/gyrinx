@@ -48,17 +48,25 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
         This is the standard optimization pattern used throughout views
         to reduce N+1 query issues.
         """
+        # All three component prefetches route through all_content() so
+        # pack-scoped rows are not hidden by the default M2M managers —
+        # cost_int() on an instance fetched here must see every component
+        # (#1933).
         return self.select_related(
             "content_equipment", "list_fighter"
         ).prefetch_related(
-            "weapon_profiles_field",
-            # Use all_content() so pack-scoped accessories are not hidden
-            # by the default M2M manager.
+            Prefetch(
+                "weapon_profiles_field",
+                queryset=ContentWeaponProfile.objects.all_content(),
+            ),
             Prefetch(
                 "weapon_accessories_field",
                 queryset=ContentWeaponAccessory.objects.all_content(),
             ),
-            "upgrades_field",
+            Prefetch(
+                "upgrades_field",
+                queryset=ContentEquipmentUpgrade.objects.all_content(),
+            ),
         )
 
     def create_with_facts(self, user=None, **kwargs):
@@ -761,11 +769,14 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             else:
                 return upgrade.cost
 
-        # For SINGLE mode, calculate cumulative cost with overrides
-        # Get all upgrades up to this position
-        upgrades = upgrade.equipment.upgrades.filter(
-            position__lte=upgrade.position
-        ).order_by("position")
+        # For SINGLE mode, calculate cumulative cost with overrides.
+        # Get all upgrades up to this position via all_content() so
+        # pack-scoped rungs count in their own stack (#1933).
+        upgrades = (
+            ContentEquipmentUpgrade.objects.all_content()
+            .filter(equipment=upgrade.equipment, position__lte=upgrade.position)
+            .order_by("position")
+        )
 
         # Get all fighters whose equipment lists we should check
         fighters = self.list_fighter.equipment_list_fighters

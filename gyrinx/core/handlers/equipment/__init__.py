@@ -1,5 +1,6 @@
 """Equipment operation handlers."""
 
+from gyrinx.core.handlers.equipment.deltas import component_delta
 from gyrinx.core.handlers.equipment.cost_override import (
     EquipmentCostOverrideResult,
     handle_equipment_cost_override,
@@ -31,6 +32,7 @@ from gyrinx.core.handlers.equipment.sale import (
 )
 
 __all__ = [
+    "component_delta",
     "AccessoryPurchaseResult",
     "EquipmentComponentRemovalResult",
     "EquipmentCostOverrideResult",

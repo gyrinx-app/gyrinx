@@ -653,7 +653,20 @@ class ContentEquipmentUpgrade(CostMixin, Content):
             return self.cost
 
         # Otherwise, sum the costs of all upgrades up to this position.
-        upgrades = self.equipment.upgrades.filter(position__lte=self.position)
+        # Query via all_content() so a pack-scoped upgrade is not excluded
+        # from its own stack sum (#1933) — the related manager's default
+        # queryset hides pack rows. (Do not call all_content() on the related
+        # manager itself: it bypasses the relation filter entirely.)
+        # Documented decision: this counts rungs from ANY pack attached to
+        # the same equipment, subscribed or not — there is no list context
+        # here to scope by. Booking and recompute share this sum, so books
+        # stay consistent either way; packs cannot currently define upgrades
+        # through the product, so cross-pack stacks are admin-only today.
+        upgrades = (
+            type(self)
+            .objects.all_content()
+            .filter(equipment=self.equipment, position__lte=self.position)
+        )
         return sum(upgrade.cost for upgrade in upgrades)
 
     @cached_property

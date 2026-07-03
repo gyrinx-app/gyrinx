@@ -267,7 +267,11 @@ def handle_equipment_component_removal(
         if refund_applied:
             description += f" - refund applied (+{component_cost}¢)"
 
-    propagate_from_assignment(assignment, Delta(delta=rating_delta, list=lst))
+    # Propagate the true book delta into the assignment chain regardless of
+    # fighter type — for stash fighters the list-level movement rides
+    # stash_delta, but the assignment's and fighter's own caches must still
+    # drop by the removed component's value (P4).
+    propagate_from_assignment(assignment, Delta(delta=-book_delta, list=lst))
 
     # Create ListAction
     list_action = lst.create_action(
