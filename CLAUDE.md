@@ -147,16 +147,35 @@ If you have the Pushpush MCP installed, you can use it to notify the user that y
 
 IMPORTANT: Use this when you are about to pause to get input, or about to use `AskUserQuestion`.
 
+## Summarising Work
+
+When reporting completed work to the maintainer (chat summaries, PR descriptions),
+write for a tech lead reading cold, not a changelog:
+
+- Lead with what changed and why it matters, in plain language.
+- Describe bugs by their user-visible effect ("buying an add-on for an item with a
+  fixed price made the add-on's value vanish from the books"), then the mechanism
+  only if it earns its place.
+- Avoid internal shorthand (test-group codes, harness jargon, fixture names) — or
+  explain it inline the first time it appears.
+- End with concrete "how to try it" steps (URLs, commands) when there is something
+  to see.
+
+Keep the fully technical version for commit messages and code comments.
+
 ## Critical Workflow
 
 ### Before Starting
 
 1. Create a new branch for the task: `git checkout -b issue-NAME`
-2. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
+2. **Start the dev server** (`./scripts/dev.sh`) near the start of any coding session —
+   don't wait to be asked. Share the URL (per-worktree port, printed in the startup
+   banner) so changes can be tested in the browser as they land.
+3. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
    (`CLAUDE_CODE_REMOTE=true`), label it so the team knows it's being handled:
    `gh issue edit <NUMBER> --add-label claude-code-web`
    The label definition is created automatically by `scripts/setup_web.sh` during session start; you still need to add this label to the issue manually.
-3. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
+4. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
    writing code
 
 ### Before Push
