@@ -24,8 +24,18 @@ def get_old_cost(model_class, instance, cost_field="cost"):
     if instance._state.adding or not instance.pk:
         return None
 
+    # Use all_content() where available so pack-scoped rows still resolve —
+    # the default ContentManager excludes pack items, and treating a pack row
+    # as DoesNotExist here made every cost-change signal think it was a new
+    # instance, so pack price corrections never swept (#1930). Mirrors the
+    # same fallback in gyrinx/core/tasks.propagate_content_cost_change.
+    manager = model_class._default_manager
+    base_qs = (
+        manager.all_content() if hasattr(manager, "all_content") else manager.all()
+    )
+
     try:
-        old_instance = model_class.objects.only(cost_field).get(pk=instance.pk)
+        old_instance = base_qs.only(cost_field).get(pk=instance.pk)
         old_value = getattr(old_instance, cost_field)
         # Handle CharField cost fields (e.g., ContentEquipment)
         if isinstance(old_value, str):

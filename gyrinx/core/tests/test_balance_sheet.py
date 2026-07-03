@@ -1,0 +1,1073 @@
+"""Balance-sheet harness: calibration meta-tests and the situation matrix.
+
+Part of the cost-pinning programme (#1826). The meta-tests prove the
+instrument itself: every seeded cache corruption must be caught and localised
+to the tampered level, with zero false alarms on healthy data built through
+the real handler flows. The situation matrix then exercises app flows
+cell-by-cell; known drift producers are pinned as strict xfails until the
+phase that fixes them.
+
+Every cell uses the same two-beat check: the sheet must reconcile immediately
+after the action, and again after a forced full recompute — the second beat
+is what catches "cache says X, recompute says Y" divergence.
+"""
+
+import pytest
+from django.contrib.contenttypes.models import ContentType
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.urls import reverse
+
+from gyrinx.content.models import (
+    ContentEquipmentUpgrade,
+    ContentFighterEquipmentListItem,
+    ContentWeaponAccessory,
+    ContentWeaponProfile,
+)
+from gyrinx.core.cost.balance_sheet import build_balance_sheet
+from gyrinx.core.handlers.equipment.cost_override import (
+    handle_equipment_cost_override,
+)
+from gyrinx.core.handlers.equipment.purchase import (
+    handle_accessory_purchase,
+    handle_equipment_purchase,
+    handle_equipment_upgrade,
+    handle_weapon_profile_purchase,
+)
+from gyrinx.core.handlers.equipment.reassignment import (
+    handle_equipment_reassignment,
+)
+from gyrinx.core.handlers.equipment.removal import (
+    handle_equipment_component_removal,
+    handle_equipment_removal,
+)
+from gyrinx.core.handlers.fighter.hire_clone import handle_fighter_hire
+from gyrinx.core.handlers.fighter.kill import handle_fighter_kill
+from gyrinx.core.models.action import ListAction, ListActionType
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
+from gyrinx.core.models.pack import CustomContentPackItem
+from gyrinx.core.tasks import propagate_content_cost_change
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def hire_fighter(user, lst, content_fighter, name="Fighter"):
+    """Add a fighter through the real hire flow (propagation + ListAction)."""
+    lst = List.objects.get(pk=lst.pk)
+    fighter = ListFighter(
+        list=lst,
+        owner=user,
+        content_fighter=content_fighter,
+        name=name,
+    )
+    return handle_fighter_hire(user=user, lst=lst, fighter=fighter).fighter
+
+
+def fresh(obj):
+    """Refetch a model instance, mimicking a request boundary.
+
+    Handlers propagate deltas onto the instances they are given
+    (`propagate_from_fighter` writes `rating_current + delta` back as an
+    absolute value), so they must be handed freshly-fetched objects the way a
+    view would. Chaining handlers against stale in-memory instances writes
+    stale absolute values — a harness artifact, not an app flow.
+    """
+    if isinstance(obj, ListFighterEquipmentAssignment):
+        # Views hand handlers assignments fetched via with_related_data().
+        # Its accessory prefetch routes through all_content() so pack
+        # accessories survive; note its profile/upgrade prefetches do NOT
+        # (pack-excluding managers) — that divergence is producer P8
+        # (#1933), pinned in the matrix.
+        return ListFighterEquipmentAssignment.objects.with_related_data().get(pk=obj.pk)
+    return type(obj).objects.get(pk=obj.pk)
+
+
+def buy_equipment(user, lst, fighter, equipment):
+    """Buy equipment through the real purchase flow."""
+    fighter = fresh(fighter)
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=equipment,
+    )
+    handle_equipment_purchase(
+        user=user, lst=fresh(lst), fighter=fighter, assignment=assignment
+    )
+    return assignment
+
+
+def force_recompute(lst):
+    """Mark every cache dirty and recompute leaf-up from live cost_int()."""
+    ListFighterEquipmentAssignment.objects.filter(list_fighter__list=lst).update(
+        dirty=True
+    )
+    ListFighter.objects.filter(list=lst).update(dirty=True)
+    List.objects.filter(pk=lst.pk).update(dirty=True)
+    lst.refresh_from_db()
+    lst.facts_from_db(update=True)
+
+
+def fresh_sheet(lst):
+    lst.refresh_from_db()
+    return build_balance_sheet(lst)
+
+
+def assert_reconciles(lst):
+    """The two-beat check: reconcile now, and again after forced recompute."""
+    problems = fresh_sheet(lst).reconcile()
+    assert problems == [], f"immediately after action: {problems}"
+
+    force_recompute(lst)
+
+    problems = fresh_sheet(lst).reconcile()
+    assert problems == [], f"after forced recompute: {problems}"
+
+
+def assert_problems(problems, must_mention, must_not_mention=()):
+    """Every `must_mention` marker appears; no `must_not_mention` marker does."""
+    joined = "\n".join(problems)
+    for marker in must_mention:
+        assert marker in joined, (
+            f"expected a problem mentioning {marker!r}, got: {problems}"
+        )
+    for marker in must_not_mention:
+        assert marker not in joined, (
+            f"expected NO problem mentioning {marker!r}, got: {problems}"
+        )
+
+
+class ContentSource:
+    """The catalog-vs-pack axis for matrix content.
+
+    Every cell that uses the `gear` factory runs twice: once with plain
+    catalog content, once with the identical content scoped to a subscribed
+    CustomContentPack. Pack content is invisible to the default
+    ContentManager and only surfaced by all_content()/with_packs(), so any
+    cost path that fetches content carelessly prices pack gear differently —
+    a class of drift the catalog variant can never see.
+    """
+
+    def __init__(self, pack=None):
+        self.pack = pack
+
+    @property
+    def name(self):
+        return "pack" if self.pack else "catalog"
+
+    def subscribe(self, lst):
+        if self.pack:
+            lst.packs.add(self.pack)
+
+    def register(self, obj):
+        if self.pack:
+            CustomContentPackItem.objects.create(
+                pack=self.pack,
+                content_type=ContentType.objects.get_for_model(type(obj)),
+                object_id=obj.pk,
+                owner=self.pack.owner,
+            )
+        return obj
+
+
+@pytest.fixture(params=["catalog", "pack"])
+def content_source(request, make_pack):
+    if request.param == "pack":
+        return ContentSource(make_pack("Axis Pack"))
+    return ContentSource()
+
+
+@pytest.fixture
+def gear(content_source, make_equipment, make_weapon_profile):
+    """Content factory building gear on the current side of the axis."""
+
+    class Gear:
+        def equipment(self, name="Lasgun", cost=15, **kwargs):
+            return content_source.register(make_equipment(name, cost=cost, **kwargs))
+
+        def accessory(self, name="Scope", cost=8, **kwargs):
+            return content_source.register(
+                ContentWeaponAccessory.objects.create(name=name, cost=cost, **kwargs)
+            )
+
+        def profile(self, equipment, name="Hotshot", cost=10, **kwargs):
+            return content_source.register(
+                make_weapon_profile(equipment, name=name, cost=cost, **kwargs)
+            )
+
+        def upgrade(self, equipment, name="Extended mag", cost=12, **kwargs):
+            return content_source.register(
+                ContentEquipmentUpgrade.objects.create(
+                    name=name, equipment=equipment, cost=cost, **kwargs
+                )
+            )
+
+    return Gear()
+
+
+@pytest.fixture
+def healthy_list(user, make_list, content_fighter, content_source, gear):
+    """A list built entirely through real flows: one fighter, one weapon.
+
+    Parametrized over the catalog-vs-pack axis: everything downstream of
+    this fixture (meta-tests included) runs on both sides.
+    """
+    lst = make_list("Balance Gang")
+    content_source.subscribe(lst)
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    equipment = gear.equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter, equipment)
+    lst.refresh_from_db()
+    return lst, fighter, assignment
+
+
+# ---------------------------------------------------------------------------
+# Meta-tests: calibrate the instrument before trusting it
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_meta_empty_list_reconciles(make_list):
+    lst = make_list("Empty Gang")
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_meta_healthy_list_reconciles(healthy_list):
+    lst, _, _ = healthy_list
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_meta_decomposition_matches_live_cost(healthy_list):
+    """The sheet's decomposition must agree with the live cost computation.
+
+    If cost semantics change and the sheet doesn't track them, this fails
+    loudly instead of the sheet silently reconciling wrong numbers.
+    """
+    lst, fighter, assignment = healthy_list
+    sheet = fresh_sheet(lst)
+
+    fighter.refresh_from_db()
+    assignment.refresh_from_db()
+
+    fb = sheet.fighters[0]
+    assert fb.computed == fighter.cost_int()
+    ab = fb.assignments[0]
+    assert ab.computed == assignment.cost_int()
+    assert sheet.computed_rating == sum(
+        f.cost_int() for f in lst.fighters() if not f.is_stash
+    )
+
+
+@pytest.mark.django_db
+def test_meta_detects_assignment_cache_tamper(healthy_list):
+    lst, _, assignment = healthy_list
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        rating_current=assignment.rating_current + 7
+    )
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(
+        problems,
+        must_mention=["assignment 'Lasgun'"],
+        must_not_mention=["fighter 'Bob':", "list rating", "credits"],
+    )
+
+
+@pytest.mark.django_db
+def test_meta_detects_fighter_cache_tamper(healthy_list):
+    lst, fighter, _ = healthy_list
+    ListFighter.objects.filter(pk=fighter.pk).update(
+        rating_current=fighter.rating_current + 7
+    )
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(
+        problems,
+        must_mention=["fighter 'Bob':"],
+        must_not_mention=["assignment 'Lasgun'", "list rating", "credits"],
+    )
+
+
+@pytest.mark.django_db
+def test_meta_detects_list_rating_tamper(healthy_list):
+    lst, _, _ = healthy_list
+    List.objects.filter(pk=lst.pk).update(rating_current=lst.rating_current + 7)
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(
+        problems,
+        must_mention=["list rating", "action head desync (rating)"],
+        must_not_mention=["assignment 'Lasgun'", "fighter 'Bob':", "credits"],
+    )
+
+
+@pytest.mark.django_db
+def test_meta_detects_stash_cache_tamper(healthy_list):
+    lst, _, _ = healthy_list
+    List.objects.filter(pk=lst.pk).update(stash_current=lst.stash_current + 7)
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(
+        problems,
+        must_mention=["list stash", "action head desync (stash)"],
+        must_not_mention=["assignment 'Lasgun'", "fighter 'Bob':", "credits"],
+    )
+
+
+@pytest.mark.django_db
+def test_meta_detects_credits_tamper(healthy_list):
+    lst, _, _ = healthy_list
+    List.objects.filter(pk=lst.pk).update(credits_current=lst.credits_current + 7)
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(
+        problems,
+        must_mention=["credits ledger", "action head desync (credits)"],
+        must_not_mention=["assignment 'Lasgun'", "fighter 'Bob':", "list rating"],
+    )
+
+
+@pytest.mark.django_db
+def test_meta_detects_action_delta_tamper(healthy_list):
+    """A corrupted historical delta breaks the chain and the ledger."""
+    lst, _, _ = healthy_list
+    first_move = (
+        ListAction.objects.filter(list=lst).exclude(rating_delta=0).earliest("created")
+    )
+    ListAction.objects.filter(pk=first_move.pk).update(
+        rating_delta=first_move.rating_delta + 7
+    )
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(
+        problems,
+        must_mention=["action chain break (rating)"],
+        must_not_mention=["assignment 'Lasgun'", "credits ledger"],
+    )
+
+
+@pytest.mark.django_db
+def test_meta_dirty_rows_are_not_problems(healthy_list):
+    """Dirty is a legitimate transient state — surfaced, not a failure."""
+    lst, fighter, _ = healthy_list
+    ListFighter.objects.filter(pk=fighter.pk).update(
+        dirty=True, rating_current=fighter.rating_current + 7
+    )
+    sheet = fresh_sheet(lst)
+    assert "fighter 'Bob'" in "\n".join(sheet.dirty_rows)
+    assert_problems(
+        sheet.reconcile(), must_mention=[], must_not_mention=["fighter 'Bob':"]
+    )
+
+
+@pytest.mark.django_db
+def test_meta_build_is_read_only(healthy_list):
+    """build_balance_sheet issues no writes."""
+    lst, _, _ = healthy_list
+    lst.refresh_from_db()
+    with CaptureQueriesContext(connection) as ctx:
+        sheet = build_balance_sheet(lst)
+        sheet.reconcile()
+    writes = [
+        q["sql"]
+        for q in ctx.captured_queries
+        if q["sql"].split(" ", 1)[0].upper() in ("INSERT", "UPDATE", "DELETE")
+    ]
+    assert writes == []
+
+
+# ---------------------------------------------------------------------------
+# Situation matrix
+#
+# Each cell drives a real app flow (handler or view) and applies the two-beat
+# check. Known drift producers are pinned as strict xfails, grouped P1-P6;
+# they flip to passing in the phase that fixes them (see
+# .claude/notes/cost-pinning-design.md §6).
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def campaign_list(user, make_list, campaign, content_source):
+    """A campaign-mode list with a stash and a credit stake, fully chained.
+
+    Subscribed to the axis pack when the pack side is active.
+    """
+    lst = make_list("War Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    campaign.lists.add(lst)
+    content_source.subscribe(lst)
+    stash = lst.ensure_stash()
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.UPDATE_CREDITS,
+        description="Starting stake",
+        credits_delta=1000,
+        update_credits=True,
+    )
+    lst.refresh_from_db()
+    return lst, stash
+
+
+def buy_accessory(user, lst, fighter, assignment, accessory):
+    handle_accessory_purchase(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        accessory=accessory,
+    )
+
+
+# --- Healthy cells: list-building mode -------------------------------------
+
+
+@pytest.mark.django_db
+def test_matrix_buy_weapon_profile(healthy_list, user, gear):
+    lst, fighter, assignment = healthy_list
+    rating_before = fresh(lst).rating_current
+    profile = gear.profile(assignment.content_equipment, name="Hotshot", cost=10)
+    handle_weapon_profile_purchase(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        profile=profile,
+    )
+    # Reconciliation alone cannot see a bug where the write path and the
+    # recompute path are identically blind (both book the wrong number and
+    # agree) — so healthy cells also assert the actual booked movement.
+    assert fresh(lst).rating_current == rating_before + 10
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_buy_accessory(healthy_list, user, gear):
+    lst, fighter, assignment = healthy_list
+    rating_before = fresh(lst).rating_current
+    accessory = gear.accessory()
+    buy_accessory(user, lst, fighter, assignment, accessory)
+    assert fresh(lst).rating_current == rating_before + 8  # booked movement
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "side",
+    [
+        "catalog",
+        pytest.param(
+            "pack",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason="P8 (#1933): pack upgrades book at zero — the SINGLE-mode "
+                "stack sum excludes pack rows from its own total, and the "
+                "recompute path is equally pack-blind, so reconciliation alone "
+                "cannot see it; fixed in Phase 3",
+            ),
+        ),
+    ],
+)
+def test_matrix_buy_upgrade(
+    side, user, make_list, content_fighter, make_equipment, make_pack
+):
+    lst, fighter, assignment, equipment, source = build_weapon_list(
+        side, user, make_list, content_fighter, make_equipment, make_pack
+    )
+    rating_before = fresh(lst).rating_current
+    upgrade = source.register(
+        ContentEquipmentUpgrade.objects.create(
+            name="Extended mag", equipment=equipment, cost=12
+        )
+    )
+    handle_equipment_upgrade(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        new_upgrades=[upgrade],
+    )
+    assert fresh(lst).rating_current == rating_before + 12  # booked movement
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_remove_accessory_from_fighter(healthy_list, user, gear):
+    lst, fighter, assignment = healthy_list
+    accessory = gear.accessory()
+    buy_accessory(user, lst, fighter, assignment, accessory)
+    rating_before = fresh(lst).rating_current
+    handle_equipment_component_removal(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        component_type="accessory",
+        component=accessory,
+        request_refund=False,
+    )
+    assert fresh(lst).rating_current == rating_before - 8  # booked movement
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_remove_equipment(healthy_list, user):
+    lst, fighter, assignment = healthy_list
+    handle_equipment_removal(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        request_refund=False,
+    )
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_total_override_set_and_clear(healthy_list, user):
+    """Setting and clearing a fixed total reconciles when nothing else moves."""
+    lst, fighter, assignment = healthy_list
+    handle_equipment_cost_override(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        old_total_cost_override=None,
+        new_total_cost_override=50,
+    )
+    assert_reconciles(lst)
+    assignment.refresh_from_db()
+    handle_equipment_cost_override(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        old_total_cost_override=50,
+        new_total_cost_override=None,
+    )
+    assert_reconciles(lst)
+
+
+# --- Healthy cells: campaign mode / stash lifecycle ------------------------
+
+
+@pytest.mark.django_db
+def test_matrix_buy_onto_stash(campaign_list, user, gear):
+    lst, stash = campaign_list
+    equipment = gear.equipment("Stash Gun", cost=50)
+    buy_equipment(user, lst, stash, equipment)
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_reassign_plain_gear_between_fighters(
+    campaign_list, user, content_fighter, gear
+):
+    lst, stash = campaign_list
+    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = gear.equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+    assert_reconciles(lst)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)
+
+    assignment.refresh_from_db()
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_b),
+        to_fighter=fresh(stash),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_kill_fighter_with_plain_gear(
+    campaign_list, user, content_fighter, gear
+):
+    """Death transfers undiscounted gear: same price in both contexts."""
+    lst, stash = campaign_list
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    equipment = gear.equipment("Lasgun", cost=15)
+    buy_equipment(user, lst, fighter, equipment)
+    assert_reconciles(lst)
+
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_repeat_death_plain_gear(campaign_list, user, content_fighter, gear):
+    """Gear survives two deaths: kill A, re-equip to B, kill B."""
+    lst, stash = campaign_list
+    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
+    equipment = gear.equipment("Lasgun", cost=15)
+    buy_equipment(user, lst, fighter_a, equipment)
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter_a))
+    assert_reconciles(lst)
+
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    stash_assignment = stash.listfighterequipmentassignment_set.get()
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(stash),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(stash_assignment),
+    )
+    assert_reconciles(lst)
+
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter_b))
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_sell_plain_gear_from_stash(campaign_list, user, client, gear):
+    """Selling undiscounted stash gear: view prices catalog == cache."""
+    lst, stash = campaign_list
+    equipment = gear.equipment("Stash Gun", cost=50)
+    assignment = buy_equipment(user, lst, stash, equipment)
+    assert_reconciles(lst)
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "20",
+        },
+    )
+    assert response.status_code == 302
+    response = client.post(url, {"step": "confirm"})
+    assert response.status_code == 302
+    assert not ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).exists()
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_campaign_budget_grant_reconciles(
+    user, make_list, make_campaign, content_fighter
+):
+    """Family-2 proof: a budget-funded gang's credits ledger reconciles."""
+    lst = make_list("Budget Gang")
+    hire_fighter(user, lst, content_fighter, name="Bob")
+    campaign2 = make_campaign("Budget Campaign", status="in_progress", budget=1500)
+    cloned, created = campaign2.add_list_to_campaign(fresh(lst), user=user)
+    assert created
+    cloned.refresh_from_db()
+    assert cloned.credits_current > 0  # the grant actually happened
+    assert_reconciles(cloned)
+
+
+def build_weapon_list(
+    side, user, make_list, content_fighter, make_equipment, make_pack
+):
+    """A list with one fighter and one weapon on an explicit axis side.
+
+    For cells whose expectations differ per side (per-param xfail marks),
+    which the axis fixture cannot express.
+    """
+    source = ContentSource(make_pack("Axis Pack") if side == "pack" else None)
+    lst = make_list("Sidecar Gang")
+    source.subscribe(lst)
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    equipment = source.register(make_equipment("Lasgun", cost=15))
+    assignment = buy_equipment(user, lst, fighter, equipment)
+    lst.refresh_from_db()
+    return lst, fighter, assignment, equipment, source
+
+
+# --- Content price change: the async window --------------------------------
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("side", ["catalog", "pack"])
+def test_matrix_content_price_change_window_is_visible(
+    side, user, make_list, content_fighter, make_equipment, make_pack
+):
+    """Mid-window (sweep done, task not yet run): harness sees the gap.
+
+    A content price change marks caches dirty synchronously; the audit action
+    lands later via the async task. Between recompute and task, the action
+    chain legitimately trails the caches — the harness must show that, not
+    hide it. The pack side works identically since the #1930 fix
+    (get_old_cost resolves pack rows via all_content()).
+    """
+    lst, fighter, assignment, equipment, _ = build_weapon_list(
+        side, user, make_list, content_fighter, make_equipment, make_pack
+    )
+    equipment.cost = 25  # was 15
+    equipment.save()
+
+    # Dirty rows are surfaced, but dirtiness alone is not a problem.
+    sheet = fresh_sheet(lst)
+    assert sheet.dirty_rows
+    assert sheet.reconcile() == []
+
+    # A recompute before the task lands reveals the un-actioned change.
+    force_recompute(lst)
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(problems, must_mention=["action head desync (rating)"])
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("side", ["catalog", "pack"])
+def test_matrix_content_price_change_full_flow_reconciles(
+    side, user, make_list, content_fighter, make_equipment, make_pack
+):
+    """After the async task creates the CONTENT_COST_CHANGE action: clean."""
+    lst, fighter, assignment, equipment, _ = build_weapon_list(
+        side, user, make_list, content_fighter, make_equipment, make_pack
+    )
+
+    before_snapshots = {str(lst.id): [lst.rating_current, lst.stash_current]}
+    equipment.cost = 25
+    equipment.save()
+
+    ct = ContentType.objects.get_for_model(type(equipment))
+    propagate_content_cost_change.func(ct.id, str(equipment.id), before_snapshots)
+    assert_reconciles(lst)
+
+
+# --- Legacy data: rows created outside the action system -------------------
+
+
+@pytest.mark.django_db
+def test_matrix_legacy_raw_fighter_detected_after_recompute(
+    healthy_list, user, make_content_fighter, content_house
+):
+    """Pre-programme data (raw ORM, no action) surfaces as head desync.
+
+    This is the harness working as designed: recomputing absorbs the raw
+    fighter into the caches, and the missing action shows as a chain desync.
+    """
+    lst, _, _ = healthy_list
+    cf = make_content_fighter(
+        type="Legacy Ganger", category="GANGER", house=content_house, base_cost=60
+    )
+    ListFighter.objects.create(
+        name="Shell-seeded", content_fighter=cf, list=lst, owner=user
+    )
+
+    force_recompute(lst)
+    problems = fresh_sheet(lst).reconcile()
+    assert_problems(problems, must_mention=["action head desync (rating)"])
+
+
+# --- Known drift producers: strict xfails, one group per producer ----------
+
+
+@pytest.mark.django_db
+def test_matrix_p1_1925_accessory_onto_overridden_assignment(healthy_list, user, gear):
+    """P1 (#1925), fixed in Phase 2: a component purchase onto a fixed-total
+    assignment moves credits but not the book value — and reconciles."""
+    lst, fighter, assignment = healthy_list
+    handle_equipment_cost_override(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter),
+        assignment=fresh(assignment),
+        old_total_cost_override=None,
+        new_total_cost_override=50,
+    )
+    assert_reconciles(lst)  # clean before the purchase
+
+    accessory = gear.accessory()
+    buy_accessory(user, lst, fighter, assignment, accessory)
+    assert_reconciles(lst)  # book value stays at the 50 override; credits moved
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="P2 (#1826): kill-transfer values gear in the dying fighter's "
+    "context; the stash re-prices it at catalog; fixed by pinning (Phase 9)",
+)
+def test_matrix_p2_1826_kill_fighter_with_discounted_gear(
+    campaign_list, user, make_content_fighter, content_house, gear
+):
+    lst, stash = campaign_list
+    cf = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    fighter = hire_fighter(user, lst, cf, name="Bob")
+    equipment = gear.equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=cf, equipment=equipment, cost=5
+    )
+    buy_equipment(user, lst, fighter, equipment)
+    assert_reconciles(lst)  # clean before the death
+
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+    assert_reconciles(lst)  # FAILS: stash cache +5, stash recomputes to 15
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="P3: the sale flow prices lines at raw catalog cost, ignoring "
+    "overrides; cache decrements diverge from cost_int(); fixed in Phase 3",
+)
+def test_matrix_p3_sell_overridden_gear_from_stash(campaign_list, user, client, gear):
+    lst, stash = campaign_list
+    equipment = gear.equipment("Stash Gun", cost=50)
+    assignment = buy_equipment(user, lst, stash, equipment)
+    handle_equipment_cost_override(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(stash),
+        assignment=fresh(assignment),
+        old_total_cost_override=None,
+        new_total_cost_override=80,
+    )
+    assert_reconciles(lst)  # clean before the sale
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-equipment-sell", args=[lst.id, stash.id, assignment.id]
+    )
+    response = client.post(
+        url + "?sell_assign=" + str(assignment.id),
+        {
+            "step": "selection",
+            "0-price_method": "price_manual",
+            "0-price_manual_value": "20",
+        },
+    )
+    assert response.status_code == 302
+    client.post(url, {"step": "confirm"})
+    assert_reconciles(lst)  # FAILS: sale removed 50 (catalog) from a cache holding 80
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="P4: stash component removal propagates rating_delta (0 for "
+    "stash) instead of the component's value; fixed in Phase 3",
+)
+def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
+    lst, stash = campaign_list
+    equipment = gear.equipment("Stash Gun", cost=50)
+    assignment = buy_equipment(user, lst, stash, equipment)
+    accessory = gear.accessory()
+    buy_accessory(user, lst, stash, assignment, accessory)
+    assert_reconciles(lst)  # clean before the removal
+
+    handle_equipment_component_removal(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(stash),
+        assignment=fresh(assignment),
+        component_type="accessory",
+        component=accessory,
+        request_refund=False,
+    )
+    assert_reconciles(lst)  # FAILS: assignment/fighter caches keep the 8
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("side", ["catalog", "pack"])
+def test_matrix_bare_accessory_post_is_inert(
+    side, user, client, make_list, content_fighter, make_equipment, make_pack
+):
+    """A POST without accessory_id changes nothing (P5, fixed).
+
+    The accessories-edit view used to carry a bare-form fallback that rewrote
+    the whole accessory M2M with no cost propagation, no ListAction, and no
+    credits — a live drift producer on the catalog side, and a silent no-op
+    for pack accessories. The branch is deleted; a bare POST now just
+    re-renders, the accessory survives on both sides, and the books agree.
+    """
+    lst, fighter, assignment, _, source = build_weapon_list(
+        side, user, make_list, content_fighter, make_equipment, make_pack
+    )
+    accessory = source.register(
+        ContentWeaponAccessory.objects.create(name="Scope", cost=8)
+    )
+    buy_accessory(user, lst, fighter, assignment, accessory)
+    assert_reconciles(lst)
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-weapon-accessories-edit",
+        args=[lst.id, fighter.id, assignment.id],
+    )
+    response = client.post(url, {})  # no accessory_id
+    assert response.status_code == 200  # falls through to the page render
+
+    assert (
+        ContentWeaponAccessory.objects.all_content()
+        .filter(weapon_accessories=fresh(assignment))
+        .exists()
+    )
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_p6_reassign_discounted_gear_reprices(
+    campaign_list,
+    user,
+    make_content_fighter,
+    content_house,
+    content_fighter,
+    gear,
+):
+    lst, stash = campaign_list
+    cf_a = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = gear.equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=cf_a, equipment=equipment, cost=5
+    )
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+    assert_reconciles(lst)  # clean before the move
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_p6_repricing_telemetry_fires(
+    campaign_list,
+    user,
+    make_content_fighter,
+    content_house,
+    content_fighter,
+    gear,
+    monkeypatch,
+):
+    """The cost-changed-on-reassignment telemetry fires with real values."""
+    from gyrinx.core.handlers.equipment import reassignment as reassignment_module
+
+    events = []
+    monkeypatch.setattr(
+        reassignment_module,
+        "track",
+        lambda name, **kw: events.append((name, kw)),
+    )
+
+    lst, stash = campaign_list
+    cf_a = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = gear.equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=cf_a, equipment=equipment, cost=5
+    )
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+
+    reprice_events = [
+        kw for name, kw in events if name == "equipment_cost_changed_on_reassignment"
+    ]
+    assert len(reprice_events) == 1
+    assert reprice_events[0]["cost_before"] == 5
+    assert reprice_events[0]["cost_after"] == 15
+
+
+@pytest.mark.django_db
+def test_matrix_reassign_gear_with_pack_accessory(
+    campaign_list, user, content_fighter, gear, pack
+):
+    """Pack-scoped accessories survive the reassignment repricing math.
+
+    A plain refetch resolves accessories through the pack-excluding default
+    manager, so a pack accessory would vanish from cost_after and the handler
+    would book a phantom repricing. The handler (and this harness's fresh())
+    must fetch with the same semantics the views use.
+    """
+    lst, stash = campaign_list
+    lst.packs.add(pack)
+    fighter_a = hire_fighter(user, lst, content_fighter, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    # Equipment rides the axis (so this cell is meaningfully doubled); the
+    # accessory deliberately comes from its own separate pack.
+    equipment = gear.equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+
+    accessory = ContentWeaponAccessory.objects.create(name="Pack Scope", cost=8)
+    CustomContentPackItem.objects.create(
+        pack=pack,
+        content_type=ContentType.objects.get_for_model(ContentWeaponAccessory),
+        object_id=accessory.pk,
+        owner=pack.owner,
+    )
+    buy_accessory(user, lst, fighter_a, assignment, accessory)
+    assert_reconciles(lst)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="P8 (#1933): the assignment-level with_related_data() prefetches "
+    "profiles/upgrades through pack-excluding managers (only accessories go "
+    "via all_content()), so reassignment re-prices gear carrying a pack "
+    "profile without it; fixed in Phase 3",
+)
+def test_matrix_p8_reassign_gear_with_pack_profile(
+    user, make_list, content_fighter, make_equipment, make_pack
+):
+    lst, fighter_a, assignment, equipment, source = build_weapon_list(
+        "pack", user, make_list, content_fighter, make_equipment, make_pack
+    )
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    profile = source.register(
+        ContentWeaponProfile.objects.create(
+            equipment=equipment, name="Hotshot", cost=10
+        )
+    )
+    handle_weapon_profile_purchase(
+        user=user,
+        lst=fresh(lst),
+        fighter=fresh(fighter_a),
+        assignment=fresh(assignment),
+        profile=profile,
+    )
+    assert_reconciles(lst)  # clean before the move
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+    assert_reconciles(lst)  # FAILS: cost_after misses the pack profile
