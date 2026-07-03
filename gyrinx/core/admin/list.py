@@ -368,8 +368,19 @@ class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
         "content_equipment",
         "child_fighter",
         cost,
+        "pinned_equipment_list_item",
+        "pinned_expansion_item",
+        "pinned_base_amount",
+        "pinned_base_state",
     ]
-    readonly_fields = ["child_fighter", cost]
+    readonly_fields = [
+        "child_fighter",
+        cost,
+        "pinned_equipment_list_item",
+        "pinned_expansion_item",
+        "pinned_base_amount",
+        "pinned_base_state",
+    ]
     inlines = [
         AssignmentProfileRowInline,
         AssignmentAccessoryRowInline,
