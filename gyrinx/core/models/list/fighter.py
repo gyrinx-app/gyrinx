@@ -40,6 +40,7 @@ from gyrinx.content.models import (
     ContentStat,
     ContentStatline,
     ContentWeaponAccessory,
+    ContentEquipmentUpgrade,
     ContentWeaponProfile,
     RulelineDisplay,
     StatlineDisplay,
@@ -344,7 +345,15 @@ class ListFighterQuerySet(models.QuerySet):
                     ),
                 ),
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
-                "listfighterequipmentassignment_set__upgrades_field__modifiers",
+                # all_content() so pack-scoped upgrades survive this prefetch
+                # and price in recompute (#1933), matching the accessories
+                # prefetch above.
+                Prefetch(
+                    "listfighterequipmentassignment_set__upgrades_field",
+                    queryset=ContentEquipmentUpgrade.objects.all_content().prefetch_related(
+                        "modifiers"
+                    ),
+                ),
                 "content_fighter__counters",
                 "content_fighter__house",
                 "content_fighter__house__restricted_equipment_categories",
