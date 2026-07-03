@@ -635,15 +635,6 @@ def test_matrix_campaign_budget_grant_reconciles(
     assert_reconciles(cloned)
 
 
-P7_PACK_SWEEP_XFAIL = pytest.mark.xfail(
-    strict=True,
-    reason="P7: pack-item price changes never sweep — get_old_cost() reads the "
-    "old price through the pack-excluding default manager, gets DoesNotExist "
-    "for pack rows, and the signal treats the save as a new instance, so "
-    "nothing is marked dirty and no audit action is enqueued; fixed in Phase 3",
-)
-
-
 def build_weapon_list(
     side, user, make_list, content_fighter, make_equipment, make_pack
 ):
@@ -666,9 +657,7 @@ def build_weapon_list(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(
-    "side", ["catalog", pytest.param("pack", marks=P7_PACK_SWEEP_XFAIL)]
-)
+@pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_content_price_change_window_is_visible(
     side, user, make_list, content_fighter, make_equipment, make_pack
 ):
@@ -677,7 +666,8 @@ def test_matrix_content_price_change_window_is_visible(
     A content price change marks caches dirty synchronously; the audit action
     lands later via the async task. Between recompute and task, the action
     chain legitimately trails the caches — the harness must show that, not
-    hide it. On the pack side the sweep never fires at all (P7).
+    hide it. The pack side works identically since the #1930 fix
+    (get_old_cost resolves pack rows via all_content()).
     """
     lst, fighter, assignment, equipment, _ = build_weapon_list(
         side, user, make_list, content_fighter, make_equipment, make_pack
@@ -697,9 +687,7 @@ def test_matrix_content_price_change_window_is_visible(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(
-    "side", ["catalog", pytest.param("pack", marks=P7_PACK_SWEEP_XFAIL)]
-)
+@pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_content_price_change_full_flow_reconciles(
     side, user, make_list, content_fighter, make_equipment, make_pack
 ):
@@ -854,49 +842,23 @@ def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P5: the accessories edit view's bare-form branch rewrites the "
-    "M2M with no propagation, action, or credits; removed in Phase 3",
-)
-def test_matrix_p5_bare_form_accessory_removal(
-    user, client, make_list, content_fighter, make_equipment, make_pack
+@pytest.mark.parametrize("side", ["catalog", "pack"])
+def test_matrix_bare_accessory_post_is_inert(
+    side, user, client, make_list, content_fighter, make_equipment, make_pack
 ):
-    lst, fighter, assignment, _, _ = build_weapon_list(
-        "catalog", user, make_list, content_fighter, make_equipment, make_pack
-    )
-    accessory = ContentWeaponAccessory.objects.create(name="Scope", cost=8)
-    buy_accessory(user, lst, fighter, assignment, accessory)
-    assert_reconciles(lst)  # clean before the bare POST
+    """A POST without accessory_id changes nothing (P5, fixed).
 
-    client.force_login(user)
-    url = reverse(
-        "core:list-fighter-weapon-accessories-edit",
-        args=[lst.id, fighter.id, assignment.id],
-    )
-    response = client.post(url, {})  # no accessory_id -> bare form branch
-    assert response.status_code == 302
-    assert_reconciles(lst)  # FAILS: M2M cleared, caches and ledger untouched
-
-
-@pytest.mark.django_db
-def test_matrix_p5_bare_form_cannot_remove_pack_accessories(
-    user, client, make_list, content_fighter, make_equipment, make_pack
-):
-    """The bare-form branch silently no-ops for pack accessories.
-
-    Its M2M rewrite computes removals by listing current accessories through
-    the pack-excluding default manager, so a pack accessory is invisible to
-    it and survives the clear. The books stay consistent — but the user's
-    submitted removal silently did nothing, which is one more reason the
-    branch is deleted in Phase 3. This cell documents the behaviour and will
-    fail (prompting deletion of the cell) when the branch goes.
+    The accessories-edit view used to carry a bare-form fallback that rewrote
+    the whole accessory M2M with no cost propagation, no ListAction, and no
+    credits — a live drift producer on the catalog side, and a silent no-op
+    for pack accessories. The branch is deleted; a bare POST now just
+    re-renders, the accessory survives on both sides, and the books agree.
     """
     lst, fighter, assignment, _, source = build_weapon_list(
-        "pack", user, make_list, content_fighter, make_equipment, make_pack
+        side, user, make_list, content_fighter, make_equipment, make_pack
     )
     accessory = source.register(
-        ContentWeaponAccessory.objects.create(name="Pack Scope", cost=8)
+        ContentWeaponAccessory.objects.create(name="Scope", cost=8)
     )
     buy_accessory(user, lst, fighter, assignment, accessory)
     assert_reconciles(lst)
@@ -906,10 +868,9 @@ def test_matrix_p5_bare_form_cannot_remove_pack_accessories(
         "core:list-fighter-weapon-accessories-edit",
         args=[lst.id, fighter.id, assignment.id],
     )
-    response = client.post(url, {})
-    assert response.status_code == 302
+    response = client.post(url, {})  # no accessory_id
+    assert response.status_code == 200  # falls through to the page render
 
-    # The pack accessory survived the "clear" and the books still agree.
     assert (
         ContentWeaponAccessory.objects.all_content()
         .filter(weapon_accessories=fresh(assignment))
