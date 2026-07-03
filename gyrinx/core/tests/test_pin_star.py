@@ -311,3 +311,20 @@ def test_home_pinned_gang_appears_in_gang_column(
     resp = client.get(reverse("core:index"))
     pinned_gang_ids = {lst.id for lst in resp.context["pinned_gangs"]}
     assert gang.id in pinned_gang_ids
+
+
+@pytest.mark.django_db
+def test_home_pinned_only_gang_hides_empty_message(
+    client, user, make_list, make_campaign
+):
+    """Pinning your only campaign gang moves it out of the recent column, but the
+    column must not then claim "You have no Campaign Gangs" — you clearly do."""
+    campaign = make_campaign("Camp", status=Campaign.IN_PROGRESS)
+    gang = make_list("My Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    gang.pinned_by.add(user)
+    client.force_login(user)
+
+    resp = client.get(reverse("core:index"))
+    content = resp.content.decode()
+    assert list(resp.context["campaign_gangs"]) == []  # excluded from recent
+    assert "You have no Campaign Gangs." not in content

@@ -76,7 +76,7 @@
                                 </form>
                             {% endif %}
                             {% if pinned_gangs %}
-                                <div class="border-bottom pb-3">
+                                <div class="{% if campaign_gangs %}border-bottom pb-3{% endif %}">
                                     <div class="caps-label mb-2">Pinned</div>
                                     <div class="vstack gap-3">
                                         {% for gang in pinned_gangs %}
@@ -90,7 +90,7 @@
                             {% empty %}
                                 {% if search_gangs_query %}
                                     <p class="text-secondary">No Campaign Gangs matched your search.</p>
-                                {% else %}
+                                {% elif not pinned_gangs %}
                                     <p>You have no Campaign Gangs.</p>
                                 {% endif %}
                             {% endfor %}
@@ -138,7 +138,7 @@
                                 </form>
                             {% endif %}
                             {% if pinned_campaigns %}
-                                <div class="border-bottom pb-3">
+                                <div class="{% if campaigns %}border-bottom pb-3{% endif %}">
                                     <div class="caps-label mb-2">Pinned</div>
                                     <div class="vstack gap-3">
                                         {% for campaign in pinned_campaigns %}
@@ -152,7 +152,7 @@
                             {% empty %}
                                 {% if search_campaigns_query %}
                                     <p class="text-secondary">No Campaigns matched your search.</p>
-                                {% else %}
+                                {% elif not pinned_campaigns %}
                                     <p class="text-secondary">
                                         You are not part of any Campaigns. <a href="{% url 'core:campaigns' %}">Create a new Campaign</a>.
                                     </p>
@@ -184,7 +184,7 @@
                                 {% include "core/includes/lists_filter.html" with action=action houses=houses compact=True %}
                             {% endif %}
                             {% if pinned_lists %}
-                                <div class="border-bottom pb-3">
+                                <div class="{% if lists %}border-bottom pb-3{% endif %}">
                                     <div class="caps-label mb-2">Pinned</div>
                                     <div class="vstack gap-3">
                                         {% for list in pinned_lists %}

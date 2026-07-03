@@ -89,6 +89,42 @@ if (root) {
         if (d3) d3.setAttribute("href", rollHref("d3"));
     };
 
+    // Build a seedless "?m=…&d=…" query for an explicit list of per-group counts
+    // — same shape as params() and the server's qt_* links.
+    const structQuery = (counts) => {
+        const p = new URLSearchParams();
+        p.set("m", root.dataset.mode || "d6");
+        counts.forEach((c) => p.append("d", String(c)));
+        return "?" + p.toString();
+    };
+
+    // Keep every per-group control's href in step with the live structure. The
+    // click handler intercepts left-clicks, but middle-click / ⌘-click /
+    // open-in-new-tab follow the href directly — and addGroup() clones group 0,
+    // so without this a cloned group's controls would still edit group 0.
+    const refreshControlLinks = () => {
+        const counts = groups().map(countOf);
+        groups().forEach((group, k) => {
+            const n = counts[k];
+            const at = (v) => counts.map((c, j) => (j === k ? v : c));
+            const href = (selector, cs) => {
+                const a = group.querySelector(selector);
+                if (a) a.setAttribute("href", structQuery(cs));
+            };
+            href(".js-sub-die", at(Math.max(1, n - 1)));
+            href(".js-set-one", at(1));
+            href(".js-add-die", at(n + 1));
+            href(
+                ".js-remove-group",
+                counts.filter((_, j) => j !== k),
+            );
+        });
+        const addGroupLink = root.querySelector(".js-add-group");
+        if (addGroupLink) {
+            addGroupLink.setAttribute("href", structQuery([...counts, 1]));
+        }
+    };
+
     // After any structure edit: de-roll every tray, refresh controls, and rewrite
     // the URL (seedless — no roll) without adding a history entry per keystroke.
     const afterEdit = () => {
@@ -98,6 +134,7 @@ if (root) {
         });
         history.replaceState(null, "", "?" + params().toString());
         refreshRollLinks();
+        refreshControlLinks();
     };
 
     const addGroup = () => {

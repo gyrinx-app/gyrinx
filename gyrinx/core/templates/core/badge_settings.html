@@ -21,7 +21,7 @@
                                value="{{ badge.slug }}"
                                class="form-check-input mt-0"
                                {% if form.selected_badge.value == badge.slug %}checked{% endif %}>
-                        <span class="fs-4">{% badge_icon badge %}</span>
+                        <span class="fs-4 badge-preview">{% badge_icon badge %}</span>
                         <span>{{ badge.title }}</span>
                     </label>
                 {% endfor %}

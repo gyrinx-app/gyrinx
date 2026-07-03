@@ -58,6 +58,11 @@ def dice(request):
     d = [int(x) for x in request.GET.getlist("d")]
     fp = [int(x) for x in request.GET.getlist("fp")]
     i = [int(x) for x in request.GET.getlist("i")]
+    # A bare visit (no dice configured in the URL) still renders one group of a
+    # single die, so the page is always a usable roller and the client script
+    # always has a group to clone / reset.
+    if not (d or fp or i):
+        d = [1]
     sides = {
         "d3": 3,
     }.get(mode, 6)

@@ -31,6 +31,17 @@ def test_no_seed_shows_placeholders_not_values(client, user):
 
 
 @pytest.mark.django_db
+def test_bare_visit_renders_a_default_group(client, user):
+    """A bare /dice/ visit (no query) renders one placeholder group, so the page
+    is always a usable roller and the client script always has a group."""
+    client.force_login(user)
+    resp = client.get(reverse("core:dice"))
+    assert resp.status_code == 200
+    assert _rolled(resp) == []  # nothing rolled
+    assert _placeholders(resp) == 1  # one group of one placeholder die
+
+
+@pytest.mark.django_db
 def test_seed_produces_a_reproducible_roll(client, user):
     client.force_login(user)
     url = reverse("core:dice")
