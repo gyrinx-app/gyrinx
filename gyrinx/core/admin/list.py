@@ -61,9 +61,12 @@ def recompute_list_cost_caches(modeladmin, request, queryset):
     fighters = ListFighter.objects.filter(list__in=queryset)
     recompute_cost_caches(modeladmin, request, fighters)
     # recompute_cost_caches only reconciles lists it saw fighters for; cover
-    # fighterless lists too (audited the same way).
+    # fighterless lists too (audited the same way) without re-reconciling
+    # the ones it already handled.
+    covered = set(fighters.values_list("list_id", flat=True))
     for lst in queryset:
-        reconcile_list(lst, user=request.user, rebuild_fighters=False)
+        if lst.pk not in covered:
+            reconcile_list(lst, user=request.user, rebuild_fighters=False)
 
 
 @admin.register(List)

@@ -390,22 +390,28 @@ def backfill_pins(
     pinned = 0
     failed = 0
     consecutive_failures = 0
+    last_success_id = after_id
     for assignment_id in batch:
         try:
             pinned += pin_assignment(assignment_id)
             consecutive_failures = 0
+            last_success_id = assignment_id
         except Exception:
             failed += 1
             consecutive_failures += 1
             logger.exception("backfill_pins: failed to pin %s", assignment_id)
             if consecutive_failures >= 25:
                 # A systemic pinning bug should stop the walk, not log its
-                # way through the whole table. Idempotent: fix and re-enqueue
-                # from this cursor.
+                # way through the whole table. The advertised resume cursor
+                # is the last SUCCESS: after_id is exclusive (id__gt), so
+                # resuming from the failed id would skip it.
                 logger.error(
-                    "backfill_pins: aborting after %s consecutive failures (cursor %s)",
+                    "backfill_pins: aborting after %s consecutive failures "
+                    "at %s. Fix the cause, then re-enqueue with "
+                    "after_id=%s (idempotent).",
                     consecutive_failures,
                     assignment_id,
+                    last_success_id,
                 )
                 return
 

@@ -40,6 +40,9 @@ class ReconcileResult:
     rating_after: int
     stash_after: int
     action: Optional[ListAction]
+    # Whether the list has a ledger at all — distinguishes "no entry because
+    # untracked" from "no entry needed" (cache-only repair back to the head).
+    tracked: bool = False
     # The zero-floor clamp fired: the raw computed total was negative and the
     # cache stores the clamped value. The ledger books the WRITTEN value, so
     # continuity holds — but the clamped remainder is real information the
@@ -154,5 +157,6 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
             rating_after=rating_written,
             stash_after=stash_written,
             action=action,
+            tracked=head is not None,
             clamped=clamped,
         )

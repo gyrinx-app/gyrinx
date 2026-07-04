@@ -41,7 +41,15 @@ class Command(BaseCommand):
                     f"{lst.name} ({lst.id}): rating "
                     f"{result.rating_before}→{result.rating_after}, stash "
                     f"{result.stash_before}→{result.stash_after}"
-                    + ("" if result.action else " [no action: list untracked]")
+                    + (
+                        ""
+                        if result.action
+                        else (
+                            " [no entry needed: cache-only repair]"
+                            if result.tracked
+                            else " [no action: list untracked]"
+                        )
+                    )
                 )
             if result.clamped:
                 clamped += 1

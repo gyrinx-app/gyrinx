@@ -5,7 +5,7 @@ backfill_pins) does the same work batch-by-batch on the task runner.
 Idempotent: re-runs skip already-pinned rows. Run reconcile_lists first.
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from gyrinx.core.cost.pinning import pin_assignment
 from gyrinx.core.models.list import ListFighterEquipmentAssignment
@@ -52,8 +52,15 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"...{total} assignments processed, {pinned} rows pinned"
                 )
+        if failed:
+            # Automation must not read a partial backfill as complete.
+            raise CommandError(
+                f"Backfill INCOMPLETE: {total} assignments walked, {pinned} "
+                f"rows pinned, {failed} FAILED (left unpinned). Fix the "
+                "cause and re-run — idempotent, retries only unpinned rows."
+            )
         self.stdout.write(
             self.style.SUCCESS(
-                f"Backfill complete: {total} assignments, {pinned} rows pinned, {failed} failures."
+                f"Backfill complete: {total} assignments, {pinned} rows pinned."
             )
         )
