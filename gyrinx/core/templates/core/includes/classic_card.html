@@ -23,10 +23,14 @@ Params:
     </div>
     {% comment %} Dark textured nameplate behind the title (name / type / rating) {% endcomment %}
     <div class="cc-nameplate"></div>
-    {% comment %} Name + type {% endcomment %}
+    {% comment %} Name + type (write-in box on blank cards) {% endcomment %}
     <div class="cc-region cc-name">
-        <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
-        {% if card.subtitle %}<div class="cc-name__sub">{{ card.subtitle }}</div>{% endif %}
+        {% if card.kind == "blank" %}
+            <span class="cc-writein cc-name__box"></span>
+        {% else %}
+            <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
+            {% if card.subtitle %}<div class="cc-name__sub">{{ card.subtitle }}</div>{% endif %}
+        {% endif %}
     </div>
     <div class="cc-cog">
         {% if card.cost %}<span class="cc-cog__cost">{{ card.cost }}</span>{% endif %}
@@ -40,61 +44,58 @@ Params:
             </div>
         {% endfor %}
     </div>
-    {% comment %} Weapons {% endcomment %}
+    {% comment %} Weapons — real rows, plus blank write-in rows on blank cards {% endcomment %}
     <div class="cc-region cc-weapons">
-        {% if card.weapons %}
-            <table class="cc-wtable">
-                <thead>
-                    <tr>
-                        <th class="cc-w-name">Weapon</th>
-                        <th class="cc-w-group">S</th>
-                        <th>L</th>
-                        <th class="cc-w-group">S</th>
-                        <th>L</th>
-                        <th class="cc-w-group">Str</th>
-                        <th>Ap</th>
-                        <th>D</th>
-                        <th>Am</th>
-                        <th class="cc-w-group cc-w-traits">Traits</th>
+        <table class="cc-wtable">
+            <thead>
+                <tr>
+                    <th class="cc-w-name">Weapon</th>
+                    <th class="cc-w-group">S</th>
+                    <th>L</th>
+                    <th class="cc-w-group">S</th>
+                    <th>L</th>
+                    <th class="cc-w-group">Str</th>
+                    <th>Ap</th>
+                    <th>D</th>
+                    <th>Am</th>
+                    <th class="cc-w-group cc-w-traits">Traits</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in card.weapons %}
+                    <tr class="{% if w.is_secondary %}cc-w-sub{% endif %}">
+                        <td class="cc-w-name">{% if w.is_secondary %}<i class="bi-dash"></i> {% endif %}{{ w.name }}</td>
+                        <td class="cc-w-group">{{ w.rng_s|default:"-" }}</td>
+                        <td>{{ w.rng_l|default:"-" }}</td>
+                        <td class="cc-w-group">{{ w.acc_s|default:"-" }}</td>
+                        <td>{{ w.acc_l|default:"-" }}</td>
+                        <td class="cc-w-group">{{ w.strength|default:"-" }}</td>
+                        <td>{{ w.ap|default:"-" }}</td>
+                        <td>{{ w.damage|default:"-" }}</td>
+                        <td>{{ w.ammo|default:"-" }}</td>
+                        <td class="cc-w-group cc-w-traits">{{ w.traits }}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for w in card.weapons %}
-                        <tr class="{% if w.is_secondary %}cc-w-sub{% endif %}">
-                            <td class="cc-w-name">{% if w.is_secondary %}<i class="bi-dash"></i> {% endif %}{{ w.name }}</td>
-                            <td class="cc-w-group">{{ w.rng_s|default:"-" }}</td>
-                            <td>{{ w.rng_l|default:"-" }}</td>
-                            <td class="cc-w-group">{{ w.acc_s|default:"-" }}</td>
-                            <td>{{ w.acc_l|default:"-" }}</td>
-                            <td class="cc-w-group">{{ w.strength|default:"-" }}</td>
-                            <td>{{ w.ap|default:"-" }}</td>
-                            <td>{{ w.damage|default:"-" }}</td>
-                            <td>{{ w.ammo|default:"-" }}</td>
-                            <td class="cc-w-group cc-w-traits">{{ w.traits }}</td>
+                {% endfor %}
+                {% if card.kind == "blank" %}
+                    {% for c in "1234567" %}
+                        <tr class="cc-w-blank">
+                            <td class="cc-w-name"></td>
+                            <td class="cc-w-group"></td>
+                            <td></td>
+                            <td class="cc-w-group"></td>
+                            <td></td>
+                            <td class="cc-w-group"></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="cc-w-group cc-w-traits"></td>
                         </tr>
                     {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <div class="cc-wtable">
-                <table class="cc-wtable">
-                    <thead>
-                        <tr>
-                            <th class="cc-w-name">Weapon</th>
-                            <th class="cc-w-group">S</th>
-                            <th>L</th>
-                            <th class="cc-w-group">S</th>
-                            <th>L</th>
-                            <th class="cc-w-group">Str</th>
-                            <th>Ap</th>
-                            <th>D</th>
-                            <th>Am</th>
-                            <th class="cc-w-group cc-w-traits">Traits</th>
-                        </tr>
-                    </thead>
-                </table>
-                {% if card.kind != "blank" %}<div class="cc-weapons__empty">No weapons.</div>{% endif %}
-            </div>
+                {% endif %}
+            </tbody>
+        </table>
+        {% if not card.weapons and card.kind != "blank" %}
+            <div class="cc-weapons__empty">No weapons.</div>
         {% endif %}
     </div>
     {% comment %} Lower detail block — bottom-aligned, balanced 2 columns: skills, rules, gear, then others {% endcomment %}
@@ -102,15 +103,15 @@ Params:
         <div class="cc-detail__cols">
             <div class="cc-section cc-skills">
                 <div class="cc-label">Skills</div>
-                <div class="cc-section__body">{{ card.skills|join:", " }}</div>
+                {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.skills|join:", " }}</div>{% endif %}
             </div>
             <div class="cc-section cc-rules-q">
                 <div class="cc-label">Rules</div>
-                <div class="cc-section__body">{{ card.rules|join:", " }}</div>
+                {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.rules|join:", " }}</div>{% endif %}
             </div>
             <div class="cc-section cc-wargear">
                 <div class="cc-label">Gear</div>
-                <div class="cc-section__body">{{ card.wargear|join:", " }}</div>
+                {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.wargear|join:", " }}</div>{% endif %}
             </div>
             {% if card.powers %}
                 <div class="cc-section cc-powers">

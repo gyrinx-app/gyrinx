@@ -36,9 +36,10 @@
     --cc-stat-h: 11mm;
     --cc-weap-top: 30mm;
     --cc-weap-h: 30mm;
-    // detail block: 2-column grid (skills / rules / gear / other).
+    // detail block: 2-column grid (skills / rules / gear / other). Its height
+    // stops ~2mm short of the pinned XP/Kills row to leave a margin above it.
     --cc-detail-top: 60mm;
-    --cc-detail-h: 23mm;
+    --cc-detail-h: 21.5mm;
     // XP/Kills, notes, and injuries are pinned so they never clip.
     --cc-kills-top: 83.5mm;
     --cc-kills-h: 3.5mm;
@@ -546,6 +547,57 @@
         .cc-notes,
         .cc-injuries {
             right: calc(var(--cc-pad) + var(--cc-portrait-w) + 2mm);
+        }
+    }
+
+    // =======================================================================
+    // Blank (fillable) card — write-in affordances so a printed card can be
+    // filled in by hand: a lighter header plate with a box for the name,
+    // translucent empty weapon rows, and roomy white boxes for Skills / Rules /
+    // Gear (matching the XP / Kills / Notes write-in boxes).
+    // =======================================================================
+    &[data-kind="blank"] {
+        // Lighter header plate so a hand-written name reads, with a box to
+        // write it in.
+        .cc-nameplate {
+            opacity: 0.35;
+        }
+        .cc-name__box {
+            flex: 0 0 auto;
+            align-self: center;
+            width: 100%;
+            height: 7mm;
+        }
+
+        // Empty weapon rows become translucent write-in cells (7 taller rows).
+        .cc-w-blank td {
+            height: 3.4mm;
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        // Skills / Rules / Gear full-width, each a label beside a write-in box
+        // (like the XP / Notes rows), spread to fill the detail area.
+        .cc-detail__cols {
+            column-count: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+        }
+        .cc-detail .cc-section {
+            flex-direction: row;
+            align-items: center;
+            gap: 1.5mm;
+            margin-bottom: 0;
+        }
+        // Fixed-width label so the boxes all start at the same x.
+        .cc-detail .cc-label {
+            flex: 0 0 var(--cc-fieldlabel-w);
+        }
+        .cc-section__box {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 5mm;
         }
     }
 
