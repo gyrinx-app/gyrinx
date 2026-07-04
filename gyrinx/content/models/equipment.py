@@ -707,6 +707,7 @@ class ContentEquipmentUpgrade(CostMixin, Content):
             type(self)
             .objects.all_content()
             .filter(equipment=self.equipment, position__gte=self.position)
+            .select_related("equipment")
         )
 
     def set_dirty(self) -> None:

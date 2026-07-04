@@ -267,13 +267,19 @@ def handle_expansion_item_cost_change(sender, instance, **kwargs):
 # =============================================================================
 
 
-def _affected_list_ids(instance) -> list:
+def _affected_list_ids(instance, include_archived: bool = False) -> list:
     """Return the distinct ids of lists affected by a content cost change.
 
     Shared by the synchronous enqueue path (which snapshots each affected list's
     pre-change costs) and the async task (which recalculates and records actions),
     so both agree on exactly which lists a content instance touches. Returns an
     empty list for unknown model types.
+
+    ``include_archived`` widens the set to lists reachable only through
+    archived rows — the amount-rewriting sweep domain (#1826 §4.7: archived
+    rows are swept too, or a later unarchive resurrects a stale amount).
+    The default (live rows only) is the action/dirty domain and stays in
+    lockstep with the model set_dirty() filters.
     """
     from gyrinx.core.models.list import (
         ListFighter,
@@ -281,12 +287,13 @@ def _affected_list_ids(instance) -> list:
     )
 
     model_name = instance.__class__.__name__
+    live = {} if include_archived else {"archived": False}
 
     if model_name == "ContentEquipment":
         # Equipment directly assigned to fighters
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                content_equipment=instance, archived=False
+                content_equipment=instance, **live
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -295,7 +302,7 @@ def _affected_list_ids(instance) -> list:
         # Weapon profiles on assignments
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                weapon_profiles_field=instance, archived=False
+                weapon_profiles_field=instance, **live
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -304,7 +311,7 @@ def _affected_list_ids(instance) -> list:
         # Weapon accessories on assignments
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                weapon_accessories_field=instance, archived=False
+                weapon_accessories_field=instance, **live
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -315,7 +322,7 @@ def _affected_list_ids(instance) -> list:
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
                 upgrades_field__in=instance.same_stack_from_position(),
-                archived=False,
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -325,7 +332,7 @@ def _affected_list_ids(instance) -> list:
         list_ids = (
             ListFighter.objects.filter(
                 Q(content_fighter=instance) | Q(legacy_content_fighter=instance),
-                archived=False,
+                **live,
             )
             .values_list("list_id", flat=True)
             .distinct()
@@ -337,7 +344,7 @@ def _affected_list_ids(instance) -> list:
                 Q(content_fighter=instance.fighter)
                 | Q(legacy_content_fighter=instance.fighter),
                 list__content_house=instance.house,
-                archived=False,
+                **live,
             )
             .values_list("list_id", flat=True)
             .distinct()
@@ -355,7 +362,7 @@ def _affected_list_ids(instance) -> list:
                 )
                 | Q(pinned_equipment_list_item=instance)
                 | Q(profile_rows__pinned_equipment_list_item=instance),
-                archived=False,
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -371,7 +378,7 @@ def _affected_list_ids(instance) -> list:
                     weapon_accessories_field=instance.weapon_accessory,
                 )
                 | Q(accessory_rows__pinned_equipment_list_accessory=instance),
-                archived=False,
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -387,7 +394,7 @@ def _affected_list_ids(instance) -> list:
                     upgrades_field=instance.upgrade,
                 )
                 | Q(upgrade_rows__pinned_equipment_list_upgrade=instance),
-                archived=False,
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -405,7 +412,7 @@ def _affected_list_ids(instance) -> list:
                 expansion_q
                 | Q(pinned_expansion_item=instance)
                 | Q(profile_rows__pinned_expansion_item=instance),
-                archived=False,
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -481,12 +488,17 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
     from gyrinx.core.models.action import ListAction, ListActionType
     from gyrinx.core.models.list import List
 
-    # Find affected lists based on the model type
+    # Find affected lists based on the model type. The rewrite domain also
+    # includes lists reachable only through archived rows (their amounts are
+    # rewritten so an unarchive can't resurrect a stale price); actions and
+    # snapshots stay scoped to the live set.
     list_ids = _affected_list_ids(instance)
+    rewrite_list_ids = _affected_list_ids(instance, include_archived=True)
 
-    if not list_ids:
+    if not rewrite_list_ids:
         return  # No affected lists
 
+    live_list_ids = set(list_ids)
     instance_name = _instance_display_name(instance)
 
     # For each list: rewrite pinned amounts, recalculate, create action.
@@ -494,7 +506,7 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
     # either all changes succeed (amounts rewritten, facts updated, action
     # created, credits applied) or none do (transaction rolls back, list stays
     # dirty — and unrewritten — for a later redelivery).
-    for list_id in list_ids:
+    for list_id in rewrite_list_ids:
         try:
             with transaction.atomic():
                 lst = List.objects.get(id=list_id)
@@ -509,8 +521,10 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
                 # Only create actions for lists that have an initial action
                 # Lists without latest_action will have dirty flag set via set_dirty()
                 # and will be recalculated when viewed (against the amounts
-                # rewritten above)
-                if not lst.latest_action:
+                # rewritten above). Archived-only lists get the rewrite but no
+                # action processing — nothing cache-visible moved, and the
+                # snapshot fallback has no baseline for them.
+                if list_id not in live_list_ids or not lst.latest_action:
                     continue
 
                 if sweep.use_row_deltas:
@@ -886,6 +900,11 @@ def _orphan_pinned_rows(instance):
     FKs are SET_NULL); the handler clears the FKs itself, making the delete
     collector's SET_NULL a no-op for these rows. The pin edges are walked via
     introspection so a future pin FK is orphaned without new wiring here.
+
+    NOTE (Phase 8): the per-list audit fan-out below runs synchronously in
+    the deleting request. Harmless while pins are sparse; once the backfill
+    pins everything, deleting a popular source touches many lists — flip the
+    states synchronously but move the audit fan-out to a task then.
     """
     from gyrinx.core.models.action import ListActionType
     from gyrinx.core.models.list import (

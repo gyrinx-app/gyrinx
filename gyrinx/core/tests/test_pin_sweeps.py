@@ -20,9 +20,11 @@ import pytest
 from django.contrib.contenttypes.models import ContentType
 
 from gyrinx.content.models import (
+    ContentEquipment,
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentUpgrade,
+    ContentFighterDefaultAssignment,
     ContentFighterEquipmentListItem,
     ContentFighterEquipmentListUpgrade,
     ContentFighterEquipmentListWeaponAccessory,
@@ -32,6 +34,7 @@ from gyrinx.content.models.signal_handlers import (
     _affected_list_ids,
     _create_content_cost_change_actions,
 )
+from gyrinx.core.cost.pin_sweep import rewrite_pinned_amounts_for_list
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
     List,
@@ -581,3 +584,267 @@ def test_deleting_price_source_orphans_pins(edge_id, campaign_sweep_ctx):
     assert (action.rating_delta, action.stash_delta, action.credits_delta) == (0, 0, 0)
     rf = fresh(lst)
     assert (rf.rating_current, rf.stash_current, rf.credits_current) == caches_before
+
+
+# --- Resolution masks: rewritten amounts that must book NO movement ----------
+
+
+def _assert_no_correction_booked(lst, source, credits_before):
+    assert not ListAction.objects.filter(
+        list=lst,
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=source.pk,
+    ).exists()
+    assert fresh(lst).credits_current == credits_before
+
+
+@pytest.mark.django_db
+def test_total_cost_override_masks_correction_delta(campaign_sweep_ctx):
+    """A fixed assignment total outranks the pin: the amount is rewritten
+    (provenance stays current) but the resolved value never moved, so no
+    action is booked and no credits are charged."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    edge = PIN_EDGES["equipment-list-item->base"]
+    source = edge.build(ctx)
+    edge.pin(ctx, source)
+    ListFighterEquipmentAssignment.objects.filter(pk=ctx["assignment"].pk).update(
+        total_cost_override=10
+    )
+
+    credits_before = fresh(lst).credits_current
+    source.cost = 7
+    source.save()
+    _create_content_cost_change_actions(source)
+
+    assert edge.read_pin(ctx)[0] == 7  # rewritten
+    _assert_no_correction_booked(lst, source, credits_before)
+
+
+@pytest.mark.django_db
+def test_cost_override_masks_base_correction_delta(campaign_sweep_ctx):
+    """A user base override outranks the base pin the same way."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    edge = PIN_EDGES["equipment-list-item->base"]
+    source = edge.build(ctx)
+    edge.pin(ctx, source)
+    ListFighterEquipmentAssignment.objects.filter(pk=ctx["assignment"].pk).update(
+        cost_override=3
+    )
+
+    credits_before = fresh(lst).credits_current
+    source.cost = 7
+    source.save()
+    _create_content_cost_change_actions(source)
+
+    assert edge.read_pin(ctx)[0] == 7
+    _assert_no_correction_booked(lst, source, credits_before)
+
+
+@pytest.mark.django_db
+def test_from_default_component_mask_forces_snapshot_fallback(sweep_ctx):
+    """From-default assignments free SOME components by membership — the
+    per-row maths can't price that, so the sweep flags the snapshot fallback
+    (while still rewriting the amount)."""
+    ctx = sweep_ctx
+    assignment, equipment = ctx["assignment"], ctx["equipment"]
+    profile = ctx["make_weapon_profile"](equipment, name="Hotshot", cost=5)
+    assignment.weapon_profiles_field.add(profile)
+    assignment.profile_rows.update(pinned_amount=5, pin_state=PinState.CATALOG)
+    default = ContentFighterDefaultAssignment.objects.create(
+        fighter=assignment.list_fighter.content_fighter, equipment=equipment
+    )
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        from_default_assignment=default
+    )
+
+    profile.cost = 7
+    sweep = rewrite_pinned_amounts_for_list(profile, ctx["lst"])
+    assert sweep.has_masked is True
+    assert sweep.use_row_deltas is False
+    assert assignment.profile_rows.get().pinned_amount == 7  # still rewritten
+
+
+@pytest.mark.django_db
+def test_unpinned_expression_rider_forces_snapshot_fallback(sweep_ctx):
+    """An UNPINNED expression accessory reprices live off a rewritten base:
+    its movement is invisible to per-row deltas, so it must flip the list to
+    the snapshot fallback."""
+    ctx = sweep_ctx
+    assignment, equipment = ctx["assignment"], ctx["equipment"]
+    accessory = ContentWeaponAccessory.objects.create(
+        name="Percent Scope", cost=0, cost_expression="ceil(cost_int * 0.5 / 5) * 5"
+    )
+    assignment.weapon_accessories_field.add(accessory)
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        pinned_base_amount=15, pinned_base_state=PinState.CATALOG
+    )
+
+    equipment.cost = "25"
+    sweep = rewrite_pinned_amounts_for_list(equipment, ctx["lst"])
+    assert sweep.has_unpinned is True
+    assert sweep.use_row_deltas is False
+    a = ListFighterEquipmentAssignment.objects.get(pk=assignment.pk)
+    assert a.pinned_base_amount == 25  # base still rewritten
+
+
+# --- Archived rows: amounts maintained, caches untouched ----------------------
+
+
+@pytest.mark.django_db
+def test_archived_rows_rewritten_without_cache_movement(campaign_sweep_ctx):
+    """A list reachable only through an archived pinned row still gets the
+    amount rewrite (an unarchive must not resurrect a stale price), but no
+    dirty-marking, no action, and no cache movement."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    edge = PIN_EDGES["equipment-list-item->base"]
+    source = edge.build(ctx)
+    edge.pin(ctx, source)
+    ListFighterEquipmentAssignment.objects.filter(pk=ctx["assignment"].pk).update(
+        archived=True, dirty=False
+    )
+
+    credits_before = fresh(lst).credits_current
+    source.cost = 7
+    source.save()
+    _create_content_cost_change_actions(source)
+
+    assert edge.read_pin(ctx)[0] == 7
+    assert fresh(ctx["assignment"]).dirty is False
+    _assert_no_correction_booked(lst, source, credits_before)
+
+
+# --- Catalog sweeps: the components' own price corrections -------------------
+
+
+def _catalog_profile(ctx):
+    profile = ctx["make_weapon_profile"](ctx["equipment"], name="Hotshot", cost=5)
+    ctx["assignment"].weapon_profiles_field.add(profile)
+    ctx["assignment"].profile_rows.update(pinned_amount=5, pin_state=PinState.CATALOG)
+    return profile, lambda: ctx["assignment"].profile_rows.get().pinned_amount
+
+
+def _catalog_accessory(ctx):
+    accessory = ContentWeaponAccessory.objects.create(name="Flat Scope", cost=5)
+    ctx["assignment"].weapon_accessories_field.add(accessory)
+    ctx["assignment"].accessory_rows.update(pinned_amount=5, pin_state=PinState.CATALOG)
+    return accessory, lambda: ctx["assignment"].accessory_rows.get().pinned_amount
+
+
+def _catalog_multi_upgrade(ctx):
+    multi_equipment = ContentEquipment.objects.create(
+        name="Multi Gun", cost=10, upgrade_mode=ContentEquipment.UpgradeMode.MULTI
+    )
+    multi_assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=ctx["assignment"].list_fighter, content_equipment=multi_equipment
+    )
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        equipment=multi_equipment, name="Mag", cost=5
+    )
+    multi_assignment.upgrades_field.add(upgrade)
+    multi_assignment.upgrade_rows.update(pinned_amount=5, pin_state=PinState.CATALOG)
+    return upgrade, lambda: multi_assignment.upgrade_rows.get().pinned_amount
+
+
+CATALOG_KINDS = {
+    "weapon-profile": _catalog_profile,
+    "weapon-accessory": _catalog_accessory,
+    "multi-upgrade": _catalog_multi_upgrade,
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("kind", CATALOG_KINDS.keys())
+def test_catalog_correction_rewrites_component_amount_and_books_it(
+    kind, campaign_sweep_ctx
+):
+    """CATALOG-attributed component rows copy their own content price when
+    it is corrected, and the correction books per-row."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    source, read_amount = CATALOG_KINDS[kind](ctx)
+
+    credits_before = fresh(lst).credits_current
+    source.cost = 7
+    source.save()
+    _create_content_cost_change_actions(source)
+
+    assert read_amount() == 7
+    action = ListAction.objects.get(
+        list=lst,
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=source.pk,
+    )
+    assert (action.rating_delta, action.stash_delta, action.credits_delta) == (
+        2,
+        0,
+        -2,
+    )
+    assert fresh(lst).credits_current == credits_before - 2
+
+
+@pytest.mark.django_db
+def test_expression_edit_rederives_derived_amount_and_books(campaign_sweep_ctx):
+    """Editing an accessory's cost_expression re-derives DERIVED rows through
+    the full task flow and books the movement."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    accessory = ContentWeaponAccessory.objects.create(
+        name="Percent Scope", cost=0, cost_expression="ceil(cost_int * 0.5 / 5) * 5"
+    )
+    ctx["assignment"].weapon_accessories_field.add(accessory)
+    ctx["assignment"].accessory_rows.update(
+        pinned_amount=10,  # ceil(15 * 0.5 / 5) * 5 against the live 15 base
+        pin_state=PinState.DERIVED,
+    )
+
+    credits_before = fresh(lst).credits_current
+    accessory.cost_expression = "ceil(cost_int * 1.0 / 5) * 5"
+    accessory.save()
+    _create_content_cost_change_actions(accessory)
+
+    assert ctx["assignment"].accessory_rows.get().pinned_amount == 15
+    action = ListAction.objects.get(
+        list=lst,
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=accessory.pk,
+    )
+    assert (action.rating_delta, action.credits_delta) == (5, -5)
+    assert fresh(lst).credits_current == credits_before - 5
+
+
+@pytest.mark.django_db
+def test_stash_side_correction_books_stash_delta(campaign_sweep_ctx):
+    """A pinned row held by the stash books its correction as stash movement,
+    not rating movement."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    stash = lst.ensure_stash()
+    stash_assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash, content_equipment=ctx["equipment"]
+    )
+    item = _build_cfeli(ctx)
+    ListFighterEquipmentAssignment.objects.filter(pk=stash_assignment.pk).update(
+        pinned_base_amount=5,
+        pinned_base_state=PinState.SOURCE,
+        pinned_equipment_list_item=item,
+    )
+
+    credits_before = fresh(lst).credits_current
+    item.cost = 7
+    item.save()
+    _create_content_cost_change_actions(item)
+
+    action = ListAction.objects.get(
+        list=lst,
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=item.pk,
+    )
+    assert (action.rating_delta, action.stash_delta, action.credits_delta) == (
+        0,
+        2,
+        -2,
+    )
+    assert fresh(lst).credits_current == credits_before - 2

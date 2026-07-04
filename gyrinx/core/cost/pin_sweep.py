@@ -49,6 +49,10 @@ class PinSweep:
 
     pin_capable: bool = False  # the source model participates in pin sweeps
     has_unpinned: bool = False  # live UNPINNED rows affected → snapshot fallback
+    # A rewritten row sits behind a mask the per-row maths can't price
+    # exactly (a from-default assignment frees SOME components, by
+    # membership) → snapshot fallback, which prices precedence exactly.
+    has_masked: bool = False
     rewrote: int = 0  # rows whose amount was rewritten
     rating_delta: int = 0
     stash_delta: int = 0
@@ -58,7 +62,7 @@ class PinSweep:
     @property
     def use_row_deltas(self) -> bool:
         """Whether the audit delta can be the exact per-row amount sum."""
-        return self.pin_capable and not self.has_unpinned
+        return self.pin_capable and not self.has_unpinned and not self.has_masked
 
     @property
     def total_delta(self) -> int:
@@ -135,9 +139,17 @@ def _holder_context_q(fighter, prefix=""):
 
 
 def _bucket(sweep, assignment, delta):
-    """Accumulate a row delta into rating or stash; archived rows move nothing."""
+    """Accumulate a row delta into rating or stash; archived rows move nothing.
+
+    A fixed assignment total masks every component: the resolved value cannot
+    move, so a rewritten amount is provenance, not book movement — booking it
+    would charge campaign credits for a price that never changed and fabricate
+    an unchained baseline.
+    """
     fighter = assignment.list_fighter
     if assignment.archived or fighter.archived:
+        return
+    if assignment.total_cost_override is not None:
         return
     if fighter.content_fighter.is_stash:
         sweep.stash_delta += delta
@@ -161,7 +173,15 @@ def _rewrite_base_rows(qs, new_amount_for, sweep):
         new = new_amount_for(assignment)
         if new is None or new == assignment.pinned_base_amount:
             continue
-        _bucket(sweep, assignment, new - assignment.pinned_base_amount)
+        # cost_override and linked-child-zero outrank the base pin in
+        # resolution: the base contribution is exactly unchanged, so the
+        # amount is rewritten but no movement is booked.
+        base_masked = (
+            assignment.cost_override is not None
+            or assignment.linked_equipment_parent_id is not None
+        )
+        if not base_masked:
+            _bucket(sweep, assignment, new - assignment.pinned_base_amount)
         updates.append((assignment.pk, new))
         changed.append(assignment.pk)
         sweep.touched_assignments.add(assignment.pk)
@@ -170,7 +190,7 @@ def _rewrite_base_rows(qs, new_amount_for, sweep):
     return changed
 
 
-def _rewrite_through_rows(model, qs, new_amount_for, sweep):
+def _rewrite_through_rows(model, qs, new_amount_for, sweep, defaults_can_mask=False):
     updates = []
     for row in qs.select_related(
         "listfighterequipmentassignment__list_fighter__content_fighter"
@@ -178,7 +198,14 @@ def _rewrite_through_rows(model, qs, new_amount_for, sweep):
         new = new_amount_for(row)
         if new is None or new == row.pinned_amount:
             continue
-        _bucket(sweep, row.listfighterequipmentassignment, new - row.pinned_amount)
+        assignment = row.listfighterequipmentassignment
+        if defaults_can_mask and assignment.from_default_assignment_id is not None:
+            # A from-default assignment frees SOME profiles/accessories (by
+            # membership in the default's component sets) — resolution-exact
+            # pricing needs the recompute, so flag for the snapshot fallback.
+            sweep.has_masked = True
+        else:
+            _bucket(sweep, assignment, new - row.pinned_amount)
         updates.append((row.pk, new))
         sweep.touched_assignments.add(row.listfighterequipmentassignment_id)
     _flush(model, updates, "pinned_amount")
@@ -195,9 +222,7 @@ def _rederive_accessory_rows(qs, sweep, require_expression):
     """
     qs = qs.filter(pin_state=PinState.DERIVED)
     if require_expression:
-        qs = qs.exclude(contentweaponaccessory__cost_expression="").exclude(
-            contentweaponaccessory__cost_expression__isnull=True
-        )
+        qs = _expression_rows(qs)
     base_cache = {}
     updates = []
     for row in qs.select_related(
@@ -216,11 +241,20 @@ def _rederive_accessory_rows(qs, sweep, require_expression):
         new = row.contentweaponaccessory.calculate_cost_for_weapon(base)
         if new == row.pinned_amount:
             continue
-        _bucket(sweep, assignment, new - row.pinned_amount)
+        if assignment.from_default_assignment_id is not None:
+            sweep.has_masked = True  # membership-dependent free accessories
+        else:
+            _bucket(sweep, assignment, new - row.pinned_amount)
         updates.append((row.pk, new))
         sweep.touched_assignments.add(assignment.pk)
     _flush(ListFighterEquipmentAssignmentAccessory, updates, "pinned_amount")
     sweep.rewrote += len(updates)
+
+
+def _expression_rows(qs):
+    return qs.exclude(contentweaponaccessory__cost_expression="").exclude(
+        contentweaponaccessory__cost_expression__isnull=True
+    )
 
 
 def _cascade_expression_accessories(lst, changed_assignment_ids, sweep):
@@ -234,6 +268,19 @@ def _cascade_expression_accessories(lst, changed_assignment_ids, sweep):
         sweep,
         require_expression=True,
     )
+    # An UNPINNED expression accessory on a rewritten base reprices live off
+    # the new base amount: its movement is in the recompute but not in the
+    # per-row deltas, so it forces the snapshot fallback like any other
+    # live-repricing UNPINNED row.
+    if _expression_rows(
+        _live_through(
+            _accessory_rows(lst).filter(
+                listfighterequipmentassignment_id__in=changed_assignment_ids,
+                pin_state=PinState.UNPINNED,
+            )
+        )
+    ).exists():
+        sweep.has_unpinned = True
 
 
 # --- Per-source sweeps: catalog models ---------------------------------------
@@ -250,7 +297,7 @@ def _sweep_equipment(instance, lst):
         sweep,
     )
     _cascade_expression_accessories(lst, changed, sweep)
-    sweep.has_unpinned = (
+    sweep.has_unpinned = sweep.has_unpinned or (
         _base_rows(lst)
         .filter(
             content_equipment=instance,
@@ -273,12 +320,16 @@ def _sweep_weapon_profile(instance, lst):
         ),
         lambda r: new,
         sweep,
+        defaults_can_mask=True,
     )
-    sweep.has_unpinned = _live_through(
-        _profile_rows(lst).filter(
-            contentweaponprofile=instance, pin_state=PinState.UNPINNED
-        )
-    ).exists()
+    sweep.has_unpinned = (
+        sweep.has_unpinned
+        or _live_through(
+            _profile_rows(lst).filter(
+                contentweaponprofile=instance, pin_state=PinState.UNPINNED
+            )
+        ).exists()
+    )
     return sweep
 
 
@@ -292,6 +343,7 @@ def _sweep_weapon_accessory(instance, lst):
         ),
         lambda r: new,
         sweep,
+        defaults_can_mask=True,
     )
     # Expression (or flat) re-derivation for DERIVED rows of this accessory —
     # covers both a cost edit and a cost_expression edit.
@@ -300,11 +352,14 @@ def _sweep_weapon_accessory(instance, lst):
         sweep,
         require_expression=False,
     )
-    sweep.has_unpinned = _live_through(
-        _accessory_rows(lst).filter(
-            contentweaponaccessory=instance, pin_state=PinState.UNPINNED
-        )
-    ).exists()
+    sweep.has_unpinned = (
+        sweep.has_unpinned
+        or _live_through(
+            _accessory_rows(lst).filter(
+                contentweaponaccessory=instance, pin_state=PinState.UNPINNED
+            )
+        ).exists()
+    )
     return sweep
 
 
@@ -327,8 +382,15 @@ def _sweep_upgrade(instance, lst):
         # SINGLE stacks price cumulatively: correcting one rung reprices
         # every row holding that rung or a higher one. Those rows are
         # DERIVED (their amount is a sum, not a copy) and re-derive via
-        # cost_int(), which reads the committed new rung cost.
-        cumulative = {u.pk: u.cost_int() for u in instance.same_stack_from_position()}
+        # cost_int(), which reads the committed new rung cost. The map is
+        # list-independent, so memoize it on the instance — the task calls
+        # this once per affected list.
+        cumulative = getattr(instance, "_pin_sweep_cumulative", None)
+        if cumulative is None:
+            cumulative = {
+                u.pk: u.cost_int() for u in instance.same_stack_from_position()
+            }
+            instance._pin_sweep_cumulative = cumulative
         _rewrite_through_rows(
             ListFighterEquipmentAssignmentUpgrade,
             _upgrade_rows(lst).filter(
@@ -339,12 +401,15 @@ def _sweep_upgrade(instance, lst):
             sweep,
         )
         affected_upgrade_ids = list(cumulative)
-    sweep.has_unpinned = _live_through(
-        _upgrade_rows(lst).filter(
-            contentequipmentupgrade__in=affected_upgrade_ids,
-            pin_state=PinState.UNPINNED,
-        )
-    ).exists()
+    sweep.has_unpinned = (
+        sweep.has_unpinned
+        or _live_through(
+            _upgrade_rows(lst).filter(
+                contentequipmentupgrade__in=affected_upgrade_ids,
+                pin_state=PinState.UNPINNED,
+            )
+        ).exists()
+    )
     return sweep
 
 
@@ -368,6 +433,7 @@ def _sweep_equipment_list_item(instance, lst):
         ),
         lambda r: new,
         sweep,
+        defaults_can_mask=True,
     )
     _cascade_expression_accessories(lst, changed, sweep)
 
@@ -380,7 +446,7 @@ def _sweep_equipment_list_item(instance, lst):
         list_fighter__archived=False,
     )
     if instance.weapon_profile_id:
-        sweep.has_unpinned = (
+        sweep.has_unpinned = sweep.has_unpinned or (
             _profile_rows(lst)
             .filter(
                 listfighterequipmentassignment__in=context,
@@ -390,9 +456,10 @@ def _sweep_equipment_list_item(instance, lst):
             .exists()
         )
     else:
-        sweep.has_unpinned = context.filter(
-            pinned_base_state=PinState.UNPINNED
-        ).exists()
+        sweep.has_unpinned = (
+            sweep.has_unpinned
+            or context.filter(pinned_base_state=PinState.UNPINNED).exists()
+        )
     return sweep
 
 
@@ -406,18 +473,22 @@ def _sweep_equipment_list_accessory(instance, lst):
         ),
         lambda r: new,
         sweep,
+        defaults_can_mask=True,
     )
     sweep.has_unpinned = (
-        _live_through(
-            _accessory_rows(lst).filter(
-                _holder_context_q(
-                    instance.fighter, prefix="listfighterequipmentassignment__"
-                ),
-                contentweaponaccessory=instance.weapon_accessory,
-                pin_state=PinState.UNPINNED,
+        sweep.has_unpinned
+        or (
+            _live_through(
+                _accessory_rows(lst).filter(
+                    _holder_context_q(
+                        instance.fighter, prefix="listfighterequipmentassignment__"
+                    ),
+                    contentweaponaccessory=instance.weapon_accessory,
+                    pin_state=PinState.UNPINNED,
+                )
             )
-        )
-    ).exists()
+        ).exists()
+    )
     return sweep
 
 
@@ -436,16 +507,19 @@ def _sweep_equipment_list_upgrade(instance, lst):
         sweep,
     )
     sweep.has_unpinned = (
-        _live_through(
-            _upgrade_rows(lst).filter(
-                _holder_context_q(
-                    instance.fighter, prefix="listfighterequipmentassignment__"
-                ),
-                contentequipmentupgrade=instance.upgrade,
-                pin_state=PinState.UNPINNED,
+        sweep.has_unpinned
+        or (
+            _live_through(
+                _upgrade_rows(lst).filter(
+                    _holder_context_q(
+                        instance.fighter, prefix="listfighterequipmentassignment__"
+                    ),
+                    contentequipmentupgrade=instance.upgrade,
+                    pin_state=PinState.UNPINNED,
+                )
             )
-        )
-    ).exists()
+        ).exists()
+    )
     return sweep
 
 
@@ -476,6 +550,7 @@ def _sweep_expansion_item(instance, lst):
         ),
         lambda r: profile_new,
         sweep,
+        defaults_can_mask=True,
     )
     _cascade_expression_accessories(lst, changed, sweep)
 
@@ -485,7 +560,7 @@ def _sweep_expansion_item(instance, lst):
         list_fighter__archived=False,
     )
     if instance.weapon_profile_id:
-        sweep.has_unpinned = (
+        sweep.has_unpinned = sweep.has_unpinned or (
             _profile_rows(lst)
             .filter(
                 listfighterequipmentassignment__in=context,
@@ -495,9 +570,10 @@ def _sweep_expansion_item(instance, lst):
             .exists()
         )
     else:
-        sweep.has_unpinned = context.filter(
-            pinned_base_state=PinState.UNPINNED
-        ).exists()
+        sweep.has_unpinned = (
+            sweep.has_unpinned
+            or context.filter(pinned_base_state=PinState.UNPINNED).exists()
+        )
     return sweep
 
 
