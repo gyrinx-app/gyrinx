@@ -22,9 +22,9 @@ richer data onto the fixed regions and deliberately omits the rest:
     RULES     <- fighter.ruleline (own row)
     XP        <- fighter.xp_current
     KILLS     <- blank fillable box (Gyrinx has no per-fighter kill counter)
-    NOTES     <- injuries + fighter.notes
-    Condition tabs (Serious Injury / Broken / Blaze / Insane) -> blank tick boxes
-        (not persisted in Gyrinx). Recovery / Captured / Dead reflect injury_state.
+    INJURIES  <- fighter.injuries (top write-in strip; blank space when none)
+    NOTES     <- fighter.notes
+    Recovery / Captured / Dead reflect injury_state.
 
 Deliberately omitted (no region on the classic card): counters, advancement detail,
 psyker discipline metadata. This is by design (see #1726 discussion) and surfaced in
@@ -114,6 +114,8 @@ class ClassicCard:
     gear_categories: list = field(default_factory=list)
     rules: list[str] = field(default_factory=list)
     xp: str = ""
+    # lasting injuries — shown in the top "Injuries" write-in strip
+    injuries: list[str] = field(default_factory=list)
     notes_lines: list[str] = field(default_factory=list)
     # condition markers (mostly fillable; a couple reflect real state)
     recovery: bool = False
@@ -269,16 +271,20 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
     rules = [str(_get(r, "value", r)) for r in (_get(fighter, "ruleline", []) or [])]
     rules = [r for r in rules if r]
 
-    notes_lines: list[str] = []
+    # Lasting injuries get their own write-in strip at the top of the card.
     try:
-        injuries = list(fighter.injuries.all()) if hasattr(fighter, "injuries") else []
+        injury_rows = (
+            list(fighter.injuries.all()) if hasattr(fighter, "injuries") else []
+        )
     except Exception:
-        injuries = []
-    inj_names = [str(getattr(getattr(i, "injury", None), "name", "")) for i in injuries]
-    inj_names = [n for n in inj_names if n]
-    if inj_names:
-        notes_lines.append("Injuries: " + ", ".join(inj_names))
+        injury_rows = []
+    injuries = [
+        str(getattr(getattr(i, "injury", None), "name", "")) for i in injury_rows
+    ]
+    injuries = [n for n in injuries if n]
+
     # notes is rich text; the card wants compact plain text.
+    notes_lines: list[str] = []
     own_notes = strip_tags(str(getattr(fighter, "notes", "") or "")).strip()
     if own_notes:
         notes_lines.append(own_notes)
@@ -306,6 +312,7 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
         gear_categories=_gear_categories(fighter),
         rules=rules,
         xp=str(_get(fighter, "xp_current", "") or ""),
+        injuries=injuries,
         notes_lines=notes_lines,
         recovery=bool(_get(fighter, "is_injured", False)),
         captured=bool(_get(fighter, "is_captured", False)),
@@ -387,6 +394,7 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         wargear=["Mesh armour", "Respirator"],
         rules=["Gang Fighter"],
         xp="6",
+        injuries=["Humiliated"],
         notes_lines=[],
     )
 
@@ -602,8 +610,8 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         ],
         rules=["Fearsome", "Hardened", "Infiltrate", "Relentless", "Terrifying"],
         xp="52",
+        injuries=["Old Battle Wound", "Humiliated"],
         notes_lines=[
-            "Injuries: Old Battle Wound, Humiliated",
             "Notorious across the underhive for never leaving a bounty uncollected.",
         ],
         recovery=True,

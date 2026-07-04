@@ -9,13 +9,16 @@ Params:
 <div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if show_grid %} show-grid{% endif %}"
      data-kind="{{ card.kind }}">
     <div class="cc-bg"></div>
-    {% comment %} Condition tabs {% endcomment %}
-    <div class="cc-region cc-tabs print-lab-tabs">
-        <span class="cc-tab">Serious Injury</span>
-        <span class="cc-tab">Broken</span>
-        <span class="cc-tab">Blaze</span>
-        <span class="cc-tab">Insane</span>
-        <span class="cc-tab cc-tab--plate"></span>
+    {% comment %} Injuries write-in strip {% endcomment %}
+    <div class="cc-region cc-injuries">
+        <div class="cc-label">Injuries</div>
+        <div class="cc-injuries__body">
+            {% spaceless %}
+                {% for injury in card.injuries %}
+                    <span>{{ injury }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                {% endfor %}
+            {% endspaceless %}
+        </div>
     </div>
     {% comment %} Name + type {% endcomment %}
     <div class="cc-region cc-name">

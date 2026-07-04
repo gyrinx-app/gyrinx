@@ -26,8 +26,8 @@
     --cc-h: 110mm;
     --cc-pad: 3.2mm;
 
-    --cc-tabs-top: 0;
-    --cc-tabs-h: 6mm;
+    --cc-injuries-top: 0;
+    --cc-injuries-h: 6mm;
     --cc-name-top: 8mm;
     --cc-name-h: 12mm;
     --cc-stat-top: 20.5mm;
@@ -99,43 +99,28 @@
     }
 
     // =======================================================================
-    // Condition tabs
+    // Injuries — a write-in strip across the top. Shows the fighter's lasting
+    // injuries when known; otherwise a labelled blank space to fill in by hand.
     // =======================================================================
-    .cc-tabs {
-        top: var(--cc-tabs-top);
-        height: var(--cc-tabs-h);
+    .cc-injuries {
+        top: var(--cc-injuries-top);
+        height: var(--cc-injuries-h);
         display: flex;
-        gap: 1mm;
-        align-items: stretch;
+        align-items: baseline;
+        gap: 1.5mm;
+        padding: 1mm 0 0.6mm;
+        border-bottom: 0.3mm solid var(--cc-line-soft);
     }
 
-    .cc-tab {
-        flex: 1 1 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 0 1mm;
-        color: #f4ece7;
-        background: var(--cc-maroon);
-        border: 0.3mm solid var(--cc-maroon-deep);
-        border-top: none;
-        border-radius: 0 0 1.6mm 1.6mm;
-        font-size: 2mm;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-        line-height: 1;
-
-        &.is-on {
-            box-shadow: inset 0 0 0 0.6mm #f4ece7;
-        }
+    .cc-injuries .cc-label {
+        flex: 0 0 auto;
     }
 
-    .cc-tab--plate {
-        flex: 0 0 26mm;
-        background: rgba(244, 236, 231, 0.55);
-        border-color: var(--cc-maroon);
+    .cc-injuries__body {
+        flex: 1 1 auto;
+        font-size: 2.4mm;
+        line-height: 1.15;
+        overflow: hidden;
     }
 
     // =======================================================================

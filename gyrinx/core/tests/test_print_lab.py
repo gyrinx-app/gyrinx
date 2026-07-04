@@ -211,6 +211,56 @@ def test_psyker_sheet_shows_power_and_category_rows(client):
     assert "Legendary Names" in body
 
 
+# ---------------------------------------------------------------------------
+# Injuries strip (top of card)
+# ---------------------------------------------------------------------------
+
+
+def test_injuries_live_in_their_own_field_not_notes():
+    """Injuries go in the top strip, not folded into the Notes block."""
+    card = synthetic_presets()["overflow"]
+    assert card.injuries  # populated
+    assert not any("injur" in line.lower() for line in card.notes_lines), (
+        "injuries must not be duplicated into notes"
+    )
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_sheet_always_shows_injuries_label(client):
+    """Even a blank card carries the labelled Injuries write-in strip."""
+    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=blank"
+    body = client.get(url).content.decode()
+    assert "Injuries" in body
+    assert "cc-injuries" in body
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_real_fighter_injuries_appear_in_top_strip(
+    client, list_with_campaign, make_list_fighter
+):
+    """A campaign fighter's lasting injuries are pulled onto the card."""
+    from gyrinx.content.models import ContentInjury, ContentInjuryDefaultOutcome
+    from gyrinx.core.models.list import ListFighterInjury
+    from gyrinx.core.views.print_lab import card_from_fighter
+
+    fighter = make_list_fighter(list_with_campaign, "Scarface")
+    injury, _ = ContentInjury.objects.get_or_create(
+        name="Humiliated",
+        defaults={"phase": ContentInjuryDefaultOutcome.NO_CHANGE},
+    )
+    ListFighterInjury.objects.create(
+        fighter=fighter, injury=injury, owner=fighter.owner
+    )
+
+    card = card_from_fighter(fighter, list_with_campaign)
+    assert "Humiliated" in card.injuries
+    # ...and it renders in the sheet
+    url = reverse("debug_print_lab_sheet") + f"?source=fighter&fighter={fighter.id}"
+    assert "Humiliated" in client.get(url).content.decode()
+
+
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_all_presets_render_without_error(client):
