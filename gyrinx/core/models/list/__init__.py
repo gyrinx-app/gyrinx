@@ -34,7 +34,11 @@ from .fighter import (
 )
 from .assignment import (
     ListFighterEquipmentAssignment,
+    ListFighterEquipmentAssignmentAccessory,
+    ListFighterEquipmentAssignmentProfile,
     ListFighterEquipmentAssignmentQuerySet,
+    ListFighterEquipmentAssignmentUpgrade,
+    PinState,
 )
 from .virtual import (
     VirtualListFighterEquipmentAssignment,
@@ -71,7 +75,11 @@ __all__ = [
     "ListFighter",
     "_materialise_child_fighter_defaults",
     # assignment
+    "ListFighterEquipmentAssignmentAccessory",
+    "ListFighterEquipmentAssignmentProfile",
     "ListFighterEquipmentAssignmentQuerySet",
+    "ListFighterEquipmentAssignmentUpgrade",
+    "PinState",
     "ListFighterEquipmentAssignment",
     # virtual
     "VirtualListFighterEquipmentAssignment",

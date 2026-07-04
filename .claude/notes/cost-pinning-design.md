@@ -394,7 +394,11 @@ one migration converts them:
   backfill, no cutover phase, nothing to drop later. Verified compatible elsewhere:
   non-admin ModelForms survive, simple-history tracks no M2M state, no fixtures or
   serializers touch the join tables, and `db_table` stability keeps
-  `performance_view_queries.json` byte-identical.
+  `performance_view_queries.json` byte-identical. One known asymmetry: Django's
+  serializers skip M2Ms with explicit through models, so `dumpdata` of assignments
+  omits component links (loading *old* fixtures still works); no repo fixtures
+  carry those keys today. Through-model history is delete-complete but add-sparse
+  (M2M adds skip signals; deletes write '-' rows) — deletion audit is deliberate.
 - **The one exception is the admin, which the schema phase must rework.**
   `ListFighterEquipmentAssignmentAdmin` lists all three M2M names in `fields`
   (`core/admin/list.py:336-344`); with explicit through models each entry trips
