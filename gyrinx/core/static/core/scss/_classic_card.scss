@@ -287,9 +287,11 @@
         grid-auto-columns: 1fr;
         grid-auto-flow: column;
         align-items: stretch;
-        border-top: 0.4mm solid var(--cc-maroon);
-        border-right: 0.4mm solid var(--cc-maroon);
-        border-bottom: 0.4mm solid var(--cc-maroon);
+        // Closed frame on all four sides. The left edge must come from the
+        // statline itself, not the first cell's group border — real fighters
+        // don't flag their leftmost stat as a group start, so relying on
+        // .is-group there left the frame open on the left.
+        border: 0.4mm solid var(--cc-maroon);
     }
 
     .cc-stat {
@@ -304,6 +306,12 @@
 
         &.is-group {
             border-left: 0.4mm solid var(--cc-maroon);
+        }
+
+        // The outer frame already draws the left edge; don't double it if the
+        // first cell happens to be a group start.
+        &:first-child.is-group {
+            border-left: 0;
         }
     }
 
