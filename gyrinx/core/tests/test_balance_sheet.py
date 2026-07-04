@@ -48,6 +48,7 @@ from gyrinx.core.models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,
+    PinState,
 )
 from gyrinx.core.models.pack import CustomContentPackItem
 from gyrinx.core.tasks import propagate_content_cost_change
@@ -857,6 +858,63 @@ def test_matrix_p4_remove_accessory_from_stash_gear(campaign_list, user, gear):
     # fighter caches by the component's value, and the books reconcile.
     assert stash_before_removal - fresh(lst).stash_current == 8  # booked movement
     assert_reconciles(lst)
+
+
+def _pin_for_clone(assignment):
+    """Hand-write the pins Phase 7's acquisition choke point will produce:
+    a base pin plus a pinned accessory through-row."""
+    accessory = ContentWeaponAccessory.objects.create(name="Clone Scope", cost=8)
+    assignment.weapon_accessories_field.add(accessory)
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        pinned_base_amount=5, pinned_base_state=PinState.SOURCE
+    )
+    assignment.accessory_rows.update(pinned_amount=3, pin_state=PinState.SOURCE)
+
+
+def _assert_pins_survived(clone, equipment):
+    cloned = ListFighterEquipmentAssignment.objects.get(
+        list_fighter__list=clone, content_equipment=equipment
+    )
+    assert cloned.pinned_base_amount == 5
+    assert cloned.pinned_base_state == PinState.SOURCE
+    assert cloned.accessory_rows.get().pinned_amount == 3
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="Phase 7 (#1826): List.clone() rebuilds assignments without the "
+    "pin columns, so cloned gear silently reverts to live pricing",
+)
+def test_matrix_clone_preserves_pins(user, make_list, content_fighter, make_equipment):
+    lst = make_list("Clone Source")
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    equipment = make_equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter, equipment)
+    _pin_for_clone(assignment)
+
+    clone = fresh(lst).clone(name="Clone Target")
+    _assert_pins_survived(clone, equipment)
+
+
+@pytest.mark.django_db
+@pytest.mark.xfail(
+    strict=True,
+    reason="Phase 7 (#1826): campaign-start cloning goes through the same "
+    "clone path and drops pins the same way",
+)
+def test_matrix_campaign_start_clone_preserves_pins(
+    user, make_list, content_fighter, make_equipment, campaign
+):
+    lst = make_list("Campaign Clone Source")
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    equipment = make_equipment("Lasgun", cost=15)
+    assignment = buy_equipment(user, lst, fighter, equipment)
+    _pin_for_clone(assignment)
+
+    cloned, created = campaign.add_list_to_campaign(fresh(lst), user=user)
+    assert created
+    _assert_pins_survived(cloned, equipment)
 
 
 @pytest.mark.django_db

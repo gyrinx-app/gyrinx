@@ -77,11 +77,20 @@ class ContentFighterEquipmentListItem(CostMixin, Content):
             bulk_mark_assignments_dirty,
         )
 
-        # Find assignments for this equipment on fighters using this content fighter
+        # Find assignments for this equipment on fighters using this content
+        # fighter — plus rows PINNED to this item (base or profile pins),
+        # which may since have moved to holders this row no longer applies
+        # to. Without the pin clauses, a price correction would miss moved
+        # gear entirely (#1826 §4.7). Keep in lockstep with the matching
+        # branch in signal_handlers._affected_list_ids.
         assignments = ListFighterEquipmentAssignment.objects.filter(
-            Q(list_fighter__content_fighter=self.fighter)
-            | Q(list_fighter__legacy_content_fighter=self.fighter),
-            content_equipment=self.equipment,
+            Q(
+                Q(list_fighter__content_fighter=self.fighter)
+                | Q(list_fighter__legacy_content_fighter=self.fighter),
+                content_equipment=self.equipment,
+            )
+            | Q(pinned_equipment_list_item=self)
+            | Q(profile_rows__pinned_equipment_list_item=self),
             archived=False,
         )
 
@@ -137,11 +146,16 @@ class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
             bulk_mark_assignments_dirty,
         )
 
-        # Find assignments with this accessory on fighters using this content fighter
+        # Find assignments with this accessory on fighters using this content
+        # fighter — plus rows PINNED to this override, which may have moved
+        # (#1826 §4.7; mirror of _affected_list_ids).
         assignments = ListFighterEquipmentAssignment.objects.filter(
-            Q(list_fighter__content_fighter=self.fighter)
-            | Q(list_fighter__legacy_content_fighter=self.fighter),
-            weapon_accessories_field=self.weapon_accessory,
+            Q(
+                Q(list_fighter__content_fighter=self.fighter)
+                | Q(list_fighter__legacy_content_fighter=self.fighter),
+                weapon_accessories_field=self.weapon_accessory,
+            )
+            | Q(accessory_rows__pinned_equipment_list_accessory=self),
             archived=False,
         )
 
@@ -197,11 +211,16 @@ class ContentFighterEquipmentListUpgrade(CostMixin, Content):
             bulk_mark_assignments_dirty,
         )
 
-        # Find assignments with this upgrade on fighters using this content fighter
+        # Find assignments with this upgrade on fighters using this content
+        # fighter — plus rows PINNED to this override, which may have moved
+        # (#1826 §4.7; mirror of _affected_list_ids).
         assignments = ListFighterEquipmentAssignment.objects.filter(
-            Q(list_fighter__content_fighter=self.fighter)
-            | Q(list_fighter__legacy_content_fighter=self.fighter),
-            upgrades_field=self.upgrade,
+            Q(
+                Q(list_fighter__content_fighter=self.fighter)
+                | Q(list_fighter__legacy_content_fighter=self.fighter),
+                upgrades_field=self.upgrade,
+            )
+            | Q(upgrade_rows__pinned_equipment_list_upgrade=self),
             archived=False,
         )
 

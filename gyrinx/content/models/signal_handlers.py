@@ -14,7 +14,7 @@ from django.db.models import Q
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from gyrinx.content.signals import get_new_cost, get_old_cost
+from gyrinx.content.signals import MISSING, get_new_cost, get_old_cost, get_old_field
 from gyrinx.models import format_cost_display
 from gyrinx.tracing import traced
 
@@ -107,14 +107,25 @@ def handle_profile_cost_change(sender, instance, **kwargs):
 @traced("signal_content_accessory_cost_change")
 def handle_accessory_cost_change(sender, instance, **kwargs):
     """
-    Mark affected assignments dirty when ContentWeaponAccessory.cost changes.
+    Mark affected assignments dirty when ContentWeaponAccessory.cost or
+    cost_expression changes.
     """
     old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
     new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
+    changed = old_cost != new_cost
+    if not changed:
+        # A cost_expression edit reprices every assignment carrying this
+        # accessory just as surely as a flat-cost edit, but was previously
+        # unwatched: nothing went dirty and no audit action was recorded.
+        old_expression = get_old_field(sender, instance, "cost_expression")
+        changed = (
+            old_expression is not MISSING and old_expression != instance.cost_expression
+        )
+
+    if changed:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
 
@@ -330,52 +341,70 @@ def _affected_list_ids(instance) -> list:
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListItem":
-        # Equipment list items - cost overrides for equipment on specific fighter types
+        # Equipment list items - cost overrides for equipment on specific
+        # fighter types, plus rows pinned to this item (base or profile),
+        # mirroring ContentFighterEquipmentListItem.set_dirty exactly.
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                Q(list_fighter__content_fighter=instance.fighter)
-                | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                content_equipment=instance.equipment,
+                Q(
+                    Q(list_fighter__content_fighter=instance.fighter)
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    content_equipment=instance.equipment,
+                )
+                | Q(pinned_equipment_list_item=instance)
+                | Q(profile_rows__pinned_equipment_list_item=instance),
                 archived=False,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListWeaponAccessory":
-        # Weapon accessory cost overrides on specific fighter types
+        # Weapon accessory cost overrides on specific fighter types, plus
+        # accessory rows pinned to this override (mirror of its set_dirty).
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                Q(list_fighter__content_fighter=instance.fighter)
-                | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                weapon_accessories_field=instance.weapon_accessory,
+                Q(
+                    Q(list_fighter__content_fighter=instance.fighter)
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    weapon_accessories_field=instance.weapon_accessory,
+                )
+                | Q(accessory_rows__pinned_equipment_list_accessory=instance),
                 archived=False,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListUpgrade":
-        # Equipment upgrade cost overrides on specific fighter types
+        # Equipment upgrade cost overrides on specific fighter types, plus
+        # upgrade rows pinned to this override (mirror of its set_dirty).
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                Q(list_fighter__content_fighter=instance.fighter)
-                | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                upgrades_field=instance.upgrade,
+                Q(
+                    Q(list_fighter__content_fighter=instance.fighter)
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    upgrades_field=instance.upgrade,
+                )
+                | Q(upgrade_rows__pinned_equipment_list_upgrade=instance),
                 archived=False,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentEquipmentListExpansionItem":
-        # Expansion items - conservatively mark all assignments with this equipment
-        filter_kwargs = {
-            "content_equipment": instance.equipment,
-            "archived": False,
-        }
+        # Expansion items - conservatively mark all assignments with this
+        # equipment, plus rows pinned to this expansion item (base or
+        # profile), mirroring its set_dirty exactly.
+        expansion_q = Q(content_equipment=instance.equipment)
         if instance.weapon_profile is not None:
-            filter_kwargs["weapon_profiles_field"] = instance.weapon_profile
+            expansion_q &= Q(weapon_profiles_field=instance.weapon_profile)
 
         list_ids = (
-            ListFighterEquipmentAssignment.objects.filter(**filter_kwargs)
+            ListFighterEquipmentAssignment.objects.filter(
+                expansion_q
+                | Q(pinned_expansion_item=instance)
+                | Q(profile_rows__pinned_expansion_item=instance),
+                archived=False,
+            )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
