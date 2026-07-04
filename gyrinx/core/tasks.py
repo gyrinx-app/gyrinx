@@ -34,7 +34,10 @@ def refresh_list_facts(list_id: str):
 
 @task
 def propagate_content_cost_change(
-    content_type_id: int, object_id: str, before_snapshots: dict | None = None
+    content_type_id: int,
+    object_id: str,
+    before_snapshots: dict | None = None,
+    old_cost: int | None = None,
 ):
     """Recalculate cached costs and create audit actions for a content cost change.
 
@@ -103,7 +106,9 @@ def propagate_content_cost_change(
         )
         return
 
-    _create_content_cost_change_actions(instance, before_snapshots=before_snapshots)
+    _create_content_cost_change_actions(
+        instance, before_snapshots=before_snapshots, old_cost=old_cost
+    )
 
 
 @task

@@ -15,6 +15,7 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentFighter,
 )
+from gyrinx.core.cost.pinning import pin_assignment
 from gyrinx.core.cost.propagation import (
     Delta,
     propagate_from_assignment,
@@ -123,6 +124,8 @@ def handle_vehicle_purchase(
         list_fighter=crew,
         content_equipment=vehicle_equipment,
     )
+    # Acquisition writes the receipt (#1826 Phase 7).
+    pin_assignment(assignment)
 
     # Propagate to initialize assignment.rating_current and update crew.rating_current
     propagate_from_assignment(assignment, Delta(delta=vehicle_cost, list=lst))

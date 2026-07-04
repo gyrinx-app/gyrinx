@@ -60,6 +60,9 @@ def handle_equipment_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -78,6 +81,9 @@ def handle_fighter_base_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "base_cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -96,6 +102,9 @@ def handle_profile_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -127,6 +136,9 @@ def handle_accessory_cost_change(sender, instance, **kwargs):
 
     if changed:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -145,6 +157,9 @@ def handle_upgrade_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -167,6 +182,9 @@ def handle_equipment_list_item_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -189,6 +207,9 @@ def handle_equipment_list_accessory_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -211,6 +232,9 @@ def handle_equipment_list_upgrade_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -233,6 +257,9 @@ def handle_fighter_house_override_cost_change(sender, instance, **kwargs):
     new_cost = get_new_cost(instance, "cost")
     if old_cost != new_cost:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -263,6 +290,9 @@ def handle_expansion_item_cost_change(sender, instance, **kwargs):
 
     if changed:
         instance._cost_changed = True  # Flag for post_save to create actions
+        # The pre-change value rides to the async task: amount-snapshot
+        # (DERIVED) receipts are maintained by delta, which needs it.
+        instance._old_cost_for_propagation = old_cost
         instance.set_dirty()
 
 
@@ -476,7 +506,7 @@ def _instance_display_name(instance) -> str:
     return str(instance)
 
 
-def _create_content_cost_change_actions(instance, before_snapshots=None):
+def _create_content_cost_change_actions(instance, before_snapshots=None, old_cost=None):
     """
     Create CONTENT_COST_CHANGE actions for all lists affected by a content cost change.
 
@@ -526,7 +556,9 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
                 # view recalc — must sum already-updated amounts. Rewriting
                 # after would snap the caches back to the old amounts or
                 # double-count the correction on the next recompute.
-                sweep = rewrite_pinned_amounts_for_list(instance, lst)
+                sweep = rewrite_pinned_amounts_for_list(
+                    instance, lst, old_cost=old_cost
+                )
 
                 # Only create actions for lists that have an initial action
                 # Lists without latest_action will have dirty flag set via set_dirty()
@@ -693,6 +725,7 @@ def _enqueue_content_cost_propagation(instance):
 
     content_type_id = ContentType.objects.get_for_model(instance.__class__).id
     object_id = str(instance.pk)
+    old_cost = getattr(instance, "_old_cost_for_propagation", None)
 
     # Capture pre-change cost baselines synchronously (pre-commit). pre_save has
     # marked these lists dirty but has not recalculated them, so rating_current /
@@ -705,6 +738,7 @@ def _enqueue_content_cost_propagation(instance):
                 content_type_id=content_type_id,
                 object_id=object_id,
                 before_snapshots=before_snapshots,
+                old_cost=old_cost,
             )
         except Exception:
             logger.exception(

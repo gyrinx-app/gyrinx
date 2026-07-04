@@ -681,17 +681,20 @@ def build_weapon_list(
 def test_matrix_content_price_change_window_is_visible(
     side, user, make_list, content_fighter, make_equipment, make_pack
 ):
-    """Mid-window (sweep done, task not yet run): harness sees the gap.
+    """Mid-window (sweep done, task not yet run), for PINNED gear: stable.
 
-    A content price change marks caches dirty synchronously; the audit action
-    lands later via the async task. Between recompute and task, the action
-    chain legitimately trails the caches — the harness must show that, not
-    hide it. The pack side works identically since the #1930 fix
-    (get_old_cost resolves pack rows via all_content()).
+    Acquisition now writes receipts (Phase 7), so a recompute before the
+    task lands reads the pinned amount — the books hold their value and
+    reconcile cleanly; the correction arrives only WITH the task (which
+    rewrites the amount and books the delta — the full-flow cell below).
+    The pre-Phase-7 behaviour (recompute reveals an un-actioned change)
+    remains real for legacy unpinned rows until the Phase 8 backfill and is
+    pinned by the _legacy variant of this cell.
     """
     lst, fighter, assignment, equipment, _ = build_weapon_list(
         side, user, make_list, content_fighter, make_equipment, make_pack
     )
+    rating_before = fresh(lst).rating_current
     equipment.cost = 25  # was 15
     equipment.save()
 
@@ -699,6 +702,34 @@ def test_matrix_content_price_change_window_is_visible(
     sheet = fresh_sheet(lst)
     assert sheet.dirty_rows
     assert sheet.reconcile() == []
+
+    # A recompute before the task reads the receipt: nothing moves.
+    force_recompute(lst)
+    assert fresh(lst).rating_current == rating_before
+    assert fresh_sheet(lst).reconcile() == []
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("side", ["catalog", "pack"])
+def test_matrix_content_price_change_window_is_visible_legacy(
+    side, user, make_list, content_fighter, make_equipment, make_pack
+):
+    """Mid-window, for LEGACY (unpinned) rows: harness sees the gap.
+
+    Pre-backfill rows reprice live on recompute, so between recompute and
+    task the action chain legitimately trails the caches — the harness must
+    show that, not hide it. Retires with the Phase 8 backfill.
+    """
+    lst, fighter, assignment, equipment, _ = build_weapon_list(
+        side, user, make_list, content_fighter, make_equipment, make_pack
+    )
+    # Simulate a pre-Phase-7 row: strip the acquisition receipt.
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        pinned_base_amount=None,
+        pinned_base_state=PinState.UNPINNED,
+    )
+    equipment.cost = 25  # was 15
+    equipment.save()
 
     # A recompute before the task lands reveals the un-actioned change.
     force_recompute(lst)
@@ -881,11 +912,6 @@ def _assert_pins_survived(clone, equipment):
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="Phase 7 (#1826): List.clone() rebuilds assignments without the "
-    "pin columns, so cloned gear silently reverts to live pricing",
-)
 def test_matrix_clone_preserves_pins(user, make_list, content_fighter, make_equipment):
     lst = make_list("Clone Source")
     fighter = hire_fighter(user, lst, content_fighter, name="Bob")
@@ -898,11 +924,6 @@ def test_matrix_clone_preserves_pins(user, make_list, content_fighter, make_equi
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="Phase 7 (#1826): campaign-start cloning goes through the same "
-    "clone path and drops pins the same way",
-)
 def test_matrix_campaign_start_clone_preserves_pins(
     user, make_list, content_fighter, make_equipment, campaign
 ):
@@ -997,7 +1018,12 @@ def test_matrix_p6_repricing_telemetry_fires(
     gear,
     monkeypatch,
 ):
-    """The cost-changed-on-reassignment telemetry fires with real values."""
+    """Reassigning PINNED gear is price-neutral: no reprice telemetry, the
+    discounted price travels to a holder who would price it at catalog, and
+    the books reconcile. This is the programme's signature outcome arriving
+    for newly-acquired gear (acquisition pins since Phase 7); the legacy
+    variant below keeps the pre-backfill repricing path covered.
+    """
     from gyrinx.core.handlers.equipment import reassignment as reassignment_module
 
     events = []
@@ -1018,6 +1044,60 @@ def test_matrix_p6_repricing_telemetry_fires(
         fighter=cf_a, equipment=equipment, cost=5
     )
     assignment = buy_equipment(user, lst, fighter_a, equipment)
+
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(fighter_a),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(assignment),
+    )
+
+    reprice_events = [
+        kw for name, kw in events if name == "equipment_cost_changed_on_reassignment"
+    ]
+    assert reprice_events == []
+    assert fresh(assignment).cost_int() == 5  # the receipt travelled
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_matrix_p6_repricing_telemetry_fires_for_legacy_rows(
+    campaign_list,
+    user,
+    make_content_fighter,
+    content_house,
+    content_fighter,
+    gear,
+    monkeypatch,
+):
+    """LEGACY (unpinned) gear still reprices on reassignment, and the
+    telemetry fires with real values. Retires with the Phase 8 backfill."""
+    from gyrinx.core.handlers.equipment import reassignment as reassignment_module
+
+    events = []
+    monkeypatch.setattr(
+        reassignment_module,
+        "track",
+        lambda name, **kw: events.append((name, kw)),
+    )
+
+    lst, stash = campaign_list
+    cf_a = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    equipment = gear.equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=cf_a, equipment=equipment, cost=5
+    )
+    assignment = buy_equipment(user, lst, fighter_a, equipment)
+    # Simulate a pre-Phase-7 row: strip the acquisition receipt.
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        pinned_base_amount=None,
+        pinned_base_state=PinState.UNPINNED,
+    )
 
     handle_equipment_reassignment(
         user=user,

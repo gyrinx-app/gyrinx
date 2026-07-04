@@ -149,7 +149,10 @@
                                         {{ line.kind }}
                                         {% if line.detail %}<span class="muted">({{ line.detail }})</span>{% endif %}
                                     </td>
-                                    <td>{{ line.pricing }}</td>
+                                    <td>
+                                        {{ line.pricing }}
+                                        {% if line.detail %}<span class="text-secondary">({{ line.detail }})</span>{% endif %}
+                                    </td>
                                     <td class="num">{{ line.amount }}¢</td>
                                     <td class="num muted">—</td>
                                 </tr>

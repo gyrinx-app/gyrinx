@@ -69,18 +69,29 @@ class PinSweep:
         return self.rating_delta + self.stash_delta
 
 
-def rewrite_pinned_amounts_for_list(instance, lst) -> PinSweep:
+def rewrite_pinned_amounts_for_list(instance, lst, old_cost=None) -> PinSweep:
     """Rewrite pinned amounts on ``lst`` affected by a change to ``instance``.
+
+    ``old_cost`` is the source's pre-change value (captured by the pre_save
+    handler and carried through the task payload). Amount-snapshot DERIVED
+    rows — SINGLE-stack cumulative pins — can only be maintained by DELTA
+    (new − old applied to the receipt): re-deriving them from current
+    catalog values would silently destroy acquisition-time discounts on
+    rungs that were never corrected. Without ``old_cost`` those rows are
+    left untouched and the list is flagged has_masked (snapshot fallback).
 
     Returns a PinSweep carrying the per-row deltas and whether the caller
     can use them as the audit delta (`use_row_deltas`) or must fall back to
-    the snapshot-vs-recompute computation (UNPINNED rows present, or a
-    source model pins don't apply to).
+    the snapshot-vs-recompute computation (UNPINNED rows present, masked
+    rows, or a source model pins don't apply to).
     """
     handler = _SWEEP_HANDLERS.get(type(instance).__name__)
     if handler is None:
         return PinSweep()
-    sweep = handler(instance, lst)
+    if handler in _NEEDS_OLD_COST:
+        sweep = handler(instance, lst, old_cost)
+    else:
+        sweep = handler(instance, lst)
     if sweep.touched_assignments:
         # Sweeps do two jobs: rewrite amounts, THEN mark dirty (§4.7). The
         # enqueue-time set_dirty is not enough — an action landing in the
@@ -379,8 +390,50 @@ def _sweep_weapon_accessory(instance, lst):
     return sweep
 
 
-def _sweep_upgrade(instance, lst):
-    from gyrinx.content.models import ContentEquipment
+def _single_stack_delta_rewrite(
+    lst, sweep, stack_upgrade_ids, delta, masked_fighter_ids
+):
+    """Apply a rung correction to SINGLE-stack DERIVED receipts BY DELTA.
+
+    Amount-snapshot receipts (Phase 7 pins the override-inclusive cumulative
+    walk) can't be re-derived from catalog values without destroying
+    acquisition discounts on uncorrected rungs — the correction moves the
+    receipt by exactly what the corrected contribution moved, nothing else.
+    ``masked_fighter_ids``: holders for whom the corrected contribution is
+    masked (e.g. a per-rung override hides its catalog price) keep their
+    receipt untouched. Moved rows are best-effort: the mask is evaluated
+    against the CURRENT holder (the receipt doesn't record acquisition-time
+    per-rung state — the documented v1 amount-snapshot imprecision; per-rung
+    provenance is the escalation if it bites).
+    """
+    if delta == 0:
+        return
+
+    def new_amount(row):
+        fighter = row.listfighterequipmentassignment.list_fighter
+        if (
+            fighter.content_fighter_id in masked_fighter_ids
+            or fighter.legacy_content_fighter_id in masked_fighter_ids
+        ):
+            return None  # masked for this holder: receipt stands
+        return row.pinned_amount + delta
+
+    _rewrite_through_rows(
+        ListFighterEquipmentAssignmentUpgrade,
+        _upgrade_rows(lst).filter(
+            contentequipmentupgrade__in=stack_upgrade_ids,
+            pin_state=PinState.DERIVED,
+        ),
+        new_amount,
+        sweep,
+    )
+
+
+def _sweep_upgrade(instance, lst, old_cost=None):
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentFighterEquipmentListUpgrade,
+    )
 
     sweep = PinSweep(pin_capable=True)
     if instance.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
@@ -395,36 +448,38 @@ def _sweep_upgrade(instance, lst):
         )
         affected_upgrade_ids = [instance.pk]
     else:
-        # SINGLE stacks price cumulatively: correcting one rung reprices
-        # every row holding that rung or a higher one. Those rows are
-        # DERIVED (their amount is a sum, not a copy) and re-derive via
-        # cost_int(), which reads the committed new rung cost. The map is
-        # list-independent, so memoize it on the instance — the task calls
-        # this once per affected list.
-        #
-        # KNOWN IMPRECISION (Phase 7 decides): cost_int() is the raw catalog
-        # sum, but live resolution applies per-rung CFELU overrides inside
-        # the cumulative walk. A rung correction on an override-discounted
-        # stack re-derives to the catalog total, not the override-inclusive
-        # one. What a MOVED cumulative row should re-derive to is a producer
-        # -semantics question — settle it when Phase 7 defines what SINGLE
-        # +override acquisitions pin.
-        cumulative = getattr(instance, "_pin_sweep_cumulative", None)
-        if cumulative is None:
-            cumulative = {
-                u.pk: u.cost_int() for u in instance.same_stack_from_position()
-            }
-            instance._pin_sweep_cumulative = cumulative
-        _rewrite_through_rows(
-            ListFighterEquipmentAssignmentUpgrade,
-            _upgrade_rows(lst).filter(
-                contentequipmentupgrade__in=list(cumulative),
-                pin_state=PinState.DERIVED,
-            ),
-            lambda r: cumulative[r.contentequipmentupgrade_id],
-            sweep,
-        )
-        affected_upgrade_ids = list(cumulative)
+        # SINGLE stacks price cumulatively: a rung's catalog correction
+        # moves every DERIVED receipt holding that rung or a higher one by
+        # the rung's own delta — except for holders whose per-rung override
+        # masks the catalog price entirely.
+        stack_ids = [u.pk for u in instance.same_stack_from_position()]
+        if old_cost is None:
+            # No pre-change value (direct caller outside the task path):
+            # the delta is unknowable, so leave the receipts and flag the
+            # snapshot fallback rather than guess.
+            if (
+                _upgrade_rows(lst)
+                .filter(
+                    contentequipmentupgrade__in=stack_ids,
+                    pin_state=PinState.DERIVED,
+                )
+                .exists()
+            ):
+                sweep.has_masked = True
+        else:
+            masked_fighter_ids = set(
+                ContentFighterEquipmentListUpgrade.objects.filter(
+                    upgrade=instance
+                ).values_list("fighter_id", flat=True)
+            )
+            _single_stack_delta_rewrite(
+                lst,
+                sweep,
+                stack_ids,
+                get_new_cost(instance, "cost") - old_cost,
+                masked_fighter_ids,
+            )
+        affected_upgrade_ids = stack_ids
     sweep.has_unpinned = (
         sweep.has_unpinned
         or _live_through(
@@ -525,11 +580,11 @@ def _sweep_equipment_list_accessory(instance, lst):
     return sweep
 
 
-def _sweep_equipment_list_upgrade(instance, lst):
+def _sweep_equipment_list_upgrade(instance, lst, old_cost=None):
+    from gyrinx.content.models import ContentEquipment
+
     sweep = PinSweep(pin_capable=True)
-    # Provisional flat semantics: what Phase 7 pins for a SINGLE-stack rung
-    # priced through this override defines the cumulative story; until a
-    # producer writes such pins, SOURCE rows copy the override cost.
+    # MULTI-mode pins are SOURCE rows carrying this override's FK: flat copy.
     new = instance.cost
     _rewrite_through_rows(
         ListFighterEquipmentAssignmentUpgrade,
@@ -539,6 +594,33 @@ def _sweep_equipment_list_upgrade(instance, lst):
         lambda r: new,
         sweep,
     )
+    # SINGLE-mode pins are DERIVED amount-snapshots with no FK — this
+    # override's contribution is folded into the cumulative receipt of every
+    # holder who uses it, on this rung or any higher one. Corrections reach
+    # them BY DELTA, scoped to holders in this override's fighter context
+    # (a moved row's new holder doesn't use the override — the documented
+    # v1 amount-snapshot imprecision).
+    if instance.upgrade.equipment.upgrade_mode == ContentEquipment.UpgradeMode.SINGLE:
+        stack_ids = [u.pk for u in instance.upgrade.same_stack_from_position()]
+        derived_rows = _upgrade_rows(lst).filter(
+            _holder_context_q(
+                instance.fighter, prefix="listfighterequipmentassignment__"
+            ),
+            contentequipmentupgrade__in=stack_ids,
+            pin_state=PinState.DERIVED,
+        )
+        if old_cost is None:
+            if derived_rows.exists():
+                sweep.has_masked = True  # delta unknowable outside the task path
+        else:
+            delta = instance.cost - old_cost
+            if delta:
+                _rewrite_through_rows(
+                    ListFighterEquipmentAssignmentUpgrade,
+                    derived_rows,
+                    lambda r: r.pinned_amount + delta,
+                    sweep,
+                )
     sweep.has_unpinned = (
         sweep.has_unpinned
         or (
@@ -619,6 +701,10 @@ def _sweep_expansion_item(instance, lst):
     return sweep
 
 
+# Handlers whose amount-snapshot (DERIVED) rewrites need the source's
+# pre-change value to apply corrections by delta.
+_NEEDS_OLD_COST = None  # set below, after the handler definitions
+
 _SWEEP_HANDLERS = {
     "ContentEquipment": _sweep_equipment,
     "ContentWeaponProfile": _sweep_weapon_profile,
@@ -629,3 +715,5 @@ _SWEEP_HANDLERS = {
     "ContentFighterEquipmentListUpgrade": _sweep_equipment_list_upgrade,
     "ContentEquipmentListExpansionItem": _sweep_expansion_item,
 }
+
+_NEEDS_OLD_COST = {_sweep_upgrade, _sweep_equipment_list_upgrade}

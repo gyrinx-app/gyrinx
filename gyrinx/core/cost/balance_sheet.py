@@ -38,11 +38,23 @@ KIND_PROFILES = "profiles"
 KIND_ACCESSORIES = "accessories"
 KIND_UPGRADES = "upgrades"
 
-# Pricing provenance. "pinned" arrives with the pin schema; present from day
-# one so downstream consumers don't need a shape change later.
+# Pricing provenance per component line. "pinned" means the amount comes from
+# an acquisition receipt (#1826); "mixed" marks an aggregate line whose rows
+# are only partially pinned (the pre-backfill state).
 PRICING_LIVE = "live"
 PRICING_USER_OVERRIDE = "user_override"
 PRICING_PINNED = "pinned"
+PRICING_MIXED = "mixed"
+
+
+def _rows_pricing(rows) -> str:
+    """Classify an aggregate component line by its through-rows' pins."""
+    pinned = [r.pinned_amount is not None for r in rows]
+    if not pinned or not any(pinned):
+        return PRICING_LIVE
+    if all(pinned):
+        return PRICING_PINNED
+    return PRICING_MIXED
 
 
 @dataclass(frozen=True)
@@ -274,21 +286,36 @@ def _assignment_balance(virtual) -> AssignmentBalance:
     assignment = virtual._assignment
     override = assignment.total_cost_override
 
+    if assignment.cost_override is not None:
+        base_pricing, base_detail = PRICING_USER_OVERRIDE, ""
+    elif assignment.pinned_base_amount is not None:
+        base_pricing = PRICING_PINNED
+        base_detail = assignment.pinned_base_state
+    else:
+        base_pricing, base_detail = PRICING_LIVE, ""
+
     lines = (
         ComponentLine(
             KIND_BASE,
             assignment.base_cost_int(),
-            PRICING_USER_OVERRIDE
-            if assignment.cost_override is not None
-            else PRICING_LIVE,
+            base_pricing,
+            base_detail,
         ),
         ComponentLine(
-            KIND_PROFILES, assignment.weapon_profiles_cost_int(), PRICING_LIVE
+            KIND_PROFILES,
+            assignment.weapon_profiles_cost_int(),
+            _rows_pricing(assignment.profile_rows.all()),
         ),
         ComponentLine(
-            KIND_ACCESSORIES, assignment.weapon_accessories_cost_int(), PRICING_LIVE
+            KIND_ACCESSORIES,
+            assignment.weapon_accessories_cost_int(),
+            _rows_pricing(assignment.accessory_rows.all()),
         ),
-        ComponentLine(KIND_UPGRADES, assignment.upgrade_cost_int(), PRICING_LIVE),
+        ComponentLine(
+            KIND_UPGRADES,
+            assignment.upgrade_cost_int(),
+            _rows_pricing(assignment.upgrade_rows.all()),
+        ),
     )
 
     if override is not None:
