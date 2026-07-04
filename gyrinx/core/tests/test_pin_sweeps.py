@@ -167,6 +167,16 @@ def _build_expansion_item(ctx):
     )
 
 
+def _build_cfeli_with_profile(ctx):
+    _attach_profile(ctx)
+    return _build_cfeli(ctx)
+
+
+def _build_expansion_item_with_profile(ctx):
+    _attach_profile(ctx)
+    return _build_expansion_item(ctx)
+
+
 def _build_cfelwa(ctx):
     accessory = ContentWeaponAccessory.objects.create(name="Scope", cost=8)
     ctx["assignment"].weapon_accessories_field.add(accessory)
@@ -225,7 +235,7 @@ PIN_EDGES = {
         source="ContentFighterEquipmentListItem",
         row="ListFighterEquipmentAssignmentProfile",
         fk="pinned_equipment_list_item",
-        build=lambda ctx: (_attach_profile(ctx), _build_cfeli(ctx))[1],
+        build=_build_cfeli_with_profile,
         pin=lambda ctx, source: ctx["assignment"].profile_rows.update(
             pinned_equipment_list_item=source,
             pinned_amount=5,
@@ -243,7 +253,7 @@ PIN_EDGES = {
         source="ContentEquipmentListExpansionItem",
         row="ListFighterEquipmentAssignmentProfile",
         fk="pinned_expansion_item",
-        build=lambda ctx: (_attach_profile(ctx), _build_expansion_item(ctx))[1],
+        build=_build_expansion_item_with_profile,
         pin=lambda ctx, source: ctx["assignment"].profile_rows.update(
             pinned_expansion_item=source,
             pinned_amount=5,
