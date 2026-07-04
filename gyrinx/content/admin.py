@@ -1088,6 +1088,25 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModPsykerDisciplineAccess,
     )
     list_filter = (PolymorphicChildModelFilter,)
+    list_display_links = ("mod_description",)
+    # Downcast changelist rows to their real subclass (batched per child model
+    # by django-polymorphic) so each renders its own __str__ instead of the base
+    # "Base Modification". Without this the parent admin marks the queryset
+    # .non_polymorphic() for speed and rows come back as base ContentMod.
+    polymorphic_list = True
+
+    @admin.display(description="Modification")
+    def mod_description(self, obj):
+        # obj is downcast (polymorphic_list = True), so str(obj) renders the
+        # mod's own description, e.g. "Add rule Cunning Killers".
+        return str(obj)
+
+    def get_list_display(self, request):
+        # ContentAdmin.__init__ builds list_display from the base model's
+        # fields, which for the polymorphic parent is just ``polymorphic_ctype``
+        # — an unhelpful "Content | Fighter Rule Modifier" label. Lead with the
+        # rendered mod instead, keeping the type and packs columns alongside.
+        return ("mod_description", "polymorphic_ctype", "packs_display")
 
 
 @admin.register(ContentModApplication)

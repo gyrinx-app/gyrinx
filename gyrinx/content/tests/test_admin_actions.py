@@ -576,3 +576,30 @@ def test_copy_selected_to_house_multiple_fighters(
 
     # Total fighters increased by 2
     assert ContentFighter.objects.count() == initial_fighter_count + 2
+
+
+@pytest.mark.django_db
+def test_contentmod_changelist_renders_mod_string(client, admin_user):
+    """The Modifications changelist should show each mod's rendered
+    description rather than the polymorphic ctype / base "Base Modification".
+
+    The polymorphic parent admin marks the changelist queryset
+    ``.non_polymorphic()`` for speed, which returns base ``ContentMod`` rows
+    whose ``__str__`` is "Base Modification". ``polymorphic_list = True`` on the
+    admin re-enables downcasting so each row renders its own subclass string.
+    """
+    from gyrinx.content.models import ContentModFighterStat
+
+    ContentModFighterStat.objects.create(stat="movement", mode="improve", value="1")
+    ContentModFighterStat.objects.create(stat="movement", mode="worsen", value="2")
+
+    client.force_login(admin_user)
+    resp = client.get("/admin/content/contentmod/")
+    assert resp.status_code == 200
+
+    html = resp.content.decode()
+    # Real subclass descriptions are shown...
+    assert "Improve fighter" in html
+    assert "Worsen fighter" in html
+    # ...and the un-downcast base description is not.
+    assert "Base Modification" not in html
