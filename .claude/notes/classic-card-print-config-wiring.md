@@ -40,11 +40,10 @@ Goal: a real user selects "classic cards" on a PrintConfig and prints their gang
   don't apply to classic output — the form notes they're web-style-only (and can be
   visually de-emphasised when classic is selected). Stash stays out
   ("will never render classic").
-- **D3 — single uniform theme for the whole sheet.** No per-card alternation.
-  Add a `card_theme` field to `PrintConfig`, defaulting to **`blank`** ("Plate
-  (blank)"), applied uniformly to every card on the sheet. One picker, one look.
-  (Kept as a config field rather than hard-coded so the default can be changed
-  without a migration, but it is deliberately *not* alternating.)
+- **D3 — single fixed theme, no picker.** Classic cards always render on the
+  base **`blank`** ("Plate (blank)") plate. No `card_theme` field, no theme
+  option in the print-config UI. (The staff Print Lab keeps its theme switcher
+  for dev testing; that's separate from the user-facing print config.)
 
 ## Work breakdown
 

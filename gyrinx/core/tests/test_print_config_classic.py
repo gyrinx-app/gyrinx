@@ -96,14 +96,17 @@ def test_web_config_still_renders_web_cards(client, user, make_list, make_list_f
 
 
 @pytest.mark.django_db
-def test_classic_theme_applied_uniformly(client, user, make_list, make_list_fighter):
+def test_classic_uses_base_blank_plate(client, user, make_list, make_list_fighter):
+    """Classic cards always render on the base 'blank' plate — there is no theme
+    choice."""
     lst = make_list("Gang")
     make_list_fighter(lst, "Alpha")
-    cfg = _classic_config(lst, user, card_theme="dark")
+    cfg = _classic_config(lst, user)
     client.force_login(user)
 
     body = client.get(_print_url(lst, cfg)).content.decode()
-    assert "theme-dark" in body
+    assert "theme-blank" in body
+    assert "theme-dark" not in body
 
 
 @pytest.mark.django_db
@@ -176,7 +179,7 @@ def test_print_config_form_shows_card_style(client, user, make_list):
     assert "Card style" in body
     assert "Classic cards" in body  # the classic choice label
     assert 'name="card_style"' in body
-    assert 'name="card_theme"' in body
+    assert 'name="card_theme"' not in body  # no theme picker
 
 
 @pytest.mark.django_db

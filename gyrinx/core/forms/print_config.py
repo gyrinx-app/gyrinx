@@ -12,7 +12,6 @@ class PrintConfigForm(forms.ModelForm):
         fields = [
             "name",
             "card_style",
-            "card_theme",
             "include_assets",
             "include_attributes",
             "include_stash",
@@ -26,7 +25,6 @@ class PrintConfigForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "card_style": forms.RadioSelect(attrs={"class": "form-check-input"}),
-            "card_theme": forms.Select(attrs={"class": "form-select"}),
             "include_assets": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "include_attributes": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}

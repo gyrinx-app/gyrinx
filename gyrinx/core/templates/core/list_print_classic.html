@@ -7,5 +7,6 @@
     <link rel="stylesheet" href="{% static 'core/css/print_classic.css' %}">
 {% endblock stylesheet %}
 {% block content %}
-    {% include "core/includes/classic_sheet.html" with cards=classic_cards theme=classic_theme auto_print=True %}
+    {% comment %} Classic cards always use the base "blank" plate {% endcomment %}
+    {% include "core/includes/classic_sheet.html" with cards=classic_cards theme="blank" auto_print=True %}
 {% endblock content %}

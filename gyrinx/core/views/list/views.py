@@ -593,7 +593,6 @@ class ListPrintView(generic.DetailView):
                 for _ in range(print_config.blank_vehicle_cards)
             ]
             context["classic_cards"] = cards
-            context["classic_theme"] = print_config.card_theme
 
         return context
 

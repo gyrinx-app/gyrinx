@@ -175,7 +175,6 @@ def test_specific_fighters_valid_with_selection(test_list_with_stash):
         data={
             "name": "Test Config",
             "card_style": PrintConfig.WEB,
-            "card_theme": "blank",
             "fighter_selection_mode": PrintConfig.SPECIFIC_FIGHTERS,
             "included_fighters": [regular_fighter.id],
             "blank_fighter_cards": 0,

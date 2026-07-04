@@ -23,23 +23,6 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name="historicalprintconfig",
-            name="card_theme",
-            field=models.CharField(
-                choices=[
-                    ("blank", "Plate (blank)"),
-                    ("odd", "Plate (corner ornament, left)"),
-                    ("even", "Plate (corner ornament, right)"),
-                    ("paper_odd", "Paper 2026 (left)"),
-                    ("paper_even", "Paper 2026 (right)"),
-                    ("dark", "Rusted dark plate"),
-                ],
-                default="blank",
-                help_text="Background plate for classic cards.",
-                max_length=20,
-            ),
-        ),
-        migrations.AddField(
             model_name="printconfig",
             name="card_style",
             field=models.CharField(
@@ -49,23 +32,6 @@ class Migration(migrations.Migration):
                 ],
                 default="web",
                 help_text="Which card style to print.",
-                max_length=20,
-            ),
-        ),
-        migrations.AddField(
-            model_name="printconfig",
-            name="card_theme",
-            field=models.CharField(
-                choices=[
-                    ("blank", "Plate (blank)"),
-                    ("odd", "Plate (corner ornament, left)"),
-                    ("even", "Plate (corner ornament, right)"),
-                    ("paper_odd", "Paper 2026 (left)"),
-                    ("paper_even", "Paper 2026 (right)"),
-                    ("dark", "Rusted dark plate"),
-                ],
-                default="blank",
-                help_text="Background plate for classic cards.",
                 max_length=20,
             ),
         ),

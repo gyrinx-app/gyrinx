@@ -5,7 +5,6 @@ from django.utils.translation import ngettext
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
-from gyrinx.core.print_cards import DEFAULT_THEME, THEMES
 
 
 class PrintConfig(AppBase):
@@ -43,20 +42,13 @@ class PrintConfig(AppBase):
     )
 
     # Card style — the standard web cards, or the grimdark "classic mode" cards
-    # (fixed 100x110mm, 4 per A4). Classic renders fighter cards only.
+    # (fixed 100x110mm, 4 per A4). Classic renders fighter cards only, always on
+    # the base "blank" plate (no theme choice).
     card_style = models.CharField(
         max_length=20,
         choices=CARD_STYLE_CHOICES,
         default=WEB,
         help_text="Which card style to print.",
-    )
-
-    # Background plate for classic cards, applied uniformly to every card.
-    card_theme = models.CharField(
-        max_length=20,
-        choices=THEMES,
-        default=DEFAULT_THEME,
-        help_text="Background plate for classic cards.",
     )
 
     # Card type toggles
