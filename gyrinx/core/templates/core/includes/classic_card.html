@@ -21,6 +21,8 @@ Params:
             <span class="cc-tab__save-val">{{ card.save|default:"&nbsp;" }}</span>
         </span>
     </div>
+    {% comment %} Dark textured nameplate behind the title (name / type / rating) {% endcomment %}
+    <div class="cc-nameplate"></div>
     {% comment %} Name + type {% endcomment %}
     <div class="cc-region cc-name">
         <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>

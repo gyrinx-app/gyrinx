@@ -190,6 +190,28 @@
     // =======================================================================
     // Name band + cost cog
     // =======================================================================
+
+    // Black torn-paper nameplate behind the title strip (name / type / rating)
+    // so the title text reads white. The texture (nameplate.png, a black bar on
+    // transparency) is squished to the short band height. Opacity lets the card
+    // grit show through on screen; it degrades to a solid black bar in print
+    // (opacity is dropped there) — still a readable dark banner either way.
+    .cc-nameplate {
+        position: absolute;
+        z-index: 1;
+        left: 0;
+        right: 0;
+        top: var(--cc-name-top);
+        height: var(--cc-name-h);
+        background-image: url("../img/print/classic/overlays/nameplate.png");
+        background-size: 100% 100%; // squished to the band, vertically compressed
+        background-repeat: no-repeat;
+        background-position: center;
+        opacity: 0.9;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
     .cc-name {
         top: var(--cc-name-top);
         height: var(--cc-name-h);
@@ -202,19 +224,21 @@
     .cc-name__value {
         font-size: 5mm;
         font-weight: 700;
-        // room for descenders: overflow:hidden (for the ellipsis) clips the
-        // line box, so the line box must be tall enough to include them.
-        line-height: 1.2;
+        // tight line box so the name sits close to the sub-head; kept just
+        // above 1 so descenders aren't clipped by overflow:hidden (ellipsis).
+        line-height: 1.08;
+        // white on the dark nameplate
+        color: #f4ece7;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
     .cc-name__sub {
-        margin-top: 0.6mm;
+        margin-top: 0;
         font-size: 2.4mm;
-        line-height: 1.25;
-        color: var(--cc-ink);
+        line-height: 1.1;
+        color: rgba(244, 236, 231, 0.85);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
