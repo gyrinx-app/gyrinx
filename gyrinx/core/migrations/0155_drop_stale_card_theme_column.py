@@ -24,8 +24,7 @@ class Migration(migrations.Migration):
         migrations.RunSQL(
             sql=[
                 'ALTER TABLE "core_printconfig" DROP COLUMN IF EXISTS "card_theme";',
-                'ALTER TABLE "core_historicalprintconfig" '
-                'DROP COLUMN IF EXISTS "card_theme";',
+                'ALTER TABLE "core_historicalprintconfig" DROP COLUMN IF EXISTS "card_theme";',
             ],
             reverse_sql=migrations.RunSQL.noop,
         ),

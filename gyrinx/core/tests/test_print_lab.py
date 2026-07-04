@@ -133,6 +133,37 @@ def test_sheet_real_gang_renders_all_fighters(client, make_list, make_list_fight
     assert body.count('class="classic-card') == 2
 
 
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_sheet_real_gang_excludes_dead_and_stash(
+    client, content_house, make_list, make_list_fighter, make_content_fighter
+):
+    """The real-gang preview mirrors the actual classic print flow: dead
+    fighters and the stash are left out, so the lab shows what will print."""
+    from gyrinx.core.models.list import ListFighter
+
+    lst = make_list("Squad")
+    make_list_fighter(lst, "Alive")
+    make_list_fighter(lst, "Corpse", injury_state=ListFighter.DEAD)
+    stash_cf = make_content_fighter(
+        type="Stash",
+        category="STASH",
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    ListFighter.objects.create(
+        name="Stash", content_fighter=stash_cf, list=lst, owner=lst.owner
+    )
+
+    url = reverse("debug_print_lab_sheet") + f"?source=list&list={lst.id}"
+    body = client.get(url).content.decode()
+    assert "Alive" in body
+    assert "Corpse" not in body
+    assert 'data-kind="stash"' not in body
+    assert body.count('class="classic-card') == 1  # only the live fighter
+
+
 # ---------------------------------------------------------------------------
 # Card data builder
 # ---------------------------------------------------------------------------

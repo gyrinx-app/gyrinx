@@ -12,7 +12,7 @@ richer data onto the fixed regions and deliberately omits the rest:
 
     NAME      <- fighter.name, fighter type, cost
     STATLINE  <- fighter.statline  (dynamic columns; every statline type supported)
-    SAVE      <- statline "save" column if present, else fighter.save_roll (else blank)
+    SAVE      <- fighter.save_roll if set, else the statline "save" column (else blank)
     WEAPONS   <- fighter.weapons_cached, flattened to rows (name, ranges, str/ap/d/am, traits)
     DETAIL    <- a 2-column grid (column-major: Skills, Rules | Gear, Other):
                    Skills <- skilline_cached
@@ -430,12 +430,21 @@ def _cards_for_request(request):
             list_obj = List.objects.get(id=lid)
         except Exception:
             return [], f"No gang found for id {lid!r}."
+        # Mirror the real classic print path (ListPrintView): exclude dead
+        # fighters and skip the stash, so the lab previews what actually prints.
         fighters = (
             ListFighter.objects.filter(list=list_obj, archived=False)
+            .exclude(injury_state=ListFighter.DEAD)
             .select_related("content_fighter", "list")
             .order_by("name")
         )
-        return [card_from_fighter(f, list_obj) for f in fighters], None
+        cards = []
+        for f in fighters:
+            card = card_from_fighter(f, list_obj)
+            if card.kind == "stash":
+                continue
+            cards.append(card)
+        return cards, None
 
     if source == "preset":
         key = request.GET.get("preset", "ganger")

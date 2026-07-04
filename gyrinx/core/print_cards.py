@@ -10,7 +10,7 @@ in a debug view.
 
     NAME      <- fighter.name, fighter type, cost
     STATLINE  <- fighter.statline  (dynamic columns; every statline type supported)
-    SAVE      <- statline "save" column if present, else fighter.save_roll (else blank)
+    SAVE      <- fighter.save_roll if set, else the statline "save" column (else blank)
     WEAPONS   <- fighter.weapons_cached, flattened to rows (name, ranges, str/ap/d/am, traits)
     DETAIL    <- two balanced columns (Skills, Rules, Gear, then "other"):
                    Skills <- skilline_cached

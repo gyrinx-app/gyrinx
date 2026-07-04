@@ -49,9 +49,17 @@ size (and may clip) — nothing else depends on this.
             });
         }
 
-        window.addEventListener("DOMContentLoaded", function () {
+        {% if auto_print %}
+        // Auto-print: wait for the full load event so the plate textures and
+        // portrait images are painted before the print dialog opens — the
+        // classic cards lean heavily on their background art, and printing on
+        // DOMContentLoaded can capture the page before it arrives.
+        window.addEventListener("load", function () {
             fitAll();
-            {% if auto_print %}window.print();{% endif %}
+            window.print();
         });
+        {% else %}
+        window.addEventListener("DOMContentLoaded", fitAll);
+        {% endif %}
     })();
 </script>
