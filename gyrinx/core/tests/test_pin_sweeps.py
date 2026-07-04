@@ -848,3 +848,42 @@ def test_stash_side_correction_books_stash_delta(campaign_sweep_ctx):
         -2,
     )
     assert fresh(lst).credits_current == credits_before - 2
+
+
+@pytest.mark.django_db
+def test_expansion_item_blank_cost_rewrites_to_base_price(sweep_ctx):
+    """An expansion item's blank cost means "use the base price" — clearing
+    the override must rewrite pinned amounts to the underlying equipment (or
+    profile) price, not to zero."""
+    ctx = sweep_ctx
+    base_edge = PIN_EDGES["expansion-item->base"]
+    source = base_edge.build(ctx)
+    base_edge.pin(ctx, source)
+
+    source.cost = None
+    source.save()
+    _create_content_cost_change_actions(source)
+
+    # The item prices other_equipment (cost 20): blank falls back to that.
+    assert base_edge.read_pin(ctx)[0] == 20
+
+    # Same fallback for a profile-priced expansion pin: blank -> profile cost.
+    profile_edge = PIN_EDGES["expansion-item->profile-row"]
+    profile_source = ContentEquipmentListExpansionItem.objects.create(
+        expansion=source.expansion,
+        equipment=ctx["equipment"],
+        weapon_profile=ctx["make_weapon_profile"](
+            ctx["equipment"], name="Blank Shot", cost=12
+        ),
+        cost=5,
+    )
+    ctx["assignment"].weapon_profiles_field.add(profile_source.weapon_profile)
+    ctx["assignment"].profile_rows.update(
+        pinned_expansion_item=profile_source, pinned_amount=5, pin_state=PinState.SOURCE
+    )
+
+    profile_source.cost = None
+    profile_source.save()
+    _create_content_cost_change_actions(profile_source)
+
+    assert profile_edge.read_pin(ctx)[0] == 12
