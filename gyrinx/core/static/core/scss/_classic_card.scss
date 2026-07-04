@@ -347,21 +347,11 @@
         flex: 0 1 auto;
     }
 
-    // Always reserve two (writable) ruled rows under skills and wargear, even
-    // when the fighter has none — blank lines to fill in by hand. The rule
-    // repeats per row, so a wrapping list simply keeps landing on lines.
+    // Always reserve space for two rows under skills and wargear (room to
+    // hand-write on a printed card) — but don't draw rules over content.
     .cc-skills .cc-section__body,
     .cc-wargear .cc-section__body {
-        --cc-row-h: 2.7mm;
-        min-height: calc(var(--cc-row-h) * 2);
-        line-height: var(--cc-row-h);
-        background-image: repeating-linear-gradient(
-            to bottom,
-            transparent 0,
-            transparent calc(var(--cc-row-h) - 0.2mm),
-            var(--cc-line-soft) calc(var(--cc-row-h) - 0.2mm),
-            var(--cc-line-soft) var(--cc-row-h)
-        );
+        min-height: 5.4mm; // ~two lines at this font size
     }
 
     .cc-notes {

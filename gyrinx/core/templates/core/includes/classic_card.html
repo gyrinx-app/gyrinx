@@ -87,7 +87,7 @@ Params:
                         </tr>
                     </thead>
                 </table>
-                <div class="cc-weapons__empty">No weapons.</div>
+                {% if card.kind != "blank" %}<div class="cc-weapons__empty">No weapons.</div>{% endif %}
             </div>
         {% endif %}
     </div>

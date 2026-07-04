@@ -581,7 +581,7 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
     )
 
     presets["blank"] = ClassicCard(
-        kind="fighter",
+        kind="blank",
         name="",
         subtitle="",
         cost="",
@@ -617,7 +617,7 @@ PRESET_LABELS = {
     "vehicle": "Vehicle (7-stat line)",
     "crew": "Crew (5-stat line)",
     "overflow": "Overflow (stress test)",
-    "blank": "Blank (fillable)",
+    "blank": "Blank fighter card",
     "stash": "Stash",
 }
 
