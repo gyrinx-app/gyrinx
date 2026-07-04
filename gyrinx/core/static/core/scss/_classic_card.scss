@@ -51,7 +51,7 @@
     // their write-in boxes all start at the same x.
     --cc-fieldlabel-w: 13mm;
 
-    --cc-cog-size: 19mm;
+    --cc-cog-size: 14mm;
 
     position: relative;
     box-sizing: border-box;
@@ -226,7 +226,7 @@
     .cc-cog {
         position: absolute;
         z-index: 1;
-        top: 6.5mm;
+        top: 8mm;
         right: var(--cc-pad);
         width: var(--cc-cog-size);
         height: var(--cc-cog-size);
@@ -236,11 +236,14 @@
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
+        // white disc printed too (opaque backgrounds are dropped otherwise)
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .cc-cog__cost {
         font-weight: 700;
-        font-size: 3.4mm;
+        font-size: 2.9mm;
         color: var(--cc-maroon-deep);
     }
 
@@ -533,9 +536,13 @@
         }
     }
 
-    // The cost cog uses the maroon gear stamp overlay.
+    // The cost cog uses the maroon gear stamp overlay, over a white disc so the
+    // cost value reads clearly (the disc sits under the gear ring, sized to tuck
+    // just under the inner ring; the toothed edge stays open to the card).
     .cc-cog {
-        background-image: url("../img/print/classic/overlays/cog.png");
+        background-image:
+            url("../img/print/classic/overlays/cog.png"),
+            radial-gradient(circle 5mm at center, #fff 0 100%, transparent 0);
     }
 }
 

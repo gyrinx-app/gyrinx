@@ -5,10 +5,19 @@ from django.utils.translation import ngettext
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
+from gyrinx.core.print_cards import DEFAULT_THEME, THEMES
 
 
 class PrintConfig(AppBase):
     """Configuration for customizing print output of a list."""
+
+    # Card-style choices — which renderer to use for the printout.
+    WEB = "web"
+    CLASSIC = "classic"
+    CARD_STYLE_CHOICES = [
+        (WEB, "Web cards (standard)"),
+        (CLASSIC, "Classic cards (grimdark, 4 per A4 sheet)"),
+    ]
 
     # Fighter selection mode choices
     ALL_FIGHTERS = "all"
@@ -31,6 +40,23 @@ class PrintConfig(AppBase):
         on_delete=models.CASCADE,
         related_name="print_configs",
         help_text="The list this print configuration belongs to.",
+    )
+
+    # Card style — the standard web cards, or the grimdark "classic mode" cards
+    # (fixed 100x110mm, 4 per A4). Classic renders fighter cards only.
+    card_style = models.CharField(
+        max_length=20,
+        choices=CARD_STYLE_CHOICES,
+        default=WEB,
+        help_text="Which card style to print.",
+    )
+
+    # Background plate for classic cards, applied uniformly to every card.
+    card_theme = models.CharField(
+        max_length=20,
+        choices=THEMES,
+        default=DEFAULT_THEME,
+        help_text="Background plate for classic cards.",
     )
 
     # Card type toggles
@@ -102,6 +128,8 @@ class PrintConfig(AppBase):
     def card_summary(self):
         """Display a summary of which card types are included."""
         included = []
+        if self.card_style == self.CLASSIC:
+            included.append("Classic style")
         if self.include_assets:
             included.append("Assets")
         if self.include_attributes:

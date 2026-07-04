@@ -1,0 +1,192 @@
+"""Classic-style print output wired through PrintConfig (#1726).
+
+The classic renderer (grimdark fixed-size cards, 4 per A4) is reachable from the
+real per-list print flow when a PrintConfig has card_style=classic. These tests
+cover the branch in ListPrintView: it renders the classic sheet, reuses the
+config's fighter filtering, appends blank cards, and applies the theme — while a
+default/web config is unchanged.
+"""
+
+import pytest
+from django.urls import reverse
+
+from gyrinx.core.models import PrintConfig
+from gyrinx.core.models.list import ListFighter
+from gyrinx.core.print_cards import blank_classic_card
+
+
+def _classic_config(list_obj, owner, **kwargs):
+    return PrintConfig.objects.create(
+        list=list_obj,
+        owner=owner,
+        name="Classic",
+        card_style=PrintConfig.CLASSIC,
+        **kwargs,
+    )
+
+
+def _print_url(list_obj, config=None):
+    url = reverse("core:list-print", kwargs={"id": list_obj.id})
+    if config is not None:
+        url += f"?config_id={config.id}"
+    return url
+
+
+# ---------------------------------------------------------------------------
+# blank_classic_card factory
+# ---------------------------------------------------------------------------
+
+
+def test_blank_classic_card_shapes():
+    fighter = blank_classic_card("fighter")
+    vehicle = blank_classic_card("vehicle")
+    assert fighter.kind == "blank"
+    assert vehicle.kind == "blank"
+    assert len(fighter.stats) == 12  # humanoid line, headers preserved
+    assert len(vehicle.stats) == 7  # vehicle line
+    assert all(s.value == "" for s in fighter.stats)
+    assert [s.name for s in vehicle.stats][:3] == ["M", "Fr", "Sd"]
+
+
+# ---------------------------------------------------------------------------
+# ListPrintView branch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_classic_config_renders_classic_sheet(
+    client, user, make_list, make_list_fighter
+):
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Grimjaw")
+    cfg = _classic_config(lst, user)
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert "classic-card" in body  # grimdark card markup
+    assert "print-sheet" in body  # A4 sheet scaffold
+    assert "Grimjaw" in body
+
+
+@pytest.mark.django_db
+def test_default_config_still_renders_web_cards(
+    client, user, make_list, make_list_fighter
+):
+    """No config (the default path) keeps the standard web cards."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Grimjaw")
+    client.force_login(user)
+
+    body = client.get(_print_url(lst)).content.decode()
+    assert "classic-card" not in body
+
+
+@pytest.mark.django_db
+def test_web_config_still_renders_web_cards(client, user, make_list, make_list_fighter):
+    """An explicit web-style config also keeps the web cards."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Grimjaw")
+    cfg = PrintConfig.objects.create(
+        list=lst, owner=user, name="Web", card_style=PrintConfig.WEB
+    )
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert "classic-card" not in body
+
+
+@pytest.mark.django_db
+def test_classic_theme_applied_uniformly(client, user, make_list, make_list_fighter):
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Alpha")
+    cfg = _classic_config(lst, user, card_theme="dark")
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert "theme-dark" in body
+
+
+@pytest.mark.django_db
+def test_classic_respects_specific_fighter_selection(
+    client, user, make_list, make_list_fighter
+):
+    lst = make_list("Gang")
+    alpha = make_list_fighter(lst, "Alpha")
+    make_list_fighter(lst, "Bravo")
+    cfg = _classic_config(
+        lst, user, fighter_selection_mode=PrintConfig.SPECIFIC_FIGHTERS
+    )
+    cfg.included_fighters.add(alpha)
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert "Alpha" in body
+    assert "Bravo" not in body
+
+
+@pytest.mark.django_db
+def test_classic_excludes_dead_fighters_by_default(
+    client, user, make_list, make_list_fighter
+):
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Alive")
+    make_list_fighter(lst, "Corpse", injury_state=ListFighter.DEAD)
+    cfg = _classic_config(lst, user)  # include_dead_fighters defaults False
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert "Alive" in body
+    assert "Corpse" not in body
+
+
+@pytest.mark.django_db
+def test_classic_omits_stash(
+    client, user, content_house, make_list, make_list_fighter, make_content_fighter
+):
+    """The gang's stash is not a classic card (fighter cards only)."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Alpha")
+    stash_cf = make_content_fighter(
+        type="Stash",
+        category="STASH",
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    ListFighter.objects.create(
+        name="Stash", content_fighter=stash_cf, list=lst, owner=user
+    )
+    cfg = _classic_config(lst, user)
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert "Alpha" in body
+    assert 'data-kind="stash"' not in body
+    assert body.count('class="classic-card') == 1  # only the real fighter
+
+
+@pytest.mark.django_db
+def test_print_config_form_shows_card_style(client, user, make_list):
+    """The create form exposes the card-style radios and the theme picker."""
+    lst = make_list("Gang")
+    client.force_login(user)
+    resp = client.get(reverse("core:print-config-create", kwargs={"list_id": lst.id}))
+    assert resp.status_code == 200
+    body = resp.content.decode()
+    assert "Card style" in body
+    assert "Classic cards" in body  # the classic choice label
+    assert 'name="card_style"' in body
+    assert 'name="card_theme"' in body
+
+
+@pytest.mark.django_db
+def test_classic_appends_blank_cards(client, user, make_list, make_list_fighter):
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Alpha")
+    cfg = _classic_config(lst, user, blank_fighter_cards=2, blank_vehicle_cards=1)
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    # 1 real fighter card + 3 blank cards
+    assert body.count('class="classic-card') == 4
+    assert body.count('data-kind="blank"') == 3

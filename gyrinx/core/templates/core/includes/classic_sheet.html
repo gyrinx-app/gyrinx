@@ -1,0 +1,57 @@
+{% comment %}
+Classic-mode print sheet (#1726). Tiles ClassicCard objects onto A4 (4 per page)
+and progressively shrinks overflowing text so long content fits the fixed-size
+cards instead of clipping. Shared by the Print Lab and the real list-print flow.
+
+Params:
+  cards      -- iterable of ClassicCard (see gyrinx.core.print_cards)
+  theme      -- background theme key, applied uniformly to every card
+  paged      -- if truthy, show the A4 page preview (2 across)
+  show_grid  -- if truthy, overlay a mm alignment grid (lab tuning aid)
+  auto_print -- if truthy, open the browser print dialog once fitting is done
+{% endcomment %}
+<div class="print-sheet{% if paged %} print-sheet--paged{% endif %}">
+    {% for card in cards %}
+        {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid %}
+    {% endfor %}
+</div>
+{% comment %}
+Progressive enhancement: shrink the font in the flowing detail block and the
+write-in boxes so long content fits. Without JS the text renders at its default
+size (and may clip) — nothing else depends on this.
+{% endcomment %}
+<script>
+    (function () {
+        var MM = 96 / 25.4; // px per mm at 96dpi
+
+        function fit(el, minMm) {
+            if (!el) return;
+            var minPx = (minMm || 1.5) * MM;
+            var size = parseFloat(window.getComputedStyle(el).fontSize);
+            var guard = 80;
+            while (
+                guard-- > 0 &&
+                size > minPx &&
+                (el.scrollHeight > el.clientHeight + 0.5 ||
+                    el.scrollWidth > el.clientWidth + 0.5)
+            ) {
+                size -= 0.4;
+                el.style.fontSize = size + "px";
+            }
+        }
+
+        function fitAll() {
+            document.querySelectorAll(".classic-card").forEach(function (card) {
+                fit(card.querySelector(".cc-detail__cols"), 1.5);
+                card.querySelectorAll(".cc-writein").forEach(function (box) {
+                    fit(box, 1.4);
+                });
+            });
+        }
+
+        window.addEventListener("DOMContentLoaded", function () {
+            fitAll();
+            {% if auto_print %}window.print();{% endif %}
+        });
+    })();
+</script>
