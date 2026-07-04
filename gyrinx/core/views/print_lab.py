@@ -12,19 +12,19 @@ richer data onto the fixed regions and deliberately omits the rest:
 
     NAME      <- fighter.name, fighter type, cost
     STATLINE  <- fighter.statline  (dynamic columns; every statline type supported)
-                 + fighter.xp_current pinned as the far-right column
     SAVE      <- statline "save" column if present, else fighter.save_roll (else blank)
     WEAPONS   <- fighter.weapons_cached, flattened to rows (name, ranges, str/ap/d/am, traits)
-    SKILLS    <- fighter.skilline_cached
-    POWERS    <- wyrd / psyker powers (own skill-like row, when present)
-    WARGEAR   <- wargear_cached (general gear)
-    <category> <- each special gear category (Legendary Names, Status Items, ...)
-                 keeps its own labelled row rather than being flattened
-    RULES     <- fighter.ruleline (own row)
-    KILLS     <- blank fillable box (Gyrinx has no per-fighter kill counter)
-    NOTES     <- fighter.notes
-    INJURIES  <- fighter.injuries (row under notes; blank space when none)
-    Recovery / Captured / Dead reflect injury_state.
+    DETAIL    <- a 2-column grid (column-major: Skills, Rules | Gear, Other):
+                   Skills <- skilline_cached
+                   Rules  <- ruleline
+                   Gear   <- wargear_cached (general gear)
+                   Other  <- wyrd / psyker powers + each special gear category
+                             (Legendary Names, Status Items, ...), labelled
+    XP        <- fighter.xp_current (bold value in the XP / Kills row)
+    KILLS     <- blank write-in box (Gyrinx has no per-fighter kill counter)
+    NOTES     <- fighter.notes (write-in box)
+    INJURIES  <- fighter.injuries (write-in box under notes; blank when none)
+    Dead reflects injury_state; long flowing text auto-shrinks to fit (JS).
 
 Deliberately omitted (no region on the classic card): counters, advancement detail,
 psyker discipline metadata. This is by design (see #1726 discussion) and surfaced in

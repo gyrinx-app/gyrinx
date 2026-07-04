@@ -35,25 +35,19 @@
     --cc-stat-h: 11mm;
     --cc-weap-top: 30mm;
     --cc-weap-h: 30mm;
-    // lower-left detail block: skills / powers / wargear / gear-category rows
-    // flow within here (clips if a fighter is very loaded).
+    // detail block: 2-column grid (skills / rules / gear / other).
     --cc-detail-top: 60mm;
-    --cc-detail-h: 22mm;
-    // Kills, rules, notes, and injuries are pinned so they never clip.
-    --cc-kills-top: 82.5mm;
+    --cc-detail-h: 23mm;
+    // XP/Kills, notes, and injuries are pinned so they never clip.
+    --cc-kills-top: 83.5mm;
     --cc-kills-h: 3.5mm;
-    --cc-rules-top: 86mm;
-    --cc-rules-h: 5mm;
-    --cc-notes-top: 91mm;
-    --cc-notes-h: 8.5mm;
+    --cc-notes-top: 87.5mm;
+    --cc-notes-h: 9.5mm;
     // injuries sit under notes at the very bottom
-    --cc-injuries-top: 99.5mm;
-    --cc-injuries-h: 8mm;
-    // right-hand box (recovery/captured); save now lives in the top strip
-    --cc-recovery-top: 62mm;
+    --cc-injuries-top: 97.5mm;
+    --cc-injuries-h: 10mm;
 
     --cc-cog-size: 19mm;
-    --cc-rightbox-w: 24mm; // save / recovery-captured boxes
 
     position: relative;
     box-sizing: border-box;
@@ -62,6 +56,8 @@
     overflow: hidden;
     color: var(--cc-ink);
     background: var(--cc-paper);
+    border: 0.4mm solid #000;
+    border-radius: 2.6mm;
     // industrial label feel without a bespoke webfont
     font-family: $font-family-sans-serif;
     font-size: 2.5mm;
@@ -96,8 +92,8 @@
         color: var(--cc-maroon);
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
-        font-size: 2.7mm;
+        letter-spacing: 0.01em;
+        font-size: 2.2mm;
         line-height: 1;
     }
 
@@ -353,11 +349,18 @@
     .cc-detail {
         top: var(--cc-detail-top);
         height: var(--cc-detail-h);
-        right: calc(var(--cc-pad) + var(--cc-rightbox-w) + 2mm);
-        display: flex;
-        flex-direction: column;
-        gap: 0.8mm;
+        // Two columns; the four groups fill column-major so their reading order
+        // is Skills, Rules (col 1) then Gear, Other (col 2).
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+        grid-auto-flow: column;
+        column-gap: 3mm;
+        row-gap: 1mm;
         overflow: hidden;
+        // em anchor: labels + bodies below are em-relative so the fit-to-box
+        // script (print_lab_sheet.html) can shrink the whole block as one unit.
+        font-size: 2.3mm;
     }
 
     .cc-section {
@@ -373,16 +376,20 @@
         overflow: hidden;
     }
 
-    // Detail-block rows are INLINE (label left, value flows to its right) to
-    // stay compact: a loaded fighter — skills + wyrd powers + wargear + each
-    // special gear category (Legendary Names, Status Items, …) on its own row —
-    // must fit in the fixed zone. A label-per-line stack blows the box and
-    // clips the values, so the label and its value share a baseline instead.
+    // Inside the detail block, size text in em so it scales together when the
+    // fit script reduces .cc-detail's font-size.
+    .cc-detail .cc-label,
+    .cc-detail .cc-section__body {
+        font-size: 1em;
+    }
+
+    // Each group is inline (label left, value wraps to its right); grid items
+    // need min-width:0 so long text wraps inside the column instead of widening it.
     .cc-detail .cc-section {
-        flex: 0 1 auto;
         flex-direction: row;
         align-items: baseline;
         gap: 1.5mm;
+        min-width: 0;
     }
 
     .cc-detail .cc-label {
@@ -391,13 +398,17 @@
 
     .cc-detail .cc-section__body {
         flex: 1 1 auto;
+        min-width: 0;
     }
 
-    // Reserve space for two rows beside the Skills and Wargear labels (room to
-    // hand-write on a printed card) — but don't draw rule lines over content.
-    .cc-skills .cc-section__body,
-    .cc-wargear .cc-section__body {
-        min-height: 5mm; // ~two lines at this font size
+    // The "other" quadrant stacks its sub-groups (Wyrd Powers, Legendary Names,
+    // Status Items, …) within its grid cell.
+    .cc-quad-other {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6mm;
+        min-width: 0;
+        overflow: hidden;
     }
 
     // White translucent write-in boxes for the hand-filled bottom fields
@@ -407,14 +418,13 @@
         flex: 1 1 auto;
         min-width: 0;
         align-self: stretch;
-        border: 0.3mm solid var(--cc-line);
         border-radius: 0.6mm;
         background: rgba(255, 255, 255, 0.5);
         padding: 0.4mm 1mm;
         overflow: hidden;
     }
 
-    // Kills — pinned label + write-in tally box.
+    // XP + Kills — pinned row, each label paired with a write-in box.
     .cc-kills {
         top: var(--cc-kills-top);
         height: var(--cc-kills-h);
@@ -428,24 +438,11 @@
         align-self: center;
     }
 
-    // Special rules — a full-width row below the detail block. Label sits
-    // inline with the rules text (which wraps), like the XP / Kills rows.
-    .cc-rules {
-        top: var(--cc-rules-top);
-        height: var(--cc-rules-h);
-        border-top: 0.3mm solid var(--cc-line-soft);
-        padding-top: 0.5mm;
-        flex-direction: row;
-        align-items: baseline;
-        gap: 1.5mm;
-    }
-
-    .cc-rules .cc-label {
+    // XP shows its value as bold text before its box; boxes fill the rest.
+    .cc-kills__xp {
         flex: 0 0 auto;
-    }
-
-    .cc-rules .cc-section__body {
-        flex: 1 1 auto;
+        align-self: center;
+        font-weight: 700;
     }
 
     // Notes — label + write-in box.
@@ -468,43 +465,6 @@
         font-size: 2.2mm;
         line-height: 1.15;
         color: rgba(29, 26, 22, 0.9);
-    }
-
-    // --- right-hand box: RECOVERY / CAPTURED (save lives in the top strip) --
-    .cc-recovery {
-        position: absolute;
-        z-index: 2;
-        right: var(--cc-pad);
-        top: var(--cc-recovery-top);
-        width: var(--cc-rightbox-w);
-        border: 0.4mm solid var(--cc-line);
-        background: rgba(255, 255, 255, 0.12);
-        font-size: 2.2mm;
-    }
-
-    .cc-recovery__row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.8mm 1mm;
-        text-transform: uppercase;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-
-        & + & {
-            border-top: 0.3mm solid var(--cc-line);
-        }
-    }
-
-    .cc-tick {
-        width: 3mm;
-        height: 3mm;
-        border: 0.3mm solid var(--cc-line);
-        display: inline-block;
-
-        &.is-on {
-            background: var(--cc-maroon);
-        }
     }
 
     // --- dead overlay ------------------------------------------------------
@@ -574,10 +534,6 @@
     // physical cards. Print forces this white (see @media print), so it never
     // reaches paper.
     background: #3f3d3a;
-
-    .classic-card {
-        outline: 0.2mm solid rgba(0, 0, 0, 0.25);
-    }
 }
 
 // On-screen A4 page preview: constrain to the real printable width so the lab

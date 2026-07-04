@@ -19,11 +19,45 @@
             {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid %}
         {% endfor %}
     </div>
-    {% if auto_print %}
-        <script>
+    {% comment %}
+    Progressive enhancement: shrink the font in the flowing detail block and the
+    write-in boxes so long content fits the fixed-size card instead of clipping.
+    Without JS the text just renders at its default size (and may clip) — nothing
+    else depends on this.
+    {% endcomment %}
+    <script>
+        (function () {
+            var MM = 96 / 25.4; // px per mm at 96dpi
+
+            function fit(el, minMm) {
+                if (!el) return;
+                var minPx = (minMm || 1.5) * MM;
+                var size = parseFloat(window.getComputedStyle(el).fontSize);
+                var guard = 80;
+                while (
+                    guard-- > 0 &&
+                    size > minPx &&
+                    (el.scrollHeight > el.clientHeight + 0.5 ||
+                        el.scrollWidth > el.clientWidth + 0.5)
+                ) {
+                    size -= 0.4;
+                    el.style.fontSize = size + "px";
+                }
+            }
+
+            function fitAll() {
+                document.querySelectorAll(".classic-card").forEach(function (card) {
+                    fit(card.querySelector(".cc-detail"), 1.5);
+                    card.querySelectorAll(".cc-writein").forEach(function (box) {
+                        fit(box, 1.4);
+                    });
+                });
+            }
+
             window.addEventListener("DOMContentLoaded", function () {
-                window.print();
+                fitAll();
+                {% if auto_print %}window.print();{% endif %}
             });
-        </script>
-    {% endif %}
+        })();
+    </script>
 {% endblock base %}

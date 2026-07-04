@@ -85,14 +85,15 @@ def test_sheet_paged_mode_adds_class(client):
 
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
-def test_xp_renders_as_far_right_statline_column(client):
-    """XP is pinned as a statline column carrying its value, not a bottom row."""
+def test_xp_renders_as_bold_value_in_kills_row(client):
+    """XP is a bold value in the XP/Kills row, not a statline column."""
     import re
 
     url = reverse("debug_print_lab_sheet") + "?source=preset&preset=overflow"
     body = client.get(url).content.decode()
-    m = re.search(r'cc-stat--xp.*?cc-stat__val">([^<]*)</div>', body, re.S)
-    assert m is not None, "XP should render as a cc-stat--xp statline cell"
+    assert "cc-stat--xp" not in body  # no longer a statline column
+    m = re.search(r"cc-kills__xp[^>]*>([^<]*)</span>", body)
+    assert m is not None, "XP should render as a cc-kills__xp value"
     assert m.group(1).strip() == "52"
 
 
@@ -128,7 +129,8 @@ def test_sheet_real_gang_renders_all_fighters(client, make_list, make_list_fight
     body = client.get(url).content.decode()
     assert "Alpha" in body
     assert "Bravo" in body
-    assert body.count("classic-card") == 2
+    # count card elements (not the .classic-card selector in the fit script)
+    assert body.count('class="classic-card') == 2
 
 
 # ---------------------------------------------------------------------------

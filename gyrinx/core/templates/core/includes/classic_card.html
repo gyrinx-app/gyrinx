@@ -29,7 +29,7 @@ Params:
     <div class="cc-cog">
         {% if card.cost %}<span class="cc-cog__cost">{{ card.cost }}</span>{% endif %}
     </div>
-    {% comment %} Statline (dynamic columns) — XP is pinned as the far-right column {% endcomment %}
+    {% comment %} Statline (dynamic columns) {% endcomment %}
     <div class="cc-region cc-statline">
         {% for s in card.stats %}
             <div class="cc-stat{% if s.highlight %} is-hl{% endif %}{% if s.first_of_group %} is-group{% endif %}">
@@ -37,10 +37,6 @@ Params:
                 <div class="cc-stat__val">{{ s.value|default:"&nbsp;" }}</div>
             </div>
         {% endfor %}
-        <div class="cc-stat cc-stat--xp is-group">
-            <div class="cc-stat__name">XP</div>
-            <div class="cc-stat__val">{{ card.xp|default:"&nbsp;" }}</div>
-        </div>
     </div>
     {% comment %} Weapons {% endcomment %}
     <div class="cc-region cc-weapons">
@@ -99,79 +95,46 @@ Params:
             </div>
         {% endif %}
     </div>
-    {% comment %} Lower detail block: skills / powers / wargear / gear categories flow here {% endcomment %}
+    {% comment %} Lower detail block — 2-column grid: skills, rules, gear, other {% endcomment %}
     <div class="cc-region cc-detail">
+        {% comment %} col 1, row 1 {% endcomment %}
         <div class="cc-section cc-skills">
             <div class="cc-label">Skills</div>
-            <div class="cc-section__body">
-                {% spaceless %}
-                    {% for skill in card.skills %}
-                        <span>{{ skill }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                    {% endfor %}
-                {% endspaceless %}
-            </div>
+            <div class="cc-section__body">{{ card.skills|join:", " }}</div>
         </div>
-        {% if card.powers %}
-            <div class="cc-section cc-powers">
-                <div class="cc-label">Wyrd Powers</div>
-                <div class="cc-section__body">
-                    {% spaceless %}
-                        {% for power in card.powers %}
-                            <span>{{ power }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                        {% endfor %}
-                    {% endspaceless %}
-                </div>
-            </div>
-        {% endif %}
+        {% comment %} col 1, row 2 {% endcomment %}
+        <div class="cc-section cc-rules-q">
+            <div class="cc-label">Rules</div>
+            <div class="cc-section__body">{{ card.rules|join:", " }}</div>
+        </div>
+        {% comment %} col 2, row 1 {% endcomment %}
         <div class="cc-section cc-wargear">
-            <div class="cc-label">Wargear</div>
-            <div class="cc-section__body">
-                {% spaceless %}
-                    {% for item in card.wargear %}
-                        <span>{{ item }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                    {% endfor %}
-                {% endspaceless %}
-            </div>
+            <div class="cc-label">Gear</div>
+            <div class="cc-section__body">{{ card.wargear|join:", " }}</div>
         </div>
-        {% for cat in card.gear_categories %}
-            <div class="cc-section cc-gearcat">
-                <div class="cc-label">{{ cat.0 }}</div>
-                <div class="cc-section__body">
-                    {% spaceless %}
-                        {% for item in cat.1 %}
-                            <span>{{ item }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                        {% endfor %}
-                    {% endspaceless %}
+        {% comment %} col 2, row 2 — powers + special gear categories {% endcomment %}
+        <div class="cc-quad-other">
+            {% if card.powers %}
+                <div class="cc-section cc-powers">
+                    <div class="cc-label">Wyrd Powers</div>
+                    <div class="cc-section__body">{{ card.powers|join:", " }}</div>
                 </div>
-            </div>
-        {% endfor %}
+            {% endif %}
+            {% for cat in card.gear_categories %}
+                <div class="cc-section cc-gearcat">
+                    <div class="cc-label">{{ cat.0 }}</div>
+                    <div class="cc-section__body">{{ cat.1|join:", " }}</div>
+                </div>
+            {% endfor %}
+        </div>
     </div>
-    {% comment %} Kills — write-in tally box (pinned) {% endcomment %}
+    {% comment %} XP (bold value + write-in box) + Kills (write-in box), pinned {% endcomment %}
     <div class="cc-region cc-kills">
+        <span class="cc-label">XP</span>
+        <span class="cc-kills__xp">{{ card.xp }}</span>
+        <span class="cc-writein"></span>
         <span class="cc-label">Kills</span>
         <span class="cc-writein"></span>
-    </div>
-    {% comment %} Recovery / captured {% endcomment %}
-    <div class="cc-recovery">
-        <div class="cc-recovery__row">
-            <span>Recovery</span>
-            <span class="cc-tick{% if card.recovery %} is-on{% endif %}"></span>
-        </div>
-        <div class="cc-recovery__row">
-            <span>Captured</span>
-            <span class="cc-tick{% if card.captured %} is-on{% endif %}"></span>
-        </div>
-    </div>
-    {% comment %} Special rules {% endcomment %}
-    <div class="cc-region cc-section cc-rules">
-        <div class="cc-label">Rules</div>
-        <div class="cc-section__body">
-            {% spaceless %}
-                {% for rule in card.rules %}
-                    <span>{{ rule }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                {% endfor %}
-            {% endspaceless %}
-        </div>
     </div>
     {% comment %} Notes — write-in box {% endcomment %}
     <div class="cc-region cc-notes">
@@ -183,12 +146,6 @@ Params:
     {% comment %} Injuries — write-in box under notes {% endcomment %}
     <div class="cc-region cc-injuries">
         <div class="cc-label">Injuries</div>
-        <div class="cc-writein cc-injuries__box">
-            {% spaceless %}
-                {% for injury in card.injuries %}
-                    <span>{{ injury }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                {% endfor %}
-            {% endspaceless %}
-        </div>
+        <div class="cc-writein cc-injuries__box">{{ card.injuries|join:", " }}</div>
     </div>
 </div>
