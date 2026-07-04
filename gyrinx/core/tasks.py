@@ -359,7 +359,9 @@ def _update_discord_message(application_id: str, interaction_token: str, content
 
 
 @task
-def backfill_pins(after_id: str | None = None, batch_size: int = 250):
+def backfill_pins(
+    after_id: str | None = None, batch_size: int = 250, failed_so_far: int = 0
+):
     """Write acquisition receipts onto every legacy assignment (#1826 §4.8.4).
 
     Walks all assignments in pk order (archived included — a later unarchive
@@ -386,12 +388,14 @@ def backfill_pins(after_id: str | None = None, batch_size: int = 250):
     batch = list(qs.values_list("id", flat=True)[:batch_size])
 
     pinned = 0
+    failed = 0
     consecutive_failures = 0
     for assignment_id in batch:
         try:
             pinned += pin_assignment(assignment_id)
             consecutive_failures = 0
         except Exception:
+            failed += 1
             consecutive_failures += 1
             logger.exception("backfill_pins: failed to pin %s", assignment_id)
             if consecutive_failures >= 25:
@@ -405,14 +409,38 @@ def backfill_pins(after_id: str | None = None, batch_size: int = 250):
                 )
                 return
 
-    logger.info(
-        "backfill_pins: processed %s assignments (%s rows pinned), cursor %s",
-        len(batch),
-        pinned,
-        batch[-1] if batch else "done",
-    )
+    total_failed = failed_so_far + failed
     if len(batch) == batch_size:
+        logger.info(
+            "backfill_pins: processed %s assignments (%s rows pinned, "
+            "%s failed so far), cursor %s",
+            len(batch),
+            pinned,
+            total_failed,
+            batch[-1],
+        )
+        # Failed rows stay UNPINNED and are deliberately walked past — the
+        # cursor must not stall on a poisoned row (that would livelock the
+        # chain). The recovery path is the idempotent re-run, which retries
+        # exactly the still-unpinned rows; the consecutive-failure breaker
+        # above handles systemic breakage.
         # Prod (Pub/Sub): fire-and-forget publish — flat chain. Dev/test
         # (ImmediateBackend): this recurses, one frame per batch; fine for
         # dev-sized tables, use the management command for bulk local runs.
-        backfill_pins.enqueue(after_id=str(batch[-1]), batch_size=batch_size)
+        backfill_pins.enqueue(
+            after_id=str(batch[-1]),
+            batch_size=batch_size,
+            failed_so_far=total_failed,
+        )
+    elif total_failed:
+        logger.warning(
+            "backfill_pins: walk COMPLETE with %s failed row(s) left "
+            "UNPINNED — check the per-row exceptions above, fix the cause, "
+            "and re-run (idempotent: only still-unpinned rows are retried).",
+            total_failed,
+        )
+    else:
+        logger.info(
+            "backfill_pins: walk complete, %s rows pinned in final batch.",
+            pinned,
+        )
