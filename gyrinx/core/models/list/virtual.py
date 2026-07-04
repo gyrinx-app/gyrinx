@@ -518,6 +518,14 @@ class VirtualListFighterEquipmentAssignment:
 
     def _calculate_cumulative_upgrade_cost(self, upgrade):
         """Calculate cumulative cost for an upgrade with fighter-specific overrides."""
+        # Cost-pinning (#1826): a pinned amount is the upgrade's price on the
+        # booking path, so display must show it too. Unpinned rows keep the
+        # annotation-based walk below (no extra queries).
+        if isinstance(self._assignment, ListFighterEquipmentAssignment):
+            row = self._assignment._upgrade_row_by_upgrade_id.get(upgrade.id)
+            if row is not None and row.pinned_amount is not None:
+                return row.pinned_amount
+
         # For MULTI mode, just return the individual cost
         if upgrade.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
             return getattr(upgrade, "cost_for_fighter", upgrade.cost)

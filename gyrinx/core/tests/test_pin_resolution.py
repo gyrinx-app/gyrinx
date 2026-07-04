@@ -207,3 +207,84 @@ def test_unpinned_rows_resolve_live_exactly_as_before(weapon_assignment):
         cost=8,
     )
     assert fresh(weapon_assignment).base_cost_int() == 8  # live lookup still rules
+
+
+# --- The safety guarantees above the pin -------------------------------------
+
+
+@pytest.mark.django_db
+def test_from_default_zero_beats_pinned_profile_amount(
+    weapon_assignment, make_weapon_profile
+):
+    """Default-kit gear is free no matter what an acquisition path pinned."""
+    from gyrinx.content.models import ContentFighterDefaultAssignment
+
+    profile = make_weapon_profile(
+        weapon_assignment.content_equipment, name="Hotshot", cost=10
+    )
+    default = ContentFighterDefaultAssignment.objects.create(
+        fighter=weapon_assignment.list_fighter.content_fighter,
+        equipment=weapon_assignment.content_equipment,
+    )
+    default.weapon_profiles_field.add(profile)
+    ListFighterEquipmentAssignment.objects.filter(pk=weapon_assignment.pk).update(
+        from_default_assignment=default
+    )
+    weapon_assignment.weapon_profiles_field.add(profile)
+    weapon_assignment.profile_rows.update(pinned_amount=7, pin_state=PinState.SOURCE)
+
+    refetched = fresh(weapon_assignment)
+    virtual_profile = [
+        p for p in refetched.all_profiles_cached if p.profile.id == profile.id
+    ][0]
+    assert refetched._profile_cost_with_override_for_profile(virtual_profile) == 0
+
+
+@pytest.mark.django_db
+def test_linked_parent_zero_beats_pinned_base_amount(weapon_assignment, make_equipment):
+    """Linked (child) gear is free no matter what its base pin says."""
+    child_equipment = make_equipment("Sidearm", cost=20)
+    child = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=weapon_assignment.list_fighter,
+        content_equipment=child_equipment,
+        linked_equipment_parent=weapon_assignment,
+    )
+    ListFighterEquipmentAssignment.objects.filter(pk=child.pk).update(
+        pinned_base_amount=9, pinned_base_state=PinState.SOURCE
+    )
+    assert fresh(child).base_cost_int() == 0
+
+
+@pytest.mark.django_db
+def test_total_cost_override_beats_all_pins(weapon_assignment, make_weapon_profile):
+    """The assignment-level fixed total outranks every pinned amount."""
+    profile = make_weapon_profile(
+        weapon_assignment.content_equipment, name="Hotshot", cost=10
+    )
+    weapon_assignment.weapon_profiles_field.add(profile)
+    weapon_assignment.profile_rows.update(pinned_amount=4, pin_state=PinState.SOURCE)
+    ListFighterEquipmentAssignment.objects.filter(pk=weapon_assignment.pk).update(
+        pinned_base_amount=5,
+        pinned_base_state=PinState.SOURCE,
+        total_cost_override=50,
+    )
+    refetched = fresh(weapon_assignment)
+    assert refetched.cost_int() == 50
+    # ...while the override-clearing delta maths sums the pinned components.
+    assert refetched.calculated_cost_int() == 5 + 4
+
+
+@pytest.mark.django_db
+def test_pinned_upgrade_amount_shows_on_display_path(weapon_assignment):
+    """The fighter-card upgrade display reads the pin, matching the books."""
+    from gyrinx.core.models.list import VirtualListFighterEquipmentAssignment
+
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        name="Mag", equipment=weapon_assignment.content_equipment, cost=12
+    )
+    weapon_assignment.upgrades_field.add(upgrade)
+    weapon_assignment.upgrade_rows.update(pinned_amount=2, pin_state=PinState.DERIVED)
+    virtual = VirtualListFighterEquipmentAssignment.from_assignment(
+        fresh(weapon_assignment)
+    )
+    assert virtual._calculate_cumulative_upgrade_cost(upgrade) == 2

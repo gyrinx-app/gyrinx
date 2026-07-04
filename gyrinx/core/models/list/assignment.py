@@ -556,6 +556,12 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     # Resolution reads pinned amounts off the through rows. These maps are
     # built once per instance from the prefetched row sets (with_related_data
     # prefetches them), so pricing a pinned component adds no queries.
+    #
+    # Like every cached cost property on this model, the maps snapshot at
+    # first read: a pin written AFTER a cost read on the same instance is
+    # masked until refetch. Acquisition code (the Phase 7 choke point) must
+    # write pins before any cost read on the instance it returns, or return
+    # a fresh instance.
 
     @cached_property
     def _profile_row_by_profile_id(self):
@@ -1020,6 +1026,20 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                 name="idx_assignment_content_equip",
             ),
         ]
+        constraints = [
+            # §4.1 invariant, base-pin flavour (see the through models).
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        pinned_base_state="unpinned",
+                        pinned_base_amount__isnull=True,
+                    )
+                    | ~models.Q(pinned_base_state="unpinned")
+                    & models.Q(pinned_base_amount__isnull=False)
+                ),
+                name="assignment_unpinned_iff_null_base_amount",
+            ),
+        ]
 
 
 class ListFighterEquipmentAssignmentProfile(models.Model):
@@ -1106,6 +1126,19 @@ class ListFighterEquipmentAssignmentProfile(models.Model):
                 )
 
     class Meta:
+        constraints = [
+            # §4.1 invariant: UNPINNED is the only null-amount state. Sweeps
+            # key on state and resolution keys on amount; a row violating
+            # this would price at an amount the backfill believes is absent.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(pin_state="unpinned", pinned_amount__isnull=True)
+                    | ~models.Q(pin_state="unpinned")
+                    & models.Q(pinned_amount__isnull=False)
+                ),
+                name="profile_row_unpinned_iff_null_amount",
+            ),
+        ]
         db_table = "core_listfighterequipmentassignment_weapon_profiles_field"
         unique_together = [["listfighterequipmentassignment", "contentweaponprofile"]]
         verbose_name = "weapon profile row"
@@ -1159,6 +1192,19 @@ class ListFighterEquipmentAssignmentAccessory(models.Model):
     history = HistoricalRecords()
 
     class Meta:
+        constraints = [
+            # §4.1 invariant: UNPINNED is the only null-amount state. Sweeps
+            # key on state and resolution keys on amount; a row violating
+            # this would price at an amount the backfill believes is absent.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(pin_state="unpinned", pinned_amount__isnull=True)
+                    | ~models.Q(pin_state="unpinned")
+                    & models.Q(pinned_amount__isnull=False)
+                ),
+                name="accessory_row_unpinned_iff_null_amount",
+            ),
+        ]
         db_table = "core_listfighterequipmentassignment_weapon_accessories_field"
         unique_together = [["listfighterequipmentassignment", "contentweaponaccessory"]]
         verbose_name = "weapon accessory row"
@@ -1227,6 +1273,19 @@ class ListFighterEquipmentAssignmentUpgrade(models.Model):
                 )
 
     class Meta:
+        constraints = [
+            # §4.1 invariant: UNPINNED is the only null-amount state. Sweeps
+            # key on state and resolution keys on amount; a row violating
+            # this would price at an amount the backfill believes is absent.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(pin_state="unpinned", pinned_amount__isnull=True)
+                    | ~models.Q(pin_state="unpinned")
+                    & models.Q(pinned_amount__isnull=False)
+                ),
+                name="upgrade_row_unpinned_iff_null_amount",
+            ),
+        ]
         db_table = "core_listfighterequipmentassignment_upgrades_field"
         unique_together = [
             ["listfighterequipmentassignment", "contentequipmentupgrade"]
