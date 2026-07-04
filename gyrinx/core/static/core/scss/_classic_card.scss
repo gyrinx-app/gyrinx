@@ -26,29 +26,31 @@
     --cc-h: 110mm;
     --cc-pad: 3.2mm;
 
-    --cc-name-top: 3mm;
-    --cc-name-h: 12mm;
-    --cc-stat-top: 15.5mm;
+    // Condition tabs across the top; the save value fills the leftover space.
+    --cc-tabs-top: 0;
+    --cc-tabs-h: 6mm;
+    --cc-name-top: 7mm;
+    --cc-name-h: 11mm;
+    --cc-stat-top: 18.5mm;
     --cc-stat-h: 11mm;
-    --cc-weap-top: 27mm;
-    --cc-weap-h: 31mm;
+    --cc-weap-top: 30mm;
+    --cc-weap-h: 30mm;
     // lower-left detail block: skills / powers / wargear / gear-category rows
     // flow within here (clips if a fighter is very loaded).
-    --cc-detail-top: 58mm;
-    --cc-detail-h: 23mm;
+    --cc-detail-top: 60mm;
+    --cc-detail-h: 22mm;
     // Kills, rules, notes, and injuries are pinned so they never clip.
-    --cc-kills-top: 81.5mm;
+    --cc-kills-top: 82.5mm;
     --cc-kills-h: 3.5mm;
-    --cc-rules-top: 85mm;
+    --cc-rules-top: 86mm;
     --cc-rules-h: 5mm;
-    --cc-notes-top: 90mm;
-    --cc-notes-h: 10mm;
+    --cc-notes-top: 91mm;
+    --cc-notes-h: 8.5mm;
     // injuries sit under notes at the very bottom
-    --cc-injuries-top: 100mm;
+    --cc-injuries-top: 99.5mm;
     --cc-injuries-h: 8mm;
-    // right-hand boxes, pinned
-    --cc-save-top: 60mm;
-    --cc-recovery-top: 69mm;
+    // right-hand box (recovery/captured); save now lives in the top strip
+    --cc-recovery-top: 62mm;
 
     --cc-cog-size: 19mm;
     --cc-rightbox-w: 24mm; // save / recovery-captured boxes
@@ -97,6 +99,56 @@
         letter-spacing: 0.06em;
         font-size: 2.7mm;
         line-height: 1;
+    }
+
+    // =======================================================================
+    // Condition tabs across the top (Serious Injury / Broken / Blaze / Insane /
+    // Blind) with the save value filling the remaining space on the right.
+    // =======================================================================
+    .cc-tabs {
+        top: var(--cc-tabs-top);
+        height: var(--cc-tabs-h);
+        display: flex;
+        gap: 1mm;
+        align-items: stretch;
+    }
+
+    .cc-tab {
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 0 1mm;
+        color: #f4ece7;
+        background: var(--cc-maroon);
+        border: 0.3mm solid var(--cc-maroon-deep);
+        border-top: none;
+        border-radius: 0 0 1.6mm 1.6mm;
+        font-size: 2mm;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        line-height: 1;
+    }
+
+    // Save panel occupies the leftover strip space (like the old plate).
+    .cc-tab--save {
+        flex: 0 0 22mm;
+        gap: 1.5mm;
+        color: var(--cc-ink);
+        background: rgba(244, 236, 231, 0.6);
+        border-color: var(--cc-maroon);
+    }
+
+    .cc-tab__save-label {
+        color: var(--cc-maroon);
+        font-size: 2mm;
+    }
+
+    .cc-tab__save-val {
+        font-size: 3.2mm;
+        font-weight: 700;
     }
 
     // =======================================================================
@@ -161,7 +213,7 @@
     .cc-cog {
         position: absolute;
         z-index: 3;
-        top: 1.5mm;
+        top: 6.5mm;
         right: var(--cc-pad);
         width: var(--cc-cog-size);
         height: var(--cc-cog-size);
@@ -402,27 +454,7 @@
         color: rgba(29, 26, 22, 0.9);
     }
 
-    // --- right-hand boxes: SAVE and RECOVERY/CAPTURED ----------------------
-    .cc-save {
-        position: absolute;
-        z-index: 2;
-        right: var(--cc-pad);
-        top: var(--cc-save-top);
-        width: var(--cc-rightbox-w);
-        height: 6.5mm;
-        display: flex;
-        align-items: center;
-        gap: 1mm;
-        padding: 0 1mm;
-        border: 0.4mm solid var(--cc-line);
-        background: rgba(255, 255, 255, 0.12);
-    }
-
-    .cc-save__val {
-        font-weight: 700;
-        font-size: 3.4mm;
-    }
-
+    // --- right-hand box: RECOVERY / CAPTURED (save lives in the top strip) --
     .cc-recovery {
         position: absolute;
         z-index: 2;

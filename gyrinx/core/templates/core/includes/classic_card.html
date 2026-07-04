@@ -9,6 +9,18 @@ Params:
 <div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if show_grid %} show-grid{% endif %}"
      data-kind="{{ card.kind }}">
     <div class="cc-bg"></div>
+    {% comment %} Condition tabs + save value in the leftover space {% endcomment %}
+    <div class="cc-region cc-tabs">
+        <span class="cc-tab">Serious Injury</span>
+        <span class="cc-tab">Broken</span>
+        <span class="cc-tab">Blaze</span>
+        <span class="cc-tab">Insane</span>
+        <span class="cc-tab">Blind</span>
+        <span class="cc-tab cc-tab--save">
+            <span class="cc-tab__save-label">Save</span>
+            <span class="cc-tab__save-val">{{ card.save|default:"&nbsp;" }}</span>
+        </span>
+    </div>
     {% comment %} Name + type {% endcomment %}
     <div class="cc-region cc-name">
         <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
@@ -137,11 +149,6 @@ Params:
     {% comment %} Kills — blank tally box (pinned) {% endcomment %}
     <div class="cc-region cc-kills">
         <span class="cc-kills__item"><span class="cc-label">Kills</span> <span class="cc-kills__val"></span></span>
-    </div>
-    {% comment %} Save box {% endcomment %}
-    <div class="cc-save">
-        <span class="cc-label">Save</span>
-        <span class="cc-save__val">{{ card.save }}</span>
     </div>
     {% comment %} Recovery / captured {% endcomment %}
     <div class="cc-recovery">
