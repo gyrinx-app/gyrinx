@@ -1,0 +1,78 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-bottom: 1rem; }
+    .mt-uuid-input { width: 24rem; font-family: monospace; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Writes acquisition receipts onto every legacy assignment via the same
+        pinning choke point real purchases use. Idempotent (re-running skips
+        receipted rows), resumable, and value-neutral — each amount is what
+        live resolution already returns, so no costs, caches, or credits
+        move. Anchored rows (user overrides, linked gear, default kit, frozen
+        totals) stay unpinned by design.
+    </p>
+    <p>
+        <strong>Run AFTER "Reconcile list cost caches", in a quiet window.</strong>
+        The Unpinned count below is the live progress bar — refresh to watch
+        it fall.
+    </p>
+    <ul>
+        <li><strong>Total assignments:</strong> {{ total }}</li>
+        {% for label, count in pin_states.items %}
+            <li><strong>{{ label }}:</strong> {{ count }}</li>
+        {% endfor %}
+    </ul>
+    <form method="get" class="mt-form">
+        <label for="list_id">Restrict to a single List UUID (optional — incremental rollout):</label>
+        <input type="text"
+               id="list_id"
+               name="list_id"
+               value="{{ list_id }}"
+               class="mt-uuid-input">
+        <button type="submit" class="button">Preview scope</button>
+    </form>
+    <form method="post" action="{{ apply_url }}">
+        {% csrf_token %}
+        <input type="hidden" name="list_id" value="{{ list_id }}">
+        <button type="submit" class="button default">
+            Start receipt backfill
+            {% if list_id %}(scoped to one list){% else %}(ALL lists){% endif %}
+        </button>
+    </form>
+    <h2>Recent runs</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Status</th>
+                <th>Summary</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in recent %}
+                <tr>
+                    <td>{{ b.created }}</td>
+                    <td>{{ b.get_status_display }}</td>
+                    <td><code>{{ b.summary }}</code></td>
+                    <td><a href="{% url 'admin:maintenance_backfill_detail' b.id %}">Detail</a></td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">Never run.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock content %}

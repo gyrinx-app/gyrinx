@@ -26,6 +26,8 @@ from gyrinx.core.maintenance.persistent_stash import (
     find_candidates as find_persistent_stash_candidates,
 )
 from gyrinx.core.models import Backfill
+from gyrinx.core.models.list import ListFighterEquipmentAssignment, PinState
+from gyrinx.core.tasks import backfill_pins, reconcile_all_lists
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,16 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_persistent_stash",
             ),
             path(
+                "maintenance/reconcile-lists/",
+                self.admin_view(_superuser_only(self.reconcile_lists_view)),
+                name="maintenance_reconcile_lists",
+            ),
+            path(
+                "maintenance/backfill-pins/",
+                self.admin_view(_superuser_only(self.backfill_pins_view)),
+                name="maintenance_backfill_pins",
+            ),
+            path(
                 "maintenance/backfill/<uuid:pk>/",
                 self.admin_view(_superuser_only(self.backfill_detail_view)),
                 name="maintenance_backfill_detail",
@@ -79,6 +91,27 @@ class MaintenanceAdminSite(admin.site.__class__):
                     "to the dying Fighter where provenance is provable from "
                     "the ListAction ledger (±1s window around an "
                     "UPDATE_FIGHTER kill action on the same list)."
+                ),
+            },
+            {
+                "key": Backfill.Operation.RECONCILE_LISTS.value,
+                "name": Backfill.Operation.RECONCILE_LISTS.label,
+                "url": reverse("admin:maintenance_reconcile_lists"),
+                "description": (
+                    "True up every list's cached costs from live resolution, "
+                    "recording movement as RECONCILE ledger actions. Runs on "
+                    "the task runner in batches; progress on the backfill "
+                    "record. Run BEFORE the receipt backfill."
+                ),
+            },
+            {
+                "key": Backfill.Operation.BACKFILL_PINS.value,
+                "name": Backfill.Operation.BACKFILL_PINS.label,
+                "url": reverse("admin:maintenance_backfill_pins"),
+                "description": (
+                    "Write acquisition receipts onto every legacy assignment "
+                    "via the pinning choke point. Idempotent, resumable, "
+                    "value-neutral. Run AFTER reconcile, in a quiet window."
                 ),
             },
         ]
@@ -147,6 +180,88 @@ class MaintenanceAdminSite(admin.site.__class__):
             "apply_url": reverse("admin:maintenance_persistent_stash"),
         }
         return render(request, "admin/maintenance/persistent_stash.html", ctx)
+
+    def reconcile_lists_view(self, request):
+        list_id = (
+            request.POST.get("list_id") or request.GET.get("list_id") or ""
+        ).strip() or None
+        if request.method == "POST":
+            backfill = Backfill.objects.create(
+                operation=Backfill.Operation.RECONCILE_LISTS,
+                triggered_by=request.user,
+                list_id_scope=list_id,
+                status=Backfill.Status.RUNNING,
+            )
+            reconcile_all_lists.enqueue(
+                backfill_id=str(backfill.id),
+                user_id=request.user.pk,
+                list_id=list_id,
+            )
+            messages.success(
+                request,
+                "Reconcile started on the task runner — progress below "
+                "(refresh to update).",
+            )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+            )
+
+        from gyrinx.core.models.list import List
+
+        scoped = List.objects.filter(pk=list_id) if list_id else List.objects
+        ctx = {
+            **self.each_context(request),
+            "title": Backfill.Operation.RECONCILE_LISTS.label,
+            "list_id": list_id or "",
+            "list_count": scoped.count(),
+            "recent": Backfill.objects.filter(
+                operation=Backfill.Operation.RECONCILE_LISTS
+            ).order_by("-created")[:10],
+            "apply_url": reverse("admin:maintenance_reconcile_lists"),
+        }
+        return render(request, "admin/maintenance/reconcile_lists.html", ctx)
+
+    def backfill_pins_view(self, request):
+        list_id = (
+            request.POST.get("list_id") or request.GET.get("list_id") or ""
+        ).strip() or None
+        if request.method == "POST":
+            backfill = Backfill.objects.create(
+                operation=Backfill.Operation.BACKFILL_PINS,
+                triggered_by=request.user,
+                list_id_scope=list_id,
+                status=Backfill.Status.RUNNING,
+            )
+            backfill_pins.enqueue(backfill_id=str(backfill.id), list_id=list_id)
+            messages.success(
+                request,
+                "Receipt backfill started on the task runner — progress "
+                "below (refresh to update; the unpinned count is the "
+                "progress bar).",
+            )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+            )
+
+        assignments = ListFighterEquipmentAssignment.objects.all()
+        if list_id:
+            assignments = assignments.filter(list_fighter__list_id=list_id)
+        pin_states = {
+            state.label: assignments.filter(pinned_base_state=state).count()
+            for state in PinState
+        }
+        ctx = {
+            **self.each_context(request),
+            "title": Backfill.Operation.BACKFILL_PINS.label,
+            "list_id": list_id or "",
+            "total": assignments.count(),
+            "pin_states": pin_states,
+            "recent": Backfill.objects.filter(
+                operation=Backfill.Operation.BACKFILL_PINS
+            ).order_by("-created")[:10],
+            "apply_url": reverse("admin:maintenance_backfill_pins"),
+        }
+        return render(request, "admin/maintenance/backfill_pins.html", ctx)
 
     def backfill_detail_view(self, request, pk):
         backfill = get_object_or_404(Backfill, pk=pk)

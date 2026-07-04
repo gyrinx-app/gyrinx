@@ -358,9 +358,131 @@ def _update_discord_message(application_id: str, interaction_token: str, content
         logger.error(f"Failed to update Discord message: {e}")
 
 
+def _update_backfill(backfill_id, summary_patch=None, status=None, error=""):
+    """Merge progress into a Backfill audit record's summary.
+
+    Maintenance operations run as self-re-enqueueing task chains; the
+    Backfill row (created by the admin trigger) is their progress surface —
+    the /admin/maintenance/backfill/<id>/ page shows the merged summary.
+    """
+    if backfill_id is None:
+        return
+    from gyrinx.core.models import Backfill
+
+    try:
+        backfill = Backfill.objects.get(pk=backfill_id)
+    except Backfill.DoesNotExist:
+        logger.warning("Backfill record %s missing; progress dropped", backfill_id)
+        return
+    if summary_patch:
+        backfill.summary = {**backfill.summary, **summary_patch}
+    if status:
+        backfill.status = status
+    if error:
+        backfill.error = error
+    backfill.save()
+
+
+@task
+def reconcile_all_lists(
+    after_id: str | None = None,
+    batch_size: int = 25,
+    backfill_id: str | None = None,
+    user_id: int | None = None,
+    list_id: str | None = None,
+    lists_done: int = 0,
+    corrected: int = 0,
+    clamped: int = 0,
+):
+    """Audited cache reconciliation across every list (#1826 §4.8.2).
+
+    The task-runner twin of `manage reconcile_lists`, for environments with
+    no shell (Cloud Run): triggered from /admin/maintenance/, walks lists in
+    pk order in small batches, runs the reconcile core on each, and reports
+    progress into the Backfill record. RECONCILE actions attribute to the
+    triggering admin via ``user_id``.
+
+    Self-re-enqueues with a pk cursor; totals ride the kwargs so the final
+    summary is cumulative.
+    """
+    from django.contrib.auth import get_user_model
+
+    from gyrinx.core.cost.reconcile import reconcile_list
+    from gyrinx.core.models import Backfill
+    from gyrinx.core.models.list import List
+
+    user = None
+    if user_id is not None:
+        user = get_user_model().objects.filter(pk=user_id).first()
+
+    qs = List.objects.order_by("id")
+    if list_id:
+        # Incremental rollout: scope the whole run to one list.
+        qs = qs.filter(pk=list_id)
+    if after_id:
+        qs = qs.filter(id__gt=after_id)
+    batch = list(qs.values_list("id", flat=True)[:batch_size])
+
+    try:
+        for batch_list_id in batch:
+            result = reconcile_list(List.objects.get(pk=batch_list_id), user=user)
+            lists_done += 1
+            if result.moved or result.action:
+                corrected += 1
+            if result.clamped:
+                clamped += 1
+                logger.warning(
+                    "reconcile_all_lists: zero-floor clamp fired on list %s "
+                    "— computed total was negative; investigate.",
+                    batch_list_id,
+                )
+    except Exception as e:
+        logger.exception("reconcile_all_lists: failed on batch after %s", after_id)
+        _update_backfill(
+            backfill_id,
+            {"lists": lists_done, "corrected": corrected, "clamped": clamped},
+            status=Backfill.Status.FAILED,
+            error=f"Failed in batch after cursor {after_id}: {e}",
+        )
+        raise
+
+    progress = {
+        "lists": lists_done,
+        "corrected": corrected,
+        "clamped": clamped,
+        "cursor": str(batch[-1]) if batch else None,
+    }
+    if len(batch) == batch_size:
+        _update_backfill(backfill_id, progress)
+        reconcile_all_lists.enqueue(
+            after_id=str(batch[-1]),
+            batch_size=batch_size,
+            backfill_id=backfill_id,
+            user_id=user_id,
+            list_id=list_id,
+            lists_done=lists_done,
+            corrected=corrected,
+            clamped=clamped,
+        )
+    else:
+        _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
+        logger.info(
+            "reconcile_all_lists: complete — %s lists, %s corrected, %s clamped",
+            lists_done,
+            corrected,
+            clamped,
+        )
+
+
 @task
 def backfill_pins(
-    after_id: str | None = None, batch_size: int = 250, failed_so_far: int = 0
+    after_id: str | None = None,
+    batch_size: int = 250,
+    failed_so_far: int = 0,
+    backfill_id: str | None = None,
+    processed_so_far: int = 0,
+    pinned_so_far: int = 0,
+    list_id: str | None = None,
 ):
     """Write acquisition receipts onto every legacy assignment (#1826 §4.8.4).
 
@@ -383,6 +505,9 @@ def backfill_pins(
     from gyrinx.core.models.list import ListFighterEquipmentAssignment
 
     qs = ListFighterEquipmentAssignment.objects.order_by("id")
+    if list_id:
+        # Incremental rollout: scope the walk to one list's gear.
+        qs = qs.filter(list_fighter__list_id=list_id)
     if after_id:
         qs = qs.filter(id__gt=after_id)
     batch = list(qs.values_list("id", flat=True)[:batch_size])
@@ -413,9 +538,34 @@ def backfill_pins(
                     assignment_id,
                     last_success_id,
                 )
+                from gyrinx.core.models import Backfill
+
+                _update_backfill(
+                    backfill_id,
+                    {
+                        "processed": processed_so_far + pinned + failed,
+                        "rows_pinned": pinned_so_far + pinned,
+                        "failed": failed_so_far + failed,
+                        "cursor": str(last_success_id),
+                    },
+                    status=Backfill.Status.FAILED,
+                    error=(
+                        f"Aborted: {consecutive_failures} consecutive "
+                        f"failures at {assignment_id}. Fix the cause and "
+                        f"re-trigger (idempotent; resumes past pinned rows)."
+                    ),
+                )
                 return
 
     total_failed = failed_so_far + failed
+    total_processed = processed_so_far + len(batch)
+    total_pinned = pinned_so_far + pinned
+    progress = {
+        "processed": total_processed,
+        "rows_pinned": total_pinned,
+        "failed": total_failed,
+        "cursor": str(batch[-1]) if batch else None,
+    }
     if len(batch) == batch_size:
         logger.info(
             "backfill_pins: processed %s assignments (%s rows pinned, "
@@ -433,10 +583,15 @@ def backfill_pins(
         # Prod (Pub/Sub): fire-and-forget publish — flat chain. Dev/test
         # (ImmediateBackend): this recurses, one frame per batch; fine for
         # dev-sized tables, use the management command for bulk local runs.
+        _update_backfill(backfill_id, progress)
         backfill_pins.enqueue(
             after_id=str(batch[-1]),
             batch_size=batch_size,
             failed_so_far=total_failed,
+            backfill_id=backfill_id,
+            processed_so_far=total_processed,
+            pinned_so_far=total_pinned,
+            list_id=list_id,
         )
     elif total_failed:
         logger.warning(
@@ -445,8 +600,22 @@ def backfill_pins(
             "and re-run (idempotent: only still-unpinned rows are retried).",
             total_failed,
         )
+        from gyrinx.core.models import Backfill
+
+        _update_backfill(
+            backfill_id,
+            progress,
+            status=Backfill.Status.FAILED,
+            error=(
+                f"Walk complete but {total_failed} row(s) failed and remain "
+                "unpinned. Fix the cause and re-trigger (idempotent)."
+            ),
+        )
     else:
         logger.info(
-            "backfill_pins: walk complete, %s rows pinned in final batch.",
-            pinned,
+            "backfill_pins: walk complete, %s rows pinned total.",
+            total_pinned,
         )
+        from gyrinx.core.models import Backfill
+
+        _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
