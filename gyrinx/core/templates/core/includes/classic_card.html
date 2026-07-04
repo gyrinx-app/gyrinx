@@ -146,9 +146,10 @@ Params:
             </div>
         {% endfor %}
     </div>
-    {% comment %} Kills — blank tally box (pinned) {% endcomment %}
+    {% comment %} Kills — write-in tally box (pinned) {% endcomment %}
     <div class="cc-region cc-kills">
-        <span class="cc-kills__item"><span class="cc-label">Kills</span> <span class="cc-kills__val"></span></span>
+        <span class="cc-label">Kills</span>
+        <span class="cc-writein"></span>
     </div>
     {% comment %} Recovery / captured {% endcomment %}
     <div class="cc-recovery">
@@ -172,17 +173,17 @@ Params:
             {% endspaceless %}
         </div>
     </div>
-    {% comment %} Notes {% endcomment %}
-    <div class="cc-region cc-section cc-notes">
+    {% comment %} Notes — write-in box {% endcomment %}
+    <div class="cc-region cc-notes">
         <div class="cc-label">Notes</div>
-        <div class="cc-section__body">
+        <div class="cc-writein cc-notes__box">
             {% for line in card.notes_lines %}<div>{{ line }}</div>{% endfor %}
         </div>
     </div>
-    {% comment %} Injuries — under notes; lists lasting injuries, else blank {% endcomment %}
+    {% comment %} Injuries — write-in box under notes {% endcomment %}
     <div class="cc-region cc-injuries">
         <div class="cc-label">Injuries</div>
-        <div class="cc-injuries__body">
+        <div class="cc-writein cc-injuries__box">
             {% spaceless %}
                 {% for injury in card.injuries %}
                     <span>{{ injury }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}

@@ -230,7 +230,7 @@ def test_psyker_sheet_shows_power_and_category_rows(client):
 
 
 def test_injuries_live_in_their_own_field_not_notes():
-    """Injuries go in the top strip, not folded into the Notes block."""
+    """Injuries go in their own row, not folded into the Notes block."""
     card = synthetic_presets()["overflow"]
     assert card.injuries  # populated
     assert not any("injur" in line.lower() for line in card.notes_lines), (
@@ -241,7 +241,7 @@ def test_injuries_live_in_their_own_field_not_notes():
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_sheet_always_shows_injuries_label(client):
-    """Even a blank card carries the labelled Injuries write-in strip."""
+    """Even a blank card carries the labelled Injuries write-in box."""
     url = reverse("debug_print_lab_sheet") + "?source=preset&preset=blank"
     body = client.get(url).content.decode()
     assert "Injuries" in body
@@ -250,7 +250,17 @@ def test_sheet_always_shows_injuries_label(client):
 
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
-def test_real_fighter_injuries_appear_in_top_strip(
+def test_bottom_fields_have_writein_boxes(client):
+    """Kills, Notes, and Injuries each get a hand-fillable write-in box."""
+    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=blank"
+    body = client.get(url).content.decode()
+    # three write-in boxes: kills, notes, injuries
+    assert body.count("cc-writein") >= 3
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_real_fighter_injuries_render_on_card(
     client, list_with_campaign, make_list_fighter
 ):
     """A campaign fighter's lasting injuries are pulled onto the card."""

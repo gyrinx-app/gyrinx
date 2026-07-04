@@ -152,29 +152,27 @@
     }
 
     // =======================================================================
-    // Injuries — a section below Notes. Shows the fighter's lasting injuries
-    // (inline after the label); otherwise labelled blank space to fill by hand.
+    // Injuries — a section below Notes: label + write-in box. Any lasting
+    // injuries are printed inside; the rest is space to fill in by hand.
     // =======================================================================
     .cc-injuries {
         top: var(--cc-injuries-top);
         height: var(--cc-injuries-h);
         display: flex;
         flex-direction: row;
-        align-items: baseline;
+        align-items: stretch;
         gap: 1.5mm;
-        border-top: 0.3mm solid var(--cc-line-soft);
-        padding-top: 0.5mm;
     }
 
     .cc-injuries .cc-label {
         flex: 0 0 auto;
+        align-self: flex-start;
+        padding-top: 0.7mm;
     }
 
-    .cc-injuries__body {
-        flex: 1 1 auto;
+    .cc-injuries__box {
         font-size: 2.4mm;
         line-height: 1.15;
-        overflow: hidden;
     }
 
     // =======================================================================
@@ -402,24 +400,32 @@
         min-height: 5mm; // ~two lines at this font size
     }
 
-    // Kills — pinned inline tally box, so it never gets clipped by the flow above.
+    // White translucent write-in boxes for the hand-filled bottom fields
+    // (Kills / Notes / Injuries). Any known data is printed inside; the extra
+    // space is there to write in by hand on a printed card.
+    .cc-writein {
+        flex: 1 1 auto;
+        min-width: 0;
+        align-self: stretch;
+        border: 0.3mm solid var(--cc-line);
+        border-radius: 0.6mm;
+        background: rgba(255, 255, 255, 0.5);
+        padding: 0.4mm 1mm;
+        overflow: hidden;
+    }
+
+    // Kills — pinned label + write-in tally box.
     .cc-kills {
         top: var(--cc-kills-top);
         height: var(--cc-kills-h);
         display: flex;
-        align-items: baseline;
-        gap: 6mm;
-    }
-
-    .cc-kills__item {
-        display: inline-flex;
-        align-items: baseline;
+        align-items: stretch;
         gap: 1.5mm;
     }
 
-    .cc-kills__val {
-        font-weight: 700;
-        font-size: 3.2mm;
+    .cc-kills .cc-label {
+        flex: 0 0 auto;
+        align-self: center;
     }
 
     // Special rules — a full-width row below the detail block. Label sits
@@ -442,15 +448,25 @@
         flex: 1 1 auto;
     }
 
+    // Notes — label + write-in box.
     .cc-notes {
         top: var(--cc-notes-top);
         height: var(--cc-notes-h);
-        border-top: 0.3mm solid var(--cc-line-soft);
-        padding-top: 0.5mm;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        gap: 1.5mm;
     }
 
-    .cc-notes .cc-section__body {
+    .cc-notes .cc-label {
+        flex: 0 0 auto;
+        align-self: flex-start;
+        padding-top: 0.7mm;
+    }
+
+    .cc-notes__box {
         font-size: 2.2mm;
+        line-height: 1.15;
         color: rgba(29, 26, 22, 0.9);
     }
 
