@@ -1596,6 +1596,12 @@ class ListFighter(AppBase):
             assign.cost_override = cost_override
 
         assign.save()
+
+        # Acquisition writes the receipt (#1826 Phase 7). Lazy import: the
+        # pinning module imports this models package.
+        from gyrinx.core.cost.pinning import pin_assignment
+
+        pin_assignment(assign)
         return assign
 
     @traced("listfighter_direct_assignments")

@@ -18,6 +18,7 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
+from gyrinx.core.cost.pinning import pin_assignment
 from gyrinx.core.handlers.equipment.deltas import component_delta
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
@@ -106,6 +107,10 @@ def handle_equipment_purchase(
     """
     # Refetch to get the full cost including profiles, accessories, and upgrades
     assignment.refresh_from_db()
+    # Acquisition writes the receipt (#1826 Phase 7): pin the base and every
+    # component at their resolved prices. Value-neutral — the cost_int()
+    # below reads back exactly the amounts just pinned.
+    pin_assignment(assignment)
     total_cost = assignment.cost_int()
 
     # Build these beforehand so we get the credit values right
@@ -236,6 +241,8 @@ def handle_accessory_purchase(
 
     # Add the accessory to the assignment
     assignment.weapon_accessories_field.add(accessory)
+    # Receipt for the new accessory row (#1826 Phase 7); existing pins untouched.
+    pin_assignment(assignment)
 
     description = f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)"
 
@@ -330,6 +337,8 @@ def handle_weapon_profile_purchase(
 
     # Add the profile to the assignment
     assignment.weapon_profiles_field.add(profile)
+    # Receipt for the new profile row (#1826 Phase 7); existing pins untouched.
+    pin_assignment(assignment)
 
     description = f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)"
 
@@ -462,6 +471,9 @@ def handle_equipment_upgrade(
 
     # Update the upgrades
     assignment.upgrades_field.set(new_upgrades)
+    # Receipts for the new upgrade rows (#1826 Phase 7); removed rows took
+    # their pins with them.
+    pin_assignment(assignment)
 
     # Create ListAction to track the upgrade change
     if new_upgrades:

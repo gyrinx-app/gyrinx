@@ -247,6 +247,11 @@ class ListFighterAdvancement(AppBase):
                 assignment.upgrades_field.set(
                     self.equipment_assignment.upgrades_field.all()
                 )
+
+                # Acquisition writes the receipt (#1826 Phase 7).
+                from gyrinx.core.cost.pinning import pin_assignment
+
+                pin_assignment(assignment)
                 # Recalculate cached values now that upgrades are added
                 assignment.facts_from_db(update=True)
         elif self.advancement_type == self.ADVANCEMENT_OTHER:

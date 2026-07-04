@@ -972,24 +972,54 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         clone = ListFighterEquipmentAssignment.objects.create(
             list_fighter=list_fighter,
             content_equipment=self.content_equipment,
+            # Cloning is not acquisition (#1826 Phase 7): the receipt travels
+            # with the gear verbatim — amount, attribution, and state — so a
+            # cloned gang (including the campaign-start clone) keeps its
+            # prices instead of silently reverting to live pricing.
+            pinned_base_amount=self.pinned_base_amount,
+            pinned_base_state=self.pinned_base_state,
+            pinned_equipment_list_item_id=self.pinned_equipment_list_item_id,
+            pinned_expansion_item_id=self.pinned_expansion_item_id,
         )
 
         # Preserve from_default_assignment if requested
         if preserve_from_default_assignment and self.from_default_assignment:
             clone.from_default_assignment = self.from_default_assignment
 
-        for profile in self.weapon_profiles_field.all():
-            clone.weapon_profiles_field.add(profile)
+        # Copy components by iterating the through rows, carrying each row's
+        # pin fields via through_defaults. Adding by pk also sidesteps the
+        # pack-filtering default managers entirely (the through models have
+        # no pack scoping), so pack-scoped profiles/upgrades are copied too.
+        for row in self.profile_rows.all():
+            clone.weapon_profiles_field.add(
+                row.contentweaponprofile_id,
+                through_defaults={
+                    "pinned_amount": row.pinned_amount,
+                    "pin_state": row.pin_state,
+                    "pinned_equipment_list_item_id": row.pinned_equipment_list_item_id,
+                    "pinned_expansion_item_id": row.pinned_expansion_item_id,
+                },
+            )
 
-        # Use all_content() so pack-scoped accessories are copied too — the
-        # default M2M manager would silently drop them.
-        for accessory in ContentWeaponAccessory.objects.all_content().filter(
-            weapon_accessories=self
-        ):
-            clone.weapon_accessories_field.add(accessory)
+        for row in self.accessory_rows.all():
+            clone.weapon_accessories_field.add(
+                row.contentweaponaccessory_id,
+                through_defaults={
+                    "pinned_amount": row.pinned_amount,
+                    "pin_state": row.pin_state,
+                    "pinned_equipment_list_accessory_id": row.pinned_equipment_list_accessory_id,
+                },
+            )
 
-        for upgrade in self.upgrades_field.all():
-            clone.upgrades_field.add(upgrade)
+        for row in self.upgrade_rows.all():
+            clone.upgrades_field.add(
+                row.contentequipmentupgrade_id,
+                through_defaults={
+                    "pinned_amount": row.pinned_amount,
+                    "pin_state": row.pin_state,
+                    "pinned_equipment_list_upgrade_id": row.pinned_equipment_list_upgrade_id,
+                },
+            )
 
         if self.cost_override is not None:
             clone.cost_override = self.cost_override
