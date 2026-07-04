@@ -326,3 +326,131 @@ def test_receipts_are_never_overwritten(ctx):
 
     assert pin_assignment(ctx["assignment"]) == 0  # nothing left to pin
     assert _base_pin(ctx["assignment"])[0] == 5  # acquisition price stands
+
+
+# --- Every wired acquisition path writes receipts -------------------------------
+
+
+@pytest.mark.django_db
+def test_purchase_handlers_pin(ctx, user, make_weapon_profile):
+    """The four purchase handlers (equipment, accessory, profile, upgrades)
+    each leave the rows they created carrying receipts."""
+    from gyrinx.core.handlers.equipment.purchase import (
+        handle_accessory_purchase,
+        handle_equipment_purchase,
+        handle_equipment_upgrade,
+        handle_weapon_profile_purchase,
+    )
+
+    handle_equipment_purchase(
+        user=user,
+        lst=ctx["lst"],
+        fighter=ctx["fighter"],
+        assignment=ctx["assignment"],
+    )
+    assert _base_pin(ctx["assignment"])[:2] == (15, PinState.CATALOG)
+
+    accessory = ContentWeaponAccessory.objects.create(name="Scope", cost=8)
+    handle_accessory_purchase(
+        user=user,
+        lst=fresh(ctx["lst"]),
+        fighter=fresh(ctx["fighter"]),
+        assignment=fresh(ctx["assignment"]),
+        accessory=accessory,
+    )
+    row = ctx["assignment"].accessory_rows.get()
+    assert (row.pinned_amount, row.pin_state) == (8, PinState.CATALOG)
+
+    profile = make_weapon_profile(ctx["equipment"], name="Hotshot", cost=10)
+    handle_weapon_profile_purchase(
+        user=user,
+        lst=fresh(ctx["lst"]),
+        fighter=fresh(ctx["fighter"]),
+        assignment=fresh(ctx["assignment"]),
+        profile=profile,
+    )
+    row = ctx["assignment"].profile_rows.get()
+    assert (row.pinned_amount, row.pin_state) == (10, PinState.CATALOG)
+
+    upgrade = ContentEquipmentUpgrade.objects.create(
+        equipment=ctx["equipment"], name="Rung 0", position=0, cost=12
+    )
+    handle_equipment_upgrade(
+        user=user,
+        lst=fresh(ctx["lst"]),
+        fighter=fresh(ctx["fighter"]),
+        assignment=fresh(ctx["assignment"]),
+        new_upgrades=[upgrade],
+    )
+    row = ctx["assignment"].upgrade_rows.get()
+    assert (row.pinned_amount, row.pin_state) == (12, PinState.DERIVED)  # SINGLE
+
+
+@pytest.mark.django_db
+def test_fighter_assign_pins(ctx, make_equipment):
+    assignment = ctx["fighter"].assign(make_equipment("Autogun", cost=20))
+    assert _base_pin(assignment)[:2] == (20, PinState.CATALOG)
+
+
+@pytest.mark.django_db
+def test_equipment_advancement_pins(ctx, make_equipment):
+    from gyrinx.content.models import (
+        ContentAdvancementAssignment,
+        ContentAdvancementEquipment,
+    )
+    from gyrinx.core.models import ListFighterAdvancement
+
+    advancement_equipment = ContentAdvancementEquipment.objects.create(
+        name="Weapon Advancement", xp_cost=0, enable_chosen=True
+    )
+    equipment = make_equipment("Advanced Weapon", cost=30)
+    content_assignment = ContentAdvancementAssignment.objects.create(
+        advancement=advancement_equipment, equipment=equipment
+    )
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=ctx["fighter"],
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_EQUIPMENT,
+        equipment_assignment=content_assignment,
+        xp_cost=0,
+    )
+    advancement.apply_advancement()
+
+    created = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=ctx["fighter"], content_equipment=equipment
+    )
+    assert _base_pin(created)[:2] == (30, PinState.CATALOG)
+
+
+@pytest.mark.django_db
+def test_vehicle_purchase_pins(
+    ctx, user, make_content_fighter, content_house, make_equipment
+):
+    from gyrinx.core.handlers.fighter.vehicle import handle_vehicle_purchase
+    from gyrinx.models import FighterCategoryChoices
+
+    vehicle_equipment = make_equipment("Ridgehauler", cost=100)
+    vehicle_fighter = make_content_fighter(
+        type="Hauler",
+        category=FighterCategoryChoices.VEHICLE,
+        house=content_house,
+        base_cost=100,
+    )
+    crew_fighter = make_content_fighter(
+        type="Crew",
+        category=FighterCategoryChoices.CREW,
+        house=content_house,
+        base_cost=50,
+    )
+    result = handle_vehicle_purchase(
+        user=user,
+        lst=ctx["lst"],
+        vehicle_equipment=vehicle_equipment,
+        vehicle_fighter=vehicle_fighter,
+        crew_fighter=crew_fighter,
+        crew_name="Test Crew",
+        is_stash=False,
+    )
+    created = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=result.crew_fighter, content_equipment=vehicle_equipment
+    )
+    assert _base_pin(created)[:2] == (100, PinState.CATALOG)
