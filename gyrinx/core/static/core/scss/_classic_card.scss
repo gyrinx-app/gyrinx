@@ -250,7 +250,11 @@
     .cc-cog {
         position: absolute;
         z-index: 1;
-        top: 8mm;
+        // vertically centred on the title/header band so the rating sits in the
+        // middle of that strip (band centre − half the cog height)
+        top: calc(
+            var(--cc-name-top) + var(--cc-name-h) / 2 - var(--cc-cog-size) / 2
+        );
         right: var(--cc-pad);
         width: var(--cc-cog-size);
         height: var(--cc-cog-size);
