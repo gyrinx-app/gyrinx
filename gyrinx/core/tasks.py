@@ -61,10 +61,13 @@ def propagate_content_cost_change(
     zero delta and skips out; the snapshot path skips a list that already has
     a matching applied action (same subject + same pre-change baseline). A
     redelivery that FLIPS branches — a mid-window mutation changed which rows
-    are pinned — can still book a second action; robust cross-branch
-    idempotency (a delivery token) lands with the Phase 8 RECONCILE work.
-    References to deleted instances are handled gracefully (the instance
-    lookup returns and the task is a no-op).
+    are pinned — can still book a second action. Robust cross-branch
+    idempotency needs a delivery token on the action; that is deliberately
+    NOT bundled into a cost-programme phase — it is a redelivery-hardening
+    job in its own right. Operationally: run the Phase 8 backfill (the
+    largest branch-flip window there is) in a quiet window, away from
+    content edits. References to deleted instances are handled gracefully
+    (the instance lookup returns and the task is a no-op).
     """
     from django.contrib.contenttypes.models import ContentType
 
@@ -383,13 +386,24 @@ def backfill_pins(after_id: str | None = None, batch_size: int = 250):
     batch = list(qs.values_list("id", flat=True)[:batch_size])
 
     pinned = 0
+    consecutive_failures = 0
     for assignment_id in batch:
         try:
-            pinned += pin_assignment(
-                ListFighterEquipmentAssignment.objects.get(pk=assignment_id)
-            )
+            pinned += pin_assignment(assignment_id)
+            consecutive_failures = 0
         except Exception:
+            consecutive_failures += 1
             logger.exception("backfill_pins: failed to pin %s", assignment_id)
+            if consecutive_failures >= 25:
+                # A systemic pinning bug should stop the walk, not log its
+                # way through the whole table. Idempotent: fix and re-enqueue
+                # from this cursor.
+                logger.error(
+                    "backfill_pins: aborting after %s consecutive failures (cursor %s)",
+                    consecutive_failures,
+                    assignment_id,
+                )
+                return
 
     logger.info(
         "backfill_pins: processed %s assignments (%s rows pinned), cursor %s",
@@ -398,4 +412,7 @@ def backfill_pins(after_id: str | None = None, batch_size: int = 250):
         batch[-1] if batch else "done",
     )
     if len(batch) == batch_size:
+        # Prod (Pub/Sub): fire-and-forget publish — flat chain. Dev/test
+        # (ImmediateBackend): this recurses, one frame per batch; fine for
+        # dev-sized tables, use the management command for bulk local runs.
         backfill_pins.enqueue(after_id=str(batch[-1]), batch_size=batch_size)

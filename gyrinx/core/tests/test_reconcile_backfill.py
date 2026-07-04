@@ -266,3 +266,92 @@ def test_backfill_task_walks_the_cursor(tracked_list, user):
 
     row = ListFighterEquipmentAssignment.objects.get(pk=assignment.pk)
     assert row.pinned_base_state == PinState.CATALOG
+
+
+@pytest.mark.django_db
+def test_reconcile_books_written_value_when_clamp_fires(tracked_list, user):
+    """A negative computed total is floored to zero by the cache fields: the
+    ledger must book the WRITTEN zero (booking the raw negative would end
+    the chain where the cache can never be) and the fired clamp is flagged."""
+    lst, fighter, assignment, _ = tracked_list
+    # Drive the computed rating negative: a pathological negative override,
+    # the shape kill-transfer leftovers and negative-cost gear produce.
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        cost_override=-500,
+        pinned_base_amount=None,
+        pinned_base_state=PinState.UNPINNED,
+    )
+
+    result = reconcile_list(lst, user=user)
+
+    assert result.clamped is True
+    assert result.rating_after == 0  # the written, floored value
+    if result.action:
+        assert result.action.rating_before + result.action.rating_delta == 0
+    # The clamped remainder legitimately shows as computed-vs-cached (the
+    # sheet's raw computation is negative, the cache floors at zero) — that
+    # is the gap the flag surfaces. What the fix prevents is the ledger
+    # ending somewhere the cache can never be:
+    problems = fresh_sheet(lst).reconcile()
+    assert not any("head desync" in p for p in problems)
+    assert not any("chain break" in p for p in problems)
+
+
+@pytest.mark.django_db
+def test_reconcile_adds_no_new_break_to_broken_credits_chain(tracked_list, user):
+    """Reconciling a list whose credits chain is ALREADY broken must not
+    mint an additional break at the reconcile link: the action chains its
+    credits off the head, and the pre-existing problem count is unchanged
+    plus nothing new mentions the RECONCILE action."""
+    lst, fighter, assignment, equipment = tracked_list
+    # Break the credits chain historically: tamper an old action's baseline.
+    first = ListAction.objects.filter(list=lst).order_by("created").first()
+    ListAction.objects.filter(pk=first.pk).update(credits_before=555)
+    problems_before = fresh_sheet(lst).reconcile()
+    assert any("credits" in p for p in problems_before)
+
+    # Give the reconcile something to book.
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
+    )
+    equipment.cost = "25"
+    equipment.save()
+    result = reconcile_list(lst, user=user)
+    assert result.action is not None
+
+    problems_after = fresh_sheet(lst).reconcile()
+    assert len(problems_after) == len(problems_before)
+    assert not any("RECONCILE" in p for p in problems_after)
+
+
+@pytest.mark.django_db
+def test_reconcile_handles_archived_fighters(tracked_list, user):
+    """Archived fighters' caches are rebuilt (harmless, pre-unarchive
+    correct) while staying excluded from the list totals."""
+    lst, fighter, assignment, _ = tracked_list
+    rating_with_fighter = fresh(lst).rating_current
+    ListFighter.objects.filter(pk=fighter.pk).update(archived=True)
+
+    result = reconcile_list(lst, user=user)
+
+    assert result.rating_after == rating_with_fighter - fresh(fighter).cost_int()
+    assert fresh_sheet(lst).reconcile() == []
+
+
+@pytest.mark.django_db
+def test_reconcile_lists_command_reports(tracked_list, user, capsys):
+    from django.core.management import call_command
+    from io import StringIO
+
+    lst, fighter, *_ = tracked_list
+    true_rating = fresh(lst).rating_current
+    ListFighter.objects.filter(pk=fighter.pk).update(
+        rating_current=fighter.rating_current + 10, dirty=False
+    )
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
+
+    out = StringIO()
+    call_command("reconcile_lists", str(lst.pk), stdout=out)
+
+    assert "Reconciled 1 list(s)" in out.getvalue()
+    assert fresh(lst).rating_current == true_rating

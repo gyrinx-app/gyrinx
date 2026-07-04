@@ -40,6 +40,11 @@ class ReconcileResult:
     rating_after: int
     stash_after: int
     action: Optional[ListAction]
+    # The zero-floor clamp fired: the raw computed total was negative and the
+    # cache stores the clamped value. The ledger books the WRITTEN value, so
+    # continuity holds — but the clamped remainder is real information the
+    # design requires surfacing (§4.8.2), not swallowing.
+    clamped: bool = False
 
     @property
     def moved(self) -> bool:
@@ -62,7 +67,12 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
     fixed but no record — there is no chain to keep continuous.
     """
     with transaction.atomic():
-        fresh = List.objects.get(pk=lst.pk)
+        # Locked for the duration: serializes concurrent reconciles (and
+        # admin double-clicks) against each other. User flows don't lock the
+        # list, so a request landing mid-reconcile can still chain off the
+        # same head — the window is short and per-list, a re-run repairs it,
+        # and the ops command advises quiet-hours running.
+        fresh = List.objects.select_for_update().get(pk=lst.pk)
         rating_before = fresh.rating_current
         stash_before = fresh.stash_current
 
@@ -79,6 +89,16 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
 
         facts = fresh.facts_from_db(update=True)
 
+        # facts_from_db RETURNS raw sums but WRITES zero-clamped values to
+        # the caches (the fields are positive-only). The ledger must book
+        # what was written — booking the raw negative would end the chain at
+        # a value the cache can never hold, minting a head desync on exactly
+        # the drifted population this tool exists to clean. A fired clamp is
+        # flagged on the result (§4.8.2).
+        rating_written = fresh.rating_current
+        stash_written = fresh.stash_current
+        clamped = facts.rating != rating_written or facts.stash != stash_written
+
         # The action chains off the LEDGER HEAD, not the cached values —
         # drift is by definition an un-audited cache mutation, so the chain's
         # last "after" is the only continuous baseline (family 3 checks each
@@ -91,8 +111,8 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
             head_rating = head.rating_before + head.rating_delta
             head_stash = head.stash_before + head.stash_delta
             head_credits = head.credits_before + head.credits_delta
-            rating_delta = facts.rating - head_rating
-            stash_delta = facts.stash - head_stash
+            rating_delta = rating_written - head_rating
+            stash_delta = stash_written - head_stash
             if rating_delta or stash_delta:
                 parts = []
                 if rating_delta:
@@ -131,7 +151,8 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
             list_id=fresh.pk,
             rating_before=rating_before,
             stash_before=stash_before,
-            rating_after=facts.rating,
-            stash_after=facts.stash,
+            rating_after=rating_written,
+            stash_after=stash_written,
             action=action,
+            clamped=clamped,
         )
