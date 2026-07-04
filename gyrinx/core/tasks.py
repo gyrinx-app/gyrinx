@@ -61,10 +61,13 @@ def propagate_content_cost_change(
     zero delta and skips out; the snapshot path skips a list that already has
     a matching applied action (same subject + same pre-change baseline). A
     redelivery that FLIPS branches — a mid-window mutation changed which rows
-    are pinned — can still book a second action; robust cross-branch
-    idempotency (a delivery token) lands with the Phase 8 RECONCILE work.
-    References to deleted instances are handled gracefully (the instance
-    lookup returns and the task is a no-op).
+    are pinned — can still book a second action. Robust cross-branch
+    idempotency needs a delivery token on the action; that is deliberately
+    NOT bundled into a cost-programme phase — it is a redelivery-hardening
+    job in its own right. Operationally: run the Phase 8 backfill (the
+    largest branch-flip window there is) in a quiet window, away from
+    content edits. References to deleted instances are handled gracefully
+    (the instance lookup returns and the task is a no-op).
     """
     from django.contrib.contenttypes.models import ContentType
 
@@ -353,3 +356,97 @@ def _update_discord_message(application_id: str, interaction_token: str, content
         )
     except Exception as e:
         logger.error(f"Failed to update Discord message: {e}")
+
+
+@task
+def backfill_pins(
+    after_id: str | None = None, batch_size: int = 250, failed_so_far: int = 0
+):
+    """Write acquisition receipts onto every legacy assignment (#1826 §4.8.4).
+
+    Walks all assignments in pk order (archived included — a later unarchive
+    must find correct amounts), calling the same `pin_assignment` choke point
+    acquisition uses, so there is exactly one pinning implementation. The
+    choke point is idempotent (already-pinned rows untouched) and skips the
+    anchored/frozen rows that must stay UNPINNED, so re-running is safe and
+    "resume" is just re-enqueueing with the cursor.
+
+    Value- and cache-neutral by construction: each amount equals what live
+    resolution returns at that instant, so no ListActions and no wealth
+    movement. Run the audited reconcile (core/cost/reconcile.py) across
+    lists FIRST — freezing amounts on top of drifted caches would enshrine
+    the drift (§4.8.2).
+
+    Self-re-enqueues with a pk cursor until the table is exhausted.
+    """
+    from gyrinx.core.cost.pinning import pin_assignment
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    qs = ListFighterEquipmentAssignment.objects.order_by("id")
+    if after_id:
+        qs = qs.filter(id__gt=after_id)
+    batch = list(qs.values_list("id", flat=True)[:batch_size])
+
+    pinned = 0
+    failed = 0
+    consecutive_failures = 0
+    last_success_id = after_id
+    for assignment_id in batch:
+        try:
+            pinned += pin_assignment(assignment_id)
+            consecutive_failures = 0
+            last_success_id = assignment_id
+        except Exception:
+            failed += 1
+            consecutive_failures += 1
+            logger.exception("backfill_pins: failed to pin %s", assignment_id)
+            if consecutive_failures >= 25:
+                # A systemic pinning bug should stop the walk, not log its
+                # way through the whole table. The advertised resume cursor
+                # is the last SUCCESS: after_id is exclusive (id__gt), so
+                # resuming from the failed id would skip it.
+                logger.error(
+                    "backfill_pins: aborting after %s consecutive failures "
+                    "at %s. Fix the cause, then re-enqueue with "
+                    "after_id=%s (idempotent).",
+                    consecutive_failures,
+                    assignment_id,
+                    last_success_id,
+                )
+                return
+
+    total_failed = failed_so_far + failed
+    if len(batch) == batch_size:
+        logger.info(
+            "backfill_pins: processed %s assignments (%s rows pinned, "
+            "%s failed so far), cursor %s",
+            len(batch),
+            pinned,
+            total_failed,
+            batch[-1],
+        )
+        # Failed rows stay UNPINNED and are deliberately walked past — the
+        # cursor must not stall on a poisoned row (that would livelock the
+        # chain). The recovery path is the idempotent re-run, which retries
+        # exactly the still-unpinned rows; the consecutive-failure breaker
+        # above handles systemic breakage.
+        # Prod (Pub/Sub): fire-and-forget publish — flat chain. Dev/test
+        # (ImmediateBackend): this recurses, one frame per batch; fine for
+        # dev-sized tables, use the management command for bulk local runs.
+        backfill_pins.enqueue(
+            after_id=str(batch[-1]),
+            batch_size=batch_size,
+            failed_so_far=total_failed,
+        )
+    elif total_failed:
+        logger.warning(
+            "backfill_pins: walk COMPLETE with %s failed row(s) left "
+            "UNPINNED — check the per-row exceptions above, fix the cause, "
+            "and re-run (idempotent: only still-unpinned rows are retried).",
+            total_failed,
+        )
+    else:
+        logger.info(
+            "backfill_pins: walk complete, %s rows pinned in final batch.",
+            pinned,
+        )

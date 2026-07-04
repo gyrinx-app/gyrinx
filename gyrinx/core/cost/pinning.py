@@ -55,13 +55,13 @@ from gyrinx.core.models.list import (
 def pin_assignment(assignment) -> int:
     """Write acquisition receipts on an assignment and its component rows.
 
-    Accepts any instance (possibly stale or carrying cached cost properties);
-    works on a fresh refetch so live resolution sees true pre-pin state.
-    Returns the number of rows pinned (0 when everything was already pinned
-    or anchored) — callers don't need it, but tests do.
+    Accepts an instance (possibly stale or carrying cached cost properties)
+    or a bare pk; works on a fresh refetch so live resolution sees true
+    pre-pin state. Returns the number of rows pinned (0 when everything was
+    already pinned or anchored) — callers don't need it, but tests do.
     """
     fresh = ListFighterEquipmentAssignment.objects.with_related_data().get(
-        pk=assignment.pk
+        pk=getattr(assignment, "pk", assignment)
     )
     if fresh.total_cost_override is not None:
         # Frozen gear: the override is the paid price. Leave every row
