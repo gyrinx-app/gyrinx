@@ -357,6 +357,9 @@
         grid-auto-flow: column;
         column-gap: 3mm;
         row-gap: 1mm;
+        // pack rows at the top instead of stretching them to fill the block,
+        // so a short Skills row doesn't leave a big gap before Rules.
+        align-content: start;
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
         // script (print_lab_sheet.html) can shrink the whole block as one unit.
@@ -399,6 +402,13 @@
     .cc-detail .cc-section__body {
         flex: 1 1 auto;
         min-width: 0;
+    }
+
+    // Skills and Gear reserve AT LEAST two rows of body height (room to
+    // hand-write on a printed card); longer content simply grows past it.
+    .cc-skills .cc-section__body,
+    .cc-wargear .cc-section__body {
+        min-height: 5.3mm; // ~two lines at this font size
     }
 
     // The "other" quadrant stacks its sub-groups (Wyrd Powers, Legendary Names,
