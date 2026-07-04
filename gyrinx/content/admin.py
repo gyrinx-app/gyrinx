@@ -1105,8 +1105,12 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         # ContentAdmin.__init__ builds list_display from the base model's
         # fields, which for the polymorphic parent is just ``polymorphic_ctype``
         # — an unhelpful "Content | Fighter Rule Modifier" label. Lead with the
-        # rendered mod instead, keeping the type and packs columns alongside.
-        return ("mod_description", "polymorphic_ctype", "packs_display")
+        # rendered mod instead, keeping the type column alongside.
+        #
+        # ContentAdmin also appends ``packs_display``, but a ContentMod is never
+        # a CustomContentPackItem (mods attach via M2M / ContentModApplication),
+        # so it would always render "-" while costing a query per row. Drop it.
+        return ("mod_description", "polymorphic_ctype")
 
 
 @admin.register(ContentModApplication)
