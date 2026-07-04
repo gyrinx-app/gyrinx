@@ -95,45 +95,38 @@ Params:
             </div>
         {% endif %}
     </div>
-    {% comment %} Lower detail block — 2-column grid: skills, rules, gear, other {% endcomment %}
+    {% comment %} Lower detail block — balanced 2 columns: skills, rules, gear, then others {% endcomment %}
     <div class="cc-region cc-detail">
-        {% comment %} col 1, row 1 {% endcomment %}
         <div class="cc-section cc-skills">
             <div class="cc-label">Skills</div>
             <div class="cc-section__body">{{ card.skills|join:", " }}</div>
         </div>
-        {% comment %} col 1, row 2 {% endcomment %}
         <div class="cc-section cc-rules-q">
             <div class="cc-label">Rules</div>
             <div class="cc-section__body">{{ card.rules|join:", " }}</div>
         </div>
-        {% comment %} col 2, row 1 {% endcomment %}
         <div class="cc-section cc-wargear">
             <div class="cc-label">Gear</div>
             <div class="cc-section__body">{{ card.wargear|join:", " }}</div>
         </div>
-        {% comment %} col 2, row 2 — powers + special gear categories {% endcomment %}
-        <div class="cc-quad-other">
-            {% if card.powers %}
-                <div class="cc-section cc-powers">
-                    <div class="cc-label">Wyrd Powers</div>
-                    <div class="cc-section__body">{{ card.powers|join:", " }}</div>
-                </div>
-            {% endif %}
-            {% for cat in card.gear_categories %}
-                <div class="cc-section cc-gearcat">
-                    <div class="cc-label">{{ cat.0 }}</div>
-                    <div class="cc-section__body">{{ cat.1|join:", " }}</div>
-                </div>
-            {% endfor %}
-        </div>
+        {% if card.powers %}
+            <div class="cc-section cc-powers">
+                <div class="cc-label">Wyrd Powers</div>
+                <div class="cc-section__body">{{ card.powers|join:", " }}</div>
+            </div>
+        {% endif %}
+        {% for cat in card.gear_categories %}
+            <div class="cc-section cc-gearcat">
+                <div class="cc-label">{{ cat.0 }}</div>
+                <div class="cc-section__body">{{ cat.1|join:", " }}</div>
+            </div>
+        {% endfor %}
     </div>
     {% comment %} XP (bold value + write-in box) + Kills (write-in box), pinned {% endcomment %}
     <div class="cc-region cc-kills">
-        <span class="cc-label">XP</span>
-        <span class="cc-kills__xp">{{ card.xp }}</span>
+        <span class="cc-kills__lbl"><span class="cc-label">XP</span> <span class="cc-kills__xp">{{ card.xp }}</span></span>
         <span class="cc-writein"></span>
-        <span class="cc-label">Kills</span>
+        <span class="cc-kills__lbl"><span class="cc-label">Kills</span></span>
         <span class="cc-writein"></span>
     </div>
     {% comment %} Notes — write-in box {% endcomment %}

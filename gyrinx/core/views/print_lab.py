@@ -678,20 +678,6 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         notes_lines=[],
     )
 
-    presets["stash"] = ClassicCard(
-        kind="stash",
-        name="Stash",
-        subtitle="Gang stash",
-        cost="0¢",
-        stats=_humanoid_stats(["-"] * 12),
-        save="",
-        weapons=[],
-        skills=[],
-        wargear=["Frag grenades", "Krak grenades", "Spare autogun"],
-        xp="",
-        notes_lines=[],
-    )
-
     return presets
 
 
@@ -703,7 +689,6 @@ PRESET_LABELS = {
     "psyker": "Psyker (powers + legendary names)",
     "overflow": "Overflow (stress test)",
     "blank": "Blank fighter card",
-    "stash": "Stash",
 }
 
 

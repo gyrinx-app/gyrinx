@@ -19,7 +19,8 @@
     --cc-line: rgba(29, 26, 22, 0.82);
     --cc-line-soft: rgba(29, 26, 22, 0.35);
     --cc-hl: rgba(122, 45, 41, 0.16); // mental-stat / highlighted band tint
-    --cc-paper: #d9d4cc; // fallback under the texture
+    --cc-paper: #fff; // base the texture fades onto
+    --cc-fade: 0.5; // white wash over the texture (0 = full-strength texture)
 
     // --- geometry (mm) — tune the whole card from here ---------------------
     --cc-w: 100mm;
@@ -46,6 +47,9 @@
     // injuries sit under notes at the very bottom
     --cc-injuries-top: 97.5mm;
     --cc-injuries-h: 10mm;
+    // shared label-column width for the XP / Kills / Notes / Injuries rows so
+    // their write-in boxes all start at the same x.
+    --cc-fieldlabel-w: 13mm;
 
     --cc-cog-size: 19mm;
 
@@ -77,6 +81,20 @@
         background-size: cover;
         background-position: center;
         pointer-events: none;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    // White wash over the texture — a solid translucent layer rather than
+    // element opacity, which browsers drop when printing. Prints because the
+    // card sets print-color-adjust: exact.
+    .cc-bg::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, var(--cc-fade));
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     // Every region sits above the texture.
@@ -160,11 +178,7 @@
         gap: 1.5mm;
     }
 
-    .cc-injuries .cc-label {
-        flex: 0 0 auto;
-        align-self: flex-start;
-        padding-top: 0.7mm;
-    }
+    // (label width shared with Notes — see .cc-notes .cc-label rule)
 
     .cc-injuries__box {
         font-size: 2.4mm;
@@ -346,20 +360,15 @@
     // fighter can never overlap the next region — long content is clipped at
     // the block boundary, not spilled. NOTES is pinned full-width below.
     // =======================================================================
+    // Two balanced columns. Groups flow in reading order (Skills, Rules, Gear,
+    // then the "other" groups) and the browser splits them to keep the columns
+    // even — no group is forced into a particular column, so a psyker's extra
+    // groups don't pile up lopsidedly on one side.
     .cc-detail {
         top: var(--cc-detail-top);
         height: var(--cc-detail-h);
-        // Two columns; the four groups fill column-major so their reading order
-        // is Skills, Rules (col 1) then Gear, Other (col 2).
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: auto auto;
-        grid-auto-flow: column;
+        column-count: 2;
         column-gap: 3mm;
-        row-gap: 1mm;
-        // pack rows at the top instead of stretching them to fill the block,
-        // so a short Skills row doesn't leave a big gap before Rules.
-        align-content: start;
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
         // script (print_lab_sheet.html) can shrink the whole block as one unit.
@@ -386,13 +395,16 @@
         font-size: 1em;
     }
 
-    // Each group is inline (label left, value wraps to its right); grid items
-    // need min-width:0 so long text wraps inside the column instead of widening it.
+    // Each group is inline (label left, value wraps to its right) and stays
+    // whole within a column. Top-align: an empty Skills/Gear body keeps its
+    // 2-row min-height, and baseline alignment would drag the label down.
     .cc-detail .cc-section {
         flex-direction: row;
-        align-items: baseline;
+        align-items: flex-start;
         gap: 1.5mm;
         min-width: 0;
+        break-inside: avoid;
+        margin-bottom: 1mm;
     }
 
     .cc-detail .cc-label {
@@ -409,16 +421,6 @@
     .cc-skills .cc-section__body,
     .cc-wargear .cc-section__body {
         min-height: 5.3mm; // ~two lines at this font size
-    }
-
-    // The "other" quadrant stacks its sub-groups (Wyrd Powers, Legendary Names,
-    // Status Items, …) within its grid cell.
-    .cc-quad-other {
-        display: flex;
-        flex-direction: column;
-        gap: 0.6mm;
-        min-width: 0;
-        overflow: hidden;
     }
 
     // White translucent write-in boxes for the hand-filled bottom fields
@@ -443,15 +445,18 @@
         gap: 1.5mm;
     }
 
-    .cc-kills .cc-label {
-        flex: 0 0 auto;
+    // Fixed-width label cell (XP value included) so its box starts at the same
+    // x as the Notes / Injuries boxes below.
+    .cc-kills__lbl {
+        flex: 0 0 var(--cc-fieldlabel-w);
         align-self: center;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 1.2mm;
     }
 
-    // XP shows its value as bold text before its box; boxes fill the rest.
+    // XP shows its value as bold text before its box.
     .cc-kills__xp {
-        flex: 0 0 auto;
-        align-self: center;
         font-weight: 700;
     }
 
@@ -465,8 +470,9 @@
         gap: 1.5mm;
     }
 
-    .cc-notes .cc-label {
-        flex: 0 0 auto;
+    .cc-notes .cc-label,
+    .cc-injuries .cc-label {
+        flex: 0 0 var(--cc-fieldlabel-w);
         align-self: flex-start;
         padding-top: 0.7mm;
     }
@@ -509,6 +515,8 @@
         --cc-line-soft: rgba(236, 228, 218, 0.3);
         --cc-maroon: #c96a54;
         --cc-hl: rgba(201, 106, 84, 0.16);
+        --cc-paper: #23201c;
+        --cc-fade: 0; // dark plate stays full strength
         color: var(--cc-ink);
 
         .cc-bg {
