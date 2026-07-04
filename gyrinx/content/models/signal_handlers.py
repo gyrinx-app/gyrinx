@@ -11,10 +11,10 @@ import logging
 
 from django.db import transaction
 from django.db.models import Q
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
-from gyrinx.content.signals import get_new_cost, get_old_cost
+from gyrinx.content.signals import MISSING, get_new_cost, get_old_cost, get_old_field
 from gyrinx.models import format_cost_display
 from gyrinx.tracing import traced
 
@@ -107,14 +107,25 @@ def handle_profile_cost_change(sender, instance, **kwargs):
 @traced("signal_content_accessory_cost_change")
 def handle_accessory_cost_change(sender, instance, **kwargs):
     """
-    Mark affected assignments dirty when ContentWeaponAccessory.cost changes.
+    Mark affected assignments dirty when ContentWeaponAccessory.cost or
+    cost_expression changes.
     """
     old_cost = get_old_cost(sender, instance, "cost")
     if old_cost is None:
         return  # New instance, no existing assignments
 
     new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
+    changed = old_cost != new_cost
+    if not changed:
+        # A cost_expression edit reprices every assignment carrying this
+        # accessory just as surely as a flat-cost edit, but was previously
+        # unwatched: nothing went dirty and no audit action was recorded.
+        old_expression = get_old_field(sender, instance, "cost_expression")
+        changed = (
+            old_expression is not MISSING and old_expression != instance.cost_expression
+        )
+
+    if changed:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
 
@@ -242,7 +253,15 @@ def handle_expansion_item_cost_change(sender, instance, **kwargs):
         return  # New instance, no existing assignments
 
     new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
+    changed = old_cost != new_cost
+    if not changed:
+        # The int helpers coerce None to 0, but on expansion items None means
+        # "use the base price" and 0 means "free" — a 0 <-> None edit DOES
+        # reprice and must sweep. Compare the raw values to catch it.
+        old_raw = get_old_field(sender, instance, "cost")
+        changed = old_raw is not MISSING and old_raw != instance.cost
+
+    if changed:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
 
@@ -256,13 +275,19 @@ def handle_expansion_item_cost_change(sender, instance, **kwargs):
 # =============================================================================
 
 
-def _affected_list_ids(instance) -> list:
+def _affected_list_ids(instance, include_archived: bool = False) -> list:
     """Return the distinct ids of lists affected by a content cost change.
 
     Shared by the synchronous enqueue path (which snapshots each affected list's
     pre-change costs) and the async task (which recalculates and records actions),
     so both agree on exactly which lists a content instance touches. Returns an
     empty list for unknown model types.
+
+    ``include_archived`` widens the set to lists reachable only through
+    archived rows — the amount-rewriting sweep domain (#1826 §4.7: archived
+    rows are swept too, or a later unarchive resurrects a stale amount).
+    The default (live rows only) is the action/dirty domain and stays in
+    lockstep with the model set_dirty() filters.
     """
     from gyrinx.core.models.list import (
         ListFighter,
@@ -270,12 +295,13 @@ def _affected_list_ids(instance) -> list:
     )
 
     model_name = instance.__class__.__name__
+    live = {} if include_archived else {"archived": False}
 
     if model_name == "ContentEquipment":
         # Equipment directly assigned to fighters
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                content_equipment=instance, archived=False
+                content_equipment=instance, **live
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -284,7 +310,7 @@ def _affected_list_ids(instance) -> list:
         # Weapon profiles on assignments
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                weapon_profiles_field=instance, archived=False
+                weapon_profiles_field=instance, **live
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -293,16 +319,18 @@ def _affected_list_ids(instance) -> list:
         # Weapon accessories on assignments
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                weapon_accessories_field=instance, archived=False
+                weapon_accessories_field=instance, **live
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentEquipmentUpgrade":
-        # Equipment upgrades on assignments
+        # Equipment upgrades on assignments. SINGLE stacks reprice this rung
+        # and every higher rung (mirror of ContentEquipmentUpgrade.set_dirty).
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                upgrades_field=instance, archived=False
+                upgrades_field__in=instance.same_stack_from_position(),
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
@@ -312,7 +340,7 @@ def _affected_list_ids(instance) -> list:
         list_ids = (
             ListFighter.objects.filter(
                 Q(content_fighter=instance) | Q(legacy_content_fighter=instance),
-                archived=False,
+                **live,
             )
             .values_list("list_id", flat=True)
             .distinct()
@@ -324,58 +352,78 @@ def _affected_list_ids(instance) -> list:
                 Q(content_fighter=instance.fighter)
                 | Q(legacy_content_fighter=instance.fighter),
                 list__content_house=instance.house,
-                archived=False,
+                **live,
             )
             .values_list("list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListItem":
-        # Equipment list items - cost overrides for equipment on specific fighter types
+        # Equipment list items - cost overrides for equipment on specific
+        # fighter types, plus rows pinned to this item (base or profile),
+        # mirroring ContentFighterEquipmentListItem.set_dirty exactly.
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                Q(list_fighter__content_fighter=instance.fighter)
-                | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                content_equipment=instance.equipment,
-                archived=False,
+                Q(
+                    Q(list_fighter__content_fighter=instance.fighter)
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    content_equipment=instance.equipment,
+                )
+                | Q(pinned_equipment_list_item=instance)
+                | Q(profile_rows__pinned_equipment_list_item=instance),
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListWeaponAccessory":
-        # Weapon accessory cost overrides on specific fighter types
+        # Weapon accessory cost overrides on specific fighter types, plus
+        # accessory rows pinned to this override (mirror of its set_dirty).
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                Q(list_fighter__content_fighter=instance.fighter)
-                | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                weapon_accessories_field=instance.weapon_accessory,
-                archived=False,
+                Q(
+                    Q(list_fighter__content_fighter=instance.fighter)
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    weapon_accessories_field=instance.weapon_accessory,
+                )
+                | Q(accessory_rows__pinned_equipment_list_accessory=instance),
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListUpgrade":
-        # Equipment upgrade cost overrides on specific fighter types
+        # Equipment upgrade cost overrides on specific fighter types —
+        # applied per rung in SINGLE-stack cumulative pricing, so this rung
+        # and every higher one — plus upgrade rows pinned to this override
+        # (mirror of its set_dirty).
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
-                Q(list_fighter__content_fighter=instance.fighter)
-                | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                upgrades_field=instance.upgrade,
-                archived=False,
+                Q(
+                    Q(list_fighter__content_fighter=instance.fighter)
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    upgrades_field__in=instance.upgrade.same_stack_from_position(),
+                )
+                | Q(upgrade_rows__pinned_equipment_list_upgrade=instance),
+                **live,
             )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
     elif model_name == "ContentEquipmentListExpansionItem":
-        # Expansion items - conservatively mark all assignments with this equipment
-        filter_kwargs = {
-            "content_equipment": instance.equipment,
-            "archived": False,
-        }
+        # Expansion items - conservatively mark all assignments with this
+        # equipment, plus rows pinned to this expansion item (base or
+        # profile), mirroring its set_dirty exactly.
+        expansion_q = Q(content_equipment=instance.equipment)
         if instance.weapon_profile is not None:
-            filter_kwargs["weapon_profiles_field"] = instance.weapon_profile
+            expansion_q &= Q(weapon_profiles_field=instance.weapon_profile)
 
         list_ids = (
-            ListFighterEquipmentAssignment.objects.filter(**filter_kwargs)
+            ListFighterEquipmentAssignment.objects.filter(
+                expansion_q
+                | Q(pinned_expansion_item=instance)
+                | Q(profile_rows__pinned_expansion_item=instance),
+                **live,
+            )
             .values_list("list_fighter__list_id", flat=True)
             .distinct()
         )
@@ -405,6 +453,29 @@ def _snapshot_list_costs(list_ids) -> dict:
     }
 
 
+def _instance_display_name(instance) -> str:
+    """Human-readable name for a content instance in action descriptions.
+
+    Most models have a name field/method, but some need special handling.
+    """
+    model_name = instance.__class__.__name__
+    if model_name == "ContentFighterEquipmentListItem":
+        return instance.equipment.name
+    elif model_name == "ContentFighterEquipmentListWeaponAccessory":
+        return instance.weapon_accessory.name
+    elif model_name == "ContentFighterEquipmentListUpgrade":
+        return instance.upgrade.name
+    elif model_name == "ContentEquipmentListExpansionItem":
+        return instance.equipment.name
+    elif hasattr(instance, "equipment"):
+        # Generic equipment reference (e.g. ContentWeaponProfile,
+        # ContentEquipmentUpgrade)
+        return instance.equipment.name
+    elif hasattr(instance, "name"):
+        return instance.name() if callable(instance.name) else instance.name
+    return str(instance)
+
+
 def _create_content_cost_change_actions(instance, before_snapshots=None):
     """
     Create CONTENT_COST_CHANGE actions for all lists affected by a content cost change.
@@ -423,103 +494,130 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
             running can't zero out the delta. When omitted, the live cached values
             are used (correct for synchronous/direct callers).
     """
+    from gyrinx.core.cost.pin_sweep import rewrite_pinned_amounts_for_list
     from gyrinx.core.models.action import ListAction, ListActionType
     from gyrinx.core.models.list import List
 
-    # Find affected lists based on the model type
-    model_name = instance.__class__.__name__
+    # Find affected lists based on the model type. The rewrite domain also
+    # includes lists reachable only through archived rows (their amounts are
+    # rewritten so an unarchive can't resurrect a stale price); actions and
+    # snapshots stay scoped to the live set.
     list_ids = _affected_list_ids(instance)
+    rewrite_list_ids = _affected_list_ids(instance, include_archived=True)
 
-    if not list_ids:
+    if not rewrite_list_ids:
         return  # No affected lists
 
-    # Get the instance name for the action description
-    # Most models have a name field/method, but some need special handling
-    if model_name == "ContentFighterEquipmentListItem":
-        # This model has equipment FK
-        instance_name = instance.equipment.name
-    elif model_name == "ContentFighterEquipmentListWeaponAccessory":
-        # This model has weapon_accessory FK
-        instance_name = instance.weapon_accessory.name
-    elif model_name == "ContentFighterEquipmentListUpgrade":
-        # This model has upgrade FK
-        instance_name = instance.upgrade.name
-    elif model_name == "ContentEquipmentListExpansionItem":
-        # This model has equipment FK
-        instance_name = instance.equipment.name
-    elif hasattr(instance, "equipment"):
-        # Generic equipment reference (e.g., ContentWeaponProfile, ContentEquipmentUpgrade)
-        instance_name = instance.equipment.name
-    elif hasattr(instance, "name"):
-        instance_name = instance.name() if callable(instance.name) else instance.name
-    else:
-        instance_name = str(instance)
+    live_list_ids = set(list_ids)
+    instance_name = _instance_display_name(instance)
 
-    # For each list, recalculate and create action
+    # For each list: rewrite pinned amounts, recalculate, create action.
     # Each list is processed in its own transaction for consistency:
-    # either all changes succeed (facts updated, action created, credits applied)
-    # or none do (transaction rolls back, list stays dirty for later recalculation)
-    for list_id in list_ids:
+    # either all changes succeed (amounts rewritten, facts updated, action
+    # created, credits applied) or none do (transaction rolls back, list stays
+    # dirty — and unrewritten — for a later redelivery).
+    for list_id in rewrite_list_ids:
         try:
             with transaction.atomic():
                 lst = List.objects.get(id=list_id)
 
+                # Rewrite pinned amounts FIRST (#1826 §4.7 ordering): any
+                # recompute — the facts_from_db below or a later lazy
+                # view recalc — must sum already-updated amounts. Rewriting
+                # after would snap the caches back to the old amounts or
+                # double-count the correction on the next recompute.
+                sweep = rewrite_pinned_amounts_for_list(instance, lst)
+
                 # Only create actions for lists that have an initial action
                 # Lists without latest_action will have dirty flag set via set_dirty()
-                # and will be recalculated when viewed
-                if not lst.latest_action:
+                # and will be recalculated when viewed (against the amounts
+                # rewritten above). Archived-only lists get the rewrite but no
+                # action processing — nothing cache-visible moved, and the
+                # snapshot fallback has no baseline for them.
+                if list_id not in live_list_ids or not lst.latest_action:
                     continue
 
-                # Capture before state.
-                #
-                # This task runs asynchronously (after commit), so a user may view
-                # the affected list before it runs. Viewing a dirty list lazily
-                # recalculates and writes the *new* values into rating_current/
-                # stash_current (via get_clean_list_or_404 -> facts_from_db) WITHOUT
-                # recording an action — which would make the live rating_current a
-                # zero-delta baseline here, silently dropping the action (and, in
-                # campaign mode, the credit adjustment). So prefer the pre-change
-                # snapshot captured synchronously at enqueue time; fall back to the
-                # live value only when no snapshot was supplied (e.g. direct calls).
-                snapshot = (
-                    before_snapshots.get(str(list_id)) if before_snapshots else None
-                )
-                if snapshot is not None:
-                    old_rating, old_stash = snapshot
+                if sweep.use_row_deltas:
+                    # Per-row amount deltas: Σ(new − old pinned amount) over
+                    # the rows the sweep rewrote. Unlike the snapshot fallback
+                    # below, this is independent of anything else landing on
+                    # the list between enqueue and this task running — a
+                    # racing user purchase used to be folded into this
+                    # action's delta and double-charged in campaign credits.
+                    # Redelivery is naturally idempotent: the second rewrite
+                    # produces a zero delta and skips out here.
+                    facts = lst.facts_from_db(update=True)
+                    rating_delta = sweep.rating_delta
+                    stash_delta = sweep.stash_delta
+                    total_delta = rating_delta + stash_delta
+                    # Check each delta, not the sum: +N rating / -N stash
+                    # cancels to zero while both books moved, and skipping
+                    # here (after facts committed the movement) would break
+                    # the action chain.
+                    if rating_delta == 0 and stash_delta == 0:
+                        continue
+                    # Chain the action off the recomputed head so anything
+                    # that landed in the window keeps its own audit trail.
+                    old_rating = facts.rating - rating_delta
+                    old_stash = facts.stash - stash_delta
                 else:
-                    old_rating = lst.rating_current
-                    old_stash = lst.stash_current
-
-                # Idempotency: if this exact change was already recorded for this
-                # list (same content subject + same pre-change baseline), don't
-                # duplicate it. With a frozen snapshot a redelivery would otherwise
-                # recompute a non-zero delta and double-charge campaign credits.
-                if (
-                    ListAction.objects.filter(
-                        list=lst,
-                        action_type=ListActionType.CONTENT_COST_CHANGE,
-                        subject_id=instance.pk,
-                        rating_before=old_rating,
-                        stash_before=old_stash,
+                    # Snapshot fallback: UNPINNED rows reprice live, so their
+                    # movement only exists as recompute-vs-baseline. This is
+                    # today's machinery, race included; it retires per-list as
+                    # the Phase 8 backfill pins rows.
+                    #
+                    # Capture before state.
+                    #
+                    # This task runs asynchronously (after commit), so a user may view
+                    # the affected list before it runs. Viewing a dirty list lazily
+                    # recalculates and writes the *new* values into rating_current/
+                    # stash_current (via get_clean_list_or_404 -> facts_from_db) WITHOUT
+                    # recording an action — which would make the live rating_current a
+                    # zero-delta baseline here, silently dropping the action (and, in
+                    # campaign mode, the credit adjustment). So prefer the pre-change
+                    # snapshot captured synchronously at enqueue time; fall back to the
+                    # live value only when no snapshot was supplied (e.g. direct calls).
+                    snapshot = (
+                        before_snapshots.get(str(list_id)) if before_snapshots else None
                     )
-                    .exclude(applied=False)
-                    .exists()
-                ):
-                    continue
+                    if snapshot is not None:
+                        old_rating, old_stash = snapshot
+                    else:
+                        old_rating = lst.rating_current
+                        old_stash = lst.stash_current
 
-                # Recalculate with the new content costs (clears dirty flags on list and children)
-                facts = lst.facts_from_db(update=True)
+                    # Idempotency: if this exact change was already recorded for this
+                    # list (same content subject + same pre-change baseline), don't
+                    # duplicate it. With a frozen snapshot a redelivery would otherwise
+                    # recompute a non-zero delta and double-charge campaign credits.
+                    if (
+                        ListAction.objects.filter(
+                            list=lst,
+                            action_type=ListActionType.CONTENT_COST_CHANGE,
+                            subject_id=instance.pk,
+                            rating_before=old_rating,
+                            stash_before=old_stash,
+                        )
+                        .exclude(applied=False)
+                        .exists()
+                    ):
+                        continue
 
-                # Compute deltas
-                rating_delta = facts.rating - old_rating
-                stash_delta = facts.stash - old_stash
-                total_delta = rating_delta + stash_delta
+                    # Recalculate with the new content costs (clears dirty flags on list and children)
+                    facts = lst.facts_from_db(update=True)
 
-                # Skip if no actual cost change (e.g., override in place)
-                # This happens when a base cost changes but a fighter-specific
-                # override (ContentFighterEquipmentListItem, etc.) takes precedence
-                if total_delta == 0:
-                    continue
+                    # Compute deltas
+                    rating_delta = facts.rating - old_rating
+                    stash_delta = facts.stash - old_stash
+                    total_delta = rating_delta + stash_delta
+
+                    # Skip if no actual cost change (e.g., override in place)
+                    # This happens when a base cost changes but a fighter-specific
+                    # override (ContentFighterEquipmentListItem, etc.) takes
+                    # precedence. Check each delta, not the sum — +N rating /
+                    # -N stash cancels while both books moved.
+                    if rating_delta == 0 and stash_delta == 0:
+                        continue
 
                 # In campaign mode, adjust credits (charge more or refund)
                 # Positive delta = cost increased = charge credits (negative)
@@ -799,3 +897,146 @@ def create_expansion_item_cost_action(sender, instance, created, **kwargs):
         return
     _enqueue_content_cost_propagation(instance)
     instance._cost_changed = False
+
+
+# =============================================================================
+# Delete-side handlers: orphan pins when a price source is deleted
+# =============================================================================
+
+
+def _orphan_pinned_rows(instance):
+    """Flip rows pinned to a deleted price source to ORPHANED (#1826 §4.7).
+
+    The amounts stand — nothing changes price, so there is no cache movement
+    and no dirty-marking — but the attribution is gone, and ORPHANED is what
+    keeps every later amount-rewriting sweep's hands off these rows. An audit
+    action records the attribution loss per affected list.
+
+    Runs in pre_delete so the rows are still findable by pin-FK equality (the
+    FKs are SET_NULL); the handler clears the FKs itself, making the delete
+    collector's SET_NULL a no-op for these rows. The pin edges are walked via
+    introspection so a future pin FK is orphaned without new wiring here.
+
+    NOTE (Phase 8): the per-list audit fan-out below runs synchronously in
+    the deleting request. Harmless while pins are sparse; once the backfill
+    pins everything, deleting a popular source touches many lists — flip the
+    states synchronously but move the audit fan-out to a task then.
+    """
+    from gyrinx.core.models.action import ListActionType
+    from gyrinx.core.models.list import (
+        List,
+        ListFighterEquipmentAssignment,
+        PinState,
+    )
+
+    orphaned_by_list: dict = {}
+    for rel in type(instance)._meta.related_objects:
+        if not rel.field.name.startswith("pinned_"):
+            continue
+        model = rel.related_model
+        if model._meta.model_name.startswith("historical"):
+            continue
+        is_base = model is ListFighterEquipmentAssignment
+        state_field = "pinned_base_state" if is_base else "pin_state"
+        amount_field = "pinned_base_amount" if is_base else "pinned_amount"
+        list_path = (
+            "list_fighter__list_id"
+            if is_base
+            else "listfighterequipmentassignment__list_fighter__list_id"
+        )
+        rows = model.objects.filter(**{rel.field.name: instance})
+        for lid in rows.values_list(list_path, flat=True):
+            orphaned_by_list[lid] = orphaned_by_list.get(lid, 0) + 1
+        # Rows with an amount keep it and become ORPHANED; a half-written row
+        # without one (which nothing should produce) just loses the FK.
+        rows.filter(**{f"{amount_field}__isnull": False}).update(
+            **{rel.field.name: None, state_field: PinState.ORPHANED}
+        )
+        rows.filter(**{f"{amount_field}__isnull": True}).update(
+            **{rel.field.name: None}
+        )
+
+    if not orphaned_by_list:
+        return
+
+    # Capture plain values now — the instance is gone by the time the audit
+    # runs.
+    name = _instance_display_name(instance)
+    subject_app = instance._meta.app_label
+    subject_type = instance._meta.model_name
+    subject_id = instance.pk
+
+    def _write_orphan_audits():
+        for list_id, count in orphaned_by_list.items():
+            try:
+                with transaction.atomic():
+                    lst = List.objects.get(id=list_id)
+                    if not lst.latest_action:
+                        continue
+                    components = "component" if count == 1 else "components"
+                    lst.create_action(
+                        action_type=ListActionType.CONTENT_COST_CHANGE,
+                        description=(
+                            f"{name}: price source deleted; {count} pinned "
+                            f"{components} keep their amounts, attribution cleared"
+                        ),
+                        subject_app=subject_app,
+                        subject_type=subject_type,
+                        subject_id=subject_id,
+                        rating_delta=0,
+                        stash_delta=0,
+                        credits_delta=0,
+                    )
+            except List.DoesNotExist:
+                continue  # itself deleted in the same cascade
+            except Exception:
+                logger.exception("Failed to record pin-orphaning for list %s", list_id)
+
+    # Deferred past commit: the delete collector fires every pre_delete
+    # BEFORE deleting anything, so writing a ListAction here for a list
+    # that is itself in the same cascade (deleting a ContentHouse cascades
+    # to its fighters' price rows AND to its lists) would insert a row
+    # referencing a doomed List — an IntegrityError at commit that rolls
+    # the whole deletion back. After commit, cascade-deleted lists simply
+    # no longer exist and are skipped.
+    transaction.on_commit(_write_orphan_audits)
+
+
+@receiver(
+    pre_delete,
+    sender=ContentFighterEquipmentListItem,
+    dispatch_uid="orphan_pins_equipment_list_item_delete",
+)
+@traced("signal_orphan_pins_equipment_list_item_delete")
+def orphan_pins_on_equipment_list_item_delete(sender, instance, **kwargs):
+    _orphan_pinned_rows(instance)
+
+
+@receiver(
+    pre_delete,
+    sender=ContentFighterEquipmentListWeaponAccessory,
+    dispatch_uid="orphan_pins_equipment_list_accessory_delete",
+)
+@traced("signal_orphan_pins_equipment_list_accessory_delete")
+def orphan_pins_on_equipment_list_accessory_delete(sender, instance, **kwargs):
+    _orphan_pinned_rows(instance)
+
+
+@receiver(
+    pre_delete,
+    sender=ContentFighterEquipmentListUpgrade,
+    dispatch_uid="orphan_pins_equipment_list_upgrade_delete",
+)
+@traced("signal_orphan_pins_equipment_list_upgrade_delete")
+def orphan_pins_on_equipment_list_upgrade_delete(sender, instance, **kwargs):
+    _orphan_pinned_rows(instance)
+
+
+@receiver(
+    pre_delete,
+    sender=ContentEquipmentListExpansionItem,
+    dispatch_uid="orphan_pins_expansion_item_delete",
+)
+@traced("signal_orphan_pins_expansion_item_delete")
+def orphan_pins_on_expansion_item_delete(sender, instance, **kwargs):
+    _orphan_pinned_rows(instance)

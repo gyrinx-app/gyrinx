@@ -45,6 +45,33 @@ def get_old_cost(model_class, instance, cost_field="cost"):
         return None
 
 
+#: Sentinel distinguishing "row not found in the DB" from a stored None.
+MISSING = object()
+
+
+def get_old_field(model_class, instance, field):
+    """
+    Get the stored (pre-save) value of an arbitrary field, pack-aware.
+
+    Like get_old_cost but without the integer coercion, for change detection
+    on non-numeric fields such as cost_expression. Returns MISSING when the
+    instance is new or the stored row can't be found, so callers can tell
+    that apart from a genuinely-stored None.
+    """
+    if instance._state.adding or not instance.pk:
+        return MISSING
+
+    manager = model_class._default_manager
+    base_qs = (
+        manager.all_content() if hasattr(manager, "all_content") else manager.all()
+    )
+
+    try:
+        return getattr(base_qs.only(field).get(pk=instance.pk), field)
+    except model_class.DoesNotExist:
+        return MISSING
+
+
 def get_new_cost(instance, cost_field="cost"):
     """
     Get the new cost value for an instance being saved.
