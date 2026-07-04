@@ -588,13 +588,15 @@ def test_contentmod_changelist_renders_mod_string(client, admin_user):
     whose ``__str__`` is "Base Modification". ``polymorphic_list = True`` on the
     admin re-enables downcasting so each row renders its own subclass string.
     """
+    from django.urls import reverse
+
     from gyrinx.content.models import ContentModFighterStat
 
     ContentModFighterStat.objects.create(stat="movement", mode="improve", value="1")
     ContentModFighterStat.objects.create(stat="movement", mode="worsen", value="2")
 
     client.force_login(admin_user)
-    resp = client.get("/admin/content/contentmod/")
+    resp = client.get(reverse("admin:content_contentmod_changelist"))
     assert resp.status_code == 200
 
     html = resp.content.decode()
