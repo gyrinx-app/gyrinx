@@ -91,7 +91,7 @@ Params:
             </div>
         {% endif %}
     </div>
-    {% comment %} Lower detail block: skills / wargear / xp / kills flow here {% endcomment %}
+    {% comment %} Lower detail block: skills / powers / wargear / gear categories flow here {% endcomment %}
     <div class="cc-region cc-detail">
         <div class="cc-section cc-skills">
             <div class="cc-label">Skills</div>
@@ -103,6 +103,18 @@ Params:
                 {% endspaceless %}
             </div>
         </div>
+        {% if card.powers %}
+            <div class="cc-section cc-powers">
+                <div class="cc-label">Wyrd Powers</div>
+                <div class="cc-section__body">
+                    {% spaceless %}
+                        {% for power in card.powers %}
+                            <span>{{ power }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                        {% endfor %}
+                    {% endspaceless %}
+                </div>
+            </div>
+        {% endif %}
         <div class="cc-section cc-wargear">
             <div class="cc-label">Wargear</div>
             <div class="cc-section__body">
@@ -113,14 +125,23 @@ Params:
                 {% endspaceless %}
             </div>
         </div>
-        <div class="cc-section cc-xp">
-            <div class="cc-label">XP</div>
-            <div class="cc-section__body">{{ card.xp }}</div>
-        </div>
-        <div class="cc-section cc-kills">
-            <div class="cc-label">Kills</div>
-            <div class="cc-section__body"></div>
-        </div>
+        {% for cat in card.gear_categories %}
+            <div class="cc-section cc-gearcat">
+                <div class="cc-label">{{ cat.0 }}</div>
+                <div class="cc-section__body">
+                    {% spaceless %}
+                        {% for item in cat.1 %}
+                            <span>{{ item }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                        {% endfor %}
+                    {% endspaceless %}
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% comment %} XP / Kills (pinned so they never clip) {% endcomment %}
+    <div class="cc-region cc-xpkills">
+        <span class="cc-xpkills__item"><span class="cc-label">XP</span> <span class="cc-xpkills__val">{{ card.xp }}</span></span>
+        <span class="cc-xpkills__item"><span class="cc-label">Kills</span> <span class="cc-xpkills__val"></span></span>
     </div>
     {% comment %} Save box {% endcomment %}
     <div class="cc-save">
@@ -136,6 +157,17 @@ Params:
         <div class="cc-recovery__row">
             <span>Captured</span>
             <span class="cc-tick{% if card.captured %} is-on{% endif %}"></span>
+        </div>
+    </div>
+    {% comment %} Special rules {% endcomment %}
+    <div class="cc-region cc-section cc-rules">
+        <div class="cc-label">Rules</div>
+        <div class="cc-section__body">
+            {% spaceless %}
+                {% for rule in card.rules %}
+                    <span>{{ rule }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                {% endfor %}
+            {% endspaceless %}
         </div>
     </div>
     {% comment %} Notes {% endcomment %}

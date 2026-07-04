@@ -186,6 +186,31 @@ def test_blank_preset_is_empty_but_structured():
     assert all(s.value == "" for s in card.stats)
 
 
+def test_psyker_preset_splits_powers_and_gear_categories():
+    """Wyrd powers and each special gear category are their own rows,
+    kept distinct from skills and general wargear."""
+    card = synthetic_presets()["psyker"]
+    assert card.powers  # wyrd powers populated
+    # skills stay separate from powers
+    assert not (set(card.skills) & set(card.powers))
+    # special categories each carry a labelled row, distinct from wargear
+    labels = [label for label, _ in card.gear_categories]
+    assert "Legendary Names" in labels
+    general = set(card.wargear)
+    for _, items in card.gear_categories:
+        assert not (set(items) & general)
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_psyker_sheet_shows_power_and_category_rows(client):
+    """The rendered card labels the powers and gear-category rows."""
+    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=psyker"
+    body = client.get(url).content.decode()
+    assert "Wyrd Powers" in body
+    assert "Legendary Names" in body
+
+
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_all_presets_render_without_error(client):

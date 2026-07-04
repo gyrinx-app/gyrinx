@@ -34,14 +34,20 @@
     --cc-stat-h: 11mm;
     --cc-weap-top: 32mm;
     --cc-weap-h: 31mm;
-    // lower-left detail block (skills / wargear / xp / kills) flows within here
+    // lower-left detail block: skills / powers / wargear / gear-category rows
+    // flow within here (clips if a fighter is very loaded).
     --cc-detail-top: 63mm;
-    --cc-detail-h: 27mm;
-    --cc-notes-top: 91mm;
-    --cc-notes-h: 16.5mm;
+    --cc-detail-h: 23mm;
+    // XP / Kills, special rules, and notes are pinned so they never clip.
+    --cc-xpkills-top: 86.5mm;
+    --cc-xpkills-h: 3.5mm;
+    --cc-rules-top: 90mm;
+    --cc-rules-h: 5mm;
+    --cc-notes-top: 95mm;
+    --cc-notes-h: 13mm;
     // right-hand boxes, pinned
-    --cc-save-top: 70mm;
-    --cc-recovery-top: 79mm;
+    --cc-save-top: 65mm;
+    --cc-recovery-top: 74mm;
 
     --cc-cog-size: 19mm;
     --cc-rightbox-w: 24mm; // save / recovery-captured boxes
@@ -159,7 +165,7 @@
         margin-top: 0.6mm;
         font-size: 2.4mm;
         line-height: 1.25;
-        color: rgba(29, 26, 22, 0.72);
+        color: var(--cc-ink);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -313,7 +319,7 @@
         right: calc(var(--cc-pad) + var(--cc-rightbox-w) + 2mm);
         display: flex;
         flex-direction: column;
-        gap: 1mm;
+        gap: 0.8mm;
         overflow: hidden;
     }
 
@@ -326,35 +332,75 @@
 
     .cc-section__body {
         font-size: 2.4mm;
-        line-height: 1.1;
+        line-height: 1.15;
         overflow: hidden;
     }
 
-    // XP / KILLS render label + value inline.
-    .cc-xp,
-    .cc-kills {
-        flex: 0 0 auto;
+    // Detail-block rows are INLINE (label left, value flows to its right) to
+    // stay compact: a loaded fighter — skills + wyrd powers + wargear + each
+    // special gear category (Legendary Names, Status Items, …) on its own row —
+    // must fit in the fixed zone. A label-per-line stack blows the box and
+    // clips the values, so the label and its value share a baseline instead.
+    .cc-detail .cc-section {
+        flex: 0 1 auto;
         flex-direction: row;
         align-items: baseline;
         gap: 1.5mm;
     }
 
-    .cc-xp .cc-section__body {
-        font-size: 3.2mm;
-        font-weight: 700;
+    .cc-detail .cc-label {
+        flex: 0 0 auto;
     }
 
-    // Skills / wargear may grow but share the clipped column.
-    .cc-skills,
-    .cc-wargear {
-        flex: 0 1 auto;
+    .cc-detail .cc-section__body {
+        flex: 1 1 auto;
     }
 
-    // Always reserve space for two rows under skills and wargear (room to
-    // hand-write on a printed card) — but don't draw rules over content.
+    // Reserve space for two rows beside the Skills and Wargear labels (room to
+    // hand-write on a printed card) — but don't draw rule lines over content.
     .cc-skills .cc-section__body,
     .cc-wargear .cc-section__body {
-        min-height: 5.4mm; // ~two lines at this font size
+        min-height: 5mm; // ~two lines at this font size
+    }
+
+    // XP / Kills — pinned, inline, so they never get clipped by the flow above.
+    .cc-xpkills {
+        top: var(--cc-xpkills-top);
+        height: var(--cc-xpkills-h);
+        display: flex;
+        align-items: baseline;
+        gap: 6mm;
+    }
+
+    .cc-xpkills__item {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 1.5mm;
+    }
+
+    .cc-xpkills__val {
+        font-weight: 700;
+        font-size: 3.2mm;
+    }
+
+    // Special rules — a full-width row below the detail block. Label sits
+    // inline with the rules text (which wraps), like the XP / Kills rows.
+    .cc-rules {
+        top: var(--cc-rules-top);
+        height: var(--cc-rules-h);
+        border-top: 0.3mm solid var(--cc-line-soft);
+        padding-top: 0.5mm;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 1.5mm;
+    }
+
+    .cc-rules .cc-label {
+        flex: 0 0 auto;
+    }
+
+    .cc-rules .cc-section__body {
+        flex: 1 1 auto;
     }
 
     .cc-notes {

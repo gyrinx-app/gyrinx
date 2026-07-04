@@ -14,11 +14,15 @@ richer data onto the fixed regions and deliberately omits the rest:
     STATLINE  <- fighter.statline  (dynamic columns; every statline type supported)
     SAVE      <- statline "save" column if present, else fighter.save_roll (else blank)
     WEAPONS   <- fighter.weapons_cached, flattened to rows (name, ranges, str/ap/d/am, traits)
-    SKILLS    <- fighter.skilline_cached (+ psyker powers appended)
-    WARGEAR   <- wargear_cached + house-additional + category-restricted (flattened names)
+    SKILLS    <- fighter.skilline_cached
+    POWERS    <- wyrd / psyker powers (own skill-like row, when present)
+    WARGEAR   <- wargear_cached (general gear)
+    <category> <- each special gear category (Legendary Names, Status Items, ...)
+                 keeps its own labelled row rather than being flattened
+    RULES     <- fighter.ruleline (own row)
     XP        <- fighter.xp_current
     KILLS     <- blank fillable box (Gyrinx has no per-fighter kill counter)
-    NOTES     <- rules + injuries + fighter.notes
+    NOTES     <- injuries + fighter.notes
     Condition tabs (Serious Injury / Broken / Blaze / Insane) -> blank tick boxes
         (not persisted in Gyrinx). Recovery / Captured / Dead reflect injury_state.
 
@@ -103,7 +107,12 @@ class ClassicCard:
     save: str = ""
     weapons: list[WeaponRow] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
+    powers: list[str] = field(default_factory=list)  # wyrd / psyker powers
     wargear: list[str] = field(default_factory=list)
+    # special gear categories (Legendary Names, Status Items, ...) each get
+    # their own row: list of (category_label, [item names]).
+    gear_categories: list = field(default_factory=list)
+    rules: list[str] = field(default_factory=list)
     xp: str = ""
     notes_lines: list[str] = field(default_factory=list)
     # condition markers (mostly fillable; a couple reflect real state)
@@ -165,21 +174,32 @@ def _weapon_rows(fighter) -> list[WeaponRow]:
     return rows
 
 
+def _assign_name(assign) -> str:
+    eq = getattr(assign, "equipment", None)
+    base = _get(assign, "base_name", "") or (getattr(eq, "name", "") if eq else "")
+    return str(base).strip()
+
+
 def _wargear_names(fighter) -> list[str]:
-    """Flatten every non-weapon gear source into a single list of display names."""
-    names: list[str] = []
-
-    def _name(assign) -> str:
-        eq = getattr(assign, "equipment", None)
-        base = _get(assign, "base_name", "") or (getattr(eq, "name", "") if eq else "")
-        return str(base).strip()
-
+    """General wargear (the plain 'Wargear' row) — de-duped display names."""
+    seen: set[str] = set()
+    out: list[str] = []
     for assign in _get(fighter, "wargear_cached", []) or []:
-        n = _name(assign)
-        if n:
-            names.append(n)
+        n = _assign_name(assign)
+        if n and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
 
-    # House-additional + category-restricted gear come grouped by category.
+
+def _gear_categories(fighter):
+    """Special gear categories, each as its own row.
+
+    House-additional and category-restricted gear (e.g. Legendary Names, Status
+    Items) come grouped by category. Rather than flatten them into the general
+    Wargear row, keep each category as a labelled row: (category, [names]).
+    """
+    rows: list = []
     for source in (
         "house_additional_gearline_display",
         "category_restricted_gearline_display",
@@ -189,18 +209,14 @@ def _wargear_names(fighter) -> list[str]:
         except Exception:
             lines = []
         for line in lines:
-            for assign in line.get("assignments", []) if isinstance(line, dict) else []:
-                n = _name(assign)
-                if n:
-                    names.append(n)
-    # de-dupe preserving order
-    seen: set[str] = set()
-    out: list[str] = []
-    for n in names:
-        if n not in seen:
-            seen.add(n)
-            out.append(n)
-    return out
+            if not isinstance(line, dict):
+                continue
+            names = [
+                n for n in (_assign_name(a) for a in line.get("assignments", [])) if n
+            ]
+            if names:
+                rows.append((str(line.get("category", "")).strip(), names))
+    return rows
 
 
 def _card_kind(fighter) -> str:
@@ -240,20 +256,20 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
     # Save box: prefer the free-text save_roll; fall back to a "save" stat column.
     save = str(_get(fighter, "save_roll", "") or "") or save_from_grid
 
-    # Skills, with psyker powers appended (both live in the SKILLS region).
+    # Skills and wyrd/psyker powers each get their own (skill-like) row.
     skills = [str(x) for x in (_get(fighter, "skilline_cached", []) or [])]
+    powers: list[str] = []
     if _get(fighter, "is_psyker", False):
         for power in _get(fighter, "powers_cached", []) or []:
             pname = str(_get(power, "name", "") or "").strip()
             if pname:
-                skills.append(pname)
+                powers.append(pname)
 
-    # Notes region catches rules, injuries, and the fighter's own notes.
-    notes_lines: list[str] = []
+    # Special rules go in their own row; notes catches injuries + own notes.
     rules = [str(_get(r, "value", r)) for r in (_get(fighter, "ruleline", []) or [])]
     rules = [r for r in rules if r]
-    if rules:
-        notes_lines.append("Rules: " + ", ".join(rules))
+
+    notes_lines: list[str] = []
     try:
         injuries = list(fighter.injuries.all()) if hasattr(fighter, "injuries") else []
     except Exception:
@@ -285,7 +301,10 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
         save=save,
         weapons=_weapon_rows(fighter),
         skills=skills,
+        powers=powers,
         wargear=_wargear_names(fighter),
+        gear_categories=_gear_categories(fighter),
+        rules=rules,
         xp=str(_get(fighter, "xp_current", "") or ""),
         notes_lines=notes_lines,
         recovery=bool(_get(fighter, "is_injured", False)),
@@ -366,8 +385,9 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         ],
         skills=["Nerves of Steel", "Spring Up"],
         wargear=["Mesh armour", "Respirator"],
+        rules=["Gang Fighter"],
         xp="6",
-        notes_lines=["Rules: Gang Fighter"],
+        notes_lines=[],
     )
 
     presets["leader"] = ClassicCard(
@@ -411,11 +431,16 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         ],
         skills=["Fearsome", "Overseer", "Inspirational"],
         wargear=["Flak armour", "Chem-thrower fuel"],
-        xp="20",
-        notes_lines=[
-            "Rules: Fanatical, Gang Hierarchy (Leader), Gang Leader, Group Activation (2), "
-            "The Path We Follow, Tools of the Trade",
+        rules=[
+            "Fanatical",
+            "Gang Hierarchy (Leader)",
+            "Gang Leader",
+            "Group Activation (2)",
+            "The Path We Follow",
+            "Tools of the Trade",
         ],
+        xp="20",
+        notes_lines=[],
     )
 
     presets["vehicle"] = ClassicCard(
@@ -453,10 +478,9 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         ],
         skills=[],
         wargear=["Extra armour plating", "Nitro burner"],
+        rules=["Jury-rigged", "Locomotion", "Upgrade Slots", "Weapon Hardpoints"],
         xp="3",
-        notes_lines=[
-            "Rules: Jury-rigged, Locomotion, Upgrade Slots, Weapon Hardpoints"
-        ],
+        notes_lines=[],
     )
 
     presets["crew"] = ClassicCard(
@@ -473,6 +497,7 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         ],
         skills=["Mounted", "Combat Master"],
         wargear=["Toolkit"],
+        rules=["Mounted", "Exotic Beast"],
         xp="7",
         notes_lines=[],
     )
@@ -571,13 +596,64 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
             "Grapnel launcher",
             "Stimm-slug stash",
         ],
+        gear_categories=[
+            ("Legendary Names", ["The Unbroken"]),
+            ("Status Items", ["Master-crafted trophy rack"]),
+        ],
+        rules=["Fearsome", "Hardened", "Infiltrate", "Relentless", "Terrifying"],
         xp="52",
         notes_lines=[
-            "Rules: Fearsome, Hardened, Infiltrate, Relentless, Terrifying",
             "Injuries: Old Battle Wound, Humiliated",
             "Notorious across the underhive for never leaving a bounty uncollected.",
         ],
         recovery=True,
+    )
+
+    presets["psyker"] = ClassicCard(
+        kind="fighter",
+        name="Esmerelda 'The Voice' Vane",
+        subtitle="Wyrd · Champion",
+        cost="205¢",
+        stats=_humanoid_stats(
+            ['5"', "4+", "4+", "3", "3", "2", "3+", "2", "5+", "5+", "4+", "6+"]
+        ),
+        save="5+",
+        weapons=[
+            WeaponRow(
+                "Autopistol",
+                '4"',
+                '12"',
+                "+2",
+                "-",
+                "3",
+                "-",
+                "1",
+                "4+",
+                "Rapid Fire (1)",
+            ),
+            WeaponRow(
+                "Force sword",
+                "-",
+                "E",
+                "+1",
+                "-",
+                "S",
+                "-1",
+                "2",
+                "-",
+                "Melee, Parry, Psychic",
+            ),
+        ],
+        skills=["Nerves of Steel", "Overseer"],
+        powers=["Assail", "Crush", "Levitation", "Mind Lock"],
+        wargear=["Mesh armour", "Photo-goggles"],
+        gear_categories=[
+            ("Legendary Names", ["The Prophet of the Deep"]),
+            ("Status Items", ["Gilded psy-focus"]),
+        ],
+        rules=["Sanctioned Psyker", "Fearsome"],
+        xp="18",
+        notes_lines=[],
     )
 
     presets["blank"] = ClassicCard(
@@ -616,6 +692,7 @@ PRESET_LABELS = {
     "leader": "Leader (rules-heavy)",
     "vehicle": "Vehicle (7-stat line)",
     "crew": "Crew (5-stat line)",
+    "psyker": "Psyker (powers + legendary names)",
     "overflow": "Overflow (stress test)",
     "blank": "Blank fighter card",
     "stash": "Stash",
