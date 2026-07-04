@@ -353,3 +353,49 @@ def _update_discord_message(application_id: str, interaction_token: str, content
         )
     except Exception as e:
         logger.error(f"Failed to update Discord message: {e}")
+
+
+@task
+def backfill_pins(after_id: str | None = None, batch_size: int = 250):
+    """Write acquisition receipts onto every legacy assignment (#1826 §4.8.4).
+
+    Walks all assignments in pk order (archived included — a later unarchive
+    must find correct amounts), calling the same `pin_assignment` choke point
+    acquisition uses, so there is exactly one pinning implementation. The
+    choke point is idempotent (already-pinned rows untouched) and skips the
+    anchored/frozen rows that must stay UNPINNED, so re-running is safe and
+    "resume" is just re-enqueueing with the cursor.
+
+    Value- and cache-neutral by construction: each amount equals what live
+    resolution returns at that instant, so no ListActions and no wealth
+    movement. Run the audited reconcile (core/cost/reconcile.py) across
+    lists FIRST — freezing amounts on top of drifted caches would enshrine
+    the drift (§4.8.2).
+
+    Self-re-enqueues with a pk cursor until the table is exhausted.
+    """
+    from gyrinx.core.cost.pinning import pin_assignment
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    qs = ListFighterEquipmentAssignment.objects.order_by("id")
+    if after_id:
+        qs = qs.filter(id__gt=after_id)
+    batch = list(qs.values_list("id", flat=True)[:batch_size])
+
+    pinned = 0
+    for assignment_id in batch:
+        try:
+            pinned += pin_assignment(
+                ListFighterEquipmentAssignment.objects.get(pk=assignment_id)
+            )
+        except Exception:
+            logger.exception("backfill_pins: failed to pin %s", assignment_id)
+
+    logger.info(
+        "backfill_pins: processed %s assignments (%s rows pinned), cursor %s",
+        len(batch),
+        pinned,
+        batch[-1] if batch else "done",
+    )
+    if len(batch) == batch_size:
+        backfill_pins.enqueue(after_id=str(batch[-1]), batch_size=batch_size)

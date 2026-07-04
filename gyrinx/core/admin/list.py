@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from gyrinx.core.admin.base import BaseAdmin
+from gyrinx.core.cost.reconcile import reconcile_list
 from gyrinx.core.admin.filters import (
     AutocompleteRelatedFilter,
     autocomplete_filter_media,
@@ -60,10 +61,9 @@ def recompute_list_cost_caches(modeladmin, request, queryset):
     fighters = ListFighter.objects.filter(list__in=queryset)
     recompute_cost_caches(modeladmin, request, fighters)
     # recompute_cost_caches only reconciles lists it saw fighters for; cover
-    # fighterless lists too.
-    with transaction.atomic():
-        for lst in queryset:
-            lst.facts_from_db(update=True)
+    # fighterless lists too (audited the same way).
+    for lst in queryset:
+        reconcile_list(lst, user=request.user, rebuild_fighters=False)
 
 
 @admin.register(List)
@@ -217,9 +217,11 @@ def recompute_cost_caches(modeladmin, request, queryset):
             if before != after:
                 changed.append((fighter, before, after))
 
-        # Reconcile each affected list's aggregate caches (rating/stash).
+        # Reconcile each affected list's aggregate caches (rating/stash),
+        # recording any movement as a RECONCILE action so the ledger absorbs
+        # the correction instead of silently snapping (#1826 §4.8.2).
         for lst in affected_lists.values():
-            lst.facts_from_db(update=True)
+            reconcile_list(lst, user=request.user, rebuild_fighters=False)
 
     for fighter, before, after in changed:
         messages.success(
