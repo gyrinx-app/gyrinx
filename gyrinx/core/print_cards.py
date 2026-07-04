@@ -106,6 +106,8 @@ class ClassicCard:
     # lasting injuries — shown in the "Injuries" row beneath Notes
     injuries: list[str] = field(default_factory=list)
     notes_lines: list[str] = field(default_factory=list)
+    # fighter portrait (bottom-right); empty when the fighter has no image
+    image_url: str = ""
     # condition markers (mostly fillable; a couple reflect real state)
     recovery: bool = False
     captured: bool = False
@@ -278,6 +280,15 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
     if own_notes:
         notes_lines.append(own_notes)
 
+    # fighter portrait, if one is set
+    image_url = ""
+    img = getattr(fighter, "image", None)
+    if img:
+        try:
+            image_url = img.url
+        except (ValueError, AttributeError):
+            image_url = ""
+
     subtitle_bits = []
     if cf is not None:
         t = str(getattr(cf, "type", "") or "").strip()
@@ -303,6 +314,7 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
         xp=str(_get(fighter, "xp_current", "") or ""),
         injuries=injuries,
         notes_lines=notes_lines,
+        image_url=image_url,
         recovery=bool(_get(fighter, "is_injured", False)),
         captured=bool(_get(fighter, "is_captured", False)),
         dead=bool(_get(fighter, "is_dead", False)),

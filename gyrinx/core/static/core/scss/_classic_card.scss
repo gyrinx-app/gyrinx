@@ -51,7 +51,10 @@
     // their write-in boxes all start at the same x.
     --cc-fieldlabel-w: 13mm;
 
-    --cc-cog-size: 14mm;
+    --cc-cog-size: 12mm;
+    // fighter portrait footprint (bottom-right); ~20% of the card width. The
+    // bottom rows reserve this width so their text doesn't run under the image.
+    --cc-portrait-w: 20mm;
 
     position: relative;
     box-sizing: border-box;
@@ -244,14 +247,12 @@
         text-overflow: ellipsis;
     }
 
-    // Behind the content regions (z-index 2) so the weapons table / statline
-    // draw over the cog stamp where they overlap; only the cost value, which
-    // sits up in the name band above them, stays visible.
+    // The rating sits in a plain white circle with a thick black border,
+    // vertically centred on the title band (band centre − half the cog height).
+    // Sized to fit within the band so it doesn't clash with the statline below.
     .cc-cog {
         position: absolute;
         z-index: 1;
-        // vertically centred on the title/header band so the rating sits in the
-        // middle of that strip (band centre − half the cog height)
         top: calc(
             var(--cc-name-top) + var(--cc-name-h) / 2 - var(--cc-cog-size) / 2
         );
@@ -261,10 +262,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-        // white disc printed too (opaque backgrounds are dropped otherwise)
+        background: #fff;
+        border: 0.7mm solid #000;
+        border-radius: 50%;
+        // white circle prints (opaque backgrounds are dropped otherwise)
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
@@ -519,6 +520,35 @@
         color: rgba(29, 26, 22, 0.9);
     }
 
+    // Fighter portrait, pinned to the bottom-right corner with a thin border and
+    // slightly rounded corners. Never wider than the reserved footprint (a height
+    // cap keeps tall portraits from dominating); aspect ratio preserved. The
+    // bottom rows reserve this width (see &.has-portrait) so their write-in text
+    // stops at the image rather than running underneath it.
+    .cc-portrait {
+        position: absolute;
+        z-index: 3;
+        right: var(--cc-pad);
+        bottom: var(--cc-pad);
+        width: auto;
+        height: auto;
+        max-width: var(--cc-portrait-w);
+        max-height: 26mm;
+        border: 0.4mm solid var(--cc-ink);
+        border-radius: 1mm;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    // Keep the bottom write-in rows clear of the portrait footprint.
+    &.has-portrait {
+        .cc-kills,
+        .cc-notes,
+        .cc-injuries {
+            right: calc(var(--cc-pad) + var(--cc-portrait-w) + 2mm);
+        }
+    }
+
     // --- dead overlay ------------------------------------------------------
     &.is-dead .cc-bg::after {
         content: "";
@@ -562,17 +592,6 @@
         .cc-notes .cc-section__body {
             color: rgba(236, 228, 218, 0.8);
         }
-    }
-
-    // The cost cog is the black gear stamp over a solid white disc so the cost
-    // value reads on full white. The disc sits ON TOP of the gear so it covers
-    // the stamp's faint semi-transparent centre fill (which would otherwise tint
-    // the middle grey); it's sized to meet the inner ring, leaving the toothed
-    // edge open. The cost value is foreground text, so it stays above the disc.
-    .cc-cog {
-        background-image:
-            radial-gradient(circle 5.4mm at center, #fff 0 100%, transparent 0),
-            url("../img/print/classic/overlays/cog.png");
     }
 }
 

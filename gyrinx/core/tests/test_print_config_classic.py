@@ -180,6 +180,37 @@ def test_print_config_form_shows_card_style(client, user, make_list):
 
 
 @pytest.mark.django_db
+def test_classic_renders_fighter_portrait(
+    client, user, make_list, make_list_fighter, tmp_path, settings
+):
+    """A fighter with an image gets a portrait (and the space-reserving class);
+    a fighter without one gets neither."""
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    settings.MEDIA_ROOT = str(tmp_path)  # isolate the uploaded file
+
+    lst = make_list("Gang")
+    with_img = make_list_fighter(lst, "Snap")
+    make_list_fighter(lst, "Plain")  # no image
+    buf = BytesIO()
+    Image.new("RGB", (10, 12), "gray").save(buf, format="PNG")
+    with_img.image = SimpleUploadedFile(
+        "snap.png", buf.getvalue(), content_type="image/png"
+    )
+    with_img.save()
+
+    cfg = _classic_config(lst, user)
+    client.force_login(user)
+    body = client.get(_print_url(lst, cfg)).content.decode()
+
+    assert body.count("cc-portrait") == 1  # only the fighter with an image
+    assert "has-portrait" in body
+
+
+@pytest.mark.django_db
 def test_classic_appends_blank_cards(client, user, make_list, make_list_fighter):
     lst = make_list("Gang")
     make_list_fighter(lst, "Alpha")

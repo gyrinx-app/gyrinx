@@ -6,7 +6,7 @@ Params:
   theme   -- background theme key (blank/odd/even/paper_odd/paper_even/dark)
   show_grid -- if truthy, overlay a mm alignment grid (lab tuning aid)
 {% endcomment %}
-<div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if show_grid %} show-grid{% endif %}"
+<div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if card.image_url %} has-portrait{% endif %}{% if show_grid %} show-grid{% endif %}"
      data-kind="{{ card.kind }}">
     <div class="cc-bg"></div>
     {% comment %} Condition tabs + save value in the leftover space {% endcomment %}
@@ -145,4 +145,8 @@ Params:
         <div class="cc-label">Injuries</div>
         <div class="cc-writein cc-injuries__box">{{ card.injuries|join:", " }}</div>
     </div>
+    {% comment %} Fighter portrait, if set — pinned bottom-right, capped width {% endcomment %}
+    {% if card.image_url %}
+        <img class="cc-portrait" src="{{ card.image_url }}" alt="">
+    {% endif %}
 </div>
