@@ -149,6 +149,7 @@
     // Save panel occupies the leftover strip space (like the old plate).
     .cc-tab--save {
         flex: 0 0 22mm;
+        justify-content: flex-start;
         gap: 1.5mm;
         color: var(--cc-ink);
         background: rgba(244, 236, 231, 0.6);
@@ -181,7 +182,8 @@
     // (label width shared with Notes — see .cc-notes .cc-label rule)
 
     .cc-injuries__box {
-        font-size: 2.4mm;
+        // Matched to .cc-notes__box so the two write-in areas read as a pair.
+        font-size: 2.2mm;
         line-height: 1.15;
     }
 
@@ -218,9 +220,12 @@
         text-overflow: ellipsis;
     }
 
+    // Behind the content regions (z-index 2) so the weapons table / statline
+    // draw over the cog stamp where they overlap; only the cost value, which
+    // sits up in the name band above them, stays visible.
     .cc-cog {
         position: absolute;
-        z-index: 3;
+        z-index: 1;
         top: 6.5mm;
         right: var(--cc-pad);
         width: var(--cc-cog-size);
@@ -360,15 +365,23 @@
     // fighter can never overlap the next region — long content is clipped at
     // the block boundary, not spilled. NOTES is pinned full-width below.
     // =======================================================================
-    // Two balanced columns. Groups flow in reading order (Skills, Rules, Gear,
-    // then the "other" groups) and the browser splits them to keep the columns
-    // even — no group is forced into a particular column, so a psyker's extra
-    // groups don't pile up lopsidedly on one side.
+    // The detail region bottom-aligns its content (pushed to the end, so the
+    // free space grows above it). Its groups are balanced across two columns:
+    // they flow in reading order (Skills, Rules, Gear, then the "other" groups)
+    // and the browser splits them to keep the columns even.
     .cc-detail {
         top: var(--cc-detail-top);
         height: var(--cc-detail-h);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        overflow: hidden;
+    }
+
+    .cc-detail__cols {
         column-count: 2;
         column-gap: 3mm;
+        max-height: 100%;
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
         // script (print_lab_sheet.html) can shrink the whole block as one unit.
@@ -389,18 +402,17 @@
     }
 
     // Inside the detail block, size text in em so it scales together when the
-    // fit script reduces .cc-detail's font-size.
+    // fit script reduces the column wrapper's font-size.
     .cc-detail .cc-label,
     .cc-detail .cc-section__body {
         font-size: 1em;
     }
 
     // Each group is inline (label left, value wraps to its right) and stays
-    // whole within a column. Top-align: an empty Skills/Gear body keeps its
-    // 2-row min-height, and baseline alignment would drag the label down.
+    // whole within a column; baseline-align the label with the body's text.
     .cc-detail .cc-section {
         flex-direction: row;
-        align-items: flex-start;
+        align-items: baseline;
         gap: 1.5mm;
         min-width: 0;
         break-inside: avoid;
@@ -414,13 +426,6 @@
     .cc-detail .cc-section__body {
         flex: 1 1 auto;
         min-width: 0;
-    }
-
-    // Skills and Gear reserve AT LEAST two rows of body height (room to
-    // hand-write on a printed card); longer content simply grows past it.
-    .cc-skills .cc-section__body,
-    .cc-wargear .cc-section__body {
-        min-height: 5.3mm; // ~two lines at this font size
     }
 
     // White translucent write-in boxes for the hand-filled bottom fields
