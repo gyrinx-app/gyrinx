@@ -23,15 +23,34 @@ class Command(BaseCommand):
         parser.add_argument(
             "list_ids", nargs="*", help="Specific list ids (default: all lists)"
         )
+        parser.add_argument(
+            "--username",
+            help="Attribute RECONCILE actions to this user (recommended: the "
+            "operator). Without it, actions fall back to each list's owner, "
+            "which misattributes an ops correction as a player action.",
+        )
 
     def handle(self, *args, **options):
+        user = None
+        if options["username"]:
+            from django.contrib.auth import get_user_model
+
+            user = get_user_model().objects.get(username=options["username"])
+        else:
+            self.stderr.write(
+                self.style.WARNING(
+                    "No --username given: RECONCILE actions will be "
+                    "attributed to each list's owner."
+                )
+            )
+
         qs = List.objects.order_by("id")
         if options["list_ids"]:
             qs = qs.filter(id__in=options["list_ids"])
 
         total = moved = clamped = 0
         for lst in qs.iterator():
-            result = reconcile_list(lst)
+            result = reconcile_list(lst, user=user)
             total += 1
             # Report head repairs too: a stale chain head behind a correct
             # cache books an action without any cache movement.
