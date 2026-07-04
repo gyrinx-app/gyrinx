@@ -490,6 +490,8 @@ and override the `owner` kwarg on the factory fixtures.
 - After a `stash` then `pull`, run `git stash pop` if necessary
 - This is useful for keeping the claude local file up-to-date
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
+- At the end of work, when shipping a draft PR, use the `commit-push-draft` skill
+  (rather than committing, pushing, and opening the draft PR by hand)
 - Use conventional commit prefixes for commit messages and PR titles:
   - `feat:` — new feature or capability
   - `fix:` — bug fix
