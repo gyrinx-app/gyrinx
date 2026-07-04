@@ -1,0 +1,146 @@
+{# djlint:off H021 #}
+{% extends "core/layouts/base.html" %}
+{% load static %}
+{% block head_title %}
+    Print lab
+{% endblock head_title %}
+{% block content %}
+    <div class="col-12 px-0 vstack gap-4 pb-5">
+        <div>
+            <h1 class="h3">Print lab</h1>
+            <p class="text-secondary mb-0">
+                Grimdark "classic mode" print cards (#1726). Fixed 100&nbsp;×&nbsp;110&nbsp;mm cards,
+                4 per A4 sheet. Tune data and theme, then print to PDF for a real printer.
+            </p>
+        </div>
+        <div class="row g-4">
+            {% comment %} Controls (URL-driven: submitting reloads with new query params) {% endcomment %}
+            <div class="col-12 col-lg-4">
+                <form method="get" class="vstack gap-3 border rounded p-3">
+                    <div>
+                        <label class="caps-label" for="source">Source</label>
+                        <select class="form-select form-select-sm" id="source" name="source">
+                            <option value="presets" {% if source == "presets" %}selected{% endif %}>Preset gallery (all)</option>
+                            <option value="preset" {% if source == "preset" %}selected{% endif %}>Single preset</option>
+                            <option value="fighter" {% if source == "fighter" %}selected{% endif %}>Real fighter (by id)</option>
+                            <option value="list" {% if source == "list" %}selected{% endif %}>Real gang (by list id)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="caps-label" for="preset">Preset</label>
+                        <select class="form-select form-select-sm" id="preset" name="preset">
+                            {% for key, label in presets %}
+                                <option value="{{ key }}" {% if preset == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="caps-label" for="fighter">Fighter id</label>
+                        <input class="form-control form-control-sm"
+                               type="text"
+                               id="fighter"
+                               name="fighter"
+                               value="{{ fighter_id }}"
+                               placeholder="uuid">
+                    </div>
+                    <div>
+                        <label class="caps-label" for="list">List id</label>
+                        <input class="form-control form-control-sm"
+                               type="text"
+                               id="list"
+                               name="list"
+                               value="{{ list_id }}"
+                               placeholder="uuid">
+                    </div>
+                    <div>
+                        <label class="caps-label" for="theme">Theme</label>
+                        <select class="form-select form-select-sm" id="theme" name="theme">
+                            {% for key, label in themes %}
+                                <option value="{{ key }}" {% if theme == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="paged"
+                               name="paged"
+                               value="1"
+                               {% if paged %}checked{% endif %}>
+                        <label class="form-check-label" for="paged">A4 page preview (2 across)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="grid"
+                               name="grid"
+                               value="1"
+                               {% if show_grid %}checked{% endif %}>
+                        <label class="form-check-label" for="grid">Show mm alignment grid</label>
+                    </div>
+                    <div class="mt-1 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm">Update preview</button>
+                    </div>
+                </form>
+                <div class="border rounded p-3 mt-3">
+                    <div class="caps-label mb-1">Open / print</div>
+                    <div class="vstack gap-1">
+                        <a class="linked" href="{{ sheet_url }}" target="_blank" rel="noopener">Open sheet in new tab →</a>
+                        <a class="linked"
+                           href="{{ sheet_url }}&amp;print=1"
+                           target="_blank"
+                           rel="noopener">Open &amp; print →</a>
+                    </div>
+                </div>
+                {% if example_fighters or example_lists %}
+                    <div class="border rounded p-3 mt-3">
+                        <div class="caps-label mb-1">Quick examples</div>
+                        <div class="fs-7 vstack gap-1">
+                            {% for f in example_fighters %}
+                                <a class="linked"
+                                   href="?source=fighter&amp;fighter={{ f.id }}&amp;theme={{ theme }}">{{ f.label }}</a>
+                            {% endfor %}
+                            {% for l in example_lists %}
+                                <a class="linked"
+                                   href="?source=list&amp;list={{ l.id }}&amp;theme={{ theme }}">Gang: {{ l.label }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+                <div class="border rounded p-3 mt-3 fs-7">
+                    <div class="caps-label mb-1">Data mapping</div>
+                    <p class="mb-1 text-secondary">The classic card has fixed regions. Fighter data maps on as:</p>
+                    <ul class="mb-2 ps-3">
+                        <li>Skills region ← skills (+ psyker powers)</li>
+                        <li>Wargear region ← all gear (wargear, house-additional, category-restricted)</li>
+                        <li>Save ← save-roll, or the vehicle "Sv" stat</li>
+                        <li>Notes ← rules, injuries, notes</li>
+                        <li>Kills ← blank fillable box (not tracked)</li>
+                    </ul>
+                    <p class="mb-0 text-secondary">Deliberately omitted (no region): counters, advancement detail, psyker discipline.</p>
+                </div>
+            </div>
+            {% comment %} Live preview {% endcomment %}
+            <div class="col-12 col-lg-8">
+                {% if error %}
+                    <div class="alert alert-danger alert-icon" role="alert">
+                        <i class="bi-exclamation-triangle"></i>
+                        <div>{{ error }}</div>
+                    </div>
+                {% endif %}
+                <div class="border rounded overflow-hidden" style="background:#565257;">
+                    <iframe title="Print preview"
+                            src="{{ sheet_url }}"
+                            style="width:100%;
+                                   height:78vh;
+                                   border:0;
+                                   display:block"></iframe>
+                </div>
+                <p class="text-secondary fs-7 mt-2 mb-0">
+                    Preview renders the actual print sheet. Use <strong>Open &amp; print</strong> for the browser print dialog
+                    (Save as PDF), then print at 100% scale.
+                </p>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

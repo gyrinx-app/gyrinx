@@ -1,0 +1,7 @@
+// Stylesheet entry for the classic-mode print sheet (#1726 print lab).
+// Includes the full app styles (font vars, Bootstrap utilities used by the lab
+// chrome) plus the scoped classic-card component and print-sheet layout.
+$font-size-base: 1rem;
+
+@import "./styles";
+@import "./classic_card";

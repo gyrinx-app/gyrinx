@@ -1,0 +1,551 @@
+// ===========================================================================
+// Classic-mode print card (#1726)
+//
+// A fixed 100mm x 110mm grimdark Necromunda-style fighter/vehicle card.
+// Layout is deterministic: the card is `position: relative` and every region is
+// pinned with absolute coordinates expressed in mm via CSS custom properties, so
+// the whole card can be re-tuned from the variables block below. Dynamic content
+// (variable statline columns, N weapon rows, wrapping skill/gear/notes text)
+// flows *within* its pinned region box.
+//
+// Scoped entirely under `.classic-card` so nothing leaks into the app.
+// ===========================================================================
+
+.classic-card {
+    // --- palette -----------------------------------------------------------
+    --cc-maroon: #7a2d29;
+    --cc-maroon-deep: #571a17;
+    --cc-ink: #1d1a16;
+    --cc-line: rgba(29, 26, 22, 0.82);
+    --cc-line-soft: rgba(29, 26, 22, 0.35);
+    --cc-hl: rgba(122, 45, 41, 0.16); // mental-stat / highlighted band tint
+    --cc-paper: #d9d4cc; // fallback under the texture
+
+    // --- geometry (mm) — tune the whole card from here ---------------------
+    --cc-w: 100mm;
+    --cc-h: 110mm;
+    --cc-pad: 3.2mm;
+
+    --cc-tabs-top: 1mm;
+    --cc-tabs-h: 6mm;
+    --cc-name-top: 8mm;
+    --cc-name-h: 12mm;
+    --cc-stat-top: 20.5mm;
+    --cc-stat-h: 11mm;
+    --cc-weap-top: 32mm;
+    --cc-weap-h: 31mm;
+    // lower-left detail block (skills / wargear / xp / kills) flows within here
+    --cc-detail-top: 63mm;
+    --cc-detail-h: 27mm;
+    --cc-notes-top: 91mm;
+    --cc-notes-h: 16.5mm;
+    // right-hand boxes, pinned
+    --cc-save-top: 70mm;
+    --cc-recovery-top: 79mm;
+
+    --cc-cog-size: 19mm;
+    --cc-rightbox-w: 24mm; // save / recovery-captured boxes
+
+    position: relative;
+    box-sizing: border-box;
+    width: var(--cc-w);
+    height: var(--cc-h);
+    overflow: hidden;
+    color: var(--cc-ink);
+    background: var(--cc-paper);
+    // industrial label feel without a bespoke webfont
+    font-family: $font-family-sans-serif;
+    font-size: 2.5mm;
+    line-height: 1.05;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+
+    * {
+        box-sizing: border-box;
+    }
+
+    // --- background texture ------------------------------------------------
+    .cc-bg {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background-size: cover;
+        background-position: center;
+        pointer-events: none;
+    }
+
+    // Every region sits above the texture.
+    .cc-region {
+        position: absolute;
+        z-index: 2;
+        left: var(--cc-pad);
+        right: var(--cc-pad);
+    }
+
+    // --- maroon section label (NAME / SKILLS / WARGEAR / XP / KILLS / NOTES)
+    .cc-label {
+        color: var(--cc-maroon);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 2.7mm;
+        line-height: 1;
+    }
+
+    // =======================================================================
+    // Condition tabs
+    // =======================================================================
+    .cc-tabs {
+        top: var(--cc-tabs-top);
+        height: var(--cc-tabs-h);
+        display: flex;
+        gap: 1mm;
+        align-items: stretch;
+    }
+
+    .cc-tab {
+        flex: 1 1 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 0 1mm;
+        color: #f4ece7;
+        background: var(--cc-maroon);
+        border: 0.3mm solid var(--cc-maroon-deep);
+        border-top: none;
+        border-radius: 0 0 1.6mm 1.6mm;
+        font-size: 2mm;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        line-height: 1;
+
+        &.is-on {
+            box-shadow: inset 0 0 0 0.6mm #f4ece7;
+        }
+    }
+
+    .cc-tab--plate {
+        flex: 0 0 26mm;
+        background: rgba(244, 236, 231, 0.55);
+        border-color: var(--cc-maroon);
+    }
+
+    // =======================================================================
+    // Name band + cost cog
+    // =======================================================================
+    .cc-name {
+        top: var(--cc-name-top);
+        height: var(--cc-name-h);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-right: calc(var(--cc-cog-size) + 2mm);
+    }
+
+    .cc-name__value {
+        font-size: 5mm;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cc-name__sub {
+        margin-top: 0.6mm;
+        font-size: 2.4mm;
+        color: rgba(29, 26, 22, 0.72);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cc-cog {
+        position: absolute;
+        z-index: 3;
+        top: 6.5mm;
+        right: var(--cc-pad);
+        width: var(--cc-cog-size);
+        height: var(--cc-cog-size);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    .cc-cog__cost {
+        font-weight: 700;
+        font-size: 3.4mm;
+        color: var(--cc-maroon-deep);
+    }
+
+    // =======================================================================
+    // Statline grid (dynamic column count)
+    // =======================================================================
+    .cc-statline {
+        top: var(--cc-stat-top);
+        height: var(--cc-stat-h);
+        display: grid;
+        grid-auto-columns: 1fr;
+        grid-auto-flow: column;
+        align-items: stretch;
+        border-bottom: 0.4mm solid var(--cc-maroon);
+    }
+
+    .cc-stat {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        text-align: center;
+
+        &.is-hl {
+            background: var(--cc-hl);
+        }
+
+        &.is-group {
+            border-left: 0.4mm solid var(--cc-maroon);
+        }
+    }
+
+    .cc-stat__name {
+        font-weight: 700;
+        font-size: 2.9mm;
+        padding: 0.6mm 0 0.4mm;
+        border-bottom: 0.3mm solid var(--cc-line);
+    }
+
+    .cc-stat__val {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3.2mm;
+        font-weight: 600;
+    }
+
+    // =======================================================================
+    // Weapons
+    // =======================================================================
+    .cc-weapons {
+        top: var(--cc-weap-top);
+        height: var(--cc-weap-h);
+        overflow: hidden;
+    }
+
+    .cc-wtable {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 2.3mm;
+
+        th,
+        td {
+            padding: 0.5mm 0.5mm;
+            text-align: center;
+            vertical-align: top;
+            line-height: 1.02;
+        }
+
+        thead th {
+            color: var(--cc-maroon);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            border-bottom: 0.3mm solid var(--cc-line);
+            font-size: 2mm;
+        }
+
+        .cc-w-name {
+            width: 30%;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        // group dividers (RNG | RNG | STR.. | TRAITS)
+        .cc-w-group {
+            border-left: 0.35mm solid var(--cc-line);
+        }
+
+        .cc-w-traits {
+            width: 22%;
+            text-align: left;
+            font-size: 2mm;
+            color: rgba(29, 26, 22, 0.85);
+        }
+
+        tbody td {
+            border-bottom: 0.2mm solid var(--cc-line-soft);
+        }
+
+        .cc-w-sub .cc-w-name {
+            padding-left: 2mm;
+            font-weight: 400;
+            font-style: italic;
+        }
+    }
+
+    .cc-weapons__empty {
+        font-size: 2.3mm;
+        color: rgba(29, 26, 22, 0.5);
+        font-style: italic;
+        padding-top: 1mm;
+    }
+
+    // =======================================================================
+    // Lower detail block (skills / wargear / xp / kills) + notes
+    //
+    // The detail sections FLOW inside a single clipped column so a wordy
+    // fighter can never overlap the next region — long content is clipped at
+    // the block boundary, not spilled. NOTES is pinned full-width below.
+    // =======================================================================
+    .cc-detail {
+        top: var(--cc-detail-top);
+        height: var(--cc-detail-h);
+        right: calc(var(--cc-pad) + var(--cc-rightbox-w) + 2mm);
+        display: flex;
+        flex-direction: column;
+        gap: 1mm;
+        overflow: hidden;
+    }
+
+    .cc-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3mm;
+        overflow: hidden;
+    }
+
+    .cc-section__body {
+        font-size: 2.4mm;
+        line-height: 1.1;
+        overflow: hidden;
+    }
+
+    // XP / KILLS render label + value inline.
+    .cc-xp,
+    .cc-kills {
+        flex: 0 0 auto;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 1.5mm;
+    }
+
+    .cc-xp .cc-section__body {
+        font-size: 3.2mm;
+        font-weight: 700;
+    }
+
+    // Skills / wargear may grow but share the clipped column.
+    .cc-skills,
+    .cc-wargear {
+        flex: 0 1 auto;
+    }
+
+    .cc-notes {
+        top: var(--cc-notes-top);
+        height: var(--cc-notes-h);
+        border-top: 0.3mm solid var(--cc-line-soft);
+        padding-top: 0.5mm;
+    }
+
+    .cc-notes .cc-section__body {
+        font-size: 2.2mm;
+        color: rgba(29, 26, 22, 0.9);
+    }
+
+    // --- right-hand boxes: SAVE and RECOVERY/CAPTURED ----------------------
+    .cc-save {
+        position: absolute;
+        z-index: 2;
+        right: var(--cc-pad);
+        top: var(--cc-save-top);
+        width: var(--cc-rightbox-w);
+        height: 6.5mm;
+        display: flex;
+        align-items: center;
+        gap: 1mm;
+        padding: 0 1mm;
+        border: 0.4mm solid var(--cc-line);
+        background: rgba(255, 255, 255, 0.12);
+    }
+
+    .cc-save__val {
+        font-weight: 700;
+        font-size: 3.4mm;
+    }
+
+    .cc-recovery {
+        position: absolute;
+        z-index: 2;
+        right: var(--cc-pad);
+        top: var(--cc-recovery-top);
+        width: var(--cc-rightbox-w);
+        border: 0.4mm solid var(--cc-line);
+        background: rgba(255, 255, 255, 0.12);
+        font-size: 2.2mm;
+    }
+
+    .cc-recovery__row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.8mm 1mm;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+
+        & + & {
+            border-top: 0.3mm solid var(--cc-line);
+        }
+    }
+
+    .cc-tick {
+        width: 3mm;
+        height: 3mm;
+        border: 0.3mm solid var(--cc-line);
+        display: inline-block;
+
+        &.is-on {
+            background: var(--cc-maroon);
+        }
+    }
+
+    // --- dead overlay ------------------------------------------------------
+    &.is-dead .cc-bg::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(120, 20, 20, 0.14);
+    }
+
+    // =======================================================================
+    // Theme backgrounds
+    // =======================================================================
+    &.theme-blank .cc-bg {
+        background-image: url("../img/print/classic/backgrounds/blank.jpg");
+    }
+    &.theme-odd .cc-bg {
+        background-image: url("../img/print/classic/backgrounds/odd.jpg");
+    }
+    &.theme-even .cc-bg {
+        background-image: url("../img/print/classic/backgrounds/even.jpg");
+    }
+    &.theme-paper_odd .cc-bg {
+        background-image: url("../img/print/classic/backgrounds/paper_odd.jpg");
+    }
+    &.theme-paper_even .cc-bg {
+        background-image: url("../img/print/classic/backgrounds/paper_even.jpg");
+    }
+    &.theme-dark {
+        --cc-ink: #ece4da;
+        --cc-line: rgba(236, 228, 218, 0.7);
+        --cc-line-soft: rgba(236, 228, 218, 0.3);
+        --cc-maroon: #c96a54;
+        --cc-hl: rgba(201, 106, 84, 0.16);
+        color: var(--cc-ink);
+
+        .cc-bg {
+            background-image: url("../img/print/classic/backgrounds/plate_dark.webp");
+        }
+        .cc-name__sub,
+        .cc-notes .cc-section__body {
+            color: rgba(236, 228, 218, 0.8);
+        }
+    }
+
+    // The cost cog uses the maroon gear stamp overlay.
+    .cc-cog {
+        background-image: url("../img/print/classic/overlays/cog.png");
+    }
+}
+
+// ===========================================================================
+// Print sheet — tiles cards onto A4 (2 across x 2 down = 4 per page)
+//
+// Two 100mm cards + a 3mm gap = 203mm, which fits inside A4's 210mm width once
+// the @page margin is 3mm (usable 204mm). Vertically two 110mm rows fit.
+// ===========================================================================
+.print-sheet {
+    --sheet-gap: 4mm;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sheet-gap);
+    align-content: flex-start;
+    justify-content: center;
+    padding: var(--sheet-gap);
+    background: #565257;
+
+    .classic-card {
+        outline: 0.2mm solid rgba(0, 0, 0, 0.25);
+    }
+}
+
+// On-screen A4 page preview: constrain to the real printable width so the lab
+// shows exactly how many cards land per page (2 across) before printing.
+.print-sheet--paged {
+    width: 204mm; // A4 width (210) minus 2x 3mm @page margin
+    margin-inline: auto;
+    gap: 3mm;
+    padding: 3mm 0;
+    justify-content: flex-start;
+}
+
+// Guide overlay: faint reference frame + mm grid to align regions during tuning.
+.classic-card.show-grid::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    background-image:
+        repeating-linear-gradient(
+            to right,
+            rgba(0, 120, 255, 0.28) 0 0.1mm,
+            transparent 0.1mm 10mm
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            rgba(0, 120, 255, 0.28) 0 0.1mm,
+            transparent 0.1mm 10mm
+        );
+}
+
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 3mm;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+    }
+
+    .print-sheet {
+        gap: 3mm;
+        padding: 0;
+        width: auto;
+        margin: 0;
+        justify-content: flex-start;
+        background: #fff !important;
+    }
+
+    .classic-card {
+        break-inside: avoid;
+        outline: none !important;
+    }
+
+    // never carry the tuning grid into a real print
+    .classic-card.show-grid::before {
+        display: none !important;
+    }
+
+    // hide lab chrome when printing
+    .print-lab-noprint {
+        display: none !important;
+    }
+}

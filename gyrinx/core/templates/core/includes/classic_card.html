@@ -1,0 +1,149 @@
+{% comment %}
+Classic-mode print card (#1726). Fixed 100mm x 110mm grimdark fighter/vehicle card.
+
+Params:
+  card    -- a ClassicCard (see gyrinx.core.views.print_lab)
+  theme   -- background theme key (blank/odd/even/paper_odd/paper_even/dark)
+  show_grid -- if truthy, overlay a mm alignment grid (lab tuning aid)
+{% endcomment %}
+<div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if show_grid %} show-grid{% endif %}"
+     data-kind="{{ card.kind }}">
+    <div class="cc-bg"></div>
+    {% comment %} Condition tabs {% endcomment %}
+    <div class="cc-region cc-tabs print-lab-tabs">
+        <span class="cc-tab">Serious Injury</span>
+        <span class="cc-tab">Broken</span>
+        <span class="cc-tab">Blaze</span>
+        <span class="cc-tab">Insane</span>
+        <span class="cc-tab cc-tab--plate"></span>
+    </div>
+    {% comment %} Name + type {% endcomment %}
+    <div class="cc-region cc-name">
+        <div class="cc-label">Name</div>
+        <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
+        {% if card.subtitle %}<div class="cc-name__sub">{{ card.subtitle }}</div>{% endif %}
+    </div>
+    <div class="cc-cog">
+        {% if card.cost %}<span class="cc-cog__cost">{{ card.cost }}</span>{% endif %}
+    </div>
+    {% comment %} Statline (dynamic columns) {% endcomment %}
+    <div class="cc-region cc-statline">
+        {% for s in card.stats %}
+            <div class="cc-stat{% if s.highlight %} is-hl{% endif %}{% if s.first_of_group %} is-group{% endif %}">
+                <div class="cc-stat__name">{{ s.name }}</div>
+                <div class="cc-stat__val">{{ s.value|default:"&nbsp;" }}</div>
+            </div>
+        {% endfor %}
+    </div>
+    {% comment %} Weapons {% endcomment %}
+    <div class="cc-region cc-weapons">
+        {% if card.weapons %}
+            <table class="cc-wtable">
+                <thead>
+                    <tr>
+                        <th class="cc-w-name">Weapon</th>
+                        <th class="cc-w-group">S</th>
+                        <th>L</th>
+                        <th class="cc-w-group">S</th>
+                        <th>L</th>
+                        <th class="cc-w-group">Str</th>
+                        <th>Ap</th>
+                        <th>D</th>
+                        <th>Am</th>
+                        <th class="cc-w-group cc-w-traits">Traits</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in card.weapons %}
+                        <tr class="{% if w.is_secondary %}cc-w-sub{% endif %}">
+                            <td class="cc-w-name">{% if w.is_secondary %}<i class="bi-dash"></i> {% endif %}{{ w.name }}</td>
+                            <td class="cc-w-group">{{ w.rng_s|default:"-" }}</td>
+                            <td>{{ w.rng_l|default:"-" }}</td>
+                            <td class="cc-w-group">{{ w.acc_s|default:"-" }}</td>
+                            <td>{{ w.acc_l|default:"-" }}</td>
+                            <td class="cc-w-group">{{ w.strength|default:"-" }}</td>
+                            <td>{{ w.ap|default:"-" }}</td>
+                            <td>{{ w.damage|default:"-" }}</td>
+                            <td>{{ w.ammo|default:"-" }}</td>
+                            <td class="cc-w-group cc-w-traits">{{ w.traits }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="cc-wtable">
+                <table class="cc-wtable">
+                    <thead>
+                        <tr>
+                            <th class="cc-w-name">Weapon</th>
+                            <th class="cc-w-group">S</th>
+                            <th>L</th>
+                            <th class="cc-w-group">S</th>
+                            <th>L</th>
+                            <th class="cc-w-group">Str</th>
+                            <th>Ap</th>
+                            <th>D</th>
+                            <th>Am</th>
+                            <th class="cc-w-group cc-w-traits">Traits</th>
+                        </tr>
+                    </thead>
+                </table>
+                <div class="cc-weapons__empty">No weapons.</div>
+            </div>
+        {% endif %}
+    </div>
+    {% comment %} Lower detail block: skills / wargear / xp / kills flow here {% endcomment %}
+    <div class="cc-region cc-detail">
+        <div class="cc-section cc-skills">
+            <div class="cc-label">Skills</div>
+            <div class="cc-section__body">
+                {% spaceless %}
+                    {% for skill in card.skills %}
+                        <span>{{ skill }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                    {% endfor %}
+                {% endspaceless %}
+            </div>
+        </div>
+        <div class="cc-section cc-wargear">
+            <div class="cc-label">Wargear</div>
+            <div class="cc-section__body">
+                {% spaceless %}
+                    {% for item in card.wargear %}
+                        <span>{{ item }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                    {% endfor %}
+                {% endspaceless %}
+            </div>
+        </div>
+        <div class="cc-section cc-xp">
+            <div class="cc-label">XP</div>
+            <div class="cc-section__body">{{ card.xp }}</div>
+        </div>
+        <div class="cc-section cc-kills">
+            <div class="cc-label">Kills</div>
+            <div class="cc-section__body"></div>
+        </div>
+    </div>
+    {% comment %} Save box {% endcomment %}
+    <div class="cc-save">
+        <span class="cc-label">Save</span>
+        <span class="cc-save__val">{{ card.save }}</span>
+    </div>
+    {% comment %} Recovery / captured {% endcomment %}
+    <div class="cc-recovery">
+        <div class="cc-recovery__row">
+            <span>Recovery</span>
+            <span class="cc-tick{% if card.recovery %} is-on{% endif %}"></span>
+        </div>
+        <div class="cc-recovery__row">
+            <span>Captured</span>
+            <span class="cc-tick{% if card.captured %} is-on{% endif %}"></span>
+        </div>
+    </div>
+    {% comment %} Notes {% endcomment %}
+    <div class="cc-region cc-section cc-notes">
+        <div class="cc-label">Notes</div>
+        <div class="cc-section__body">
+            {% for line in card.notes_lines %}<div>{{ line }}</div>{% endfor %}
+        </div>
+    </div>
+</div>

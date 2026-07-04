@@ -1,0 +1,29 @@
+{# djlint:off H021 #}
+{% extends "core/layouts/foundation.html" %}
+{% load static %}
+{% block head_title %}
+    Print lab — sheet
+{% endblock head_title %}
+{% block stylesheet %}
+    <link rel="stylesheet" href="{% static 'core/css/print_classic.css' %}">
+{% endblock stylesheet %}
+{% block base %}
+    {% if error %}
+        <div class="print-lab-noprint"
+             style="color:#f4ece7;
+                    font-family:sans-serif;
+                    padding:1rem">{{ error }}</div>
+    {% endif %}
+    <div class="print-sheet{% if paged %} print-sheet--paged{% endif %}">
+        {% for card in cards %}
+            {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid %}
+        {% endfor %}
+    </div>
+    {% if auto_print %}
+        <script>
+            window.addEventListener("DOMContentLoaded", function () {
+                window.print();
+            });
+        </script>
+    {% endif %}
+{% endblock base %}
