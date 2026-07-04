@@ -367,20 +367,36 @@ def _update_backfill(backfill_id, summary_patch=None, status=None, error=""):
     """
     if backfill_id is None:
         return
+    from django.db import transaction as db_transaction
+
     from gyrinx.core.models import Backfill
 
-    try:
-        backfill = Backfill.objects.get(pk=backfill_id)
-    except Backfill.DoesNotExist:
-        logger.warning("Backfill record %s missing; progress dropped", backfill_id)
-        return
-    if summary_patch:
-        backfill.summary = {**backfill.summary, **summary_patch}
-    if status:
-        backfill.status = status
-    if error:
-        backfill.error = error
-    backfill.save()
+    with db_transaction.atomic():
+        try:
+            # Locked: Pub/Sub is at-least-once, so a redelivered batch can
+            # fork the chain — two copies writing this record concurrently.
+            backfill = Backfill.objects.select_for_update().get(pk=backfill_id)
+        except Backfill.DoesNotExist:
+            logger.warning("Backfill record %s missing; progress dropped", backfill_id)
+            return
+        if backfill.status in (Backfill.Status.DONE, Backfill.Status.FAILED) and (
+            status is None or status == Backfill.Status.RUNNING
+        ):
+            # Never let a lagging fork's progress write un-terminate the
+            # record: DONE/FAILED is final unless explicitly re-terminated.
+            logger.warning(
+                "Backfill %s already %s; dropping non-terminal progress write",
+                backfill_id,
+                backfill.status,
+            )
+            return
+        if summary_patch:
+            backfill.summary = {**backfill.summary, **summary_patch}
+        if status:
+            backfill.status = status
+        if error:
+            backfill.error = error
+        backfill.save()
 
 
 @task
@@ -438,13 +454,18 @@ def reconcile_all_lists(
                 )
     except Exception as e:
         logger.exception("reconcile_all_lists: failed on batch after %s", after_id)
+        # Mark FAILED and RETURN (ack): raising would 500 the push handler
+        # and Pub/Sub — with no dead-letter topic — would redeliver the batch
+        # forever, contradicting the "re-trigger" instruction below. The
+        # chain genuinely stops here; re-triggering starts a fresh run.
         _update_backfill(
             backfill_id,
             {"lists": lists_done, "corrected": corrected, "clamped": clamped},
             status=Backfill.Status.FAILED,
-            error=f"Failed in batch after cursor {after_id}: {e}",
+            error=f"Failed in batch after cursor {after_id}: {e}. "
+            "Fix the cause and re-trigger.",
         )
-        raise
+        return
 
     progress = {
         "lists": lists_done,
@@ -514,9 +535,11 @@ def backfill_pins(
 
     pinned = 0
     failed = 0
+    attempted = 0
     consecutive_failures = 0
     last_success_id = after_id
     for assignment_id in batch:
+        attempted += 1
         try:
             pinned += pin_assignment(assignment_id)
             consecutive_failures = 0
@@ -543,10 +566,10 @@ def backfill_pins(
                 _update_backfill(
                     backfill_id,
                     {
-                        "processed": processed_so_far + pinned + failed,
+                        "processed": processed_so_far + attempted,
                         "rows_pinned": pinned_so_far + pinned,
                         "failed": failed_so_far + failed,
-                        "cursor": str(last_success_id),
+                        "cursor": str(last_success_id) if last_success_id else None,
                     },
                     status=Backfill.Status.FAILED,
                     error=(

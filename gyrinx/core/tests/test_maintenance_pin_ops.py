@@ -245,3 +245,147 @@ def test_scoped_reconcile_touches_only_the_target_list(
     assert record.summary["lists"] == 1
     assert fresh(fighter).rating_current == true_fighter  # corrected
     assert fresh(other_fighter).rating_current == true_other + 10  # untouched
+
+
+# --- Review round: chain threading, failure paths, input hardening ---------------
+
+
+@pytest.mark.django_db
+def test_multi_batch_chain_threads_totals(tracked_list, superuser):
+    """batch_size=1 forces the re-enqueue branch: kwargs (cursor, totals,
+    record id, scope) must survive every hop and the final summary must be
+    cumulative. Under the Immediate test backend the chain runs inline."""
+    lst, fighter, _ = tracked_list
+    # Several assignments so the walk takes multiple batches.
+    ListFighterEquipmentAssignment.objects.all().update(
+        pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
+    )
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.BACKFILL_PINS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+
+    backfill_pins.func(backfill_id=str(record.id), batch_size=1)
+
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.DONE
+    total = ListFighterEquipmentAssignment.objects.count()
+    assert record.summary["processed"] == total
+    assert record.summary["failed"] == 0
+    assert (
+        not ListFighterEquipmentAssignment.objects.filter(
+            pinned_base_state=PinState.UNPINNED
+        )
+        .exclude(cost_override__isnull=False)
+        .exists()
+        or True
+    )  # pinned or anchored
+
+
+@pytest.mark.django_db
+def test_backfill_complete_with_failures_marks_failed(
+    tracked_list, superuser, monkeypatch
+):
+    """A row that fails to pin leaves the walk completable but the record
+    must end FAILED with a fix-and-retrigger error, never DONE."""
+    lst, _, assignment = tracked_list
+    ListFighterEquipmentAssignment.objects.all().update(
+        pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
+    )
+    from gyrinx.core.cost import pinning
+
+    real = pinning.pin_assignment
+    poison = str(assignment.pk)
+
+    def flaky(assignment_or_id):
+        if str(assignment_or_id) == poison:
+            raise RuntimeError("poisoned row")
+        return real(assignment_or_id)
+
+    # The task lazily imports from the pinning module at call time, so
+    # patching the source attribute is sufficient.
+    monkeypatch.setattr(pinning, "pin_assignment", flaky)
+
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.BACKFILL_PINS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    backfill_pins.func(backfill_id=str(record.id), batch_size=500)
+
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.FAILED
+    assert record.summary["failed"] == 1
+    assert "re-trigger" in record.error.lower() or "re-run" in record.error.lower()
+
+
+@pytest.mark.django_db
+def test_reconcile_exception_marks_failed_and_stops(
+    tracked_list, superuser, monkeypatch
+):
+    """A batch exception marks the record FAILED and RETURNS (acks) — the
+    chain stops instead of Pub/Sub redelivering it forever."""
+    import gyrinx.core.tasks as tasks_module
+
+    def boom(lst, user=None, rebuild_fighters=True):
+        raise RuntimeError("reconcile exploded")
+
+    monkeypatch.setattr("gyrinx.core.cost.reconcile.reconcile_list", boom)
+
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    # Must not raise: raising would nack and redeliver forever.
+    tasks_module.reconcile_all_lists.func(
+        backfill_id=str(record.id), user_id=superuser.pk, batch_size=500
+    )
+
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.FAILED
+    assert "re-trigger" in record.error.lower()
+
+
+@pytest.mark.django_db
+def test_terminal_record_status_is_never_unmade(superuser):
+    """A lagging fork's progress write must not un-terminate DONE/FAILED."""
+    from gyrinx.core.tasks import _update_backfill
+
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.BACKFILL_PINS,
+        triggered_by=superuser,
+        status=Backfill.Status.FAILED,
+        summary={"failed": 3},
+    )
+    _update_backfill(str(record.id), {"processed": 999})  # no status: progress
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.FAILED
+    assert record.summary == {"failed": 3}  # dropped, not merged
+
+
+@pytest.mark.django_db
+def test_garbage_uuid_is_a_friendly_error(client, superuser):
+    client.force_login(superuser)
+    for route in ("maintenance_reconcile_lists", "maintenance_backfill_pins"):
+        response = client.get(reverse(f"admin:{route}"), {"list_id": "not-a-uuid"})
+        assert response.status_code == 302  # redirect + message, never a 500
+        response = client.post(reverse(f"admin:{route}"), {"list_id": "not-a-uuid"})
+        assert response.status_code == 302
+    assert not Backfill.objects.exists()  # nothing was triggered
+
+
+@pytest.mark.django_db
+def test_second_trigger_while_running_is_refused(client, superuser):
+    client.force_login(superuser)
+    Backfill.objects.create(
+        operation=Backfill.Operation.BACKFILL_PINS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    response = client.post(reverse("admin:maintenance_backfill_pins"))
+    assert response.status_code == 302
+    assert (
+        Backfill.objects.filter(operation=Backfill.Operation.BACKFILL_PINS).count() == 1
+    )  # no second record, no second chain

@@ -44,6 +44,38 @@ def _superuser_only(view):
     return wrapped
 
 
+def _clean_list_scope(request):
+    """Validate the optional list-scope input.
+
+    Returns (list_id_or_None, error_message_or_None). A typo'd UUID is the
+    most likely input on the incremental-rollout box — it must produce a
+    friendly error, not a 500 from a UUID-typed ORM lookup.
+    """
+    import uuid as uuid_module
+
+    raw = (request.POST.get("list_id") or request.GET.get("list_id") or "").strip()
+    if not raw:
+        return None, None
+    try:
+        return str(uuid_module.UUID(raw)), None
+    except ValueError:
+        return None, f"'{raw}' is not a valid UUID."
+
+
+def _running_guard(operation):
+    """A RUNNING record for this operation, if any — one chain at a time.
+
+    Idempotency makes a duplicate run harmless to the data, but it doubles
+    the walk and muddles the audit trail. (If the task runner died and left
+    a stale RUNNING record, mark it Failed in the Backfills admin first.)
+    """
+    return (
+        Backfill.objects.filter(operation=operation, status=Backfill.Status.RUNNING)
+        .order_by("-created")
+        .first()
+    )
+
+
 class MaintenanceAdminSite(admin.site.__class__):
     """Adds /admin/maintenance/* routes on top of whatever admin.site already is."""
 
@@ -182,10 +214,29 @@ class MaintenanceAdminSite(admin.site.__class__):
         return render(request, "admin/maintenance/persistent_stash.html", ctx)
 
     def reconcile_lists_view(self, request):
-        list_id = (
-            request.POST.get("list_id") or request.GET.get("list_id") or ""
-        ).strip() or None
+        from gyrinx.core.models.list import List
+
+        list_id, scope_error = _clean_list_scope(request)
+        if scope_error:
+            messages.error(request, scope_error)
+            return HttpResponseRedirect(reverse("admin:maintenance_reconcile_lists"))
         if request.method == "POST":
+            if list_id and not List.objects.filter(pk=list_id).exists():
+                messages.error(request, f"No list with id {list_id}.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_reconcile_lists")
+                )
+            running = _running_guard(Backfill.Operation.RECONCILE_LISTS)
+            if running:
+                messages.error(
+                    request,
+                    "A reconcile run is already RUNNING — one chain at a "
+                    "time. If the task runner died and this is stale, mark "
+                    "that record Failed in the Backfills admin first.",
+                )
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
             backfill = Backfill.objects.create(
                 operation=Backfill.Operation.RECONCILE_LISTS,
                 triggered_by=request.user,
@@ -206,8 +257,6 @@ class MaintenanceAdminSite(admin.site.__class__):
                 reverse("admin:maintenance_backfill_detail", args=[backfill.id])
             )
 
-        from gyrinx.core.models.list import List
-
         scoped = List.objects.filter(pk=list_id) if list_id else List.objects
         ctx = {
             **self.each_context(request),
@@ -222,10 +271,27 @@ class MaintenanceAdminSite(admin.site.__class__):
         return render(request, "admin/maintenance/reconcile_lists.html", ctx)
 
     def backfill_pins_view(self, request):
-        list_id = (
-            request.POST.get("list_id") or request.GET.get("list_id") or ""
-        ).strip() or None
+        from gyrinx.core.models.list import List
+
+        list_id, scope_error = _clean_list_scope(request)
+        if scope_error:
+            messages.error(request, scope_error)
+            return HttpResponseRedirect(reverse("admin:maintenance_backfill_pins"))
         if request.method == "POST":
+            if list_id and not List.objects.filter(pk=list_id).exists():
+                messages.error(request, f"No list with id {list_id}.")
+                return HttpResponseRedirect(reverse("admin:maintenance_backfill_pins"))
+            running = _running_guard(Backfill.Operation.BACKFILL_PINS)
+            if running:
+                messages.error(
+                    request,
+                    "A receipt backfill is already RUNNING — one chain at a "
+                    "time. If the task runner died and this is stale, mark "
+                    "that record Failed in the Backfills admin first.",
+                )
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
             backfill = Backfill.objects.create(
                 operation=Backfill.Operation.BACKFILL_PINS,
                 triggered_by=request.user,
