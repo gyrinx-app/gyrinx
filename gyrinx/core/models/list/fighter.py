@@ -354,6 +354,11 @@ class ListFighterQuerySet(models.QuerySet):
                         "modifiers"
                     ),
                 ),
+                # Cost-pinning (#1826): through rows feed the resolvers' pin
+                # maps during cost iteration and recompute.
+                "listfighterequipmentassignment_set__profile_rows",
+                "listfighterequipmentassignment_set__accessory_rows",
+                "listfighterequipmentassignment_set__upgrade_rows",
                 "content_fighter__counters",
                 "content_fighter__house",
                 "content_fighter__house__restricted_equipment_categories",
