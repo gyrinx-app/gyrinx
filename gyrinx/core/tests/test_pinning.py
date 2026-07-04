@@ -454,3 +454,41 @@ def test_vehicle_purchase_pins(
         list_fighter=result.crew_fighter, content_equipment=vehicle_equipment
     )
     assert _base_pin(created)[:2] == (100, PinState.CATALOG)
+
+
+@pytest.mark.django_db
+def test_balance_sheet_shows_pinned_pricing(ctx, user):
+    """Phase 7 DoD: fresh acquisitions show pricing == "pinned" on the
+    balance sheet, with the pin state as detail."""
+    from gyrinx.core.cost.balance_sheet import build_balance_sheet
+    from gyrinx.core.handlers.equipment.purchase import (
+        handle_accessory_purchase,
+        handle_equipment_purchase,
+    )
+
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=ctx["fighter"].content_fighter, equipment=ctx["equipment"], cost=5
+    )
+    handle_equipment_purchase(
+        user=user, lst=ctx["lst"], fighter=ctx["fighter"], assignment=ctx["assignment"]
+    )
+    accessory = ContentWeaponAccessory.objects.create(name="Scope", cost=8)
+    handle_accessory_purchase(
+        user=user,
+        lst=fresh(ctx["lst"]),
+        fighter=fresh(ctx["fighter"]),
+        assignment=fresh(ctx["assignment"]),
+        accessory=accessory,
+    )
+
+    sheet = build_balance_sheet(fresh(ctx["lst"]))
+    fighter_sheet = next(f for f in sheet.fighters if f.name == "Bob")
+    lines = {
+        line.kind: line
+        for a in fighter_sheet.assignments
+        if a.assignment_id == ctx["assignment"].pk
+        for line in a.lines
+    }
+    assert (lines["base"].pricing, lines["base"].detail) == ("pinned", "source")
+    assert lines["accessories"].pricing == "pinned"
+    assert lines["profiles"].pricing == "live"  # no rows -> nothing pinned
