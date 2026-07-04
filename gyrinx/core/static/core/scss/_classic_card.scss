@@ -564,13 +564,15 @@
         }
     }
 
-    // The cost cog uses the maroon gear stamp overlay, over a white disc so the
-    // cost value reads clearly (the disc sits under the gear ring, sized to tuck
-    // just under the inner ring; the toothed edge stays open to the card).
+    // The cost cog is the black gear stamp over a solid white disc so the cost
+    // value reads on full white. The disc sits ON TOP of the gear so it covers
+    // the stamp's faint semi-transparent centre fill (which would otherwise tint
+    // the middle grey); it's sized to meet the inner ring, leaving the toothed
+    // edge open. The cost value is foreground text, so it stays above the disc.
     .cc-cog {
         background-image:
-            url("../img/print/classic/overlays/cog.png"),
-            radial-gradient(circle 5mm at center, #fff 0 100%, transparent 0);
+            radial-gradient(circle 5.4mm at center, #fff 0 100%, transparent 0),
+            url("../img/print/classic/overlays/cog.png");
     }
 }
 
