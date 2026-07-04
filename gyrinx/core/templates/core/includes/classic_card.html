@@ -9,17 +9,6 @@ Params:
 <div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if show_grid %} show-grid{% endif %}"
      data-kind="{{ card.kind }}">
     <div class="cc-bg"></div>
-    {% comment %} Injuries write-in strip {% endcomment %}
-    <div class="cc-region cc-injuries">
-        <div class="cc-label">Injuries</div>
-        <div class="cc-injuries__body">
-            {% spaceless %}
-                {% for injury in card.injuries %}
-                    <span>{{ injury }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
-                {% endfor %}
-            {% endspaceless %}
-        </div>
-    </div>
     {% comment %} Name + type {% endcomment %}
     <div class="cc-region cc-name">
         <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
@@ -178,6 +167,17 @@ Params:
         <div class="cc-label">Notes</div>
         <div class="cc-section__body">
             {% for line in card.notes_lines %}<div>{{ line }}</div>{% endfor %}
+        </div>
+    </div>
+    {% comment %} Injuries — under notes; lists lasting injuries, else blank {% endcomment %}
+    <div class="cc-region cc-injuries">
+        <div class="cc-label">Injuries</div>
+        <div class="cc-injuries__body">
+            {% spaceless %}
+                {% for injury in card.injuries %}
+                    <span>{{ injury }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                {% endfor %}
+            {% endspaceless %}
         </div>
     </div>
 </div>

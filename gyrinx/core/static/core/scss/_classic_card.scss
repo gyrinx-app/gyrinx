@@ -26,28 +26,29 @@
     --cc-h: 110mm;
     --cc-pad: 3.2mm;
 
-    --cc-injuries-top: 0;
-    --cc-injuries-h: 6mm;
-    --cc-name-top: 8mm;
+    --cc-name-top: 3mm;
     --cc-name-h: 12mm;
-    --cc-stat-top: 20.5mm;
+    --cc-stat-top: 15.5mm;
     --cc-stat-h: 11mm;
-    --cc-weap-top: 32mm;
+    --cc-weap-top: 27mm;
     --cc-weap-h: 31mm;
     // lower-left detail block: skills / powers / wargear / gear-category rows
     // flow within here (clips if a fighter is very loaded).
-    --cc-detail-top: 63mm;
+    --cc-detail-top: 58mm;
     --cc-detail-h: 23mm;
-    // XP / Kills, special rules, and notes are pinned so they never clip.
-    --cc-xpkills-top: 86.5mm;
+    // XP / Kills, rules, notes, and injuries are pinned so they never clip.
+    --cc-xpkills-top: 81.5mm;
     --cc-xpkills-h: 3.5mm;
-    --cc-rules-top: 90mm;
+    --cc-rules-top: 85mm;
     --cc-rules-h: 5mm;
-    --cc-notes-top: 95mm;
-    --cc-notes-h: 13mm;
+    --cc-notes-top: 90mm;
+    --cc-notes-h: 10mm;
+    // injuries sit under notes at the very bottom
+    --cc-injuries-top: 100mm;
+    --cc-injuries-h: 8mm;
     // right-hand boxes, pinned
-    --cc-save-top: 65mm;
-    --cc-recovery-top: 74mm;
+    --cc-save-top: 60mm;
+    --cc-recovery-top: 69mm;
 
     --cc-cog-size: 19mm;
     --cc-rightbox-w: 24mm; // save / recovery-captured boxes
@@ -99,17 +100,18 @@
     }
 
     // =======================================================================
-    // Injuries — a write-in strip across the top. Shows the fighter's lasting
-    // injuries when known; otherwise a labelled blank space to fill in by hand.
+    // Injuries — a section below Notes. Shows the fighter's lasting injuries
+    // (inline after the label); otherwise labelled blank space to fill by hand.
     // =======================================================================
     .cc-injuries {
         top: var(--cc-injuries-top);
         height: var(--cc-injuries-h);
         display: flex;
+        flex-direction: row;
         align-items: baseline;
         gap: 1.5mm;
-        padding: 1mm 0 0.6mm;
-        border-bottom: 0.3mm solid var(--cc-line-soft);
+        border-top: 0.3mm solid var(--cc-line-soft);
+        padding-top: 0.5mm;
     }
 
     .cc-injuries .cc-label {
@@ -159,7 +161,7 @@
     .cc-cog {
         position: absolute;
         z-index: 3;
-        top: 6.5mm;
+        top: 1.5mm;
         right: var(--cc-pad);
         width: var(--cc-cog-size);
         height: var(--cc-cog-size);

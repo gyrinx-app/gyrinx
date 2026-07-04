@@ -22,8 +22,8 @@ richer data onto the fixed regions and deliberately omits the rest:
     RULES     <- fighter.ruleline (own row)
     XP        <- fighter.xp_current
     KILLS     <- blank fillable box (Gyrinx has no per-fighter kill counter)
-    INJURIES  <- fighter.injuries (top write-in strip; blank space when none)
     NOTES     <- fighter.notes
+    INJURIES  <- fighter.injuries (row under notes; blank space when none)
     Recovery / Captured / Dead reflect injury_state.
 
 Deliberately omitted (no region on the classic card): counters, advancement detail,
@@ -114,7 +114,7 @@ class ClassicCard:
     gear_categories: list = field(default_factory=list)
     rules: list[str] = field(default_factory=list)
     xp: str = ""
-    # lasting injuries — shown in the top "Injuries" write-in strip
+    # lasting injuries — shown in the "Injuries" row beneath Notes
     injuries: list[str] = field(default_factory=list)
     notes_lines: list[str] = field(default_factory=list)
     # condition markers (mostly fillable; a couple reflect real state)
