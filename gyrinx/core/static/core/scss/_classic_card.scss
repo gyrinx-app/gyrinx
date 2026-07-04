@@ -147,7 +147,9 @@
     .cc-name__value {
         font-size: 5mm;
         font-weight: 700;
-        line-height: 1;
+        // room for descenders: overflow:hidden (for the ellipsis) clips the
+        // line box, so the line box must be tall enough to include them.
+        line-height: 1.2;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -156,6 +158,7 @@
     .cc-name__sub {
         margin-top: 0.6mm;
         font-size: 2.4mm;
+        line-height: 1.25;
         color: rgba(29, 26, 22, 0.72);
         white-space: nowrap;
         overflow: hidden;
