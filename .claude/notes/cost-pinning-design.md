@@ -519,6 +519,13 @@ purposes. Regenerate `performance_view_queries.json` when this lands.
 
 ### 4.6 Handler changes
 
+> **Phase 7 must also fix `clone()`**: it copies `cost_override`/`total_cost_override`
+> but not the base pin fields, and its M2M `.add()` creates fresh UNPINNED
+> through rows — so cloning (including campaign-start list cloning) silently
+> unpins everything. Copy base pins across and create through rows carrying
+> the source rows' pin fields. (Flagged by the Phase 5 review.)
+
+
 **One choke point for pin-writing.** A single resolve-and-pin step — natural home:
 the assignment manager's `create_with_facts` (`list.py:4195`) plus a
 component-level twin for through-rows — runs the existing live resolution once and

@@ -67,6 +67,11 @@ class ListFighterEquipmentAssignmentQuerySet(models.QuerySet):
                 "upgrades_field",
                 queryset=ContentEquipmentUpgrade.objects.all_content(),
             ),
+            # Cost-pinning (#1826): the through rows feed the resolvers' pin
+            # maps. Amounts only — pin FKs are not select_related'd here.
+            "profile_rows",
+            "accessory_rows",
+            "upgrade_rows",
         )
 
     def create_with_facts(self, user=None, **kwargs):
@@ -547,6 +552,29 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         return None
 
+    # --- Cost-pinning (#1826): component-row maps ---------------------------
+    # Resolution reads pinned amounts off the through rows. These maps are
+    # built once per instance from the prefetched row sets (with_related_data
+    # prefetches them), so pricing a pinned component adds no queries.
+    #
+    # Like every cached cost property on this model, the maps snapshot at
+    # first read: a pin written AFTER a cost read on the same instance is
+    # masked until refetch. Acquisition code (the Phase 7 choke point) must
+    # write pins before any cost read on the instance it returns, or return
+    # a fresh instance.
+
+    @cached_property
+    def _profile_row_by_profile_id(self):
+        return {r.contentweaponprofile_id: r for r in self.profile_rows.all()}
+
+    @cached_property
+    def _accessory_row_by_accessory_id(self):
+        return {r.contentweaponaccessory_id: r for r in self.accessory_rows.all()}
+
+    @cached_property
+    def _upgrade_row_by_upgrade_id(self):
+        return {r.contentequipmentupgrade_id: r for r in self.upgrade_rows.all()}
+
     @traced("listfighterequipmentassignment_equipment_cost_with_override")
     def _equipment_cost_with_override(self):
         # The assignment can have an assigned cost which takes priority
@@ -556,6 +584,14 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         # If this is a linked assignment and is the child, then the cost is zero
         if self.linked_equipment_parent is not None:
             return 0
+
+        # Cost-pinning (#1826): a pinned base amount IS the base price —
+        # holder-independent by construction. It must outrank the
+        # cost_for_fighter annotation shortcut below: a picker-annotated
+        # instance must not flash the unpinned price. Everything past this
+        # line is the live fallback for UNPINNED (legacy) rows.
+        if self.pinned_base_amount is not None:
+            return self.pinned_base_amount
 
         if hasattr(self.content_equipment, "cost_for_fighter"):
             return self.content_equipment.cost_for_fighter_int()
@@ -687,6 +723,16 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             )
             return cost
 
+        # Cost-pinning (#1826): a pinned amount is the profile's price;
+        # outranks the annotation shortcut and every live lookup below.
+        row = self._profile_row_by_profile_id.get(profile.profile.id)
+        if row is not None and row.pinned_amount is not None:
+            cost = row.pinned_amount
+            self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
+                cost
+            )
+            return cost
+
         if hasattr(profile.profile, "cost_for_fighter"):
             cost = profile.profile.cost_for_fighter_int()
             self._profile_cost_with_override_for_profile_cache[profile.profile.id] = (
@@ -766,6 +812,14 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             ):
                 return 0
 
+        # Cost-pinning (#1826): a pinned amount is the accessory's price.
+        # Deliberately checked BEFORE the cost_expression branch: expression
+        # accessories pin an evaluated (DERIVED) amount, and resolution must
+        # read it rather than re-evaluate live — re-derivation is sweep work.
+        row = self._accessory_row_by_accessory_id.get(accessory.id)
+        if row is not None and row.pinned_amount is not None:
+            return row.pinned_amount
+
         # Check for cost expression first, as it takes precedence over simple cost overrides
         if hasattr(accessory, "cost_expression") and accessory.cost_expression:
             weapon_base_cost = self.base_cost_int_cached
@@ -803,6 +857,13 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     @traced("listfighterequipmentassignment_upgrade_cost_with_override")
     def _upgrade_cost_with_override(self, upgrade):
         """Calculate upgrade cost with fighter-specific overrides, respecting cumulative costs."""
+        # Cost-pinning (#1826): a pinned amount is the upgrade's price. For
+        # SINGLE-mode stacks the amount is the whole cumulative total at
+        # acquisition (DERIVED), so it replaces the rung walk below entirely.
+        row = self._upgrade_row_by_upgrade_id.get(upgrade.id)
+        if row is not None and row.pinned_amount is not None:
+            return row.pinned_amount
+
         # For MULTI mode, just return the individual cost (with override if present)
         if upgrade.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
             if hasattr(upgrade, "cost_for_fighter"):
@@ -965,6 +1026,20 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                 name="idx_assignment_content_equip",
             ),
         ]
+        constraints = [
+            # §4.1 invariant, base-pin flavour (see the through models).
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        pinned_base_state="unpinned",
+                        pinned_base_amount__isnull=True,
+                    )
+                    | ~models.Q(pinned_base_state="unpinned")
+                    & models.Q(pinned_base_amount__isnull=False)
+                ),
+                name="assignment_unpinned_iff_null_base_amount",
+            ),
+        ]
 
 
 class ListFighterEquipmentAssignmentProfile(models.Model):
@@ -1051,6 +1126,19 @@ class ListFighterEquipmentAssignmentProfile(models.Model):
                 )
 
     class Meta:
+        constraints = [
+            # §4.1 invariant: UNPINNED is the only null-amount state. Sweeps
+            # key on state and resolution keys on amount; a row violating
+            # this would price at an amount the backfill believes is absent.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(pin_state="unpinned", pinned_amount__isnull=True)
+                    | ~models.Q(pin_state="unpinned")
+                    & models.Q(pinned_amount__isnull=False)
+                ),
+                name="profile_row_unpinned_iff_null_amount",
+            ),
+        ]
         db_table = "core_listfighterequipmentassignment_weapon_profiles_field"
         unique_together = [["listfighterequipmentassignment", "contentweaponprofile"]]
         verbose_name = "weapon profile row"
@@ -1104,6 +1192,19 @@ class ListFighterEquipmentAssignmentAccessory(models.Model):
     history = HistoricalRecords()
 
     class Meta:
+        constraints = [
+            # §4.1 invariant: UNPINNED is the only null-amount state. Sweeps
+            # key on state and resolution keys on amount; a row violating
+            # this would price at an amount the backfill believes is absent.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(pin_state="unpinned", pinned_amount__isnull=True)
+                    | ~models.Q(pin_state="unpinned")
+                    & models.Q(pinned_amount__isnull=False)
+                ),
+                name="accessory_row_unpinned_iff_null_amount",
+            ),
+        ]
         db_table = "core_listfighterequipmentassignment_weapon_accessories_field"
         unique_together = [["listfighterequipmentassignment", "contentweaponaccessory"]]
         verbose_name = "weapon accessory row"
@@ -1172,6 +1273,19 @@ class ListFighterEquipmentAssignmentUpgrade(models.Model):
                 )
 
     class Meta:
+        constraints = [
+            # §4.1 invariant: UNPINNED is the only null-amount state. Sweeps
+            # key on state and resolution keys on amount; a row violating
+            # this would price at an amount the backfill believes is absent.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(pin_state="unpinned", pinned_amount__isnull=True)
+                    | ~models.Q(pin_state="unpinned")
+                    & models.Q(pinned_amount__isnull=False)
+                ),
+                name="upgrade_row_unpinned_iff_null_amount",
+            ),
+        ]
         db_table = "core_listfighterequipmentassignment_upgrades_field"
         unique_together = [
             ["listfighterequipmentassignment", "contentequipmentupgrade"]
