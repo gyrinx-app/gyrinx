@@ -492,3 +492,72 @@ def test_balance_sheet_shows_pinned_pricing(ctx, user):
     assert (lines["base"].pricing, lines["base"].detail) == ("pinned", "source")
     assert lines["accessories"].pricing == "pinned"
     assert lines["profiles"].pricing == "live"  # no rows -> nothing pinned
+
+
+@pytest.mark.django_db
+def test_frozen_total_blocks_all_pinning(ctx, make_weapon_profile):
+    """A fixed assignment total is the paid price: no receipt is written for
+    any row, preserving the Phase 8 freeze-conversion's ability to record
+    the frozen value later."""
+    profile = make_weapon_profile(ctx["equipment"], name="Hotshot", cost=10)
+    ctx["assignment"].weapon_profiles_field.add(profile)
+    ListFighterEquipmentAssignment.objects.filter(pk=ctx["assignment"].pk).update(
+        total_cost_override=40
+    )
+
+    assert pin_assignment(ctx["assignment"]) == 0
+    assert _base_pin(ctx["assignment"])[1] == PinState.UNPINNED
+    row = ctx["assignment"].profile_rows.get()
+    assert (row.pinned_amount, row.pin_state) == (None, PinState.UNPINNED)
+
+
+@pytest.mark.django_db
+def test_expansion_priced_profile_pins_source(ctx, make_weapon_profile):
+    """A profile priced by an expansion item pins SOURCE with the expansion
+    FK on the through row."""
+    profile = make_weapon_profile(ctx["equipment"], name="Hotshot", cost=10)
+    rule = ContentEquipmentListExpansionRuleByHouse.objects.create(
+        house=ctx["lst"].content_house
+    )
+    expansion = ContentEquipmentListExpansion.objects.create(name="Profile Expansion")
+    expansion.rules.add(rule)
+    exp_item = ContentEquipmentListExpansionItem.objects.create(
+        expansion=expansion,
+        equipment=ctx["equipment"],
+        weapon_profile=profile,
+        cost=6,
+    )
+    ctx["assignment"].weapon_profiles_field.add(profile)
+
+    pin_assignment(ctx["assignment"])
+
+    row = ctx["assignment"].profile_rows.get()
+    assert (
+        row.pinned_amount,
+        row.pin_state,
+        row.pinned_expansion_item_id,
+    ) == (6, PinState.SOURCE, exp_item.pk)
+
+
+@pytest.mark.django_db
+def test_convert_default_assignment_stays_unpinned(ctx, make_weapon_profile):
+    """Driving the REAL default-conversion path: the converted assignment is
+    zero-anchored (cost_override=0, kit components free by membership), so
+    nothing gets a receipt."""
+    kit_profile = make_weapon_profile(ctx["equipment"], name="Kit Shot", cost=10)
+    default = ContentFighterDefaultAssignment.objects.create(
+        fighter=ctx["fighter"].content_fighter, equipment=ctx["equipment"]
+    )
+    default.weapon_profiles_field.add(kit_profile)
+    ctx["assignment"].delete()  # the fixture's direct assignment is in the way
+
+    fighter = type(ctx["fighter"]).objects.get(pk=ctx["fighter"].pk)
+    fighter.convert_default_assignment(default)
+
+    converted = ListFighterEquipmentAssignment.objects.get(
+        list_fighter=fighter, from_default_assignment=default
+    )
+    assert converted.cost_override == 0
+    assert _base_pin(converted)[1] == PinState.UNPINNED
+    row = converted.profile_rows.get()
+    assert (row.pinned_amount, row.pin_state) == (None, PinState.UNPINNED)

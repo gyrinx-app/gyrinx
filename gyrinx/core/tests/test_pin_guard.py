@@ -15,6 +15,10 @@ test failed: either your new call site must call
 record it as PINNED), or it is genuinely one of the exception kinds — argue
 that in review, then record it with the right label.
 
+This is a source-level heuristic: aliased imports, getattr dispatch, or
+string-built model access can slip past it. That is acceptable — it exists
+to catch the ordinary way new code gets written, not adversarial evasion.
+
 Labels:
 - PINNED    calls pin_assignment (or is a sub-step of a caller that does)
 - COPIES    clone(): receipts are copied verbatim, not re-resolved
@@ -36,10 +40,31 @@ import gyrinx
 
 PATTERNS = {
     "instantiate": re.compile(r"(?<!\w)(?<!class )ListFighterEquipmentAssignment\("),
-    "manager-create": re.compile(r"ListFighterEquipmentAssignment\.objects\.create"),
+    "manager-create": re.compile(
+        r"ListFighterEquipmentAssignment\.objects\."
+        r"(create|get_or_create|update_or_create|bulk_create)"
+    ),
+    "reverse-create": re.compile(
+        r"listfighterequipmentassignment_set\."
+        r"(create|get_or_create|update_or_create|bulk_create)"
+    ),
+    "through-create": re.compile(
+        r"ListFighterEquipmentAssignment(Profile|Accessory|Upgrade)\.objects\."
+        r"(create|get_or_create|update_or_create|bulk_create)"
+    ),
     "m2m-write": re.compile(
         r"(weapon_profiles_field|weapon_accessories_field|upgrades_field)\.(add|set)\("
     ),
+}
+
+# PINNED files must actually contain the calls their label claims: deleting
+# a pin_assignment(...) line must fail here, not silently unpin a path.
+PIN_CALL_COUNTS = {
+    "core/cost/pinning.py": 2,  # module docstring + the def itself
+    "core/handlers/equipment/purchase.py": 4,  # equipment/accessory/profile/upgrades
+    "core/handlers/fighter/vehicle.py": 1,
+    "core/models/list/advancement.py": 1,
+    "core/models/list/fighter.py": 1,  # assign()
 }
 
 # (path, pattern) -> (count, label)
@@ -78,18 +103,23 @@ INVENTORY = {
 # recompute action is the remediation), not by this scan.
 
 
-def _scan():
+def _scan(extra_files=None):
+    """Scan non-test source for creation shapes. ``extra_files`` lets the
+    guard's own negative test inject a synthetic bypassing call site."""
     root = Path(gyrinx.__file__).parent
+    sources = {
+        path.relative_to(root).as_posix(): path.read_text()
+        for path in sorted(root.rglob("*.py"))
+    }
+    sources.update(extra_files or {})
     found = {}
-    for path in sorted(root.rglob("*.py")):
-        rel = path.relative_to(root).as_posix()
+    for rel, text in sources.items():
         if (
             "/tests/" in f"/{rel}"
             or "/migrations/" in f"/{rel}"
             or rel.endswith("conftest.py")
         ):
             continue
-        text = path.read_text()
         for name, rx in PATTERNS.items():
             n = len(rx.findall(text))
             if n:
@@ -117,3 +147,44 @@ def test_every_assignment_creation_site_is_accounted_for():
         "Re-verify the pinning story for each affected site, then update "
         "INVENTORY."
     )
+
+
+def test_pinned_files_still_call_the_choke_point():
+    """A PINNED label is a claim: the file wires pin_assignment. Deleting
+    the call must fail here, not silently unpin an acquisition path."""
+    root = Path(gyrinx.__file__).parent
+    for rel, expected in PIN_CALL_COUNTS.items():
+        actual = (root / rel).read_text().count("pin_assignment(")
+        assert actual == expected, (
+            f"{rel}: expected {expected} pin_assignment references, found "
+            f"{actual}. If a call site moved or was removed, re-verify the "
+            "pinning story for every creation site in that file, then "
+            "update PIN_CALL_COUNTS."
+        )
+
+
+def test_guard_detects_synthetic_bypass():
+    """The DoD negative case: a new creation site the inventory doesn't
+    know about must be flagged."""
+    found = _scan(
+        extra_files={
+            "core/rogue.py": (
+                "def rogue(fighter, equipment):\n"
+                "    return ListFighterEquipmentAssignment.objects.create(\n"
+                "        list_fighter=fighter, content_equipment=equipment\n"
+                "    )\n"
+            )
+        }
+    )
+    assert found.get(("core/rogue.py", "manager-create")) == 1
+
+    # The wider creation shapes are matched too.
+    for snippet, pattern in [
+        ("ListFighterEquipmentAssignment.objects.get_or_create(", "manager-create"),
+        ("fighter.listfighterequipmentassignment_set.create(", "reverse-create"),
+        (
+            "ListFighterEquipmentAssignmentProfile.objects.bulk_create(",
+            "through-create",
+        ),
+    ]:
+        assert PATTERNS[pattern].search(snippet), (pattern, snippet)

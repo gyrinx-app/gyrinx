@@ -22,9 +22,16 @@ allowlist names their creation paths as zero-anchored.
 Idempotent by design: only UNPINNED rows are written, an existing receipt is
 never overwritten — re-pinning would replace the acquisition price with
 today's. That makes the choke point safe to call from any layer (view AND
-handler double-calling is a no-op) and makes each call on a legacy
-assignment a value-neutral early instalment of the Phase 8 backfill: pinning
-at the current live price is exactly what resolution already returns.
+handler double-calling is a no-op), and for un-anchored rows makes each call
+on a legacy assignment a value-neutral early instalment of the Phase 8
+backfill: their live resolution already returns the price being pinned.
+
+Assignments with a fixed total (total_cost_override) are skipped entirely:
+the frozen value is what the gang actually paid, so a receipt written at
+today's live prices would record a price that was never paid — and, since
+receipts are never overwritten, it would also block the Phase 8 conversion
+from writing the frozen value into those rows when Phase 9 retires the
+freeze.
 
 Writes use queryset .update() (no signals, no history churn), matching the
 sweep's write semantics (core/cost/pin_sweep.py).
@@ -56,6 +63,10 @@ def pin_assignment(assignment) -> int:
     fresh = ListFighterEquipmentAssignment.objects.with_related_data().get(
         pk=assignment.pk
     )
+    if fresh.total_cost_override is not None:
+        # Frozen gear: the override is the paid price. Leave every row
+        # unpinned for the Phase 8 freeze-conversion to receipt correctly.
+        return 0
     pinned = 0
 
     # --- Base -----------------------------------------------------------

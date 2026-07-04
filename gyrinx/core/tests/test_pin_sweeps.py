@@ -529,8 +529,8 @@ def test_single_stack_lower_rung_correction_rederives_higher_rung(sweep_ctx):
     assert fresh(assignment).dirty is True
     assert ctx["lst"].id in _affected_list_ids(rung0)
 
-    # ...and its cumulative amount re-derives: 20 + 20.
-    _create_content_cost_change_actions(rung0)
+    # ...and its cumulative receipt moves by the rung's delta: 30 + 10.
+    _create_content_cost_change_actions(rung0, old_cost=10)
     row = assignment.upgrade_rows.get()
     assert (row.pinned_amount, row.pin_state) == (40, PinState.DERIVED)
 
@@ -1068,3 +1068,101 @@ def test_cancelling_rating_and_stash_deltas_still_book(campaign_sweep_ctx):
         -2,
         0,
     )
+
+
+# --- SINGLE-stack receipts: corrections apply BY DELTA --------------------------
+
+
+@pytest.fixture
+def single_stack_ctx(campaign_sweep_ctx):
+    """A REAL cumulative-stack receipt: rung 0 discounted by a per-rung
+    override (10 -> 6 for the holder's fighter type), the holder owns rung 1
+    (catalog 20), so acquisition pins the override-inclusive walk: 26."""
+    from gyrinx.core.cost.pinning import pin_assignment
+
+    ctx = campaign_sweep_ctx
+    holder_cf = ctx["assignment"].list_fighter.content_fighter
+    rung0 = ContentEquipmentUpgrade.objects.create(
+        equipment=ctx["equipment"], name="Rung 0", position=0, cost=10
+    )
+    override = ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=holder_cf, upgrade=rung0, cost=6
+    )
+    rung1 = ContentEquipmentUpgrade.objects.create(
+        equipment=ctx["equipment"], name="Rung 1", position=1, cost=20
+    )
+    ctx["assignment"].upgrades_field.add(rung1)
+    pin_assignment(ctx["assignment"])
+    row = ctx["assignment"].upgrade_rows.get()
+    assert (row.pinned_amount, row.pin_state) == (26, PinState.DERIVED)
+    ctx.update(rung0=rung0, rung1=rung1, override=override)
+    return ctx
+
+
+@pytest.mark.django_db
+def test_single_stack_catalog_correction_moves_receipt_by_delta(single_stack_ctx):
+    """Correcting rung 1's catalog price (+5) moves the receipt by exactly
+    +5 — it must NOT re-derive to the raw catalog sum, which would destroy
+    the acquisition discount on rung 0 and overbook the change."""
+    ctx = single_stack_ctx
+    ctx["rung1"].cost = 25
+    ctx["rung1"].save()
+    _create_content_cost_change_actions(ctx["rung1"], old_cost=20)
+
+    row = ctx["assignment"].upgrade_rows.get()
+    assert row.pinned_amount == 31  # 26 + 5, NOT 35 (10 + 25)
+    action = ListAction.objects.get(
+        list=ctx["lst"],
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=ctx["rung1"].pk,
+    )
+    assert (action.rating_delta, action.credits_delta) == (5, -5)
+
+
+@pytest.mark.django_db
+def test_single_stack_masked_rung_correction_leaves_receipt(single_stack_ctx):
+    """Correcting the CATALOG price of a rung the holder's override masks
+    changes nothing they pay: the receipt stands and nothing is booked."""
+    ctx = single_stack_ctx
+    ctx["rung0"].cost = 12
+    ctx["rung0"].save()
+    _create_content_cost_change_actions(ctx["rung0"], old_cost=10)
+
+    assert ctx["assignment"].upgrade_rows.get().pinned_amount == 26
+    assert not ListAction.objects.filter(
+        list=ctx["lst"],
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=ctx["rung0"].pk,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_single_stack_override_correction_reaches_receipt_by_delta(single_stack_ctx):
+    """Correcting the per-rung override (6 -> 8) reaches the DERIVED receipt
+    it priced — previously invisible to sweeps (no FK on amount-snapshots)."""
+    ctx = single_stack_ctx
+    ctx["override"].cost = 8
+    ctx["override"].save()
+    _create_content_cost_change_actions(ctx["override"], old_cost=6)
+
+    assert ctx["assignment"].upgrade_rows.get().pinned_amount == 28  # 26 + 2
+    action = ListAction.objects.get(
+        list=ctx["lst"],
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=ctx["override"].pk,
+    )
+    assert (action.rating_delta, action.credits_delta) == (2, -2)
+
+
+@pytest.mark.django_db
+def test_single_stack_without_old_cost_masks_instead_of_guessing(single_stack_ctx):
+    """A direct sweep call with no pre-change value cannot compute the
+    delta: the receipt stands and the list flags the snapshot fallback."""
+    ctx = single_stack_ctx
+    ctx["rung1"].cost = 25
+    ctx["rung1"].save()
+    sweep = rewrite_pinned_amounts_for_list(ctx["rung1"], ctx["lst"])
+
+    assert sweep.has_masked is True
+    assert sweep.use_row_deltas is False
+    assert ctx["assignment"].upgrade_rows.get().pinned_amount == 26
