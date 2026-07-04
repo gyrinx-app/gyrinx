@@ -36,9 +36,9 @@
     // flow within here (clips if a fighter is very loaded).
     --cc-detail-top: 58mm;
     --cc-detail-h: 23mm;
-    // XP / Kills, rules, notes, and injuries are pinned so they never clip.
-    --cc-xpkills-top: 81.5mm;
-    --cc-xpkills-h: 3.5mm;
+    // Kills, rules, notes, and injuries are pinned so they never clip.
+    --cc-kills-top: 81.5mm;
+    --cc-kills-h: 3.5mm;
     --cc-rules-top: 85mm;
     --cc-rules-h: 5mm;
     --cc-notes-top: 90mm;
@@ -350,22 +350,22 @@
         min-height: 5mm; // ~two lines at this font size
     }
 
-    // XP / Kills — pinned, inline, so they never get clipped by the flow above.
-    .cc-xpkills {
-        top: var(--cc-xpkills-top);
-        height: var(--cc-xpkills-h);
+    // Kills — pinned inline tally box, so it never gets clipped by the flow above.
+    .cc-kills {
+        top: var(--cc-kills-top);
+        height: var(--cc-kills-h);
         display: flex;
         align-items: baseline;
         gap: 6mm;
     }
 
-    .cc-xpkills__item {
+    .cc-kills__item {
         display: inline-flex;
         align-items: baseline;
         gap: 1.5mm;
     }
 
-    .cc-xpkills__val {
+    .cc-kills__val {
         font-weight: 700;
         font-size: 3.2mm;
     }

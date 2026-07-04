@@ -12,6 +12,7 @@ richer data onto the fixed regions and deliberately omits the rest:
 
     NAME      <- fighter.name, fighter type, cost
     STATLINE  <- fighter.statline  (dynamic columns; every statline type supported)
+                 + fighter.xp_current pinned as the far-right column
     SAVE      <- statline "save" column if present, else fighter.save_roll (else blank)
     WEAPONS   <- fighter.weapons_cached, flattened to rows (name, ranges, str/ap/d/am, traits)
     SKILLS    <- fighter.skilline_cached
@@ -20,7 +21,6 @@ richer data onto the fixed regions and deliberately omits the rest:
     <category> <- each special gear category (Legendary Names, Status Items, ...)
                  keeps its own labelled row rather than being flattened
     RULES     <- fighter.ruleline (own row)
-    XP        <- fighter.xp_current
     KILLS     <- blank fillable box (Gyrinx has no per-fighter kill counter)
     NOTES     <- fighter.notes
     INJURIES  <- fighter.injuries (row under notes; blank space when none)

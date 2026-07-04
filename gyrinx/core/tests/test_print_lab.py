@@ -85,6 +85,19 @@ def test_sheet_paged_mode_adds_class(client):
 
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
+def test_xp_renders_as_far_right_statline_column(client):
+    """XP is pinned as a statline column carrying its value, not a bottom row."""
+    import re
+
+    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=overflow"
+    body = client.get(url).content.decode()
+    m = re.search(r'cc-stat--xp.*?cc-stat__val">([^<]*)</div>', body, re.S)
+    assert m is not None, "XP should render as a cc-stat--xp statline cell"
+    assert m.group(1).strip() == "52"
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
 def test_sheet_bad_fighter_id_is_graceful(client):
     """A bad id shows an error message, never a 500."""
     resp = client.get(

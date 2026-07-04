@@ -17,7 +17,7 @@ Params:
     <div class="cc-cog">
         {% if card.cost %}<span class="cc-cog__cost">{{ card.cost }}</span>{% endif %}
     </div>
-    {% comment %} Statline (dynamic columns) {% endcomment %}
+    {% comment %} Statline (dynamic columns) — XP is pinned as the far-right column {% endcomment %}
     <div class="cc-region cc-statline">
         {% for s in card.stats %}
             <div class="cc-stat{% if s.highlight %} is-hl{% endif %}{% if s.first_of_group %} is-group{% endif %}">
@@ -25,6 +25,10 @@ Params:
                 <div class="cc-stat__val">{{ s.value|default:"&nbsp;" }}</div>
             </div>
         {% endfor %}
+        <div class="cc-stat cc-stat--xp is-group">
+            <div class="cc-stat__name">XP</div>
+            <div class="cc-stat__val">{{ card.xp|default:"&nbsp;" }}</div>
+        </div>
     </div>
     {% comment %} Weapons {% endcomment %}
     <div class="cc-region cc-weapons">
@@ -130,10 +134,9 @@ Params:
             </div>
         {% endfor %}
     </div>
-    {% comment %} XP / Kills (pinned so they never clip) {% endcomment %}
-    <div class="cc-region cc-xpkills">
-        <span class="cc-xpkills__item"><span class="cc-label">XP</span> <span class="cc-xpkills__val">{{ card.xp }}</span></span>
-        <span class="cc-xpkills__item"><span class="cc-label">Kills</span> <span class="cc-xpkills__val"></span></span>
+    {% comment %} Kills — blank tally box (pinned) {% endcomment %}
+    <div class="cc-region cc-kills">
+        <span class="cc-kills__item"><span class="cc-label">Kills</span> <span class="cc-kills__val"></span></span>
     </div>
     {% comment %} Save box {% endcomment %}
     <div class="cc-save">
