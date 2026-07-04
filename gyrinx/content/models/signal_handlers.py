@@ -253,7 +253,15 @@ def handle_expansion_item_cost_change(sender, instance, **kwargs):
         return  # New instance, no existing assignments
 
     new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
+    changed = old_cost != new_cost
+    if not changed:
+        # The int helpers coerce None to 0, but on expansion items None means
+        # "use the base price" and 0 means "free" — a 0 <-> None edit DOES
+        # reprice and must sweep. Compare the raw values to catch it.
+        old_raw = get_old_field(sender, instance, "cost")
+        changed = old_raw is not MISSING and old_raw != instance.cost
+
+    if changed:
         instance._cost_changed = True  # Flag for post_save to create actions
         instance.set_dirty()
 
@@ -384,14 +392,16 @@ def _affected_list_ids(instance, include_archived: bool = False) -> list:
             .distinct()
         )
     elif model_name == "ContentFighterEquipmentListUpgrade":
-        # Equipment upgrade cost overrides on specific fighter types, plus
-        # upgrade rows pinned to this override (mirror of its set_dirty).
+        # Equipment upgrade cost overrides on specific fighter types —
+        # applied per rung in SINGLE-stack cumulative pricing, so this rung
+        # and every higher one — plus upgrade rows pinned to this override
+        # (mirror of its set_dirty).
         list_ids = (
             ListFighterEquipmentAssignment.objects.filter(
                 Q(
                     Q(list_fighter__content_fighter=instance.fighter)
                     | Q(list_fighter__legacy_content_fighter=instance.fighter),
-                    upgrades_field=instance.upgrade,
+                    upgrades_field__in=instance.upgrade.same_stack_from_position(),
                 )
                 | Q(upgrade_rows__pinned_equipment_list_upgrade=instance),
                 **live,
@@ -540,7 +550,11 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
                     rating_delta = sweep.rating_delta
                     stash_delta = sweep.stash_delta
                     total_delta = rating_delta + stash_delta
-                    if total_delta == 0:
+                    # Check each delta, not the sum: +N rating / -N stash
+                    # cancels to zero while both books moved, and skipping
+                    # here (after facts committed the movement) would break
+                    # the action chain.
+                    if rating_delta == 0 and stash_delta == 0:
                         continue
                     # Chain the action off the recomputed head so anything
                     # that landed in the window keeps its own audit trail.
@@ -599,8 +613,10 @@ def _create_content_cost_change_actions(instance, before_snapshots=None):
 
                     # Skip if no actual cost change (e.g., override in place)
                     # This happens when a base cost changes but a fighter-specific
-                    # override (ContentFighterEquipmentListItem, etc.) takes precedence
-                    if total_delta == 0:
+                    # override (ContentFighterEquipmentListItem, etc.) takes
+                    # precedence. Check each delta, not the sum — +N rating /
+                    # -N stash cancels while both books moved.
+                    if rating_delta == 0 and stash_delta == 0:
                         continue
 
                 # In campaign mode, adjust credits (charge more or refund)
@@ -943,31 +959,47 @@ def _orphan_pinned_rows(instance):
     if not orphaned_by_list:
         return
 
+    # Capture plain values now — the instance is gone by the time the audit
+    # runs.
     name = _instance_display_name(instance)
-    for list_id, count in orphaned_by_list.items():
-        try:
-            with transaction.atomic():
-                lst = List.objects.get(id=list_id)
-                if not lst.latest_action:
-                    continue
-                components = "component" if count == 1 else "components"
-                lst.create_action(
-                    action_type=ListActionType.CONTENT_COST_CHANGE,
-                    description=(
-                        f"{name}: price source deleted; {count} pinned "
-                        f"{components} keep their amounts, attribution cleared"
-                    ),
-                    subject_app=instance._meta.app_label,
-                    subject_type=instance._meta.model_name,
-                    subject_id=instance.pk,
-                    rating_delta=0,
-                    stash_delta=0,
-                    credits_delta=0,
-                )
-        except List.DoesNotExist:
-            continue
-        except Exception:
-            logger.exception("Failed to record pin-orphaning for list %s", list_id)
+    subject_app = instance._meta.app_label
+    subject_type = instance._meta.model_name
+    subject_id = instance.pk
+
+    def _write_orphan_audits():
+        for list_id, count in orphaned_by_list.items():
+            try:
+                with transaction.atomic():
+                    lst = List.objects.get(id=list_id)
+                    if not lst.latest_action:
+                        continue
+                    components = "component" if count == 1 else "components"
+                    lst.create_action(
+                        action_type=ListActionType.CONTENT_COST_CHANGE,
+                        description=(
+                            f"{name}: price source deleted; {count} pinned "
+                            f"{components} keep their amounts, attribution cleared"
+                        ),
+                        subject_app=subject_app,
+                        subject_type=subject_type,
+                        subject_id=subject_id,
+                        rating_delta=0,
+                        stash_delta=0,
+                        credits_delta=0,
+                    )
+            except List.DoesNotExist:
+                continue  # itself deleted in the same cascade
+            except Exception:
+                logger.exception("Failed to record pin-orphaning for list %s", list_id)
+
+    # Deferred past commit: the delete collector fires every pre_delete
+    # BEFORE deleting anything, so writing a ListAction here for a list
+    # that is itself in the same cascade (deleting a ContentHouse cascades
+    # to its fighters' price rows AND to its lists) would insert a row
+    # referencing a doomed List — an IntegrityError at commit that rolls
+    # the whole deletion back. After commit, cascade-deleted lists simply
+    # no longer exist and are skipped.
+    transaction.on_commit(_write_orphan_audits)
 
 
 @receiver(

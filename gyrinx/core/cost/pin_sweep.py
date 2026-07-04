@@ -199,7 +199,12 @@ def _rewrite_through_rows(model, qs, new_amount_for, sweep, defaults_can_mask=Fa
         if new is None or new == row.pinned_amount:
             continue
         assignment = row.listfighterequipmentassignment
-        if defaults_can_mask and assignment.from_default_assignment_id is not None:
+        if assignment.archived or assignment.list_fighter.archived:
+            # Rewrite only: archived rows move no caches and must not mask —
+            # a sticky has_masked from an archived row would force the whole
+            # list back onto the racy snapshot fallback for nothing.
+            pass
+        elif defaults_can_mask and assignment.from_default_assignment_id is not None:
             # A from-default assignment frees SOME profiles/accessories (by
             # membership in the default's component sets) — resolution-exact
             # pricing needs the recompute, so flag for the snapshot fallback.
@@ -241,7 +246,9 @@ def _rederive_accessory_rows(qs, sweep, require_expression):
         new = row.contentweaponaccessory.calculate_cost_for_weapon(base)
         if new == row.pinned_amount:
             continue
-        if assignment.from_default_assignment_id is not None:
+        if assignment.archived or assignment.list_fighter.archived:
+            pass  # rewrite only: no delta, no mask (see _rewrite_through_rows)
+        elif assignment.from_default_assignment_id is not None:
             sweep.has_masked = True  # membership-dependent free accessories
         else:
             _bucket(sweep, assignment, new - row.pinned_amount)
@@ -296,7 +303,16 @@ def _sweep_equipment(instance, lst):
         lambda a: new,
         sweep,
     )
-    _cascade_expression_accessories(lst, changed, sweep)
+    # DERIVED expression rows re-derive whenever their base input changed —
+    # whether the base was a rewritten pin or an UNPINNED base repricing
+    # live off this source. Re-derivation reads the row's true
+    # base_cost_int(), so a base that didn't actually move is a no-op.
+    live_bases = _base_rows(lst).filter(
+        content_equipment=instance, pinned_base_state=PinState.UNPINNED
+    )
+    _cascade_expression_accessories(
+        lst, changed + list(live_bases.values_list("pk", flat=True)), sweep
+    )
     sweep.has_unpinned = sweep.has_unpinned or (
         _base_rows(lst)
         .filter(
@@ -385,6 +401,14 @@ def _sweep_upgrade(instance, lst):
         # cost_int(), which reads the committed new rung cost. The map is
         # list-independent, so memoize it on the instance — the task calls
         # this once per affected list.
+        #
+        # KNOWN IMPRECISION (Phase 7 decides): cost_int() is the raw catalog
+        # sum, but live resolution applies per-rung CFELU overrides inside
+        # the cumulative walk. A rung correction on an override-discounted
+        # stack re-derives to the catalog total, not the override-inclusive
+        # one. What a MOVED cumulative row should re-derive to is a producer
+        # -semantics question — settle it when Phase 7 defines what SINGLE
+        # +override acquisitions pin.
         cumulative = getattr(instance, "_pin_sweep_cumulative", None)
         if cumulative is None:
             cumulative = {
@@ -435,16 +459,25 @@ def _sweep_equipment_list_item(instance, lst):
         sweep,
         defaults_can_mask=True,
     )
-    _cascade_expression_accessories(lst, changed, sweep)
-
     # Live-repricing UNPINNED rows: current-context assignments this row
     # still prices, split by whether it prices the base or a profile.
-    context = _base_rows(lst).filter(
+    context_all = _base_rows(lst).filter(
         _holder_context_q(instance.fighter),
         content_equipment=instance.equipment,
-        archived=False,
-        list_fighter__archived=False,
     )
+    cascade_ids = list(changed)
+    if not instance.weapon_profile_id:
+        # A base-pricing row also moves the live base of UNPINNED
+        # context-matched assignments — their DERIVED expression
+        # accessories must re-derive too (see _sweep_equipment).
+        cascade_ids += list(
+            context_all.filter(pinned_base_state=PinState.UNPINNED).values_list(
+                "pk", flat=True
+            )
+        )
+    _cascade_expression_accessories(lst, cascade_ids, sweep)
+
+    context = context_all.filter(archived=False, list_fighter__archived=False)
     if instance.weapon_profile_id:
         sweep.has_unpinned = sweep.has_unpinned or (
             _profile_rows(lst)
@@ -514,7 +547,9 @@ def _sweep_equipment_list_upgrade(instance, lst):
                     _holder_context_q(
                         instance.fighter, prefix="listfighterequipmentassignment__"
                     ),
-                    contentequipmentupgrade=instance.upgrade,
+                    # Per-rung override in cumulative pricing: this rung and
+                    # every higher one reprice live (mirror of set_dirty).
+                    contentequipmentupgrade__in=instance.upgrade.same_stack_from_position(),
                     pin_state=PinState.UNPINNED,
                 )
             )
@@ -552,13 +587,20 @@ def _sweep_expansion_item(instance, lst):
         sweep,
         defaults_can_mask=True,
     )
-    _cascade_expression_accessories(lst, changed, sweep)
+    context_all = _base_rows(lst).filter(content_equipment=instance.equipment)
+    cascade_ids = list(changed)
+    if not instance.weapon_profile_id:
+        # A base-pricing item also moves the live base of UNPINNED matching
+        # assignments — their DERIVED expression accessories must re-derive
+        # too (see _sweep_equipment).
+        cascade_ids += list(
+            context_all.filter(pinned_base_state=PinState.UNPINNED).values_list(
+                "pk", flat=True
+            )
+        )
+    _cascade_expression_accessories(lst, cascade_ids, sweep)
 
-    context = _base_rows(lst).filter(
-        content_equipment=instance.equipment,
-        archived=False,
-        list_fighter__archived=False,
-    )
+    context = context_all.filter(archived=False, list_fighter__archived=False)
     if instance.weapon_profile_id:
         sweep.has_unpinned = sweep.has_unpinned or (
             _profile_rows(lst)

@@ -54,11 +54,14 @@ def propagate_content_cost_change(
     can touch thousands of lists, and the recalculation walks each list's full
     fighter suite. Doing it inline in the admin save blew the request budget.
 
-    Idempotent: each created action records the content instance as its subject
-    with the pre-change baseline, and the helper skips a list that already has a
-    matching applied action — so a redelivery doesn't create spurious actions or
-    double-charge credits. References to deleted instances are handled gracefully
-    (the instance lookup returns and the task is a no-op).
+    Idempotent within a delta branch: the per-row path's second rewrite is a
+    zero delta and skips out; the snapshot path skips a list that already has
+    a matching applied action (same subject + same pre-change baseline). A
+    redelivery that FLIPS branches — a mid-window mutation changed which rows
+    are pinned — can still book a second action; robust cross-branch
+    idempotency (a delivery token) lands with the Phase 8 RECONCILE work.
+    References to deleted instances are handled gracefully (the instance
+    lookup returns and the task is a no-op).
     """
     from django.contrib.contenttypes.models import ContentType
 

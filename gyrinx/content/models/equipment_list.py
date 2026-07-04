@@ -213,12 +213,16 @@ class ContentFighterEquipmentListUpgrade(CostMixin, Content):
 
         # Find assignments with this upgrade on fighters using this content
         # fighter — plus rows PINNED to this override, which may have moved
-        # (#1826 §4.7; mirror of _affected_list_ids).
+        # (#1826 §4.7; mirror of _affected_list_ids). SINGLE stacks price
+        # cumulatively with this override applied PER RUNG (see the
+        # cumulative walk in core assignment resolution), so an override
+        # correction reprices holders of this rung or any HIGHER one — the
+        # same-rung-only filter silently missed them.
         assignments = ListFighterEquipmentAssignment.objects.filter(
             Q(
                 Q(list_fighter__content_fighter=self.fighter)
                 | Q(list_fighter__legacy_content_fighter=self.fighter),
-                upgrades_field=self.upgrade,
+                upgrades_field__in=self.upgrade.same_stack_from_position(),
             )
             | Q(upgrade_rows__pinned_equipment_list_upgrade=self),
             archived=False,

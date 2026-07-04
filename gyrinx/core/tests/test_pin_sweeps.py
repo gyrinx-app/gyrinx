@@ -569,7 +569,9 @@ def test_base_correction_cascades_to_expression_accessory(sweep_ctx):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("edge_id", PIN_EDGES.keys())
-def test_deleting_price_source_orphans_pins(edge_id, campaign_sweep_ctx):
+def test_deleting_price_source_orphans_pins(
+    edge_id, campaign_sweep_ctx, django_capture_on_commit_callbacks
+):
     """Deleting a price source freezes the rows pinned to it: the amount is
     kept, the FK cleared, the state flips to ORPHANED, an audit action records
     the attribution loss, and no caches move (nothing changed price)."""
@@ -582,7 +584,10 @@ def test_deleting_price_source_orphans_pins(edge_id, campaign_sweep_ctx):
     caches_before = (rf.rating_current, rf.stash_current, rf.credits_current)
     source_pk = source.pk
 
-    source.delete()
+    # The audit is written after commit (the delete collector must not see
+    # new ListAction rows for lists dying in the same cascade).
+    with django_capture_on_commit_callbacks(execute=True):
+        source.delete()
 
     assert edge.read_pin(ctx) == (5, PinState.ORPHANED, None)
     action = ListAction.objects.get(
@@ -897,3 +902,169 @@ def test_expansion_item_blank_cost_rewrites_to_base_price(sweep_ctx):
     _create_content_cost_change_actions(profile_source)
 
     assert profile_edge.read_pin(ctx)[0] == 12
+
+
+# --- Deep-review follow-ups ----------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_house_cascade_delete_survives_pin_orphaning(
+    campaign_sweep_ctx, content_house, django_capture_on_commit_callbacks
+):
+    """Deleting a ContentHouse cascades through its fighters' price rows AND
+    its lists. The orphan audit must not insert ledger rows for gangs dying
+    in the same cascade — previously an IntegrityError at commit rolled the
+    whole deletion back."""
+    ctx = campaign_sweep_ctx
+    edge = PIN_EDGES["equipment-list-item->base"]
+    source = edge.build(ctx)
+    edge.pin(ctx, source)
+    lst_id = ctx["lst"].id
+
+    with django_capture_on_commit_callbacks(execute=True):
+        content_house.delete()
+
+    assert not List.objects.filter(id=lst_id).exists()
+    assert not ListAction.objects.filter(list_id=lst_id).exists()
+
+
+@pytest.mark.django_db
+def test_cfelu_lower_rung_override_correction_reaches_higher_rung(sweep_ctx):
+    """A fighter-specific upgrade override applies PER RUNG inside SINGLE
+    cumulative pricing, so correcting it reprices holders of higher rungs —
+    previously missed by the same-rung-only filter (live bug, pins or not).
+    """
+    ctx = sweep_ctx
+    assignment, equipment = ctx["assignment"], ctx["equipment"]
+    rung0 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment, name="Rung 0", position=0, cost=10
+    )
+    rung1 = ContentEquipmentUpgrade.objects.create(
+        equipment=equipment, name="Rung 1", position=1, cost=20
+    )
+    assignment.upgrades_field.add(rung1)  # holds only the HIGHER rung
+    override = ContentFighterEquipmentListUpgrade.objects.create(
+        fighter=assignment.list_fighter.content_fighter, upgrade=rung0, cost=5
+    )
+
+    _clear_dirty(ctx)
+    override.cost = 8
+    override.save()
+    assert fresh(assignment).dirty is True
+    assert ctx["lst"].id in _affected_list_ids(override)
+
+
+@pytest.mark.django_db
+def test_derived_expression_on_unpinned_base_rederives(sweep_ctx):
+    """A DERIVED formula accessory on an UNPINNED base must re-derive when
+    the base's catalog price changes: the base reprices live, and resolution
+    would read the stale derived amount forever."""
+    ctx = sweep_ctx
+    assignment, equipment = ctx["assignment"], ctx["equipment"]
+    accessory = ContentWeaponAccessory.objects.create(
+        name="Percent Scope", cost=0, cost_expression="ceil(cost_int * 0.5 / 5) * 5"
+    )
+    assignment.weapon_accessories_field.add(accessory)
+    assignment.accessory_rows.update(
+        pinned_amount=10,  # derived from the live 15 base
+        pin_state=PinState.DERIVED,
+    )
+
+    # Saved, not just set in memory: re-derivation resolves the live base
+    # from the database, exactly as the post-commit task does.
+    equipment.cost = "25"
+    equipment.save()
+    sweep = rewrite_pinned_amounts_for_list(equipment, ctx["lst"])
+
+    assert assignment.accessory_rows.get().pinned_amount == 15
+    assert sweep.has_unpinned is True  # unpinned base repriced live
+
+
+@pytest.mark.django_db
+def test_archived_from_default_row_does_not_mask(sweep_ctx):
+    """An archived default-kit row is rewritten but must not stickily force
+    the whole list onto the snapshot fallback — archived rows move nothing
+    and mask nothing."""
+    ctx = sweep_ctx
+    assignment, equipment = ctx["assignment"], ctx["equipment"]
+    profile = ctx["make_weapon_profile"](equipment, name="Hotshot", cost=5)
+    assignment.weapon_profiles_field.add(profile)
+    assignment.profile_rows.update(pinned_amount=5, pin_state=PinState.CATALOG)
+    default = ContentFighterDefaultAssignment.objects.create(
+        fighter=assignment.list_fighter.content_fighter, equipment=equipment
+    )
+    ListFighterEquipmentAssignment.objects.filter(pk=assignment.pk).update(
+        from_default_assignment=default, archived=True
+    )
+
+    profile.cost = 7
+    sweep = rewrite_pinned_amounts_for_list(profile, ctx["lst"])
+
+    assert sweep.has_masked is False
+    assert sweep.use_row_deltas is True
+    assert assignment.profile_rows.get().pinned_amount == 7  # still rewritten
+
+
+@pytest.mark.django_db
+def test_expansion_item_zero_to_blank_sweeps(sweep_ctx):
+    """cost=0 means "free" and blank means "use the base price" — the
+    transition reprices, but both coerce to 0 in the int helpers, so it was
+    previously invisible to change detection."""
+    ctx = sweep_ctx
+    edge = PIN_EDGES["expansion-item->base"]
+    source = edge.build(ctx)
+    ContentEquipmentListExpansionItem.objects.filter(pk=source.pk).update(cost=0)
+    source.refresh_from_db()
+    edge.pin(ctx, source)
+    ListFighterEquipmentAssignment.objects.filter(pk=ctx["assignment"].pk).update(
+        pinned_base_amount=0
+    )
+
+    _clear_dirty(ctx)
+    source.cost = None
+    source.save()
+    assert fresh(ctx["assignment"]).dirty is True  # the raw-value watch fired
+
+    _create_content_cost_change_actions(source)
+    assert edge.read_pin(ctx)[0] == 20  # blank -> other_equipment's base price
+
+
+@pytest.mark.django_db
+def test_cancelling_rating_and_stash_deltas_still_book(campaign_sweep_ctx):
+    """+2 rating / -2 stash sums to zero but both books moved — the action
+    must still be recorded or the ledger chain breaks silently."""
+    ctx = campaign_sweep_ctx
+    lst = ctx["lst"]
+    item = _build_cfeli(ctx)  # cost 5
+
+    # Rating-side row pinned below the corrected price (+2)...
+    ListFighterEquipmentAssignment.objects.filter(pk=ctx["assignment"].pk).update(
+        pinned_base_amount=5,
+        pinned_base_state=PinState.SOURCE,
+        pinned_equipment_list_item=item,
+    )
+    # ...stash-side row pinned above it (-2).
+    stash = lst.ensure_stash()
+    stash_assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=stash, content_equipment=ctx["equipment"]
+    )
+    ListFighterEquipmentAssignment.objects.filter(pk=stash_assignment.pk).update(
+        pinned_base_amount=9,
+        pinned_base_state=PinState.SOURCE,
+        pinned_equipment_list_item=item,
+    )
+
+    item.cost = 7
+    item.save()
+    _create_content_cost_change_actions(item)
+
+    action = ListAction.objects.get(
+        list=lst,
+        action_type=ListActionType.CONTENT_COST_CHANGE,
+        subject_id=item.pk,
+    )
+    assert (action.rating_delta, action.stash_delta, action.credits_delta) == (
+        2,
+        -2,
+        0,
+    )
