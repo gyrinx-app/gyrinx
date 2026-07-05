@@ -16,6 +16,7 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import ListFighterEquipmentSet
+from gyrinx.core.utils import safe_redirect
 from gyrinx.core.views.fighter.permissions import get_list_and_fighter
 
 
@@ -338,7 +339,11 @@ def activate_list_fighter_equipment_set(request, id, fighter_id, set_id):
     )
 
     messages.success(request, f"Now showing {equipment_set.name}")
-    return HttpResponseRedirect(_list_anchor_url(lst, fighter))
+    # The manage page passes ?next so it stays put; the card switcher omits it
+    # and returns to the fighter on the list.
+    return safe_redirect(
+        request, request.POST.get("next"), _list_anchor_url(lst, fighter)
+    )
 
 
 @login_required
@@ -371,4 +376,6 @@ def activate_default_equipment_set(request, id, fighter_id):
     )
 
     messages.success(request, "Now showing all equipment (Default)")
-    return HttpResponseRedirect(_list_anchor_url(lst, fighter))
+    return safe_redirect(
+        request, request.POST.get("next"), _list_anchor_url(lst, fighter)
+    )

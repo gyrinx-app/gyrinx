@@ -8,15 +8,15 @@
     <div class="col-12 col-lg-8 px-0 vstack gap-3">
         <div>
             {% url 'core:list-fighter-equipment-sets' list.id fighter.id as back_url %}
-            {% include "core/includes/back.html" with url=back_url text="Back to cards" %}
-            <h1 class="h3 mb-0">Edit card</h1>
+            {% include "core/includes/back.html" with url=back_url text="Back to sets" %}
+            <h1 class="h3 mb-0">Edit set</h1>
         </div>
         <form method="post"
               action="{% url 'core:list-fighter-equipment-set-edit' list.id fighter.id equipment_set.id %}"
               class="vstack gap-3">
             {% csrf_token %}
             <div>
-                <label for="card-name" class="form-label">Card name</label>
+                <label for="card-name" class="form-label">Set name</label>
                 <input type="text"
                        id="card-name"
                        name="name"

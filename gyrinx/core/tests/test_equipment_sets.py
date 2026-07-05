@@ -231,7 +231,7 @@ def test_manage_page_owner_ok_other_404(equipped, client, user, make_user):
     client.force_login(user)
     resp = client.get(url)
     assert resp.status_code == 200
-    assert "Create a card" in resp.content.decode()
+    assert "Create a set" in resp.content.decode()
 
     other = make_user("intruder", "password")
     client.force_login(other)
@@ -247,7 +247,7 @@ def test_manage_page_without_rule_shows_message(equipped, client, user):
     ).content.decode()
     assert "does not have the requisite rule" in html
     # The management UI is not offered.
-    assert "Create a card" not in html
+    assert "Create a set" not in html
 
 
 @pytest.mark.django_db
@@ -324,12 +324,17 @@ def test_activate_and_default_views(equipped, client, user):
     )
     client.force_login(user)
 
-    client.post(
+    # Activated from the manage page: ?next returns there, not to the list.
+    manage_url = reverse("core:list-fighter-equipment-sets", args=(lst.id, fighter.id))
+    resp = client.post(
         reverse(
             "core:list-fighter-equipment-set-activate",
             args=(lst.id, fighter.id, card.id),
-        )
+        ),
+        {"next": manage_url},
     )
+    assert resp.status_code == 302
+    assert resp.url == manage_url
     assert ListFighter.objects.get(id=fighter.id).active_equipment_set_id == card.id
 
     client.post(
@@ -380,11 +385,11 @@ def test_switcher_shown_only_for_tot_fighter(equipped, client, user):
 
     # No rule: no switcher entry point.
     html_no_rule = client.get(url).content.decode()
-    assert "Manage cards" not in html_no_rule
+    assert "Manage sets" not in html_no_rule
 
     add_tot_rule(fighter)
     html_with_rule = client.get(url).content.decode()
-    assert "Manage cards" in html_with_rule
+    assert "Manage sets" in html_with_rule
     # The switcher dropdown offers the Default card and each named card.
     assert "Default (all equipment)" in html_with_rule
     # The main fighter action dropdown also links to equipment sets (redundancy).
