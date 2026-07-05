@@ -1,3 +1,5 @@
+import logging
+
 from django import forms
 from django.contrib import admin, messages
 from django.db import transaction
@@ -6,6 +8,7 @@ from django.utils.html import format_html
 
 from gyrinx.core.admin.base import BaseAdmin
 from gyrinx.core.cost.reconcile import reconcile_list
+from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
 from gyrinx.core.admin.filters import (
     AutocompleteRelatedFilter,
     autocomplete_filter_media,
@@ -22,6 +25,8 @@ from ..models.list import (
     ListFighterEquipmentAssignmentUpgrade,
     ListFighterPsykerPowerAssignment,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @admin.display(description="Cost")
@@ -59,14 +64,30 @@ def recompute_list_cost_caches(modeladmin, request, queryset):
     aggregate caches.
     """
     fighters = ListFighter.objects.filter(list__in=queryset)
-    recompute_cost_caches(modeladmin, request, fighters)
+    # Lists whose cache moved during the fighter rebuild (a player-visible change).
+    moved_ids = set(_recompute_fighter_caches(request, fighters))
     # recompute_cost_caches only reconciles lists it saw fighters for; cover
     # fighterless lists too (audited the same way) without re-reconciling
     # the ones it already handled.
     covered = set(fighters.values_list("list_id", flat=True).distinct())
     for lst in queryset:
         if lst.pk not in covered:
-            reconcile_list(lst, user=request.user, rebuild_fighters=False)
+            result = reconcile_list(lst, user=request.user, rebuild_fighters=False)
+            if result.moved:
+                moved_ids.add(lst.pk)
+
+    # Notify affected owners/arbitrators once each (aggregated), for the lists
+    # in this selection that actually changed. System notification (sender=None)
+    # — this is maintenance, not a user action end-recipients need to attribute.
+    try:
+        owners, arbs = notify_lists_reconciled(moved_ids)
+        if owners or arbs:
+            messages.info(
+                request,
+                f"Notified {owners} owner(s) and {arbs} arbitrator(s) of the changes.",
+            )
+    except Exception:
+        logger.exception("recompute_list_cost_caches: notification fan-out failed")
 
 
 @admin.register(List)
@@ -181,17 +202,14 @@ class ListFighterPsykerPowerAssignmentInline(admin.TabularInline):
     fields = ["psyker_power"]
 
 
-@admin.action(description="Recompute cached cost/rating from facts (fix drift)")
-def recompute_cost_caches(modeladmin, request, queryset):
-    """
-    Force-recompute the cached cost/rating chain for the selected fighters
-    straight from the source-of-truth assignments.
+def _recompute_fighter_caches(request, queryset):
+    """Rebuild the cost cache chain for the given fighters and reconcile their
+    lists; return the set of list ids whose aggregate cache actually moved.
 
-    Fixes cached-value drift (e.g. an inflated stash after a fighter death,
-    where a fighter's ``rating_current`` is wrong but ``dirty=False`` so the
-    normal lazy "Refresh Cost" recompute trusts the stale value and never
-    re-derives it). This rebuilds the whole subtree explicitly:
-    assignments -> fighter -> list, ignoring the dirty flags.
+    Split out from the admin action so the list-level wrapper can learn which
+    lists changed (to notify their owners/arbs) — an admin action's return value
+    is interpreted as an HTTP response by the object-actions framework, so it
+    must stay ``None``.
     """
     changed = []
     affected_lists = {}
@@ -223,8 +241,11 @@ def recompute_cost_caches(modeladmin, request, queryset):
         # Reconcile each affected list's aggregate caches (rating/stash),
         # recording any movement as a RECONCILE action so the ledger absorbs
         # the correction instead of silently snapping (#1826 §4.8.2).
+        moved_list_ids = set()
         for lst in affected_lists.values():
-            reconcile_list(lst, user=request.user, rebuild_fighters=False)
+            result = reconcile_list(lst, user=request.user, rebuild_fighters=False)
+            if result.moved:
+                moved_list_ids.add(lst.pk)
 
     for fighter, before, after in changed:
         messages.success(
@@ -237,6 +258,21 @@ def recompute_cost_caches(modeladmin, request, queryset):
         f"Recomputed {fighter_count} fighter(s) across "
         f"{len(affected_lists)} list(s); {len(changed)} had drift corrected.",
     )
+
+    # Ids of lists whose aggregate cache actually moved (a player-visible change).
+    return moved_list_ids
+
+
+@admin.action(description="Recompute cached cost/rating from facts (fix drift)")
+def recompute_cost_caches(modeladmin, request, queryset):
+    """Force-recompute the cached cost/rating chain for the selected fighters
+    straight from the source-of-truth assignments (fixes cached-value drift).
+
+    Standalone fighter-level action: it does not fan out notifications (that is
+    the list-level ``recompute_list_cost_caches`` wrapper's job). Returns
+    ``None`` — the object-actions framework treats a return value as a response.
+    """
+    _recompute_fighter_caches(request, queryset)
 
 
 @admin.display(description="List", ordering="list__name")
