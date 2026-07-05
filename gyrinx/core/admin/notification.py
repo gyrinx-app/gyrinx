@@ -18,6 +18,8 @@ from gyrinx.core.widgets import TinyMCEWithUpload
 
 User = get_user_model()
 
+__all__ = ["NotificationAdmin", "NotificationAdminForm", "BroadcastForm"]
+
 
 class NotificationAdminForm(forms.ModelForm):
     class Meta:
