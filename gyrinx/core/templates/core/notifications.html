@@ -87,11 +87,11 @@
             </form>
         </div>
         {# List #}
-        <div class="vstack border-top">
+        <div class="vstack">
             {% for n in notifications %}
-                {% include "core/includes/notification_list_item.html" with notification=n %}
+                {% include "core/includes/notification_list_item.html" with notification=n first=forloop.first %}
             {% empty %}
-                <p class="text-secondary mb-0 pt-2">No notifications.</p>
+                <p class="text-secondary mb-0">No notifications.</p>
             {% endfor %}
         </div>
         {% include "core/includes/pagination.html" %}
