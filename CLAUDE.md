@@ -478,6 +478,10 @@ Key fixtures:
 When tests need multiple distinct users (e.g. campaign owner vs list owner), use `make_user` for the extra users
 and override the `owner` kwarg on the factory fixtures.
 
+- When seeding demo/test users locally (via `manage shell`, not pytest fixtures), also give each one a verified,
+  primary allauth `EmailAddress` so they can log in without hitting email-verification gates. Set `user.email`,
+  then `EmailAddress.objects.get_or_create(user=u, email=u.email, defaults={"verified": True, "primary": True})`.
+
 ### Security
 
 - Run `bandit -c pyproject.toml -r .` to check for security issues in Python code
