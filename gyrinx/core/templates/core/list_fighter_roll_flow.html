@@ -1,0 +1,112 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    {{ flow.name }} - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-4">
+        <div class="vstack gap-1">
+            <h1 class="h3 mb-0">{{ flow.name }}</h1>
+            <p class="text-secondary fs-7 mb-0">
+                Spend {{ flow.cost }} {{ flow.counter.name }} and roll {{ table.dice }} on {{ table.name }} for {{ fighter.name }}.
+            </p>
+            {% if flow.description %}<p class="text-secondary fs-7 mb-0">{{ flow.description }}</p>{% endif %}
+        </div>
+        {% if not affordable %}
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
+                    {{ fighter.name }} needs {{ flow.cost }} {{ flow.counter.name }} to use {{ flow.name }} — currently {{ counter_value }}.
+                </div>
+            </div>
+        {% endif %}
+        <form method="post" class="vstack gap-2" aria-label="Roll form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger alert-icon mb-last-0" role="alert">
+                    <i class="bi-exclamation-triangle"></i>
+                    <div>{{ form.non_field_errors }}</div>
+                </div>
+            {% endif %}
+            <div class="card shadow-sm">
+                <div class="card-body vstack gap-3">
+                    <h2 class="h5 card-title mb-0">Roll {{ table.dice }}</h2>
+                    {% if in_campaign %}
+                        <div class="alert alert-info alert-icon mb-0" role="alert">
+                            <i class="bi-info-circle"></i>
+                            <div>
+                                The roll will <em>immediately</em> be added to the campaign action log.
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="vstack gap-2">
+                        <nav aria-label="Form navigation">
+                            <button type="submit"
+                                    name="roll_action"
+                                    value="roll_auto"
+                                    class="btn btn-primary"
+                                    {% if not affordable %}disabled{% endif %}>Generate a {{ table.dice }} roll</button>
+                        </nav>
+                    </div>
+                    <fieldset class="vstack gap-2">
+                        <legend id="tabletop-result-label" class="fs-6">Or enter a tabletop result:</legend>
+                        <div class="input-group" aria-describedby="tabletop-result-label">
+                            <select name="d6_1"
+                                    class="form-select"
+                                    {% if not affordable %}disabled{% endif %}
+                                    aria-label="First D6 result">
+                                <option value="" selected disabled>-</option>
+                                {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+                            </select>
+                            {% if table.dice_count > 1 %}
+                                <select name="d6_2"
+                                        class="form-select"
+                                        {% if not affordable %}disabled{% endif %}
+                                        aria-label="Second D6 result">
+                                    <option value="" selected disabled>-</option>
+                                    {% for i in "123456"|make_list %}<option value="{{ i }}">{{ i }}</option>{% endfor %}
+                                </select>
+                            {% endif %}
+                            <button class="btn btn-outline-primary"
+                                    type="submit"
+                                    name="roll_action"
+                                    value="roll_manual"
+                                    {% if not affordable %}disabled{% endif %}>Confirm result</button>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+        </form>
+        <div class="vstack gap-2">
+            <h2 class="h5 mb-0">{{ table.name }}</h2>
+            {% if table.description %}<p class="text-secondary fs-7 mb-0">{{ table.description }}</p>{% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-borderless mb-0">
+                    <thead>
+                        <tr class="fs-7">
+                            <th scope="col">{{ table.dice }}</th>
+                            <th scope="col">Result</th>
+                            <th scope="col" class="text-end">Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr class="fs-7">
+                                <td class="text-nowrap">{{ row.roll_value }}</td>
+                                <td>
+                                    <span class="fw-bold">{{ row.name }}</span>
+                                    {% if row.description %}<div class="text-secondary">{{ row.description }}</div>{% endif %}
+                                </td>
+                                <td class="text-end text-nowrap">+{{ row.rating_increase }}¢</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <a href="{{ counter_url }}" class="btn btn-link px-0">← Back to {{ flow.counter.name }}</a>
+        </div>
+    </div>
+{% endblock content %}
