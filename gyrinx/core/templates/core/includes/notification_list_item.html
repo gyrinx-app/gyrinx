@@ -2,63 +2,58 @@
 {% comment %}
     A single inbox row. Expects `notification` in context. The select checkbox is
     associated with the standalone bulk form via the HTML5 `form` attribute so it
-    can live outside that form (no nested forms). Row actions follow the
-    design-system inline-action-menu pattern (link-styled buttons, dot separators).
+    can live outside that form (no nested forms). Unread rows carry a left accent
+    border; the title is semi-bold. Row actions follow the design-system
+    inline-action-menu pattern (link-styled buttons, dot separators).
 {% endcomment %}
-<div class="border rounded p-2 d-flex gap-2 align-items-start {% if not notification.is_read %}border-start border-4 border-primary bg-body-tertiary{% endif %}">
-    <div class="pt-1">
-        <input class="form-check-input"
+<div class="border rounded p-2 vstack gap-1"
+     {% if not notification.is_read %}style="border-left-width: 3px; border-left-color: var(--bs-primary);"{% endif %}>
+    <div class="d-flex align-items-center gap-2 fs-7 text-secondary">
+        <input class="form-check-input m-0 flex-shrink-0"
                type="checkbox"
                name="ids"
                value="{{ notification.id }}"
                form="notif-bulk-form"
                aria-label="Select notification">
-    </div>
-    <div class="text-secondary pt-1">
         <i class="{{ notification.display_icon }}"></i>
+        <span class="d-inline-flex align-items-center">{% include "core/includes/notification_source.html" with notification=notification %}{% dot %}{{ notification.created|timesince }} ago</span>
     </div>
-    <div class="flex-grow-1">
-        <div class="d-flex flex-wrap align-items-center gap-2 fs-7">
-            {% include "core/includes/notification_source.html" with notification=notification %}
-            <span class="text-secondary">{{ notification.created|timesince }} ago</span>
-        </div>
-        <div class="{% if not notification.is_read %}fw-bold{% endif %}">
-            {% if notification.target_url %}
-                <a href="{{ notification.target_url }}"
-                   class="link-body-emphasis link-underline-opacity-25 link-underline-opacity-100-hover">{{ notification.subject }}</a>
-            {% else %}
-                {{ notification.subject }}
-            {% endif %}
-        </div>
-        {% if notification.content %}<div class="text-secondary">{{ notification.content }}</div>{% endif %}
-        <div class="d-flex flex-wrap align-items-center fs-7 mt-1">
-            <form method="post"
-                  action="{% if notification.is_read %}{% url 'core:notification-unread' notification.id %}{% else %}{% url 'core:notification-read' notification.id %}{% endif %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit"
-                        class="btn btn-link btn-sm p-0 align-baseline link-secondary">
-                    {% if notification.is_read %}Mark unread{% else %}Mark read{% endif %}
-                </button>
-            </form>
-            {% dot %}
-            <form method="post"
-                  action="{% if notification.archived %}{% url 'core:notification-unarchive' notification.id %}{% else %}{% url 'core:notification-archive' notification.id %}{% endif %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit"
-                        class="btn btn-link btn-sm p-0 align-baseline link-secondary">
-                    {% if notification.archived %}Unarchive{% else %}Archive{% endif %}
-                </button>
-            </form>
-            {% dot %}
-            <form method="post"
-                  action="{% url 'core:notification-delete' notification.id %}">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit"
-                        class="btn btn-link btn-sm p-0 align-baseline link-danger">Delete</button>
-            </form>
-        </div>
+    <div class="fw-semibold">
+        {% if notification.target_url %}
+            <a href="{{ notification.target_url }}"
+               class="link-body-emphasis link-underline-opacity-25 link-underline-opacity-100-hover">{{ notification.subject }}</a>
+        {% else %}
+            {{ notification.subject }}
+        {% endif %}
+    </div>
+    {% if notification.content %}<div class="text-secondary">{{ notification.content }}</div>{% endif %}
+    <div class="d-flex flex-wrap align-items-center fs-7">
+        <form method="post"
+              action="{% if notification.is_read %}{% url 'core:notification-unread' notification.id %}{% else %}{% url 'core:notification-read' notification.id %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-secondary">
+                {% if notification.is_read %}Mark unread{% else %}Mark read{% endif %}
+            </button>
+        </form>
+        {% dot %}
+        <form method="post"
+              action="{% if notification.archived %}{% url 'core:notification-unarchive' notification.id %}{% else %}{% url 'core:notification-archive' notification.id %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-secondary">
+                {% if notification.archived %}Unarchive{% else %}Archive{% endif %}
+            </button>
+        </form>
+        {% dot %}
+        <form method="post"
+              action="{% url 'core:notification-delete' notification.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-danger">Delete</button>
+        </form>
     </div>
 </div>
