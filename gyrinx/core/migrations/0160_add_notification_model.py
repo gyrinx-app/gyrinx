@@ -8,7 +8,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0157_equipment_sets"),
+        ("core", "0159_add_roll_result_roll_token"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
