@@ -113,8 +113,12 @@ def roll_flow_roll(request, id, fighter_id, flow_id):
                     return HttpResponseRedirect(
                         f"{confirm_url}?campaign_action_id={campaign_action.id}"
                     )
+                # No campaign action to key idempotency on: mint a roll token
+                # so double-submitting the confirm form applies the roll once.
                 dice_param = ",".join(str(d) for d in dice)
-                return HttpResponseRedirect(f"{confirm_url}?dice={dice_param}")
+                return HttpResponseRedirect(
+                    f"{confirm_url}?dice={dice_param}&token={uuid.uuid4()}"
+                )
     else:
         form = RollFlowDiceForm(dice_count=table.dice_count)
 
@@ -140,29 +144,34 @@ def _dice_from_request(request, lst, table):
     """
     Recover the dice rolled at the roll step from the confirm URL.
 
-    Returns (dice, campaign_action) or (None, None) when the URL state is
-    missing or invalid.
+    Returns (dice, campaign_action, roll_token), or (None, None, None) when
+    the URL state is missing or invalid. Exactly one of campaign_action and
+    roll_token is set on success: campaign rolls are anchored to their
+    logged CampaignAction, non-campaign rolls to the token minted at the
+    roll step (both serve as the apply-once idempotency key).
     """
     campaign_action_id = request.GET.get("campaign_action_id")
     if campaign_action_id:
         try:
             action_id = uuid.UUID(campaign_action_id)
         except ValueError:
-            return None, None
+            return None, None, None
         campaign_action = CampaignAction.objects.filter(id=action_id, list=lst).first()
         if not campaign_action or not campaign_action.dice_results:
-            return None, None
+            return None, None, None
         dice = list(campaign_action.dice_results)
+        roll_token = None
     else:
         campaign_action = None
         try:
             dice = [int(d) for d in request.GET.get("dice", "").split(",")]
+            roll_token = uuid.UUID(request.GET.get("token", ""))
         except ValueError:
-            return None, None
+            return None, None, None
 
     if len(dice) != table.dice_count or any(d < 1 or d > 6 for d in dice):
-        return None, None
-    return dice, campaign_action
+        return None, None, None
+    return dice, campaign_action, roll_token
 
 
 @login_required
@@ -182,7 +191,7 @@ def roll_flow_confirm(request, id, fighter_id, flow_id):
         "core:list-fighter-roll-flow", args=(lst.id, fighter.id, flow.id)
     )
 
-    dice, campaign_action = _dice_from_request(request, lst, table)
+    dice, campaign_action, roll_token = _dice_from_request(request, lst, table)
     if dice is None:
         messages.error(request, "That roll could not be found. Please roll again.")
         return HttpResponseRedirect(roll_url)
@@ -199,6 +208,7 @@ def roll_flow_confirm(request, id, fighter_id, flow_id):
                 row=row,
                 rolled_value=rolled_value,
                 campaign_action_id=campaign_action.id if campaign_action else None,
+                roll_token=roll_token,
             )
         except ValidationError as e:
             messages.error(request, "; ".join(e.messages))

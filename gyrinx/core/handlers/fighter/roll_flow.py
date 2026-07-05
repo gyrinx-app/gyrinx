@@ -14,6 +14,7 @@ from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 
 from gyrinx.content.models import ContentRollFlow, ContentRollTableRow
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
@@ -67,6 +68,7 @@ def handle_roll_flow(
     row: ContentRollTableRow,
     rolled_value: int,
     campaign_action_id: Optional[UUID] = None,
+    roll_token: Optional[UUID] = None,
     notes: str = "",
 ) -> Optional[RollFlowResult]:
     """
@@ -81,11 +83,13 @@ def handle_roll_flow(
         rolled_value: The combined roll value (for the outcome description).
         campaign_action_id: Optional existing CampaignAction (the dice roll)
             to link. Also used as an idempotency key.
+        roll_token: Optional idempotency token from the roll step, used when
+            there is no campaign action to key on (non-campaign lists).
         notes: Optional notes stored on the result.
 
     Returns:
-        RollFlowResult, or None if this campaign action already produced a
-        result (idempotent double-submit case).
+        RollFlowResult, or None if this roll already produced a result
+        (idempotent double-submit case).
 
     Raises:
         ValidationError: If the fighter is a stash fighter or the counter
@@ -93,16 +97,22 @@ def handle_roll_flow(
     """
     lst = fighter.list
 
-    # Idempotency: a campaign action (dice roll) produces at most one result
-    if campaign_action_id:
-        existing_result = ListFighterRollResult.objects.filter(
-            campaign_action_id=campaign_action_id
-        ).first()
+    # Idempotency: a single roll produces at most one result. Campaign rolls
+    # are keyed by their CampaignAction; non-campaign rolls by the roll token
+    # minted at the roll step.
+    if campaign_action_id or roll_token:
+        existing_query = Q()
+        if campaign_action_id:
+            existing_query |= Q(campaign_action_id=campaign_action_id)
+        if roll_token:
+            existing_query |= Q(roll_token=roll_token)
+        existing_result = ListFighterRollResult.objects.filter(existing_query).first()
         if existing_result:
             if existing_result.fighter != fighter:
                 logger.warning(
-                    "Campaign action %s already linked to different fighter %s",
+                    "Roll (action %s / token %s) already linked to different fighter %s",
                     campaign_action_id,
+                    roll_token,
                     existing_result.fighter.id,
                 )
             return None
@@ -184,6 +194,7 @@ def handle_roll_flow(
         rating_increase=rating_increase,
         notes=notes,
         campaign_action=campaign_action,
+        roll_token=roll_token,
     )
 
     # Propagate the rating increase (push path; the pull path reads the

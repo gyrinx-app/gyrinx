@@ -39,7 +39,8 @@ E. Views
    E5. roll POST without campaign redirects with dice= param
    E6. confirm GET shows matched row; bad dice state redirects to roll
    E7. confirm POST applies the result and redirects to the list
-   E8. confirm POST double-submit is idempotent
+   E8. confirm POST double-submit is idempotent (campaign: keyed on the
+       CampaignAction; non-campaign: keyed on the roll token in the URL)
    E9. results edit page lists results; remove confirm + POST refunds
    E10. counter edit page shows flows (affordable vs not)
 
@@ -50,6 +51,8 @@ F. Card display
 G. Clone
    G1. clone carries roll results and counter values; costs stay in sync
 """
+
+import uuid as uuid_module
 
 import pytest
 from django.core.exceptions import ValidationError
@@ -692,7 +695,8 @@ def test_confirm_get_shows_row(client, user, fighter_with_kills, suit_evolution)
     lst = fighter_with_kills.list
     client.force_login(user)
     response = client.get(
-        confirm_url(lst, fighter_with_kills, suit_evolution) + "?dice=5"
+        confirm_url(lst, fighter_with_kills, suit_evolution)
+        + f"?dice=5&token={uuid_module.uuid4()}"
     )
     assert response.status_code == 200
     assert b"Major Boost" in response.content
@@ -704,7 +708,14 @@ def test_confirm_get_bad_state_redirects(
 ):
     lst = fighter_with_kills.list
     client.force_login(user)
-    for query in ("", "?dice=abc", "?dice=9", "?campaign_action_id=not-a-uuid"):
+    for query in (
+        "",
+        "?dice=abc",
+        f"?dice=9&token={uuid_module.uuid4()}",
+        "?dice=5",  # dice without a roll token
+        "?dice=5&token=not-a-uuid",
+        "?campaign_action_id=not-a-uuid",
+    ):
         response = client.get(
             confirm_url(lst, fighter_with_kills, suit_evolution) + query
         )
@@ -719,7 +730,8 @@ def test_confirm_post_applies_result(
     lst = fighter_with_kills.list
     client.force_login(user)
     response = client.post(
-        confirm_url(lst, fighter_with_kills, suit_evolution) + "?dice=5",
+        confirm_url(lst, fighter_with_kills, suit_evolution)
+        + f"?dice=5&token={uuid_module.uuid4()}",
         {},
     )
     assert response.status_code == 302
@@ -748,6 +760,31 @@ def test_confirm_post_double_submit_idempotent(
 
     assert ListFighterRollResult.objects.count() == 1
     assert fighter_with_kills.counters.get(counter=kill_count).value == 1
+
+
+@pytest.mark.django_db
+def test_confirm_post_double_submit_idempotent_without_campaign(
+    client, user, make_list, make_list_fighter, kill_count, suit_evolution
+):
+    # Non-campaign lists have no CampaignAction to key idempotency on; the
+    # roll token minted at the roll step must guard the double-submit instead.
+    lst = make_list("No Campaign")
+    fighter = make_list_fighter(lst, "Fighter")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=kill_count, value=8, owner=user
+    )
+    client.force_login(user)
+    response = client.post(
+        roll_url(lst, fighter, suit_evolution),
+        {"roll_action": "roll_manual", "d6_1": "5"},
+    )
+    target = response.url
+
+    client.post(target, {})
+    client.post(target, {})
+
+    assert ListFighterRollResult.objects.count() == 1
+    assert fighter.counters.get(counter=kill_count).value == 4
 
 
 @pytest.mark.django_db

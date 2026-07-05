@@ -76,6 +76,16 @@ class ListFighterRollResult(AppBase):
         related_name="roll_result",
         help_text="The campaign action recording the dice roll for this result.",
     )
+    roll_token = models.UUIDField(
+        null=True,
+        blank=True,
+        unique=True,
+        editable=False,
+        help_text=(
+            "Idempotency token minted at the roll step for lists without a "
+            "campaign, where no campaign action exists to key on."
+        ),
+    )
 
     history = HistoricalRecords()
 
