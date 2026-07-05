@@ -11,6 +11,16 @@ from .banner import dismiss_banner, track_banner_click
 from .csrf import csrf_failure
 from .dice import dice
 from .home import account_home, index
+from .notification import (
+    NotificationInboxView,
+    notification_archive,
+    notification_delete,
+    notification_dismiss_banner,
+    notification_read,
+    notification_unarchive,
+    notification_unread,
+    notifications_bulk,
+)
 from .upload import tinymce_upload
 from .user import badge_settings, change_username, user
 
@@ -35,6 +45,15 @@ __all__ = [
     # Banner views
     "dismiss_banner",
     "track_banner_click",
+    # Notification views
+    "NotificationInboxView",
+    "notification_read",
+    "notification_unread",
+    "notification_archive",
+    "notification_unarchive",
+    "notification_delete",
+    "notification_dismiss_banner",
+    "notifications_bulk",
     # Other
     "csrf_failure",
     "tinymce_upload",

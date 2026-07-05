@@ -311,4 +311,12 @@ class CampaignDetailView(generic.DetailView):
             context["is_starred"] = False
             context["can_pin"] = False
 
+        # Notification banners for this campaign (scoped to the viewing recipient).
+        if user.is_authenticated:
+            from gyrinx.core.models.notification import Notification
+
+            context["notification_banners"] = Notification.objects.banners_for(
+                user, campaign=campaign
+            )
+
         return context

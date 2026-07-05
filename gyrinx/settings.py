@@ -201,6 +201,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "gyrinx.core.context_processors.site_banner",
                 "gyrinx.core.context_processors.gyrinx_debug",
+                "gyrinx.core.context_processors.notifications",
             ],
         },
     },

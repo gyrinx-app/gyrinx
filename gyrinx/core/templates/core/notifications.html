@@ -1,0 +1,102 @@
+{% extends "account/base_manage.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Notifications
+{% endblock head_title %}
+{% block content %}
+    <div class="vstack gap-4">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <h1 class="h3 mb-0">Notifications</h1>
+            {% if inbox_unread_count %}
+                <span class="badge rounded-pill text-bg-danger">{{ inbox_unread_count }} unread</span>
+            {% endif %}
+        </div>
+        {# Filter bar — fully URL-driven (GET), works without JS. #}
+        <form method="get"
+              action="{% url 'core:notifications' %}"
+              class="row g-2 align-items-end">
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fs-7 mb-1 text-secondary" for="notif-bucket">Show</label>
+                <select class="form-select form-select-sm" id="notif-bucket" name="bucket">
+                    <option value="inbox" {% if bucket == 'inbox' %}selected{% endif %}>Inbox</option>
+                    <option value="archived" {% if bucket == 'archived' %}selected{% endif %}>Archived</option>
+                </select>
+            </div>
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fs-7 mb-1 text-secondary" for="notif-status">Status</label>
+                <select class="form-select form-select-sm" id="notif-status" name="status">
+                    <option value="all" {% if status == 'all' %}selected{% endif %}>All</option>
+                    <option value="unread" {% if status == 'unread' %}selected{% endif %}>Unread</option>
+                    <option value="read" {% if status == 'read' %}selected{% endif %}>Read</option>
+                </select>
+            </div>
+            <div class="col-6 col-sm-3 col-lg-2">
+                <label class="form-label fs-7 mb-1 text-secondary" for="notif-type">Type</label>
+                <select class="form-select form-select-sm" id="notif-type" name="type">
+                    <option value="">All types</option>
+                    {% for value, label in type_choices %}
+                        <option value="{{ value }}" {% if type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-sm-3 col-lg-4">
+                <label class="form-label fs-7 mb-1 text-secondary" for="notif-q">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi-search"></i></span>
+                    <input type="search"
+                           class="form-control"
+                           id="notif-q"
+                           name="q"
+                           value="{{ q }}"
+                           placeholder="Search…">
+                </div>
+            </div>
+            <div class="col-12 col-lg-2">
+                <button type="submit" class="btn btn-primary btn-sm w-100">Apply</button>
+            </div>
+        </form>
+        {# Toolbar: mark all read + bulk-on-selected. #}
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            {% if bucket == 'inbox' %}
+                <form method="post" action="{% url 'core:notifications-bulk' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="mark_read">
+                    <input type="hidden" name="all" value="1">
+                    <input type="hidden" name="bucket" value="inbox">
+                    <input type="hidden" name="status" value="unread">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit"
+                            class="btn btn-secondary btn-sm"
+                            {% if not inbox_unread_count %}disabled{% endif %}>Mark all as read</button>
+                </form>
+                <div class="vr d-none d-sm-block"></div>
+            {% endif %}
+            <form method="post"
+                  action="{% url 'core:notifications-bulk' %}"
+                  id="notif-bulk-form"
+                  class="d-flex gap-2 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="fs-7 mb-0 text-secondary" for="notif-bulk-action">With selected</label>
+                <select class="form-select form-select-sm w-auto"
+                        id="notif-bulk-action"
+                        name="action">
+                    <option value="mark_read">Mark read</option>
+                    <option value="mark_unread">Mark unread</option>
+                    <option value="archive">Archive</option>
+                    <option value="delete">Delete</option>
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+            </form>
+        </div>
+        {# List #}
+        <div class="vstack">
+            {% for n in notifications %}
+                {% include "core/includes/notification_list_item.html" with notification=n first=forloop.first %}
+            {% empty %}
+                <p class="text-secondary mb-0">No notifications.</p>
+            {% endfor %}
+        </div>
+        {% include "core/includes/pagination.html" %}
+    </div>
+{% endblock content %}

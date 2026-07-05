@@ -260,6 +260,9 @@
             </div>
         {% endif %}
     </div>
+    {% if not print and notification_banners %}
+        <div class="mt-4">{% include "core/includes/notification_banners.html" %}</div>
+    {% endif %}
     <div class="grid auto-flow-dense mt-4 {% if print %}gap-2{% endif %}">
         {% if not print %}
             {% include "core/includes/list_campaign_actions.html" with list=list %}
