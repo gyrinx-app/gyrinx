@@ -143,20 +143,12 @@ def handle_roll_flow(
 
     is_stash_linked = check_is_stash_linked(fighter)
 
-    # Deduct the counter
-    if flow.cost:
-        if fighter_counter:
-            fighter_counter.value = current_value - flow.cost
-            fighter_counter.save_with_user(user=user)
-        else:
-            # Unreachable unless flow.cost == 0, guarded above; kept for safety
-            ListFighterCounter.objects.create_with_user(
-                user=user,
-                fighter=fighter,
-                counter=flow.counter,
-                value=-flow.cost,
-                owner=lst.owner,
-            )
+    # Deduct the counter. The affordability guard above means a missing
+    # counter row can only pass when flow.cost == 0, so there is nothing to
+    # deduct unless the row exists.
+    if flow.cost and fighter_counter:
+        fighter_counter.value = current_value - flow.cost
+        fighter_counter.save_with_user(user=user)
 
     rating_increase = row.rating_increase
     outcome = (
