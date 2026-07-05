@@ -482,10 +482,21 @@
         overflow: hidden;
     }
 
-    // XP + Kills — pinned row, each label paired with a write-in box.
+    // XP + Kills — pinned row of two equal columns. The gap between them matches
+    // the detail block's column-gap (3mm) so the XP/Kills split lines up with the
+    // Skills+Rules / Gear columns above.
     .cc-kills {
         top: var(--cc-kills-top);
         height: var(--cc-kills-h);
+        display: flex;
+        align-items: stretch;
+        gap: 3mm;
+    }
+
+    // Each column is a label paired with its write-in box.
+    .cc-kills__col {
+        flex: 1 1 0;
+        min-width: 0;
         display: flex;
         align-items: stretch;
         gap: 1.5mm;

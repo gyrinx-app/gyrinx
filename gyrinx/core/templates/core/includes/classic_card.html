@@ -127,12 +127,18 @@ Params:
             {% endfor %}
         </div>
     </div>
-    {% comment %} XP (bold value + write-in box) + Kills (write-in box), pinned {% endcomment %}
+    {% comment %} XP (bold value + write-in box) + Kills (write-in box), pinned.
+    Two equal columns matching the detail block's columns above, so the XP/Kills
+    split lines up with the Skills+Rules / Gear split. {% endcomment %}
     <div class="cc-region cc-kills">
-        <span class="cc-kills__lbl"><span class="cc-label">XP</span> <span class="cc-kills__xp">{{ card.xp }}</span></span>
-        <span class="cc-writein"></span>
-        <span class="cc-kills__lbl"><span class="cc-label">Kills</span></span>
-        <span class="cc-writein"></span>
+        <div class="cc-kills__col">
+            <span class="cc-kills__lbl"><span class="cc-label">XP</span> <span class="cc-kills__xp">{{ card.xp }}</span></span>
+            <span class="cc-writein"></span>
+        </div>
+        <div class="cc-kills__col">
+            <span class="cc-kills__lbl"><span class="cc-label">Kills</span></span>
+            <span class="cc-writein"></span>
+        </div>
     </div>
     {% comment %} Notes — write-in box {% endcomment %}
     <div class="cc-region cc-notes">
