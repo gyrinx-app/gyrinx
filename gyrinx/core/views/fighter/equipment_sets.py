@@ -106,6 +106,10 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
 
     if not fighter.has_tools_of_the_trade:
+        # POST can't mutate without the rule — redirect like the other mutation
+        # views; GET shows the explanatory message.
+        if request.method == "POST":
+            return _requires_rule_redirect(request, lst, fighter)
         return render(
             request,
             "core/list_fighter_equipment_sets.html",
@@ -121,13 +125,14 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
     if request.method == "POST":
         selected_ids = set(request.POST.getlist("assignment"))
         # Only accept ids that are genuinely this fighter's assignments.
-        valid = [va for va in options if str(va._assignment.id) in selected_ids]
+        valid = [va for va in options if str(va.id) in selected_ids]
         # The card is named here too (rename lives on the edit page).
         name = (request.POST.get("name") or "").strip()
-        if name:
-            equipment_set.name = name
-        equipment_set.assignments.set([va._assignment for va in valid])
-        equipment_set.save_with_user(user=request.user)
+        with transaction.atomic():
+            if name:
+                equipment_set.name = name
+            equipment_set.assignments.set([va._assignment for va in valid])
+            equipment_set.save_with_user(user=request.user)
 
         log_event(
             user=request.user,
@@ -152,10 +157,10 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
     # ``_assignment`` attribute on the virtual wrapper.
     items = [
         {
-            "id": va._assignment.id,
+            "id": va.id,
             "name": va.name(),
             "is_weapon": va.is_weapon_cached,
-            "included": va._assignment.id in included_ids,
+            "included": va.id in included_ids,
         }
         for va in options
     ]
@@ -283,7 +288,8 @@ def delete_list_fighter_equipment_set(request, id, fighter_id, set_id):
         if fighter.active_equipment_set_id == equipment_set.id:
             fighter.active_equipment_set = None
             fighter.save_with_user(
-                user=request.user, update_fields=["active_equipment_set"]
+                user=request.user,
+                update_fields=["active_equipment_set", "modified"],
             )
         equipment_set.delete()
 

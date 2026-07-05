@@ -20,9 +20,9 @@
 {% elif fighter.has_reduced_equipment_selection %}
     {# Active equipment set hides some costed gear: show selected (max). #}
     <div data-bs-toggle="tooltip"
-         title="Showing {{ fighter.active_equipment_set_name }}: {{ fighter.selected_cost_display }} of {{ fighter.cost_display }} total"
+         title="Showing {{ fighter.active_equipment_set_name }}: {{ fighter.selected_cost_display }} of {{ fighter.max_cost_display }} total"
          class="badge {{ badge_classes }}">
-        {{ fighter.selected_cost_display }} <span class="opacity-75">({{ fighter.cost_display }})</span>
+        {{ fighter.selected_cost_display }} <span class="opacity-75">({{ fighter.max_cost_display }})</span>
     </div>
 {% else %}
     <div class="badge {{ badge_classes }}">{{ fighter.cost_display }}</div>

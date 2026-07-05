@@ -71,8 +71,8 @@
                             <td class="py-0 bg-transparent">
                                 {% if list.has_reduced_equipment_selection %}
                                     <span data-bs-toggle="tooltip"
-                                          title="Rating of the fighters' selected equipment sets, of {{ list.rating_display }} maximum">
-                                        {{ list.selected_rating_display }} <span class="text-secondary">({{ list.rating_display }})</span>
+                                          title="Rating of the fighters' selected equipment sets, of {{ list.selected_rating_max_display }} maximum">
+                                        {{ list.selected_rating_display }} <span class="text-secondary">({{ list.selected_rating_max_display }})</span>
                                     </span>
                                 {% else %}
                                     {{ list.rating_display }}

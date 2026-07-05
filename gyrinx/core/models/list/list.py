@@ -429,6 +429,20 @@ class List(AppBase):
         return sum(f.selected_cost_int for f in fighters)
 
     @cached_property
+    def selected_rating_max(self):
+        """Full-kit rating over the *same* fighters used for selected_rating.
+
+        Kept on the same live basis as :attr:`selected_rating` (not the cached
+        ``rating_current``) so the "selected (max)" pair is internally
+        consistent — the gap always equals the value of the hidden gear, even if
+        the cached rating has drifted. See #1853.
+        """
+        fighters = self._selected_rating_fighters
+        if fighters is None:
+            return self.rating
+        return sum(f.cost_int_cached for f in fighters)
+
+    @cached_property
     def has_reduced_equipment_selection(self) -> bool:
         """True when any active fighter's set hides costed equipment.
 
@@ -443,6 +457,10 @@ class List(AppBase):
     def selected_rating_display(self):
         """Display the list's rating under the fighters' active sets."""
         return format_cost_display(self.selected_rating)
+
+    def selected_rating_max_display(self):
+        """Display the full-kit rating on the same basis as selected_rating."""
+        return format_cost_display(self.selected_rating_max)
 
     @cached_property
     def stash_fighter_cost_int(self):

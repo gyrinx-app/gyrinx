@@ -150,6 +150,8 @@ def test_list_selected_rating_reflects_active_sets(equipped):
     lst = List.objects.with_related_data(with_fighters=True).get(id=lst.id)
     assert lst.has_reduced_equipment_selection is True
     assert lst.selected_rating == lst.rating - 50
+    # selected and max are on the same basis, so the gap is exactly the hidden gear.
+    assert lst.selected_rating == lst.selected_rating_max - 50
 
 
 @pytest.mark.django_db

@@ -1721,7 +1721,7 @@ class ListFighter(AppBase):
             return True
         if virtual_assignment.kind() != "assigned":
             return True
-        return virtual_assignment._assignment.id in ids
+        return virtual_assignment.id in ids
 
     @cached_property
     def displayed_assignments_cached(
@@ -1763,6 +1763,15 @@ class ListFighter(AppBase):
 
     def selected_cost_display(self):
         return format_cost_display(self.selected_cost_int)
+
+    def max_cost_display(self):
+        """Full-kit cost on the same live basis as selected_cost_int.
+
+        Used as the "(max)" figure in the selected/max badge so it matches the
+        basis ``has_reduced_equipment_selection`` compares against, rather than
+        the cached ``rating_current`` that ``cost_display`` may read. See #1853.
+        """
+        return format_cost_display(self.cost_int_cached)
 
     @cached_property
     def active_equipment_set_name(self) -> str:
