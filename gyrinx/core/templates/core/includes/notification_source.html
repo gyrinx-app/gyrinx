@@ -1,0 +1,20 @@
+{% load static %}
+{% comment %}
+    Source indicator for a notification. Expects `notification` in context.
+    System notifications (no human sender) get a distinct Gyrinx badge so it's
+    clear the message came from us.
+{% endcomment %}
+{% if notification.is_system %}
+    <span class="badge text-bg-dark d-inline-flex align-items-center gap-1"
+          title="Sent by Gyrinx">
+        <img src="{% static 'core/img/brand/logo-gold-transparent-bg.svg' %}"
+             alt=""
+             width="14"
+             height="14">
+        Gyrinx
+    </span>
+{% else %}
+    <span class="text-secondary small d-inline-flex align-items-center gap-1">
+        <i class="bi-person-circle"></i> {{ notification.sender_label }}
+    </span>
+{% endif %}

@@ -1,0 +1,21 @@
+{% extends "admin/base_site.html" %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">
+        <a href="{% url 'admin:index' %}">Home</a>
+        › <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+        › <a href="{% url 'admin:core_notification_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+        › Broadcast
+    </div>
+{% endblock breadcrumbs %}
+{% block content %}
+    <p>Send a notification to many recipients at once. It is delivered to each recipient's inbox.</p>
+    <form method="post">
+        {% csrf_token %}
+        <fieldset class="module aligned">
+            {{ form.as_p }}
+        </fieldset>
+        <div class="submit-row">
+            <input type="submit" value="Send" class="default">
+        </div>
+    </form>
+{% endblock content %}

@@ -21,6 +21,18 @@
                        href="{% url 'core:dice' %}?m=d6&d=1">
                         <i class="bi-dice-6"></i>
                     </a>
+                    <a class="btn btn-dark position-relative {% active_view 'core:notifications' %}"
+                       {% active_aria 'core:notifications' %}
+                       href="{% url 'core:notifications' %}"
+                       aria-label="Inbox{% if unread_notification_count %} ({{ unread_notification_count }} unread){% endif %}">
+                        <i class="bi-inbox"></i>
+                        {% if unread_notification_count %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">
+                                {% if unread_notification_count > 99 %}99+{% else %}{{ unread_notification_count }}{% endif %}
+                                <span class="visually-hidden">unread notifications</span>
+                            </span>
+                        {% endif %}
+                    </a>
                 {% endif %}
                 <button class="navbar-toggler"
                         type="button"

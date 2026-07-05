@@ -2,6 +2,7 @@ from .campaign import patterns as campaign_patterns
 from .fighter import patterns as fighter_patterns
 from .list import patterns as list_patterns
 from .misc import patterns as misc_patterns
+from .notification import patterns as notification_patterns
 from .pack import patterns as pack_patterns
 
 # Name new URLs like this:
@@ -15,5 +16,10 @@ from .pack import patterns as pack_patterns
 
 app_name = "core"
 urlpatterns = (
-    misc_patterns + list_patterns + fighter_patterns + campaign_patterns + pack_patterns
+    misc_patterns
+    + list_patterns
+    + fighter_patterns
+    + campaign_patterns
+    + pack_patterns
+    + notification_patterns
 )

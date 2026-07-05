@@ -355,6 +355,14 @@ class ListDetailView(generic.DetailView):
             context["is_pinned"] = False
             context["is_starred"] = False
 
+        # Notification banners for this list (scoped to the viewing recipient).
+        if self.request.user.is_authenticated:
+            from gyrinx.core.models.notification import Notification
+
+            context["notification_banners"] = Notification.objects.banners_for(
+                self.request.user, list_=list_obj
+            )
+
         return context
 
 

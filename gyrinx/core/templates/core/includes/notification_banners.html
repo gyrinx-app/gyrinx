@@ -1,0 +1,26 @@
+{% comment %}
+    In-page notification banners for a List or Campaign page. Expects
+    `notification_banners` (an iterable of Notification) in context. Each row is
+    scoped to the viewing recipient by the view, so there's no cross-user leakage.
+    Dismiss is a POST that persistently marks the notification read. Uses the
+    design-system `alert alert-icon` feedback pattern.
+{% endcomment %}
+{% for n in notification_banners %}
+    <div class="alert alert-{{ n.banner_colour|default:'info' }} alert-icon mb-0"
+         role="alert">
+        <i class="{{ n.display_icon }}"></i>
+        <div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <strong>{{ n.subject }}</strong>
+                {% include "core/includes/notification_source.html" with notification=n %}
+            </div>
+            {% if n.content %}<p class="mb-0">{{ n.content }}</p>{% endif %}
+        </div>
+        <form method="post"
+              action="{% url 'core:notification-dismiss-banner' n.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn-close" aria-label="Dismiss"></button>
+        </form>
+    </div>
+{% endfor %}
