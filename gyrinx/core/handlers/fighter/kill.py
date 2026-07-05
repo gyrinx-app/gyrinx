@@ -169,22 +169,13 @@ def handle_fighter_kill(
                 )
             )
 
-        # clone() recomputes each new row's cache on a plain instance, which
-        # resolves components through the default (pack-excluding) managers and
-        # drops pack-scoped accessories/profiles/upgrades (#1933). Recompute the
-        # stash rows pack-aware so their caches match the views and the
-        # canonical recompute, and total the corrected values for the stash
-        # bump. With pins this equals the dying fighter's valuation of the same
-        # gear, so the transfer is wealth-neutral. Persistent items are NOT
-        # here: their value is absorbed into the rating reduction below.
-        clone_pks = [clone.pk for clone in clones]
-        equipment_cost = 0
-        for (
-            stash_row
-        ) in ListFighterEquipmentAssignment.objects.with_related_data().filter(
-            pk__in=clone_pks
-        ):
-            equipment_cost += stash_row.facts_from_db(update=True).rating
+        # The stash gains exactly what its new rows cache. clone() recomputes
+        # each in the stash context pack-aware (reading the copied receipts), so
+        # this total equals what a later recompute produces. With pins it also
+        # equals the dying fighter's valuation of the same gear, so the transfer
+        # is wealth-neutral. Persistent items are NOT here: their value is
+        # absorbed into the rating reduction below.
+        equipment_cost = sum(clone.rating_current for clone in clones)
 
         # Delete only the transferred assignments from the dead fighter;
         # persistent assignments stay attached and remain visible on the card.

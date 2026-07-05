@@ -1187,8 +1187,14 @@ Precondition: the `pin_state` enum (§4.1) is settled — it shapes the columns.
   **pack-aware cost reads** (`fighter_cost_before` and the clones' caches),
   because `cost_int()` on a plain instance resolves components through the
   default pack-excluding managers and silently drops pack-scoped accessories —
-  the same `#1933` hazard the reassignment handler already guards; both now use
-  `with_related_data()`.
+  the same `#1933` hazard the reassignment handler already guards.
+  `fighter_cost_before` now fetches the dying fighter via `with_related_data()`;
+  the clone-cache half was **fixed at the root**: `assignment.clone()` now
+  recomputes its facts on a `with_related_data()` refetch, so every clone
+  caller (campaign-start clone included) gets a pack-correct cache, not just the
+  kill path. (3) New gangs need no backfill to be pinned — a fresh purchase
+  pins at acquisition and the campaign-start clone carries the pins in; locked
+  by an end-to-end test on both axes (`test_new_gang_gear_is_pinned_end_to_end`).
 
 ### Phase 10 — Surfaces: user-facing breakdown and pin editing
 

@@ -1047,6 +1047,37 @@ def test_matrix_campaign_start_clone_preserves_pins(
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("side", ["catalog", "pack"])
+def test_new_gang_gear_is_pinned_end_to_end(
+    side, user, make_list, content_fighter, make_equipment, make_pack, campaign
+):
+    """New gangs carry pins without any backfill. A fresh purchase pins at
+    acquisition (Phase 7), and starting a campaign clones those pins in — so a
+    gang built after Phase 7 shipped never relies on the estate backfill (or
+    Phase 9's defensive kill-pin) for gear it bought itself. Proven end to end
+    through the real purchase + campaign-start flows, on both content axes."""
+    source = ContentSource(make_pack("New Gang Pack") if side == "pack" else None)
+    lst = make_list("Fresh Gang")
+    source.subscribe(lst)
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    lasgun = source.register(make_equipment("Lasgun", cost=15))
+
+    assignment = buy_equipment(user, lst, fighter, lasgun)
+    # The brand-new purchase is pinned at acquisition (no backfill involved).
+    assert fresh(assignment).pinned_base_amount == 15
+    assert fresh(assignment).pinned_base_state == PinState.CATALOG
+
+    # Starting a campaign clones the gang in — the pins travel with it.
+    cloned, created = campaign.add_list_to_campaign(fresh(lst), user=user)
+    assert created
+    clone_row = ListFighterEquipmentAssignment.objects.get(
+        list_fighter__list=cloned, content_equipment=lasgun
+    )
+    assert clone_row.pinned_base_amount == 15
+    assert_reconciles(cloned)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("side", ["catalog", "pack"])
 def test_matrix_bare_accessory_post_is_inert(
     side, user, client, make_list, content_fighter, make_equipment, make_pack
 ):

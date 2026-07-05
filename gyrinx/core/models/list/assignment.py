@@ -1029,9 +1029,22 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
 
         clone.save()
 
-        # Always recalculate cached values after cloning
-        # Cloning is not part of the action/propagation system - it needs explicit recalculation
-        clone.facts_from_db(update=True)
+        # Recalculate cached values after cloning. Cloning is not part of the
+        # action/propagation system, so it needs explicit recalculation — and
+        # it must run on a pack-aware refetch. cost_int() on this freshly-built
+        # instance resolves components through the default (pack-excluding)
+        # managers, so a pack-scoped accessory/profile/upgrade would drop out of
+        # the cached rating (#1933) — the clone would under-value pack gear
+        # until the next recompute. with_related_data() prefetches components
+        # via all_content(), matching what the views and the canonical
+        # recompute compute.
+        fresh_clone = ListFighterEquipmentAssignment.objects.with_related_data().get(
+            pk=clone.pk
+        )
+        fresh_clone.facts_from_db(update=True)
+        # Reflect the just-written cache on the instance we hand back.
+        clone.rating_current = fresh_clone.rating_current
+        clone.dirty = False
 
         return clone
 
