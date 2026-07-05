@@ -1,0 +1,75 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-bottom: 1rem; }
+    .mt-uuid-input { width: 24rem; font-family: monospace; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Rebuilds every list's cost-cache chain from live resolution — ignoring
+        the dirty flags, because drift hides behind clean flags — and records
+        any movement as a <strong>RECONCILE</strong> ledger action chained off
+        the ledger head. Credits never move: this corrects the books, it is
+        not a wealth event. Actions are attributed to you.
+    </p>
+    <p>
+        <strong>Run this BEFORE the receipt backfill</strong> — freezing
+        amounts on top of drifted caches would enshrine the drift. Prefer a
+        quiet window: a user action landing mid-reconcile on the same list is
+        a short, per-list race a re-run repairs.
+    </p>
+    <ul>
+        <li><strong>Lists to walk:</strong> {{ list_count }}</li>
+    </ul>
+    <form method="get" class="mt-form">
+        <label for="list_id">Restrict to a single List UUID (optional — incremental rollout):</label>
+        <input type="text"
+               id="list_id"
+               name="list_id"
+               value="{{ list_id }}"
+               class="mt-uuid-input">
+        <button type="submit" class="button">Preview scope</button>
+    </form>
+    <form method="post" action="{{ apply_url }}">
+        {% csrf_token %}
+        <input type="hidden" name="list_id" value="{{ list_id }}">
+        <button type="submit" class="button default">
+            Start reconcile
+            {% if list_id %}(scoped to one list){% else %}(ALL lists){% endif %}
+        </button>
+    </form>
+    <h2>Recent runs</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Status</th>
+                <th>Summary</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in recent %}
+                <tr>
+                    <td>{{ b.created }}</td>
+                    <td>{{ b.get_status_display }}</td>
+                    <td><code>{{ b.summary }}</code></td>
+                    <td><a href="{% url 'admin:maintenance_backfill_detail' b.id %}">Detail</a></td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="4">Never run.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock content %}

@@ -35,6 +35,7 @@ def _get_tasks() -> list[TaskRoute]:
     if _tasks is None:
         from gyrinx.core.tasks import (
             backfill_pins,
+            reconcile_all_lists,
             hello_world,
             propagate_content_cost_change,
             propagate_default_child_fighter_assignment,
@@ -51,6 +52,7 @@ def _get_tasks() -> list[TaskRoute]:
             # A 250-row batch through pin_assignment is many queries; give
             # the worker room before Pub/Sub redelivers.
             TaskRoute(backfill_pins, ack_deadline=600),
+            TaskRoute(reconcile_all_lists, ack_deadline=600),
         ]
     return _tasks
 

@@ -22,8 +22,20 @@ class Backfill(models.Model):
             "migrate_persistent_stash",
             "Migrate persistent stash items (#1825)",
         )
+        RECONCILE_LISTS = (
+            "reconcile_lists",
+            "Reconcile list cost caches (#1826 Phase 8)",
+        )
+        BACKFILL_PINS = (
+            "backfill_pins",
+            "Backfill acquisition receipts (#1826 Phase 8)",
+        )
 
     class Status(models.TextChoices):
+        # Long-running operations execute on the task runner and report
+        # progress into `summary` batch by batch; RUNNING is their state
+        # between trigger and the final DONE/FAILED update.
+        RUNNING = "running", "Running"
         DONE = "done", "Done"
         FAILED = "failed", "Failed"
 
