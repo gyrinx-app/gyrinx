@@ -409,7 +409,7 @@ def reconcile_all_lists(
     lists_done: int = 0,
     corrected: int = 0,
     clamped: int = 0,
-    moved_ids: list | None = None,
+    moved: list | None = None,
 ):
     """Audited cache reconciliation across every list (#1826 §4.8.2).
 
@@ -420,9 +420,10 @@ def reconcile_all_lists(
     triggering admin via ``user_id``.
 
     Self-re-enqueues with a pk cursor; totals ride the kwargs so the final
-    summary is cumulative. ``moved_ids`` accumulates the ids of lists whose
-    cached totals actually changed (a player-visible change), so that at
-    completion we can notify each affected owner and arbitrator exactly once
+    summary is cumulative. ``moved`` accumulates ``[list_id, rating_delta]``
+    pairs for lists whose cached totals actually changed (a player-visible
+    change), so that at completion we can notify each affected owner and
+    arbitrator exactly once, telling them how much each gang's rating moved
     (#721). It only holds the *corrected* subset — a small fraction of the
     estate — so it stays well within the task payload size limit.
     """
@@ -436,7 +437,7 @@ def reconcile_all_lists(
     if user_id is not None:
         user = get_user_model().objects.filter(pk=user_id).first()
 
-    moved_ids = list(moved_ids or [])
+    moved = list(moved or [])
 
     qs = List.objects.order_by("id")
     if list_id:
@@ -453,10 +454,12 @@ def reconcile_all_lists(
             if result.moved or result.action:
                 corrected += 1
             if result.moved:
-                # Player-visible change: this owner (and arb) get told. An
-                # action without `moved` is a ledger-only alignment nobody sees,
-                # so it is deliberately excluded here.
-                moved_ids.append(str(batch_list_id))
+                # Player-visible change: this owner (and arb) get told, with the
+                # rating delta. An action without `moved` is a ledger-only
+                # alignment nobody sees, so it is deliberately excluded here.
+                moved.append(
+                    [str(batch_list_id), result.rating_after - result.rating_before]
+                )
             if result.clamped:
                 clamped += 1
                 logger.warning(
@@ -496,7 +499,7 @@ def reconcile_all_lists(
             lists_done=lists_done,
             corrected=corrected,
             clamped=clamped,
-            moved_ids=moved_ids,
+            moved=moved,
         )
     else:
         _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
@@ -514,7 +517,7 @@ def reconcile_all_lists(
         try:
             from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
 
-            owners, arbs = notify_lists_reconciled(moved_ids)
+            owners, arbs = notify_lists_reconciled(dict(moved))
             logger.info(
                 "reconcile_all_lists: notified %s owner(s), %s arbitrator(s)",
                 owners,

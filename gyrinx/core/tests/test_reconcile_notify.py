@@ -29,22 +29,24 @@ def test_one_notification_per_owner_with_links(make_user, make_list):
     l2 = make_list("Escher Wildcats", owner=alice)
     l3 = make_list("Orlock Arms", owner=bob)
 
-    owners, arbs = notify_lists_reconciled([l1.pk, l2.pk, l3.pk])
+    owners, arbs = notify_lists_reconciled({l1.pk: -10, l2.pk: 5, l3.pk: -3})
     assert (owners, arbs) == (2, 0)
 
     # Alice owns two affected gangs → exactly ONE notification naming both.
     alice_notifs = Notification.objects.filter(owner=alice)
     assert alice_notifs.count() == 1
     n = alice_notifs.get()
-    assert n.notification_type == NotificationType.LIST
+    assert n.notification_type == NotificationType.SYSTEM  # background maintenance
     assert "2 of your gangs" in n.subject
     assert n.is_system  # sender defaulted to None → Gyrinx system notification
     assert n.show_as_banner is False
-    # Both gangs are linked in the content.
+    # Both gangs are linked in the content, each with its rating change.
     assert "Goliath Bruisers" in n.content
     assert "Escher Wildcats" in n.content
     assert reverse("core:list", args=[l1.pk]) in n.content
     assert reverse("core:list", args=[l2.pk]) in n.content
+    assert "-10¢" in n.content  # Goliath dropped by 10
+    assert "+5¢" in n.content  # Escher rose by 5
 
     # Bob owns one → singular subject.
     bob_notif = Notification.objects.get(owner=bob)
@@ -63,20 +65,22 @@ def test_arb_notified_excluding_gangs_they_own(make_user, make_list, make_campai
         "Arbs Own Gang", owner=arb, status=List.CAMPAIGN_MODE, campaign=camp
     )
 
-    owners, arbs = notify_lists_reconciled([l_player.pk, l_arb_own.pk])
+    owners, arbs = notify_lists_reconciled({l_player.pk: -10, l_arb_own.pk: 5})
     # Two owners (player, arb — each owns one), one arbitrator (arb, for the
     # player's gang only; their own gang is covered by the owner notification).
     assert (owners, arbs) == (2, 1)
 
-    # The arb receives two: one as owner (their gang), one as arbitrator.
+    # The arb receives two: one as owner (their gang), one as arbitrator. Both
+    # are SYSTEM notifications, so they're told apart by subject.
     arb_notifs = Notification.objects.filter(owner=arb)
     assert arb_notifs.count() == 2
-    arb_camp = arb_notifs.get(notification_type=NotificationType.CAMPAIGN)
+    arb_camp = arb_notifs.get(subject__icontains="in your campaign")
     # The arbitrator notification links the player's gang, NOT the arb's own
     # (that would double-notify — it's already in their owner notification).
     assert "Player Gang" in arb_camp.content
     assert "Arbs Own Gang" not in arb_camp.content
     assert camp.name in arb_camp.content  # campaign named for context
+    assert "-10¢" in arb_camp.content  # rating change shown per gang
 
     # The player gets exactly one owner notification.
     assert Notification.objects.filter(owner=player).count() == 1
@@ -84,15 +88,28 @@ def test_arb_notified_excluding_gangs_they_own(make_user, make_list, make_campai
 
 @pytest.mark.django_db
 def test_empty_is_noop():
-    assert notify_lists_reconciled([]) == (0, 0)
+    assert notify_lists_reconciled({}) == (0, 0)
     assert Notification.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_stash_only_move_has_no_rating_annotation(make_user, make_list):
+    owner = make_user("stashy", "pw")
+    lst = make_list("Stash Mover", owner=owner)
+    # Rating didn't move (delta 0) — only the stash was corrected. The gang is
+    # still listed, but without a meaningless "(rating +0¢)".
+    owners, arbs = notify_lists_reconciled({lst.pk: 0})
+    assert (owners, arbs) == (1, 0)
+    n = Notification.objects.get(owner=owner)
+    assert "Stash Mover" in n.content
+    assert "(rating" not in n.content  # no per-gang delta annotation
 
 
 @pytest.mark.django_db
 def test_non_campaign_list_has_no_arb(make_user, make_list):
     owner = make_user("solo", "pw")
     lst = make_list("Solo Gang", owner=owner)  # list-building mode, no campaign
-    owners, arbs = notify_lists_reconciled([lst.pk])
+    owners, arbs = notify_lists_reconciled({lst.pk: -10})
     assert (owners, arbs) == (1, 0)
 
 
@@ -163,16 +180,18 @@ def test_estate_run_notifies_once_per_owner_and_arb(
     player_notifs = Notification.objects.filter(owner=player)
     assert player_notifs.count() == 1
     pn = player_notifs.get()
-    assert pn.notification_type == NotificationType.LIST
+    assert pn.notification_type == NotificationType.SYSTEM
     assert "2 of your gangs" in pn.subject
     for lst, _ in lists:
         assert reverse("core:list", args=[lst.pk]) in pn.content
+    # Cache was tampered +10 then corrected back down, so each gang shows -10¢.
+    assert "-10¢" in pn.content
 
     # Arb: exactly one aggregated campaign notification naming both gangs.
     arb_notifs = Notification.objects.filter(owner=arb)
     assert arb_notifs.count() == 1
     an = arb_notifs.get()
-    assert an.notification_type == NotificationType.CAMPAIGN
+    assert an.notification_type == NotificationType.SYSTEM
     assert "2 gangs in your campaigns" in an.subject
 
 
