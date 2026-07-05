@@ -1,6 +1,8 @@
-{# Equipment-set (Tools of the Trade) switcher — entry point on the fighter card.
-   Only shown for editors on fighters with the "Tools of the Trade" rule (#1853).
-   Each option is a POST form because activating a card mutates the fighter. #}
+{% comment %}
+Equipment-set (Tools of the Trade) switcher — entry point on the fighter card.
+Only shown for editors on fighters with the "Tools of the Trade" rule (#1853).
+Each option is a POST form because activating a card mutates the fighter.
+{% endcomment %}
 {% if not print and not compact and can_edit and fighter.has_tools_of_the_trade %}
     <div class="dropdown">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle icon-link"

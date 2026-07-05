@@ -332,10 +332,20 @@ def test_switcher_shown_only_for_tot_fighter(equipped, client, user):
     url = reverse("core:list", args=(lst.id,))
 
     # No rule: no switcher entry point.
-    assert "Manage cards" not in client.get(url).content.decode()
+    html_no_rule = client.get(url).content.decode()
+    assert "Manage cards" not in html_no_rule
 
     add_tot_rule(fighter)
-    assert "Manage cards" in client.get(url).content.decode()
+    html_with_rule = client.get(url).content.decode()
+    assert "Manage cards" in html_with_rule
+    # The switcher dropdown offers the Default card and each named card.
+    assert "Default (all equipment)" in html_with_rule
+
+    # Regression: the switcher include's explanatory comment must never leak
+    # onto the page as literal text (Django {# #} comments are single-line only;
+    # a multi-line one renders verbatim). Checked in both states.
+    assert "entry point on the fighter card" not in html_no_rule
+    assert "entry point on the fighter card" not in html_with_rule
 
 
 @pytest.mark.django_db
