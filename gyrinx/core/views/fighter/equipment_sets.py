@@ -124,14 +124,18 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
 
     if request.method == "POST":
         selected_ids = set(request.POST.getlist("assignment"))
-        # Only accept ids that are genuinely this fighter's assignments.
-        valid = [va for va in options if str(va.id) in selected_ids]
+        # Validate against this fighter's own assignments in a single scoped
+        # query, so only genuine ids are accepted (no coupling to the virtual
+        # wrapper internals).
+        chosen = list(
+            fighter.listfighterequipmentassignment_set.filter(id__in=selected_ids)
+        )
         # The card is named here too (rename lives on the edit page).
         name = (request.POST.get("name") or "").strip()
         with transaction.atomic():
             if name:
                 equipment_set.name = name
-            equipment_set.assignments.set([va._assignment for va in valid])
+            equipment_set.assignments.set(chosen)
             equipment_set.save_with_user(user=request.user)
 
         log_event(
@@ -146,7 +150,7 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
             field="equipment_sets",
             action="update_set_membership",
             equipment_set_name=equipment_set.name,
-            item_count=len(valid),
+            item_count=len(chosen),
         )
 
         messages.success(request, f"Updated {equipment_set.name}")

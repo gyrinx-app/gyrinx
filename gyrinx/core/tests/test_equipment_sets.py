@@ -6,6 +6,8 @@ manage/switch views, rule gating, and clone behaviour.
 """
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from gyrinx.content.models import ContentRule
@@ -511,3 +513,74 @@ def test_clone_carries_equipment_sets(equipped):
     assert all(a.list_fighter_id == clone.id for a in cloned_card.assignments.all())
     # The active card was preserved.
     assert clone.active_equipment_set_id == cloned_card.id
+
+
+# --- Performance: no N+1 from active sets on the list page -------------------
+
+
+def _gang(n, with_active_set, make_list, content_fighter, w1, w2, user, name):
+    """A list of ``n`` fighters each carrying the same two weapons. When
+    ``with_active_set`` is set, every fighter also gets the ToT rule and an
+    active equipment set that includes *both* weapons (hides nothing), so the
+    rendered card is identical to the plain gang — isolating the set machinery.
+    """
+    lst = make_list(name)
+    rule, _ = ContentRule.objects.get_or_create(name="Tools of the Trade")
+    for i in range(n):
+        f = ListFighter.objects.create(
+            list=lst, name=f"F{i}", content_fighter=content_fighter, owner=user
+        )
+        a1 = f.assign(w1)
+        a2 = f.assign(w2)
+        if with_active_set:
+            f.custom_rules.add(rule)
+            card = ListFighterEquipmentSet.objects.create(
+                list_fighter=f, name="Card", owner=user
+            )
+            card.assignments.set([a1, a2])  # include everything -> no reduction
+            f.active_equipment_set = card
+            f.save()
+    return lst
+
+
+@pytest.mark.django_db
+def test_active_sets_add_no_per_fighter_queries_on_list_page(
+    make_list, content_fighter, make_equipment, make_weapon_profile, user, client
+):
+    """The equipment-set machinery must not add a per-fighter query on the list
+    page (#1853) — i.e. no N+1 from resolving each fighter's active set or
+    computing the selected rating.
+
+    Measures how the list-page query count grows with fighter count for a plain
+    gang vs a gang where every fighter has an active set (including all their
+    gear, so cards render identically). Set resolution and the selected rating
+    are served from the ``equipment_sets`` / ``equipment_sets__assignments``
+    prefetches, so the set gang must grow no faster than the plain baseline.
+    (The baseline itself grows because rendering each fighter's weapons issues
+    content queries when packs aren't prefetched — that is pre-existing and
+    unrelated to equipment sets.)
+    """
+    client.force_login(user)
+    w1 = make_equipment(name="Perf W1", cost=20, category="Basic Weapons")
+    make_weapon_profile(w1)
+    w2 = make_equipment(name="Perf W2", cost=30, category="Basic Weapons")
+    make_weapon_profile(w2)
+
+    def count(lst):
+        with CaptureQueriesContext(connection) as q:
+            assert client.get(reverse("core:list", args=(lst.id,))).status_code == 200
+        return len(q.captured_queries)
+
+    n = 10
+    plain = count(_gang(n, False, make_list, content_fighter, w1, w2, user, "Plain"))
+    setted = count(_gang(n, True, make_list, content_fighter, w1, w2, user, "Setted"))
+
+    # The set machinery adds only O(1) work: the equipment_sets +
+    # equipment_sets__assignments prefetches (a couple of queries per page),
+    # never one per fighter. A per-fighter N+1 would put ``setted`` roughly
+    # ``n`` queries above ``plain``; the small constant bound catches that while
+    # tolerating the couple of bounded prefetch queries.
+    assert setted <= plain + 3, (
+        f"Active sets add per-fighter queries (N+1): with {n} fighters, "
+        f"plain={plain}, setted={setted} (overhead {setted - plain} > 3)."
+    )

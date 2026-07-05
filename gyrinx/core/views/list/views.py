@@ -284,7 +284,7 @@ class ListDetailView(generic.DetailView):
             if override in ("", "0", "default"):
                 fighter.active_equipment_set = None
             else:
-                for equipment_set in fighter._equipment_sets_cached:
+                for equipment_set in fighter.equipment_sets.all():
                     if str(equipment_set.id) == override:
                         fighter.active_equipment_set = equipment_set
                         break

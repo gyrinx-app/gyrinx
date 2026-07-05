@@ -9,6 +9,7 @@ Each option is a POST form because activating a card mutates the fighter.
                 type="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
+                aria-label="Switch equipment set"
                 title="{% if fighter.active_equipment_set_id %}Equipment set: {{ fighter.active_equipment_set_name }}{% else %}Switch equipment set{% endif %}">
             <i class="bi-collection"></i>
             {% if fighter.active_equipment_set_id %}
