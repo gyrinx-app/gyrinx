@@ -71,6 +71,7 @@ from .models import (
     ContentModTrait,
     ContentPageRef,
     ContentPolicy,
+    ContentPromotionCategoryPath,
     ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentRule,
@@ -922,6 +923,34 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
         return " | ".join(restrictions) if restrictions else "-"
 
     get_restrictions.short_description = "Restrictions"
+
+
+@admin.register(ContentPromotionCategoryPath)
+class ContentPromotionCategoryPathAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name"]
+    list_display = [
+        "name",
+        "from_category",
+        "to_category",
+        "rank",
+        "xp_cost",
+        "cost_increase",
+        "grants_skill",
+    ]
+    list_filter = ["from_category", "to_category", "restricted_to_houses"]
+    filter_horizontal = ["restricted_to_houses"]
+    fieldsets = (
+        (None, {"fields": ("name", "from_category", "to_category", "rank")}),
+        ("Cost", {"fields": ("xp_cost", "cost_increase", "grants_skill", "rolls")}),
+        (
+            "Restrictions",
+            {
+                "fields": ("restricted_to_houses",),
+                "classes": ("collapse",),
+                "description": "Optional: limit which houses are offered this promotion.",
+            },
+        ),
+    )
 
 
 @admin.register(ContentEquipmentFighterProfile)
