@@ -225,10 +225,13 @@ def test_deleting_active_set_falls_back_to_default(equipped):
 @pytest.mark.django_db
 def test_manage_page_owner_ok_other_404(equipped, client, user, make_user):
     lst, fighter = equipped["list"], equipped["fighter"]
+    add_tot_rule(fighter)
     url = reverse("core:list-fighter-equipment-sets", args=(lst.id, fighter.id))
 
     client.force_login(user)
-    assert client.get(url).status_code == 200
+    resp = client.get(url)
+    assert resp.status_code == 200
+    assert "Create a card" in resp.content.decode()
 
     other = make_user("intruder", "password")
     client.force_login(other)
@@ -236,8 +239,49 @@ def test_manage_page_owner_ok_other_404(equipped, client, user, make_user):
 
 
 @pytest.mark.django_db
+def test_manage_page_without_rule_shows_message(equipped, client, user):
+    lst, fighter = equipped["list"], equipped["fighter"]  # no ToT rule
+    client.force_login(user)
+    html = client.get(
+        reverse("core:list-fighter-equipment-sets", args=(lst.id, fighter.id))
+    ).content.decode()
+    assert "does not have the requisite rule" in html
+    # The management UI is not offered.
+    assert "Create a card" not in html
+
+
+@pytest.mark.django_db
+def test_edit_page_without_rule_shows_message(equipped, client, user):
+    lst, fighter = equipped["list"], equipped["fighter"]  # no ToT rule
+    card = ListFighterEquipmentSet.objects.create(
+        list_fighter=fighter, name="A", owner=user
+    )
+    client.force_login(user)
+    html = client.get(
+        reverse(
+            "core:list-fighter-equipment-set-edit", args=(lst.id, fighter.id, card.id)
+        )
+    ).content.decode()
+    assert "does not have the requisite rule" in html
+    assert 'name="assignment"' not in html
+
+
+@pytest.mark.django_db
+def test_mutation_blocked_without_rule(equipped, client, user):
+    lst, fighter = equipped["list"], equipped["fighter"]  # no ToT rule
+    client.force_login(user)
+    resp = client.post(
+        reverse("core:list-fighter-equipment-set-create", args=(lst.id, fighter.id)),
+        {"name": "Nope"},
+    )
+    assert resp.status_code == 302
+    assert not fighter.equipment_sets.exists()
+
+
+@pytest.mark.django_db
 def test_create_set_seeds_all_direct_assignments(equipped, client, user):
     lst, fighter = equipped["list"], equipped["fighter"]
+    add_tot_rule(fighter)
     client.force_login(user)
 
     resp = client.post(
@@ -253,6 +297,7 @@ def test_create_set_seeds_all_direct_assignments(equipped, client, user):
 @pytest.mark.django_db
 def test_edit_membership_sets_m2m(equipped, client, user):
     lst, fighter = equipped["list"], equipped["fighter"]
+    add_tot_rule(fighter)
     card = ListFighterEquipmentSet.objects.create(
         list_fighter=fighter, name="A", owner=user
     )
@@ -273,6 +318,7 @@ def test_edit_membership_sets_m2m(equipped, client, user):
 @pytest.mark.django_db
 def test_activate_and_default_views(equipped, client, user):
     lst, fighter = equipped["list"], equipped["fighter"]
+    add_tot_rule(fighter)
     card = ListFighterEquipmentSet.objects.create(
         list_fighter=fighter, name="A", owner=user
     )
@@ -298,6 +344,7 @@ def test_activate_and_default_views(equipped, client, user):
 @pytest.mark.django_db
 def test_rename_and_delete_views(equipped, client, user):
     lst, fighter = equipped["list"], equipped["fighter"]
+    add_tot_rule(fighter)
     card = ListFighterEquipmentSet.objects.create(
         list_fighter=fighter, name="Old", owner=user
     )
@@ -351,6 +398,7 @@ def test_switcher_shown_only_for_tot_fighter(equipped, client, user):
 @pytest.mark.django_db
 def test_set_edit_page_renders_checkboxes(equipped, client, user):
     lst, fighter = equipped["list"], equipped["fighter"]
+    add_tot_rule(fighter)
     card = ListFighterEquipmentSet.objects.create(
         list_fighter=fighter, name="A", owner=user
     )

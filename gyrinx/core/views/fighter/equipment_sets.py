@@ -27,6 +27,20 @@ def _list_anchor_url(lst, fighter):
     return reverse("core:list", args=(lst.id,)) + f"#{fighter.id}"
 
 
+def _requires_rule_redirect(request, lst, fighter):
+    """Guard for mutation views: block fighters without the rule.
+
+    Returns a redirect response when the fighter lacks the "Tools of the Trade"
+    rule, else None. The display views render a message instead.
+    """
+    if fighter.has_tools_of_the_trade:
+        return None
+    messages.error(
+        request, "This fighter does not have the requisite rule (Tools of the Trade)."
+    )
+    return HttpResponseRedirect(_manage_url(lst, fighter))
+
+
 def _direct_assignment_options(fighter):
     """The fighter's direct (non-default) assignments as display wrappers.
 
@@ -48,7 +62,24 @@ def edit_list_fighter_equipment_sets(request, id, fighter_id):
     """
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
 
-    equipment_sets = list(fighter.equipment_sets.all())
+    if not fighter.has_tools_of_the_trade:
+        return render(
+            request,
+            "core/list_fighter_equipment_sets.html",
+            {"list": lst, "fighter": fighter},
+        )
+
+    active_id = fighter.active_equipment_set_id
+    equipment_sets = [
+        {
+            "set": s,
+            "is_active": s.id == active_id,
+            "item_names": list(
+                s.assignments.values_list("content_equipment__name", flat=True)
+            ),
+        }
+        for s in fighter.equipment_sets.all()
+    ]
 
     return render(
         request,
@@ -57,7 +88,7 @@ def edit_list_fighter_equipment_sets(request, id, fighter_id):
             "list": lst,
             "fighter": fighter,
             "equipment_sets": equipment_sets,
-            "active_set_id": fighter.active_equipment_set_id,
+            "has_active_set": bool(active_id),
         },
     )
 
@@ -72,6 +103,14 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
     :template:`core/list_fighter_equipment_set_edit.html`
     """
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
+
+    if not fighter.has_tools_of_the_trade:
+        return render(
+            request,
+            "core/list_fighter_equipment_sets.html",
+            {"list": lst, "fighter": fighter},
+        )
+
     equipment_set = get_object_or_404(
         ListFighterEquipmentSet, id=set_id, list_fighter=fighter
     )
@@ -82,6 +121,10 @@ def edit_list_fighter_equipment_set(request, id, fighter_id, set_id):
         selected_ids = set(request.POST.getlist("assignment"))
         # Only accept ids that are genuinely this fighter's assignments.
         valid = [va for va in options if str(va._assignment.id) in selected_ids]
+        # The card is named here too (rename lives on the edit page).
+        name = (request.POST.get("name") or "").strip()
+        if name:
+            equipment_set.name = name
         equipment_set.assignments.set([va._assignment for va in valid])
         equipment_set.save_with_user(user=request.user)
 
@@ -138,6 +181,9 @@ def create_list_fighter_equipment_set(request, id, fighter_id):
         raise Http404()
 
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
+    guard = _requires_rule_redirect(request, lst, fighter)
+    if guard:
+        return guard
 
     name = (request.POST.get("name") or "").strip()
     if not name:
@@ -184,6 +230,9 @@ def rename_list_fighter_equipment_set(request, id, fighter_id, set_id):
         raise Http404()
 
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
+    guard = _requires_rule_redirect(request, lst, fighter)
+    if guard:
+        return guard
     equipment_set = get_object_or_404(
         ListFighterEquipmentSet, id=set_id, list_fighter=fighter
     )
@@ -221,6 +270,9 @@ def delete_list_fighter_equipment_set(request, id, fighter_id, set_id):
         raise Http404()
 
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
+    guard = _requires_rule_redirect(request, lst, fighter)
+    if guard:
+        return guard
     equipment_set = get_object_or_404(
         ListFighterEquipmentSet, id=set_id, list_fighter=fighter
     )
@@ -259,6 +311,9 @@ def activate_list_fighter_equipment_set(request, id, fighter_id, set_id):
         raise Http404()
 
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
+    guard = _requires_rule_redirect(request, lst, fighter)
+    if guard:
+        return guard
     equipment_set = get_object_or_404(
         ListFighterEquipmentSet, id=set_id, list_fighter=fighter
     )
@@ -293,6 +348,9 @@ def activate_default_equipment_set(request, id, fighter_id):
         raise Http404()
 
     lst, fighter, _perms = get_list_and_fighter(request, id, fighter_id)
+    guard = _requires_rule_redirect(request, lst, fighter)
+    if guard:
+        return guard
 
     fighter.active_equipment_set = None
     fighter.save_with_user(
