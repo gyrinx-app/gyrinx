@@ -64,6 +64,14 @@
     box-sizing: border-box;
     width: var(--cc-w);
     height: var(--cc-h);
+    // Fixed-size card. As a flex item it defaults to flex-shrink: 1, so any
+    // container narrower than 100mm (every phone screen — and iOS's print
+    // layout viewport, which is derived from the on-screen device width) would
+    // squash the card's *width* while its height stays 110mm. That distorts the
+    // mm-positioned regions and clips content. Pin the flex size so the card
+    // always keeps its intrinsic 100x110mm and the container scrolls / scales
+    // to fit instead of deforming the card.
+    flex: 0 0 auto;
     overflow: hidden;
     color: var(--cc-ink);
     background: var(--cc-paper);
@@ -73,6 +81,11 @@
     font-family: $font-family-sans-serif;
     font-size: 2.5mm;
     line-height: 1.05;
+    // iOS Safari auto-inflates text in fixed-width blocks ("text autosizing"),
+    // which overflows the precisely-sized mm regions and breaks the layout on
+    // mobile. Pin it so the mm type renders at exactly the size we set.
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 
@@ -683,10 +696,10 @@
     align-content: flex-start;
     justify-content: center;
     padding: var(--sheet-gap);
-    // On-screen preview canvas only — a neutral mat so the light cards read as
-    // physical cards. Print forces this white (see @media print), so it never
-    // reaches paper.
-    background: #3f3d3a;
+    // Plain white behind the cards — the card's own black border gives them
+    // definition, no grey mat. (Print already forces white; this matches it
+    // on screen too.)
+    background: #fff;
 }
 
 // On-screen A4 page preview: constrain to the real printable width so the lab
@@ -697,6 +710,19 @@
     gap: 3mm;
     padding: 3mm 0;
     justify-content: flex-start;
+}
+
+// On a screen narrower than one card (small phones), the fixed-size card can't
+// shrink (see .classic-card flex: 0 0 auto), so contain its horizontal overflow
+// to the sheet instead of letting the whole page scroll sideways. Left-align so
+// the card's left edge stays reachable when the strip scrolls (centering would
+// push it off the unscrollable left side). Screen-only — never touches print,
+// where an overflow container could suppress page-break fragmentation.
+@media screen and (max-width: 110mm) {
+    .print-sheet {
+        justify-content: flex-start;
+        overflow-x: auto;
+    }
 }
 
 // Guide overlay: faint reference frame + mm grid to align regions during tuning.
@@ -731,17 +757,45 @@
     }
 
     .print-sheet {
-        gap: 3mm;
+        // Lay the cards out as inline-blocks in a plain BLOCK container, not a
+        // flex container. Flex items don't take part in WebKit/iOS page
+        // fragmentation, so `break-inside: avoid` on a flex child is silently
+        // ignored and a card gets sliced across the page fold (this is what
+        // cut cards in half on iOS, worst in landscape). A block flow of
+        // inline-blocks fragments normally and honours the page-break rules.
+        display: block;
+        // Pin to the A4 content width (210mm − 2×3mm @page margin) rather than
+        // `auto`: on iOS the print layout viewport is inherited from the narrow
+        // on-screen device width, so `auto` would collapse the sheet to one
+        // card per row. A fixed 204mm width tiles the cards 2-up
+        // deterministically and the browser scales the sheet to the paper.
+        width: 204mm;
         padding: 0;
-        width: auto;
         margin: 0;
-        justify-content: flex-start;
+        // Collapse the whitespace between inline-block cards so a pair fits one
+        // row (each card resets its own font-size/line-height).
+        font-size: 0;
+        line-height: 0;
         background: #fff !important;
     }
 
     .classic-card {
+        display: inline-block;
+        vertical-align: top;
+        // 3mm gutter between the two columns and between rows. The right column
+        // (every 2nd card) drops its trailing margin so a pair is exactly
+        // 100 + 3 + 100 = 203mm ≤ 204mm and the next card wraps to a new row
+        // instead of overflowing (which would collapse the layout to 1-up).
+        margin: 0 3mm 3mm 0;
+        // Keep each card whole on a single page. WebKit/iOS honour the legacy
+        // page-break-* alias, so set both.
         break-inside: avoid;
+        page-break-inside: avoid;
         outline: none !important;
+    }
+
+    .classic-card:nth-child(2n) {
+        margin-right: 0;
     }
 
     // never carry the tuning grid into a real print
