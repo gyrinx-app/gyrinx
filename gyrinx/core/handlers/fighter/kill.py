@@ -5,10 +5,10 @@ from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.core.cost.pinning import pin_assignment
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
-from gyrinx.content.models import ContentWeaponAccessory
 from gyrinx.core.models.list import (
     List,
     ListFighter,
@@ -44,7 +44,9 @@ def handle_fighter_kill(
     This handler performs the following operations atomically:
     1. Captures before values for ListAction
     2. Finds stash fighter
-    3. Transfers non-persistent equipment to stash (creates new assignments)
+    3. Transfers non-persistent equipment to stash by cloning each item with
+       its acquisition receipt (pins) intact, so the gear keeps its price in
+       the stash's context rather than re-pricing at catalog (#1826 Phase 9)
     4. Deletes the transferred (non-persistent) assignments
     5. Marks fighter as DEAD
     6. Sets fighter cost_override = 0
@@ -84,8 +86,15 @@ def handle_fighter_kill(
     stash_before = lst.stash_current
     credits_before = lst.credits_current
 
-    # Calculate fighter cost before death (includes equipment)
-    fighter_cost_before = fighter.cost_int()
+    # Calculate fighter cost before death (includes equipment). Fetch
+    # pack-aware: cost_int() on a plain instance resolves accessories/profiles/
+    # upgrades through the default (pack-excluding) managers and would drop
+    # pack-scoped components (#1933), so the reduction below would leave the
+    # dead fighter's cache non-zero. with_related_data() prefetches via
+    # all_content(), matching the cache the propagation deltas maintained.
+    fighter_cost_before = (
+        ListFighter.objects.with_related_data().get(pk=fighter.pk).cost_int()
+    )
 
     # Find the stash fighter for this list
     stash_fighter = lst.listfighter_set.filter(content_fighter__is_stash=True).first()
@@ -134,39 +143,48 @@ def handle_fighter_kill(
 
     equipment_cost = 0
     if to_transfer:
-        # Calculate transferred equipment cost before we delete assignments.
-        # Only the transferred (non-persistent) gear bumps the stash — the
-        # persistent items' value is absorbed into the rating reduction below.
-        equipment_cost = sum(a.cost_int() for a in to_transfer)
-
+        # Move each item to the stash by cloning it with its acquisition
+        # receipt intact (#1826 Phase 9). Two steps per item:
+        #
+        #   1. Belt-and-braces: pin any row still UNPINNED, resolving at the
+        #      DYING fighter's prices — the last moment this acquisition
+        #      context exists. After the Phase 8 backfill this is a no-op, but
+        #      it makes the ordering non-load-bearing.
+        #   2. Clone from a fresh refetch (so the copy carries the just-written
+        #      receipt, not the stale pre-pin instance state). clone() copies
+        #      the amount, attribution, and state verbatim — plus cost/total
+        #      overrides and every component through-row, pack-scoped included.
+        #
+        # Because the receipt travels with the gear, it prices identically on
+        # the stash without any blanket total freeze, so the #1826
+        # death-repricing bug cannot recur.
+        clones = []
         for assignment in to_transfer:
-            # Create new assignment for stash with same equipment
-            new_assignment = ListFighterEquipmentAssignment(
-                list_fighter=stash_fighter,
-                content_equipment=assignment.content_equipment,
-                cost_override=assignment.cost_override,
-                total_cost_override=assignment.total_cost_override,
-                from_default_assignment=assignment.from_default_assignment,
+            pin_assignment(assignment)
+            source = ListFighterEquipmentAssignment.objects.get(pk=assignment.pk)
+            clones.append(
+                source.clone(
+                    list_fighter=stash_fighter,
+                    preserve_from_default_assignment=True,
+                )
             )
-            new_assignment.save()
 
-            # Copy over M2M relationships
-            if assignment.weapon_profiles_field.exists():
-                new_assignment.weapon_profiles_field.set(
-                    assignment.weapon_profiles_field.all()
-                )
-            # Use all_content() so pack-scoped accessories transfer too — the
-            # default M2M manager would silently exclude them. Evaluate once
-            # to avoid two DB round-trips (exists() + set()).
-            pack_aware_accessories = list(
-                ContentWeaponAccessory.objects.all_content().filter(
-                    weapon_accessories=assignment
-                )
-            )
-            if pack_aware_accessories:
-                new_assignment.weapon_accessories_field.set(pack_aware_accessories)
-            if assignment.upgrades_field.exists():
-                new_assignment.upgrades_field.set(assignment.upgrades_field.all())
+        # clone() recomputes each new row's cache on a plain instance, which
+        # resolves components through the default (pack-excluding) managers and
+        # drops pack-scoped accessories/profiles/upgrades (#1933). Recompute the
+        # stash rows pack-aware so their caches match the views and the
+        # canonical recompute, and total the corrected values for the stash
+        # bump. With pins this equals the dying fighter's valuation of the same
+        # gear, so the transfer is wealth-neutral. Persistent items are NOT
+        # here: their value is absorbed into the rating reduction below.
+        clone_pks = [clone.pk for clone in clones]
+        equipment_cost = 0
+        for (
+            stash_row
+        ) in ListFighterEquipmentAssignment.objects.with_related_data().filter(
+            pk__in=clone_pks
+        ):
+            equipment_cost += stash_row.facts_from_db(update=True).rating
 
         # Delete only the transferred assignments from the dead fighter;
         # persistent assignments stay attached and remain visible on the card.

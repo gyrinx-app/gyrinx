@@ -805,14 +805,16 @@ def test_matrix_p1_1925_accessory_onto_overridden_assignment(healthy_list, user,
 
 
 @pytest.mark.django_db
-@pytest.mark.xfail(
-    strict=True,
-    reason="P2 (#1826): kill-transfer values gear in the dying fighter's "
-    "context; the stash re-prices it at catalog; fixed by pinning (Phase 9)",
-)
 def test_matrix_p2_1826_kill_fighter_with_discounted_gear(
     campaign_list, user, make_content_fighter, content_house, gear
 ):
+    """P2 (#1826), fixed in Phase 9 — the programme's headline bug.
+
+    Gear bought at an equipment-list discount (5¢, catalog 15¢) keeps that
+    price when its owner dies and it lands in the stash: the acquisition
+    receipt travels with the clone, so the stash values it at 5¢ instead of
+    re-pricing to catalog. The books reconcile through the death.
+    """
     lst, stash = campaign_list
     cf = make_content_fighter(
         type="Scavvy", category="GANGER", house=content_house, base_cost=50
@@ -826,7 +828,112 @@ def test_matrix_p2_1826_kill_fighter_with_discounted_gear(
     assert_reconciles(lst)  # clean before the death
 
     handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
-    assert_reconciles(lst)  # FAILS: stash cache +5, stash recomputes to 15
+    assert_reconciles(lst)  # receipt travels: stash caches 5 and recomputes to 5
+
+    stash_assignment = stash.listfighterequipmentassignment_set.get()
+    assert stash_assignment.cost_int() == 5  # discounted price held, not catalog 15
+
+
+@pytest.mark.django_db
+def test_matrix_p2_1826_full_lifecycle_prices_held(
+    campaign_list, user, make_content_fighter, content_house, content_fighter, gear
+):
+    """The programme's headline scenario, end to end (#1826 §2.3).
+
+    A buys a Lasgun at A's 5¢ equipment-list discount (catalog 15¢); A dies
+    and it lands in the stash; B — who has no discount and would pay catalog —
+    re-equips it from the stash; B buys a Scope in B's context; B dies too.
+    The Lasgun holds 5¢ at every hop and the Scope holds its purchase value,
+    on both catalog and pack content, with the books reconciling after each
+    step (immediately and after a forced recompute).
+    """
+    lst, stash = campaign_list
+    cf_a = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    lasgun = gear.equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=cf_a, equipment=lasgun, cost=5
+    )
+
+    # A buys the Lasgun at the 5¢ discount.
+    fighter_a = hire_fighter(user, lst, cf_a, name="Alfa")
+    assignment = buy_equipment(user, lst, fighter_a, lasgun)
+    assert fresh(assignment).cost_int() == 5
+    assert_reconciles(lst)
+
+    # A dies: the Lasgun moves to the stash, keeping its 5¢ receipt (the stash
+    # on its own would price it at catalog 15).
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter_a))
+    stash_assignment = stash.listfighterequipmentassignment_set.get()
+    assert stash_assignment.cost_int() == 5
+    assert_reconciles(lst)
+
+    # B — no discount — re-equips the Lasgun from the stash. The pin holds: B
+    # carries 5, not the 15 B's own context would compute.
+    fighter_b = hire_fighter(user, lst, content_fighter, name="Bravo")
+    handle_equipment_reassignment(
+        user=user,
+        lst=fresh(lst),
+        from_fighter=fresh(stash),
+        to_fighter=fresh(fighter_b),
+        assignment=fresh(stash_assignment),
+    )
+    assert fresh(stash_assignment).cost_int() == 5
+    assert_reconciles(lst)
+
+    # B buys a Scope in B's context; it pins at its purchase price.
+    scope = gear.accessory("Scope", cost=8)
+    buy_accessory(user, lst, fighter_b, stash_assignment, scope)
+    assert fresh(stash_assignment).cost_int() == 13  # 5 Lasgun + 8 Scope
+    assert_reconciles(lst)
+
+    # B dies too: the discounted Lasgun and the Scope both move to the stash at
+    # their held values — a repeat death that stays price-neutral.
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter_b))
+    final = fresh(stash.listfighterequipmentassignment_set.get())
+    assert final.cost_int() == 13  # 5 + 8, held through the second death
+    assert_reconciles(lst)
+
+
+@pytest.mark.django_db
+def test_kill_conserves_equipment_value_no_phantom_wealth(
+    campaign_list, user, make_content_fighter, content_house, gear
+):
+    """A death removes the fighter's whole cost from the rating and returns
+    the equipment's HELD value to the stash — no more, no less.
+
+    The #1826 bug was a phantom wealth gain: discounted gear re-pricing to
+    catalog once it sat in the stash. Here the stash gains exactly the 5¢ the
+    gear was worth, credits never move, and total wealth falls by only the
+    fighter's base cost.
+    """
+    lst, stash = campaign_list
+    cf = make_content_fighter(
+        type="Scavvy", category="GANGER", house=content_house, base_cost=50
+    )
+    lasgun = gear.equipment("Lasgun", cost=15)
+    ContentFighterEquipmentListItem.objects.create(fighter=cf, equipment=lasgun, cost=5)
+    fighter = hire_fighter(user, lst, cf, name="Bob")
+    buy_equipment(user, lst, fighter, lasgun)
+
+    before = fresh(lst)
+    rating_before = before.rating_current
+    stash_before = before.stash_current
+    credits_before = before.credits_current
+    fighter_cost = fresh(fighter).cost_int()  # 50 base + 5 gear
+
+    handle_fighter_kill(user=user, lst=fresh(lst), fighter=fresh(fighter))
+
+    after = fresh(lst)
+    assert after.rating_current == rating_before - fighter_cost  # whole cost gone
+    assert after.stash_current == stash_before + 5  # HELD value, not catalog 15
+    assert after.credits_current == credits_before  # deaths never touch credits
+    # Total wealth fell by exactly the base cost; the 5¢ gear was conserved.
+    wealth_before = rating_before + stash_before + credits_before
+    wealth_after = after.rating_current + after.stash_current + after.credits_current
+    assert wealth_before - wealth_after == 50
+    assert_reconciles(lst)
 
 
 @pytest.mark.django_db

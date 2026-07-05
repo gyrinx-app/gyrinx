@@ -1171,6 +1171,24 @@ Precondition: the `pin_state` enum (§4.1) is settled — it shapes the columns.
   invariant test (rating + stash + credits unchanged across a kill); no new
   kill-frozen overrides appear in the drift report after deploy; the re-run's
   report shows the window's rows converted and pinned.
+- **Status (built, unmerged — hold for the estate backfill):** `kill.py` now
+  clones each transferred item via the Phase-7 clone-with-pins path
+  (`assignment.clone(list_fighter=stash)`), pinning any `UNPINNED` straggler at
+  the dying fighter's prices first; it constructs nothing directly and is off
+  the CI-guard allowlist (its `pin_assignment` call is tracked in
+  `PIN_CALL_COUNTS`). The P2 headline cell flips to a passing assertion (price
+  held at 5¢, not catalog 15¢) and the full §2.3 lifecycle + a wealth-invariant
+  cell are green on **both** catalog and pack axes. Two findings not in the
+  original spec: (1) the `reassignment.py` §3.3 differential was already fixed
+  in an earlier phase (fresh `with_related_data()` instance for `cost_after`) —
+  no change needed, only coverage; (2) there was no fresh `total_cost_override`
+  freeze left to "drop" — the residual bug was the manual copy failing to carry
+  pins, so the stash re-priced at catalog. The kill path also needed
+  **pack-aware cost reads** (`fighter_cost_before` and the clones' caches),
+  because `cost_int()` on a plain instance resolves components through the
+  default pack-excluding managers and silently drops pack-scoped accessories —
+  the same `#1933` hazard the reassignment handler already guards; both now use
+  `with_related_data()`.
 
 ### Phase 10 — Surfaces: user-facing breakdown and pin editing
 

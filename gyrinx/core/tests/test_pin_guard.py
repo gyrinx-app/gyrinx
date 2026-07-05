@@ -24,13 +24,16 @@ Labels:
 - COPIES    clone(): receipts are copied verbatim, not re-resolved
 - ANCHORED  zero-anchored gear (default-kit, linked-child): resolution
             anchors outrank any pin, nothing to record
-- KILL      the death transfer — becomes the clone-with-pins path in
-            Phase 9, unpinned until then (deliberate, tracked by the P2
-            xfail cells in test_balance_sheet.py)
 - ADMIN     staff write surface; bypasses delta propagation by design, the
             remediation is the recompute action (permanent exception)
 - CONTENT   same field names on ContentFighterDefaultAssignment (a content
             model) — not a core assignment at all
+
+The death transfer (kill.py) was labelled KILL until Phase 9. It now clones
+each transferred item with its receipt (COPIES, in assignment.py) and calls
+pin_assignment on any UNPINNED straggler first, so it no longer constructs
+assignments or writes M2Ms directly — it matches no creation pattern and is
+tracked purely by its pin_assignment call in PIN_CALL_COUNTS.
 """
 
 import re
@@ -62,6 +65,7 @@ PATTERNS = {
 PIN_CALL_COUNTS = {
     "core/cost/pinning.py": 2,  # module docstring + the def itself
     "core/handlers/equipment/purchase.py": 4,  # equipment/accessory/profile/upgrades
+    "core/handlers/fighter/kill.py": 1,  # defensive pin before clone-to-stash
     "core/handlers/fighter/vehicle.py": 1,
     "core/models/list/advancement.py": 1,
     "core/models/list/fighter.py": 1,  # assign()
@@ -90,9 +94,9 @@ INVENTORY = {
     ("core/models/list/assignment.py", "m2m-write"): (4, "COPIES"),
     # Linked-child creation (post-save signal): structurally free.
     ("core/models/list/signal_handlers.py", "manager-create"): (1, "ANCHORED"),
-    # Death transfer: unpinned until Phase 9 converts it to clone-with-pins.
-    ("core/handlers/fighter/kill.py", "instantiate"): (1, "KILL"),
-    ("core/handlers/fighter/kill.py", "m2m-write"): (3, "KILL"),
+    # Death transfer (kill.py): as of Phase 9 it clones each item (COPIES,
+    # above) and pins any straggler first (PIN_CALL_COUNTS), so it matches no
+    # creation pattern here.
     # Content-side models sharing the M2M field names.
     ("content/models/fighter.py", "m2m-write"): (2, "CONTENT"),
     ("core/views/pack.py", "m2m-write"): (1, "CONTENT"),
