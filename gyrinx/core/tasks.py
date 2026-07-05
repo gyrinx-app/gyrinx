@@ -420,12 +420,13 @@ def reconcile_all_lists(
     triggering admin via ``user_id``.
 
     Self-re-enqueues with a pk cursor; totals ride the kwargs so the final
-    summary is cumulative. ``moved`` accumulates ``[list_id, rating_delta]``
-    pairs for lists whose cached totals actually changed (a player-visible
-    change), so that at completion we can notify each affected owner and
-    arbitrator exactly once, telling them how much each gang's rating moved
-    (#721). It only holds the *corrected* subset — a small fraction of the
-    estate — so it stays well within the task payload size limit.
+    summary is cumulative. ``moved`` accumulates
+    ``[list_id, rating_delta, stash_delta]`` rows for lists whose cached totals
+    actually changed (a player-visible change), so that at completion we can
+    notify each affected owner and arbitrator exactly once, summarising how much
+    each gang's rating and stash moved (#721). It only holds the *corrected*
+    subset — a small fraction of the estate — so it stays well within the task
+    payload size limit.
     """
     from django.contrib.auth import get_user_model
 
@@ -455,10 +456,14 @@ def reconcile_all_lists(
                 corrected += 1
             if result.moved:
                 # Player-visible change: this owner (and arb) get told, with the
-                # rating delta. An action without `moved` is a ledger-only
-                # alignment nobody sees, so it is deliberately excluded here.
+                # rating and stash deltas. An action without `moved` is a
+                # ledger-only alignment nobody sees, so it is excluded here.
                 moved.append(
-                    [str(batch_list_id), result.rating_after - result.rating_before]
+                    [
+                        str(batch_list_id),
+                        result.rating_after - result.rating_before,
+                        result.stash_after - result.stash_before,
+                    ]
                 )
             if result.clamped:
                 clamped += 1
@@ -517,7 +522,8 @@ def reconcile_all_lists(
         try:
             from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
 
-            owners, arbs = notify_lists_reconciled(dict(moved))
+            deltas = {row[0]: [row[1], row[2]] for row in moved}
+            owners, arbs = notify_lists_reconciled(deltas)
             logger.info(
                 "reconcile_all_lists: notified %s owner(s), %s arbitrator(s)",
                 owners,

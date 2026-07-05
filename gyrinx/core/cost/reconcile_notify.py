@@ -52,24 +52,29 @@ def _arb_subject(n):
     )
 
 
-def _rating_change(rating_deltas, lst):
-    """A '(rating +N¢)' suffix for a gang whose rating moved, else ''.
+def _change_summary(deltas, lst):
+    """A ' (rating +N¢, stash +M¢)' suffix summarising what moved for a gang,
+    including only the parts that actually changed. Empty if nothing did.
 
-    ``rating_deltas`` is keyed by ``str(list_id)``. A zero (or missing) delta
-    means the rating didn't move — e.g. only the stash was corrected — so we
-    add nothing rather than a meaningless '(+0¢)'."""
-    delta = rating_deltas.get(str(lst.pk), 0)
-    if not delta:
+    ``deltas`` is keyed by ``str(list_id)`` with ``[rating_delta, stash_delta]``
+    values. Mirrors the wording of the RECONCILE ledger action's description."""
+    rating_delta, stash_delta = deltas.get(str(lst.pk), (0, 0))
+    parts = []
+    if rating_delta:
+        parts.append(f"rating {format_cost_display(rating_delta, show_sign=True)}")
+    if stash_delta:
+        parts.append(f"stash {format_cost_display(stash_delta, show_sign=True)}")
+    if not parts:
         return ""
-    return format_html(" (rating {})", format_cost_display(delta, show_sign=True))
+    return format_html(" ({})", ", ".join(parts))
 
 
-def _gang_links(lists, rating_deltas, *, with_campaign=False):
-    """An HTML ``<ul>`` of links to each gang, each annotated with how much its
-    rating changed. Names are auto-escaped by ``format_html_join`` (they are
-    user content), and ``safe_rich_text`` — which renders notification bodies —
-    permits ``<ul>``/``<li>``/``<a href>``, so the links render in the inbox and
-    nothing can inject markup."""
+def _gang_links(lists, deltas, *, with_campaign=False):
+    """An HTML ``<ul>`` of links to each gang, each annotated with a summary of
+    what changed (rating and/or stash). Names are auto-escaped by
+    ``format_html_join`` (they are user content), and ``safe_rich_text`` — which
+    renders notification bodies — permits ``<ul>``/``<li>``/``<a href>``, so the
+    links render in the inbox and nothing can inject markup."""
     items = format_html_join(
         "",
         '<li><a href="{}">{}</a>{}{}</li>',
@@ -80,7 +85,7 @@ def _gang_links(lists, rating_deltas, *, with_campaign=False):
                 format_html(" — {}", lst.campaign.name)
                 if (with_campaign and lst.campaign_id)
                 else "",
-                _rating_change(rating_deltas, lst),
+                _change_summary(deltas, lst),
             )
             for lst in lists
         ),
@@ -88,41 +93,42 @@ def _gang_links(lists, rating_deltas, *, with_campaign=False):
     return format_html("<ul>{}</ul>", items)
 
 
-def _owner_content(lists, rating_deltas):
+def _owner_content(lists, deltas):
     return format_html(
         "{}{}",
         "We corrected some out-of-date cost totals on the gang(s) below. Their "
         "ratings now reflect what their fighters and equipment actually cost — "
         "no credits were spent, and nothing was added or removed.",
-        _gang_links(lists, rating_deltas),
+        _gang_links(lists, deltas),
     )
 
 
-def _arb_content(lists, rating_deltas):
+def _arb_content(lists, deltas):
     return format_html(
         "{}{}",
         "We corrected some out-of-date cost totals on gang(s) in campaigns you "
         "run. Their ratings now reflect what their fighters and equipment "
         "actually cost — no credits or equipment changed.",
-        _gang_links(lists, rating_deltas, with_campaign=True),
+        _gang_links(lists, deltas, with_campaign=True),
     )
 
 
-def notify_lists_reconciled(rating_deltas, *, sender=None, batch_size=500):
+def notify_lists_reconciled(deltas, *, sender=None, batch_size=500):
     """Fan out aggregated reconcile notifications for the given lists.
 
     Sends one notification to each affected **owner** (summarising their gangs)
     and one to each affected **arbitrator** (summarising affected gangs in
     campaigns they run, excluding gangs they own — those are already covered by
     their owner notification, mirroring ``notify_list_changed``'s de-dupe). Each
-    gang link is annotated with how much its rating changed.
+    gang link is annotated with a summary of what moved (rating and/or stash).
 
     Args:
-        rating_deltas: a mapping ``{list_id: rating_delta}`` for the lists whose
-            caches actually moved (see module docstring). Keys may be ``str`` or
-            ``UUID``; a delta is ``rating_after - rating_before`` (negative means
-            the shown rating went down). Lists whose only movement was the stash
-            carry a 0 delta and simply appear without a rating annotation.
+        deltas: a mapping ``{list_id: [rating_delta, stash_delta]}`` for the
+            lists whose caches actually moved (see module docstring). Keys may be
+            ``str`` or ``UUID``; each delta is ``after - before`` (negative means
+            the shown value went down). Only the non-zero parts are surfaced, so
+            a rating-only move shows just the rating, a stash-only move just the
+            stash.
         sender: acting User, or ``None`` for a system/Gyrinx notification
             (the default — reconciliation is background maintenance and players
             don't need to attribute it to a particular admin).
@@ -134,8 +140,8 @@ def notify_lists_reconciled(rating_deltas, *, sender=None, batch_size=500):
     """
     # Normalise keys to str so lookups work whether callers pass UUIDs (admin
     # path) or strings (task kwargs, which must be JSON-serialisable).
-    rating_deltas = {str(k): v for k, v in dict(rating_deltas).items()}
-    list_ids = list(rating_deltas)
+    deltas = {str(k): v for k, v in dict(deltas).items()}
+    list_ids = list(deltas)
     if not list_ids:
         return (0, 0)
 
@@ -173,7 +179,7 @@ def notify_lists_reconciled(rating_deltas, *, sender=None, batch_size=500):
                     owner=owner_user[owner_id],
                     sender=sender,
                     subject=_owner_subject(len(olists)),
-                    content=_owner_content(olists, rating_deltas),
+                    content=_owner_content(olists, deltas),
                     notification_type=NotificationType.SYSTEM,
                     show_as_banner=False,
                 )
@@ -184,7 +190,7 @@ def notify_lists_reconciled(rating_deltas, *, sender=None, batch_size=500):
                     owner=arb_user[arb_id],
                     sender=sender,
                     subject=_arb_subject(len(alists)),
-                    content=_arb_content(alists, rating_deltas),
+                    content=_arb_content(alists, deltas),
                     notification_type=NotificationType.SYSTEM,
                     show_as_banner=False,
                 )

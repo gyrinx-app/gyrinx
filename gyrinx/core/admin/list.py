@@ -64,8 +64,8 @@ def recompute_list_cost_caches(modeladmin, request, queryset):
     aggregate caches.
     """
     fighters = ListFighter.objects.filter(list__in=queryset)
-    # {list_id: rating_delta} for lists whose cache moved during the fighter
-    # rebuild (a player-visible change).
+    # {list_id: [rating_delta, stash_delta]} for lists whose cache moved during
+    # the fighter rebuild (a player-visible change).
     moved = dict(_recompute_fighter_caches(request, fighters))
     # recompute_cost_caches only reconciles lists it saw fighters for; cover
     # fighterless lists too (audited the same way) without re-reconciling
@@ -75,7 +75,10 @@ def recompute_list_cost_caches(modeladmin, request, queryset):
         if lst.pk not in covered:
             result = reconcile_list(lst, user=request.user, rebuild_fighters=False)
             if result.moved:
-                moved[lst.pk] = result.rating_after - result.rating_before
+                moved[lst.pk] = [
+                    result.rating_after - result.rating_before,
+                    result.stash_after - result.stash_before,
+                ]
 
     # Notify affected owners/arbitrators once each (aggregated), for the lists
     # in this selection that actually changed. System notification (sender=None)
@@ -205,8 +208,8 @@ class ListFighterPsykerPowerAssignmentInline(admin.TabularInline):
 
 def _recompute_fighter_caches(request, queryset):
     """Rebuild the cost cache chain for the given fighters and reconcile their
-    lists; return ``{list_id: rating_delta}`` for lists whose aggregate cache
-    actually moved.
+    lists; return ``{list_id: [rating_delta, stash_delta]}`` for lists whose
+    aggregate cache actually moved.
 
     Split out from the admin action so the list-level wrapper can learn which
     lists changed, and by how much, to notify their owners/arbs — an admin
@@ -247,7 +250,10 @@ def _recompute_fighter_caches(request, queryset):
         for lst in affected_lists.values():
             result = reconcile_list(lst, user=request.user, rebuild_fighters=False)
             if result.moved:
-                moved_list_deltas[lst.pk] = result.rating_after - result.rating_before
+                moved_list_deltas[lst.pk] = [
+                    result.rating_after - result.rating_before,
+                    result.stash_after - result.stash_before,
+                ]
 
     for fighter, before, after in changed:
         messages.success(
@@ -261,8 +267,8 @@ def _recompute_fighter_caches(request, queryset):
         f"{len(affected_lists)} list(s); {len(changed)} had drift corrected.",
     )
 
-    # {list_id: rating_delta} for lists whose aggregate cache actually moved
-    # (a player-visible change).
+    # {list_id: [rating_delta, stash_delta]} for lists whose aggregate cache
+    # actually moved (a player-visible change).
     return moved_list_deltas
 
 
