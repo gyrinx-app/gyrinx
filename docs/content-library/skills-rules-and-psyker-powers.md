@@ -179,6 +179,10 @@ The skill trees a fighter can access are not fixed -- they can be modified by eq
 
 Similarly, `ContentModFighterRule` can add or remove rules from a fighter via equipment, and `ContentModFighterSkill` can add or remove specific skills. These modifiers are applied automatically when the user equips or unequips items.
 
+### Gang-Wide Skill Trees
+
+For houses with `gang_wide_skills` enabled (e.g. Venators), the fighter template's own `primary_skill_categories` and `secondary_skill_categories` are ignored. Instead, the whole gang picks a ranked set of skill trees at creation and each fighter's primary/secondary trees are derived from those picks via the house's `ContentHouseSkillRankAccess` rules. See [Houses & Factions](houses-and-factions.md) for how to configure this mode. Equipment-modifier overlays (`ContentModSkillTreeAccess`) still apply on top of the resolved primary/secondary lists.
+
 ## Common Admin Tasks
 
 ### Adding a new skill tree

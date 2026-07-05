@@ -16,6 +16,8 @@ The content library also supports house-level cost overrides for individual figh
 
 **House override** -- A per-house cost adjustment for a specific fighter type. When a fighter has a house override, the overridden cost is used instead of the fighter's base cost whenever that fighter appears in a list belonging to the specified house.
 
+**Gang-wide skills** -- An opt-in mode where the whole gang picks a ranked set of skill trees at creation and each fighter's primary/secondary trees are derived from those picks by rank. Used by factions like Venators where fighter templates do not have fixed primary/secondary trees.
+
 ## Models
 
 ### ContentHouse
@@ -24,22 +26,48 @@ The content library also supports house-level cost overrides for individual figh
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | CharField | The display name of the house (e.g., "House Escher", "Underhive Outcasts"). Indexed for search. |
-| `generic` | BooleanField | When checked, fighters belonging to this house are available to lists of any other house. Generic houses cannot be selected as a primary house during list creation. Defaults to `false`. |
-| `legacy` | BooleanField | When checked, marks this house as a legacy/older faction. Legacy houses are grouped separately in the list creation form under a "Legacy House" heading. Defaults to `false`. |
-| `can_hire_any` | BooleanField | When checked, lists belonging to this house can hire any fighter from any house (except stash fighters). Used for factions like Underhive Outcasts that have unrestricted recruitment. Defaults to `false`. |
-| `can_buy_any` | BooleanField | When checked, lists belonging to this house can buy any equipment from any equipment list and the Trading Post. Equipment pages default to showing all available equipment rather than the fighter's own equipment list. Defaults to `false`. |
+| `name` | CharField (max 255) | The display name of the house (e.g., "House Escher", "Underhive Outcasts"). Indexed for search. |
+| `description` | TextField (blank) | Free-form description of the house, shown on the pack detail page for content-pack houses. |
+| `icon` | FileField (nullable) | Optional SVG icon rendered inline next to the house name via the `house_icon` template tag. The tag sanitises the stored SVG on render; do not embed untrusted SVG anywhere else. Content-pack houses that ship without their own icon receive the shared "custom gang" icon automatically. Icon display is gated to the "House Icons Alpha" group. |
+| `generic` | BooleanField (default `False`) | When checked, fighters belonging to this house are available to lists of any other house. Generic houses cannot be selected as a primary house during list creation. |
+| `legacy` | BooleanField (default `False`) | When checked, marks this house as a legacy/older faction. Legacy houses are grouped separately in the list creation form under a "Legacy House" heading. |
+| `can_hire_any` | BooleanField (default `False`) | When checked, lists belonging to this house can hire any fighter from any house (except stash fighters). Used for factions like Underhive Outcasts that have unrestricted recruitment. |
+| `can_buy_any` | BooleanField (default `False`) | When checked, lists belonging to this house can buy any equipment from any equipment list and the Trading Post. Equipment pages default to showing all available equipment rather than the fighter's own equipment list. |
 | `skill_categories` | ManyToManyField | Links to `ContentSkillCategory` records. These are the "Unique Skill Categories" available to fighters in this house. They appear as a separate section on the skill advancement page alongside the standard (non-restricted) skill categories. |
+| `gang_wide_skills` | BooleanField (default `False`) | When checked, gangs of this house pick a ranked set of skill trees at creation. Fighter templates' own primary/secondary skill trees are ignored; primary/secondary access is derived from the gang's picks via `ContentHouseSkillRankAccess`. |
+| `gang_skill_tree_count` | PositiveSmallIntegerField (default `0`) | How many skill trees the gang ranks (e.g. `4` for Venators). Only used when `gang_wide_skills` is checked. |
+| `gang_skill_tree_choices` | ManyToManyField (blank) | Optional pool of `ContentSkillCategory` records a gang of this house may pick from. Leave empty to allow any non-restricted skill tree; restricted trees can still be revealed via the picker's filter. Only used when `gang_wide_skills` is checked. |
 
 **Relationships:**
 
 - Each `ContentFighter` has a foreign key to `ContentHouse`, establishing which house a fighter template belongs to.
 - Each user `List` has a foreign key to `ContentHouse`, establishing the house for the entire list.
 - Skill categories linked via `skill_categories` appear on the fighter skill advancement page as house-specific skill trees.
+- When `gang_wide_skills` is on, `ContentHouseSkillRankAccess` rows (see below) define the per-rank mapping from ranked slot to primary/secondary role. A user list stores its ranked picks in `ListSkillTreeAssignment` (in the core app).
 
 **Admin interface:**
 
-The `ContentHouse` admin page displays all fields for the house and includes an inline listing of all `ContentFighter` records belonging to that house. You can search houses by name.
+The `ContentHouse` admin page displays all fields for the house, uses `filter_horizontal` widgets for both `skill_categories` and `gang_skill_tree_choices`, and includes two inlines: `ContentHouseSkillRankAccess` (the per-rank mapping rules) and the list of `ContentFighter` records belonging to the house. You can search houses by name.
+
+### ContentHouseSkillRankAccess
+
+`ContentHouseSkillRankAccess` maps a fighter rank (category) to a ranked gang skill-tree slot and role. One row means: "in this house, a fighter of category `fighter_category` gets the skill tree the gang ranked at `slot` as `role` (primary or secondary)." These rules are only consulted for houses with `gang_wide_skills` enabled.
+
+| Field | Type | Description |
+|---|---|---|
+| `house` | ForeignKey (`ContentHouse`) | The house this rule applies to. Related name `skill_rank_rules`. |
+| `fighter_category` | CharField (max 255, choices) | The fighter rank this rule applies to. Uses `FighterCategoryChoices`. |
+| `slot` | PositiveSmallIntegerField | 1-based rank of the gang skill tree this rule refers to. Must be `>= 1`. |
+| `role` | CharField (max 16, choices) | Whether the tree at `slot` is `primary` or `secondary` for this rank. |
+
+**Constraints:**
+
+- The combination of `house`, `fighter_category`, and `slot` must be unique. A single rank cannot have two rules for the same slot.
+- Rows are ordered by house name, fighter category, then slot.
+
+**Admin interface:**
+
+Skill rank rules are managed as an inline on the `ContentHouse` change page and via a standalone admin filtered by house, fighter category, and role. Searching by house name is supported.
 
 ### ContentFighterHouseOverride
 
@@ -90,6 +118,16 @@ Each house can have unique skill categories linked via the `skill_categories` fi
 2. House-specific skill categories from the fighter's house, displayed in a separate section.
 
 This allows houses like Escher to have access to faction-specific skill trees alongside the universal ones.
+
+### Gang-Wide Skills
+
+Houses with `gang_wide_skills` enabled work differently. Instead of each fighter template declaring its own primary and secondary skill trees, the whole gang picks a ranked set of trees at creation and every fighter derives its primary/secondary from those picks via the house's `ContentHouseSkillRankAccess` rules.
+
+At gang creation, the user is redirected to a picker where they rank `gang_skill_tree_count` skill trees. When `gang_skill_tree_choices` is populated, the picker's dropdowns are restricted to that pool; when it is empty, any non-restricted tree is available and restricted trees can be revealed via the same `?include_restricted=1` filter used elsewhere in the app. The picks are saved on the list as `ListSkillTreeAssignment` rows and can be edited later via **Manage Skill Trees** on the list page.
+
+When rendering a fighter, the application looks up `ContentHouseSkillRankAccess` rows for the fighter's house and category, uses each rule's `slot` to find the tree the gang ranked at that position, and adds it as primary or secondary according to the rule's `role`. Fighter promotions (e.g. Ganger → Leader) resolve against the promoted category, so a rank change automatically swaps to the appropriate rules. Fighter templates' own `primary_skill_categories` / `secondary_skill_categories` M2Ms are ignored in this mode. If the gang has not picked yet, the fighter's primary/secondary lists are empty until the picker is completed.
+
+Equipment-modifier overlays (`ContentModSkillTreeAccess`) still apply on top of the gang-wide resolution -- see [Modifiers](modifiers.md).
 
 ### Lists Browsing and Filtering
 
@@ -165,3 +203,15 @@ If a house has faction-specific skill trees:
 1. Open the house in the admin.
 2. In the `skill_categories` (labelled "Unique Skill Categories") field, select the relevant `ContentSkillCategory` entries.
 3. Save. These skill categories will now appear in a dedicated section on the skill advancement page for fighters belonging to this house.
+
+### Configuring a Gang-Wide-Skills House
+
+For factions like Venators where the gang picks skill trees rather than each fighter template declaring its own:
+
+1. Open the house in the admin and check `gang_wide_skills`.
+2. Set `gang_skill_tree_count` to the number of trees the gang should rank (e.g. `4`).
+3. Optionally populate `gang_skill_tree_choices` with the pool of skill categories the gang may pick from. Leave empty to allow any non-restricted tree.
+4. In the **House Skill Rank Rules** inline, add one row for each `(fighter category, slot, role)` combination that describes how ranks map onto ranked slots. For example: `Leader → slot 1 → primary`, `Leader → slot 2 → secondary`, `Ganger → slot 3 → primary`, and so on. The exact mapping is a content-data decision and should match the rulebook.
+5. Save. New lists created for this house will be redirected to the skill-tree picker after creation and existing lists will show a **Manage Skill Trees** panel.
+
+Because the mapping is entirely data-driven, no code change is required to add or adjust a gang-wide-skills house.

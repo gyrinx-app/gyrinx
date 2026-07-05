@@ -50,7 +50,9 @@ The base polymorphic model for all modifications. You do not create `ContentMod`
 |-------|------|-------------|
 | `id` | UUID | Auto-generated primary key |
 
-In the admin, the main Modifications list shows all modifier types together. You can filter by modifier type using the polymorphic type filter in the sidebar.
+In the admin, the main Modifications list shows all modifier types together. The first column ("Modification") renders each row's own description -- for example, "Add rule Cunning Killers", "Improve fighter Leadership by 1", or "Remove from Primary -- Tech" -- and links to the change form. The polymorphic content type is shown alongside as a secondary label, and you can filter the list by modifier type using the type filter in the sidebar.
+
+**Uniqueness across mod subclasses.** Every mod subclass carries a database-level unique constraint on the fields that make two mods interchangeable. Attempting to save a duplicate -- via the admin, `get_or_create`, or bulk insert -- raises an integrity error and, in the admin, surfaces as an "already exists" validation message on the change form. The specific constraint per subclass is listed under each model below. If you need a mod that already exists, reuse the existing row rather than creating a new one.
 
 ### `ContentModStat`
 
@@ -64,6 +66,8 @@ Modifies a weapon's statline values (range, accuracy, strength, etc.). These mod
 
 **Stat display format:** The `value` field should contain a plain number. The system automatically handles the correct display format based on the stat type -- adding `"` for range stats, `+` prefix for accuracy/AP, and `+` suffix for ammo rolls.
 
+**Uniqueness:** A database unique constraint on (`stat`, `mode`, `value`) prevents two rows with the same effect from being created.
+
 **Example:** A modifier with `stat=strength`, `mode=improve`, `value=1` applied to a weapon with Strength 4 produces Strength 5. The same modifier with `mode=worsen` would produce Strength 3.
 
 ### `ContentModFighterStat`
@@ -76,7 +80,7 @@ Modifies a fighter's statline values (movement, toughness, wounds, etc.). These 
 | `mode` | Choice | How to apply the change: `improve`, `worsen`, or `set` |
 | `value` | String (max 5 chars) | The modification value |
 
-**Validation:** The system prevents duplicate `ContentModFighterStat` records. If a modifier with the same `stat`, `mode`, and `value` already exists, validation will reject the new entry. This means you can reuse the same modifier across multiple items.
+**Uniqueness:** A database unique constraint on (`stat`, `mode`, `value`) prevents duplicate rows. If a modifier with the same values already exists, the admin will show an "already exists" error; reuse the existing row instead.
 
 **Admin form:** The `stat` field uses a dropdown populated from `ContentStat` objects. This ensures consistency with the statline system and means the available fighter stats update automatically when new stats are defined.
 
@@ -89,6 +93,8 @@ Adds or removes weapon traits from a weapon profile.
 | `trait` | FK to `ContentWeaponTrait` | The weapon trait to add or remove |
 | `mode` | Choice | `add` (give the weapon this trait) or `remove` (take the trait away) |
 
+**Uniqueness:** A database unique constraint on (`trait`, `mode`) prevents duplicate rows.
+
 **Example:** A weapon accessory that grants the Knockback trait would have a `ContentModTrait` with `trait=Knockback` and `mode=add`.
 
 ### `ContentModFighterRule`
@@ -100,6 +106,8 @@ Adds or removes rules from a fighter.
 | `rule` | FK to `ContentRule` | The rule to add or remove |
 | `mode` | Choice | `add` or `remove` |
 
+**Uniqueness:** A database unique constraint on (`rule`, `mode`) prevents duplicate rows.
+
 The `rule` field uses autocomplete in the admin for easier searching across the full rule catalogue.
 
 ### `ContentModFighterSkill`
@@ -110,6 +118,8 @@ Adds or removes skills from a fighter.
 |-------|------|-------------|
 | `skill` | FK to `ContentSkill` | The skill to add or remove |
 | `mode` | Choice | `add` or `remove` |
+
+**Uniqueness:** A database unique constraint on (`skill`, `mode`) prevents duplicate rows.
 
 The admin form groups skills by their skill category for easier selection.
 
@@ -124,6 +134,8 @@ Modifies which skill trees a fighter has access to. This affects which skills th
 
 **How modes interact:** The `disable` mode removes a skill category from both primary and secondary access. The `add_primary` and `add_secondary` modes are additive -- they add the category without affecting existing access through other sources. The `remove_primary` and `remove_secondary` modes only remove the specific access level.
 
+**Uniqueness:** A database unique constraint on (`skill_category`, `mode`) prevents duplicate rows.
+
 ### `ContentModPsykerDisciplineAccess`
 
 Modifies which psyker disciplines a fighter has access to.
@@ -132,6 +144,8 @@ Modifies which psyker disciplines a fighter has access to.
 |-------|------|-------------|
 | `discipline` | FK to `ContentPsykerDiscipline` | The psyker discipline to grant or revoke |
 | `mode` | Choice | `add` (grant access to this discipline) or `remove` (revoke access) |
+
+**Uniqueness:** A database unique constraint on (`discipline`, `mode`) prevents duplicate rows.
 
 ### `ContentModStatApplyMixin`
 
@@ -221,7 +235,7 @@ It is important to understand which modifier types belong where:
 5. Save the modifier.
 6. Attach it to the relevant equipment, equipment upgrade, or injury.
 
-Note: If you try to create a fighter stat modifier that duplicates an existing one (same stat, mode, and value), validation will reject it. Search for the existing modifier and reuse it instead.
+Note: Every mod subclass has a unique constraint on its defining fields (for `ContentModFighterStat` that's `stat`, `mode`, `value`). If you try to create a duplicate, the admin will show an "already exists" error -- search for the existing modifier in the Modifications list and reuse it instead.
 
 ### Adding a Trait to a Weapon via an Accessory
 
