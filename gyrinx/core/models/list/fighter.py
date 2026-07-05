@@ -2754,6 +2754,9 @@ class ListFighter(AppBase):
             roll_result.pk = None
             roll_result.fighter = clone
             roll_result.campaign_action = None
+            # roll_token is unique per applied roll; copying it would violate
+            # the constraint (and the clone was not produced by that roll)
+            roll_result.roll_token = None
             roll_result.save()
 
         # Clone counter values (e.g. Kill Count carries with the fighter)

@@ -954,3 +954,30 @@ def test_clone_carries_roll_results_and_counters(
 
     # Costs agree between original and clone
     assert clone.cost_int() == fighter_with_kills.cost_int()
+
+
+@pytest.mark.django_db
+def test_clone_clears_roll_token(
+    user, make_list, make_list_fighter, kill_count, suit_evolution, power_boost_table
+):
+    # Non-campaign results carry a unique roll_token; cloning must clear it
+    # or the copy violates the uniqueness constraint.
+    lst = make_list("No Campaign Clone")
+    fighter = make_list_fighter(lst, "Fighter")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=kill_count, value=4, owner=user
+    )
+    handle_roll_flow(
+        user=user,
+        fighter=fighter,
+        flow=suit_evolution,
+        row=major_row(power_boost_table),
+        rolled_value=5,
+        roll_token=uuid_module.uuid4(),
+    )
+
+    clone = fighter.clone(name="Clone")
+
+    cloned_result = clone.roll_results.get()
+    assert cloned_result.roll_token is None
+    assert cloned_result.rating_increase == 25

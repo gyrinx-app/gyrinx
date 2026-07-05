@@ -107,7 +107,9 @@ def roll_flow_roll(request, id, fighter_id, flow_id):
                             description=description,
                             dice_count=len(dice),
                             dice_results=dice,
-                            dice_total=sum(dice),
+                            # Use the table's semantics (D66 reads tens+units)
+                            # so the logged total matches the resolved value
+                            dice_total=table.roll_value_from_dice(dice),
                         )
                 if campaign_action:
                     return HttpResponseRedirect(
