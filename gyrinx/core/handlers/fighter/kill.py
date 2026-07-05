@@ -102,13 +102,31 @@ def handle_fighter_kill(
         category = assignment.content_equipment.category
         return bool(category and category.persistent)
 
+    def _is_linked_child(assignment):
+        # Assignments auto-created from an equipment-equipment link (the child
+        # half of e.g. "Magic Lamp brings a Genie"). They must NOT be moved
+        # independently: transferring the parent re-creates the child on the
+        # stash via the create_related_objects post-save signal. Moving the
+        # child as well would duplicate it, and because the copy doesn't carry
+        # linked_equipment_parent it loses its structural zero-cost and reprices
+        # to catalog — inflating stash wealth. ListFighter.clone() skips these
+        # for exactly the same reason. Deleting the parent below cascades to the
+        # original child (delete_related_objects_pre_delete), so nothing is
+        # stranded on the corpse.
+        return assignment.linked_equipment_parent_id is not None
+
     # Persistent gear stays on the fighter regardless of whether a stash
     # exists. Non-persistent gear can only be transferred if there is a stash
     # to receive it; without one nothing moves (matching the original
     # no-stash behaviour), so transferred_count reflects actual transfers.
+    # Linked children are never transferred directly (see _is_linked_child).
     persistent_count = sum(1 for a in equipment_assignments if _is_persistent(a))
     to_transfer = (
-        [a for a in equipment_assignments if not _is_persistent(a)]
+        [
+            a
+            for a in equipment_assignments
+            if not _is_persistent(a) and not _is_linked_child(a)
+        ]
         if stash_fighter
         else []
     )
