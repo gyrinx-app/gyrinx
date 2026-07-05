@@ -1,0 +1,159 @@
+{% comment %}
+Classic-mode print card (#1726). Fixed 100mm x 110mm grimdark fighter/vehicle card.
+
+Params:
+  card    -- a ClassicCard (see gyrinx.core.views.print_lab)
+  theme   -- background theme key (blank/odd/even/paper_odd/paper_even/dark)
+  show_grid -- if truthy, overlay a mm alignment grid (lab tuning aid)
+{% endcomment %}
+<div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if card.image_url %} has-portrait{% endif %}{% if show_grid %} show-grid{% endif %}"
+     data-kind="{{ card.kind }}">
+    <div class="cc-bg"></div>
+    {% comment %} Condition tabs + save value in the leftover space {% endcomment %}
+    <div class="cc-region cc-tabs">
+        <span class="cc-tab">Serious Injury</span>
+        <span class="cc-tab">Broken</span>
+        <span class="cc-tab">Blaze</span>
+        <span class="cc-tab">Insane</span>
+        <span class="cc-tab">Blind</span>
+        <span class="cc-tab cc-tab--save">
+            <span class="cc-tab__save-label">Save</span>
+            <span class="cc-tab__save-val">{{ card.save|default:"&nbsp;" }}</span>
+        </span>
+    </div>
+    {% comment %} Dark textured nameplate behind the title (name / type / rating) {% endcomment %}
+    <div class="cc-nameplate"></div>
+    {% comment %} Name + type (write-in box on blank cards) {% endcomment %}
+    <div class="cc-region cc-name">
+        {% if card.kind == "blank" %}
+            <span class="cc-writein cc-name__box"></span>
+        {% else %}
+            <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
+            {% if card.subtitle %}<div class="cc-name__sub">{{ card.subtitle }}</div>{% endif %}
+        {% endif %}
+    </div>
+    <div class="cc-cog">
+        {% if card.cost %}<span class="cc-cog__cost">{{ card.cost }}</span>{% endif %}
+    </div>
+    {% comment %} Statline (dynamic columns) {% endcomment %}
+    <div class="cc-region cc-statline">
+        {% for s in card.stats %}
+            <div class="cc-stat{% if s.highlight %} is-hl{% endif %}{% if s.first_of_group %} is-group{% endif %}">
+                <div class="cc-stat__name">{{ s.name }}</div>
+                <div class="cc-stat__val">{{ s.value|default:"&nbsp;" }}</div>
+            </div>
+        {% endfor %}
+    </div>
+    {% comment %} Weapons — real rows, plus blank write-in rows on blank cards {% endcomment %}
+    <div class="cc-region cc-weapons">
+        <table class="cc-wtable">
+            <thead>
+                <tr>
+                    <th class="cc-w-name">Weapon</th>
+                    <th class="cc-w-group">S</th>
+                    <th>L</th>
+                    <th class="cc-w-group">S</th>
+                    <th>L</th>
+                    <th class="cc-w-group">Str</th>
+                    <th>Ap</th>
+                    <th>D</th>
+                    <th>Am</th>
+                    <th class="cc-w-group cc-w-traits">Traits</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for w in card.weapons %}
+                    <tr class="{% if w.is_secondary %}cc-w-sub{% endif %}">
+                        <td class="cc-w-name">{% if w.is_secondary %}<i class="bi-dash"></i> {% endif %}{{ w.name }}</td>
+                        <td class="cc-w-group">{{ w.rng_s|default:"-" }}</td>
+                        <td>{{ w.rng_l|default:"-" }}</td>
+                        <td class="cc-w-group">{{ w.acc_s|default:"-" }}</td>
+                        <td>{{ w.acc_l|default:"-" }}</td>
+                        <td class="cc-w-group">{{ w.strength|default:"-" }}</td>
+                        <td>{{ w.ap|default:"-" }}</td>
+                        <td>{{ w.damage|default:"-" }}</td>
+                        <td>{{ w.ammo|default:"-" }}</td>
+                        <td class="cc-w-group cc-w-traits">{{ w.traits }}</td>
+                    </tr>
+                {% endfor %}
+                {% if card.kind == "blank" %}
+                    {% for c in "1234567" %}
+                        <tr class="cc-w-blank">
+                            <td class="cc-w-name"></td>
+                            <td class="cc-w-group"></td>
+                            <td></td>
+                            <td class="cc-w-group"></td>
+                            <td></td>
+                            <td class="cc-w-group"></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="cc-w-group cc-w-traits"></td>
+                        </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+        {% if not card.weapons and card.kind != "blank" %}
+            <div class="cc-weapons__empty">No weapons.</div>
+        {% endif %}
+    </div>
+    {% comment %} Lower detail block — bottom-aligned, balanced 2 columns: skills, rules, gear, then others {% endcomment %}
+    <div class="cc-region cc-detail">
+        <div class="cc-detail__cols">
+            <div class="cc-section cc-skills">
+                <div class="cc-label">Skills</div>
+                {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.skills|join:", " }}</div>{% endif %}
+            </div>
+            <div class="cc-section cc-rules-q">
+                <div class="cc-label">Rules</div>
+                {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.rules|join:", " }}</div>{% endif %}
+            </div>
+            <div class="cc-section cc-wargear">
+                <div class="cc-label">Gear</div>
+                {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.wargear|join:", " }}</div>{% endif %}
+            </div>
+            {% if card.powers %}
+                <div class="cc-section cc-powers">
+                    <div class="cc-label">Wyrd Powers</div>
+                    <div class="cc-section__body">{{ card.powers|join:", " }}</div>
+                </div>
+            {% endif %}
+            {% for cat in card.gear_categories %}
+                <div class="cc-section cc-gearcat">
+                    <div class="cc-label">{{ cat.0 }}</div>
+                    <div class="cc-section__body">{{ cat.1|join:", " }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% comment %} XP (bold value + write-in box) + Kills (write-in box), pinned.
+    Two equal columns matching the detail block's columns above, so the XP/Kills
+    split lines up with the Skills+Rules / Gear split. {% endcomment %}
+    <div class="cc-region cc-kills">
+        <div class="cc-kills__col">
+            <span class="cc-kills__lbl"><span class="cc-label">XP</span> <span class="cc-kills__xp">{{ card.xp }}</span></span>
+            <span class="cc-writein"></span>
+        </div>
+        <div class="cc-kills__col">
+            <span class="cc-kills__lbl"><span class="cc-label">Kills</span></span>
+            <span class="cc-writein"></span>
+        </div>
+    </div>
+    {% comment %} Notes — write-in box {% endcomment %}
+    <div class="cc-region cc-notes">
+        <div class="cc-label">Notes</div>
+        <div class="cc-writein cc-notes__box">
+            {% for line in card.notes_lines %}<div>{{ line }}</div>{% endfor %}
+        </div>
+    </div>
+    {% comment %} Injuries — write-in box under notes {% endcomment %}
+    <div class="cc-region cc-injuries">
+        <div class="cc-label">Injuries</div>
+        <div class="cc-writein cc-injuries__box">{{ card.injuries|join:", " }}</div>
+    </div>
+    {% comment %} Fighter portrait, if set — pinned bottom-right, capped width {% endcomment %}
+    {% if card.image_url %}
+        <img class="cc-portrait" src="{{ card.image_url }}" alt="">
+    {% endif %}
+</div>

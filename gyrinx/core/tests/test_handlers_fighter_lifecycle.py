@@ -161,6 +161,131 @@ def test_handle_fighter_kill_with_equipment(
     assert "equipment transferred to stash" in result.description.lower()
 
 
+@pytest.mark.django_db
+def test_handle_fighter_kill_linked_equipment_not_duplicated(
+    user, list_with_campaign, content_fighter, make_equipment
+):
+    """Regression: killing a fighter carrying equipment that auto-spawns a
+    linked equipment child (the "Magic Lamp brings a Genie" pattern) must not
+    duplicate the child on the stash.
+
+    Transferring the parent already re-creates the child on the stash via the
+    create_related_objects post-save signal. Moving the child directly as well
+    left a second copy that, lacking linked_equipment_parent, reprices to
+    catalog and inflates stash wealth. See handle_fighter_kill._is_linked_child.
+    """
+    from gyrinx.content.models import (
+        ContentEquipmentCategory,
+        ContentEquipmentEquipmentProfile,
+    )
+    from gyrinx.models import FighterCategoryChoices
+
+    lst = list_with_campaign
+    stash_type = content_fighter.__class__.objects.create(
+        house=content_fighter.house,
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash_fighter = ListFighter.objects.create(
+        name="Stash", content_fighter=stash_type, list=lst, owner=user
+    )
+    fighter = ListFighter.objects.create(
+        name="Lamp Bearer", content_fighter=content_fighter, list=lst, owner=user
+    )
+
+    status_items = ContentEquipmentCategory.objects.get(name="Status Items")
+    magic_lamp = make_equipment("Magic Lamp", category=status_items, cost="50")
+    genie = make_equipment("Genie", category=status_items, cost="50")
+    ContentEquipmentEquipmentProfile.objects.create(
+        equipment=magic_lamp, linked_equipment=genie
+    )
+
+    fighter.assign(magic_lamp)  # auto-creates the free linked Genie child
+
+    handle_fighter_kill(
+        user=user, lst=lst, fighter=ListFighter.objects.get(pk=fighter.pk)
+    )
+
+    # The stash holds the lamp + exactly ONE genie (the signal-created child),
+    # not three rows with a duplicated genie.
+    rows = stash_fighter.listfighterequipmentassignment_set.all()
+    assert rows.count() == 2
+    # The genie present is the linked child (structurally free); no orphan copy.
+    assert (
+        rows.filter(
+            content_equipment=genie, linked_equipment_parent__isnull=False
+        ).count()
+        == 1
+    )
+    assert not rows.filter(
+        content_equipment=genie, linked_equipment_parent__isnull=True
+    ).exists()
+
+    # No phantom wealth: the stash's recomputed value is lamp (50) + genie (0),
+    # not 100. Recompute pack-aware, ignoring any stale cache.
+    fresh_stash = ListFighter.objects.with_related_data().get(pk=stash_fighter.pk)
+    fresh_stash.facts_from_db(update=True)
+    assert fresh_stash.rating_current == 50
+
+
+@pytest.mark.django_db
+def test_handle_fighter_kill_child_fighter_not_duplicated(
+    user, list_with_campaign, content_fighter, make_content_fighter, make_equipment
+):
+    """The child-fighter path (equipment that spawns a beast/vehicle) is not
+    disturbed by the linked-equipment guard: the parent assignment transfers to
+    the stash and the signal re-creates exactly one child fighter — no duplicate
+    row and no stray extra beast."""
+    from gyrinx.content.models import (
+        ContentEquipmentCategory,
+        ContentEquipmentFighterProfile,
+    )
+    from gyrinx.models import FighterCategoryChoices
+
+    lst = list_with_campaign
+    stash_type = content_fighter.__class__.objects.create(
+        house=content_fighter.house,
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        base_cost=0,
+        is_stash=True,
+    )
+    stash_fighter = ListFighter.objects.create(
+        name="Stash", content_fighter=stash_type, list=lst, owner=user
+    )
+    fighter = ListFighter.objects.create(
+        name="Beastmaster", content_fighter=content_fighter, list=lst, owner=user
+    )
+
+    beast_cf = make_content_fighter(
+        type="Beast",
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=content_fighter.house,
+        base_cost=20,
+    )
+    beast_ce = make_equipment(
+        "Beast",
+        category=ContentEquipmentCategory.objects.get(name="Status Items"),
+        cost="50",
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=beast_ce, content_fighter=beast_cf
+    )
+
+    fighter.assign(beast_ce)  # auto-creates a single Beast child ListFighter
+
+    handle_fighter_kill(
+        user=user, lst=lst, fighter=ListFighter.objects.get(pk=fighter.pk)
+    )
+
+    # Exactly one beast equipment row on the stash, and exactly one Beast fighter
+    # in the list — the transfer did not spawn a duplicate.
+    assert stash_fighter.listfighterequipmentassignment_set.count() == 1
+    assert lst.listfighter_set.filter(name="Beast").count() == 1
+
+
 # ===== Resurrect Handler Tests =====
 
 
