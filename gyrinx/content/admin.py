@@ -1525,7 +1525,7 @@ class ContentRollFlowInline(ContentTabularInline):
 @admin.register(ContentCounter)
 class ContentCounterAdmin(ContentAdmin):
     search_fields = ["name"]
-    list_display = ["name", "description", "display_order"]
+    list_display = ["name", "description", "display_order", "warning_stat"]
     filter_horizontal = ["restricted_to_fighters"]
     inlines = [ContentRollFlowInline]
 

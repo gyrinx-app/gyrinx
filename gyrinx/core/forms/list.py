@@ -1070,3 +1070,43 @@ class EditCounterForm(forms.Form):
         if self.counter:
             self.fields["value"].label = self.counter.name
             self.fields["value"].initial = self.current_value
+
+
+class RollFlowDiceForm(forms.Form):
+    """
+    Form for the roll step of a roll flow (e.g. Power Boost).
+
+    Mirrors AdvancementDiceChoiceForm: a hidden action field distinguishes
+    an automatic roll from manual tabletop dice entry; the template renders
+    the dice fields as selects. The number of dice required depends on the
+    roll table's dice configuration (D6 = 1; D66/2D6 = 2).
+    """
+
+    roll_action = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    d6_1 = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=6,
+        widget=forms.HiddenInput(),
+    )
+    d6_2 = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=6,
+        widget=forms.HiddenInput(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.dice_count = kwargs.pop("dice_count", 1)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("roll_action") == "roll_manual":
+            needed = ["d6_1", "d6_2"][: self.dice_count]
+            if any(cleaned_data.get(field) is None for field in needed):
+                raise forms.ValidationError(
+                    "All dice values must be provided for manual entry."
+                )
+        return cleaned_data

@@ -76,6 +76,15 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
             current_value=current_value,
         )
 
+    # Roll flows that spend this counter (e.g. Suit Evolution for Kill Count)
+    flows = [
+        {
+            "flow": flow,
+            "affordable": current_value >= flow.cost,
+        }
+        for flow in counter.flows.select_related("roll_table").all()
+    ]
+
     return render(
         request,
         "core/list_fighter_counters_edit.html",
@@ -84,5 +93,6 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
             "fighter": fighter,
             "counter": counter,
             "form": form,
+            "flows": flows,
         },
     )

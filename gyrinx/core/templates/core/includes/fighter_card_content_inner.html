@@ -70,14 +70,15 @@
         {% endif %}
         {% comment %} Counters {% endcomment %}
         {% if fighter.applicable_counters and not print %}
-            {% for counter, value in fighter.applicable_counters %}
+            {% for entry in fighter.applicable_counters %}
                 <tr class="fs-7">
-                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ counter.name }}</th>
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ entry.counter.name }}</th>
                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                        <span class="badge text-bg-secondary">{{ value }}</span>
+                        <span class="badge {% if entry.warn %}text-bg-danger{% else %}text-bg-secondary{% endif %}"
+                              {% if entry.warn %}title="{{ entry.counter.name }} exceeds {{ entry.counter.warning_stat }}"{% endif %}>{{ entry.value }}</span>
                         {% if not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             {% if can_edit or is_arbitrator %}
-                                <a href="{% url 'core:list-fighter-counter-edit' list.id fighter.id counter.id %}">Edit</a>
+                                <a href="{% url 'core:list-fighter-counter-edit' list.id fighter.id entry.counter.id %}">Edit</a>
                             {% endif %}
                         {% endif %}
                     </td>
@@ -280,6 +281,25 @@
                     {% endif %}
                 </td>
             </tr>
+        {% endif %}
+        {% comment %} Roll results (e.g. Power Boosts) {% endcomment %}
+        {% if fighter.roll_results_by_table %}
+            {% for table_name, results in fighter.roll_results_by_table %}
+                <tr class="fs-7">
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ table_name }}</th>
+                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                        {% for result in results %}
+                            {% if not forloop.first %},{% endif %}
+                            {{ result.row.name }}
+                        {% endfor %}
+                        {% if not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                            {% if can_edit or is_arbitrator %}
+                                <a href="{% url 'core:list-fighter-roll-results-edit' list.id fighter.id %}">Edit</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
         {% endif %}
         {% comment %} Advancements {% endcomment %}
         {% if not fighter.is_vehicle and not print %}

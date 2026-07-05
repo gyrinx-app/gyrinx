@@ -33,6 +33,12 @@ from gyrinx.core.handlers.fighter.resurrect import (
     FighterResurrectResult,
     handle_fighter_resurrect,
 )
+from gyrinx.core.handlers.fighter.roll_flow import (
+    RollFlowResult,
+    RollResultDeletionResult,
+    handle_roll_flow,
+    handle_roll_result_deletion,
+)
 from gyrinx.core.handlers.fighter.vehicle import (
     VehiclePurchaseResult,
     handle_vehicle_purchase,
@@ -51,6 +57,8 @@ __all__ = [
     "FighterHireResult",
     "FighterKillResult",
     "FighterResurrectResult",
+    "RollFlowResult",
+    "RollResultDeletionResult",
     "VehiclePurchaseResult",
     "handle_fighter_advancement",
     "handle_fighter_advancement_deletion",
@@ -61,5 +69,7 @@ __all__ = [
     "handle_fighter_hire",
     "handle_fighter_kill",
     "handle_fighter_resurrect",
+    "handle_roll_flow",
+    "handle_roll_result_deletion",
     "handle_vehicle_purchase",
 ]

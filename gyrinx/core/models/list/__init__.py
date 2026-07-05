@@ -47,6 +47,7 @@ from .virtual import (
 )
 from .psyker import ListFighterPsykerPowerAssignment
 from .advancement import AdvancementStatMod, ListFighterAdvancement
+from .roll_result import ListFighterRollResult
 from .campaign_state import (
     CapturedFighter,
     ListAttributeAssignment,
@@ -92,6 +93,8 @@ __all__ = [
     # advancement
     "AdvancementStatMod",
     "ListFighterAdvancement",
+    # roll_result
+    "ListFighterRollResult",
     # campaign_state
     "ListFighterInjury",
     "ListFighterCounter",

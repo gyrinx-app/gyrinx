@@ -1,0 +1,53 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Confirm {{ flow.name }} - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-4">
+        <div class="vstack gap-1">
+            <h1 class="h3 mb-0">{{ flow.name }}</h1>
+            <p class="text-secondary fs-7 mb-0">
+                {{ fighter.name }} rolled
+                {% for die in dice %}
+                    <span class="badge text-bg-secondary">{{ die }}</span>
+                {% endfor %}
+                on {{ table.name }} ({{ table.dice }}): <span class="fw-bold">{{ rolled_value }}</span>
+            </p>
+        </div>
+        {% if row %}
+            <div class="card shadow-sm">
+                <div class="card-body vstack gap-2">
+                    <h2 class="h5 card-title mb-0">{{ row.name }}</h2>
+                    {% if row.description %}<p class="mb-0">{{ row.description }}</p>{% endif %}
+                    {% if modifiers %}
+                        <ul class="mb-0 fs-7">
+                            {% for mod in modifiers %}<li>{{ mod }}</li>{% endfor %}
+                        </ul>
+                    {% endif %}
+                    <div class="fs-7 text-secondary">
+                        Applying this result will spend {{ flow.cost }} {{ flow.counter.name }}
+                        and increase {{ fighter.name }}'s cost by {{ row.rating_increase }}¢.
+                    </div>
+                </div>
+            </div>
+            <form method="post" class="hstack gap-2">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Apply {{ row.name }}</button>
+                <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
+                   class="btn btn-link">Cancel</a>
+            </form>
+        {% else %}
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
+                    No result on {{ table.name }} matches a roll of {{ rolled_value }}. Check the table's rows in the admin, or roll again.
+                </div>
+            </div>
+            <div>
+                <a href="{{ roll_url }}" class="btn btn-link px-0">← Back</a>
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

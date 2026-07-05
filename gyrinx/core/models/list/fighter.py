@@ -1,4 +1,6 @@
 import logging
+import re
+from collections import namedtuple
 from typing import TYPE_CHECKING, Optional
 
 from django.conf import settings
@@ -69,6 +71,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 pylist = list
+
+# Display tuple for a fighter's counters: the content counter, its current
+# value, and whether the value exceeds the counter's warning stat.
+FighterCounterDisplay = namedtuple(
+    "FighterCounterDisplay", ["counter", "value", "warn"]
+)
 
 
 class ListFighterManager(models.Manager):
@@ -323,6 +331,8 @@ class ListFighterQuerySet(models.QuerySet):
             .prefetch_related(
                 "injuries",
                 "counters",
+                "roll_results__row__modifiers",
+                "roll_results__row__table",
                 *skill_prefetches,
                 *rule_prefetches,
                 "disabled_default_assignments",
@@ -413,6 +423,10 @@ class ListFighterQuerySet(models.QuerySet):
                     Subquery(self.sq_advancement_cost_sum()),
                     Value(0),
                 ),
+                annotated_roll_result_total_cost=Coalesce(
+                    Subquery(self.sq_roll_result_cost_sum()),
+                    Value(0),
+                ),
                 annotated_content_fighter_statline=self.sq_content_fighter_statline(),
                 annotated_stat_overrides=self.sq_stat_overrides(),
             )
@@ -464,6 +478,23 @@ class ListFighterQuerySet(models.QuerySet):
             )
             .values("fighter_id")
             .annotate(total=models.Sum("cost_increase"))
+            .values("total")[:1]
+        )
+
+    def sq_roll_result_cost_sum(self):
+        """
+        Subquery to sum non-archived roll-result rating increases.
+        This avoids JOIN duplication issues with direct Sum annotations.
+        """
+        from gyrinx.core.models.list.roll_result import ListFighterRollResult
+
+        return (
+            ListFighterRollResult.objects.filter(
+                fighter_id=OuterRef("pk"),
+                archived=False,
+            )
+            .values("fighter_id")
+            .annotate(total=models.Sum("rating_increase"))
             .values("total")[:1]
         )
 
@@ -965,9 +996,17 @@ class ListFighter(AppBase):
             )["total"]
             or 0
         )
+        # Include roll-result rating increases (excluding archived)
+        roll_result_cost = (
+            self.roll_results.filter(archived=False).aggregate(
+                total=models.Sum("rating_increase")
+            )["total"]
+            or 0
+        )
         return (
             self._base_cost_int
             + advancement_cost
+            + roll_result_cost
             + sum([e.cost_int() for e in self.assignments()])
         )
 
@@ -981,6 +1020,7 @@ class ListFighter(AppBase):
         return (
             self._base_cost_int
             + self._advancement_cost_int
+            + self._roll_result_cost_int
             + sum([e.cost_int() for e in self.assignments_cached])
         )
 
@@ -1052,6 +1092,23 @@ class ListFighter(AppBase):
     @cached_property
     def advancement_cost_display(self):
         return format_cost_display(self._advancement_cost_int)
+
+    @cached_property
+    @traced("listfighter_roll_result_cost_int")
+    def _roll_result_cost_int(self):
+        # Dead, captured, or sold fighters contribute 0 to gang total cost
+        if self.should_have_zero_cost:
+            return 0
+
+        if hasattr(self, "annotated_roll_result_total_cost"):
+            return self.annotated_roll_result_total_cost
+
+        return (
+            self.roll_results.filter(archived=False).aggregate(
+                total=models.Sum("rating_increase")
+            )["total"]
+            or 0
+        )
 
     @admin.display(description="Total Cost Display")
     @traced("listfighter_cost_display")
@@ -1144,6 +1201,9 @@ class ListFighter(AppBase):
             # Include advancement cost increases (uses annotation if prefetched)
             advancement_cost = self._advancement_cost_int
 
+            # Include roll-result rating increases (uses annotation if prefetched)
+            roll_result_cost = self._roll_result_cost_int
+
             # Calculate equipment cost with lazy evaluation
             # Note: assignments() returns VirtualListFighterEquipmentAssignment wrappers
             equipment_cost = 0
@@ -1162,7 +1222,7 @@ class ListFighter(AppBase):
                     # have cost 0 or use the virtual wrapper's cost_int()
                     equipment_cost += virtual_assignment.cost_int()
 
-            rating = base_cost + advancement_cost + equipment_cost
+            rating = base_cost + advancement_cost + roll_result_cost + equipment_cost
 
         # Optionally update cache
         if update:
@@ -1231,12 +1291,26 @@ class ListFighter(AppBase):
             )
         ]
 
+        # Roll-result mods (e.g. Spyrer Power Boosts). Permanent improvements
+        # like advancements, so not gated on campaign mode. Python-filter
+        # archived rows to stay on the prefetch cache.
+        roll_result_mods = []
+        for result in self.roll_results.all():
+            if not result.archived:
+                roll_result_mods.extend(result.row.modifiers.all())
+
         # Pack-scoped house-rule mods targeting this fighter's content_fighter
         # (e.g. "fighter X gets +1 toughness as a house rule"). Empty when no
         # packs are subscribed.
         pack_mods = list(self.list.pack_mods_for(self.content_fighter))
 
-        return equipment_mods + injury_mods + advancement_mods + pack_mods
+        return (
+            equipment_mods
+            + injury_mods
+            + advancement_mods
+            + roll_result_mods
+            + pack_mods
+        )
 
     @traced("listfighter_apply_mods")
     def _apply_mods(
@@ -2099,7 +2173,9 @@ class ListFighter(AppBase):
         """Return applicable ContentCounter objects for this fighter.
 
         Uses prefetched content_fighter__counters when available.
-        Returns a list of (ContentCounter, value) tuples.
+        Returns a list of FighterCounterDisplay(counter, value, warn) tuples;
+        warn is True when the counter defines a warning_stat and the value
+        exceeds that stat on the fighter's statline (e.g. Glitch Count > T).
         """
         content_fighter = self.content_fighter_cached
         if not content_fighter:
@@ -2114,9 +2190,41 @@ class ListFighter(AppBase):
         existing = {c.counter_id: c.value for c in self.counters.all()}
 
         return [
-            (counter, existing.get(counter.id, 0))
+            FighterCounterDisplay(
+                counter=counter,
+                value=existing.get(counter.id, 0),
+                warn=self._counter_warns(counter, existing.get(counter.id, 0)),
+            )
             for counter in sorted(applicable, key=lambda c: (c.display_order, c.name))
         ]
+
+    def _counter_warns(self, counter, value: int) -> bool:
+        """True when a counter's value exceeds its warning stat (if any)."""
+        if not counter.warning_stat:
+            return False
+        wanted = counter.warning_stat.strip().upper()
+        for stat in self.statline:
+            if stat.name.upper() != wanted:
+                continue
+            match = re.match(r"(\d+)", str(stat.value))
+            if not match:
+                return False
+            return value > int(match.group(1))
+        return False
+
+    @cached_property
+    def roll_results_by_table(self):
+        """Active roll results grouped by their table name, for card display.
+
+        Python-filters archived rows to stay on the prefetch cache.
+        Returns a list of (table_name, [ListFighterRollResult]) tuples.
+        """
+        grouped = {}
+        for result in self.roll_results.all():
+            if result.archived:
+                continue
+            grouped.setdefault(result.row.table.name, []).append(result)
+        return sorted(grouped.items())
 
     @cached_property
     @traced("listfighter_has_category_restricted_gear")
@@ -2639,6 +2747,25 @@ class ListFighter(AppBase):
             advancement.fighter = clone  # Set to the new fighter
             advancement.campaign_action = None  # Clear campaign action reference
             advancement.save()
+
+        # Clone roll results — like advancements they carry a rating increase,
+        # so skipping them would make the clone's rating drift from its cost.
+        for roll_result in self.roll_results.all():
+            roll_result.pk = None
+            roll_result.fighter = clone
+            roll_result.campaign_action = None
+            roll_result.save()
+
+        # Clone counter values (e.g. Kill Count carries with the fighter)
+        from gyrinx.core.models.list.campaign_state import ListFighterCounter
+
+        for fighter_counter in self.counters.all():
+            ListFighterCounter.objects.create(
+                fighter=clone,
+                counter=fighter_counter.counter,
+                value=fighter_counter.value,
+                owner=clone.owner,
+            )
 
         # Clone stat overrides (new ListFighterStatOverride model)
         for stat_override in self.stat_overrides.all():

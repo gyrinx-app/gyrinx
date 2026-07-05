@@ -33,6 +33,14 @@ class ContentCounter(Content):
         default=0,
         help_text="Ordering on the fighter card (lower = first).",
     )
+    warning_stat = models.CharField(
+        max_length=10,
+        blank=True,
+        help_text=(
+            "Optional statline short name (e.g. T). When the counter value "
+            "exceeds this stat, the counter is highlighted on the fighter card."
+        ),
+    )
 
     history = HistoricalRecords()
 
