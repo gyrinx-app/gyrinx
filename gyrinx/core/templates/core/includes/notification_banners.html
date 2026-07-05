@@ -1,3 +1,4 @@
+{% load custom_tags %}
 {% comment %}
     In-page notification banners for a List or Campaign page. Expects
     `notification_banners` (an iterable of Notification) in context. Each row is
@@ -16,7 +17,7 @@
                         <strong>{{ n.subject }}</strong>
                         {% include "core/includes/notification_source.html" with notification=n %}
                     </div>
-                    {% if n.content %}<p class="mb-0">{{ n.content }}</p>{% endif %}
+                    {% if n.content %}<div class="mb-last-0">{{ n.content|safe_rich_text|safe }}</div>{% endif %}
                 </div>
                 <form method="post"
                       action="{% url 'core:notification-dismiss-banner' n.id %}">

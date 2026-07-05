@@ -26,7 +26,7 @@
             {{ notification.subject }}
         {% endif %}
     </div>
-    {% if notification.content %}<div class="text-secondary">{{ notification.content }}</div>{% endif %}
+    {% if notification.content %}<div class="text-secondary mb-last-0">{{ notification.content|safe_rich_text|safe }}</div>{% endif %}
     <div class="d-flex flex-wrap align-items-center fs-7">
         <form method="post"
               action="{% if notification.is_read %}{% url 'core:notification-unread' notification.id %}{% else %}{% url 'core:notification-read' notification.id %}{% endif %}">

@@ -8,6 +8,7 @@
     </div>
 {% endblock breadcrumbs %}
 {% block content %}
+    {{ form.media }}
     <p>Send a notification to many recipients at once. It is delivered to each recipient's inbox.</p>
     <form method="post">
         {% csrf_token %}

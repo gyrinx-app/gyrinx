@@ -4,6 +4,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
+from django.db import models
 from django.shortcuts import redirect, render
 from django.urls import path
 
@@ -13,6 +14,7 @@ from gyrinx.core.models.notification import (
     NotificationType,
     notify_many,
 )
+from gyrinx.core.widgets import TinyMCEWithUpload
 
 User = get_user_model()
 
@@ -35,7 +37,7 @@ class BroadcastForm(forms.Form):
     ]
 
     subject = forms.CharField(max_length=255)
-    content = forms.CharField(widget=forms.Textarea, required=False)
+    content = forms.CharField(widget=TinyMCEWithUpload, required=False)
     notification_type = forms.ChoiceField(
         choices=NotificationType.choices, initial=NotificationType.GENERAL
     )
@@ -82,6 +84,7 @@ class BroadcastForm(forms.Form):
 class NotificationAdmin(admin.ModelAdmin):
     form = NotificationAdminForm
     change_list_template = "admin/core/notification/change_list.html"
+    formfield_overrides = {models.TextField: {"widget": TinyMCEWithUpload}}
     list_display = [
         "subject",
         "owner",

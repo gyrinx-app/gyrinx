@@ -198,3 +198,17 @@ def test_dismiss_banner_marks_read(client, user, make_list):
     assert resp.status_code == 302
     n.refresh_from_db()
     assert n.is_read is True
+
+
+@pytest.mark.django_db
+def test_inbox_renders_rich_text_content_sanitized(client, user):
+    notify(
+        recipient=user,
+        subject="Rich",
+        content="<p>Hello <strong>bold</strong></p><script>alert(1)</script>",
+    )
+    client.force_login(user)
+    body = client.get(reverse("core:notifications")).content.decode()
+    # Allowed formatting survives; dangerous tags are neutralised.
+    assert "<strong>bold</strong>" in body
+    assert "<script>alert(1)</script>" not in body
