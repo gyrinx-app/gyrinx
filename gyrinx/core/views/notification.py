@@ -83,8 +83,10 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
 
 
 def _get_owned(request, id):
-    """Fetch a notification scoped to the requesting user (404 otherwise)."""
-    return get_object_or_404(Notification, id=id, owner=request.user)
+    """Fetch a live notification scoped to the requesting user (404 otherwise)."""
+    return get_object_or_404(
+        Notification, id=id, owner=request.user, deleted_at__isnull=True
+    )
 
 
 def _back(request):

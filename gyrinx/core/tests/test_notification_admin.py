@@ -42,7 +42,6 @@ def test_broadcast_to_all_active_users(client, superuser, make_user):
             "content": "",
             "notification_type": "general",
             "audience": "all_active",
-            "banner_colour": "info",
         },
     )
     assert resp.status_code == 302
@@ -64,7 +63,6 @@ def test_broadcast_as_system_has_no_sender(client, superuser, make_user):
             "subject": "From Gyrinx",
             "notification_type": "general",
             "audience": "all_active",
-            "banner_colour": "info",
             "send_as_system": "on",
         },
     )
@@ -93,7 +91,6 @@ def test_broadcast_to_campaign_participants(
             "notification_type": "campaign",
             "audience": "campaign",
             "campaign": str(camp.id),
-            "banner_colour": "info",
         },
     )
     assert resp.status_code == 302
