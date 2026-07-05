@@ -6,8 +6,8 @@
     border; the title is semi-bold. Row actions follow the design-system
     inline-action-menu pattern (link-styled buttons, dot separators).
 {% endcomment %}
-<div class="border rounded p-2 vstack gap-1"
-     {% if not notification.is_read %}style="border-left-width: 3px; border-left-color: var(--bs-primary);"{% endif %}>
+<div class="p-2 border-bottom vstack gap-1"
+     style="border-left: 3px solid {% if notification.is_read %}transparent{% else %}var(--bs-primary){% endif %}">
     <div class="d-flex align-items-center gap-2 fs-7 text-secondary">
         <input class="form-check-input m-0 flex-shrink-0"
                type="checkbox"

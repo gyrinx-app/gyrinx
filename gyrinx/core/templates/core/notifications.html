@@ -89,11 +89,11 @@
             </form>
         </div>
         {# List #}
-        <div class="vstack gap-2">
+        <div class="vstack border-top">
             {% for n in notifications %}
                 {% include "core/includes/notification_list_item.html" with notification=n %}
             {% empty %}
-                <p class="text-secondary mb-0">No notifications.</p>
+                <p class="text-secondary mb-0 pt-2">No notifications.</p>
             {% endfor %}
         </div>
         {% include "core/includes/pagination.html" %}
