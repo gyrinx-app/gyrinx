@@ -33,8 +33,8 @@
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button type="submit"
-                    class="btn btn-link btn-sm p-0 icon-link link-secondary">
-                {% if notification.is_read %}<i class="bi-envelope"></i>Mark unread{% else %}<i class="bi-envelope-open"></i>Mark read{% endif %}
+                    class="btn btn-link btn-sm p-0 align-baseline link-secondary">
+                {% if notification.is_read %}Mark unread{% else %}Mark read{% endif %}
             </button>
         </form>
         {% dot %}
@@ -43,8 +43,8 @@
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button type="submit"
-                    class="btn btn-link btn-sm p-0 icon-link link-secondary">
-                {% if notification.archived %}<i class="bi-archive-fill"></i>Unarchive{% else %}<i class="bi-archive"></i>Archive{% endif %}
+                    class="btn btn-link btn-sm p-0 align-baseline link-secondary">
+                {% if notification.archived %}Unarchive{% else %}Archive{% endif %}
             </button>
         </form>
         {% dot %}
@@ -52,9 +52,8 @@
               action="{% url 'core:notification-delete' notification.id %}">
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <button type="submit" class="btn btn-link btn-sm p-0 icon-link link-danger">
-                <i class="bi-trash"></i>Delete
-            </button>
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-danger">Delete</button>
         </form>
     </div>
 </div>
