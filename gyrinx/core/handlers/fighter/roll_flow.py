@@ -159,7 +159,11 @@ def handle_roll_flow(
     campaign_action = None
     if campaign_action_id:
         try:
-            campaign_action = CampaignAction.objects.get(id=campaign_action_id)
+            # Scoped to the fighter's list so a roll result can never be
+            # attached to another list's campaign action
+            campaign_action = CampaignAction.objects.get(
+                id=campaign_action_id, list=lst
+            )
         except CampaignAction.DoesNotExist:
             raise ValidationError(f"Campaign action {campaign_action_id} not found")
         campaign_action.outcome = outcome

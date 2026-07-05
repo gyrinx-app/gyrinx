@@ -8,15 +8,11 @@ cost source (the copied rating_increase counts towards the fighter's rating),
 mirroring how advancements work.
 """
 
-import logging
-
 from django.db import models
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
 from gyrinx.core.models.list.fighter import ListFighter
-
-logger = logging.getLogger(__name__)
 
 
 class ListFighterRollResult(AppBase):
