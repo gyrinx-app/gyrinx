@@ -20,7 +20,11 @@
     --cc-line-soft: rgba(29, 26, 22, 0.35);
     --cc-hl: rgba(122, 45, 41, 0.16); // mental-stat / highlighted band tint
     --cc-paper: #fff; // base the texture fades onto
-    --cc-fade: 0.5; // white wash over the texture (0 = full-strength texture)
+    // White wash over the texture (0 = full-strength texture, 1 = plain white).
+    // Kept at 1 so the print cards are clean white — the distressed plate
+    // muddied to grey on paper and wasted ink. The dark theme (lab preview
+    // only) overrides this back to 0 to keep its plate.
+    --cc-fade: 1;
 
     // --- geometry (mm) — tune the whole card from here ---------------------
     --cc-w: 100mm;
@@ -696,10 +700,10 @@
     align-content: flex-start;
     justify-content: center;
     padding: var(--sheet-gap);
-    // On-screen preview canvas only — a neutral mat so the light cards read as
-    // physical cards. Print forces this white (see @media print), so it never
-    // reaches paper.
-    background: #3f3d3a;
+    // Plain white behind the cards — the card's own black border gives them
+    // definition, no grey mat. (Print already forces white; this matches it
+    // on screen too.)
+    background: #fff;
 }
 
 // On-screen A4 page preview: constrain to the real printable width so the lab
