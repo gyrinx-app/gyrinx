@@ -69,6 +69,7 @@
                         {% if fighter.is_child_fighter %}
                             {% include "core/includes/parent_fighter_link.html" with fighter=fighter print=print %}
                         {% endif %}
+                        {% include "core/includes/fighter_card_equipment_set_switcher.html" with fighter=fighter list=list can_edit=can_edit print=print compact=compact %}
                         {% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}
                     {% endif %}
                 </div>

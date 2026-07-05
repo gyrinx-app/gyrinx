@@ -183,7 +183,15 @@ def clear_fighter_cached_properties_for_assignment(
 ):
     """Clear the fighter's cached properties that depend on assignments."""
     fighter = instance.list_fighter
-    for prop in ["cost_int_cached", "assignments_cached", "_mods"]:
+    for prop in [
+        "cost_int_cached",
+        "assignments_cached",
+        "_mods",
+        # Equipment-set-derived display caches (#1853) built on assignments_cached.
+        "displayed_assignments_cached",
+        "displayed_assignment_ids",
+        "selected_cost_int",
+    ]:
         if prop in fighter.__dict__:
             del fighter.__dict__[prop]
     # Also clear list's cached property

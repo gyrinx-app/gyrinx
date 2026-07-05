@@ -40,6 +40,7 @@ from .assignment import (
     ListFighterEquipmentAssignmentUpgrade,
     PinState,
 )
+from .equipment_set import ListFighterEquipmentSet
 from .virtual import (
     VirtualListFighterEquipmentAssignment,
     VirtualListFighterPsykerPowerAssignment,
@@ -81,6 +82,8 @@ __all__ = [
     "ListFighterEquipmentAssignmentUpgrade",
     "PinState",
     "ListFighterEquipmentAssignment",
+    # equipment_set
+    "ListFighterEquipmentSet",
     # virtual
     "VirtualListFighterEquipmentAssignment",
     "VirtualListFighterPsykerPowerAssignment",

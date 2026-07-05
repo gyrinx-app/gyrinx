@@ -273,6 +273,22 @@ class ListDetailView(generic.DetailView):
         # do all filtering in Python on the already-loaded data.
         all_fighters = list(list_obj.listfighter_set.all())
 
+        # Equipment-set URL override (#1853): ?set_<fighter_id>=<set_id|default>
+        # shows a specific card for that fighter for a linkable/shareable view,
+        # without changing the persisted default. Applied in memory only, using
+        # the prefetched sets (no extra queries).
+        for fighter in all_fighters:
+            override = self.request.GET.get(f"set_{fighter.id}")
+            if override is None:
+                continue
+            if override in ("", "0", "default"):
+                fighter.active_equipment_set = None
+            else:
+                for equipment_set in fighter._equipment_sets_cached:
+                    if str(equipment_set.id) == override:
+                        fighter.active_equipment_set = equipment_set
+                        break
+
         # Check if the list has a stash fighter
         context["has_stash_fighter"] = any(
             f.content_fighter.is_stash for f in all_fighters

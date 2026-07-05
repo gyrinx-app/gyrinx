@@ -62,6 +62,7 @@ from gyrinx.tracing import traced
 
 if TYPE_CHECKING:
     from gyrinx.core.models.list.assignment import ListFighterEquipmentAssignment
+    from gyrinx.core.models.list.equipment_set import ListFighterEquipmentSet
     from gyrinx.core.models.list.virtual import (
         VirtualListFighterEquipmentAssignment,
     )
@@ -386,6 +387,13 @@ class ListFighterQuerySet(models.QuerySet):
                 "legacy_content_fighter__contentfighterequipmentlistitem_set",
                 "source_assignment",
                 "source_assignment__list_fighter",
+                # Equipment sets (#1853): the fighter's cards and each card's
+                # included assignments — feeds the set switcher and the active
+                # set's display/selected-rating filtering with no per-fighter
+                # queries. active_equipment_set is resolved by id against this
+                # collection, so no select_related is needed.
+                "equipment_sets",
+                "equipment_sets__assignments",
                 Prefetch(
                     "list",
                     # DO NOT add with_fighters=True here, it will cause infinite recursion
@@ -508,6 +516,11 @@ class ListFighterQuerySet(models.QuerySet):
             )
             .values("overrides_array")[:1]
         )
+
+
+# The special rule that unlocks equipment sets (Tools of the Trade, #1853).
+# Matched by exact name, echoing the rulebook.
+TOOLS_OF_THE_TRADE_RULE_NAME = "Tools of the Trade"
 
 
 class ListFighter(AppBase):
@@ -637,6 +650,21 @@ class ListFighter(AppBase):
         blank=True,
         related_name="custom_for_fighters",
         help_text="Custom rules added to this fighter beyond their default rules.",
+    )
+
+    # Equipment sets (Tools of the Trade, #1853). NULL means the implicit
+    # "Default" card, which shows every item the fighter owns. Selecting a set
+    # is display-only: it never changes the fighter's canonical cost/rating.
+    active_equipment_set = models.ForeignKey(
+        "ListFighterEquipmentSet",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "The fighter's currently-selected equipment set (card). "
+            "NULL shows all equipment (the Default card)."
+        ),
     )
 
     # Other
@@ -1637,6 +1665,121 @@ class ListFighter(AppBase):
     def assignments_cached(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
         return self.assignments()
 
+    # --- Equipment sets (Tools of the Trade, #1853) --------------------------
+    #
+    # An equipment set selects a subset of the fighter's *direct* assignments to
+    # display. It is display-only: ``assignments()`` / ``assignments_cached`` /
+    # ``cost_int()`` / ``facts_from_db()`` all keep operating on the full kit, so
+    # the canonical cost that feeds credits, audit and cost-pins is untouched.
+    # Only the display helpers (weapons/wargear/gearlines) and the display-only
+    # ``selected_cost_int`` read the filtered list below.
+
+    @cached_property
+    def _equipment_sets_cached(self) -> pylist["ListFighterEquipmentSet"]:
+        """All of this fighter's equipment sets (prefetched on the hot path)."""
+        return list(self.equipment_sets.all())
+
+    @cached_property
+    def active_equipment_set_resolved(self):
+        """The currently-active :class:`ListFighterEquipmentSet`, or None.
+
+        None means the implicit "Default" card (show every item). Resolves the
+        ``active_equipment_set`` FK against the prefetched set collection so the
+        list view doesn't issue a query per fighter. A per-request URL override
+        works by assigning ``active_equipment_set`` on the in-memory instance
+        before rendering.
+        """
+        if self.active_equipment_set_id is None:
+            return None
+        for s in self._equipment_sets_cached:
+            if s.id == self.active_equipment_set_id:
+                return s
+        # FK points outside the prefetched collection (e.g. instance fetched
+        # without with_related_data()); fall back to a direct dereference.
+        return self.active_equipment_set
+
+    @cached_property
+    def displayed_assignment_ids(self):
+        """IDs of the direct assignments visible under the active set.
+
+        Returns None for the Default card, meaning "show everything".
+        """
+        active = self.active_equipment_set_resolved
+        if active is None:
+            return None
+        return {a.id for a in active.assignments.all()}
+
+    def _assignment_in_active_set(self, virtual_assignment) -> bool:
+        """Whether a virtual assignment is shown under the active set.
+
+        Default (innate template) kit is always shown; only the fighter's own
+        direct assignments are toggled by a set. Direct assignments are shown
+        when the Default card is active or when they belong to the active set.
+        """
+        ids = self.displayed_assignment_ids
+        if ids is None:
+            return True
+        if virtual_assignment.kind() != "assigned":
+            return True
+        return virtual_assignment._assignment.id in ids
+
+    @cached_property
+    def displayed_assignments_cached(
+        self,
+    ) -> pylist["VirtualListFighterEquipmentAssignment"]:
+        """``assignments_cached`` filtered to the active set (for display)."""
+        if self.displayed_assignment_ids is None:
+            return self.assignments_cached
+        return [a for a in self.assignments_cached if self._assignment_in_active_set(a)]
+
+    @cached_property
+    def selected_cost_int(self):
+        """Display-only cost of the fighter under the active set.
+
+        Equal to ``cost_int_cached`` for the Default card. This value is never
+        persisted and never feeds credits/audit — it exists purely for the
+        "Selected X (max Y)" rating display.
+        """
+        if self.should_have_zero_cost:
+            return 0
+        if self.displayed_assignment_ids is None:
+            return self.cost_int_cached
+        return (
+            self._base_cost_int
+            + self._advancement_cost_int
+            + sum(e.cost_int() for e in self.displayed_assignments_cached)
+        )
+
+    @cached_property
+    def has_reduced_equipment_selection(self) -> bool:
+        """True when the active set hides some costed equipment.
+
+        Used to decide whether to show the "Selected X (max Y)" split or a
+        single cost number.
+        """
+        if self.displayed_assignment_ids is None:
+            return False
+        return self.selected_cost_int != self.cost_int_cached
+
+    def selected_cost_display(self):
+        return format_cost_display(self.selected_cost_int)
+
+    @cached_property
+    def active_equipment_set_name(self) -> str:
+        """Human label for the active card ("Default" or the set's name)."""
+        active = self.active_equipment_set_resolved
+        return active.name if active is not None else "Default"
+
+    @cached_property
+    @traced("listfighter_has_tools_of_the_trade")
+    def has_tools_of_the_trade(self) -> bool:
+        """Whether this fighter has the "Tools of the Trade" rule.
+
+        Equipment-set management is only surfaced for fighters with this rule
+        (matched by exact name, echoing the rulebook — see #1853).
+        """
+        return any(r.value == TOOLS_OF_THE_TRADE_RULE_NAME for r in self.ruleline)
+
     @cached_property
     def is_child_fighter(self: "ListFighter") -> bool:
         """
@@ -1709,7 +1852,7 @@ class ListFighter(AppBase):
     @traced("listfighter_weapons")
     def weapons(self):
         return sorted(
-            [e for e in self.assignments_cached if e.is_weapon_cached],
+            [e for e in self.displayed_assignments_cached if e.is_weapon_cached],
             key=lambda e: e.name(),
         )
 
@@ -1724,7 +1867,9 @@ class ListFighter(AppBase):
         # sections like normal fighter cards do, so anything filtered out here
         # is invisible to the user despite being counted in cost_int.
         if self.is_stash:
-            return [e for e in self.assignments_cached if not e.is_weapon_cached]
+            return [
+                e for e in self.displayed_assignments_cached if not e.is_weapon_cached
+            ]
 
         # Get categories that have fighter restrictions
         restricted_category_ids = (
@@ -1735,7 +1880,7 @@ class ListFighter(AppBase):
 
         return [
             e
-            for e in self.assignments_cached
+            for e in self.displayed_assignments_cached
             if not e.is_weapon_cached
             and not e.is_house_additional
             and e.content_equipment.category_id not in restricted_category_ids
@@ -1869,7 +2014,7 @@ class ListFighter(AppBase):
             )
 
         # 2. Categories from actual assigned gear
-        for assignment in self.assignments_cached:
+        for assignment in self.displayed_assignments_cached:
             if (
                 assignment.is_house_additional
                 and assignment.content_equipment.category_id not in seen_categories
@@ -1936,7 +2081,7 @@ class ListFighter(AppBase):
     def house_additional_assignments(self, category: ContentEquipmentCategory):
         return [
             e
-            for e in self.assignments_cached
+            for e in self.displayed_assignments_cached
             if e.is_house_additional and e.category == category.name
         ]
 
@@ -2056,7 +2201,7 @@ class ListFighter(AppBase):
         """Get assignments for a category-restricted equipment category."""
         return [
             e
-            for e in self.assignments_cached
+            for e in self.displayed_assignments_cached
             if e.category == category.name
             # Check both house AND category restrictions (AND rule)
             and (
@@ -2411,6 +2556,7 @@ class ListFighter(AppBase):
 
         # Clone equipment assignments, including those converted from default assignments
         # to preserve upgrades and other customizations
+        assignment_clone_map = {}
         for assignment in self._direct_assignments():
             if assignment.linked_equipment_parent is not None:
                 # Skip assignments that were auto-created from equipment-equipment links
@@ -2422,6 +2568,8 @@ class ListFighter(AppBase):
                 list_fighter=clone,
                 preserve_from_default_assignment=True,
             )
+            # Remember old->new so equipment sets (#1853) can be remapped below.
+            assignment_clone_map[assignment.id] = cloned_assignment
 
             # If this assignment was converted from a default, disable the default
             # on the clone to match the original state
@@ -2441,6 +2589,32 @@ class ListFighter(AppBase):
                     original_child_fighter.copy_attributes_to(
                         cloned_child_fighter, include_equipment=True
                     )
+
+        # Clone equipment sets (Tools of the Trade cards, #1853), remapping each
+        # set's membership to the cloned assignments so a fighter's cards survive
+        # a campaign clone.
+        from gyrinx.core.models.list.equipment_set import ListFighterEquipmentSet
+
+        set_clone_map = {}
+        for equipment_set in self.equipment_sets.all():
+            cloned_set = ListFighterEquipmentSet.objects.create(
+                list_fighter=clone,
+                name=equipment_set.name,
+                owner=clone.owner,
+            )
+            cloned_members = [
+                assignment_clone_map[a.id]
+                for a in equipment_set.assignments.all()
+                if a.id in assignment_clone_map
+            ]
+            if cloned_members:
+                cloned_set.assignments.set(cloned_members)
+            set_clone_map[equipment_set.id] = cloned_set
+
+        # Preserve which card was active on the original fighter.
+        if self.active_equipment_set_id in set_clone_map:
+            clone.active_equipment_set = set_clone_map[self.active_equipment_set_id]
+            clone.save(update_fields=["active_equipment_set"])
 
         # Clone psyker power assignments
         for power_assignment in self.psyker_powers.all():

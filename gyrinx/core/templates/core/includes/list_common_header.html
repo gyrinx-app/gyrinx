@@ -68,7 +68,16 @@
                     </thead>
                     <tbody>
                         <tr class="fs-6 align-middle">
-                            <td class="py-0 bg-transparent">{{ list.rating_display }}</td>
+                            <td class="py-0 bg-transparent">
+                                {% if list.has_reduced_equipment_selection %}
+                                    <span data-bs-toggle="tooltip"
+                                          title="Rating of the fighters' selected equipment sets, of {{ list.rating_display }} maximum">
+                                        {{ list.selected_rating_display }} <span class="text-secondary">({{ list.rating_display }})</span>
+                                    </span>
+                                {% else %}
+                                    {{ list.rating_display }}
+                                {% endif %}
+                            </td>
                             <td class="py-0 bg-transparent">{{ list.credits_current_display }}</td>
                             <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
                             <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
