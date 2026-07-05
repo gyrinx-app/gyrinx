@@ -712,6 +712,19 @@
     justify-content: flex-start;
 }
 
+// On a screen narrower than one card (small phones), the fixed-size card can't
+// shrink (see .classic-card flex: 0 0 auto), so contain its horizontal overflow
+// to the sheet instead of letting the whole page scroll sideways. Left-align so
+// the card's left edge stays reachable when the strip scrolls (centering would
+// push it off the unscrollable left side). Screen-only — never touches print,
+// where an overflow container could suppress page-break fragmentation.
+@media screen and (max-width: 110mm) {
+    .print-sheet {
+        justify-content: flex-start;
+        overflow-x: auto;
+    }
+}
+
 // Guide overlay: faint reference frame + mm grid to align regions during tuning.
 .classic-card.show-grid::before {
     content: "";
