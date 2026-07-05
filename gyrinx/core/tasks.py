@@ -358,12 +358,20 @@ def _update_discord_message(application_id: str, interaction_token: str, content
         logger.error(f"Failed to update Discord message: {e}")
 
 
-def _update_backfill(backfill_id, summary_patch=None, status=None, error=""):
+def _update_backfill(
+    backfill_id, summary_patch=None, status=None, error="", summary_extend=None
+):
     """Merge progress into a Backfill audit record's summary.
 
     Maintenance operations run as self-re-enqueueing task chains; the
     Backfill row (created by the admin trigger) is their progress surface —
     the /admin/maintenance/backfill/<id>/ page shows the merged summary.
+
+    ``summary_patch`` replaces keys; ``summary_extend`` *appends* rows to
+    list-valued keys (e.g. the growing per-list detail), accumulated under the
+    same row lock so re-enqueue forks don't race. Appends stay idempotent in
+    practice: a redelivered batch re-reconciles already-corrected lists, which
+    no longer move, so they contribute no new rows.
     """
     if backfill_id is None:
         return
@@ -392,6 +400,9 @@ def _update_backfill(backfill_id, summary_patch=None, status=None, error=""):
             return
         if summary_patch:
             backfill.summary = {**backfill.summary, **summary_patch}
+        if summary_extend:
+            for key, rows in summary_extend.items():
+                backfill.summary[key] = backfill.summary.get(key, []) + list(rows)
         if status:
             backfill.status = status
         if error:
@@ -409,7 +420,6 @@ def reconcile_all_lists(
     lists_done: int = 0,
     corrected: int = 0,
     clamped: int = 0,
-    moved: list | None = None,
 ):
     """Audited cache reconciliation across every list (#1826 §4.8.2).
 
@@ -419,14 +429,14 @@ def reconcile_all_lists(
     progress into the Backfill record. RECONCILE actions attribute to the
     triggering admin via ``user_id``.
 
-    Self-re-enqueues with a pk cursor; totals ride the kwargs so the final
-    summary is cumulative. ``moved`` accumulates
-    ``[list_id, rating_delta, stash_delta]`` rows for lists whose cached totals
-    actually changed (a player-visible change), so that at completion we can
-    notify each affected owner and arbitrator exactly once, summarising how much
-    each gang's rating and stash moved (#721). It only holds the *corrected*
-    subset — a small fraction of the estate — so it stays well within the task
-    payload size limit.
+    Self-re-enqueues with a pk cursor; the counters ride the kwargs so the
+    summary is cumulative. Each list whose cached totals actually changed (a
+    player-visible change) is appended to the Backfill record's ``per_list``
+    summary — the audit surface the /admin/maintenance detail page renders, and
+    the source the completion step reads to notify each affected owner and
+    arbitrator exactly once (#721). Persisting it on the record (rather than
+    threading it through the task payload) keeps the payload bounded and makes
+    the run auditable while it's still in flight.
     """
     from django.contrib.auth import get_user_model
 
@@ -438,8 +448,6 @@ def reconcile_all_lists(
     if user_id is not None:
         user = get_user_model().objects.filter(pk=user_id).first()
 
-    moved = list(moved or [])
-
     qs = List.objects.order_by("id")
     if list_id:
         # Incremental rollout: scope the whole run to one list.
@@ -448,22 +456,30 @@ def reconcile_all_lists(
         qs = qs.filter(id__gt=after_id)
     batch = list(qs.values_list("id", flat=True)[:batch_size])
 
+    batch_moved = []  # per-list detail for the lists THIS batch actually moved
     try:
         for batch_list_id in batch:
-            result = reconcile_list(List.objects.get(pk=batch_list_id), user=user)
+            lst_obj = List.objects.get(pk=batch_list_id)
+            result = reconcile_list(lst_obj, user=user)
             lists_done += 1
             if result.moved or result.action:
                 corrected += 1
             if result.moved:
-                # Player-visible change: this owner (and arb) get told, with the
-                # rating and stash deltas. An action without `moved` is a
-                # ledger-only alignment nobody sees, so it is excluded here.
-                moved.append(
-                    [
-                        str(batch_list_id),
-                        result.rating_after - result.rating_before,
-                        result.stash_after - result.stash_before,
-                    ]
+                # Player-visible change: record before/after so the detail page
+                # and the notifications can show what moved. An action without
+                # `moved` is a ledger-only alignment nobody sees, so it's excluded.
+                batch_moved.append(
+                    {
+                        "list_id": str(batch_list_id),
+                        "list_name": lst_obj.name,
+                        "rating_before": result.rating_before,
+                        "rating_after": result.rating_after,
+                        "stash_before": result.stash_before,
+                        "stash_after": result.stash_after,
+                        "audit_action_id": str(result.action.id)
+                        if result.action
+                        else None,
+                    }
                 )
             if result.clamped:
                 clamped += 1
@@ -484,6 +500,7 @@ def reconcile_all_lists(
             status=Backfill.Status.FAILED,
             error=f"Failed in batch after cursor {after_id}: {e}. "
             "Fix the cause and re-trigger.",
+            summary_extend={"per_list": batch_moved},
         )
         return
 
@@ -494,7 +511,9 @@ def reconcile_all_lists(
         "cursor": str(batch[-1]) if batch else None,
     }
     if len(batch) == batch_size:
-        _update_backfill(backfill_id, progress)
+        _update_backfill(
+            backfill_id, progress, summary_extend={"per_list": batch_moved}
+        )
         reconcile_all_lists.enqueue(
             after_id=str(batch[-1]),
             batch_size=batch_size,
@@ -504,10 +523,14 @@ def reconcile_all_lists(
             lists_done=lists_done,
             corrected=corrected,
             clamped=clamped,
-            moved=moved,
         )
     else:
-        _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
+        _update_backfill(
+            backfill_id,
+            progress,
+            status=Backfill.Status.DONE,
+            summary_extend={"per_list": batch_moved},
+        )
         logger.info(
             "reconcile_all_lists: complete — %s lists, %s corrected, %s clamped",
             lists_done,
@@ -515,14 +538,22 @@ def reconcile_all_lists(
             clamped,
         )
         # Tell affected people once, aggregated: one notification per owner and
-        # one per arbitrator, each linking every gang that actually changed
-        # (#721). Runs once, at completion, over the whole run's moved set — so
-        # a player who owns several corrected gangs gets a single message.
+        # one per arbitrator, each summarising every gang that actually changed
+        # (#721). Read the whole run's per-list detail back off the record, so a
+        # player who owns several corrected gangs gets a single message.
         # Never let a notification failure undo a completed reconcile.
         try:
             from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
 
-            deltas = {row[0]: [row[1], row[2]] for row in moved}
+            record = Backfill.objects.filter(pk=backfill_id).first()
+            per_list = record.summary.get("per_list", []) if record else []
+            deltas = {
+                row["list_id"]: [
+                    row["rating_after"] - row["rating_before"],
+                    row["stash_after"] - row["stash_before"],
+                ]
+                for row in per_list
+            }
             owners, arbs = notify_lists_reconciled(deltas)
             logger.info(
                 "reconcile_all_lists: notified %s owner(s), %s arbitrator(s)",

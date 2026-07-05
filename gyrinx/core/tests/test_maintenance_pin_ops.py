@@ -87,6 +87,61 @@ def test_reconcile_task_reports_progress_and_attribution(tracked_list, superuser
 
 
 @pytest.mark.django_db
+def test_reconcile_run_records_per_list_detail(tracked_list, superuser):
+    """The run persists per-gang before/after detail into the Backfill record —
+    the audit surface the detail page renders and the notifications read."""
+    lst, fighter, _ = tracked_list
+    true_rating = fresh(lst).rating_current
+    # Cache-only drift: inflate the list cache, ledger head untouched, so
+    # reconcile moves the cache (player-visible) but writes no ledger action.
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
+
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    reconcile_all_lists.func(
+        backfill_id=str(record.id), user_id=superuser.pk, batch_size=500
+    )
+
+    record.refresh_from_db()
+    per_list = record.summary["per_list"]
+    assert len(per_list) == 1
+    row = per_list[0]
+    assert row["list_id"] == str(lst.pk)
+    assert row["list_name"] == lst.name
+    assert row["rating_before"] == true_rating + 10
+    assert row["rating_after"] == true_rating
+    # Cache-only correction (ledger head already == true) → no audit action.
+    assert row["audit_action_id"] is None
+
+
+@pytest.mark.django_db
+def test_reconcile_detail_page_renders_per_list(client, superuser, tracked_list):
+    """The maintenance detail page shows the reconcile per-gang rating movement."""
+    lst, fighter, _ = tracked_list
+    true_rating = fresh(lst).rating_current
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    reconcile_all_lists.func(
+        backfill_id=str(record.id), user_id=superuser.pk, batch_size=500
+    )
+
+    client.force_login(superuser)
+    r = client.get(reverse("admin:maintenance_backfill_detail", args=[record.pk]))
+    assert r.status_code == 200
+    content = r.content.decode()
+    assert lst.name in content
+    assert f"{true_rating + 10} → {true_rating}" in content  # rating before → after
+    assert "Corrected:" in content
+
+
+@pytest.mark.django_db
 def test_backfill_task_reports_progress(tracked_list, superuser):
     lst, _, assignment = tracked_list
     ListFighterEquipmentAssignment.objects.all().update(
