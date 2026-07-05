@@ -409,6 +409,7 @@ def reconcile_all_lists(
     lists_done: int = 0,
     corrected: int = 0,
     clamped: int = 0,
+    moved: list | None = None,
 ):
     """Audited cache reconciliation across every list (#1826 §4.8.2).
 
@@ -419,7 +420,13 @@ def reconcile_all_lists(
     triggering admin via ``user_id``.
 
     Self-re-enqueues with a pk cursor; totals ride the kwargs so the final
-    summary is cumulative.
+    summary is cumulative. ``moved`` accumulates
+    ``[list_id, rating_delta, stash_delta]`` rows for lists whose cached totals
+    actually changed (a player-visible change), so that at completion we can
+    notify each affected owner and arbitrator exactly once, summarising how much
+    each gang's rating and stash moved (#721). It only holds the *corrected*
+    subset — a small fraction of the estate — so it stays well within the task
+    payload size limit.
     """
     from django.contrib.auth import get_user_model
 
@@ -430,6 +437,8 @@ def reconcile_all_lists(
     user = None
     if user_id is not None:
         user = get_user_model().objects.filter(pk=user_id).first()
+
+    moved = list(moved or [])
 
     qs = List.objects.order_by("id")
     if list_id:
@@ -445,6 +454,17 @@ def reconcile_all_lists(
             lists_done += 1
             if result.moved or result.action:
                 corrected += 1
+            if result.moved:
+                # Player-visible change: this owner (and arb) get told, with the
+                # rating and stash deltas. An action without `moved` is a
+                # ledger-only alignment nobody sees, so it is excluded here.
+                moved.append(
+                    [
+                        str(batch_list_id),
+                        result.rating_after - result.rating_before,
+                        result.stash_after - result.stash_before,
+                    ]
+                )
             if result.clamped:
                 clamped += 1
                 logger.warning(
@@ -484,6 +504,7 @@ def reconcile_all_lists(
             lists_done=lists_done,
             corrected=corrected,
             clamped=clamped,
+            moved=moved,
         )
     else:
         _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
@@ -493,6 +514,26 @@ def reconcile_all_lists(
             corrected,
             clamped,
         )
+        # Tell affected people once, aggregated: one notification per owner and
+        # one per arbitrator, each linking every gang that actually changed
+        # (#721). Runs once, at completion, over the whole run's moved set — so
+        # a player who owns several corrected gangs gets a single message.
+        # Never let a notification failure undo a completed reconcile.
+        try:
+            from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
+
+            deltas = {row[0]: [row[1], row[2]] for row in moved}
+            owners, arbs = notify_lists_reconciled(deltas)
+            logger.info(
+                "reconcile_all_lists: notified %s owner(s), %s arbitrator(s)",
+                owners,
+                arbs,
+            )
+        except Exception:
+            logger.exception(
+                "reconcile_all_lists: notification fan-out failed (reconcile "
+                "itself completed)"
+            )
 
 
 @task
