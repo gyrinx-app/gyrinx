@@ -69,6 +69,7 @@
                         {% if fighter.is_child_fighter %}
                             {% include "core/includes/parent_fighter_link.html" with fighter=fighter print=print %}
                         {% endif %}
+                        {% include "core/includes/fighter_card_equipment_set_switcher.html" with fighter=fighter list=list can_edit=can_edit print=print compact=compact %}
                         {% include "core/includes/fighter_card_cost.html" with fighter=fighter print=print %}
                     {% endif %}
                 </div>
@@ -210,6 +211,15 @@
                                               data-bs-title="Child fighters are managed through their crew"><i class="bi-trash"></i> Delete</span>
                                     </li>
                                 {% else %}
+                                    {% if fighter.has_tools_of_the_trade %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:list-fighter-equipment-sets' list.id fighter.id %}"><i class="bi-collection"></i> Equipment sets</a>
+                                        </li>
+                                        <li>
+                                            <hr class="dropdown-divider">
+                                        </li>
+                                    {% endif %}
                                     {% if list.is_campaign_mode %}
                                         {% if fighter.injury_state != 'dead' and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                                             <li>

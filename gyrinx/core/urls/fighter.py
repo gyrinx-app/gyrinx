@@ -4,6 +4,7 @@ from ..views.fighter import advancements as fighter_advancements
 from ..views.fighter import counters as fighter_counters
 from ..views.fighter import crud as fighter_crud
 from ..views.fighter import equipment as fighter_equipment
+from ..views.fighter import equipment_sets as fighter_equipment_sets
 from ..views.fighter import narrative as fighter_narrative
 from ..views.fighter import powers as fighter_powers
 from ..views.fighter import rules as fighter_rules
@@ -70,6 +71,44 @@ patterns = [
         "list/<id>/fighter/<fighter_id>/rules/<rule_id>/remove",
         fighter_rules.remove_list_fighter_rule,
         name="list-fighter-rule-remove",
+    ),
+    # Equipment sets (Tools of the Trade cards, #1853). "create" and
+    # "default/activate" are listed before "<set_id>" so the string set_id
+    # converter doesn't capture those literal segments.
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets",
+        fighter_equipment_sets.edit_list_fighter_equipment_sets,
+        name="list-fighter-equipment-sets",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets/create",
+        fighter_equipment_sets.create_list_fighter_equipment_set,
+        name="list-fighter-equipment-set-create",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets/default/activate",
+        fighter_equipment_sets.activate_default_equipment_set,
+        name="list-fighter-equipment-set-activate-default",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets/<set_id>",
+        fighter_equipment_sets.edit_list_fighter_equipment_set,
+        name="list-fighter-equipment-set-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets/<set_id>/activate",
+        fighter_equipment_sets.activate_list_fighter_equipment_set,
+        name="list-fighter-equipment-set-activate",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets/<set_id>/rename",
+        fighter_equipment_sets.rename_list_fighter_equipment_set,
+        name="list-fighter-equipment-set-rename",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/equipment-sets/<set_id>/delete",
+        fighter_equipment_sets.delete_list_fighter_equipment_set,
+        name="list-fighter-equipment-set-delete",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/powers",
