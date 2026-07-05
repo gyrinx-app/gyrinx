@@ -40,6 +40,9 @@
     // stops ~2mm short of the pinned XP/Kills row to leave a margin above it.
     --cc-detail-top: 60mm;
     --cc-detail-h: 21.5mm;
+    // Gap between the two detail columns — shared with the XP/Kills row so the
+    // two splits line up. Change here and both stay aligned.
+    --cc-detail-gap: 3mm;
     // XP/Kills, notes, and injuries are pinned so they never clip.
     --cc-kills-top: 83.5mm;
     --cc-kills-h: 3.5mm;
@@ -421,7 +424,7 @@
 
     .cc-detail__cols {
         column-count: 2;
-        column-gap: 3mm;
+        column-gap: var(--cc-detail-gap);
         max-height: 100%;
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
@@ -482,15 +485,15 @@
         overflow: hidden;
     }
 
-    // XP + Kills — pinned row of two equal columns. The gap between them matches
-    // the detail block's column-gap (3mm) so the XP/Kills split lines up with the
+    // XP + Kills — pinned row of two equal columns. The gap between them is the
+    // shared --cc-detail-gap so the XP/Kills split lines up with the
     // Skills+Rules / Gear columns above.
     .cc-kills {
         top: var(--cc-kills-top);
         height: var(--cc-kills-h);
         display: flex;
         align-items: stretch;
-        gap: 3mm;
+        gap: var(--cc-detail-gap);
     }
 
     // Each column is a label paired with its write-in box.

@@ -430,8 +430,10 @@ def _cards_for_request(request):
             list_obj = List.objects.get(id=lid)
         except Exception:
             return [], f"No gang found for id {lid!r}."
-        # Mirror the real classic print path (ListPrintView): exclude dead
-        # fighters and skip the stash, so the lab previews what actually prints.
+        # Match the common case of the real classic print path (ListPrintView):
+        # skip the stash and exclude dead fighters. The lab has no print-config
+        # selector, so it always uses the default (dead excluded) rather than
+        # honouring a config's include_dead_fighters.
         fighters = (
             ListFighter.objects.filter(list=list_obj, archived=False)
             .exclude(injury_state=ListFighter.DEAD)
