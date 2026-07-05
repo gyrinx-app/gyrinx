@@ -153,6 +153,15 @@ def test_notify_many_empty_returns_zero():
 
 
 @pytest.mark.django_db
+def test_notify_many_batches_across_batch_size(make_user):
+    users = [make_user(f"u{i}", "password") for i in range(5)]
+    # batch_size=2 forces multiple bulk_create batches.
+    count = notify_many(users, subject="Batched", batch_size=2)
+    assert count == 5
+    assert Notification.objects.filter(subject="Batched").count() == 5
+
+
+@pytest.mark.django_db
 def test_notification_has_no_history_table():
     # Deliberate: notifications omit HistoricalRecords (see model docstring).
     assert hasattr(Notification, "history") is False

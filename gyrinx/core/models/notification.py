@@ -9,6 +9,7 @@ migrations can call them safely.
 """
 
 import logging
+from itertools import islice
 
 from django.db import models
 from django.db.models import Q
@@ -392,32 +393,35 @@ def notify_many(
 ):
     """Fan out to many recipients efficiently (broadcast). Returns the count created.
 
-    De-dupes recipients and uses ``bulk_create`` (there's no history table, so no
-    per-row save cost). Safe: logs and returns ``0`` on error.
+    De-dupes recipients and creates rows in batches of ``batch_size`` so peak memory
+    stays bounded for large audiences (there's no history table, so no per-row save
+    cost). Pass a queryset's ``.iterator()`` to also stream the recipients rather than
+    loading them all at once. Safe: logs and returns the count created so far on error.
     """
-    try:
+
+    def build():
         seen = set()
-        objs = []
         for recipient in recipients:
             if recipient is None or recipient.id in seen:
                 continue
             seen.add(recipient.id)
-            objs.append(
-                Notification(
-                    owner=recipient,
-                    sender=sender,
-                    subject=subject,
-                    content=content,
-                    notification_type=notification_type,
-                    show_as_banner=show_as_banner,
-                    banner_colour=banner_colour,
-                    icon=icon,
-                )
+            yield Notification(
+                owner=recipient,
+                sender=sender,
+                subject=subject,
+                content=content,
+                notification_type=notification_type,
+                show_as_banner=show_as_banner,
+                banner_colour=banner_colour,
+                icon=icon,
             )
-        if not objs:
-            return 0
-        created = Notification.objects.bulk_create(objs, batch_size=batch_size)
-        return len(created)
+
+    created = 0
+    try:
+        objs = build()
+        while batch := list(islice(objs, batch_size)):
+            Notification.objects.bulk_create(batch, batch_size=batch_size)
+            created += len(batch)
     except Exception:
         logger.exception("notify_many failed for subject=%r", subject)
-        return 0
+    return created

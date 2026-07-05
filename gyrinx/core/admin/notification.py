@@ -130,7 +130,7 @@ class NotificationAdmin(admin.ModelAdmin):
             if form.is_valid():
                 sender = None if form.cleaned_data["send_as_system"] else request.user
                 count = notify_many(
-                    form.get_recipients(),
+                    form.get_recipients().iterator(),
                     subject=form.cleaned_data["subject"],
                     content=form.cleaned_data["content"],
                     sender=sender,
