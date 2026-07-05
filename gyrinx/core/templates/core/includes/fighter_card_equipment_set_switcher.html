@@ -1,0 +1,55 @@
+{% comment %}
+Equipment-set (Tools of the Trade) switcher — entry point on the fighter card.
+Only shown for editors on fighters with the "Tools of the Trade" rule (#1853).
+Each option is a POST form because activating a card mutates the fighter.
+{% endcomment %}
+{% if not print and not compact and can_edit and fighter.has_tools_of_the_trade %}
+    <div class="dropdown">
+        <button class="btn btn-link link-secondary p-0 border-0 lh-1 align-middle position-relative"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Switch equipment set"
+                title="{% if fighter.active_equipment_set_id %}Equipment set: {{ fighter.active_equipment_set_name }}{% else %}Switch equipment set{% endif %}">
+            <i class="bi-collection"></i>
+            {% if fighter.active_equipment_set_id %}
+                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-primary rounded-circle">
+                    <span class="visually-hidden">Custom equipment set active</span>
+                </span>
+            {% endif %}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+                <form method="post"
+                      action="{% url 'core:list-fighter-equipment-set-activate-default' list.id fighter.id %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="dropdown-item {% if not fighter.active_equipment_set_id %}active{% endif %}">
+                        Default (all equipment)
+                    </button>
+                </form>
+            </li>
+            {% for set in fighter.equipment_sets.all %}
+                <li>
+                    <form method="post"
+                          action="{% url 'core:list-fighter-equipment-set-activate' list.id fighter.id set.id %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="dropdown-item {% if set.id == fighter.active_equipment_set_id %}active{% endif %}">
+                            {{ set.name }}
+                        </button>
+                    </form>
+                </li>
+            {% endfor %}
+            <li>
+                <hr class="dropdown-divider">
+            </li>
+            <li>
+                <a class="dropdown-item icon-link"
+                   href="{% url 'core:list-fighter-equipment-sets' list.id fighter.id %}">
+                    <i class="bi-pencil"></i> Manage sets
+                </a>
+            </li>
+        </ul>
+    </div>
+{% endif %}

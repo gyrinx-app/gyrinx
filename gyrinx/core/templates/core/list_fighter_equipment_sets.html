@@ -1,0 +1,139 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Equipment sets - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-equipment-sets" %}
+    <div class="col-12 col-lg-8 px-0 vstack gap-3">
+        <h1 class="h3 mb-0">Equipment sets: {{ fighter.fully_qualified_name }}</h1>
+        {% if not fighter.has_tools_of_the_trade %}
+            <div class="alert alert-info alert-icon" role="alert">
+                <i class="bi-info-circle"></i>
+                <div>
+                    This Fighter does not have the requisite rule (Tools of the Trade),
+                    so equipment sets aren't available.
+                </div>
+            </div>
+        {% else %}
+            <p class="text-secondary mb-0">
+                Sets let this Fighter field different loadouts. Every item stays owned by the
+                Fighter — a set just chooses which weapons and gear are shown. Switching sets
+                never changes credits or wealth, only the displayed rating.
+            </p>
+            <div class="alert alert-info alert-icon" role="alert">
+                <i class="bi-info-circle"></i>
+                <div>The active set is what shows on the card, and is used when you print this gang.</div>
+            </div>
+            {# Sets #}
+            <div>
+                <div class="bg-body-secondary rounded px-2 py-1 mb-2">
+                    <h2 class="h5 mb-0">Sets</h2>
+                </div>
+                <table class="table table-sm table-borderless align-middle mb-0">
+                    <tbody>
+                        <tr>
+                            <td class="ps-2">
+                                <div class="fw-semibold">Default</div>
+                                <div class="fs-7 text-secondary">All equipment</div>
+                            </td>
+                            <td class="text-end pe-2">
+                                {% if not has_active_set %}
+                                    <span class="badge text-bg-success">Active</span>
+                                {% else %}
+                                    <form method="post"
+                                          action="{% url 'core:list-fighter-equipment-set-activate-default' list.id fighter.id %}"
+                                          class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.path }}">
+                                        <button type="submit" class="btn btn-sm btn-secondary">Activate</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% for entry in equipment_sets %}
+                            <tr>
+                                <td class="ps-2">
+                                    <div class="fw-semibold">{{ entry.set.name }}</div>
+                                    <div class="fs-7 text-secondary">
+                                        {% if entry.item_names %}
+                                            {% spaceless %}
+                                                {% for name in entry.item_names %}
+                                                    <span>{{ name }}</span>
+                                                    {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                                {% endfor %}
+                                            {% endspaceless %}
+                                        {% else %}
+                                            <span class="fst-italic">Nothing selected</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="text-end pe-2">
+                                    <div class="d-inline-flex gap-2 align-items-center">
+                                        {% if entry.is_active %}
+                                            <span class="badge text-bg-success">Active</span>
+                                        {% else %}
+                                            <form method="post"
+                                                  action="{% url 'core:list-fighter-equipment-set-activate' list.id fighter.id entry.set.id %}"
+                                                  class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.path }}">
+                                                <button type="submit" class="btn btn-sm btn-secondary">Activate</button>
+                                            </form>
+                                        {% endif %}
+                                        <a class="btn btn-sm btn-primary"
+                                           href="{% url 'core:list-fighter-equipment-set-edit' list.id fighter.id entry.set.id %}">
+                                            <i class="bi-pencil"></i> Edit
+                                        </a>
+                                        <form method="post"
+                                              action="{% url 'core:list-fighter-equipment-set-delete' list.id fighter.id entry.set.id %}"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Delete this set? The Fighter keeps all their equipment.');">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-link link-danger p-0"
+                                                    aria-label="Delete set">
+                                                <i class="bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="2" class="ps-2 text-secondary">No sets yet. Create one below.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {# Create a set #}
+            <div>
+                <div class="bg-body-secondary rounded px-2 py-1 mb-2">
+                    <h2 class="h5 mb-0">Create a set</h2>
+                </div>
+                <div class="px-2">
+                    <form method="post"
+                          action="{% url 'core:list-fighter-equipment-set-create' list.id fighter.id %}"
+                          class="hstack gap-2">
+                        {% csrf_token %}
+                        <input type="text"
+                               name="name"
+                               class="form-control form-control-sm"
+                               placeholder="e.g. Close-quarters loadout"
+                               aria-label="New set name"
+                               maxlength="255"
+                               required>
+                        <button type="submit" class="btn btn-sm btn-success text-nowrap">
+                            <i class="bi-plus-lg"></i> Create
+                        </button>
+                    </form>
+                    <p class="text-secondary fs-7 mt-2 mb-0">
+                        A new set starts with everything the Fighter has — you then remove
+                        what they leave behind.
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

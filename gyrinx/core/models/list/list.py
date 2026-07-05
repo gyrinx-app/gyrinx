@@ -392,6 +392,76 @@ class List(AppBase):
                 return format_cost_display(facts.rating)
         return format_cost_display(self.rating)
 
+    # --- Equipment sets: display-only "selected" rating (#1853) --------------
+
+    @cached_property
+    def _selected_rating_fighters(self):
+        """Active (non-stash, non-archived) fighters, from prefetch only.
+
+        Returns None when ``listfighter_set`` isn't prefetched. The selected
+        rating is a display-only nicety, so on pages that don't prefetch
+        fighters (e.g. fighter edit sub-pages) it degrades to the normal rating
+        rather than triggering the heavy fighter query in the shared header.
+        """
+        if (
+            hasattr(self, "_prefetched_objects_cache")
+            and "listfighter_set" in self._prefetched_objects_cache
+        ):
+            return [
+                f
+                for f in self._prefetched_objects_cache["listfighter_set"]
+                if not f.archived and not f.content_fighter.is_stash
+            ]
+        return None
+
+    @cached_property
+    def selected_rating(self):
+        """Rating under each fighter's active equipment set (display-only).
+
+        Parallels :attr:`rating` but sums each fighter's ``selected_cost_int``
+        (active-set cost) rather than the full-kit cost. Never persisted; it
+        does not feed credits/audit/pins — see #1853. Falls back to the normal
+        rating when fighters aren't prefetched.
+        """
+        fighters = self._selected_rating_fighters
+        if fighters is None:
+            return self.rating
+        return sum(f.selected_cost_int for f in fighters)
+
+    @cached_property
+    def selected_rating_max(self):
+        """Full-kit rating over the *same* fighters used for selected_rating.
+
+        Kept on the same live basis as :attr:`selected_rating` (not the cached
+        ``rating_current``) so the "selected (max)" pair is internally
+        consistent — the gap always equals the value of the hidden gear, even if
+        the cached rating has drifted. See #1853.
+        """
+        fighters = self._selected_rating_fighters
+        if fighters is None:
+            return self.rating
+        return sum(f.cost_int_cached for f in fighters)
+
+    @cached_property
+    def has_reduced_equipment_selection(self) -> bool:
+        """True when any active fighter's set hides costed equipment.
+
+        False when fighters aren't prefetched (the selected/max split is only
+        shown on pages that already have the fighter data in memory).
+        """
+        fighters = self._selected_rating_fighters
+        if fighters is None:
+            return False
+        return any(f.has_reduced_equipment_selection for f in fighters)
+
+    def selected_rating_display(self):
+        """Display the list's rating under the fighters' active sets."""
+        return format_cost_display(self.selected_rating)
+
+    def selected_rating_max_display(self):
+        """Display the full-kit rating on the same basis as selected_rating."""
+        return format_cost_display(self.selected_rating_max)
+
     @cached_property
     def stash_fighter_cost_int(self):
         return self.stash_fighter.cost_int() if self.stash_fighter else 0
