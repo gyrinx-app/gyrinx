@@ -74,8 +74,14 @@
                 <tr class="fs-7">
                     <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ entry.counter.name }}</th>
                     <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                        <span class="badge {% if entry.warn %}text-bg-danger{% else %}text-bg-secondary{% endif %}"
-                              {% if entry.warn %}title="{{ entry.counter.name }} exceeds {{ entry.counter.warning_stat }}"{% endif %}>{{ entry.value }}</span>
+                        {% if entry.warn %}
+                            <span bs-tooltip
+                                  data-bs-toggle="tooltip"
+                                  class="badge text-bg-danger"
+                                  title="{{ entry.counter.name }} is higher than this fighter's {{ entry.counter.warning_stat }}">{{ entry.value }}<span class="ms-1">•</span></span>
+                        {% else %}
+                            <span class="badge text-bg-secondary">{{ entry.value }}</span>
+                        {% endif %}
                         {% if not fighter.is_captured and not fighter.is_sold_to_guilders %}
                             {% if can_edit or is_arbitrator %}
                                 <a href="{% url 'core:list-fighter-counter-edit' list.id fighter.id entry.counter.id %}">Edit</a>
