@@ -26,5 +26,29 @@
                    class="btn btn-link">Cancel</a>
             </div>
         </form>
+        {% if flows %}
+            <div class="vstack gap-2">
+                <h2 class="h5 mb-0">Spend {{ counter.name }}</h2>
+                {% for entry in flows %}
+                    <div class="border rounded p-2 vstack gap-1">
+                        <div class="fw-bold">{{ entry.flow.name }}</div>
+                        {% if entry.flow.description %}<div class="text-secondary fs-7">{{ entry.flow.description }}</div>{% endif %}
+                        <div class="fs-7">
+                            Spend {{ entry.flow.cost }} {{ counter.name }} and roll on {{ entry.flow.roll_table.name }} ({{ entry.flow.roll_table.dice }}).
+                        </div>
+                        {% if entry.affordable %}
+                            <div>
+                                <a href="{% url 'core:list-fighter-roll-flow' list.id fighter.id entry.flow.id %}"
+                                   class="btn btn-primary btn-sm">Start <i class="bi-arrow-right" aria-hidden="true"></i></a>
+                            </div>
+                        {% else %}
+                            <div class="text-secondary fs-7">
+                                Requires {{ entry.flow.cost }} {{ counter.name }} — currently {{ form.current_value }}.
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
     </div>
 {% endblock content %}

@@ -7,6 +7,7 @@ from ..views.fighter import equipment as fighter_equipment
 from ..views.fighter import equipment_sets as fighter_equipment_sets
 from ..views.fighter import narrative as fighter_narrative
 from ..views.fighter import powers as fighter_powers
+from ..views.fighter import roll_flow as fighter_roll_flow
 from ..views.fighter import rules as fighter_rules
 from ..views.fighter import skills as fighter_skills
 from ..views.fighter import state as fighter_state
@@ -327,6 +328,27 @@ patterns = [
         "list/<id>/fighter/<fighter_id>/counter/<counter_id>",
         fighter_counters.edit_list_fighter_counter,
         name="list-fighter-counter-edit",
+    ),
+    # Roll flows (spend a counter, roll on a table)
+    path(
+        "list/<id>/fighter/<fighter_id>/roll-flow/<flow_id>",
+        fighter_roll_flow.roll_flow_roll,
+        name="list-fighter-roll-flow",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/roll-flow/<flow_id>/confirm",
+        fighter_roll_flow.roll_flow_confirm,
+        name="list-fighter-roll-flow-confirm",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/roll-results",
+        fighter_roll_flow.roll_results_edit,
+        name="list-fighter-roll-results-edit",
+    ),
+    path(
+        "list/<id>/fighter/<fighter_id>/roll-result/<result_id>/remove",
+        fighter_roll_flow.roll_result_remove,
+        name="list-fighter-roll-result-remove",
     ),
     path(
         "list/<id>/fighter/<fighter_id>/mark-captured",

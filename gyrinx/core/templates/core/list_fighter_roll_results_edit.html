@@ -1,0 +1,38 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Roll results - {{ fighter.name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/back_to_list.html" with list=list %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Roll results: {{ fighter.name }}</h1>
+        {% if results %}
+            <div class="vstack gap-2">
+                {% for result in results %}
+                    <div class="border rounded p-2 vstack gap-1">
+                        <div class="hstack gap-2">
+                            <span class="fw-bold">{{ result.row.name }}</span>
+                            <span class="text-secondary fs-7">{{ result.row.table.name }}</span>
+                        </div>
+                        {% if result.row.description %}<div class="fs-7">{{ result.row.description }}</div>{% endif %}
+                        <div class="text-secondary fs-7">
+                            Received {{ result.date_received|date:"M j, Y" }}
+                            {% if result.rating_increase %}· +{{ result.rating_increase }}¢{% endif %}
+                            {% if result.counter_cost and result.counter %}
+                                · {{ result.counter_cost }} {{ result.counter.name }} spent
+                            {% endif %}
+                        </div>
+                        {% if result.notes %}<div class="fs-7"><em>{{ result.notes }}</em></div>{% endif %}
+                        <div>
+                            <a href="{% url 'core:list-fighter-roll-result-remove' list.id fighter.id result.id %}"
+                               class="btn btn-danger btn-sm">Remove</a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-secondary">{{ fighter.name }} has no roll results.</p>
+        {% endif %}
+    </div>
+{% endblock content %}
