@@ -9,7 +9,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0155_backfill_pin_operations"),
+        ("core", "0156_merge_20260705_1006"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
