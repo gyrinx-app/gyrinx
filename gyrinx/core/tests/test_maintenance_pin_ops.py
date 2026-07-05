@@ -326,7 +326,6 @@ def test_reconcile_exception_marks_failed_and_stops(
 ):
     """A batch exception marks the record FAILED and RETURNS (acks) — the
     chain stops instead of Pub/Sub redelivering it forever."""
-    import gyrinx.core.tasks as tasks_module
 
     def boom(lst, user=None, rebuild_fighters=True):
         raise RuntimeError("reconcile exploded")
@@ -339,7 +338,7 @@ def test_reconcile_exception_marks_failed_and_stops(
         status=Backfill.Status.RUNNING,
     )
     # Must not raise: raising would nack and redeliver forever.
-    tasks_module.reconcile_all_lists.func(
+    reconcile_all_lists.func(
         backfill_id=str(record.id), user_id=superuser.pk, batch_size=500
     )
 
