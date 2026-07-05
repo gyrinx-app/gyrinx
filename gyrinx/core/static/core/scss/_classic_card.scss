@@ -64,6 +64,14 @@
     box-sizing: border-box;
     width: var(--cc-w);
     height: var(--cc-h);
+    // Fixed-size card. As a flex item it defaults to flex-shrink: 1, so any
+    // container narrower than 100mm (every phone screen — and iOS's print
+    // layout viewport, which is derived from the on-screen device width) would
+    // squash the card's *width* while its height stays 110mm. That distorts the
+    // mm-positioned regions and clips content. Pin the flex size so the card
+    // always keeps its intrinsic 100x110mm and the container scrolls / scales
+    // to fit instead of deforming the card.
+    flex: 0 0 auto;
     overflow: hidden;
     color: var(--cc-ink);
     background: var(--cc-paper);
@@ -73,6 +81,11 @@
     font-family: $font-family-sans-serif;
     font-size: 2.5mm;
     line-height: 1.05;
+    // iOS Safari auto-inflates text in fixed-width blocks ("text autosizing"),
+    // which overflows the precisely-sized mm regions and breaks the layout on
+    // mobile. Pin it so the mm type renders at exactly the size we set.
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 
@@ -733,7 +746,13 @@
     .print-sheet {
         gap: 3mm;
         padding: 0;
-        width: auto;
+        // Pin the sheet to the A4 content width (210mm − 2×3mm @page margin)
+        // rather than `auto`. On iOS the print layout viewport is inherited
+        // from the narrow on-screen device width, so `auto` collapses the sheet
+        // and the cards can no longer tile 2-up (or scale unpredictably). A
+        // fixed 204mm sheet lays the two 100mm cards out deterministically and
+        // lets the browser scale that whole sheet to the paper.
+        width: 204mm;
         margin: 0;
         justify-content: flex-start;
         background: #fff !important;
@@ -741,6 +760,10 @@
 
     .classic-card {
         break-inside: avoid;
+        // Legacy alias — older WebKit / iOS Safari only honour the
+        // page-break-* properties, not the modern break-* ones, so without
+        // this a card can be sliced across the page fold when printing.
+        page-break-inside: avoid;
         outline: none !important;
     }
 
