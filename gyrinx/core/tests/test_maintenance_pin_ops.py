@@ -389,3 +389,21 @@ def test_second_trigger_while_running_is_refused(client, superuser):
     assert (
         Backfill.objects.filter(operation=Backfill.Operation.BACKFILL_PINS).count() == 1
     )  # no second record, no second chain
+
+
+@pytest.mark.django_db
+def test_maintenance_links_visible_only_to_superusers(client, superuser, make_user):
+    """The header nav and admin home link Maintenance for those who can use
+    it (superusers); staff and regular users see nothing."""
+    client.force_login(superuser)
+    home = client.get(reverse("core:index"))
+    assert b"Maintenance" in home.content
+    admin_home = client.get(reverse("admin:index"))
+    assert b"Maintenance operations" in admin_home.content
+
+    staff = make_user("plainstaff", "password")
+    staff.is_staff = True
+    staff.save()
+    client.force_login(staff)
+    assert b"Maintenance" not in client.get(reverse("core:index")).content
+    assert b"Maintenance operations" not in client.get(reverse("admin:index")).content

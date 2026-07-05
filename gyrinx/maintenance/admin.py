@@ -79,6 +79,11 @@ def _running_guard(operation):
 class MaintenanceAdminSite(admin.site.__class__):
     """Adds /admin/maintenance/* routes on top of whatever admin.site already is."""
 
+    # Admin home shows a Maintenance banner to those who can use it
+    # (superusers). The template extends the stock index — a different
+    # template NAME, so no extends-recursion.
+    index_template = "admin/maintenance/admin_index.html"
+
     def get_urls(self):
         urls = super().get_urls()
         custom = [
