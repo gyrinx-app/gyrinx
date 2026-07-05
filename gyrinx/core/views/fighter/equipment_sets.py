@@ -71,13 +71,22 @@ def edit_list_fighter_equipment_sets(request, id, fighter_id):
         )
 
     active_id = fighter.active_equipment_set_id
+    # Resolve item names from the fighter's already-prefetched direct
+    # assignments (which carry content_equipment) so building the summaries adds
+    # no queries — the set membership is prefetched via equipment_sets__assignments.
+    name_by_assignment = {
+        a.id: a.content_equipment.name
+        for a in fighter.listfighterequipmentassignment_set.all()
+    }
     equipment_sets = [
         {
             "set": s,
             "is_active": s.id == active_id,
-            "item_names": list(
-                s.assignments.values_list("content_equipment__name", flat=True)
-            ),
+            "item_names": [
+                name_by_assignment[a.id]
+                for a in s.assignments.all()
+                if a.id in name_by_assignment
+            ],
         }
         for s in fighter.equipment_sets.all()
     ]
@@ -295,6 +304,8 @@ def delete_list_fighter_equipment_set(request, id, fighter_id, set_id):
                 user=request.user,
                 update_fields=["active_equipment_set", "modified"],
             )
+        # Attribute the SimpleHistory delete record to the acting user.
+        equipment_set._history_user = request.user
         equipment_set.delete()
 
     log_event(
