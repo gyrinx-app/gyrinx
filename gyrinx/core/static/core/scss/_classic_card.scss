@@ -20,11 +20,7 @@
     --cc-line-soft: rgba(29, 26, 22, 0.35);
     --cc-hl: rgba(122, 45, 41, 0.16); // mental-stat / highlighted band tint
     --cc-paper: #fff; // base the texture fades onto
-    // White wash over the texture (0 = full-strength texture, 1 = plain white).
-    // Kept at 1 so the print cards are clean white — the distressed plate
-    // muddied to grey on paper and wasted ink. The dark theme (lab preview
-    // only) overrides this back to 0 to keep its plate.
-    --cc-fade: 1;
+    --cc-fade: 0.5; // white wash over the texture (0 = full-strength texture)
 
     // --- geometry (mm) — tune the whole card from here ---------------------
     --cc-w: 100mm;
