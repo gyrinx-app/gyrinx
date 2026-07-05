@@ -40,7 +40,7 @@ def parse_roll_value(roll_value: str) -> Optional[tuple[int, int]]:
                 low, high = high, low
             return (low, high)
     except ValueError:
-        pass
+        logger.debug("Non-numeric roll_value %r", roll_value)
     return None
 
 
