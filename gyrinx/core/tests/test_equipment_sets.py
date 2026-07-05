@@ -387,6 +387,9 @@ def test_switcher_shown_only_for_tot_fighter(equipped, client, user):
     assert "Manage cards" in html_with_rule
     # The switcher dropdown offers the Default card and each named card.
     assert "Default (all equipment)" in html_with_rule
+    # The main fighter action dropdown also links to equipment sets (redundancy).
+    assert "Equipment sets" in html_with_rule
+    assert "Equipment sets" not in html_no_rule
 
     # Regression: the switcher include's explanatory comment must never leak
     # onto the page as literal text (Django {# #} comments are single-line only;
