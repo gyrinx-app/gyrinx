@@ -824,12 +824,17 @@ def test_campaign_clone_books_clone_rating_not_stale_source_cache(
     lst = make_list("Source Gang")
     fighter = hire_fighter(user, lst, content_fighter, name="Bob")
     buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
-    true_rating = fresh(lst).cost_int()
+    # The real hire/buy flows leave the source reconciled (dirty=False), so its
+    # freshly-recomputed rating_current is the true rating — the same quantity
+    # rating_delta is booked from (active fighters only, not stash/credits).
+    true_rating = fresh(lst).rating_current
     assert true_rating > 0
 
-    # Corrupt the source's cached rating so it disagrees with reality — exactly
-    # what a drifted list-building gang looks like in production.
-    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 90)
+    # Corrupt the source's cached rating so it disagrees with reality while
+    # keeping the cache "clean" (dirty=False) — exactly what a drifted
+    # list-building gang looks like in production, where facts() still serves
+    # the stale value instead of recomputing.
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 90, dirty=False)
 
     campaign = make_campaign("Seam Campaign", status="in_progress", budget=2000)
     cloned, created = campaign.add_list_to_campaign(fresh(lst), user=user)
