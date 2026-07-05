@@ -9,6 +9,19 @@
                    href="{{ account_home_url_ }}"><i class="bi-house me-2"></i>{% trans "Overview" %}</a>
             </li>
         {% endif %}
+        {% url 'core:notifications' as notifications_url_ %}
+        {% if notifications_url_ %}
+            <li class="nav-item">
+                <a class="nav-link d-flex align-items-center {% active_view 'core:notifications' %}"
+                   {% active_aria 'core:notifications' %}
+                   href="{{ notifications_url_ }}">
+                    <i class="bi-inbox me-2"></i>{% trans "Notifications" %}
+                    {% if unread_notification_count %}
+                        <span class="badge rounded-pill text-bg-danger ms-auto">{{ unread_notification_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
+        {% endif %}
         {% if '@' in user.username %}
             {% url 'core:change-username' as change_username_url_ %}
             {% if change_username_url_ %}

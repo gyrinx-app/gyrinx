@@ -1,14 +1,12 @@
-{% extends "core/layouts/base.html" %}
+{% extends "account/base_manage.html" %}
 {% load custom_tags %}
 {% block head_title %}
-    Inbox
+    Notifications
 {% endblock head_title %}
 {% block content %}
-    <div class="col-lg-12 px-0 vstack gap-4">
-        {% url 'core:account_home' as account_url %}
-        {% include "core/includes/back.html" with url=account_url text="Account" %}
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <h1 class="mb-0">Inbox</h1>
+    <div class="vstack gap-4">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <h1 class="h3 mb-0">Notifications</h1>
             {% if inbox_unread_count %}
                 <span class="badge rounded-pill text-bg-danger">{{ inbox_unread_count }} unread</span>
             {% endif %}
