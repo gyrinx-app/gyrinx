@@ -162,8 +162,19 @@ def handle_list_clone(
     # Create ListAction on cloned list if feature flag is enabled
     cloned_action = None
     if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        # The CREATE action represents creating the list from nothing,
-        # so before values are 0 and deltas equal the cloned values.
+        # The CREATE action represents creating the list from nothing, so the
+        # before values are 0 and the deltas are the CLONE's own values.
+        #
+        # Book the clone's freshly-recomputed caches (List.clone() ran
+        # facts_from_db() on it), NOT original_list.rating_current. A
+        # list-building gang's cached rating can be stale — caches drift until
+        # something recomputes them — and the clone can legitimately differ
+        # from its source (e.g. skipped fighters). Recording the source's value
+        # here writes a rating the clone's real cost immediately contradicts:
+        # the very next action, CAMPAIGN_START, prices the gang with a fresh
+        # cost_int(), so a stale source leaves a permanent chain break at the
+        # clone seam. The clone's own caches are the source of truth for what
+        # it actually is.
         cloned_action = ListAction.objects.create(
             user=user,
             owner=owner,
@@ -174,9 +185,9 @@ def handle_list_clone(
             rating_before=0,
             stash_before=0,
             credits_before=0,
-            rating_delta=original_list.rating_current,
-            stash_delta=original_list.stash_current,
-            credits_delta=original_list.credits_current,
+            rating_delta=cloned_list.rating_current,
+            stash_delta=cloned_list.stash_current,
+            credits_delta=cloned_list.credits_current,
         )
 
         # Set up the latest_actions prefetch so that subsequent create_action calls work

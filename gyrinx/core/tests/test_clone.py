@@ -2,11 +2,17 @@ import pytest
 
 from gyrinx.content.models import ContentEquipmentUpgrade
 from gyrinx.core.handlers.list import handle_list_clone
-from gyrinx.core.models.action import ListActionType
+from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
     List,
     ListFighter,
     VirtualListFighterEquipmentAssignment,
+)
+from gyrinx.core.tests.test_balance_sheet import (
+    assert_reconciles,
+    buy_equipment,
+    fresh,
+    hire_fighter,
 )
 
 
@@ -499,9 +505,13 @@ def test_list_clone_actions_have_correct_deltas(
     """Test that ListActions have correct cost deltas.
 
     Original's CLONE action: zero deltas (recording the clone event, not a cost change).
-    Clone's CREATE action: deltas equal original values (represents creating list from nothing).
+    Clone's CREATE action: deltas equal the CLONE's recalculated values (NOT the
+    source's cached rating, which can be stale — booking it would leave a chain
+    break at the clone seam).
     """
-    # Setup
+    # Setup: the source's rating/stash caches are set to values that do NOT
+    # match its (empty) content — the stale-cache scenario that caused the
+    # clone-seam break in production.
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
     original.credits_current = 500
@@ -523,12 +533,15 @@ def test_list_clone_actions_have_correct_deltas(
         assert result.original_action.stash_delta == 0
         assert result.original_action.credits_delta == 0
 
-        # Assert clone's CREATE action has deltas matching original values
-        # (represents creating list from nothing to its current state)
+        # The CREATE action records the CLONE's recalculated values, not the
+        # source's stale caches. The empty clone recalculates rating/stash to
+        # 0; credits are copied (500). Booking the source's 1000/150 here would
+        # contradict the clone's real cost and break the chain at the seam.
         if result.cloned_action:
-            assert result.cloned_action.rating_delta == original.rating_current
-            assert result.cloned_action.stash_delta == original.stash_current
-            assert result.cloned_action.credits_delta == original.credits_current
+            assert result.cloned_list.rating_current == 0
+            assert result.cloned_action.rating_delta == 0
+            assert result.cloned_action.stash_delta == 0
+            assert result.cloned_action.credits_delta == 500
 
 
 @pytest.mark.parametrize("feature_flag_enabled", [True, False])
@@ -756,12 +769,14 @@ def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user, se
 def test_handle_list_clone_for_campaign_cloned_action_has_correct_deltas(
     make_list, make_campaign, user, settings
 ):
-    """Test that campaign clone's CREATE action has deltas matching original values.
+    """Test that a campaign clone's CREATE action records the CLONE's own values.
 
-    The CREATE action on a cloned list represents creating the list from nothing
-    to its current state, so the deltas should equal the original's current values.
+    The CREATE action represents the clone coming into existence, so its deltas
+    equal the clone's recalculated rating/stash and copied credits — NOT the
+    source's cached rating_current, which can be stale (that would leave a chain
+    break at the clone -> CAMPAIGN_START seam).
     """
-    # Setup
+    # Setup: source caches set to values its (empty) content does not support.
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("Original List")
     original.credits_current = 500
@@ -787,7 +802,43 @@ def test_handle_list_clone_for_campaign_cloned_action_has_correct_deltas(
     assert result.cloned_action.stash_before == 0
     assert result.cloned_action.credits_before == 0
 
-    # Deltas should match original's current values
-    assert result.cloned_action.rating_delta == original.rating_current
-    assert result.cloned_action.stash_delta == original.stash_current
-    assert result.cloned_action.credits_delta == original.credits_current
+    # Deltas match the CLONE's recalculated values, not the source's stale
+    # caches: the empty clone recalculates rating/stash to 0; credits copied.
+    assert result.cloned_list.rating_current == 0
+    assert result.cloned_action.rating_delta == 0
+    assert result.cloned_action.stash_delta == 0
+    assert result.cloned_action.credits_delta == 500
+
+
+@pytest.mark.django_db
+def test_campaign_clone_books_clone_rating_not_stale_source_cache(
+    user, make_list, make_campaign, content_fighter, make_equipment
+):
+    """The clone-seam bug: the CREATE action must record the CLONE's real
+    rating, not the source gang's cached rating_current — which can be stale
+    (list-building caches drift). Booking the source cache writes a rating the
+    clone's true cost immediately contradicts, because CAMPAIGN_START prices the
+    gang with a fresh cost_int() — leaving a permanent chain break at the clone
+    seam even though the clone itself is fine (seen in prod on IronSkull: source
+    cached 850, true 760, −90 seam break)."""
+    lst = make_list("Source Gang")
+    fighter = hire_fighter(user, lst, content_fighter, name="Bob")
+    buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
+    true_rating = fresh(lst).cost_int()
+    assert true_rating > 0
+
+    # Corrupt the source's cached rating so it disagrees with reality — exactly
+    # what a drifted list-building gang looks like in production.
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 90)
+
+    campaign = make_campaign("Seam Campaign", status="in_progress", budget=2000)
+    cloned, created = campaign.add_list_to_campaign(fresh(lst), user=user)
+    assert created
+
+    create_action = ListAction.objects.get(
+        list=cloned, action_type=ListActionType.CREATE
+    )
+    # The CREATE records the CLONE's real rating, not the stale source +90.
+    assert create_action.rating_delta == true_rating
+    # And the whole chain reconciles: no clone-seam break.
+    assert_reconciles(cloned)
