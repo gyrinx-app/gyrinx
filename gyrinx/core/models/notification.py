@@ -63,7 +63,13 @@ class NotificationQuerySet(models.QuerySet):
 
     def banners_for(self, user, *, list_=None, campaign=None):
         """Active, unread, banner-flagged notifications for an object's page."""
-        qs = self.for_recipient(user).active().unread().filter(show_as_banner=True)
+        qs = (
+            self.for_recipient(user)
+            .active()
+            .unread()
+            .filter(show_as_banner=True)
+            .select_related("sender")
+        )
         if list_ is not None:
             qs = qs.filter(related_list=list_)
         if campaign is not None:

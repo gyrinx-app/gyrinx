@@ -5,8 +5,6 @@ string; the server renders the right subset. All mutations are POST + CSRF; the
 row title link is a plain GET so navigating never silently marks something read.
 """
 
-import logging
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -19,8 +17,6 @@ from django.views.decorators.http import require_POST
 
 from gyrinx.core.models.notification import Notification, NotificationType
 from gyrinx.core.utils import safe_redirect
-
-logger = logging.getLogger(__name__)
 
 VALID_BUCKETS = {"inbox", "archived"}
 VALID_STATUSES = {"all", "unread", "read"}

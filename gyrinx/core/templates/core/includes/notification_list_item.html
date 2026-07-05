@@ -14,7 +14,7 @@
                name="ids"
                value="{{ notification.id }}"
                form="notif-bulk-form"
-               aria-label="Select notification">
+               aria-label="Select: {{ notification.subject }}">
         <i class="{{ notification.display_icon }}"></i>
         <span class="d-inline-flex align-items-center">{% include "core/includes/notification_source.html" with notification=notification %}{% dot %}{{ notification.created|timesince }} ago</span>
     </div>
