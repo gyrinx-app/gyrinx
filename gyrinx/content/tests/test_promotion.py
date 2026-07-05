@@ -34,7 +34,6 @@ def _make_path(**kwargs):
 # --- G1: readable __str__ -------------------------------------------------------------
 
 
-@pytest.mark.django_db
 def test_str_renders_name_and_transition():
     path = _make_path(name="Promote to Specialist")
     # Catches: admin changelist rendering by object id/ctype instead of a readable label (cf #1942).

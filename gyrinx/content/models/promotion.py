@@ -127,9 +127,9 @@ class ContentPromotionCategoryPath(Content):
         """
         if list_fighter.get_category() != self.from_category:
             return False
-        if self.restricted_to_houses.exists():
-            if list_fighter.list.content_house not in self.restricted_to_houses.all():
-                return False
+        houses = list(self.restricted_to_houses.all())
+        if houses and list_fighter.list.content_house not in houses:
+            return False
         return True
 
 

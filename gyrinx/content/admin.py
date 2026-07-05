@@ -928,20 +928,18 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentPromotionCategoryPath)
 class ContentPromotionCategoryPathAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
-    list_display = [
-        "name",
-        "from_category",
-        "to_category",
-        "rank",
-        "xp_cost",
-        "cost_increase",
-        "grants_skill",
-    ]
     list_filter = ["from_category", "to_category", "restricted_to_houses"]
     filter_horizontal = ["restricted_to_houses"]
     fieldsets = (
         (None, {"fields": ("name", "from_category", "to_category", "rank")}),
-        ("Cost", {"fields": ("xp_cost", "cost_increase", "grants_skill", "rolls")}),
+        ("Cost", {"fields": ("xp_cost", "cost_increase")}),
+        (
+            "Behaviour",
+            {
+                "fields": ("grants_skill", "rolls"),
+                "description": "What the fighter gains, and the 2d6 totals that offer this promotion in the roll-driven flow.",
+            },
+        ),
         (
             "Restrictions",
             {
@@ -951,6 +949,21 @@ class ContentPromotionCategoryPathAdmin(ContentAdmin, admin.ModelAdmin):
             },
         ),
     )
+
+    def get_list_display(self, request):
+        # ContentAdmin.__init__ builds list_display from every model field (including the raw
+        # `rolls` JSON); override with a curated set. Keep packs_display — a promotion path can
+        # itself be pack content.
+        return (
+            "name",
+            "from_category",
+            "to_category",
+            "rank",
+            "xp_cost",
+            "cost_increase",
+            "grants_skill",
+            "packs_display",
+        )
 
 
 @admin.register(ContentEquipmentFighterProfile)

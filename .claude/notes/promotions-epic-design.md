@@ -61,7 +61,10 @@ restricted_to_houses = M2M(ContentHouse, blank=True)   # mirrors ContentAdvancem
 ```
 
 - `rank` fixes the un-generalisable part: `_recalculate_category_override` becomes
-  `ORDER BY rank DESC`.
+  `ORDER BY rank DESC`, with a deterministic secondary key so ties never flip on content edits
+  (`Meta.ordering` is `[rank, name]`). Note: multiple paths can match one `(from, to)` transition
+  (house-restricted variants — so **no** global unique constraint on the pair); Phase 2 must apply a
+  precedence (most-specific / house-restricted wins) rather than offering duplicates.
 - `rolls` (list, not scalar) fixes a **latent bug**: today `skill_promote_specialist` has
   `roll=2` with a comment "Also roll 12" that is **not implemented** — rolling a 12 falls through
   to the `stat_willpower` default and never selects Specialist (`get_initial_for_action`,
@@ -276,10 +279,11 @@ prefetch) alongside `content_fighter`/`legacy_content_fighter` (`fighter.py:313-
   `skill_promote_champion`; Specialist sees champion, **not** specialist; Champion sees neither.
   Assert on `form.fields["advancement_choice"].choices` keys. **Catches:** category restriction lost
   or inverted when moved from `restricted_to_fighter_categories` to `from_category`.
-- **A4 ⭐ Seed == current configs (linchpin, new, Phase 1)** — read
+- **A4 ⭐ Seed reproduces current configs (linchpin, new, Phase 1)** — read
   `AdvancementTypeForm.ADVANCEMENT_CONFIGS["skill_promote_specialist"|"skill_promote_champion"]`
-  and the shared seed constant `DEFAULT_CATEGORY_PROMOTIONS`; assert `xp_cost`, `cost_increase`
-  match exactly and each config's `roll` ∈ the seed's `rolls`. **Catches:** the Phase-2 refactor
+  and the shared seed constant `DEFAULT_CATEGORY_PROMOTIONS`; assert `xp_cost` and `cost_increase`
+  match **exactly**, and the config's scalar `roll` is a **member** of the seed's `rolls` (membership,
+  not set-equality — deliberate: the seed's `rolls` is a superset that *adds* the missing 12). **Catches:** the Phase-2 refactor
   becoming **cost-changing** — if anyone edits a config number without the seed (or vice-versa),
   this fails. This is the single most important anti-regression test in the epic.
 - **A5 Reverse cost-neutrality (new — fills a real gap)** — the existing reversal test only checks
@@ -395,8 +399,10 @@ fixtures should be parametrizable on that axis from the start.
 4. **Re-promotion / stacking → SINGLE ACTIVE TYPE.** One type-change at a time; reversal clears
    back to the original hired type (not a prior promotion). Simplest reversal. Category relabels
    can still stack on top.
-5. **Roll-12 latent bug → FIX IT.** Seed Ganger→Specialist with `rolls=[2, 12]` so a rolled 12
-   correctly offers the promotion (today it falls through to Willpower). Part of Phase 1 seed.
+5. **Roll-12 latent bug → prepare the data in Phase 1, fix the live flow in Phase 2.** Seed
+   Ganger→Specialist with `rolls=[2, 12]` as the canonical data so the wired flow can offer the
+   promotion on a rolled 12. Phase 1 is inert — the live path still falls through to Willpower
+   until Phase 2 reads `rolls` in `get_initial_for_action`.
 6. **`can_take_legacy` / `can_be_legacy` follow promoted type → PENDING** (Tom checking the rules).
    Non-blocking for Phase 1; the validation is Phase 3. When revisited, first compare the real
    content — the choice is moot if a source type and its targets share the same legacy flags.
