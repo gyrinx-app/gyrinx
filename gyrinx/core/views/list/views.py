@@ -498,6 +498,8 @@ class ListPrintView(generic.DetailView):
             # No default config anymore - just use built-in defaults
             print_config = None
 
+        # Stashed for get_template_names(), which runs after this method.
+        self.print_config = print_config
         context["print_config"] = print_config
 
         # Get fighters with group keys for display grouping
@@ -567,7 +569,41 @@ class ListPrintView(generic.DetailView):
             context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
             context["blank_vehicle_range"] = range(print_config.blank_vehicle_cards)
 
+        # Classic-mode cards: render the grimdark fixed-size cards instead of the
+        # web cards. Reuses the already-filtered fighter queryset, then appends
+        # the configured blank cards. Fighter cards only (assets/attributes/etc.
+        # don't apply to the classic sheet).
+        if print_config and print_config.card_style == PrintConfig.CLASSIC:
+            from gyrinx.core.print_cards import blank_classic_card, card_from_fighter
+
+            # Fighter cards only — the stash is not a classic card (it has no
+            # statline/weapons to fill the fixed regions).
+            cards = []
+            for fighter in fighters_qs:
+                card = card_from_fighter(fighter, list_obj)
+                if card.kind == "stash":
+                    continue
+                cards.append(card)
+            cards += [
+                blank_classic_card("fighter")
+                for _ in range(print_config.blank_fighter_cards)
+            ]
+            cards += [
+                blank_classic_card("vehicle")
+                for _ in range(print_config.blank_vehicle_cards)
+            ]
+            context["classic_cards"] = cards
+
         return context
+
+    def get_template_names(self):
+        """Classic-style configs render the fixed-size grimdark sheet."""
+        from gyrinx.core.models import PrintConfig
+
+        pc = getattr(self, "print_config", None)
+        if pc and pc.card_style == PrintConfig.CLASSIC:
+            return ["core/list_print_classic.html"]
+        return [self.template_name]
 
 
 class ListCampaignClonesView(generic.DetailView):
