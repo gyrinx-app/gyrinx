@@ -5,13 +5,17 @@ Each option is a POST form because activating a card mutates the fighter.
 {% endcomment %}
 {% if not print and not compact and can_edit and fighter.has_tools_of_the_trade %}
     <div class="dropdown">
-        <button class="btn btn-sm btn-outline-secondary dropdown-toggle icon-link"
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle icon-link position-relative"
                 type="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
-                title="Switch equipment set">
+                title="{% if fighter.active_equipment_set_id %}Equipment set: {{ fighter.active_equipment_set_name }}{% else %}Switch equipment set{% endif %}">
             <i class="bi-collection"></i>
-            <span class="d-none d-sm-inline">{{ fighter.active_equipment_set_name }}</span>
+            {% if fighter.active_equipment_set_id %}
+                <span class="position-absolute top-0 start-100 translate-middle p-1 bg-primary rounded-circle">
+                    <span class="visually-hidden">Custom equipment set active</span>
+                </span>
+            {% endif %}
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
             <li>
