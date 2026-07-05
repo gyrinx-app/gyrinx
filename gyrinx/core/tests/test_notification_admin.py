@@ -102,6 +102,27 @@ def test_broadcast_to_campaign_participants(
 
 
 @pytest.mark.django_db
+def test_broadcast_to_users_with_a_list(client, superuser, make_user, make_list):
+    list_owner = make_user("has-list", "password")
+    make_user("no-list", "password")
+    make_list("Their Gang", owner=list_owner)
+
+    client.force_login(superuser)
+    resp = client.post(
+        reverse("admin:core_notification_broadcast"),
+        {
+            "subject": "For list owners",
+            "notification_type": "general",
+            "audience": "with_list",
+        },
+    )
+    assert resp.status_code == 302
+    recipients = set(Notification.objects.values_list("owner__username", flat=True))
+    assert "has-list" in recipients
+    assert "no-list" not in recipients
+
+
+@pytest.mark.django_db
 def test_broadcast_campaign_audience_requires_campaign(client, superuser):
     client.force_login(superuser)
     resp = client.post(

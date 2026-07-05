@@ -57,17 +57,20 @@
         </form>
         {# Toolbar: mark all read + bulk-on-selected. #}
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            <form method="post" action="{% url 'core:notifications-bulk' %}">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="mark_read">
-                <input type="hidden" name="all" value="1">
-                <input type="hidden" name="bucket" value="inbox">
-                <input type="hidden" name="status" value="unread">
-                <button type="submit"
-                        class="btn btn-secondary btn-sm"
-                        {% if not inbox_unread_count %}disabled{% endif %}>Mark all as read</button>
-            </form>
-            <div class="vr d-none d-sm-block"></div>
+            {% if bucket == 'inbox' %}
+                <form method="post" action="{% url 'core:notifications-bulk' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="mark_read">
+                    <input type="hidden" name="all" value="1">
+                    <input type="hidden" name="bucket" value="inbox">
+                    <input type="hidden" name="status" value="unread">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit"
+                            class="btn btn-secondary btn-sm"
+                            {% if not inbox_unread_count %}disabled{% endif %}>Mark all as read</button>
+                </form>
+                <div class="vr d-none d-sm-block"></div>
+            {% endif %}
             <form method="post"
                   action="{% url 'core:notifications-bulk' %}"
                   id="notif-bulk-form"

@@ -55,9 +55,6 @@ class BroadcastForm(forms.Form):
         label="Send as Gyrinx (system)",
         help_text="Show a Gyrinx badge instead of your username. Uncheck to attribute it to yourself.",
     )
-    show_as_banner = forms.BooleanField(required=False)
-    banner_colour = forms.CharField(max_length=20, initial="info", required=False)
-    icon = forms.CharField(max_length=50, required=False)
 
     def clean(self):
         cleaned = super().clean()
@@ -138,9 +135,6 @@ class NotificationAdmin(admin.ModelAdmin):
                     content=form.cleaned_data["content"],
                     sender=sender,
                     notification_type=form.cleaned_data["notification_type"],
-                    show_as_banner=form.cleaned_data["show_as_banner"],
-                    banner_colour=form.cleaned_data["banner_colour"] or "info",
-                    icon=form.cleaned_data["icon"],
                 )
                 messages.success(request, f"Sent {count} notifications.")
                 return redirect("admin:core_notification_changelist")

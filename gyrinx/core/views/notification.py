@@ -5,6 +5,8 @@ string; the server renders the right subset. All mutations are POST + CSRF; the
 row title link is a plain GET so navigating never silently marks something read.
 """
 
+import uuid
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -149,11 +151,17 @@ def notifications_bulk(request):
         return _back(request)
 
     qs = Notification.objects.for_recipient(request.user)
-    if request.POST.get("all"):
+    if request.POST.get("all") == "1":
         # Re-derive the same filtered set the user is looking at.
         qs, _ = apply_inbox_filters(qs, request.POST)
     else:
-        ids = request.POST.getlist("ids")
+        # Coerce to UUIDs and drop anything malformed so a bad POST can't 500.
+        ids = []
+        for raw in request.POST.getlist("ids"):
+            try:
+                ids.append(uuid.UUID(str(raw)))
+            except (ValueError, TypeError):
+                continue
         if not ids:
             messages.info(request, "No notifications selected.")
             return _back(request)

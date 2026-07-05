@@ -212,3 +212,30 @@ def test_inbox_renders_rich_text_content_sanitized(client, user):
     # Allowed formatting survives; dangerous tags are neutralised.
     assert "<strong>bold</strong>" in body
     assert "<script>alert(1)</script>" not in body
+
+
+@pytest.mark.django_db
+def test_bulk_all_requires_exact_sentinel(client, user):
+    n = notify(recipient=user, subject="x")
+    client.force_login(user)
+    # all=0 must NOT be treated as "apply to the whole queryset".
+    resp = client.post(
+        reverse("core:notifications-bulk"), {"action": "mark_read", "all": "0"}
+    )
+    assert resp.status_code == 302
+    n.refresh_from_db()
+    assert n.is_read is False
+
+
+@pytest.mark.django_db
+def test_bulk_ignores_malformed_ids(client, user):
+    a = notify(recipient=user, subject="a")
+    client.force_login(user)
+    # A malformed id must be dropped, not 500; valid ids still act.
+    resp = client.post(
+        reverse("core:notifications-bulk"),
+        {"action": "archive", "ids": ["not-a-uuid", str(a.id)]},
+    )
+    assert resp.status_code == 302
+    a.refresh_from_db()
+    assert a.archived is True
