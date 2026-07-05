@@ -47,7 +47,8 @@ def test_badge_rendered_in_navbar_when_unread(client, user):
     client.force_login(user)
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
-    assert "unread notifications" in content
+    # The red count pill is shown.
+    assert "badge rounded-pill text-bg-danger" in content
     assert 'href="/notifications/"' in content
 
 
@@ -56,9 +57,9 @@ def test_badge_absent_when_zero(client, user):
     client.force_login(user)
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
-    # The inbox link is present, but not the unread badge text.
+    # The inbox link is present, but not the red count pill.
     assert 'href="/notifications/"' in content
-    assert "unread notifications" not in content
+    assert "badge rounded-pill text-bg-danger" not in content
 
 
 @pytest.mark.django_db
@@ -67,3 +68,13 @@ def test_badge_absent_for_anonymous(client, user):
     resp = client.get(reverse("core:index"))
     content = resp.content.decode()
     assert "unread notifications" not in content
+
+
+@pytest.mark.django_db
+def test_navbar_tooltip_reflects_unread_state(client, user):
+    client.force_login(user)
+    zero = client.get(reverse("core:index")).content.decode()
+    assert 'data-bs-title="No unread notifications"' in zero
+    notify(recipient=user, subject="ping")
+    unread = client.get(reverse("core:index")).content.decode()
+    assert 'data-bs-title="You have unread notifications"' in unread

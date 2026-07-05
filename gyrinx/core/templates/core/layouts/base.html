@@ -24,6 +24,8 @@
                     <a class="btn btn-dark position-relative {% active_view 'core:notifications' %}"
                        {% active_aria 'core:notifications' %}
                        href="{% url 'core:notifications' %}"
+                       data-bs-toggle="tooltip"
+                       data-bs-title="{% if unread_notification_count %}You have unread notifications{% else %}No unread notifications{% endif %}"
                        aria-label="Inbox{% if unread_notification_count %} ({{ unread_notification_count }} unread){% endif %}">
                         <i class="bi-inbox"></i>
                         {% if unread_notification_count %}
