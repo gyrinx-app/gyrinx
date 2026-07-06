@@ -6,6 +6,8 @@ Some fighters track a running tally that isn't experience or a wound — the cla
 
 Counters become more than a number when they are wired to a **roll table** through a **roll flow**. A roll flow says "spend N points from this counter, roll on that table, and apply the result you land on." The Spyrer *Suit Evolution* action is exactly this: spend 4 Kill Count, roll a D6 on the Power Boost table, and the fighter gains a permanent upgrade that raises their rating. The result is recorded so it can be reviewed and later removed, reversing both the stat changes and the rating increase.
 
+Counters can also be spent **without** a roll table. A **free-form spend** lets a player take a chosen number of points off a counter and record a written purpose for the expenditure — for rules that call for spending a tally on something that isn't a dice table. Unlike a roll flow this needs **no configuration**: it is available on every counter automatically. Like roll results, each spend is recorded so it can be reviewed and later removed, refunding the points.
+
 Everything here is generic. Nothing in the models mentions Spyrers — you compose the Spyrer feature (or any similar mechanic) entirely out of admin content: two counters, one table with rows, and one flow. In this context a "list" is a user's collection of fighters (a "gang" in Necromunda), and a fighter's "rating" is its point value, summed up into the gang's total.
 
 ## How the models fit together
@@ -26,9 +28,13 @@ erDiagram
     ContentCounter ||--o{ ListFighterRollResult : "counter spent (nullable)"
     ListFighter ||--o{ ListFighterRollResult : "roll_results"
     CampaignAction o|--o| ListFighterRollResult : "dice roll (nullable)"
+
+    ContentCounter ||--o{ ListFighterCounterSpend : "counter spent (nullable)"
+    ListFighter ||--o{ ListFighterCounterSpend : "counter_spends"
+    CampaignAction o|--o| ListFighterCounterSpend : "spend logged (nullable)"
 ```
 
-The **content models** (top group) are templates administrators configure. The **user-data models** (`ListFighterCounter`, `ListFighterRollResult`) are instances created as players use their gangs. This is the same content-vs-user-data split described in the [content library overview](README.md).
+The **content models** (top group) are templates administrators configure. The **user-data models** (`ListFighterCounter`, `ListFighterRollResult`, `ListFighterCounterSpend`) are instances created as players use their gangs. This is the same content-vs-user-data split described in the [content library overview](README.md).
 
 Two of the content models are shared with other systems: `ContentFighter` (see [Fighters & Fighter Types](fighters.md)) and `ContentMod` (see [Modifiers](modifiers.md)).
 
@@ -47,6 +53,8 @@ Two of the content models are shared with other systems: `ContentFighter` (see [
 **Roll flow** (`ContentRollFlow`): The link between a counter and a table — "spend `cost` points from `counter`, roll on `roll_table`." This is what turns a passive tally into an action players can perform.
 
 **Roll result** (`ListFighterRollResult`): The record that a fighter gained a specific row through a flow. It copies the counter cost and rating increase at the moment it is gained, so removing it later reverses the correct amounts even if the content has since been re-priced.
+
+**Free-form spend** (`ListFighterCounterSpend`): The record that a player spent a chosen number of points from a counter with a written purpose, without rolling on a table. It has no rating impact; removing it refunds the points. This path needs no admin setup and works on any counter.
 
 ## Models
 
@@ -178,6 +186,23 @@ A record that a fighter gained a specific roll-table row. This is both a modifie
 
 **Why the amounts are copied.** `counter_cost` and `rating_increase` are stored on the result rather than read live from the flow and row. If an administrator later re-prices a table row, existing results keep the value that was actually applied — so removing an old boost refunds and reverses the correct amount, and the gang's books stay consistent. This mirrors how [advancements](advancements.md) store their own `cost_increase`.
 
+### `ListFighterCounterSpend` (user data)
+
+A record that a player spent points from a counter without a roll flow — no dice, no table row, and no rating impact. It exists purely as an auditable, refundable log of a free-form expenditure. Inherits the standard user-data behaviour, so removal is a soft archive that keeps history.
+
+#### Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fighter` | ForeignKey to `ListFighter` | The fighter who spent the points. |
+| `counter` | ForeignKey to `ContentCounter` (nullable) | The counter that was spent, kept so removal can refund the right counter. |
+| `amount` | PositiveIntegerField | Points spent (chosen by the player, 1 up to the current value). |
+| `reason` | TextField (blank) | The purpose of the spend, entered by the player. |
+| `date_spent` | DateTimeField (auto) | When the points were spent. |
+| `campaign_action` | OneToOneField to `CampaignAction` (nullable) | The logged spend, in campaign mode. |
+
+Unlike a roll result, a spend carries no `rating_increase` — spending a counter never changes a fighter's cost or the gang's rating. There is no content model to configure; the spend UI appears on every counter automatically.
+
 ## How It Works in the Application
 
 ### Counters on the fighter card
@@ -186,7 +211,13 @@ A fighter shows a row for every counter whose `restricted_to_fighters` set inclu
 
 ### Editing a counter
 
-The Edit link opens a simple page where the owner (or the campaign's arbitrator) sets the value. Saving a value for the first time creates the `ListFighterCounter` record. Below the value, the page lists any roll flows that spend this counter, each with a Start button — greyed out with a "Requires N" note when the fighter can't yet afford it.
+The Edit link opens a simple page where the owner (or the campaign's arbitrator) sets the value. Saving a value for the first time creates the `ListFighterCounter` record. Below the value, the page has a **Spend** section for free-form spends (see below), a list of any recorded spends, and — for counters wired to a table — a list of roll flows, each with a Start button greyed out with a "Requires N" note when the fighter can't yet afford it.
+
+### Spending a counter freely
+
+Whenever a counter's value is above zero, the counter edit page shows a **Spend** form: an amount and a **Purpose** field. Submitting it subtracts the amount from the counter and records a `ListFighterCounterSpend` with the purpose. In campaign mode the spend is also written to the campaign action log (the purpose is included in the description). This works in every list mode and needs no admin configuration — it is available on all counters.
+
+Recorded spends are listed on the same page, each with a **Remove** button. Removing a spend archives the record and refunds the amount back to the counter (and, in campaign mode, logs a reversing action). Because a spend has no rating impact, removing one only moves the counter — it never touches the fighter's cost or the gang's rating.
 
 ### The roll flow
 
@@ -240,6 +271,8 @@ Players with a Spyrer fighter can now edit Kill Count and Glitch Count on the fi
 1. Counters → Add. Give it a `name` and `display_order`.
 2. Add the fighter types that should show it to `restricted_to_fighters`. An empty set means no fighter shows the counter.
 3. Optionally set `warning_stat` to a statline abbreviation to get the red highlight when the value exceeds that stat.
+
+Players can immediately edit the counter and record free-form spends against it — no roll table or flow is required. Wire up a table and flow only if you also want a "spend and roll" action (below).
 
 ### Building a roll table
 
