@@ -336,10 +336,17 @@ class MaintenanceAdminSite(admin.site.__class__):
 
     def backfill_detail_view(self, request, pk):
         backfill = get_object_or_404(Backfill, pk=pk)
+        # The detail page renders per-operation: reconcile shows rating/stash
+        # movement, the persistent-stash migration shows moved items, everything
+        # else falls back to a plain summary dump.
         ctx = {
             **self.each_context(request),
             "title": str(backfill),
             "backfill": backfill,
+            "is_reconcile": backfill.operation == Backfill.Operation.RECONCILE_LISTS,
+            "is_persistent_stash": (
+                backfill.operation == Backfill.Operation.MIGRATE_PERSISTENT_STASH
+            ),
         }
         return render(request, "admin/maintenance/backfill_detail.html", ctx)
 
