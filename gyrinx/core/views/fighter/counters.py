@@ -26,7 +26,7 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
     Handles three POST intents on one page:
 
     - ``intent=save`` — set the counter value directly (no audit trail).
-    - ``intent=spend`` — record a free-form spend (amount + why + outcome),
+    - ``intent=spend`` — record a free-form spend (amount + purpose),
       decrementing the counter and leaving a durable, refundable record.
     - ``remove_spend_id=<uuid>`` — remove a recorded spend, refunding it.
 
@@ -98,7 +98,6 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
                         counter=counter,
                         amount=spend_form.cleaned_data["amount"],
                         reason=spend_form.cleaned_data["reason"],
-                        outcome=spend_form.cleaned_data["outcome"],
                     )
                 except ValidationError as e:
                     messages.error(request, e.messages[0])

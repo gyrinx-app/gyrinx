@@ -60,10 +60,9 @@ def handle_counter_spend(
     counter: ContentCounter,
     amount: int,
     reason: str = "",
-    outcome: str = "",
 ) -> CounterSpendResult:
     """
-    Record a free-form counter spend: deduct the counter, store the rationale,
+    Record a free-form counter spend: deduct the counter, store the purpose,
     and write ledger/campaign actions.
 
     Args:
@@ -71,8 +70,7 @@ def handle_counter_spend(
         fighter: The fighter spending the counter.
         counter: The ContentCounter being spent.
         amount: How many points to spend (must be >= 1 and <= current value).
-        reason: Why the points were spent.
-        outcome: What the points were spent on (intended outcome).
+        reason: The purpose of the spend.
 
     Returns:
         CounterSpendResult.
@@ -114,8 +112,8 @@ def handle_counter_spend(
     fighter_counter.value = current_value - amount
     fighter_counter.save_with_user(user=user)
 
-    # Mirror to a CampaignAction in campaign mode. description carries the
-    # "why", outcome carries the intended outcome.
+    # Mirror to a CampaignAction in campaign mode. The purpose is included in
+    # the description.
     campaign_action = None
     if lst.campaign:
         description = f"{fighter.name} spent {amount} {counter.name}"
@@ -127,7 +125,6 @@ def handle_counter_spend(
             campaign=lst.campaign,
             list=lst,
             description=description,
-            outcome=outcome,
         )
 
     spend = ListFighterCounterSpend.objects.create(
@@ -136,7 +133,6 @@ def handle_counter_spend(
         counter=counter,
         amount=amount,
         reason=reason,
-        outcome=outcome,
         campaign_action=campaign_action,
     )
 

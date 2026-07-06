@@ -493,7 +493,6 @@ def test_counter_spend_records_spend(
             "intent": "spend",
             "amount": "3",
             "reason": "Bribed a guilder",
-            "outcome": "Safe passage through the tunnels",
         },
     )
     assert response.status_code == 302
@@ -506,7 +505,6 @@ def test_counter_spend_records_spend(
     spend = ListFighterCounterSpend.objects.get(fighter=fighter)
     assert spend.amount == 3
     assert spend.reason == "Bribed a guilder"
-    assert spend.outcome == "Safe passage through the tunnels"
     assert spend.counter == content_counter
     # No campaign → no campaign action mirrored
     assert spend.campaign_action is None
@@ -530,7 +528,6 @@ def test_counter_spend_creates_campaign_action(
             "intent": "spend",
             "amount": "2",
             "reason": "Bribed a guilder",
-            "outcome": "Safe passage",
         },
     )
     assert response.status_code == 302
@@ -540,10 +537,9 @@ def test_counter_spend_creates_campaign_action(
     action = spend.campaign_action
     assert action.campaign == campaign
     assert action.list == lst
-    # description carries the "why", outcome carries the intended outcome
+    # description carries the spend summary and the purpose
     assert "spent 2 Kill Count" in action.description
     assert "Bribed a guilder" in action.description
-    assert action.outcome == "Safe passage"
 
 
 @pytest.mark.django_db

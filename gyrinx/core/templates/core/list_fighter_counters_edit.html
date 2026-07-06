@@ -47,12 +47,6 @@
                         {% for error in spend_form.reason.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
                     </div>
                     <div>
-                        <label for="{{ spend_form.outcome.id_for_label }}"
-                               class="form-label fw-bold mb-1">{{ spend_form.outcome.label }}</label>
-                        {{ spend_form.outcome }}
-                        {% for error in spend_form.outcome.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div>
                         <button type="submit" class="btn btn-primary btn-sm">Spend</button>
                     </div>
                 </form>
@@ -72,7 +66,6 @@
                             </form>
                         </div>
                         {% if spend.reason %}<div class="fs-7">{{ spend.reason }}</div>{% endif %}
-                        {% if spend.outcome %}<div class="fs-7 text-secondary">Outcome: {{ spend.outcome }}</div>{% endif %}
                         <div class="fs-7 text-secondary">{{ spend.date_spent|date:"j M Y, H:i" }}</div>
                     </div>
                 {% endfor %}

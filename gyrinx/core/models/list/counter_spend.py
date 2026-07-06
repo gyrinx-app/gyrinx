@@ -3,13 +3,13 @@ Free-form counter spends recorded by fighters.
 
 A ListFighterCounterSpend records that a fighter has spent points from a
 counter without going through a roll flow — the user picks the amount and
-supplies a rationale ("why") and an intended outcome. Unlike a
-ListFighterRollResult it has no dice, no roll-table row, and no rating
-impact; it exists purely as a durable, refundable record of expenditure.
+supplies a purpose. Unlike a ListFighterRollResult it has no dice, no
+roll-table row, and no rating impact; it exists purely as a durable,
+refundable record of expenditure.
 
-In campaign mode the spend is also mirrored to a CampaignAction (description
-= why, outcome = intended outcome); outside a campaign the text is kept on
-the record itself.
+In campaign mode the spend is also mirrored to a CampaignAction (the purpose
+is included in the description); outside a campaign the text is kept on the
+record itself.
 """
 
 from django.db import models
@@ -24,8 +24,7 @@ class ListFighterCounterSpend(AppBase):
 
     help_text = (
         "Records counter points a fighter spent without a roll flow, along "
-        "with the rationale and intended outcome, so the expenditure is "
-        "auditable and refundable."
+        "with the purpose, so the expenditure is auditable and refundable."
     )
 
     fighter = models.ForeignKey(
@@ -47,11 +46,7 @@ class ListFighterCounterSpend(AppBase):
     )
     reason = models.TextField(
         blank=True,
-        help_text="Why the points were spent.",
-    )
-    outcome = models.TextField(
-        blank=True,
-        help_text="What the points were spent on (intended outcome).",
+        help_text="The purpose of the spend.",
     )
     date_spent = models.DateTimeField(
         auto_now_add=True,

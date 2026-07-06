@@ -1073,7 +1073,7 @@ class EditCounterForm(forms.Form):
 
 
 class SpendCounterForm(forms.Form):
-    """Form for a free-form counter spend (amount + why + intended outcome)."""
+    """Form for a free-form counter spend (amount + purpose)."""
 
     amount = forms.IntegerField(
         min_value=1,
@@ -1081,12 +1081,7 @@ class SpendCounterForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
     reason = forms.CharField(
-        label="Why are you spending this?",
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-    )
-    outcome = forms.CharField(
-        label="What did you spend it on?",
-        required=False,
+        label="Purpose",
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
     )
 
