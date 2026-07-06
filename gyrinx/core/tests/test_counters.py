@@ -1,6 +1,7 @@
 """Tests for counter models and views."""
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 
 from gyrinx.content.models import (
@@ -9,7 +10,13 @@ from gyrinx.content.models import (
     ContentRollTable,
     ContentRollTableRow,
 )
-from gyrinx.core.models.list import List, ListFighterCounter
+from gyrinx.core.handlers.fighter import handle_counter_spend
+from gyrinx.core.models.campaign import CampaignAction
+from gyrinx.core.models.list import (
+    List,
+    ListFighterCounter,
+    ListFighterCounterSpend,
+)
 
 
 @pytest.fixture
@@ -458,3 +465,300 @@ def test_fighter_card_shows_edit_link_on_every_counter(
     )
     assert kill_edit_url in content
     assert glitch_edit_url in content
+
+
+# --- Free-form counter spend tests (#1961) ---
+
+
+def _counter_url(lst, fighter, counter):
+    return reverse(
+        "core:list-fighter-counter-edit", args=[lst.id, fighter.id, counter.id]
+    )
+
+
+@pytest.mark.django_db
+def test_counter_spend_records_spend(
+    client, user, make_list, make_list_fighter, content_counter
+):
+    """A free-form spend decrements the counter and records the rationale."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    client.force_login(user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {
+            "intent": "spend",
+            "amount": "3",
+            "reason": "Bribed a guilder",
+            "outcome": "Safe passage through the tunnels",
+        },
+    )
+    assert response.status_code == 302
+
+    counter_record = ListFighterCounter.objects.get(
+        fighter=fighter, counter=content_counter
+    )
+    assert counter_record.value == 2
+
+    spend = ListFighterCounterSpend.objects.get(fighter=fighter)
+    assert spend.amount == 3
+    assert spend.reason == "Bribed a guilder"
+    assert spend.outcome == "Safe passage through the tunnels"
+    assert spend.counter == content_counter
+    # No campaign → no campaign action mirrored
+    assert spend.campaign_action is None
+
+
+@pytest.mark.django_db
+def test_counter_spend_creates_campaign_action(
+    client, user, make_list, make_list_fighter, content_counter, campaign
+):
+    """In campaign mode the spend is mirrored to a CampaignAction."""
+    lst = make_list("Test List", status=List.CAMPAIGN_MODE, campaign=campaign)
+    campaign.lists.add(lst)
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    client.force_login(user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {
+            "intent": "spend",
+            "amount": "2",
+            "reason": "Bribed a guilder",
+            "outcome": "Safe passage",
+        },
+    )
+    assert response.status_code == 302
+
+    spend = ListFighterCounterSpend.objects.get(fighter=fighter)
+    assert spend.campaign_action is not None
+    action = spend.campaign_action
+    assert action.campaign == campaign
+    assert action.list == lst
+    # description carries the "why", outcome carries the intended outcome
+    assert "spent 2 Kill Count" in action.description
+    assert "Bribed a guilder" in action.description
+    assert action.outcome == "Safe passage"
+
+
+@pytest.mark.django_db
+def test_counter_spend_rejects_overspend(
+    client, user, make_list, make_list_fighter, content_counter
+):
+    """Spending more than the current value is rejected, leaving no record."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=2, owner=user
+    )
+    client.force_login(user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"intent": "spend", "amount": "5", "reason": "Too much"},
+    )
+    assert response.status_code == 200  # re-render with errors, no redirect
+
+    counter_record = ListFighterCounter.objects.get(
+        fighter=fighter, counter=content_counter
+    )
+    assert counter_record.value == 2
+    assert not ListFighterCounterSpend.objects.filter(fighter=fighter).exists()
+
+
+@pytest.mark.django_db
+def test_counter_spend_rejects_zero_amount(
+    client, user, make_list, make_list_fighter, content_counter
+):
+    """Amount must be at least 1."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    client.force_login(user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"intent": "spend", "amount": "0", "reason": "Nothing"},
+    )
+    assert response.status_code == 200
+    assert not ListFighterCounterSpend.objects.filter(fighter=fighter).exists()
+
+
+@pytest.mark.django_db
+def test_counter_spend_requires_reason(
+    client, user, make_list, make_list_fighter, content_counter
+):
+    """A rationale is required — otherwise it's just a silent decrement."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    client.force_login(user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"intent": "spend", "amount": "3", "reason": ""},
+    )
+    assert response.status_code == 200
+    assert not ListFighterCounterSpend.objects.filter(fighter=fighter).exists()
+    counter_record = ListFighterCounter.objects.get(
+        fighter=fighter, counter=content_counter
+    )
+    assert counter_record.value == 5
+
+
+@pytest.mark.django_db
+def test_counter_spend_remove_refunds(
+    client, user, make_list, make_list_fighter, content_counter
+):
+    """Removing a spend refunds the counter and archives the record."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    result = handle_counter_spend(
+        user=user,
+        fighter=fighter,
+        counter=content_counter,
+        amount=3,
+        reason="Bribe",
+    )
+    assert (
+        ListFighterCounter.objects.get(fighter=fighter, counter=content_counter).value
+        == 2
+    )
+
+    client.force_login(user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"remove_spend_id": str(result.spend.id)},
+    )
+    assert response.status_code == 302
+
+    # Counter refunded back to 5
+    assert (
+        ListFighterCounter.objects.get(fighter=fighter, counter=content_counter).value
+        == 5
+    )
+    # Spend archived (no longer active)
+    result.spend.refresh_from_db()
+    assert result.spend.archived
+    assert not ListFighterCounterSpend.objects.filter(
+        fighter=fighter, archived=False
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_counter_spend_remove_creates_refund_campaign_action(
+    client, user, make_list, make_list_fighter, content_counter, campaign
+):
+    """Removing a spend in campaign mode records a reversing CampaignAction."""
+    lst = make_list("Test List", status=List.CAMPAIGN_MODE, campaign=campaign)
+    campaign.lists.add(lst)
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    result = handle_counter_spend(
+        user=user,
+        fighter=fighter,
+        counter=content_counter,
+        amount=3,
+        reason="Bribe",
+    )
+    actions_before = CampaignAction.objects.filter(campaign=campaign).count()
+
+    client.force_login(user)
+    client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"remove_spend_id": str(result.spend.id)},
+    )
+
+    actions_after = CampaignAction.objects.filter(campaign=campaign).count()
+    assert actions_after == actions_before + 1
+    latest = (
+        CampaignAction.objects.filter(campaign=campaign).order_by("-created").first()
+    )
+    assert "refunded 3 Kill Count" in latest.description
+
+
+@pytest.mark.django_db
+def test_counter_spend_form_hidden_when_value_zero(
+    client, user, make_list, make_list_fighter, content_counter
+):
+    """The spend form is not offered when there is nothing to spend."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    client.force_login(user)
+    response = client.get(_counter_url(lst, fighter, content_counter))
+    assert response.status_code == 200
+    # The spend form carries a hidden intent=spend marker
+    assert b'value="spend"' not in response.content
+
+
+@pytest.mark.django_db
+def test_counter_spend_permission_denied(
+    client, make_user, user, make_list, make_list_fighter, content_counter
+):
+    """A non-owner cannot spend another user's counter."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    other_user = make_user("otheruser", "password")
+    client.force_login(other_user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"intent": "spend", "amount": "3", "reason": "Nope"},
+    )
+    assert response.status_code == 404
+    assert not ListFighterCounterSpend.objects.filter(fighter=fighter).exists()
+
+
+@pytest.mark.django_db
+def test_counter_spend_handler_rejects_insufficient(
+    user, make_list, make_list_fighter, content_counter
+):
+    """The handler raises when the amount exceeds the current value."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=2, owner=user
+    )
+    with pytest.raises(ValidationError):
+        handle_counter_spend(
+            user=user,
+            fighter=fighter,
+            counter=content_counter,
+            amount=5,
+            reason="Too much",
+        )
+
+
+@pytest.mark.django_db
+def test_counter_spend_handler_rejects_stash(
+    user, make_list, make_list_fighter, stash_fighter_type
+):
+    """Stash fighters cannot spend counters."""
+    counter = ContentCounter.objects.create(name="Loot", display_order=0)
+    counter.restricted_to_fighters.add(stash_fighter_type)
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Stash", content_fighter=stash_fighter_type)
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=counter, value=5, owner=user
+    )
+    with pytest.raises(ValidationError):
+        handle_counter_spend(
+            user=user,
+            fighter=fighter,
+            counter=counter,
+            amount=1,
+            reason="Nope",
+        )
