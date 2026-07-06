@@ -220,3 +220,29 @@ def test_estate_run_no_drift_notifies_nobody(
     reconcile_all_lists.func(backfill_id=str(record.id), batch_size=500)
 
     assert Notification.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_completion_notifies_once_even_on_redelivery(
+    make_user, make_list, content_fighter, make_equipment
+):
+    """Pub/Sub is at-least-once: a redelivered final batch re-enters the DONE
+    path. Notifications must NOT fire a second time — the completion is gated on
+    the real RUNNING->DONE transition."""
+    player = make_user("player", "pw")
+    lst = make_list("Redelivery Gang", owner=player)
+    fighter = hire_fighter(player, lst, content_fighter, name="F")
+    buy_equipment(player, lst, fighter, make_equipment("Gun", cost=15))
+    true_rating = fresh(lst).rating_current
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
+
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        status=Backfill.Status.RUNNING,
+    )
+    reconcile_all_lists.func(backfill_id=str(record.id), batch_size=500)
+    assert Notification.objects.filter(owner=player).count() == 1
+
+    # Redelivery: same record (now DONE), the gang is already corrected.
+    reconcile_all_lists.func(backfill_id=str(record.id), batch_size=500)
+    assert Notification.objects.filter(owner=player).count() == 1  # not doubled

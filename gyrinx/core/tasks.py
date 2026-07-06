@@ -372,9 +372,14 @@ def _update_backfill(
     same row lock so re-enqueue forks don't race. Appends stay idempotent in
     practice: a redelivered batch re-reconciles already-corrected lists, which
     no longer move, so they contribute no new rows.
+
+    Returns ``True`` only when this call actually transitions the record from a
+    non-terminal state to DONE — i.e. the first, real completion. Callers use
+    that to fire one-shot completion work (e.g. notifications) exactly once, so
+    a redelivered final batch re-entering the DONE path doesn't repeat it.
     """
     if backfill_id is None:
-        return
+        return False
     from django.db import transaction as db_transaction
 
     from gyrinx.core.models import Backfill
@@ -386,10 +391,9 @@ def _update_backfill(
             backfill = Backfill.objects.select_for_update().get(pk=backfill_id)
         except Backfill.DoesNotExist:
             logger.warning("Backfill record %s missing; progress dropped", backfill_id)
-            return
-        if backfill.status in (Backfill.Status.DONE, Backfill.Status.FAILED) and (
-            status is None or status == Backfill.Status.RUNNING
-        ):
+            return False
+        was_terminal = backfill.status in (Backfill.Status.DONE, Backfill.Status.FAILED)
+        if was_terminal and (status is None or status == Backfill.Status.RUNNING):
             # Never let a lagging fork's progress write un-terminate the
             # record: DONE/FAILED is final unless explicitly re-terminated.
             logger.warning(
@@ -397,7 +401,7 @@ def _update_backfill(
                 backfill_id,
                 backfill.status,
             )
-            return
+            return False
         if summary_patch:
             backfill.summary = {**backfill.summary, **summary_patch}
         if summary_extend:
@@ -408,6 +412,7 @@ def _update_backfill(
         if error:
             backfill.error = error
         backfill.save()
+        return status == Backfill.Status.DONE and not was_terminal
 
 
 @task
@@ -525,7 +530,7 @@ def reconcile_all_lists(
             clamped=clamped,
         )
     else:
-        _update_backfill(
+        just_completed = _update_backfill(
             backfill_id,
             progress,
             status=Backfill.Status.DONE,
@@ -541,30 +546,37 @@ def reconcile_all_lists(
         # one per arbitrator, each summarising every gang that actually changed
         # (#721). Read the whole run's per-list detail back off the record, so a
         # player who owns several corrected gangs gets a single message.
-        # Never let a notification failure undo a completed reconcile.
-        try:
-            from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
+        #
+        # Gate on the real RUNNING->DONE transition: Pub/Sub is at-least-once,
+        # so a redelivered final batch re-enters this branch — `just_completed`
+        # is False the second time, so nobody is notified twice. This is also
+        # why notifications require a Backfill record (the admin trigger always
+        # creates one; the dev-only management command reconciles directly and
+        # doesn't notify). Never let a notification failure undo the reconcile.
+        if just_completed:
+            try:
+                from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
 
-            record = Backfill.objects.filter(pk=backfill_id).first()
-            per_list = record.summary.get("per_list", []) if record else []
-            deltas = {
-                row["list_id"]: [
-                    row["rating_after"] - row["rating_before"],
-                    row["stash_after"] - row["stash_before"],
-                ]
-                for row in per_list
-            }
-            owners, arbs = notify_lists_reconciled(deltas)
-            logger.info(
-                "reconcile_all_lists: notified %s owner(s), %s arbitrator(s)",
-                owners,
-                arbs,
-            )
-        except Exception:
-            logger.exception(
-                "reconcile_all_lists: notification fan-out failed (reconcile "
-                "itself completed)"
-            )
+                record = Backfill.objects.filter(pk=backfill_id).first()
+                per_list = record.summary.get("per_list", []) if record else []
+                deltas = {
+                    row["list_id"]: [
+                        row["rating_after"] - row["rating_before"],
+                        row["stash_after"] - row["stash_before"],
+                    ]
+                    for row in per_list
+                }
+                owners, arbs = notify_lists_reconciled(deltas)
+                logger.info(
+                    "reconcile_all_lists: notified %s owner(s), %s arbitrator(s)",
+                    owners,
+                    arbs,
+                )
+            except Exception:
+                logger.exception(
+                    "reconcile_all_lists: notification fan-out failed (reconcile "
+                    "itself completed)"
+                )
 
 
 @task

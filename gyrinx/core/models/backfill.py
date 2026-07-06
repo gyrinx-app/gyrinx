@@ -9,7 +9,6 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.db import models
-from simple_history.models import HistoricalRecords
 
 User = get_user_model()
 
@@ -59,7 +58,11 @@ class Backfill(models.Model):
     summary = models.JSONField(default=dict, blank=True)
     error = models.TextField(blank=True, default="")
 
-    history = HistoricalRecords()
+    # No HistoricalRecords: this row IS the audit record, and its `summary` is a
+    # running progress blob rewritten every batch (the reconcile per-list detail
+    # grows through the run). Historising it would copy the whole ever-growing
+    # JSONB into a historical row on each of a run's hundreds of batch saves —
+    # O(n²) storage for no audit value.
 
     class Meta:
         ordering = ["-created"]

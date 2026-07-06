@@ -142,6 +142,44 @@ def test_reconcile_detail_page_renders_per_list(client, superuser, tracked_list)
 
 
 @pytest.mark.django_db
+def test_failed_reconcile_detail_shows_error_and_partial_detail(
+    client, superuser, make_list
+):
+    """A failed run still shows the per-gang detail it captured before stopping,
+    alongside the error."""
+    lst = make_list("Partial Gang")
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.FAILED,
+        error="boom on batch after abc",
+        summary={
+            "lists": 5,
+            "corrected": 1,
+            "clamped": 0,
+            "per_list": [
+                {
+                    "list_id": str(lst.pk),
+                    "list_name": lst.name,
+                    "rating_before": 60,
+                    "rating_after": 50,
+                    "stash_before": 0,
+                    "stash_after": 0,
+                    "audit_action_id": None,
+                }
+            ],
+        },
+    )
+    client.force_login(superuser)
+    r = client.get(reverse("admin:maintenance_backfill_detail", args=[record.pk]))
+    assert r.status_code == 200
+    content = r.content.decode()
+    assert "boom on batch after abc" in content  # error shown
+    assert lst.name in content  # partial detail still shown
+    assert "60 → 50" in content
+
+
+@pytest.mark.django_db
 def test_backfill_task_reports_progress(tracked_list, superuser):
     lst, _, assignment = tracked_list
     ListFighterEquipmentAssignment.objects.all().update(

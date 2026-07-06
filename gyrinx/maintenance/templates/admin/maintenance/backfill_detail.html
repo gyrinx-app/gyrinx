@@ -49,7 +49,10 @@
     {% if backfill.status == "failed" %}
         <h2>Error</h2>
         <pre class="mt-error">{{ backfill.error }}</pre>
-    {% elif is_reconcile %}
+    {% endif %}
+    {# Always show what the run recorded — including the partial detail a failed
+       run captured before it stopped. #}
+    {% if is_reconcile %}
         <h2>Summary</h2>
         <ul>
             <li>
