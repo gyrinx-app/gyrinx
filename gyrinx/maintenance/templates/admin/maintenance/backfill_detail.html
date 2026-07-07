@@ -50,8 +50,10 @@
         <h2>Error</h2>
         <pre class="mt-error">{{ backfill.error }}</pre>
     {% endif %}
-    {# Always show what the run recorded — including the partial detail a failed
-       run captured before it stopped. #}
+    {% comment %}
+    Always show what the run recorded — including the partial detail a failed
+    run captured before it stopped.
+    {% endcomment %}
     {% if is_reconcile %}
         <h2>Summary</h2>
         <ul>
@@ -63,7 +65,9 @@
             </li>
             <li>
                 <strong>Zero-clamped:</strong> {{ backfill.summary.clamped|default:0 }}
-                <span class="mt-hint">(computed total was negative — investigate)</span>
+                {% if backfill.summary.clamped %}
+                    <span class="mt-hint">(computed total was negative — investigate)</span>
+                {% endif %}
             </li>
         </ul>
         <h2>Per-list detail</h2>

@@ -139,6 +139,26 @@ def test_reconcile_detail_page_renders_per_list(client, superuser, tracked_list)
     assert lst.name in content
     assert f"{true_rating + 10} → {true_rating}" in content  # rating before → after
     assert "Corrected:" in content
+    # The template comment must not leak into the rendered page.
+    assert "run captured before it stopped" not in content
+    # Nothing clamped here, so the "investigate" hint must not show.
+    assert "computed total was negative" not in content
+
+
+@pytest.mark.django_db
+def test_reconcile_detail_shows_clamp_hint_only_when_clamped(client, superuser):
+    """The 'computed total was negative — investigate' hint appears only when a
+    zero-clamp actually fired."""
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.DONE,
+        summary={"lists": 3, "corrected": 1, "clamped": 2, "per_list": []},
+    )
+    client.force_login(superuser)
+    r = client.get(reverse("admin:maintenance_backfill_detail", args=[record.pk]))
+    assert r.status_code == 200
+    assert "computed total was negative" in r.content.decode()  # clamped=2 → shown
 
 
 @pytest.mark.django_db
