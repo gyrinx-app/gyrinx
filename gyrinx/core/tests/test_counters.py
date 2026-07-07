@@ -784,6 +784,32 @@ def test_counter_spend_permission_denied(
 
 
 @pytest.mark.django_db
+def test_counter_spend_handler_rejects_blank_reason(
+    user, make_list, make_list_fighter, content_counter
+):
+    """The handler enforces a non-blank purpose, not just the form."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    with pytest.raises(ValidationError):
+        handle_counter_spend(
+            user=user,
+            fighter=fighter,
+            counter=content_counter,
+            amount=2,
+            reason="   ",
+        )
+    # Counter untouched, no record created.
+    assert (
+        ListFighterCounter.objects.get(fighter=fighter, counter=content_counter).value
+        == 5
+    )
+    assert not ListFighterCounterSpend.objects.filter(fighter=fighter).exists()
+
+
+@pytest.mark.django_db
 def test_counter_spend_handler_rejects_insufficient(
     user, make_list, make_list_fighter, content_counter
 ):

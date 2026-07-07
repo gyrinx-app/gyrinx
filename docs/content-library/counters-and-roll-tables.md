@@ -197,7 +197,7 @@ A record that a player spent points from a counter without a roll flow — no di
 | `fighter` | ForeignKey to `ListFighter` | The fighter who spent the points. |
 | `counter` | ForeignKey to `ContentCounter` (nullable) | The counter that was spent, kept so removal can refund the right counter. |
 | `amount` | PositiveIntegerField | Points spent (chosen by the player, 1 up to the current value). |
-| `reason` | TextField (blank) | The purpose of the spend, entered by the player. |
+| `reason` | TextField (blank) | The purpose of the spend, entered by the player. Required by the spend form and the spend handler (the model field is left blankable for flexibility, but a spend can't be created without a purpose). |
 | `date_spent` | DateTimeField (auto) | When the points were spent. |
 | `campaign_action` | OneToOneField to `CampaignAction` (nullable) | The logged spend, in campaign mode. |
 
@@ -215,7 +215,7 @@ The Edit link opens a simple page where the owner (or the campaign's arbitrator)
 
 ### Spending a counter freely
 
-Whenever a counter's value is above zero, the counter edit page shows a **Spend** form: an amount and a **Purpose** field. Submitting it subtracts the amount from the counter and records a `ListFighterCounterSpend` with the purpose. In campaign mode the spend is also written to the campaign action log (the purpose is included in the description). This works in every list mode and needs no admin configuration — it is available on all counters.
+Whenever a counter's value is above zero, the counter edit page shows a **Spend** form: an amount and a required **Purpose** field. Submitting it subtracts the amount from the counter and records a `ListFighterCounterSpend` with the purpose. In campaign mode the spend is also written to the campaign action log (the purpose is included in the description). This works in every list mode and needs no admin configuration — it is available on all counters.
 
 Recorded spends are listed on the same page, each with a **Remove** button. Removing a spend archives the record and refunds the amount back to the counter (and, in campaign mode, logs a reversing action). Because a spend has no rating impact, removing one only moves the counter — it never touches the fighter's cost or the gang's rating.
 

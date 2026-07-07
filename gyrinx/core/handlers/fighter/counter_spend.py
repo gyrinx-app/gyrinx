@@ -70,14 +70,15 @@ def handle_counter_spend(
         fighter: The fighter spending the counter.
         counter: The ContentCounter being spent.
         amount: How many points to spend (must be >= 1 and <= current value).
-        reason: The purpose of the spend.
+        reason: The purpose of the spend (required, non-blank).
 
     Returns:
         CounterSpendResult.
 
     Raises:
         ValidationError: If the fighter is a stash fighter, the amount is not
-            positive, or the counter value is insufficient.
+            positive, the purpose is blank, or the counter value is
+            insufficient.
     """
     lst = fighter.list
 
@@ -89,6 +90,10 @@ def handle_counter_spend(
 
     if amount < 1:
         raise ValidationError("Spend amount must be at least 1.")
+
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValidationError("A purpose is required.")
 
     # Lock the counter row (if it exists) and re-check affordability
     fighter_counter = (
