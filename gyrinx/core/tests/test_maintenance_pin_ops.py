@@ -593,15 +593,25 @@ def test_cancel_view_is_superuser_only(client, make_user):
 
 
 @pytest.mark.django_db
-def test_update_backfill_treats_cancelled_as_terminal():
-    """A lagging fork's progress write must not un-cancel a CANCELLED record."""
+def test_cancelled_is_sticky_against_all_writes():
+    """CANCELLED wins over everything — a lagging final batch's DONE/FAILED
+    write (or any progress write) must not resurrect a cancelled run."""
     record = Backfill.objects.create(
         operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.CANCELLED
     )
+    # None/RUNNING progress write — dropped.
     _update_backfill(str(record.id), {"lists": 5}, status=Backfill.Status.RUNNING)
+    # A final batch trying to complete must NOT flip CANCELLED->DONE.
+    assert (
+        _update_backfill(str(record.id), {"lists": 9}, status=Backfill.Status.DONE)
+        is False
+    )
+    # An error path trying to fail it — also dropped.
+    _update_backfill(str(record.id), status=Backfill.Status.FAILED, error="boom")
     record.refresh_from_db()
     assert record.status == Backfill.Status.CANCELLED
     assert record.summary == {}
+    assert record.error == ""
 
 
 @pytest.mark.django_db

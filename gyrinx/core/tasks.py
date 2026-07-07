@@ -392,14 +392,21 @@ def _update_backfill(
         except Backfill.DoesNotExist:
             logger.warning("Backfill record %s missing; progress dropped", backfill_id)
             return False
-        was_terminal = backfill.status in (
-            Backfill.Status.DONE,
-            Backfill.Status.FAILED,
-            Backfill.Status.CANCELLED,
-        )
+        if backfill.status == Backfill.Status.CANCELLED:
+            # CANCELLED is sticky: once an operator stops a run, NOTHING may
+            # overwrite it — not even a lagging final batch's DONE/FAILED write
+            # (that batch passed its top-of-batch cancel check before the cancel
+            # landed, so it still tries to complete). Cancel always wins.
+            logger.info(
+                "Backfill %s is cancelled; dropping write (attempted status=%s)",
+                backfill_id,
+                status or "progress",
+            )
+            return False
+        was_terminal = backfill.status in (Backfill.Status.DONE, Backfill.Status.FAILED)
         if was_terminal and (status is None or status == Backfill.Status.RUNNING):
-            # Never let a lagging fork's progress write un-terminate the record:
-            # DONE/FAILED/CANCELLED is final unless explicitly re-terminated.
+            # Never let a lagging fork's progress write un-terminate a
+            # DONE/FAILED record.
             logger.warning(
                 "Backfill %s already %s; dropping non-terminal progress write",
                 backfill_id,

@@ -19,6 +19,7 @@ from django.contrib import admin, messages
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils import timezone
 
 from gyrinx.core.maintenance.persistent_stash import (
     SKIP_REASONS,
@@ -364,19 +365,24 @@ class MaintenanceAdminSite(admin.site.__class__):
         detail_url = reverse("admin:maintenance_backfill_detail", args=[backfill.id])
         if request.method != "POST":
             return HttpResponseRedirect(detail_url)
-        if backfill.status != Backfill.Status.RUNNING:
+        # Atomic RUNNING->CANCELLED so we can't clobber a result the chain sets
+        # concurrently (a final batch flipping the record to DONE between a read
+        # and a save). Only a still-RUNNING record is affected.
+        updated = Backfill.objects.filter(pk=pk, status=Backfill.Status.RUNNING).update(
+            status=Backfill.Status.CANCELLED, modified=timezone.now()
+        )
+        if updated:
+            messages.success(
+                request,
+                "Cancel requested. The run will stop within one batch (the task "
+                "checks this before starting each batch).",
+            )
+        else:
+            backfill.refresh_from_db()
             messages.info(
                 request,
                 f"Nothing to cancel — this run is already {backfill.get_status_display()}.",
             )
-            return HttpResponseRedirect(detail_url)
-        backfill.status = Backfill.Status.CANCELLED
-        backfill.save(update_fields=["status", "modified"])
-        messages.success(
-            request,
-            "Cancel requested. The run will stop within one batch (the task "
-            "checks this before starting each batch).",
-        )
         return HttpResponseRedirect(detail_url)
 
 
