@@ -1,9 +1,11 @@
 """Fighter counter editing views."""
 
+from uuid import UUID
+
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
@@ -14,6 +16,7 @@ from gyrinx.core.handlers.fighter import (
     handle_counter_spend,
     handle_counter_spend_removal,
 )
+from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import ListFighterCounter, ListFighterCounterSpend
 from gyrinx.core.views.fighter.permissions import get_list_and_fighter
 
@@ -63,10 +66,15 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
         # Remove (refund) a recorded spend
         remove_spend_id = request.POST.get("remove_spend_id")
         if remove_spend_id:
+            try:
+                spend_uuid = UUID(remove_spend_id)
+            except (ValueError, TypeError):
+                raise Http404("Invalid spend id")
             spend = get_object_or_404(
                 ListFighterCounterSpend,
-                id=remove_spend_id,
+                id=spend_uuid,
                 fighter=fighter,
+                counter=counter,
                 archived=False,
             )
             try:
@@ -76,6 +84,19 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
             except ValidationError as e:
                 messages.error(request, e.messages[0])
             else:
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    action="counter_spend_removed",
+                    counter_name=counter.name,
+                    amount=spend.amount,
+                )
                 messages.success(
                     request,
                     f"Refunded {spend.amount} {counter.name} to {fighter.name}",
@@ -102,6 +123,19 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
                 except ValidationError as e:
                     messages.error(request, e.messages[0])
                 else:
+                    log_event(
+                        user=request.user,
+                        noun=EventNoun.LIST_FIGHTER,
+                        verb=EventVerb.UPDATE,
+                        object=fighter,
+                        request=request,
+                        fighter_name=fighter.name,
+                        list_id=str(lst.id),
+                        list_name=lst.name,
+                        action="counter_spend",
+                        counter_name=counter.name,
+                        amount=spend_form.cleaned_data["amount"],
+                    )
                     messages.success(
                         request,
                         f"{fighter.name} spent {spend_form.cleaned_data['amount']} "
@@ -168,6 +202,6 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
             "spend_form": spend_form,
             "flows": flows,
             "spends": spends,
-            "can_spend": current_value > 0,
+            "can_spend": current_value > 0 and not fighter.is_stash,
         },
     )

@@ -62,7 +62,9 @@
                             <form method="post" class="mb-0">
                                 {% csrf_token %}
                                 <input type="hidden" name="remove_spend_id" value="{{ spend.id }}">
-                                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                                <button type="submit"
+                                        class="btn btn-danger btn-sm"
+                                        aria-label="Remove spend of {{ spend.amount }} {{ counter.name }}">Remove</button>
                             </form>
                         </div>
                         {% if spend.reason %}<div class="fs-7">{{ spend.reason }}</div>{% endif %}

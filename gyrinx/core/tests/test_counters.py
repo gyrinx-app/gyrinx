@@ -10,7 +10,10 @@ from gyrinx.content.models import (
     ContentRollTable,
     ContentRollTableRow,
 )
-from gyrinx.core.handlers.fighter import handle_counter_spend
+from gyrinx.core.handlers.fighter import (
+    handle_counter_spend,
+    handle_counter_spend_removal,
+)
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
     List,
@@ -512,11 +515,10 @@ def test_counter_spend_records_spend(
 
 @pytest.mark.django_db
 def test_counter_spend_creates_campaign_action(
-    client, user, make_list, make_list_fighter, content_counter, campaign
+    client, user, make_list_fighter, content_counter, list_with_campaign
 ):
     """In campaign mode the spend is mirrored to a CampaignAction."""
-    lst = make_list("Test List", status=List.CAMPAIGN_MODE, campaign=campaign)
-    campaign.lists.add(lst)
+    lst = list_with_campaign
     fighter = make_list_fighter(lst, "Fighter 1")
     ListFighterCounter.objects.create(
         fighter=fighter, counter=content_counter, value=5, owner=user
@@ -535,7 +537,7 @@ def test_counter_spend_creates_campaign_action(
     spend = ListFighterCounterSpend.objects.get(fighter=fighter)
     assert spend.campaign_action is not None
     action = spend.campaign_action
-    assert action.campaign == campaign
+    assert action.campaign == lst.campaign
     assert action.list == lst
     # description carries the spend summary and the purpose
     assert "spent 2 Kill Count" in action.description
@@ -651,12 +653,75 @@ def test_counter_spend_remove_refunds(
 
 
 @pytest.mark.django_db
+def test_counter_spend_remove_permission_denied(
+    client, make_user, user, make_list, make_list_fighter, content_counter
+):
+    """A non-owner cannot remove (refund) another user's spend."""
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    result = handle_counter_spend(
+        user=user, fighter=fighter, counter=content_counter, amount=3, reason="Bribe"
+    )
+    other_user = make_user("otheruser2", "password")
+    client.force_login(other_user)
+    response = client.post(
+        _counter_url(lst, fighter, content_counter),
+        {"remove_spend_id": str(result.spend.id)},
+    )
+    assert response.status_code == 404
+
+    # Spend still active and the counter was not refunded.
+    result.spend.refresh_from_db()
+    assert not result.spend.archived
+    assert (
+        ListFighterCounter.objects.get(fighter=fighter, counter=content_counter).value
+        == 2
+    )
+
+
+@pytest.mark.django_db
+def test_counter_spend_double_removal_refunds_only_once(
+    user, make_list, make_list_fighter, content_counter
+):
+    """Removing the same spend twice refunds once and then rejects.
+
+    Guards the double-refund race: the removal handler re-reads the spend
+    under a row lock, so a second removal sees it archived and raises rather
+    than refunding again.
+    """
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Fighter 1")
+    ListFighterCounter.objects.create(
+        fighter=fighter, counter=content_counter, value=5, owner=user
+    )
+    result = handle_counter_spend(
+        user=user, fighter=fighter, counter=content_counter, amount=3, reason="Bribe"
+    )
+
+    # First removal refunds 3 → back to 5.
+    handle_counter_spend_removal(user=user, fighter=fighter, spend=result.spend)
+
+    # Second removal of the same (now archived) spend is rejected — the
+    # in-memory instance still looks active, but the locked re-read is not.
+    with pytest.raises(ValidationError):
+        handle_counter_spend_removal(user=user, fighter=fighter, spend=result.spend)
+
+    assert (
+        ListFighterCounter.objects.get(fighter=fighter, counter=content_counter).value
+        == 5
+    )
+
+
+@pytest.mark.django_db
 def test_counter_spend_remove_creates_refund_campaign_action(
-    client, user, make_list, make_list_fighter, content_counter, campaign
+    client, user, make_list_fighter, content_counter, list_with_campaign
 ):
     """Removing a spend in campaign mode records a reversing CampaignAction."""
-    lst = make_list("Test List", status=List.CAMPAIGN_MODE, campaign=campaign)
-    campaign.lists.add(lst)
+    lst = list_with_campaign
+    campaign = lst.campaign
     fighter = make_list_fighter(lst, "Fighter 1")
     ListFighterCounter.objects.create(
         fighter=fighter, counter=content_counter, value=5, owner=user

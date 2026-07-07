@@ -178,6 +178,10 @@ def handle_counter_spend_removal(
     """
     lst = fighter.list
 
+    # Lock the spend row and re-read it under the lock, so two concurrent
+    # removals can't both pass the archived guard and double-refund.
+    spend = ListFighterCounterSpend.objects.select_for_update().get(pk=spend.pk)
+
     if spend.fighter_id != fighter.id:
         raise ValidationError("Counter spend does not belong to this fighter.")
     if spend.archived:
@@ -207,6 +211,14 @@ def handle_counter_spend_removal(
                 value=refund,
                 owner=lst.owner,
             )
+    elif refund and not spend.counter:
+        # The counter was deleted (SET_NULL), so there is nothing to refund
+        # into. Surface it rather than silently dropping the points.
+        logger.warning(
+            "Cannot refund %s points for counter spend %s: counter was deleted.",
+            refund,
+            spend.id,
+        )
 
     spend.archive()
 
