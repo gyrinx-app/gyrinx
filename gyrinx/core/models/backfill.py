@@ -37,6 +37,10 @@ class Backfill(models.Model):
         RUNNING = "running", "Running"
         DONE = "done", "Done"
         FAILED = "failed", "Failed"
+        # Operator-requested stop. The self-re-enqueueing task chain checks the
+        # record at the top of each batch and bails when it sees this, so the
+        # chain winds down within one batch. Terminal, like DONE/FAILED.
+        CANCELLED = "cancelled", "Cancelled"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created = models.DateTimeField(auto_now_add=True, db_index=True)

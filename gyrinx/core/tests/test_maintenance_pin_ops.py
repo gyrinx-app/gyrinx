@@ -17,7 +17,7 @@ from gyrinx.core.models.list import (
     ListFighterEquipmentAssignment,
     PinState,
 )
-from gyrinx.core.tasks import backfill_pins, reconcile_all_lists
+from gyrinx.core.tasks import _update_backfill, backfill_pins, reconcile_all_lists
 from gyrinx.core.tests.test_balance_sheet import buy_equipment, fresh, hire_fighter
 from gyrinx.tasks.registry import get_task
 
@@ -499,3 +499,124 @@ def test_maintenance_links_visible_only_to_superusers(client, superuser, make_us
     client.force_login(staff)
     assert b"Maintenance" not in client.get(reverse("core:index")).content
     assert b"Maintenance operations" not in client.get(reverse("admin:index")).content
+
+
+# --- Cooperative cancel switch (kill a running chain via the record) -------------
+
+
+@pytest.mark.django_db
+def test_reconcile_task_bails_when_cancelled(tracked_list, superuser):
+    """A CANCELLED record stops the chain at the top of the batch: no work, no
+    re-enqueue."""
+    lst, fighter, _ = tracked_list
+    true_rating = fresh(lst).rating_current
+    List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.CANCELLED,
+    )
+
+    reconcile_all_lists.func(
+        backfill_id=str(record.id), user_id=superuser.pk, batch_size=500
+    )
+
+    # Bailed: the drift is untouched and no progress was written.
+    assert fresh(lst).rating_current == true_rating + 10
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.CANCELLED
+    assert record.summary == {}
+
+
+@pytest.mark.django_db
+def test_backfill_task_bails_when_cancelled(tracked_list, superuser):
+    lst, _, assignment = tracked_list
+    ListFighterEquipmentAssignment.objects.all().update(
+        pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
+    )
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.BACKFILL_PINS,
+        triggered_by=superuser,
+        status=Backfill.Status.CANCELLED,
+    )
+
+    backfill_pins.func(backfill_id=str(record.id), batch_size=500)
+
+    # Bailed: the row stays unpinned.
+    assert (
+        ListFighterEquipmentAssignment.objects.get(pk=assignment.pk).pinned_base_state
+        == PinState.UNPINNED
+    )
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.CANCELLED
+
+
+@pytest.mark.django_db
+def test_cancel_view_marks_running_record_cancelled(client, superuser):
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    client.force_login(superuser)
+    r = client.post(reverse("admin:maintenance_backfill_cancel", args=[record.pk]))
+    assert r.status_code == 302
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.CANCELLED
+
+    # No-op on an already-terminal record.
+    done = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.DONE
+    )
+    client.post(reverse("admin:maintenance_backfill_cancel", args=[done.pk]))
+    done.refresh_from_db()
+    assert done.status == Backfill.Status.DONE
+
+
+@pytest.mark.django_db
+def test_cancel_view_is_superuser_only(client, make_user):
+    staff = make_user("staffcancel", "password")
+    staff.is_staff = True
+    staff.save()
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.RUNNING
+    )
+    client.force_login(staff)
+    assert (
+        client.post(
+            reverse("admin:maintenance_backfill_cancel", args=[record.pk])
+        ).status_code
+        == 403
+    )
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.RUNNING
+
+
+@pytest.mark.django_db
+def test_update_backfill_treats_cancelled_as_terminal():
+    """A lagging fork's progress write must not un-cancel a CANCELLED record."""
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.CANCELLED
+    )
+    _update_backfill(str(record.id), {"lists": 5}, status=Backfill.Status.RUNNING)
+    record.refresh_from_db()
+    assert record.status == Backfill.Status.CANCELLED
+    assert record.summary == {}
+
+
+@pytest.mark.django_db
+def test_running_detail_page_shows_cancel_button(client, superuser):
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.RECONCILE_LISTS,
+        triggered_by=superuser,
+        status=Backfill.Status.RUNNING,
+    )
+    client.force_login(superuser)
+    r = client.get(reverse("admin:maintenance_backfill_detail", args=[record.pk]))
+    assert r.status_code == 200
+    assert b"Cancel this run" in r.content
+    # Gone once terminal.
+    record.status = Backfill.Status.DONE
+    record.save(update_fields=["status"])
+    r = client.get(reverse("admin:maintenance_backfill_detail", args=[record.pk]))
+    assert b"Cancel this run" not in r.content

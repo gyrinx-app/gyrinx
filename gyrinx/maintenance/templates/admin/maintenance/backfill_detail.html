@@ -9,6 +9,7 @@
     .mt-table { width: 100%; }
     .mt-error { background: #fee; padding: 1rem; overflow: auto; }
     .mt-hint { color: #888; font-size: 0.85em; }
+    .mt-cancel { margin-bottom: 2rem; }
     </style>
 {% endblock extrahead %}
 {% block content %}
@@ -46,6 +47,15 @@
             </td>
         </tr>
     </table>
+    {% if backfill.status == "running" %}
+        <form method="post"
+              action="{% url 'admin:maintenance_backfill_cancel' backfill.pk %}"
+              class="mt-cancel">
+            {% csrf_token %}
+            <button type="submit" class="button">Cancel this run</button>
+            <span class="mt-hint">Stops the chain within one batch — no infra needed.</span>
+        </form>
+    {% endif %}
     {% if backfill.status == "failed" %}
         <h2>Error</h2>
         <pre class="mt-error">{{ backfill.error }}</pre>

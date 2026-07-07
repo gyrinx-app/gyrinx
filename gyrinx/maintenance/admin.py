@@ -112,6 +112,11 @@ class MaintenanceAdminSite(admin.site.__class__):
                 self.admin_view(_superuser_only(self.backfill_detail_view)),
                 name="maintenance_backfill_detail",
             ),
+            path(
+                "maintenance/backfill/<uuid:pk>/cancel/",
+                self.admin_view(_superuser_only(self.backfill_cancel_view)),
+                name="maintenance_backfill_cancel",
+            ),
         ]
         return custom + urls
 
@@ -349,6 +354,30 @@ class MaintenanceAdminSite(admin.site.__class__):
             ),
         }
         return render(request, "admin/maintenance/backfill_detail.html", ctx)
+
+    def backfill_cancel_view(self, request, pk):
+        """Request a stop for a RUNNING task chain. Sets the record to CANCELLED;
+        the chain checks this at the top of its next batch and bails, so the run
+        winds down within one batch (no infra intervention). No-op if the record
+        is already terminal."""
+        backfill = get_object_or_404(Backfill, pk=pk)
+        detail_url = reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        if request.method != "POST":
+            return HttpResponseRedirect(detail_url)
+        if backfill.status != Backfill.Status.RUNNING:
+            messages.info(
+                request,
+                f"Nothing to cancel — this run is already {backfill.get_status_display()}.",
+            )
+            return HttpResponseRedirect(detail_url)
+        backfill.status = Backfill.Status.CANCELLED
+        backfill.save(update_fields=["status", "modified"])
+        messages.success(
+            request,
+            "Cancel requested. The run will stop within one batch (the task "
+            "checks this before starting each batch).",
+        )
+        return HttpResponseRedirect(detail_url)
 
 
 # Install on the live admin site. Order in INSTALLED_APPS must place this app
