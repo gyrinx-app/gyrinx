@@ -9,6 +9,7 @@
         <h1 class="h3">Edit {{ counter.name }} for {{ fighter.name }}</h1>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
+            <input type="hidden" name="intent" value="save">
             <div>
                 <label for="{{ form.value.id_for_label }}" class="form-label fw-bold">{{ counter.name }}</label>
                 {% if counter.description %}<p class="text-secondary fs-7 mb-1">{{ counter.description }}</p>{% endif %}
@@ -26,9 +27,55 @@
                    class="btn btn-link">Cancel</a>
             </div>
         </form>
-        {% if flows %}
+        {% if can_spend %}
             <div class="vstack gap-2">
                 <h2 class="h5 mb-0">Spend {{ counter.name }}</h2>
+                <p class="text-secondary fs-7 mb-0">Record spending some {{ counter.name }} without rolling on a table.</p>
+                <form method="post" class="border rounded p-2 vstack gap-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="intent" value="spend">
+                    <div>
+                        <label for="{{ spend_form.amount.id_for_label }}"
+                               class="form-label fw-bold mb-1">{{ spend_form.amount.label }}</label>
+                        {{ spend_form.amount }}
+                        {% for error in spend_form.amount.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div>
+                        <label for="{{ spend_form.reason.id_for_label }}"
+                               class="form-label fw-bold mb-1">{{ spend_form.reason.label }}</label>
+                        {{ spend_form.reason }}
+                        {% for error in spend_form.reason.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary btn-sm">Spend</button>
+                    </div>
+                </form>
+            </div>
+        {% endif %}
+        {% if spends %}
+            <div class="vstack gap-2">
+                <h2 class="h5 mb-0">Recorded spends</h2>
+                {% for spend in spends %}
+                    <div class="border rounded p-2 vstack gap-1">
+                        <div class="hstack gap-2 align-items-start justify-content-between">
+                            <div class="fw-bold">Spent {{ spend.amount }} {{ counter.name }}</div>
+                            <form method="post" class="mb-0">
+                                {% csrf_token %}
+                                <input type="hidden" name="remove_spend_id" value="{{ spend.id }}">
+                                <button type="submit"
+                                        class="btn btn-danger btn-sm"
+                                        aria-label="Remove spend of {{ spend.amount }} {{ counter.name }}">Remove</button>
+                            </form>
+                        </div>
+                        {% if spend.reason %}<div class="fs-7">{{ spend.reason }}</div>{% endif %}
+                        <div class="fs-7 text-secondary">{{ spend.date_spent|date:"j M Y, H:i" }}</div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% if flows %}
+            <div class="vstack gap-2">
+                <h2 class="h5 mb-0">Spend {{ counter.name }} on a roll</h2>
                 {% for entry in flows %}
                     <div class="border rounded p-2 vstack gap-1">
                         <div class="fw-bold">{{ entry.flow.name }}</div>

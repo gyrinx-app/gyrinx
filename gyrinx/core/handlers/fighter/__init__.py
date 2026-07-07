@@ -6,6 +6,12 @@ from gyrinx.core.handlers.fighter.advancement import (
     handle_fighter_advancement,
     handle_fighter_advancement_deletion,
 )
+from gyrinx.core.handlers.fighter.counter_spend import (
+    CounterSpendRemovalResult,
+    CounterSpendResult,
+    handle_counter_spend,
+    handle_counter_spend_removal,
+)
 from gyrinx.core.handlers.fighter.edit import (
     FieldChange,
     FighterEditResult,
@@ -51,6 +57,8 @@ __all__ = [
     "FighterArchiveResult",
     "FighterCloneParams",
     "FighterCloneResult",
+    "CounterSpendRemovalResult",
+    "CounterSpendResult",
     "RESURRECT_TARGET_STATES",
     "FighterDeletionResult",
     "FighterEditResult",
@@ -60,6 +68,8 @@ __all__ = [
     "RollFlowResult",
     "RollResultDeletionResult",
     "VehiclePurchaseResult",
+    "handle_counter_spend",
+    "handle_counter_spend_removal",
     "handle_fighter_advancement",
     "handle_fighter_advancement_deletion",
     "handle_fighter_archive_toggle",
