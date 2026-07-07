@@ -19,6 +19,7 @@ from django.contrib import admin, messages
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import path, reverse
+from django.utils import timezone
 
 from gyrinx.core.maintenance.persistent_stash import (
     SKIP_REASONS,
@@ -111,6 +112,11 @@ class MaintenanceAdminSite(admin.site.__class__):
                 "maintenance/backfill/<uuid:pk>/",
                 self.admin_view(_superuser_only(self.backfill_detail_view)),
                 name="maintenance_backfill_detail",
+            ),
+            path(
+                "maintenance/backfill/<uuid:pk>/cancel/",
+                self.admin_view(_superuser_only(self.backfill_cancel_view)),
+                name="maintenance_backfill_cancel",
             ),
         ]
         return custom + urls
@@ -349,6 +355,35 @@ class MaintenanceAdminSite(admin.site.__class__):
             ),
         }
         return render(request, "admin/maintenance/backfill_detail.html", ctx)
+
+    def backfill_cancel_view(self, request, pk):
+        """Request a stop for a RUNNING task chain. Sets the record to CANCELLED;
+        the chain checks this at the top of its next batch and bails, so the run
+        winds down within one batch (no infra intervention). No-op if the record
+        is already terminal."""
+        backfill = get_object_or_404(Backfill, pk=pk)
+        detail_url = reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        if request.method != "POST":
+            return HttpResponseRedirect(detail_url)
+        # Atomic RUNNING->CANCELLED so we can't clobber a result the chain sets
+        # concurrently (a final batch flipping the record to DONE between a read
+        # and a save). Only a still-RUNNING record is affected.
+        updated = Backfill.objects.filter(pk=pk, status=Backfill.Status.RUNNING).update(
+            status=Backfill.Status.CANCELLED, modified=timezone.now()
+        )
+        if updated:
+            messages.success(
+                request,
+                "Cancel requested. The run will stop within one batch (the task "
+                "checks this before starting each batch).",
+            )
+        else:
+            backfill.refresh_from_db()
+            messages.info(
+                request,
+                f"Nothing to cancel — this run is already {backfill.get_status_display()}.",
+            )
+        return HttpResponseRedirect(detail_url)
 
 
 # Install on the live admin site. Order in INSTALLED_APPS must place this app

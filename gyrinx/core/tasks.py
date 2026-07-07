@@ -392,10 +392,21 @@ def _update_backfill(
         except Backfill.DoesNotExist:
             logger.warning("Backfill record %s missing; progress dropped", backfill_id)
             return False
+        if backfill.status == Backfill.Status.CANCELLED:
+            # CANCELLED is sticky: once an operator stops a run, NOTHING may
+            # overwrite it — not even a lagging final batch's DONE/FAILED write
+            # (that batch passed its top-of-batch cancel check before the cancel
+            # landed, so it still tries to complete). Cancel always wins.
+            logger.info(
+                "Backfill %s is cancelled; dropping write (attempted status=%s)",
+                backfill_id,
+                status or "progress",
+            )
+            return False
         was_terminal = backfill.status in (Backfill.Status.DONE, Backfill.Status.FAILED)
         if was_terminal and (status is None or status == Backfill.Status.RUNNING):
-            # Never let a lagging fork's progress write un-terminate the
-            # record: DONE/FAILED is final unless explicitly re-terminated.
+            # Never let a lagging fork's progress write un-terminate a
+            # DONE/FAILED record.
             logger.warning(
                 "Backfill %s already %s; dropping non-terminal progress write",
                 backfill_id,
@@ -413,6 +424,20 @@ def _update_backfill(
             backfill.error = error
         backfill.save()
         return status == Backfill.Status.DONE and not was_terminal
+
+
+def _is_cancelled(backfill_id):
+    """True if an operator has cancelled this run (records the stop request on
+    the Backfill row). The self-re-enqueueing task chains check this at the top
+    of each batch and bail, so a cancel takes effect within one batch —
+    no infra intervention needed."""
+    if backfill_id is None:
+        return False
+    from gyrinx.core.models import Backfill
+
+    return Backfill.objects.filter(
+        pk=backfill_id, status=Backfill.Status.CANCELLED
+    ).exists()
 
 
 @task
@@ -452,6 +477,14 @@ def reconcile_all_lists(
     user = None
     if user_id is not None:
         user = get_user_model().objects.filter(pk=user_id).first()
+
+    # Cooperative cancel: bail before doing any work if an operator stopped the
+    # run. The chain dies here rather than re-enqueueing the next batch.
+    if _is_cancelled(backfill_id):
+        logger.info(
+            "reconcile_all_lists: cancelled (backfill %s); stopping", backfill_id
+        )
+        return
 
     qs = List.objects.order_by("id")
     if list_id:
@@ -608,6 +641,12 @@ def backfill_pins(
     """
     from gyrinx.core.cost.pinning import pin_assignment
     from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    # Cooperative cancel: bail before doing any work if an operator stopped the
+    # run. The chain dies here rather than re-enqueueing the next batch.
+    if _is_cancelled(backfill_id):
+        logger.info("backfill_pins: cancelled (backfill %s); stopping", backfill_id)
+        return
 
     qs = ListFighterEquipmentAssignment.objects.order_by("id")
     if list_id:
