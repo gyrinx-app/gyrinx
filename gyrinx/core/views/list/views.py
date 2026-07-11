@@ -1208,7 +1208,7 @@ def refresh_list_cost(request, id):
         raise Http404("List not found")
 
     if request.method == "POST":
-        # Get old cached facts value (from DB cache, not in-memory cache)
+        # Get old cached facts value (from DB cache)
         old_facts = lst.facts()
         old_wealth = old_facts.wealth if old_facts else None
         was_dirty = old_facts is None
