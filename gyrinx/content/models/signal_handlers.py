@@ -527,6 +527,7 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
     from gyrinx.core.cost.pin_sweep import rewrite_pinned_amounts_for_list
     from gyrinx.core.models.action import ListAction, ListActionType
     from gyrinx.core.models.list import List
+    from gyrinx.core.tasks import refresh_list_facts
 
     # Find affected lists based on the model type. The rewrite domain also
     # includes lists reachable only through archived rows (their amounts are
@@ -562,10 +563,11 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
 
                 # Only create actions for lists that have an initial action
                 # Lists without latest_action will have dirty flag set via set_dirty()
-                # and will be recalculated when viewed (against the amounts
-                # rewritten above). Archived-only lists get the rewrite but no
-                # action processing — nothing cache-visible moved, and the
-                # snapshot fallback has no baseline for them.
+                # and will be recalculated on their next detail-page view
+                # (against the amounts rewritten above); index pages show the
+                # last-good cached numbers meanwhile. Archived-only lists get
+                # the rewrite but no action processing — nothing cache-visible
+                # moved, and the snapshot fallback has no baseline for them.
                 if list_id not in live_list_ids or not lst.latest_action:
                     continue
 
@@ -681,11 +683,24 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
         except List.DoesNotExist:
             continue
         except Exception as e:
-            # Log error but continue processing other lists
-            # The failed list will remain dirty and be recalculated on next view
+            # Log error but continue processing other lists. The transaction
+            # rolled back, so the list stays dirty (and unrewritten) for a
+            # later redelivery.
             logger.error(
                 f"Failed to create CONTENT_COST_CHANGE action for list {list_id}: {e}"
             )
+            # Index pages show last-good numbers and never recompute, so give
+            # the failed list a background heal rather than waiting for a
+            # detail-page view. This refreshes caches only — the audit action
+            # for this change is still lost (same as the view-heal path) and
+            # a redelivery remains the real recovery.
+            try:
+                refresh_list_facts.enqueue(list_id=str(list_id))
+            except Exception:
+                logger.warning(
+                    f"Failed to enqueue facts refresh for list {list_id}",
+                    exc_info=True,
+                )
 
 
 # Post-save signal handlers that create actions after content saves

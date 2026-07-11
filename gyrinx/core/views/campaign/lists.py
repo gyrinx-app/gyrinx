@@ -291,7 +291,7 @@ def campaign_add_lists(request, id):
         disallowed_packs = CustomContentPack.objects.exclude(id__in=campaign_pack_ids)
         lists = lists.exclude(packs__in=disallowed_packs)
 
-    # Exclude and order by name, prefetch latest actions for facts system
+    # Exclude and order by name
     lists = (
         lists.exclude(id__in=excluded_list_ids)
         .with_latest_actions()

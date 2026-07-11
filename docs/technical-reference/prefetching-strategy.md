@@ -6,23 +6,25 @@ This document explains the prefetching methods used to optimize cost calculation
 
 The cost system relies on proper prefetching to:
 
-1. Enable the facts system - The `can_use_facts` property requires `with_latest_actions()`
-2. Avoid N+1 queries - List and detail views need related data prefetched
-3. Optimize display methods - `cost_display()`, `rating_display()` use cached facts when available
+1. Avoid N+1 queries - List and detail views need related data prefetched
+2. Keep `latest_action` reads cheap - `create_action()` and `check_wealth_sync()` read the newest ListAction, and `with_latest_actions()` turns that into a prefetch instead of a query per list
+
+Display methods (`cost_display()`, `rating_display()`, `stash_fighter_cost_display`) read the persisted cache fields (`rating_current`, `stash_current`, `credits_current`) directly and need no prefetch at all. A dirty list shows its last-good numbers until the write-time heal (`List.set_dirty` enqueues `refresh_list_facts`) or a detail-page view (`get_clean_list_or_404`) recomputes them.
 
 ## QuerySet Methods
 
 ### List.objects.with_latest_actions()
 
-Lightweight prefetch that enables the facts system:
+Lightweight prefetch for latest-action reads:
 
 ```python
 def with_latest_actions(self):
     """
     Prefetch the latest action for each list.
 
-    This enables the facts system by populating the `latest_actions` attribute,
-    which is checked by the `can_use_facts` property.
+    Populates the `latest_actions` attribute so `latest_action` (used by
+    create_action and check_wealth_sync) reads from the prefetch instead
+    of issuing a query per list.
     """
     return self.prefetch_related(
         Prefetch(
@@ -35,13 +37,11 @@ def with_latest_actions(self):
     )
 ```
 
-When to use: Any view that displays list costs (campaigns, homepage, list index).
+When to use: Any flow that reads `latest_action` for multiple lists (e.g. before creating actions in bulk).
 
 What it enables:
 
-- `list.can_use_facts` returns `True`
-- `list.latest_action` returns the most recent action
-- `list.facts()` can return cached values
+- `list.latest_action` returns the most recent action without an extra query
 
 ### List.objects.with_related_data()
 
@@ -142,41 +142,20 @@ def with_related_data(self):
 
 When to use: Equipment lists, assignment detail views.
 
-## The can_use_facts Property
-
-The facts system is gated by `can_use_facts`:
-
-```python
-@property
-def can_use_facts(self) -> bool:
-    """
-    Check if facts system can be used for display methods.
-
-    Returns True only if:
-    - latest_actions was prefetched via with_latest_actions()
-    - AND there is at least one action (list has action tracking)
-    """
-    if hasattr(self, "latest_actions"):
-        return bool(self.latest_actions)
-    return False
-```
-
-Important: If you skip the prefetch, `can_use_facts` returns `False` and display methods fall back to direct calculation.
-
 ## View Patterns
 
 ### Multi-List Views (Campaigns, Homepage)
 
-Use `with_latest_actions()` for fast cost display:
+Cost display needs no prefetch — the display methods read persisted fields:
 
 ```python
 def campaign_detail(request, pk):
     campaign = get_object_or_404(Campaign, pk=pk)
-    lists = List.objects.filter(campaign=campaign).with_latest_actions()
+    lists = List.objects.filter(campaign=campaign)
 
     return render(request, "campaign_detail.html", {
         "campaign": campaign,
-        "lists": lists,  # Each list can use facts()
+        "lists": lists,  # cost_display/rating_display read cached fields
     })
 ```
 
@@ -242,21 +221,7 @@ This means:
 
 ## Common Mistakes
 
-### 1. Forgetting with_latest_actions()
-
-```python
-# BAD: can_use_facts returns False
-lists = List.objects.filter(campaign=campaign)
-for lst in lists:
-    cost = lst.cost_display()  # Falls back to full calculation
-
-# GOOD: can_use_facts returns True
-lists = List.objects.filter(campaign=campaign).with_latest_actions()
-for lst in lists:
-    cost = lst.cost_display()  # Uses cached facts
-```
-
-### 2. Not using with_fighters for detail views
+### 1. Not using with_fighters for detail views
 
 ```python
 # BAD: N+1 queries when accessing fighters
@@ -270,7 +235,7 @@ for fighter in lst.listfighter_set.all():  # Already loaded
     print(fighter.name)
 ```
 
-### 3. Double prefetching
+### 2. Double prefetching
 
 ```python
 # BAD: Prefetches twice

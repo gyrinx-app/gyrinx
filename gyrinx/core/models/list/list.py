@@ -352,9 +352,14 @@ class List(AppBase):
     def rating(self):
         return sum([f.cost_int_cached for f in self.active_fighters])
 
-    @cached_property
+    @property
     def rating_display(self):
-        """Display the list's rating (last-good cached value, dirty or not)."""
+        """Display the list's rating (last-good cached value, dirty or not).
+
+        Plain property on purpose: the underlying field is updated in place by
+        facts_from_db(update=True), and a cached formatted string would pin
+        the pre-refresh value for the instance's lifetime.
+        """
         return format_cost_display(self.rating_current)
 
     # --- Equipment sets: display-only "selected" rating (#1853) --------------
@@ -431,17 +436,19 @@ class List(AppBase):
     def stash_fighter_cost_int(self):
         return self.stash_fighter.cost_int() if self.stash_fighter else 0
 
-    @cached_property
+    @property
     def stash_fighter_cost_display(self):
         """Display the stash cost (last-good cached value, dirty or not)."""
         return format_cost_display(self.stash_current)
 
-    @cached_property
+    @property
     def credits_current_display(self):
         return format_cost_display(self.credits_current)
 
-    @cached_property
+    @property
     def wealth_current(self):
+        # Plain property (not cached): the component fields mutate in place
+        # via facts_from_db/create_action, and callers expect a live sum.
         return self.rating_current + self.stash_current + self.credits_current
 
     def facts(self) -> Optional[ListFacts]:
@@ -495,6 +502,8 @@ class List(AppBase):
         Args:
             save: If True, immediately saves the dirty flag to the database.
                   Uses QuerySet.update() to bypass signals and avoid thrashing.
+                  With save=False no heal is enqueued — persisting the flag
+                  (and arranging the refresh) is the caller's responsibility.
         """
         if not self.dirty:
             self.dirty = True
