@@ -96,10 +96,11 @@ def check_tasks_registered(app_configs, **kwargs):
                     f"Background task '{name}' ({mod_path}) is declared with @task "
                     f"but not registered.",
                     hint=(
-                        f"Add `TaskRoute({name})` to the list in "
-                        f"gyrinx/tasks/registry.py. Unregistered tasks pass locally "
-                        f"(dev's ImmediateBackend and .func test calls skip the "
-                        f"registry) but fail on enqueue in production."
+                        f"In gyrinx/tasks/registry.py, import it "
+                        f"(`from {mod_path} import {name}`) and add "
+                        f"`TaskRoute({name})` to the list. Unregistered tasks pass "
+                        f"locally (dev's ImmediateBackend and .func test calls skip "
+                        f"the registry) but fail on enqueue in production."
                     ),
                     id="gyrinx.tasks.E001",
                 )
