@@ -26,11 +26,12 @@ tests (``core/tests/test_balance_sheet.py``) and the staff debug view. A
 arrives with the pin schema in a later phase of the programme.
 """
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Optional
 from uuid import UUID
 
-from gyrinx.core.models.list import List
+from gyrinx.core.models.list import List, PinState
 
 # Component line kinds
 KIND_BASE = "base"
@@ -57,6 +58,67 @@ def _rows_pricing(rows) -> str:
     return PRICING_MIXED
 
 
+# Pin attribution FKs, in resolution order — an assignment (base pin) or a
+# through-row (profile/accessory/upgrade pin) carries exactly one when SOURCE.
+_PIN_FK_FIELDS = (
+    "pinned_equipment_list_item",
+    "pinned_expansion_item",
+    "pinned_equipment_list_accessory",
+    "pinned_equipment_list_upgrade",
+)
+
+
+def _pin_fk(obj):
+    """The first non-null pin attribution FK on an assignment or through-row."""
+    for name in _PIN_FK_FIELDS:
+        target = getattr(obj, name, None)
+        if target is not None:
+            return target
+    return None
+
+
+def _source_repr(state, amount, fk=None) -> str:
+    """Human-readable attribution for one pinned component price (design §5.1) —
+    what a receipt points at, for the pricing-column tooltip. Empty for an
+    unpinned/absent amount (live resolution, no receipt to describe)."""
+    if amount is None or state == PinState.UNPINNED:
+        return ""
+    if state == PinState.SOURCE:
+        # A SOURCE pin should always name its FK; the fallback is defensive, and
+        # stays neutral so it can't be misread as a user cost-override.
+        where = str(fk) if fk is not None else "a price source"
+        return f"Pinned to {where} ({amount}¢)"
+    if state == PinState.CATALOG:
+        return f"Catalog price at acquisition ({amount}¢)"
+    if state == PinState.DERIVED:
+        return f"Derived price ({amount}¢)"
+    if state == PinState.ORPHANED:
+        return f"Frozen — pricing source removed ({amount}¢)"
+    return ""
+
+
+def _rows_source_repr(rows) -> str:
+    """Attribution summary for an aggregate line's through-rows: resolve a lone
+    pinned row fully, else summarise the mix by state."""
+    rows = list(rows)
+    priced = [
+        r
+        for r in rows
+        if r.pin_state != PinState.UNPINNED and r.pinned_amount is not None
+    ]
+    if not priced:
+        return ""
+    if len(rows) == 1:  # the sole row is priced (unpriced-only returned above)
+        r = priced[0]
+        return _source_repr(r.pin_state, r.pinned_amount, _pin_fk(r))
+    counts = Counter(r.pin_state for r in priced)
+    parts = [f"{n}× {PinState(s).label.lower()}" for s, n in sorted(counts.items())]
+    live = len(rows) - len(priced)
+    if live:
+        parts.append(f"{live}× live")
+    return "Pinned: " + ", ".join(parts)
+
+
 @dataclass(frozen=True)
 class ComponentLine:
     """One priced component inside an assignment."""
@@ -65,6 +127,7 @@ class ComponentLine:
     amount: int
     pricing: str  # PRICING_* above
     detail: str = ""
+    source_repr: str = ""  # human-readable attribution for the pricing tooltip
 
 
 @dataclass(frozen=True)
@@ -288,33 +351,46 @@ def _assignment_balance(virtual) -> AssignmentBalance:
 
     if assignment.cost_override is not None:
         base_pricing, base_detail = PRICING_USER_OVERRIDE, ""
+        base_source = f"User override ({assignment.cost_override}¢)"
     elif assignment.pinned_base_amount is not None:
         base_pricing = PRICING_PINNED
         base_detail = assignment.pinned_base_state
+        base_source = _source_repr(
+            assignment.pinned_base_state,
+            assignment.pinned_base_amount,
+            _pin_fk(assignment),
+        )
     else:
-        base_pricing, base_detail = PRICING_LIVE, ""
+        base_pricing, base_detail, base_source = PRICING_LIVE, "", ""
 
+    profile_rows = assignment.profile_rows.all()
+    accessory_rows = assignment.accessory_rows.all()
+    upgrade_rows = assignment.upgrade_rows.all()
     lines = (
         ComponentLine(
             KIND_BASE,
             assignment.base_cost_int(),
             base_pricing,
             base_detail,
+            source_repr=base_source,
         ),
         ComponentLine(
             KIND_PROFILES,
             assignment.weapon_profiles_cost_int(),
-            _rows_pricing(assignment.profile_rows.all()),
+            _rows_pricing(profile_rows),
+            source_repr=_rows_source_repr(profile_rows),
         ),
         ComponentLine(
             KIND_ACCESSORIES,
             assignment.weapon_accessories_cost_int(),
-            _rows_pricing(assignment.accessory_rows.all()),
+            _rows_pricing(accessory_rows),
+            source_repr=_rows_source_repr(accessory_rows),
         ),
         ComponentLine(
             KIND_UPGRADES,
             assignment.upgrade_cost_int(),
-            _rows_pricing(assignment.upgrade_rows.all()),
+            _rows_pricing(upgrade_rows),
+            source_repr=_rows_source_repr(upgrade_rows),
         ),
     )
 

@@ -24,7 +24,11 @@ from gyrinx.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
-from gyrinx.core.cost.balance_sheet import build_balance_sheet
+from gyrinx.core.cost.balance_sheet import (
+    _rows_source_repr,
+    _source_repr,
+    build_balance_sheet,
+)
 from gyrinx.core.handlers.equipment.cost_override import (
     handle_equipment_cost_override,
 )
@@ -1381,3 +1385,71 @@ def test_matrix_sell_pack_profile_from_stash(
     )
     assert stash_before_sale - fresh(lst).stash_current == 10
     assert_reconciles(lst)
+
+
+# --- #1949: pin-source attribution for the balance-sheet pricing tooltip -------
+
+
+class _FakeRow:
+    """Minimal stand-in for a pinned through-row (pin_state + amount + one FK)."""
+
+    def __init__(self, pin_state, pinned_amount, fk=None):
+        self.pin_state = pin_state
+        self.pinned_amount = pinned_amount
+        self.pinned_equipment_list_item = fk
+
+
+def test_source_repr_per_pin_state():
+    assert _source_repr(PinState.CATALOG, 15) == "Catalog price at acquisition (15¢)"
+    assert _source_repr(PinState.DERIVED, 7) == "Derived price (7¢)"
+    assert _source_repr(PinState.ORPHANED, 4).startswith("Frozen")
+    # SOURCE resolves the attribution FK's string.
+    assert _source_repr(PinState.SOURCE, 5, "Ganger — Sweep Lasgun") == (
+        "Pinned to Ganger — Sweep Lasgun (5¢)"
+    )
+    assert _source_repr(PinState.SOURCE, 5) == "Pinned to a price source (5¢)"
+    # Unpinned / absent amount → no receipt to describe.
+    assert _source_repr(PinState.UNPINNED, None) == ""
+    assert _source_repr(PinState.CATALOG, None) == ""
+
+
+def test_rows_source_repr_single_row_resolves_fully():
+    rows = [_FakeRow(PinState.SOURCE, 5, "Ganger — Sweep Lasgun")]
+    assert _rows_source_repr(rows) == "Pinned to Ganger — Sweep Lasgun (5¢)"
+
+
+def test_rows_source_repr_summarises_a_mix():
+    rows = [
+        _FakeRow(PinState.CATALOG, 5),
+        _FakeRow(PinState.CATALOG, 5),
+        _FakeRow(PinState.SOURCE, 4, "Ganger — Scope"),
+        _FakeRow(PinState.UNPINNED, None),
+    ]
+    out = _rows_source_repr(rows)
+    assert "2× catalog" in out
+    assert "1× source" in out
+    assert "1× live" in out
+
+
+def test_rows_source_repr_all_unpinned_is_empty():
+    assert _rows_source_repr([_FakeRow(PinState.UNPINNED, None)]) == ""
+
+
+@pytest.mark.django_db
+def test_balance_sheet_populates_pinned_line_source_repr(
+    user, make_list, content_fighter, make_equipment
+):
+    """A purchased line pins at acquisition, so its base ComponentLine is pinned
+    and carries an amount-bearing source_repr for the tooltip."""
+    lst = make_list("Sheet Gang")
+    fighter = hire_fighter(user, lst, content_fighter)
+    buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
+
+    sheet = fresh_sheet(lst)
+    fb = next(f for f in sheet.fighters if f.fighter_id == fighter.id)
+    base = next(line for line in fb.assignments[0].lines if line.kind == "base")
+
+    # Deterministic: purchase pins on acquisition, so this must be pinned — if
+    # that ever regressed the test should fail here, not pass via an empty branch.
+    assert base.pricing == "pinned"
+    assert base.source_repr.endswith("¢)")
