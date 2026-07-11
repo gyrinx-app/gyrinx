@@ -21,6 +21,7 @@ screenshots/
 .claude/test-plans/
 .claude/worktrees/
 CLAUDE.local.md
+/rule-reference
 media/
 # Ignore the latest content data export file
 latest.json
