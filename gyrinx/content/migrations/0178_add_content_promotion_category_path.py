@@ -9,7 +9,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0176_contentmod_unique_constraints"),
+        ("content", "0177_add_counter_warning_stat"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
