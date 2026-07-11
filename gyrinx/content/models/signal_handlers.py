@@ -683,17 +683,19 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
         except List.DoesNotExist:
             continue
         except Exception as e:
-            # Log error but continue processing other lists. The transaction
-            # rolled back, so the list stays dirty (and unrewritten) for a
-            # later redelivery.
+            # Log error but continue processing other lists. The per-list
+            # transaction rolled back, so the amount rewrite was undone and
+            # no action was recorded.
             logger.error(
                 f"Failed to create CONTENT_COST_CHANGE action for list {list_id}: {e}"
             )
             # Index pages show last-good numbers and never recompute, so give
             # the failed list a background heal rather than waiting for a
-            # detail-page view. This refreshes caches only — the audit action
-            # for this change is still lost (same as the view-heal path) and
-            # a redelivery remains the real recovery.
+            # detail-page view. The heal clears dirty but recomputes against
+            # the UNREWRITTEN (pre-correction) amounts, and the audit action
+            # is still missing — a task redelivery is the real recovery, and
+            # it works regardless of the dirty flag (the sweep re-runs the
+            # rewrite and recompute unconditionally).
             try:
                 refresh_list_facts.enqueue(list_id=str(list_id))
             except Exception:
