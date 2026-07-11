@@ -151,8 +151,8 @@ def test_estate_run_notifies_once_per_owner_and_arb(
             action_type=ListActionType.UPDATE_CREDITS,
             description="Stake",
             credits_delta=1000,
-            update_credits=True,
         )
+        lst.apply_credit_delta(1000)
         fighter = hire_fighter(player, lst, content_fighter, name="F")
         buy_equipment(player, lst, fighter, make_equipment("Gun", cost=15))
         true_rating = fresh(lst).rating_current

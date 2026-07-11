@@ -223,10 +223,10 @@ def _distribute_budget_to_list(
 
     description = f"Campaign starting budget: Received {credits_to_add}¢ ({campaign.budget}¢ budget - {list_cost}¢ gang rating)"
 
-    # Update list credits via an action transaction
+    # Record the grant, then apply the credit movement explicitly
+    # (create_action is a pure record).
     list_action = campaign_list.create_action(
         user=user,
-        update_credits=True,
         action_type=ListActionType.CAMPAIGN_START,
         subject_app="core",
         subject_type="Campaign",
@@ -236,6 +236,7 @@ def _distribute_budget_to_list(
         stash_delta=0,
         credits_delta=credits_to_add,
     )
+    campaign_list.apply_credit_delta(credits_to_add)
 
     # Create CampaignAction for visibility
     campaign_action = CampaignAction.objects.create(

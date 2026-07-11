@@ -18,7 +18,6 @@ from django.db.models import Q
 
 from gyrinx.content.models import ContentRollFlow, ContentRollTableRow
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
-from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -141,7 +140,8 @@ def handle_roll_flow(
     stash_before = lst.stash_current
     credits_before = lst.credits_current
 
-    is_stash_linked = check_is_stash_linked(fighter)
+    # Bucket by the fighter's own stash-ness, matching facts_from_db.
+    is_stash = fighter.is_stash
 
     # Deduct the counter. The affordability guard above means a missing
     # counter row can only pass when flow.cost == 0, so there is nothing to
@@ -206,8 +206,8 @@ def handle_roll_flow(
         subject_id=roll_result.id,
         description=f"{fighter.name} gained {row.name} (+{rating_increase}¢)",
         list_fighter=fighter,
-        rating_delta=rating_increase if not is_stash_linked else 0,
-        stash_delta=rating_increase if is_stash_linked else 0,
+        rating_delta=rating_increase if not is_stash else 0,
+        stash_delta=rating_increase if is_stash else 0,
         credits_delta=0,  # Roll flows cost counter points, not credits
         rating_before=rating_before,
         stash_before=stash_before,
@@ -252,7 +252,8 @@ def handle_roll_result_deletion(
     stash_before = lst.stash_current
     credits_before = lst.credits_current
 
-    is_stash_linked = check_is_stash_linked(fighter)
+    # Bucket by the fighter's own stash-ness, matching facts_from_db.
+    is_stash = fighter.is_stash
 
     rating_decrease = roll_result.rating_increase
     counter_refund = roll_result.counter_cost
@@ -289,8 +290,8 @@ def handle_roll_result_deletion(
         subject_id=roll_result.id,
         description=f"{fighter.name} removed {roll_result.row.name} (-{rating_decrease}¢)",
         list_fighter=fighter,
-        rating_delta=-rating_decrease if not is_stash_linked else 0,
-        stash_delta=-rating_decrease if is_stash_linked else 0,
+        rating_delta=-rating_decrease if not is_stash else 0,
+        stash_delta=-rating_decrease if is_stash else 0,
         credits_delta=0,
         rating_before=rating_before,
         stash_before=stash_before,

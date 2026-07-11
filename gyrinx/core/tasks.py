@@ -208,12 +208,15 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                 # instance rather than re-fetching the list.
                 lst = fighters[0].list
 
-                # Keep the list's cached rating/stash consistent.
+                # Keep the list's cached rating/stash consistent. Deltas are
+                # booked from the WRITTEN (zero-clamped) values, not the raw
+                # sums facts_from_db returns — the ledger must describe what
+                # the cache actually holds.
                 old_rating = lst.rating_current
                 old_stash = lst.stash_current
-                facts = lst.facts_from_db(update=True)
-                rating_delta = facts.rating - old_rating
-                stash_delta = facts.stash - old_stash
+                lst.facts_from_db(update=True)
+                rating_delta = lst.rating_current - old_rating
+                stash_delta = lst.stash_current - old_stash
 
                 # Awareness-only action. Materialising a child-spawning default
                 # has a net-zero cost impact (the default is virtual/0-cost, the
@@ -229,8 +232,6 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                     rating_delta=rating_delta,
                     stash_delta=stash_delta,
                     credits_delta=0,
-                    update_credits=False,
-                    skip_apply=["rating", "stash"],
                 )
                 propagated_count += 1
         except Exception:

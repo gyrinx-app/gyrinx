@@ -99,13 +99,6 @@ def handle_credits_modification(
     else:  # spend or reduce
         credits_delta = -amount
 
-    # For "reduce" operation, we need to also decrease credits_earned.
-    # The create_action method only increases credits_earned for positive deltas,
-    # so we manually decrement it here before calling create_action.
-    # create_action will then save this decremented value.
-    if operation == "reduce":
-        lst.credits_earned -= amount
-
     # Build action description
     if operation == "add":
         action_desc = f"Added {amount}¢"
@@ -117,7 +110,8 @@ def handle_credits_modification(
     if description:
         action_desc += f": {description}"
 
-    # Create ListAction with credits update
+    # Record the action, then apply the credit movement explicitly
+    # (create_action is a pure record).
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.UPDATE_CREDITS,
@@ -128,7 +122,12 @@ def handle_credits_modification(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,
+    )
+    # "reduce" takes back earned credits as well as current ones; the other
+    # operations use the default earned accrual (positive deltas only).
+    lst.apply_credit_delta(
+        credits_delta,
+        earned_delta=-amount if operation == "reduce" else None,
     )
 
     # Calculate after values for result

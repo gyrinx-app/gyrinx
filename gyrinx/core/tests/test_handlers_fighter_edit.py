@@ -337,10 +337,11 @@ def test_handle_fighter_edit_stash_fighter(
 def test_handle_fighter_edit_child_fighter_on_stash(
     user, make_list, make_content_fighter, content_house, make_equipment, settings
 ):
-    """Test that cost changes for child fighter (vehicle) on stash go to stash_delta.
+    """Cost changes for a child fighter (vehicle) on stash go to RATING.
 
-    This tests the _is_fighter_stash_linked() logic that handles child fighters
-    (vehicles/exotic beasts) whose parent equipment is on a stash fighter.
+    The recompute buckets every non-stash fighter's own cost into the
+    rating book — child fighters included, even when their parent equipment
+    sits on the stash — so the record must match.
     """
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
@@ -403,10 +404,10 @@ def test_handle_fighter_edit_child_fighter_on_stash(
 
     # Delta = 200 - 150 = +50
     assert result is not None
-    assert result.changes[0].stash_delta == 50
-    assert result.changes[0].rating_delta == 0
-    assert result.list_actions[0].stash_delta == 50
-    assert result.list_actions[0].rating_delta == 0
+    assert result.changes[0].stash_delta == 0
+    assert result.changes[0].rating_delta == 50
+    assert result.list_actions[0].stash_delta == 0
+    assert result.list_actions[0].rating_delta == 50
 
 
 @pytest.mark.django_db

@@ -553,15 +553,18 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
     content_equipment_categories,
     settings,
 ):
-    """Test child fighter (vehicle/beast) linked to stash parent uses stash_delta."""
+    """A child fighter linked to stash gear books and applies to RATING.
+
+    The recompute (facts_from_db) buckets every non-stash fighter's own cost
+    into the rating book — a child vehicle/beast counts toward rating even
+    when its parent equipment sits on the stash. Record and apply must both
+    follow that, or the action chain and the caches diverge.
+    """
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     from gyrinx.content.models import ContentEquipmentFighterProfile
 
     lst = list_with_campaign
-    lst.rating_current = 500
-    lst.stash_current = 100
-    lst.save()
 
     # Create stash fighter type
     stash_type = make_content_fighter(
@@ -610,6 +613,12 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
     )
     child_fighter.source_assignment.add(equipment_assignment)
 
+    # Anchor the caches to the real fighters before advancing, so the
+    # record/apply/recompute comparison below is meaningful.
+    lst.facts_from_db(update=True)
+    rating_before = lst.rating_current
+    stash_before = lst.stash_current
+
     cost_increase = 30
 
     result = handle_fighter_advancement(
@@ -622,9 +631,22 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
         stat_increased="toughness",
     )
 
-    # Child fighter linked to stash should use stash_delta
-    assert result.update_action.rating_delta == 0
-    assert result.update_action.stash_delta == cost_increase
+    # Record and apply both land in the rating book, matching facts_from_db
+    assert result.update_action.rating_delta == cost_increase
+    assert result.update_action.stash_delta == 0
+
+    lst.refresh_from_db()
+    assert lst.rating_current == rating_before + cost_increase
+    assert lst.stash_current == stash_before
+
+    # And the caches agree with a from-scratch recompute (record == apply
+    # == recompute — the divergence this test exists to prevent).
+    from gyrinx.core.models.list import List
+
+    clean = List.objects.with_related_data(with_fighters=True).get(pk=lst.pk)
+    computed = clean.facts_from_db(update=False)
+    assert computed.rating == clean.rating_current
+    assert computed.stash == clean.stash_current
 
 
 @pytest.mark.django_db

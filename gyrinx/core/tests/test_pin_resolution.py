@@ -154,8 +154,8 @@ def test_pinned_gear_does_not_reprice_when_moved(
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=1000,
-        update_credits=True,
     )
+    lst.apply_credit_delta(1000)
 
     cf_a = make_content_fighter(
         type="Scavvy", category="GANGER", house=content_house, base_cost=50

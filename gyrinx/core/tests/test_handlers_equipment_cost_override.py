@@ -347,10 +347,11 @@ def test_handle_equipment_cost_override_zero_delta(
 def test_handle_equipment_cost_override_child_fighter_on_stash(
     user, make_list, make_content_fighter, content_house, make_equipment, settings
 ):
-    """Test that cost changes for equipment on child fighter of stash go to stash_delta.
+    """Cost changes for equipment on a child fighter of stash go to RATING.
 
-    This tests the _is_fighter_stash_linked() logic that handles child fighters
-    (vehicles/exotic beasts) whose parent equipment is on a stash fighter.
+    The recompute buckets every non-stash fighter's own cost into the
+    rating book — child fighters (vehicles/exotic beasts) included, even
+    when their parent equipment sits on a stash fighter.
     """
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
@@ -413,7 +414,7 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     # Simulate form applying new value
     child_equipment_assignment.total_cost_override = 75
 
-    # Set override on child fighter's equipment (should go to stash_delta)
+    # Set override on child fighter's equipment (books to rating)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
@@ -426,5 +427,5 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     # Delta = 75 - 50 = +25
     assert result is not None
     assert result.cost_delta == 25
-    assert result.list_action.stash_delta == 25
-    assert result.list_action.rating_delta == 0
+    assert result.list_action.stash_delta == 0
+    assert result.list_action.rating_delta == 25

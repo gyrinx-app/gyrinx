@@ -662,8 +662,12 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
                 # Format the cost change for the description
                 cost_change_str = format_cost_display(total_delta, show_sign=True)
 
-                # Create the action. Skip applying rating/stash deltas since facts_from_db
-                # already updated those values. Credits delta is still applied.
+                # Record the action — facts_from_db already updated the
+                # rating/stash caches, and create_action is a pure record.
+                # The campaign credit adjustment is applied
+                # explicitly afterwards, inside the same per-list transaction
+                # and behind the same idempotency guards above, so a
+                # redelivery can't double-charge.
                 lst.create_action(
                     action_type=ListActionType.CONTENT_COST_CHANGE,
                     description=f"{instance_name} changed cost ({cost_change_str})",
@@ -677,9 +681,9 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
                     rating_delta=rating_delta,
                     stash_delta=stash_delta,
                     credits_delta=credits_delta,
-                    update_credits=is_campaign,
-                    skip_apply=["rating", "stash"],
                 )
+                if is_campaign:
+                    lst.apply_credit_delta(credits_delta)
         except List.DoesNotExist:
             continue
         except Exception as e:

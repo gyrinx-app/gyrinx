@@ -39,8 +39,8 @@ def tracked_list(user, make_list, content_fighter, make_equipment, campaign):
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=1000,
-        update_credits=True,
     )
+    lst.apply_credit_delta(1000)
     fighter = hire_fighter(user, lst, content_fighter, name="Bob")
     equipment = make_equipment("Lasgun", cost=15)
     assignment = buy_equipment(user, lst, fighter, equipment)

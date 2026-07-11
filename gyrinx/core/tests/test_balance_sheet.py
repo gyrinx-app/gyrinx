@@ -405,8 +405,8 @@ def campaign_list(user, make_list, campaign, content_source):
         action_type=ListActionType.UPDATE_CREDITS,
         description="Starting stake",
         credits_delta=1000,
-        update_credits=True,
     )
+    lst.apply_credit_delta(1000)
     lst.refresh_from_db()
     return lst, stash
 

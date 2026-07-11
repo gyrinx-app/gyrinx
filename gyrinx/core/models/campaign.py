@@ -178,14 +178,13 @@ class Campaign(AppBase):
                 # credits ledger stays reconcilable (see the balance-sheet
                 # invariants in gyrinx/core/cost/balance_sheet.py). Mirrors
                 # handlers/campaign_operations._distribute_budget_to_list.
-                # create_action applies the credits (and credits_earned) even
-                # for lists without an action chain, so behaviour is
+                # apply_credit_delta applies the credits (and credits_earned)
+                # even for lists without an action chain, so behaviour is
                 # unchanged where actions are disabled.
                 from gyrinx.core.models.action import ListActionType
 
                 campaign_list.create_action(
                     user=user or self.owner,
-                    update_credits=True,
                     action_type=ListActionType.CAMPAIGN_START,
                     subject_app="core",
                     subject_type="Campaign",
@@ -193,6 +192,7 @@ class Campaign(AppBase):
                     description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang rating)",
                     credits_delta=credits_to_add,
                 )
+                campaign_list.apply_credit_delta(credits_to_add)
 
                 # Log the credit distribution as a campaign action
                 CampaignAction.objects.create(

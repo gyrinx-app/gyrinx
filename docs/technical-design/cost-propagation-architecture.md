@@ -418,6 +418,8 @@ def propagate_from_fighter(
     )
 
 
+# NOTE: this sketch was NOT implemented. Bucketing follows the fighter's own
+# `is_stash` (matching facts_from_db); child fighters always book to rating.
 def is_stash_linked(fighter: "ListFighter") -> bool:
     """
     Determine if a fighter's costs route to stash or rating.
@@ -750,7 +752,7 @@ def campaign_detail_view(request, campaign_id):
 
 1. Create `gyrinx/core/cost/propagation.py`
 2. Implement `propagate_from_assignment()` and `propagate_from_fighter()`
-3. Implement `is_stash_linked()` or reuse existing logic
+3. ~~Implement `is_stash_linked()` or reuse existing logic~~ (not implemented — bucketing follows `fighter.is_stash`, matching `facts_from_db`; a routing helper existed briefly and was removed when its child-fighter branch diverged from the recompute)
 4. Test propagation logic in isolation
 
 ### Phase 5: Handler Updates
@@ -803,7 +805,7 @@ The following describes what was actually implemented, noting changes from the o
        list: List  # Reference for guard condition
    ```
 
-3. **Propagation does NOT update List** - Unlike the original design, `propagate_from_assignment()` and `propagate_from_fighter()` only update the assignment/fighter levels. The list update is done by `create_action()`.
+3. **Propagation updates ALL THREE levels, and `create_action()` is a pure record** - `propagate_from_assignment()` and `propagate_from_fighter()` write the assignment/fighter caches and the list-level `rating_current`/`stash_current` (bucketed by whether the holding fighter is the stash); `propagate_to_list()` covers flows with no fighter-level counterpart (archive, deletion, capture transfers). `create_action()` records the movement but never applies it, and campaign credits are applied explicitly at call sites via `spend_credits()`/`apply_credit_delta()` — the `update_credits`/`skip_apply` parameters shown in the proposal sections above no longer exist.
 
 4. **Simpler FighterFacts** - The implemented `FighterFacts` only has `rating`, not the detailed breakdown:
 
@@ -841,7 +843,6 @@ This invariant is enforced by the guard condition `_should_propagate()`.
 |-----------|------|
 | Facts dataclasses | `gyrinx/core/models/facts.py` |
 | Propagation functions | `gyrinx/core/cost/propagation.py` |
-| Stash routing | `gyrinx/core/cost/routing.py` |
 | List facts methods | `gyrinx/core/models/list.py` |
 | Content signals | `gyrinx/content/signals.py` |
 | Equipment handlers | `gyrinx/core/handlers/equipment/` |

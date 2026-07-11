@@ -179,7 +179,9 @@ def handle_equipment_sale(
             dice_total=sum(dice_rolls) if dice_rolls else 0,
         )
 
-    # Create ListAction with update_credits=True to apply the credits delta
+    # Record the sale, then apply the proceeds explicitly (create_action
+    # is a pure record; the stash movement was applied by the propagation
+    # above).
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.REMOVE_EQUIPMENT,
@@ -195,8 +197,8 @@ def handle_equipment_sale(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,  # Apply credits_delta to list
     )
+    lst.apply_credit_delta(credits_delta)
 
     return EquipmentSaleResult(
         total_sale_credits=total_sale_credits,

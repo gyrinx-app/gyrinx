@@ -49,8 +49,8 @@ def gang(user, make_list, content_fighter, campaign):
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=200,
-        update_credits=True,
     )
+    lst.apply_credit_delta(200)
     fighter = hire_fighter(user, lst, content_fighter, name="Bob")  # 100¢
     return fresh(lst), fighter
 
@@ -268,18 +268,23 @@ def test_single_stack_receipt_delta_crossing_zero(gang, user, make_equipment):
 
 @pytest.mark.django_db
 def test_action_delta_clamp_is_visible_to_the_harness(gang, user):
-    """create_action's apply path floors at zero (max(0, current + delta)).
-    If a delta would push rating negative, the lost remainder MUST surface
-    as a harness problem — this cell pins that the clamp can never eat
-    value silently."""
+    """The list-cache writer floors at zero (max(0, current + delta)).
+    If a movement would push rating negative, the lost remainder MUST
+    surface as a harness problem — this cell pins that the clamp can never
+    eat value silently. The writer is the propagation layer; the action
+    records the same over-large delta."""
+    from gyrinx.core.cost.propagation import propagate_to_list
+
     lst, fighter = gang
     rating = fresh(lst).rating_current
     lst = fresh(lst)
+    propagate_to_list(lst, rating_delta=-(rating + 50))  # would land at -50
     lst.create_action(
         user=user,
         action_type=ListActionType.UPDATE_FIGHTER,
         description="Synthetic over-refund (boundary probe)",
-        rating_delta=-(rating + 50),  # would land at -50
+        rating_delta=-(rating + 50),
+        rating_before=rating,
     )
 
     assert fresh(lst).rating_current == 0  # floored, not negative

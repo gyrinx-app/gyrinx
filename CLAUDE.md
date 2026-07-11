@@ -186,6 +186,9 @@ Keep the fully technical version for commit messages and code comments.
 4. Consider running the **code-simplifier** agent on changed files for a quality check
 5. Commit and push changes
 
+- Manually test changes through the running app (dev server + browser) before
+  shipping — skip only when the change is trivial
+
 **In CI/GitHub Actions:** MUST commit and push before finishing or work is lost.
 
 ## Development Commands
@@ -251,6 +254,9 @@ If you want to reuse the test DB across runs for speed, pass `--reuse-db` explic
 but be aware that `--reuse-db` combined with `--nomigrations` does NOT detect schema
 staleness, so you'll need a one-off `--create-db` run after changing a model.
 
+- When debugging with print output, run `pytest -n 0 -s <test>` — the default `-n auto`
+  (pytest-xdist) swallows `-s`/print output in workers.
+
 ### Frontend Development
 
 ```bash
@@ -299,6 +305,10 @@ manage prodshell
 echo 'print(User.objects.count())' | manage prodshell
 echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
 ```
+
+- Piped code runs through IPython, which prints multi-line `for` loops unreliably — use a
+  single expression per query (e.g. `print([...comprehension...])`) and read results off
+  the `In [N]:` lines.
 
 **Important:** Read-only mode is enforced — all write operations raise `RuntimeError`. Requires `gcloud` CLI,
 `cloud-sql-proxy`, and valid GCP authentication (both `gcloud auth login` and `gcloud auth application-default login`).

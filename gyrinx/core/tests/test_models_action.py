@@ -576,12 +576,15 @@ def test_check_wealth_sync_out_of_sync_action(user, make_list):
 
 
 @pytest.mark.django_db
-def test_create_action_prevents_negative_rating_and_stash(user, make_list, settings):
-    """Test that create_action prevents rating_current and stash_current from going negative.
+def test_list_write_prevents_negative_rating_and_stash(user, make_list, settings):
+    """The list-level cache writer clamps rating/stash at zero.
 
-    When applying negative deltas (e.g., removing fighters or equipment), the values
-    should be clamped to 0 rather than going negative.
+    Applying negative movement (e.g. removing fighters or equipment) clamps
+    the cached values to 0 rather than going negative. The writer is the
+    propagation layer; create_action only records and never mutates.
     """
+    from gyrinx.core.cost.propagation import propagate_to_list
+
     # Enable feature flag for initial action creation
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
@@ -596,7 +599,6 @@ def test_create_action_prevents_negative_rating_and_stash(user, make_list, setti
     # Create initial action to establish baseline
     lst.create_action(
         user=user,
-        update_credits=True,
         action_type=ListActionType.UPDATE_FIGHTER,
         description="Initial state",
         rating_delta=0,
@@ -604,17 +606,19 @@ def test_create_action_prevents_negative_rating_and_stash(user, make_list, setti
         credits_delta=0,
     )
 
-    # Apply action with negative deltas that would make values go negative without the fix
-    # rating: 50 - 100 = -50 (should be clamped to 0)
-    # stash: 30 - 50 = -20 (should be clamped to 0)
+    # Apply movement that would make values go negative without the clamp
+    # rating: 50 - 100 = -50 (clamped to 0); stash: 30 - 50 = -20 (clamped)
+    propagate_to_list(lst, rating_delta=-100, stash_delta=-50)
     action = lst.create_action(
         user=user,
-        update_credits=True,
         action_type=ListActionType.REMOVE_FIGHTER,
         description="Remove expensive fighter",
         rating_delta=-100,
         stash_delta=-50,
         credits_delta=0,
+        rating_before=50,
+        stash_before=30,
+        credits_before=100,
     )
 
     assert action is not None
@@ -644,3 +648,18 @@ def test_create_action_prevents_negative_rating_and_stash(user, make_list, setti
         "Action's calculated rating_after can be negative"
     )
     assert action.stash_after == -20, "Action's calculated stash_after can be negative"
+
+    # Recording alone never moves the caches: a second record with large
+    # negative deltas leaves the (already clamped) values untouched.
+    lst.create_action(
+        user=user,
+        action_type=ListActionType.REMOVE_FIGHTER,
+        description="Record only",
+        rating_delta=-999,
+        stash_delta=-999,
+        credits_delta=-999,
+    )
+    lst.refresh_from_db()
+    assert lst.rating_current == 0
+    assert lst.stash_current == 0
+    assert lst.credits_current == 100

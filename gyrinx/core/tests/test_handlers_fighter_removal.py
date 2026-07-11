@@ -17,7 +17,7 @@ from gyrinx.core.handlers.fighter import (
     handle_fighter_deletion,
 )
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 
 
 # ===== Equipment Removal Tests =====
@@ -1032,3 +1032,61 @@ def test_handle_fighter_deletion_correct_before_values(
         assert result.list_action.credits_before == 1000
     else:
         assert result.list_action is None
+
+
+@pytest.mark.django_db
+def test_archive_toggle_is_idempotent_no_double_refund(
+    user, make_list, make_list_fighter, make_campaign, settings
+):
+    """Re-archiving an already-archived fighter must not move the books.
+
+    The archive view can be re-submitted for a fighter that is already
+    archived (a replayed form or direct URL). Without the state guard the
+    handler re-applies the refund each time — minting credits — while the
+    rating movement clamps at zero, desyncing the action chain from the
+    caches.
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = make_list(
+        "Idempotent Gang",
+        create_initial_action=True,
+        status=List.CAMPAIGN_MODE,
+        campaign=make_campaign("Idempotency Campaign"),
+    )
+    lst.apply_credit_delta(100)
+    fighter = make_list_fighter(lst, "Repeat")
+    lst.refresh_from_db()
+    lst.facts_from_db(update=True)
+
+    first = handle_fighter_archive_toggle(
+        user=user, lst=lst, fighter=fighter, archive=True, request_refund=True
+    )
+    assert first.list_action is not None
+    lst.refresh_from_db()
+    credits_after_first = lst.credits_current
+    rating_after_first = lst.rating_current
+    actions_after_first = ListAction.objects.filter(list=lst).count()
+
+    # Second archive of the same (already archived) fighter: pure no-op.
+    fighter.refresh_from_db()
+    second = handle_fighter_archive_toggle(
+        user=user, lst=lst, fighter=fighter, archive=True, request_refund=True
+    )
+    assert second.list_action is None
+    assert second.refund_applied is False
+    lst.refresh_from_db()
+    assert lst.credits_current == credits_after_first
+    assert lst.rating_current == rating_after_first
+    assert ListAction.objects.filter(list=lst).count() == actions_after_first
+
+    # Unarchiving an active fighter is equally inert.
+    fighter.refresh_from_db()
+    assert fighter.archived is True
+    handle_fighter_archive_toggle(
+        user=user, lst=lst, fighter=fighter, archive=False, request_refund=False
+    )
+    fighter.refresh_from_db()
+    third = handle_fighter_archive_toggle(
+        user=user, lst=lst, fighter=fighter, archive=False, request_refund=False
+    )
+    assert third.list_action is None
