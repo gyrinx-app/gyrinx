@@ -92,6 +92,10 @@ from .injury import (
     ContentInjuryDefaultOutcome,
     ContentInjuryGroup,
 )
+from .battle import (
+    ContentBattleRole,
+    ContentBattleRoleOption,
+)
 from .counter import ContentCounter
 from .roll_table import (
     ContentRollFlow,
@@ -205,6 +209,9 @@ __all__ = [
     "ContentInjury",
     "ContentInjuryDefaultOutcome",
     "ContentInjuryGroup",
+    # Battle roles
+    "ContentBattleRole",
+    "ContentBattleRoleOption",
     # Equipment Lists
     "ContentFighterEquipmentListItem",
     "ContentFighterEquipmentListUpgrade",

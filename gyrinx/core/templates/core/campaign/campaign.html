@@ -405,7 +405,7 @@
             <!-- Battles -->
             <section class="col-xl-6">
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                    <h2 class="h5 mb-0">Battle Reports</h2>
+                    <h2 class="h5 mb-0">Battles</h2>
                     {% if can_log_actions %}
                         <a href="{% url 'core:battle-new' campaign.id %}"
                            class="icon-link linked fs-7"><i class="bi-plus-lg"></i> New Battle</a>
@@ -423,7 +423,7 @@
                         {% endif %}
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
-                            No battles reported yet.
+                            No battles yet.
                             {% if can_log_actions %}
                                 <a href="{% url 'core:battle-new' campaign.id %}" class="linked">Create first battle →</a>
                             {% endif %}
