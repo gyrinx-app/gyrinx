@@ -110,7 +110,7 @@ def test_full_lifecycle_facts_match_live_compute(
     fighter = hire_fighter(user, fresh(lst), content_fighter, name="Walker")
     assert_books_match()
 
-    assignment = buy_equipment(
+    buy_equipment(
         user, fresh(lst), fighter, make_equipment("Lifecycle Blade", cost="25")
     )
     assert_books_match()
@@ -141,9 +141,6 @@ def test_full_lifecycle_facts_match_live_compute(
         dice_rolls=[],
     )
     assert_books_match()
-
-    # The unused-variable pragma: assignment kept for readability above.
-    del assignment
 
 
 @pytest.mark.django_db

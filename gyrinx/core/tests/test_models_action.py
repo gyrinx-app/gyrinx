@@ -647,6 +647,7 @@ def test_list_write_prevents_negative_rating_and_stash(user, make_list, settings
     assert action.rating_after == -50, (
         "Action's calculated rating_after can be negative"
     )
+    assert action.stash_after == -20, "Action's calculated stash_after can be negative"
 
     # Recording alone never moves the caches: a second record with large
     # negative deltas leaves the (already clamped) values untouched.
@@ -662,4 +663,3 @@ def test_list_write_prevents_negative_rating_and_stash(user, make_list, settings
     assert lst.rating_current == 0
     assert lst.stash_current == 0
     assert lst.credits_current == 100
-    assert action.stash_after == -20, "Action's calculated stash_after can be negative"

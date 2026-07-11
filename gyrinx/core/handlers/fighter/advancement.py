@@ -10,7 +10,6 @@ from django.db import transaction
 
 from gyrinx.content.models import ContentAdvancementAssignment, ContentSkill
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
-from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -131,7 +130,10 @@ def handle_fighter_advancement(
     # Determine where cost delta should go:
     # - Stash-linked fighters affect stash_current
     # - Regular fighters affect rating_current
-    is_stash_linked = check_is_stash_linked(fighter)
+    # Bucket by the fighter's own stash-ness, matching facts_from_db — a
+    # child fighter (vehicle/beast) counts toward rating even when its
+    # parent equipment sits on the stash.
+    is_stash = fighter.is_stash
 
     # Create the advancement object
     advancement = ListFighterAdvancement(
@@ -187,7 +189,7 @@ def handle_fighter_advancement(
     advancement.apply_advancement()
 
     # Propagate the cost increase
-    if cost_increase > 0:
+    if cost_increase != 0:
         propagate_from_fighter(fighter, Delta(delta=cost_increase, list=lst))
 
     # For equipment advancements, find the created equipment assignment
@@ -214,8 +216,8 @@ def handle_fighter_advancement(
         subject_id=advancement.id,
         description=f"{fighter.name} advanced: {outcome} (+{cost_increase}¢)",
         list_fighter=fighter,
-        rating_delta=cost_increase if not is_stash_linked else 0,
-        stash_delta=cost_increase if is_stash_linked else 0,
+        rating_delta=cost_increase if not is_stash else 0,
+        stash_delta=cost_increase if is_stash else 0,
         credits_delta=0,  # Advancements cost XP, not credits
         rating_before=rating_before,
         stash_before=stash_before,
@@ -359,7 +361,10 @@ def handle_fighter_advancement_deletion(
     credits_before = lst.credits_current
 
     # Determine where cost delta should go
-    is_stash_linked = check_is_stash_linked(fighter)
+    # Bucket by the fighter's own stash-ness, matching facts_from_db — a
+    # child fighter (vehicle/beast) counts toward rating even when its
+    # parent equipment sits on the stash.
+    is_stash = fighter.is_stash
 
     # Store advancement details before archiving
     advancement_id = advancement.id
@@ -385,7 +390,7 @@ def handle_fighter_advancement_deletion(
     fighter.save()
 
     # Propagate the cost decrease
-    if cost_decrease > 0:
+    if cost_decrease != 0:
         propagate_from_fighter(fighter, Delta(delta=-cost_decrease, list=lst))
 
     # Archive the advancement
@@ -403,8 +408,8 @@ def handle_fighter_advancement_deletion(
         subject_id=advancement_id,
         description=description,
         list_fighter=fighter,
-        rating_delta=-cost_decrease if not is_stash_linked else 0,
-        stash_delta=-cost_decrease if is_stash_linked else 0,
+        rating_delta=-cost_decrease if not is_stash else 0,
+        stash_delta=-cost_decrease if is_stash else 0,
         credits_delta=0,  # Advancements don't affect credits
         rating_before=rating_before,
         stash_before=stash_before,

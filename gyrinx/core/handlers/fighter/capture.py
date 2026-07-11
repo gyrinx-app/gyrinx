@@ -182,8 +182,10 @@ def handle_fighter_capture(
         owner=user,
     )
 
-    # Propagate the cost reduction (fighter_cost → 0)
-    if fighter_cost > 0:
+    # Propagate the cost reduction (fighter_cost → 0). Guard on != 0:
+    # negative-cost gear can make a fighter's cost negative, and the
+    # movement must still be applied so record and cache agree.
+    if fighter_cost != 0:
         propagate_from_fighter(fighter, Delta(delta=-fighter_cost, list=original_list))
 
     # 5. Calculate deltas for capture action
@@ -396,8 +398,8 @@ def handle_fighter_return_to_owner(
     # Calculate restored fighter cost (after capture record deleted)
     fighter_cost = fighter.cost_int()
 
-    # Propagate the cost restoration
-    if fighter_cost > 0:
+    # Propagate the cost restoration (!= 0: negative costs must also apply)
+    if fighter_cost != 0:
         propagate_from_fighter(fighter, Delta(delta=fighter_cost, list=original_list))
 
     # Calculate deltas for original gang (rating increases, credits decrease if ransom)
@@ -544,8 +546,8 @@ def handle_fighter_release(
     # Calculate restored fighter cost
     fighter_cost = fighter.cost_int()
 
-    # Propagate the cost restoration
-    if fighter_cost > 0:
+    # Propagate the cost restoration (!= 0: negative costs must also apply)
+    if fighter_cost != 0:
         propagate_from_fighter(fighter, Delta(delta=fighter_cost, list=original_list))
 
     # Calculate deltas (only rating changes)

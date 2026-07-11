@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.db.models import F, Value
+from django.db.models.functions import Greatest
 
 from gyrinx.core.models.list import (
     List,
@@ -63,12 +65,21 @@ def _apply_to_list(lst: "List", rating_delta: int = 0, stash_delta: int = 0) -> 
     The single list-cache writer for the push path. Values clamp at zero
     (the fields are PositiveIntegerField); the dirty flag is untouched —
     recording an action never applies anything.
+
+    The write is a DB-side atomic update (F expressions), so concurrent
+    propagations against the same list cannot lose each other's deltas to a
+    read-modify-write race. QuerySet.update matches how facts_from_db writes
+    these cache columns: no signals, no history churn. The instance is
+    mirrored in Python so callers see the post-move values without a refetch.
     """
     if not rating_delta and not stash_delta:
         return
+    List.objects.filter(pk=lst.pk).update(
+        rating_current=Greatest(Value(0), F("rating_current") + rating_delta),
+        stash_current=Greatest(Value(0), F("stash_current") + stash_delta),
+    )
     lst.rating_current = max(0, lst.rating_current + rating_delta)
     lst.stash_current = max(0, lst.stash_current + stash_delta)
-    lst.save(update_fields=["rating_current", "stash_current"])
 
 
 def _fighter_list_deltas(fighter: "ListFighter", delta: int) -> dict:
@@ -82,6 +93,7 @@ def _fighter_list_deltas(fighter: "ListFighter", delta: int) -> dict:
 def propagate_from_assignment(
     assignment: "ListFighterEquipmentAssignment",
     delta: Delta,
+    update_list: bool = True,
 ) -> Delta:
     """
     Propagate rating changes to assignment, fighter, and list cached fields.
@@ -125,8 +137,12 @@ def propagate_from_assignment(
     fighter.save(update_fields=["rating_current", "dirty"])
 
     # Walk up to the list: gear on the stash fighter moves the stash book,
-    # gear on anyone else moves the rating book.
-    _apply_to_list(delta.list, **_fighter_list_deltas(fighter, delta.delta))
+    # gear on anyone else moves the rating book. Multi-step flows
+    # (reassignment) pass update_list=False and apply their NET list
+    # movement once via propagate_to_list, so an intermediate zero-clamp
+    # can't distort the total.
+    if update_list:
+        _apply_to_list(delta.list, **_fighter_list_deltas(fighter, delta.delta))
 
     return delta
 
@@ -135,6 +151,7 @@ def propagate_from_assignment(
 def propagate_from_fighter(
     fighter: "ListFighter",
     delta: Delta,
+    update_list: bool = True,
 ) -> Delta:
     """
     Propagate a rating change from a fighter.
@@ -173,7 +190,8 @@ def propagate_from_fighter(
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
-    _apply_to_list(delta.list, **_fighter_list_deltas(fighter, delta.delta))
+    if update_list:
+        _apply_to_list(delta.list, **_fighter_list_deltas(fighter, delta.delta))
 
     return delta
 

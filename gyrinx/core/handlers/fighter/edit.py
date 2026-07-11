@@ -7,7 +7,6 @@ from django.db import transaction
 
 from gyrinx.content.models import ContentFighter
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
-from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import ListFighter
 from gyrinx.tracing import traced
@@ -182,7 +181,7 @@ def _detect_field_changes(
     old_legacy_content_fighter: Optional[ContentFighter],
     old_category_override: Optional[str],
     old_cost_override: Optional[int],
-    is_stash_linked: bool,
+    is_stash: bool,
 ) -> list[FieldChange]:
     """
     Detect which fields have changed by comparing old values with fighter's current values.
@@ -229,8 +228,8 @@ def _detect_field_changes(
                     fighter.content_fighter,
                     content_fighter_cost_delta,
                 ),
-                rating_delta=content_fighter_cost_delta if not is_stash_linked else 0,
-                stash_delta=content_fighter_cost_delta if is_stash_linked else 0,
+                rating_delta=content_fighter_cost_delta if not is_stash else 0,
+                stash_delta=content_fighter_cost_delta if is_stash else 0,
             )
         )
 
@@ -290,8 +289,8 @@ def _detect_field_changes(
                     description=_generate_field_description(
                         "cost_override", old_cost_override, new_value, cost_delta
                     ),
-                    rating_delta=cost_delta if not is_stash_linked else 0,
-                    stash_delta=cost_delta if is_stash_linked else 0,
+                    rating_delta=cost_delta if not is_stash else 0,
+                    stash_delta=cost_delta if is_stash else 0,
                 )
             )
 
@@ -351,8 +350,8 @@ def handle_fighter_edit(
     stash_before = lst.stash_current
     credits_before = lst.credits_current
 
-    # Determine if this fighter's cost changes go to stash
-    is_stash_linked = check_is_stash_linked(fighter)
+    # Bucket by the fighter's own stash-ness, matching facts_from_db.
+    is_stash = fighter.is_stash
 
     # Detect all changes by comparing old values with fighter's current (new) values
     changes = _detect_field_changes(
@@ -362,7 +361,7 @@ def handle_fighter_edit(
         old_legacy_content_fighter=old_legacy_content_fighter,
         old_category_override=old_category_override,
         old_cost_override=old_cost_override,
-        is_stash_linked=is_stash_linked,
+        is_stash=is_stash,
     )
 
     # If nothing changed, return None (idempotent)

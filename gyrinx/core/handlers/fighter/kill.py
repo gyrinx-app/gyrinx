@@ -191,12 +191,11 @@ def handle_fighter_kill(
     # Propagate the cost reduction (fighter_cost_before → 0)
     propagate_from_fighter(fighter, Delta(delta=-fighter_cost_before, list=lst))
 
-    # Bump the stash fighter's cached rating by the equipment value we just
-    # moved into it. list.stash_current is incremented by `equipment_cost` in
-    # create_action() below; without this propagation the stash fighter's
-    # rating_current stays stale, and any later reassignment-out from the
-    # stash drives it negative — which then 500s the next refresh because
-    # list.stash_current is a PositiveIntegerField.
+    # Bump the stash fighter's cached rating (and the list's stash book) by
+    # the equipment value we just moved into it. Without this the stash
+    # fighter's rating_current stays stale, and any later reassignment-out
+    # from the stash drives it negative — which then 500s the next refresh
+    # because list.stash_current is a PositiveIntegerField.
     if stash_fighter and equipment_cost:
         propagate_from_fighter(stash_fighter, Delta(delta=equipment_cost, list=lst))
 
