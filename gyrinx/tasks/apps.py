@@ -30,6 +30,10 @@ class TasksConfig(AppConfig):
         # Import signal handlers to register them (works with any backend)
         from gyrinx.tasks import signals  # noqa: F401
 
+        # Import the system check module so its @register() runs — enforces that
+        # every @task is in the registry, in every environment (#1947).
+        from gyrinx.tasks import checks  # noqa: F401
+
         # Only provision Pub/Sub in Cloud Run environment
         if not os.getenv("K_SERVICE"):
             logger.debug("Not in Cloud Run, skipping task provisioning")
