@@ -67,8 +67,9 @@ def test_exactly_one_update_writes_list_rating_per_purchase(
     rating_updates = [
         q["sql"]
         for q in ctx.captured_queries
-        if q["sql"].startswith("UPDATE")
-        and '"core_list"' in q["sql"]
+        if q["sql"].lstrip().upper().startswith("UPDATE")
+        and "core_list" in q["sql"]
+        and "core_listfighter" not in q["sql"]
         and "rating_current" in q["sql"]
     ]
     assert len(rating_updates) == 1, rating_updates

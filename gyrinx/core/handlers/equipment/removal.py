@@ -109,10 +109,14 @@ def handle_equipment_removal(
     # Total cost for list = equipment + child fighter
     total_cost = equipment_only_cost + child_fighter_cost
 
-    # Calculate deltas for LIST (sees total_cost including child fighter)
+    # Calculate deltas for LIST. The gear slice buckets by the holding
+    # fighter; the child fighter's slice ALWAYS books to rating — child
+    # fighters are non-stash fighters and the recompute counts their own
+    # cost in the rating book even when the parent equipment sits on the
+    # stash.
     is_stash = fighter.is_stash
-    rating_delta = -total_cost if not is_stash else 0
-    stash_delta = -total_cost if is_stash else 0
+    rating_delta = (-equipment_only_cost if not is_stash else 0) - child_fighter_cost
+    stash_delta = -equipment_only_cost if is_stash else 0
 
     # Validate and calculate refund (based on total cost)
     credits_delta, refund_applied = calculate_refund_credits(
@@ -129,13 +133,10 @@ def handle_equipment_removal(
     )
     # The cascade-deleted child fighter (vehicle/beast) contributed its own
     # rating to the list but has no surviving fighter cache to propagate
-    # from — move the list directly for that part.
+    # from — move the list directly for that part (always the rating book;
+    # see the delta computation above).
     if child_fighter_cost:
-        propagate_to_list(
-            lst,
-            rating_delta=-child_fighter_cost if not is_stash else 0,
-            stash_delta=-child_fighter_cost if is_stash else 0,
-        )
+        propagate_to_list(lst, rating_delta=-child_fighter_cost)
 
     # Delete the assignment
     assignment.delete()
