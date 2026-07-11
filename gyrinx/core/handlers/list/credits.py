@@ -99,13 +99,6 @@ def handle_credits_modification(
     else:  # spend or reduce
         credits_delta = -amount
 
-    # For "reduce" operation, we need to also decrease credits_earned.
-    # apply_credit_delta only increases credits_earned for positive deltas,
-    # so we manually decrement it here; apply_credit_delta's save then
-    # persists the decremented value.
-    if operation == "reduce":
-        lst.credits_earned -= amount
-
     # Build action description
     if operation == "add":
         action_desc = f"Added {amount}¢"
@@ -130,7 +123,12 @@ def handle_credits_modification(
         stash_before=stash_before,
         credits_before=credits_before,
     )
-    lst.apply_credit_delta(credits_delta)
+    # "reduce" takes back earned credits as well as current ones; the other
+    # operations use the default earned accrual (positive deltas only).
+    lst.apply_credit_delta(
+        credits_delta,
+        earned_delta=-amount if operation == "reduce" else None,
+    )
 
     # Calculate after values for result
     lst.refresh_from_db()

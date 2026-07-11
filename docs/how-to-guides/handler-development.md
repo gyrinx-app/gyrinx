@@ -20,7 +20,6 @@ Handlers are functions that:
 | `Delta` | `gyrinx/core/cost/propagation.py` | Represents a cost change to propagate |
 | `propagate_from_assignment()` | `gyrinx/core/cost/propagation.py` | Updates assignment and fighter cache |
 | `propagate_from_fighter()` | `gyrinx/core/cost/propagation.py` | Updates fighter cache |
-| `is_stash_linked()` | `gyrinx/core/cost/routing.py` | Determines rating vs stash routing |
 | `create_action()` | `gyrinx/core/models/list.py` | Creates ListAction and updates list cache |
 
 ---
@@ -197,29 +196,22 @@ This prevents double-counting between the facts system (pull-based) and propagat
 
 ## Rating vs Stash Routing
 
-Costs go to different fields depending on the fighter type:
+Costs bucket by the fighter's own stash-ness, matching `facts_from_db`:
 
-| Fighter Type | Cost Field | `is_stash` | `is_stash_linked()` |
-|--------------|------------|------------|---------------------|
-| Active fighter | `rating_current` | `False` | `False` |
-| Stash fighter | `stash_current` | `True` | `True` |
-| Vehicle/beast on stash | `stash_current` | `False` | `True` |
-| Vehicle/beast on active | `rating_current` | `False` | `False` |
+| Fighter Type | Cost Field | `fighter.is_stash` |
+|--------------|------------|--------------------|
+| Active fighter | `rating_current` | `False` |
+| Stash fighter | `stash_current` | `True` |
+| Vehicle/beast (child fighter) | `rating_current` | `False` |
 
-### Using is_stash_linked()
-
-For complex scenarios involving child fighters:
+Child fighters (vehicles/exotic beasts) always book to rating — even when
+their parent equipment sits on the stash — because the recompute counts
+every non-stash fighter's own cost in the rating book:
 
 ```python
-from gyrinx.core.cost.routing import is_stash_linked
-
-# Simple case: check direct stash
 is_stash = fighter.is_stash
 rating_delta = cost if not is_stash else 0
 stash_delta = cost if is_stash else 0
-
-# Complex case: child fighters (vehicles/exotic beasts)
-is_stash = is_stash_linked(fighter)  # Checks parent assignment too
 ```
 
 ---

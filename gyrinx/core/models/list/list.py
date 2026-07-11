@@ -1219,21 +1219,26 @@ class List(AppBase):
         )
         return None
 
-    def apply_credit_delta(self, delta: int) -> None:
+    def apply_credit_delta(
+        self, delta: int, earned_delta: Optional[int] = None
+    ) -> None:
         """Apply a credit movement to the cached credit fields.
 
         The single explicit writer for campaign-credit movement outside
-        spend_credits: ``credits_current``
-        moves by the delta and ``credits_earned`` accrues positive movement.
+        spend_credits: ``credits_current`` moves by the delta and
+        ``credits_earned`` accrues positive movement by default.
+        ``earned_delta`` overrides the earned movement for the flows that
+        take earned credits back (the manual "reduce" operation).
         Unconditional — refunds still apply for lists outside the action
-        system, preserving the old no-action branch's behaviour. Purchase
-        flows keep using spend_credits() (which validates balance and does
-        not accrue credits_earned).
+        system. Purchase flows keep using spend_credits() (which validates
+        balance and does not accrue credits_earned).
         """
-        if not delta:
+        if earned_delta is None:
+            earned_delta = max(0, delta)
+        if not delta and not earned_delta:
             return
         self.credits_current += delta
-        self.credits_earned += max(0, delta)
+        self.credits_earned += earned_delta
         self.save(update_fields=["credits_current", "credits_earned"])
 
     def ensure_stash(self, owner=None):

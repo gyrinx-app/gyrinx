@@ -418,6 +418,8 @@ def propagate_from_fighter(
     )
 
 
+# NOTE: this sketch was NOT implemented. Bucketing follows the fighter's own
+# `is_stash` (matching facts_from_db); child fighters always book to rating.
 def is_stash_linked(fighter: "ListFighter") -> bool:
     """
     Determine if a fighter's costs route to stash or rating.
@@ -750,7 +752,7 @@ def campaign_detail_view(request, campaign_id):
 
 1. Create `gyrinx/core/cost/propagation.py`
 2. Implement `propagate_from_assignment()` and `propagate_from_fighter()`
-3. Implement `is_stash_linked()` or reuse existing logic
+3. ~~Implement `is_stash_linked()` or reuse existing logic~~ (not implemented — bucketing follows `fighter.is_stash`, matching `facts_from_db`; a routing helper existed briefly and was removed when its child-fighter branch diverged from the recompute)
 4. Test propagation logic in isolation
 
 ### Phase 5: Handler Updates
@@ -841,7 +843,6 @@ This invariant is enforced by the guard condition `_should_propagate()`.
 |-----------|------|
 | Facts dataclasses | `gyrinx/core/models/facts.py` |
 | Propagation functions | `gyrinx/core/cost/propagation.py` |
-| Stash routing | `gyrinx/core/cost/routing.py` |
 | List facts methods | `gyrinx/core/models/list.py` |
 | Content signals | `gyrinx/content/signals.py` |
 | Equipment handlers | `gyrinx/core/handlers/equipment/` |

@@ -65,6 +65,23 @@ def handle_fighter_archive_toggle(
     Returns:
         FighterArchiveResult with operation details
     """
+    # Idempotency: re-submitting the form (or replaying the URL) for a
+    # fighter already in the requested state must not move the books — a
+    # repeated archive would re-apply the refund and re-record the rating
+    # movement, minting wealth the zero-clamp can't absorb.
+    if archive == fighter.archived:
+        return FighterArchiveResult(
+            fighter=fighter,
+            archived=fighter.archived,
+            fighter_cost=fighter.cost_int(),
+            refund_applied=False,
+            description=(
+                f"{fighter.name} is already "
+                + ("archived" if fighter.archived else "active")
+            ),
+            list_action=None,
+        )
+
     # Capture BEFORE values for ListAction
     rating_before = lst.rating_current
     stash_before = lst.stash_current
