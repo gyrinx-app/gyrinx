@@ -106,7 +106,7 @@ def _rows_source_repr(rows) -> str:
     ]
     if not priced:
         return ""
-    if len(priced) == 1 and len(rows) == 1:
+    if len(rows) == 1:  # the sole row is priced (unpriced-only returned above)
         r = priced[0]
         return _source_repr(r.pin_state, r.pinned_amount, _pin_fk(r))
     counts = Counter(r.pin_state for r in priced)

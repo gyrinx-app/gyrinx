@@ -1422,10 +1422,12 @@ def test_rows_source_repr_summarises_a_mix():
     rows = [
         _FakeRow(PinState.CATALOG, 5),
         _FakeRow(PinState.CATALOG, 5),
+        _FakeRow(PinState.SOURCE, 4, "Ganger — Scope"),
         _FakeRow(PinState.UNPINNED, None),
     ]
     out = _rows_source_repr(rows)
     assert "2× catalog" in out
+    assert "1× source" in out
     assert "1× live" in out
 
 
@@ -1437,9 +1439,8 @@ def test_rows_source_repr_all_unpinned_is_empty():
 def test_balance_sheet_populates_pinned_line_source_repr(
     user, make_list, content_fighter, make_equipment
 ):
-    """A purchased line pins at acquisition, so its base ComponentLine carries a
-    non-empty, amount-bearing source_repr for the tooltip; an unpinned line
-    carries none."""
+    """A purchased line pins at acquisition, so its base ComponentLine is pinned
+    and carries an amount-bearing source_repr for the tooltip."""
     lst = make_list("Sheet Gang")
     fighter = hire_fighter(user, lst, content_fighter)
     buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
@@ -1448,7 +1449,7 @@ def test_balance_sheet_populates_pinned_line_source_repr(
     fb = next(f for f in sheet.fighters if f.fighter_id == fighter.id)
     base = next(line for line in fb.assignments[0].lines if line.kind == "base")
 
-    if base.pricing in ("pinned", "user_override"):
-        assert base.source_repr and base.source_repr.endswith("¢)")
-    else:
-        assert base.source_repr == ""
+    # Deterministic: purchase pins on acquisition, so this must be pinned — if
+    # that ever regressed the test should fail here, not pass via an empty branch.
+    assert base.pricing == "pinned"
+    assert base.source_repr.endswith("¢)")
