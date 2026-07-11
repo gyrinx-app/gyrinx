@@ -821,12 +821,7 @@ The following describes what was actually implemented, noting changes from the o
        rating: int
    ```
 
-5. **Guard condition (since removed)** - The implementation originally
-   gated propagation and recording on the list having a bootstrap action
-   (`_should_propagate()`). Both are now unconditional: a list with no prior
-   actions starts its chain at its current cached values (#1980).
-
-6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
+5. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
 
 ### Critical Invariant
 
