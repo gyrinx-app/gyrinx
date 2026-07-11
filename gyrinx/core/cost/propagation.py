@@ -84,7 +84,7 @@ def _apply_to_list(lst: "List", rating_delta: int = 0, stash_delta: int = 0) -> 
 
 def _fighter_list_deltas(fighter: "ListFighter", delta: int) -> dict:
     """Bucket a fighter-level movement into the list's rating or stash."""
-    if fighter.content_fighter.is_stash:
+    if fighter.is_stash:
         return {"stash_delta": delta}
     return {"rating_delta": delta}
 
