@@ -1213,6 +1213,8 @@ class List(AppBase):
         track(
             "list_action_skipped_no_latest_action",
             list=str(self.id),
+            has_latest_action=bool(self.latest_action),
+            feature_enabled=settings.FEATURE_LIST_ACTION_CREATE_INITIAL,
             **kwargs,
         )
         return None
