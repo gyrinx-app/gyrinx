@@ -1407,7 +1407,7 @@ def test_source_repr_per_pin_state():
     assert _source_repr(PinState.SOURCE, 5, "Ganger — Sweep Lasgun") == (
         "Pinned to Ganger — Sweep Lasgun (5¢)"
     )
-    assert _source_repr(PinState.SOURCE, 5) == "Pinned to an override price (5¢)"
+    assert _source_repr(PinState.SOURCE, 5) == "Pinned to a price source (5¢)"
     # Unpinned / absent amount → no receipt to describe.
     assert _source_repr(PinState.UNPINNED, None) == ""
     assert _source_repr(PinState.CATALOG, None) == ""

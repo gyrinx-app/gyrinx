@@ -84,7 +84,9 @@ def _source_repr(state, amount, fk=None) -> str:
     if amount is None or state == PinState.UNPINNED:
         return ""
     if state == PinState.SOURCE:
-        where = str(fk) if fk is not None else "an override price"
+        # A SOURCE pin should always name its FK; the fallback is defensive, and
+        # stays neutral so it can't be misread as a user cost-override.
+        where = str(fk) if fk is not None else "a price source"
         return f"Pinned to {where} ({amount}¢)"
     if state == PinState.CATALOG:
         return f"Catalog price at acquisition ({amount}¢)"
