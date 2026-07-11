@@ -447,6 +447,13 @@ def is_stash_linked(fighter: "ListFighter") -> bool:
 
 Rename `create_action` to `transact()` and refactor to accept a mutation lambda:
 
+> **NOTE**: this rename was NOT implemented — there is no `transact()` in the
+> codebase. `create_action` kept its name and later became a pure audit record
+> that never applies anything. In the shipped code, credit movement goes
+> through `spend_credits()` / `apply_credit_delta()`, which are not gated on
+> `latest_action` — so the TODO in the sketch below (credits skipped on the
+> no-bootstrap-action path) does not correspond to a gap in the real code.
+
 ```python
 # In List model
 
