@@ -3,7 +3,6 @@
 from django.tasks import task
 
 import gyrinx.tasks.checks as checks
-from gyrinx.tasks.checks import check_tasks_registered
 from gyrinx.tasks.registry import get_all_tasks
 from gyrinx.tasks.route import TaskRoute
 
@@ -25,7 +24,7 @@ def sample_unregistered():
 def test_current_registry_passes_the_check():
     """Every @task the app currently declares is registered — no errors. This is
     the guard: if someone lands a new task without a TaskRoute, this goes red."""
-    assert check_tasks_registered(app_configs=None) == []
+    assert checks.check_tasks_registered(app_configs=None) == []
 
 
 def test_unregistered_declared_task_is_flagged(monkeypatch):
@@ -34,7 +33,7 @@ def test_unregistered_declared_task_is_flagged(monkeypatch):
     routes = [r for r in get_all_tasks() if r.name != "hello_world"]
     monkeypatch.setattr(checks, "get_all_tasks", lambda: routes)
 
-    errors = check_tasks_registered(app_configs=None)
+    errors = checks.check_tasks_registered(app_configs=None)
 
     e001 = [e for e in errors if e.id == "gyrinx.tasks.E001"]
     assert len(e001) == 1
@@ -48,7 +47,7 @@ def test_module_owning_a_registered_task_is_scanned(monkeypatch):
     monkeypatch.setattr(checks, "TASK_MODULES", ())
     monkeypatch.setattr(checks, "get_all_tasks", lambda: [TaskRoute(sample_registered)])
 
-    errors = check_tasks_registered(app_configs=None)
+    errors = checks.check_tasks_registered(app_configs=None)
 
     e001 = [e for e in errors if e.id == "gyrinx.tasks.E001"]
     assert any("sample_unregistered" in e.msg for e in e001)
@@ -76,7 +75,7 @@ def test_registry_entry_that_isnt_a_task_is_flagged(monkeypatch):
     monkeypatch.setattr(checks, "_task_module_paths", lambda routes: set())
     monkeypatch.setattr(checks, "get_all_tasks", lambda: [TaskRoute(not_a_task)])
 
-    errors = check_tasks_registered(app_configs=None)
+    errors = checks.check_tasks_registered(app_configs=None)
 
     assert [e.id for e in errors] == ["gyrinx.tasks.E002"]
     assert "not_a_task" in errors[0].msg
@@ -87,7 +86,7 @@ def test_check_is_registered_with_django():
     so it actually runs on manage check / runserver / CI."""
     from django.core.checks.registry import registry as check_registry
 
-    assert check_tasks_registered in check_registry.get_checks()
+    assert checks.check_tasks_registered in check_registry.get_checks()
 
 
 def test_declared_tasks_attributes_tasks_to_their_own_module():
