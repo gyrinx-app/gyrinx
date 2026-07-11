@@ -350,10 +350,8 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     """Cost changes for equipment on a child fighter of stash go to RATING.
 
     The recompute buckets every non-stash fighter's own cost into the
-    rating book — child fighters included.
-
-    This tests the _is_fighter_stash_linked() logic that handles child fighters
-    (vehicles/exotic beasts) whose parent equipment is on a stash fighter.
+    rating book — child fighters (vehicles/exotic beasts) included, even
+    when their parent equipment sits on a stash fighter.
     """
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")

@@ -9,6 +9,7 @@ from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import (
+    F,
     Prefetch,
     Q,
     Subquery,
@@ -1232,14 +1233,22 @@ class List(AppBase):
         Unconditional — refunds still apply for lists outside the action
         system. Purchase flows keep using spend_credits() (which validates
         balance and does not accrue credits_earned).
+
+        The write is a DB-side atomic update, matching the list-cache
+        writer: concurrent credit movements must not lose each other's
+        deltas to a read-modify-write race. The instance is mirrored in
+        Python so callers see the post-move values without a refetch.
         """
         if earned_delta is None:
             earned_delta = max(0, delta)
         if not delta and not earned_delta:
             return
+        List.objects.filter(pk=self.pk).update(
+            credits_current=F("credits_current") + delta,
+            credits_earned=F("credits_earned") + earned_delta,
+        )
         self.credits_current += delta
         self.credits_earned += earned_delta
-        self.save(update_fields=["credits_current", "credits_earned"])
 
     def ensure_stash(self, owner=None):
         """Ensure this list has a stash fighter, creating one if needed.
