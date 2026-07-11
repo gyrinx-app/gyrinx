@@ -337,7 +337,7 @@ def content_fighter(content_house, make_content_fighter):
 
 
 @pytest.fixture
-def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
+def make_list(user, content_house: ContentHouse) -> Callable[..., List]:
     def make_list_(name, **kwargs) -> List:
         kwargs = {
             "content_house": content_house,

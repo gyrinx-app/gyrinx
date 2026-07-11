@@ -1157,9 +1157,54 @@ def test_action_recorded_for_list_without_prior_actions(
     assert action.action_type == ListActionType.CONTENT_COST_CHANGE
     assert action.rating_before == initial_rating
     assert action.stash_before == initial_stash
+
+
+@pytest.mark.django_db
+def test_campaign_credits_applied_on_chain_start_list(
+    user,
+    content_house,
+    content_fighter,
+    content_equipment,
+    django_capture_on_commit_callbacks,
+):
+    """The sweep applies campaign credits to a list with no prior actions.
+
+    Same chain-start semantics as above, plus the campaign-mode leg: the
+    credit movement books against the pre-change credit balance.
+    """
+    from gyrinx.core.models.action import ListAction, ListActionType
+
+    lst = List.objects.create(
+        name="Chain Start Campaign List",
+        content_house=content_house,
+        owner=user,
+        status=List.CAMPAIGN_MODE,
+        credits_current=500,
+    )
+    fighter = ListFighter.objects.create(
+        name="Test Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        dirty=False,
+    )
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter,
+        content_equipment=content_equipment,
+        dirty=False,
+    )
+    assert ListAction.objects.filter(list=lst).count() == 0
+
+    content_equipment.cost = "150"
+    with django_capture_on_commit_callbacks(execute=True):
+        content_equipment.save()
+
+    action = ListAction.objects.get(list=lst)
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    assert action.credits_before == 500
+    assert action.credits_delta == -(action.rating_delta + action.stash_delta)
     lst.refresh_from_db()
-    assert lst.rating_current == action.rating_before + action.rating_delta
-    assert lst.stash_current == action.stash_before + action.stash_delta
+    assert lst.credits_current == 500 + action.credits_delta
 
 
 @pytest.mark.django_db

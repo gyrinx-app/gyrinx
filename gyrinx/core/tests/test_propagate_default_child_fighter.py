@@ -426,7 +426,7 @@ def test_campaign_mode_no_credit_charge(
 
 
 @pytest.mark.django_db
-def test_no_action_when_list_has_no_latest_action(
+def test_action_recorded_when_list_has_no_prior_actions(
     child_spawning_setup,
     make_list,
     content_house,

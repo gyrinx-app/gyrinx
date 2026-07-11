@@ -168,7 +168,7 @@ class FighterDeletionResult:
     fighter_cost: int
     refund_applied: bool
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
 
 
 @transaction.atomic

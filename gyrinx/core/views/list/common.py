@@ -13,8 +13,9 @@ def get_clean_list_or_404(model_or_queryset, *args, **kwargs):
     this function will refresh the cached facts before returning.
 
     When passed the List model class directly, this function automatically
-    applies the with_latest_actions() prefetch so latest_action reads
-    (the staff debug header) don't issue an extra query.
+    applies the with_latest_actions() prefetch so callers of
+    latest_action (e.g. the staff debug header) don't issue an extra
+    query.
 
     Args:
         model_or_queryset: A model class (List) or queryset to filter
@@ -28,8 +29,8 @@ def get_clean_list_or_404(model_or_queryset, *args, **kwargs):
         get_clean_list_or_404(List.objects.filter(...), id=id)
     """
     # If passed the List model directly, apply the with_latest_actions()
-    # prefetch so latest_action reads (the staff debug header) don't
-    # issue an extra query.
+    # prefetch so callers of latest_action (e.g. the staff debug header)
+    # don't issue an extra query.
     if model_or_queryset is List:
         model_or_queryset = List.objects.with_latest_actions()
 
