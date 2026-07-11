@@ -1216,10 +1216,6 @@ def refresh_list_cost(request, id):
         # Force recalculation and update DB cache
         new_facts = lst.facts_from_db(update=True)
 
-        # Clear the cached_property if present
-        if "cost_int_cached" in lst.__dict__:
-            del lst.__dict__["cost_int_cached"]
-
         track(
             "list_cost_refresh",
             list_id=str(lst.id),

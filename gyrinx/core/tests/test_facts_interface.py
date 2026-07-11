@@ -1229,3 +1229,13 @@ def test_list_facts_from_db_propagates_update_flag_to_fighters(
 
     # Fighter should have received update=True
     assert True in update_flags
+
+
+def test_list_has_no_deprecated_cost_int_cached():
+    """The deprecated List.cost_int_cached was deleted in #1860 Stage A.
+
+    ListFighter and assignment keep their cost_int_cached per-request caches;
+    only the List-level property (#1215) is gone. This tripwire stops it
+    quietly coming back.
+    """
+    assert not hasattr(List, "cost_int_cached")

@@ -194,6 +194,3 @@ def clear_fighter_cached_properties_for_assignment(
     ]:
         if prop in fighter.__dict__:
             del fighter.__dict__[prop]
-    # Also clear list's cached property
-    if "cost_int_cached" in fighter.list.__dict__:
-        del fighter.list.__dict__["cost_int_cached"]
