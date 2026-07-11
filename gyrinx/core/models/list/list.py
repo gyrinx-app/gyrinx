@@ -499,8 +499,15 @@ class List(AppBase):
         if not self.dirty:
             self.dirty = True
             if save:
-                List.objects.filter(pk=self.pk).update(dirty=True)
-                transaction.on_commit(self._enqueue_facts_refresh)
+                # Conditional update: only the instance that actually flips the
+                # row False->True enqueues the heal, so concurrent markers (or
+                # several stale instances of the same row) don't queue
+                # duplicate refreshes.
+                transitioned = List.objects.filter(pk=self.pk, dirty=False).update(
+                    dirty=True
+                )
+                if transitioned:
+                    transaction.on_commit(self._enqueue_facts_refresh)
 
     def _enqueue_facts_refresh(self) -> None:
         """Fire-and-forget heal for a dirty list; never breaks the caller."""
