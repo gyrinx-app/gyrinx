@@ -348,9 +348,11 @@ def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
 
         # Bootstrap CREATE action, matching what handle_list_creation writes
         ListAction.objects.create(
+            user=user,
+            owner=user,
             list=lst,
             action_type=ListActionType.CREATE,
-            owner=user,
+            description="List created",
             applied=True,
         )
 

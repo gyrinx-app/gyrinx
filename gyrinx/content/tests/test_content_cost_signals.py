@@ -246,7 +246,7 @@ def test_fighter_house_override_cost_change_marks_matching_fighter_dirty(
         cost=75,  # Different from base_cost (50)
     )
 
-    # Create list in the same house (without initial action to test dirty propagation)
+    # Create list in the same house
     lst = make_list("Test List")
     # Ensure the list uses the correct house
     lst.content_house = content_house
@@ -549,7 +549,7 @@ def test_equipment_cost_change_marks_multiple_lists_dirty(
     user, make_list, content_fighter, content_equipment
 ):
     """When ContentEquipment.cost changes, ALL affected lists should be marked dirty."""
-    # Create two lists (without initial action to test dirty propagation in isolation)
+    # Create two lists
     lst1 = make_list("Test List 1")
     lst2 = make_list("Test List 2")
 
@@ -776,7 +776,7 @@ def test_get_clean_list_or_404_prefetches_latest_actions(
     """
     from gyrinx.core.views.list import get_clean_list_or_404
 
-    # Create a list with an initial action (which enables facts tracking)
+    # Create a list (make_list seeds the bootstrap action)
     lst = make_list("Test List")
 
     # Create a fighter to have some rating
@@ -904,7 +904,7 @@ def test_equipment_cost_change_creates_action(
     """When ContentEquipment.cost changes, a CONTENT_COST_CHANGE action should be created."""
     from gyrinx.core.models.action import ListAction, ListActionType
 
-    # Create list with initial action (required for create_action to work)
+    # Create list (make_list seeds the bootstrap action)
     lst = make_list("Test List")
     # Create fighter and assignment with dirty=True so facts_from_db will recalculate
     fighter = ListFighter.objects.create(
@@ -962,7 +962,7 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
     """In campaign mode, cost increase should charge credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
 
-    # Create campaign mode list with initial action
+    # Create campaign mode list
     lst = make_list("Campaign List")
     lst.status = List.CAMPAIGN_MODE
     lst.credits_current = 500
@@ -1014,7 +1014,7 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
     """In campaign mode, cost decrease should refund credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
 
-    # Create campaign mode list with initial action
+    # Create campaign mode list
     lst = make_list("Campaign List")
     lst.status = List.CAMPAIGN_MODE
     lst.credits_current = 200
@@ -1142,6 +1142,8 @@ def test_action_recorded_for_list_without_prior_actions(
     )
 
     assert ListAction.objects.filter(list=lst).count() == 0
+    initial_rating = lst.rating_current
+    initial_stash = lst.stash_current
 
     # Change equipment cost
     content_equipment.cost = "150"
@@ -1153,6 +1155,8 @@ def test_action_recorded_for_list_without_prior_actions(
     assert actions.count() == 1
     action = actions.get()
     assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    assert action.rating_before == initial_rating
+    assert action.stash_before == initial_stash
     lst.refresh_from_db()
     assert lst.rating_current == action.rating_before + action.rating_delta
     assert lst.stash_current == action.stash_before + action.stash_delta
@@ -1243,7 +1247,7 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
         cost=75,  # Override cost (different from content_equipment.cost of 100)
     )
 
-    # Create list with initial action
+    # Create list
     lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",

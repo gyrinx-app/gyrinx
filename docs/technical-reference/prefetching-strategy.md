@@ -22,9 +22,9 @@ def with_latest_actions(self):
     """
     Prefetch the latest action for each list.
 
-    Populates the `latest_actions` attribute so `latest_action` reads
-    (the staff debug header, maintenance tooling) come from the prefetch
-    instead of issuing a query per list.
+    Populates the `latest_actions` attribute so callers of
+    `latest_action` (the staff debug header, maintenance tooling) read
+    from the prefetch instead of issuing a query per list.
     """
     return self.prefetch_related(
         Prefetch(
@@ -37,7 +37,7 @@ def with_latest_actions(self):
     )
 ```
 
-When to use: Any flow that reads `latest_action` for multiple lists (e.g. before creating actions in bulk).
+When to use: Any flow that reads `latest_action` for multiple lists (e.g. maintenance tooling walking many chains).
 
 What it enables:
 

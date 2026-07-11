@@ -808,7 +808,7 @@ The following describes what was actually implemented, noting changes from the o
    @dataclass
    class Delta:
        delta: int  # The change amount
-       list: List  # Reference for guard condition
+       list: List  # The list whose caches receive the movement
    ```
 
 3. **Propagation updates ALL THREE levels, and `create_action()` is a pure record** - `propagate_from_assignment()` and `propagate_from_fighter()` write the assignment/fighter caches and the list-level `rating_current`/`stash_current` (bucketed by whether the holding fighter is the stash); `propagate_to_list()` covers flows with no fighter-level counterpart (archive, deletion, capture transfers). `create_action()` records the movement but never applies it, and campaign credits are applied explicitly at call sites via `spend_credits()`/`apply_credit_delta()` — the `update_credits`/`skip_apply` parameters shown in the proposal sections above no longer exist.

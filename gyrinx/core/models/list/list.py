@@ -56,9 +56,9 @@ class ListQuerySet(models.QuerySet):
         """
         Prefetch the latest action for each list.
 
-        Populates the `latest_actions` attribute so `latest_action` reads
-        (the staff debug header, maintenance tooling) come from the prefetch
-        instead of issuing a query per list.
+        Populates the `latest_actions` attribute so callers of
+        `latest_action` (the staff debug header, maintenance tooling) read
+        from the prefetch instead of issuing a query per list.
 
         Use this lightweight method when only the actions prefetch is needed.
         For full optimization with related data, use `with_related_data()`.
