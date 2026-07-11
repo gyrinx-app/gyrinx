@@ -14,20 +14,46 @@ author's own terminal. It also flags registry entries that aren't actually
 """
 
 import importlib
+import importlib.util
 
+from django.apps import apps as django_apps
 from django.core.checks import Error, register
 from django.tasks import Task
 
 from gyrinx.tasks.registry import get_all_tasks
 
-# Modules that declare ``@task`` functions. Forgetting to register a task added
-# to one of these is the common trap this check closes. We also scan every
-# module that already owns a registered task (see ``check_tasks_registered``),
-# so a second task added beside a registered one is caught even if the module
-# isn't listed here. A brand-new module with *no* registered task is the rarer
-# case that recommendation 2 in #1947 (declaration-owned registration) closes
-# structurally — add such modules here until then.
+# Extra modules to scan, for the rare task module NOT named ``<app>.tasks``.
+# Auto-discovery (see ``_task_module_paths``) already covers every first-party
+# ``<app>.tasks`` module and every module that owns a registered task, so this
+# is usually empty — it's an escape hatch for unconventional locations.
 TASK_MODULES = ("gyrinx.core.tasks",)
+
+
+def _task_module_paths(routes):
+    """Every module worth scanning for ``@task`` functions:
+
+    - the explicit ``TASK_MODULES``;
+    - every module that already owns a registered task (so a second task added
+      beside a registered one is caught);
+    - each first-party ``gyrinx.*`` app's conventional ``<app>.tasks`` module,
+      when it exists — this closes the "brand-new app's first task, never
+      registered" gap without waiting for declaration-owned registration
+      (#1947 rec 2). Restricted to our own apps so a third-party app's task
+      module can't spuriously demand entries in *our* registry.
+    """
+    paths = set(TASK_MODULES)
+    paths |= {route.path.rsplit(".", 1)[0] for route in routes}
+    for app_config in django_apps.get_app_configs():
+        if not app_config.name.startswith("gyrinx."):
+            continue
+        candidate = f"{app_config.name}.tasks"
+        try:
+            spec = importlib.util.find_spec(candidate)
+        except (ImportError, AttributeError, ValueError):
+            spec = None  # parent not importable / not a package — nothing to scan
+        if spec is not None:
+            paths.add(candidate)
+    return paths
 
 
 def _declared_tasks(module_paths):
@@ -36,7 +62,12 @@ def _declared_tasks(module_paths):
     are attributed to their own module, not double-counted here."""
     declared = {}
     for mod_path in module_paths:
-        module = importlib.import_module(mod_path)
+        try:
+            module = importlib.import_module(mod_path)
+        except ImportError:
+            # A discovered <app>.tasks that fails to import surfaces at startup
+            # anyway; don't turn the whole system check into a traceback.
+            continue
         for obj in vars(module).values():
             if isinstance(obj, Task) and obj.func.__module__ == mod_path:
                 declared[obj.func.__name__] = mod_path
@@ -49,13 +80,7 @@ def check_tasks_registered(app_configs, **kwargs):
     errors = []
     routes = get_all_tasks()
     registered = {route.name for route in routes}
-
-    # Scan the configured modules plus any module already owning a registered
-    # task, so "added a second task next to a registered one" is always caught.
-    module_paths = set(TASK_MODULES) | {
-        route._underlying_func.__module__ for route in routes
-    }
-    declared = _declared_tasks(module_paths)
+    declared = _declared_tasks(_task_module_paths(routes))
 
     # Forward: a declared @task missing from the registry is dead on arrival in
     # production (the Pub/Sub backend rejects the enqueue and provisions no topic).
