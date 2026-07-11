@@ -219,3 +219,43 @@ def test_idempotent_after_view_race(
 
     assert after_first == 1
     assert after_second == after_first
+
+
+@pytest.mark.django_db
+def test_sweep_failure_enqueues_background_heal(
+    make_list, make_list_fighter, cost_equipment, settings
+):
+    """A list the sweep fails on gets a background heal enqueued (#1860 Stage B).
+
+    Index pages show last-good cached numbers and never recompute, so without
+    this a sweep-failed list would display stale wealth until someone opened
+    its detail page. The heal refreshes caches only — the audit action for the
+    change is still lost, and a redelivery remains the real recovery.
+    """
+    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
+
+    ContentEquipment = cost_equipment.__class__
+    ContentEquipment.objects.filter(pk=cost_equipment.pk).update(cost="150")
+    cost_equipment.refresh_from_db()
+    cost_equipment.set_dirty()
+
+    from gyrinx.content.models.signal_handlers import (
+        _create_content_cost_change_actions,
+    )
+
+    with (
+        patch(
+            "gyrinx.core.cost.pin_sweep.rewrite_pinned_amounts_for_list",
+            side_effect=RuntimeError("boom"),
+        ),
+        patch("gyrinx.core.tasks.refresh_list_facts") as mock_task,
+    ):
+        _create_content_cost_change_actions(cost_equipment)
+
+    mock_task.enqueue.assert_called_once_with(list_id=str(lst.pk))
+
+    # The per-list transaction rolled back: no action was recorded.
+    assert not ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).exists()

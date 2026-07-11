@@ -13,8 +13,8 @@ def get_clean_list_or_404(model_or_queryset, *args, **kwargs):
     this function will refresh the cached facts before returning.
 
     When passed the List model class directly, this function automatically
-    applies the with_latest_actions() prefetch to enable the facts system
-    for consistent rating display across all views.
+    applies the with_latest_actions() prefetch so latest_action reads
+    (create_action, check_wealth_sync) don't issue an extra query.
 
     Args:
         model_or_queryset: A model class (List) or queryset to filter
@@ -27,8 +27,9 @@ def get_clean_list_or_404(model_or_queryset, *args, **kwargs):
         get_clean_list_or_404(List, id=id, owner=request.user)
         get_clean_list_or_404(List.objects.filter(...), id=id)
     """
-    # If passed the List model directly, apply with_latest_actions() prefetch
-    # to enable can_use_facts for consistent rating display
+    # If passed the List model directly, apply the with_latest_actions()
+    # prefetch so latest_action reads (create_action, check_wealth_sync)
+    # don't issue an extra query.
     if model_or_queryset is List:
         model_or_queryset = List.objects.with_latest_actions()
 

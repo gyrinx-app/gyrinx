@@ -450,7 +450,7 @@ def credits(value, show_sign=False):
         show_sign: If True, show '+' for positive values (default: False)
 
     Usage:
-        {% credits list.facts_with_fallback.wealth %}
+        {% credits list.wealth_current %}
         {% credits delta show_sign=True %}
     """
     return format_cost_display(value, show_sign=show_sign)

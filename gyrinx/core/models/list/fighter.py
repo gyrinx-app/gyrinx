@@ -1113,11 +1113,14 @@ class ListFighter(AppBase):
     @admin.display(description="Total Cost Display")
     @traced("listfighter_cost_display")
     def cost_display(self):
-        """Display the fighter's total cost."""
-        if self.can_use_facts:
-            facts = self.facts()
-            if facts is not None:
-                return format_cost_display(facts.rating)
+        """Display the fighter's total cost.
+
+        Clean fighters read the cached rating; dirty ones fall back to a live
+        per-request compute so a card never shows a number known to be stale.
+        """
+        facts = self.facts()
+        if facts is not None:
+            return format_cost_display(facts.rating)
         return format_cost_display(self.cost_int_cached)
 
     def facts(self) -> Optional[FighterFacts]:
@@ -1131,16 +1134,6 @@ class ListFighter(AppBase):
             return None
 
         return FighterFacts(rating=self.rating_current)
-
-    @property
-    def can_use_facts(self) -> bool:
-        """
-        Check if facts system can be used for display methods.
-
-        Delegates to parent list's can_use_facts property.
-        Relies on list being prefetched via with_related_data().
-        """
-        return self.list.can_use_facts
 
     @property
     def debug_facts_in_sync(self) -> bool:

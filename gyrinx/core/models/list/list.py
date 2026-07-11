@@ -55,10 +55,11 @@ class ListQuerySet(models.QuerySet):
         """
         Prefetch the latest action for each list.
 
-        This enables the facts system by populating the `latest_actions` attribute,
-        which is checked by the `can_use_facts` property.
+        Populates the `latest_actions` attribute so `latest_action` (used by
+        create_action and check_wealth_sync) reads from the prefetch instead
+        of issuing a query per list.
 
-        Use this lightweight method when only the facts prefetch is needed.
+        Use this lightweight method when only the actions prefetch is needed.
         For full optimization with related data, use `with_related_data()`.
         """
         return self.prefetch_related(
@@ -339,24 +340,27 @@ class List(AppBase):
         return wealth
 
     def cost_display(self):
-        """Display the list's total wealth (rating + stash + credits)."""
-        facts = self.facts()
-        if facts is not None:
-            return format_cost_display(facts.wealth)
-        return format_cost_display(self.facts_with_fallback().wealth)
+        """Display the list's total wealth (rating + stash + credits).
+
+        Reads the persisted cache fields directly, dirty or not: a dirty list
+        shows its last-good numbers until the write-time heal (see set_dirty)
+        or a detail-page view (get_clean_list_or_404) recomputes them.
+        """
+        return format_cost_display(self.wealth_current)
 
     @cached_property
     def rating(self):
         return sum([f.cost_int_cached for f in self.active_fighters])
 
-    @cached_property
+    @property
     def rating_display(self):
-        """Display the list's rating (sum of active fighter costs)."""
-        if self.can_use_facts:
-            facts = self.facts()
-            if facts is not None:
-                return format_cost_display(facts.rating)
-        return format_cost_display(self.rating)
+        """Display the list's rating (last-good cached value, dirty or not).
+
+        Plain property on purpose: the underlying field is updated in place by
+        facts_from_db(update=True), and a cached formatted string would pin
+        the pre-refresh value for the instance's lifetime.
+        """
+        return format_cost_display(self.rating_current)
 
     # --- Equipment sets: display-only "selected" rating (#1853) --------------
 
@@ -432,21 +436,19 @@ class List(AppBase):
     def stash_fighter_cost_int(self):
         return self.stash_fighter.cost_int() if self.stash_fighter else 0
 
-    @cached_property
+    @property
     def stash_fighter_cost_display(self):
-        """Display the stash fighter's cost."""
-        if self.can_use_facts:
-            facts = self.facts()
-            if facts is not None:
-                return format_cost_display(facts.stash)
-        return format_cost_display(self.stash_fighter_cost_int)
+        """Display the stash cost (last-good cached value, dirty or not)."""
+        return format_cost_display(self.stash_current)
 
-    @cached_property
+    @property
     def credits_current_display(self):
         return format_cost_display(self.credits_current)
 
-    @cached_property
+    @property
     def wealth_current(self):
+        # Plain property (not cached): the component fields mutate in place
+        # via facts_from_db/create_action, and callers expect a live sum.
         return self.rating_current + self.stash_current + self.credits_current
 
     def facts(self) -> Optional[ListFacts]:
@@ -462,57 +464,6 @@ class List(AppBase):
         return ListFacts(
             rating=self.rating_current,
             stash=self.stash_current,
-            credits=self.credits_current,
-        )
-
-    def facts_with_fallback(self) -> ListFacts:
-        """
-        Get facts using cache if clean, otherwise calculate from scratch.
-
-        MIGRATION PERIOD ONLY: This method provides a performance optimization
-        during the rollout of the action system. It returns cached facts when
-        available (dirty=False), falling back to the original calculation when
-        the cache is stale or not yet populated.
-
-        Intended for use in views like the homepage where many lists are
-        displayed and we want to use cached values when available without
-        forcing a full recalculation via facts_from_db().
-
-        Unlike facts_from_db(), this method does NOT update the cache - it
-        simply reads cached values or calculates on the fly without persisting.
-
-        Once all lists have been bootstrapped with initial actions and the
-        action system is fully rolled out, this method should be removed.
-
-        Returns:
-            ListFacts with rating, stash, and credits values.
-
-        Monitoring:
-            Emits 'facts_fallback' track event when fallback is used, allowing
-            operators to monitor rollout progress via log aggregation.
-        """
-        # Try cached facts first (fast path - O(1) field reads)
-        cached = self.facts()
-        if cached is not None:
-            return cached
-
-        # Fallback to calculation (original behavior)
-        track("facts_fallback", list_id=str(self.pk))
-
-        # Enqueue a background refresh (fire-and-forget, doesn't block page loads)
-        if settings.FEATURE_FACTS_FALLBACK_ENQUEUE:
-            try:
-                refresh_list_facts.enqueue(list_id=str(self.pk))
-            except Exception as e:
-                # Task system is new - don't break facts_with_fallback if it fails
-                logger.warning(
-                    f"Failed to enqueue facts refresh for list {self.pk}: {e}"
-                )
-                track("task_enqueue_failed", list_id=str(self.pk), error=str(e))
-
-        return ListFacts(
-            rating=self.rating,
-            stash=self.stash_fighter_cost_int,
             credits=self.credits_current,
         )
 
@@ -541,14 +492,39 @@ class List(AppBase):
 
         This is the terminal propagation point - List does not propagate further.
 
+        Also enqueues a background facts refresh once the surrounding
+        transaction commits, so a list that goes dirty heals without waiting
+        to be viewed (index pages show the last-good cached numbers in the
+        meantime). Bulk dirty-marking (bulk_mark_assignments_dirty etc.)
+        bypasses this on purpose — the content-cost-change task heals those
+        lists itself.
+
         Args:
             save: If True, immediately saves the dirty flag to the database.
                   Uses QuerySet.update() to bypass signals and avoid thrashing.
+                  With save=False no heal is enqueued — persisting the flag
+                  (and arranging the refresh) is the caller's responsibility.
         """
         if not self.dirty:
             self.dirty = True
             if save:
-                List.objects.filter(pk=self.pk).update(dirty=True)
+                # Conditional update: only the instance that actually flips the
+                # row False->True enqueues the heal, so concurrent markers (or
+                # several stale instances of the same row) don't queue
+                # duplicate refreshes.
+                transitioned = List.objects.filter(pk=self.pk, dirty=False).update(
+                    dirty=True
+                )
+                if transitioned:
+                    transaction.on_commit(self._enqueue_facts_refresh)
+
+    def _enqueue_facts_refresh(self) -> None:
+        """Fire-and-forget heal for a dirty list; never breaks the caller."""
+        try:
+            refresh_list_facts.enqueue(list_id=str(self.pk))
+        except Exception as e:
+            logger.warning(f"Failed to enqueue facts refresh for list {self.pk}: {e}")
+            track("task_enqueue_failed", list_id=str(self.pk), error=str(e))
 
     @traced("list_facts_from_db")
     def facts_from_db(self, update: bool = True) -> ListFacts:
@@ -1167,27 +1143,6 @@ class List(AppBase):
             return self.latest_actions[0]
 
         return ListAction.objects.latest_for_list(self.id)
-
-    @property
-    def can_use_facts(self) -> bool:
-        """
-        Check if facts system can be used for display methods.
-
-        Returns True only if:
-        - latest_actions was prefetched via with_related_data()
-        - AND there is at least one action (list has action tracking)
-
-        Returns False if:
-        - Not prefetched (to avoid database query)
-        - Or prefetched but empty (no action tracking yet)
-
-        This is used by display methods to avoid expensive cost_int calculations
-        when cached facts are available.
-        """
-        # Only check prefetched data - never query the database
-        if hasattr(self, "latest_actions"):
-            return bool(self.latest_actions)
-        return False
 
     @traced("list_create_action")
     def create_action(

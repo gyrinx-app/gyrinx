@@ -253,28 +253,11 @@ def facts_from_db(self, update: bool = True) -> ListFacts:
     """
 ```
 
-#### facts_with_fallback() - Hybrid Read (List only)
-
-Returns cached facts if clean, otherwise calculates without updating cache:
-
-```python
-def facts_with_fallback(self) -> ListFacts:
-    """
-    Get facts using cache if clean, otherwise calculate.
-    Does NOT update cache - just reads or calculates.
-    """
-    facts = self.facts()
-    if facts is not None:
-        return facts
-    # Calculate without updating cache
-    return self._calculate_facts()
-```
-
 ### When to Use Each Method
 
 | Scenario | Method | Why |
 |----------|--------|-----|
-| Display in views | `facts()` then `facts_with_fallback()` | Fast read, fallback if stale |
+| Display in views | Persisted fields via display methods | O(1) read; dirty lists show last-good numbers |
 | Object creation | `create_with_facts()` | Atomic creation with cache |
 | Handler operations | Don't call - use propagation | Handlers use incremental updates |
 | Manual refresh | `facts_from_db(update=True)` | Full recalculation |
@@ -294,17 +277,25 @@ def create_with_facts(self, **kwargs):
 
 ### Display Methods
 
-Display methods use the facts system internally:
+List display methods read the persisted cache fields directly — dirty or
+not. A dirty list shows its last-good numbers until the write-time heal
+(`set_dirty` enqueues `refresh_list_facts` on commit) or a detail-page view
+(`get_clean_list_or_404`) recomputes them:
 
 ```python
 # List
 def cost_display(self):
+    return format_cost_display(self.wealth_current)
+
+# Similar for rating_display, stash_fighter_cost_display
+
+# ListFighter keeps a live fallback so a card never shows a number known
+# to be stale:
+def cost_display(self):
     facts = self.facts()
     if facts is not None:
-        return format_cost_display(facts.wealth)
-    return format_cost_display(self.facts_with_fallback().wealth)
-
-# Similar for rating_display(), stash_fighter_cost_display()
+        return format_cost_display(facts.rating)
+    return format_cost_display(self.cost_int_cached)
 ```
 
 ### Dirty Flag Management
@@ -316,6 +307,11 @@ The `dirty` flag indicates cached values may be stale:
 assignment.set_dirty(save=True)  # Also marks fighter and list dirty
 fighter.set_dirty(save=True)     # Also marks list dirty
 lst.set_dirty(save=True)         # Only marks list dirty
+
+# List.set_dirty(save=True) also enqueues a background heal
+# (refresh_list_facts) on commit — only for the caller whose UPDATE
+# actually flips the row clean->dirty. Bulk dirty-marking helpers
+# bypass this; the content-cost-change task heals those lists itself.
 
 # Cleared by:
 # - facts_from_db(update=True)
@@ -345,12 +341,13 @@ The system uses several optimizations:
 - Cached properties to avoid repeated calculations
 - Annotation with cost overrides in querysets
 
-### Prefetching for Facts System
+### Prefetching
 
-To enable the facts system's `can_use_facts` property, views must use the appropriate prefetch:
+Display methods need no prefetch — they read persisted fields. The prefetches
+below optimise related-data access and `latest_action` reads:
 
 ```python
-# Enables can_use_facts for list display
+# Latest-action prefetch (create_action / check_wealth_sync reads)
 lists = List.objects.with_latest_actions()
 
 # Full prefetch for detail views
@@ -360,16 +357,13 @@ lst = List.objects.with_related_data().get(pk=pk)
 fighters = ListFighter.objects.with_related_data()
 ```
 
-The `with_latest_actions()` method prefetches the most recent `ListAction`, which is required for the guard condition that enables the facts system.
-
 ## Common Usage Patterns
 
 ### Getting a List's Total Wealth
 
 ```python
-# In views, always use prefetching first
-lst = List.objects.with_latest_actions().get(pk=list_id)
-wealth = lst.facts_with_fallback().wealth  # rating + stash + credits
+lst = List.objects.get(pk=list_id)
+wealth = lst.wealth_current  # rating_current + stash_current + credits_current
 ```
 
 ### Getting a Fighter's Total Cost

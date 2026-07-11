@@ -27,7 +27,7 @@
                         </div>
                         {% if campaign.budget > 0 %}
                             <div class="badge text-bg-secondary">
-                                {% with credits_to_add=campaign.budget|subtract:list.facts_with_fallback.wealth %}
+                                {% with credits_to_add=campaign.budget|subtract:list.wealth_current %}
                                     {{ credits_to_add|max:0 }}¢
                                 {% endwith %}
                             </div>

@@ -20,7 +20,8 @@ def refresh_list_facts(list_id: str):
     """
     Refresh the cached facts for a list by recalculating from database.
 
-    Called asynchronously when facts_with_fallback detects a dirty cache.
+    Enqueued (on commit) by List.set_dirty, so a list that goes dirty heals
+    in the background instead of waiting to be viewed.
     """
     from gyrinx.core.models import List
 

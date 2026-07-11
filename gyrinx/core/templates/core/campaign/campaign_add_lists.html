@@ -140,9 +140,7 @@
                                         {% else %}
                                             {{ list.owner.username }}
                                         {% endif %}
-                                        {% with facts=list.facts_with_fallback %}
-                                            · R: {% credits facts.rating %} Cr: {% credits facts.credits %} St: {% credits facts.stash %} W: {% credits facts.wealth %}
-                                        {% endwith %}
+                                        · R: {% credits list.rating_current %} Cr: {% credits list.credits_current %} St: {% credits list.stash_current %} W: {% credits list.wealth_current %}
                                     </div>
                                     {% if list.packs.all %}
                                         <div class="fs-7 text-secondary">

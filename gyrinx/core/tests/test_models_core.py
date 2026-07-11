@@ -1988,6 +1988,9 @@ def test_list_rating_calculation(
 
     # Rating should be the sum of active fighters only (50 + 100 + 30)
     assert lst.rating == 180
+
+    # Displays read the persisted cache (#1860 Stage B), so sync facts first
+    lst.facts_from_db(update=True)
     assert lst.rating_display == "180¢"
 
     # Add a stash fighter - it should NOT count towards rating
@@ -2020,6 +2023,7 @@ def test_list_rating_calculation(
 
     # Rating should now be 50 + 30 = 80
     assert lst.rating == 80
+    lst.facts_from_db(update=True)
     assert lst.rating_display == "80¢"
 
 
@@ -2081,6 +2085,9 @@ def test_stash_fighter_cost_calculation(
 
     # Stash fighter cost should now be 25 + 50 = 75
     assert lst.stash_fighter_cost_int == 75
+
+    # Displays read the persisted cache (#1860 Stage B), so sync facts first
+    lst.facts_from_db(update=True)
     assert lst.stash_fighter_cost_display == "75¢"
 
 
@@ -2125,8 +2132,8 @@ def test_wealth_breakdown_display(
     # Sync facts after adding fighters
     lst.facts_from_db(update=True)
 
-    # Fetch fresh list with proper prefetching so can_use_facts is True
-    lst = List.objects.with_latest_actions().get(id=lst.id)
+    # Fetch a fresh list so the display reads come from persisted fields
+    lst = List.objects.get(id=lst.id)
 
     # Test display methods
     assert lst.credits_current_display == "250¢"
