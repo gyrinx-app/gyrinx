@@ -338,7 +338,7 @@ def content_fighter(content_house, make_content_fighter):
 
 @pytest.fixture
 def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
-    def make_list_(name, create_initial_action=True, **kwargs) -> List:
+    def make_list_(name, **kwargs) -> List:
         kwargs = {
             "content_house": content_house,
             "owner": user,
@@ -346,14 +346,13 @@ def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
         }
         lst = List.objects.create_with_facts(name=name, **kwargs)
 
-        # Create initial LIST_CREATE action so other actions can be created
-        if create_initial_action:
-            ListAction.objects.create(
-                list=lst,
-                action_type=ListActionType.CREATE,
-                owner=user,
-                applied=True,
-            )
+        # Bootstrap CREATE action, matching what handle_list_creation writes
+        ListAction.objects.create(
+            list=lst,
+            action_type=ListActionType.CREATE,
+            owner=user,
+            applied=True,
+        )
 
         return lst
 

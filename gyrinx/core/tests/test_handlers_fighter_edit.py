@@ -392,42 +392,6 @@ def test_handle_fighter_edit_child_fighter_on_stash(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_without_bootstrap_action(user, make_list, content_fighter):
-    """A list outside the action system (no bootstrap action) still edits cleanly.
-
-    create_action returns None for such lists, so no ListAction is recorded —
-    but the edit itself must land.
-    """
-    lst = make_list("Test List", create_initial_action=False)
-
-    fighter = ListFighter.objects.create(
-        name="Old Name",
-        content_fighter=content_fighter,
-        list=lst,
-        owner=user,
-    )
-
-    # Simulate form changing name
-    fighter.name = "New Name"
-
-    # Call handler with old value
-    result = handle_fighter_edit(
-        user=user,
-        fighter=fighter,
-        old_name="Old Name",
-    )
-
-    # Result should still be returned with changes tracked
-    assert result is not None
-    assert len(result.changes) == 1
-    assert result.list_actions == []
-
-    # Fighter should still be updated
-    fighter.refresh_from_db()
-    assert fighter.name == "New Name"
-
-
-@pytest.mark.django_db
 def test_handle_fighter_edit_cost_override_propagates_to_fighter_rating_current(
     user, make_list, content_fighter
 ):

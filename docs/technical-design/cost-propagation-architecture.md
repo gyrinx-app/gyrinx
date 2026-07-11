@@ -821,12 +821,10 @@ The following describes what was actually implemented, noting changes from the o
        rating: int
    ```
 
-5. **Guard condition** - Added `_should_propagate()` check that both systems use to avoid double-counting:
-
-   ```python
-   def _should_propagate(lst):
-       return bool(lst.latest_action)
-   ```
+5. **Guard condition (since removed)** - The implementation originally
+   gated propagation and recording on the list having a bootstrap action
+   (`_should_propagate()`). Both are now unconditional: a list with no prior
+   actions starts its chain at its current cached values (#1980).
 
 6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
 
@@ -841,7 +839,9 @@ The following describes what was actually implemented, noting changes from the o
 | Direct create | Facts | No delta to propagate |
 | Signal-triggered create | Facts | No handler context |
 
-This invariant is enforced by the guard condition `_should_propagate()`.
+The invariant holds by construction: handlers call propagation exactly once
+per movement, and the recompute paths (clone, content sweep) write via
+facts_from_db without also propagating.
 
 ### File Locations
 

@@ -40,7 +40,7 @@ class RollFlowResult:
     counter_cost: int
     outcome: str
 
-    update_action: Optional[ListAction]
+    update_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 
@@ -53,7 +53,7 @@ class RollResultDeletionResult:
     rating_decrease: int
     counter_refund: int
 
-    update_action: Optional[ListAction]
+    update_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 

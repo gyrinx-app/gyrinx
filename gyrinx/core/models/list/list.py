@@ -56,9 +56,9 @@ class ListQuerySet(models.QuerySet):
         """
         Prefetch the latest action for each list.
 
-        Populates the `latest_actions` attribute so `latest_action` (used by
-        create_action) reads from the prefetch instead of issuing a query
-        per list.
+        Populates the `latest_actions` attribute so `latest_action` reads
+        (the staff debug header, maintenance tooling) come from the prefetch
+        instead of issuing a query per list.
 
         Use this lightweight method when only the actions prefetch is needed.
         For full optimization with related data, use `with_related_data()`.
@@ -1091,7 +1091,7 @@ class List(AppBase):
         return ListAction.objects.latest_for_list(self.id)
 
     @traced("list_create_action")
-    def create_action(self, **kwargs) -> Optional[ListAction]:
+    def create_action(self, **kwargs) -> ListAction:
         """
         Record a ListAction for this list.
 
@@ -1115,56 +1115,44 @@ class List(AppBase):
                      rating_delta, stash_delta, credits_delta, user, etc.)
 
         Returns:
-            The created ListAction, or None when the list has no bootstrap
-            action or the action system is disabled.
+            The created ListAction. Recording is unconditional: a list with
+            no prior actions simply starts its chain at its current cached
+            values (the before-value defaults below make this coherent).
         """
-        # Don't run this if we haven't yet got a latest_action. We'll run a backfill
-        # to ensure there is at least one action for each list, with the correct values, later.
-        if self.latest_action:
-            user = kwargs.pop("user", None)
+        user = kwargs.pop("user", None)
 
-            rating_delta = kwargs.get("rating_delta", 0)
-            stash_delta = kwargs.get("stash_delta", 0)
-            rating_before = kwargs.pop(
-                "rating_before", self.rating_current - rating_delta
-            )
-            stash_before = kwargs.pop("stash_before", self.stash_current - stash_delta)
-            credits_before = kwargs.pop("credits_before", self.credits_current)
+        rating_delta = kwargs.get("rating_delta", 0)
+        stash_delta = kwargs.get("stash_delta", 0)
+        rating_before = kwargs.pop("rating_before", self.rating_current - rating_delta)
+        stash_before = kwargs.pop("stash_before", self.stash_current - stash_delta)
+        credits_before = kwargs.pop("credits_before", self.credits_current)
 
-            # `applied` is vestigial: recording never applies anything and
-            # nothing reads the column. All writers set True on purpose —
-            # only pre-existing bootstrap CREATE rows (which took the field
-            # default) hold False.
-            la = ListAction.objects.create(
-                user=user or self.owner,
-                owner=self.owner,
-                list=self,
-                applied=True,
-                rating_before=rating_before,
-                stash_before=stash_before,
-                credits_before=credits_before,
-                **kwargs,
-            )
-
-            track(
-                "list_action_created",
-                list=str(self.id),
-                action_id=str(la.id),
-                rating_before=rating_before,
-                stash_before=stash_before,
-                credits_before=credits_before,
-                **kwargs,
-            )
-
-            return la
-
-        track(
-            "list_action_skipped_no_latest_action",
-            list=str(self.id),
-            has_latest_action=bool(self.latest_action),
+        # `applied` is vestigial: recording never applies anything and
+        # nothing reads the column. All writers set True on purpose —
+        # only pre-existing bootstrap CREATE rows (which took the field
+        # default) hold False.
+        la = ListAction.objects.create(
+            user=user or self.owner,
+            owner=self.owner,
+            list=self,
+            applied=True,
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
             **kwargs,
         )
-        return None
+
+        track(
+            "list_action_created",
+            list=str(self.id),
+            action_id=str(la.id),
+            rating_before=rating_before,
+            stash_before=stash_before,
+            credits_before=credits_before,
+            **kwargs,
+        )
+
+        return la
 
     def apply_credit_delta(
         self, delta: int, earned_delta: Optional[int] = None

@@ -25,7 +25,7 @@ class FighterKillResult:
     fighter_cost_before: int
     equipment_count: int
     persistent_count: int
-    list_action: Optional[ListAction]
+    list_action: ListAction
     campaign_action: Optional[CampaignAction]
     description: str
 

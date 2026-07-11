@@ -17,7 +17,7 @@ class ListCreationResult:
 
     lst: List
     stash_fighter: Optional[ListFighter]
-    initial_action: Optional[ListAction]
+    initial_action: ListAction
 
 
 @traced("handle_list_creation")
@@ -93,8 +93,8 @@ class ListCloneResult:
 
     original_list: List
     cloned_list: List
-    original_action: Optional[ListAction]
-    cloned_action: Optional[ListAction]
+    original_action: ListAction
+    cloned_action: ListAction
 
 
 @traced("handle_list_clone")
@@ -184,12 +184,6 @@ def handle_list_clone(
         stash_delta=cloned_list.stash_current,
         credits_delta=cloned_list.credits_current,
     )
-
-    # Set up the latest_actions prefetch so that subsequent create_action calls work
-    # Clear any cached None value from the @cached_property
-    cloned_list.__dict__.pop("latest_action", None)
-    # Set the prefetch list that latest_action property will check
-    setattr(cloned_list, "latest_actions", [cloned_action])
 
     return ListCloneResult(
         original_list=original_list,

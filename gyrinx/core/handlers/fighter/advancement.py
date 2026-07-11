@@ -32,7 +32,7 @@ class FighterAdvancementResult:
     outcome: str
 
     # ListActions created
-    update_action: Optional[ListAction]  # UPDATE_FIGHTER for cost_increase
+    update_action: ListAction  # UPDATE_FIGHTER for cost_increase
     equipment_action: Optional[ListAction]  # ADD_EQUIPMENT for equipment advancements
 
     campaign_action: Optional[CampaignAction]
@@ -306,7 +306,7 @@ class FighterAdvancementDeletionResult:
     xp_restored: int
     cost_decrease: int
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
 
     # Warnings for the user
     warnings: list[str]

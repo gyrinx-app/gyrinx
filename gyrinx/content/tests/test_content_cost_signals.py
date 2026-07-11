@@ -97,8 +97,8 @@ def test_equipment_cost_change_marks_assignment_dirty(
     user, make_list, content_fighter, content_equipment
 ):
     """When ContentEquipment.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -195,8 +195,8 @@ def test_fighter_base_cost_change_marks_list_fighter_dirty(
     user, make_list, content_fighter
 ):
     """When ContentFighter.base_cost changes, affected ListFighters should be marked dirty."""
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -247,7 +247,7 @@ def test_fighter_house_override_cost_change_marks_matching_fighter_dirty(
     )
 
     # Create list in the same house (without initial action to test dirty propagation)
-    lst = make_list("Test List", create_initial_action=False)
+    lst = make_list("Test List")
     # Ensure the list uses the correct house
     lst.content_house = content_house
     lst.save()
@@ -298,7 +298,7 @@ def test_fighter_house_override_cost_change_does_not_mark_other_house_dirty(
     )
 
     # Create list in the OTHER house
-    lst = make_list("Test List", create_initial_action=False)
+    lst = make_list("Test List")
     lst.content_house = other_house
     lst.save()
 
@@ -339,8 +339,8 @@ def test_weapon_profile_cost_change_marks_assignment_dirty(
     user, make_list, content_fighter, content_weapon_equipment, content_weapon_profile
 ):
     """When ContentWeaponProfile.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -391,8 +391,8 @@ def test_weapon_accessory_cost_change_marks_assignment_dirty(
     content_accessory,
 ):
     """When ContentWeaponAccessory.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -443,8 +443,8 @@ def test_equipment_upgrade_cost_change_marks_assignment_dirty(
     content_upgrade,
 ):
     """When ContentEquipmentUpgrade.cost changes, affected assignments should be marked dirty."""
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -500,8 +500,8 @@ def test_equipment_list_item_cost_change_marks_assignment_dirty(
         cost=50,  # Override cost
     )
 
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -550,8 +550,8 @@ def test_equipment_cost_change_marks_multiple_lists_dirty(
 ):
     """When ContentEquipment.cost changes, ALL affected lists should be marked dirty."""
     # Create two lists (without initial action to test dirty propagation in isolation)
-    lst1 = make_list("Test List 1", create_initial_action=False)
-    lst2 = make_list("Test List 2", create_initial_action=False)
+    lst1 = make_list("Test List 1")
+    lst2 = make_list("Test List 2")
 
     fighter1 = ListFighter.objects.create(
         name="Fighter 1",
@@ -771,13 +771,13 @@ def test_get_clean_list_or_404_prefetches_latest_actions(
 ):
     """get_clean_list_or_404 should prefetch latest_actions.
 
-    The prefetch keeps latest_action reads (create_action)
+    The prefetch keeps latest_action reads (the staff debug header)
     from issuing an extra query per list.
     """
     from gyrinx.core.views.list import get_clean_list_or_404
 
     # Create a list with an initial action (which enables facts tracking)
-    lst = make_list("Test List", create_initial_action=True)
+    lst = make_list("Test List")
 
     # Create a fighter to have some rating
     ListFighter.objects.create(
@@ -853,8 +853,8 @@ def test_expansion_item_cost_change_marks_assignment_dirty(
         cost=50,
     )
 
-    # Create list and fighter (without initial action to test dirty propagation in isolation)
-    lst = make_list("Test List", create_initial_action=False)
+    # Create list and fighter
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,
@@ -905,7 +905,7 @@ def test_equipment_cost_change_creates_action(
     from gyrinx.core.models.action import ListAction, ListActionType
 
     # Create list with initial action (required for create_action to work)
-    lst = make_list("Test List", create_initial_action=True)
+    lst = make_list("Test List")
     # Create fighter and assignment with dirty=True so facts_from_db will recalculate
     fighter = ListFighter.objects.create(
         name="Test Fighter",
@@ -963,7 +963,7 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
     from gyrinx.core.models.action import ListAction, ListActionType
 
     # Create campaign mode list with initial action
-    lst = make_list("Campaign List", create_initial_action=True)
+    lst = make_list("Campaign List")
     lst.status = List.CAMPAIGN_MODE
     lst.credits_current = 500
     lst.dirty = True
@@ -1015,7 +1015,7 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
     from gyrinx.core.models.action import ListAction, ListActionType
 
     # Create campaign mode list with initial action
-    lst = make_list("Campaign List", create_initial_action=True)
+    lst = make_list("Campaign List")
     lst.status = List.CAMPAIGN_MODE
     lst.credits_current = 200
     lst.dirty = True
@@ -1067,7 +1067,7 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
     from gyrinx.core.models.action import ListAction, ListActionType
 
     # Create campaign mode list with low credits
-    lst = make_list("Campaign List", create_initial_action=True)
+    lst = make_list("Campaign List")
     lst.status = List.CAMPAIGN_MODE
     lst.credits_current = 20  # Only 20 credits
     lst.dirty = True
@@ -1106,17 +1106,22 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
 
 
 @pytest.mark.django_db
-def test_no_action_created_for_list_without_initial_action(
+def test_action_recorded_for_list_without_prior_actions(
     user,
     content_house,
     content_fighter,
     content_equipment,
     django_capture_on_commit_callbacks,
 ):
-    """Lists without an initial action should not get CONTENT_COST_CHANGE actions."""
-    from gyrinx.core.models.action import ListAction
+    """A list with no prior actions starts its chain at its current caches.
 
-    # Create list WITHOUT initial action
+    Recording is unconditional: the sweep books the CONTENT_COST_CHANGE
+    action even when no bootstrap action exists, with before-values taken
+    from the pre-change cached state.
+    """
+    from gyrinx.core.models.action import ListAction, ListActionType
+
+    # Create list via raw ORM — no bootstrap action
     lst = List.objects.create(
         name="No Action List",
         content_house=content_house,
@@ -1136,17 +1141,21 @@ def test_no_action_created_for_list_without_initial_action(
         dirty=False,
     )
 
-    initial_action_count = ListAction.objects.filter(list=lst).count()
-    assert initial_action_count == 0  # No initial action
+    assert ListAction.objects.filter(list=lst).count() == 0
 
     # Change equipment cost
     content_equipment.cost = "150"
     with django_capture_on_commit_callbacks(execute=True):
         content_equipment.save()
 
-    # No action should be created
-    final_action_count = ListAction.objects.filter(list=lst).count()
-    assert final_action_count == 0
+    # The chain starts here: one action, booked against the pre-change caches
+    actions = ListAction.objects.filter(list=lst)
+    assert actions.count() == 1
+    action = actions.get()
+    assert action.action_type == ListActionType.CONTENT_COST_CHANGE
+    lst.refresh_from_db()
+    assert lst.rating_current == action.rating_before + action.rating_delta
+    assert lst.stash_current == action.stash_before + action.stash_delta
 
 
 @pytest.mark.django_db
@@ -1160,7 +1169,7 @@ def test_content_cost_change_clears_dirty_flags_on_children(
     """Content cost change should clear dirty flags on list, fighter, and assignment."""
     from gyrinx.core.models.action import ListAction, ListActionType
 
-    lst = make_list("Test List", create_initial_action=True)
+    lst = make_list("Test List")
 
     fighter = ListFighter.objects.create(
         name="Test Fighter",
@@ -1235,7 +1244,7 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
     )
 
     # Create list with initial action
-    lst = make_list("Test List", create_initial_action=True)
+    lst = make_list("Test List")
     fighter = ListFighter.objects.create(
         name="Test Fighter",
         content_fighter=content_fighter,

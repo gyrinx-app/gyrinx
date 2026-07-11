@@ -35,7 +35,7 @@ class CounterSpendResult:
     fighter: ListFighter
     amount: int
 
-    update_action: Optional[ListAction]
+    update_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 
@@ -47,7 +47,7 @@ class CounterSpendRemovalResult:
     fighter: ListFighter
     refund: int
 
-    update_action: Optional[ListAction]
+    update_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 

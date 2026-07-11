@@ -17,7 +17,7 @@ def cost_equipment(make_equipment):
 
 
 def _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment):
-    lst = make_list("Test List", create_initial_action=True)
+    lst = make_list("Test List")
     fighter = make_list_fighter(lst, "Test Fighter")
     ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter,
