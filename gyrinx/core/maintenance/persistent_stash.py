@@ -93,9 +93,6 @@ def _fetch_kills_by_list(list_ids) -> dict[str, list[ListAction]]:
     Replaces an N+1: previously _classify() ran one ListAction query per
     assignment. With ~281 assignments in prod that meant ~282 round-trips
     to Cloud SQL. Now it's one round-trip + Python filtering by window.
-
-    Filters ``applied=True`` so we only match committed kills, not in-flight
-    rows that might be rolled back.
     """
     by_list: dict[str, list[ListAction]] = defaultdict(list)
     if not list_ids:
@@ -105,7 +102,6 @@ def _fetch_kills_by_list(list_ids) -> dict[str, list[ListAction]]:
             list_id__in=list_ids,
             action_type=ListActionType.UPDATE_FIGHTER,
             description__icontains="killed",
-            applied=True,
         )
         .select_related("list_fighter")
         .iterator()

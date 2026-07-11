@@ -294,7 +294,6 @@ def campaign_add_lists(request, id):
     # Exclude and order by name
     lists = (
         lists.exclude(id__in=excluded_list_ids)
-        .with_latest_actions()
         .select_related("content_house", "owner")
         .prefetch_related("packs")
         .order_by("name")

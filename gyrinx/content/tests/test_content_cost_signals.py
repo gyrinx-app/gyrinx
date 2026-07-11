@@ -771,7 +771,7 @@ def test_get_clean_list_or_404_prefetches_latest_actions(
 ):
     """get_clean_list_or_404 should prefetch latest_actions.
 
-    The prefetch keeps latest_action reads (create_action, check_wealth_sync)
+    The prefetch keeps latest_action reads (create_action)
     from issuing an extra query per list.
     """
     from gyrinx.core.views.list import get_clean_list_or_404
@@ -899,13 +899,10 @@ def test_equipment_cost_change_creates_action(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """When ContentEquipment.cost changes, a CONTENT_COST_CHANGE action should be created."""
     from gyrinx.core.models.action import ListAction, ListActionType
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create list with initial action (required for create_action to work)
     lst = make_list("Test List", create_initial_action=True)
@@ -960,13 +957,10 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """In campaign mode, cost increase should charge credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create campaign mode list with initial action
     lst = make_list("Campaign List", create_initial_action=True)
@@ -1015,13 +1009,10 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """In campaign mode, cost decrease should refund credits."""
     from gyrinx.core.models.action import ListAction, ListActionType
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create campaign mode list with initial action
     lst = make_list("Campaign List", create_initial_action=True)
@@ -1070,13 +1061,10 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """In campaign mode, credits can go negative when cost increases."""
     from gyrinx.core.models.action import ListAction, ListActionType
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create campaign mode list with low credits
     lst = make_list("Campaign List", create_initial_action=True)
@@ -1167,13 +1155,10 @@ def test_content_cost_change_clears_dirty_flags_on_children(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """Content cost change should clear dirty flags on list, fighter, and assignment."""
     from gyrinx.core.models.action import ListAction, ListActionType
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List", create_initial_action=True)
 
@@ -1232,7 +1217,6 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """
@@ -1241,8 +1225,6 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
     effective cost for the list hasn't actually changed.
     """
     from gyrinx.core.models.action import ListAction
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create an equipment list item that overrides the equipment cost for this fighter
     # This simulates a fighter-specific cost for equipment in the rulebook

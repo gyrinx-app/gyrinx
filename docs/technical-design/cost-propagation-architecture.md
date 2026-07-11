@@ -447,6 +447,13 @@ def is_stash_linked(fighter: "ListFighter") -> bool:
 
 Rename `create_action` to `transact()` and refactor to accept a mutation lambda:
 
+> **NOTE**: this rename was NOT implemented — there is no `transact()` in the
+> codebase. `create_action` kept its name and later became a pure audit record
+> that never applies anything. In the shipped code, credit movement goes
+> through `spend_credits()` / `apply_credit_delta()`, which are not gated on
+> `latest_action` — so the TODO in the sketch below (credits skipped on the
+> no-bootstrap-action path) does not correspond to a gap in the real code.
+
 ```python
 # In List model
 
@@ -496,11 +503,10 @@ def transact(
             ...
         )
     """
-    # Feature flag check (existing)
-    if not self.latest_action or not settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        # Still execute mutation even if actions disabled
+    # Lists outside the action system (no bootstrap action) still mutate
+    if not self.latest_action:
         mutation()
-        # TODO: This should also preform the credit update as per current create_action
+        # TODO: This should also perform the credit update as per current create_action
         return None
 
     # Capture before state
@@ -819,7 +825,7 @@ The following describes what was actually implemented, noting changes from the o
 
    ```python
    def _should_propagate(lst):
-       return lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
+       return bool(lst.latest_action)
    ```
 
 6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
@@ -850,15 +856,10 @@ This invariant is enforced by the guard condition `_should_propagate()`.
 
 ### Debugging
 
-The implementation includes debug visibility:
-
-```python
-# Check if facts match calculated values
-lst.debug_facts_in_sync       # True if facts() matches calculated
-fighter.debug_facts_in_sync   # True if facts().rating == cost_int()
-```
-
-Used in debug templates to show red flag when out of sync.
+Staff users can open the balance-sheet debug view at
+`/_debug/list/<id>/balance-sheet/`, which recomputes every fighter and
+assignment live and compares against the cached values, the credits ledger,
+and the action chain.
 
 ### See Also
 

@@ -19,9 +19,8 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_no_changes(user, make_list, content_fighter, settings):
+def test_handle_fighter_edit_no_changes(user, make_list, content_fighter):
     """Test that handler returns None when no fields change."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
 
     fighter = ListFighter.objects.create(
@@ -43,9 +42,8 @@ def test_handle_fighter_edit_no_changes(user, make_list, content_fighter, settin
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_name_change(user, make_list, content_fighter, settings):
+def test_handle_fighter_edit_name_change(user, make_list, content_fighter):
     """Test that changing name creates a ListAction with zero deltas."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -88,11 +86,8 @@ def test_handle_fighter_edit_name_change(user, make_list, content_fighter, setti
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_cost_override_set(
-    user, make_list, content_fighter, settings
-):
+def test_handle_fighter_edit_cost_override_set(user, make_list, content_fighter):
     """Test that setting cost_override creates ListAction with correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -135,11 +130,8 @@ def test_handle_fighter_edit_cost_override_set(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_cost_override_clear(
-    user, make_list, content_fighter, settings
-):
+def test_handle_fighter_edit_cost_override_clear(user, make_list, content_fighter):
     """Test that clearing cost_override creates ListAction with negative delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 650
     lst.save()
@@ -181,11 +173,8 @@ def test_handle_fighter_edit_cost_override_clear(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_cost_override_change(
-    user, make_list, content_fighter, settings
-):
+def test_handle_fighter_edit_cost_override_change(user, make_list, content_fighter):
     """Test that changing cost_override value creates correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 600
     lst.save()
@@ -215,11 +204,8 @@ def test_handle_fighter_edit_cost_override_change(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_category_override(
-    user, make_list, content_fighter, settings
-):
+def test_handle_fighter_edit_category_override(user, make_list, content_fighter):
     """Test that changing category_override creates ListAction with zero delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
 
     fighter = ListFighter.objects.create(
@@ -250,11 +236,8 @@ def test_handle_fighter_edit_category_override(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_multiple_changes(
-    user, make_list, content_fighter, settings
-):
+def test_handle_fighter_edit_multiple_changes(user, make_list, content_fighter):
     """Test that multiple field changes create multiple ListActions."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -292,10 +275,9 @@ def test_handle_fighter_edit_multiple_changes(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_stash_fighter(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that cost changes for stash fighter go to stash_delta, not rating_delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.stash_current = 100
     lst.save()
@@ -335,7 +317,7 @@ def test_handle_fighter_edit_stash_fighter(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_child_fighter_on_stash(
-    user, make_list, make_content_fighter, content_house, make_equipment, settings
+    user, make_list, make_content_fighter, content_house, make_equipment
 ):
     """Cost changes for a child fighter (vehicle) on stash go to RATING.
 
@@ -343,7 +325,6 @@ def test_handle_fighter_edit_child_fighter_on_stash(
     rating book — child fighters included, even when their parent equipment
     sits on the stash — so the record must match.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.stash_current = 200
     lst.save()
@@ -411,11 +392,12 @@ def test_handle_fighter_edit_child_fighter_on_stash(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_edit_feature_flag_disabled(
-    user, make_list, content_fighter, settings
-):
-    """Test that handler still works but returns None for list_action when flag disabled."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = False
+def test_handle_fighter_edit_without_bootstrap_action(user, make_list, content_fighter):
+    """A list outside the action system (no bootstrap action) still edits cleanly.
+
+    create_action returns None for such lists, so no ListAction is recorded —
+    but the edit itself must land.
+    """
     lst = make_list("Test List", create_initial_action=False)
 
     fighter = ListFighter.objects.create(
@@ -438,8 +420,7 @@ def test_handle_fighter_edit_feature_flag_disabled(
     # Result should still be returned with changes tracked
     assert result is not None
     assert len(result.changes) == 1
-    # But list_action may be None if create_action returns None
-    # The handler still works, it just doesn't create ListAction
+    assert result.list_actions == []
 
     # Fighter should still be updated
     fighter.refresh_from_db()
@@ -448,10 +429,9 @@ def test_handle_fighter_edit_feature_flag_disabled(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_cost_override_propagates_to_fighter_rating_current(
-    user, make_list, content_fighter, settings
+    user, make_list, content_fighter
 ):
     """Test that cost_override changes propagate to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -488,10 +468,9 @@ def test_handle_fighter_edit_cost_override_propagates_to_fighter_rating_current(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_cost_override_clear_propagates_to_fighter_rating_current(
-    user, make_list, content_fighter, settings
+    user, make_list, content_fighter
 ):
     """Test that clearing cost_override propagates negative delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 650
     lst.save()
@@ -531,10 +510,9 @@ def test_handle_fighter_edit_cost_override_clear_propagates_to_fighter_rating_cu
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that changing content_fighter creates ListAction with correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -592,10 +570,9 @@ def test_handle_fighter_edit_content_fighter_change(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change_propagates_to_fighter_rating_current(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that content_fighter changes propagate to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -648,10 +625,9 @@ def test_handle_fighter_edit_content_fighter_change_propagates_to_fighter_rating
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change_with_cost_override(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that content_fighter change doesn't affect cost when cost_override is set."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -703,10 +679,9 @@ def test_handle_fighter_edit_content_fighter_change_with_cost_override(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change_to_cheaper(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that changing to a cheaper content_fighter creates negative delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -760,10 +735,9 @@ def test_handle_fighter_edit_content_fighter_change_to_cheaper(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change_to_stash_type(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that changing to a stash content_fighter routes delta to stash."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.stash_current = 200
@@ -813,7 +787,7 @@ def test_handle_fighter_edit_content_fighter_change_to_stash_type(
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_and_cost_override_change_simultaneously(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test that changing both content_fighter and cost_override correctly calculates delta.
 
@@ -828,7 +802,6 @@ def test_handle_fighter_edit_content_fighter_and_cost_override_change_simultaneo
     Scenario: Fighter A (100) with no override -> Fighter B (150) with override 200
     Expected delta: 200 - 100 = +100
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -898,14 +871,13 @@ def test_handle_fighter_edit_content_fighter_and_cost_override_change_simultaneo
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change_and_cost_override_clear_simultaneously(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test clearing cost_override while changing content_fighter.
 
     Scenario: Fighter A (100) with override 200 -> Fighter B (150) with no override
     Expected delta: 150 - 200 = -50
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -974,14 +946,13 @@ def test_handle_fighter_edit_content_fighter_change_and_cost_override_clear_simu
 
 @pytest.mark.django_db
 def test_handle_fighter_edit_content_fighter_change_with_existing_override_unchanged(
-    user, make_list, make_content_fighter, content_house, settings
+    user, make_list, make_content_fighter, content_house
 ):
     """Test changing content_fighter when there's an existing cost_override that doesn't change.
 
     Scenario: Fighter A (100) with override 200 -> Fighter B (150) with override 200 (unchanged)
     Expected delta: 0 (override is still 200, effective cost unchanged)
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()

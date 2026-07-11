@@ -55,7 +55,6 @@ def user(request, slug_or_id):
         List.objects.filter(
             owner=profile_user, status=List.LIST_BUILDING, archived=False, public=True
         )
-        .with_latest_actions()
         .select_related("content_house", "owner")
         .annotate(star_count=Count("starred_by", distinct=True))
     )
@@ -71,7 +70,6 @@ def user(request, slug_or_id):
                 archived=False,
                 public=False,
             )
-            .with_latest_actions()
             .select_related("content_house", "owner")
             .annotate(star_count=Count("starred_by", distinct=True))
         )

@@ -209,9 +209,8 @@ def test_row_for_roll_skips_malformed_rows(power_boost_table):
 
 @pytest.mark.django_db
 def test_handle_roll_flow_success(
-    user, fighter_with_kills, suit_evolution, power_boost_table, settings
+    user, fighter_with_kills, suit_evolution, power_boost_table
 ):
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = fighter_with_kills.list
     rating_before = lst.rating_current
 
@@ -359,9 +358,8 @@ def test_handle_roll_flow_without_campaign(
 
 @pytest.mark.django_db
 def test_handle_roll_flow_cost_paths_agree(
-    user, fighter_with_kills, suit_evolution, power_boost_table, settings
+    user, fighter_with_kills, suit_evolution, power_boost_table
 ):
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     base_cost = fighter_with_kills.cost_int()
     # Seed the cached rating (in production the hire handler does this)
     fighter_with_kills.facts_from_db(update=True)
@@ -390,9 +388,8 @@ def test_handle_roll_flow_cost_paths_agree(
 
 @pytest.mark.django_db
 def test_handle_roll_result_deletion(
-    user, fighter_with_kills, suit_evolution, power_boost_table, settings
+    user, fighter_with_kills, suit_evolution, power_boost_table
 ):
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     # Seed the cached rating (in production the hire handler does this)
     fighter_with_kills.facts_from_db(update=True)
     result = handle_roll_flow(

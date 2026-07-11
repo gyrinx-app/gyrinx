@@ -3,7 +3,6 @@ import re
 from collections import namedtuple
 from typing import TYPE_CHECKING, Optional
 
-from django.conf import settings
 from django.contrib import admin
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core import validators
@@ -1134,20 +1133,6 @@ class ListFighter(AppBase):
             return None
 
         return FighterFacts(rating=self.rating_current)
-
-    @property
-    def debug_facts_in_sync(self) -> bool:
-        """
-        Check if cached facts match calculated values.
-
-        Used by debug menu to show red flag when out of sync.
-        Uses cost_int_cached to avoid expensive recalculation.
-        """
-        facts = self.facts()
-        if facts is None:
-            return False  # Dirty state means not in sync
-
-        return facts.rating == self.cost_int_cached
 
     @traced("listfighter_set_dirty")
     def set_dirty(self, save: bool = True) -> None:
@@ -2775,9 +2760,7 @@ class ListFighter(AppBase):
         # Recalculate cached values if propagation system is not active
         # When propagation IS active (latest_action exists), the handler will call
         # propagate_from_fighter() which updates rating_current
-        if not (
-            clone.list.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
-        ):
+        if not clone.list.latest_action:
             clone.facts_from_db(update=True)
 
         return clone

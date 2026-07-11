@@ -30,10 +30,9 @@ def test_transact_delta_properties(make_list):
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_basic(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test basic assignment propagation updates assignment, fighter, and list."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 0
@@ -77,10 +76,9 @@ def test_propagate_from_assignment_basic(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_stash(
-    settings, user, make_list, content_house, make_content_fighter, make_equipment
+    user, make_list, content_house, make_content_fighter, make_equipment
 ):
     """Test assignment propagation on stash gear moves the list's stash book."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 0
@@ -128,10 +126,9 @@ def test_propagate_from_assignment_stash(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_negative_delta(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles cost decreases."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -173,10 +170,9 @@ def test_propagate_from_assignment_negative_delta(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_zero_delta(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles no change gracefully."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -220,9 +216,8 @@ def test_propagate_from_assignment_zero_delta(
 
 
 @pytest.mark.django_db
-def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter):
+def test_propagate_from_fighter_basic(user, make_list, content_fighter):
     """Test basic fighter propagation updates fighter and list."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -253,10 +248,9 @@ def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_stash(
-    settings, user, make_list, content_house, make_content_fighter
+    user, make_list, content_house, make_content_fighter
 ):
     """Test fighter propagation on the stash fighter moves the stash book."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 0
@@ -295,14 +289,13 @@ def test_propagate_from_fighter_stash(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_allows_negative_assignment_rating(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation allows negative assignment ratings.
 
     This can happen when a cost override makes an equipment item "free" or
     negative-cost, resulting in a negative rating.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -340,14 +333,13 @@ def test_propagate_from_assignment_allows_negative_assignment_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_allows_negative_fighter_rating(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation allows negative fighter ratings.
 
     This can happen when equipment has negative cost (e.g., Goliath
     gene-smithing), making the fighter's total rating negative.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 50
@@ -384,14 +376,13 @@ def test_propagate_from_assignment_allows_negative_fighter_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_allows_negative_rating(
-    settings, user, make_list, content_fighter
+    user, make_list, content_fighter
 ):
     """Test fighter propagation allows negative ratings.
 
     This can happen when a fighter's cost is reduced below zero through
     negative-cost equipment (e.g., Goliath gene-smithing).
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -423,14 +414,13 @@ def test_propagate_from_fighter_allows_negative_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_skips_without_latest_action(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation is skipped when list has no latest_action.
 
     When the list action system is not enabled (no latest_action), propagation
     should be skipped and the input delta returned unchanged.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List", create_initial_action=False)
     lst.rating_current = 0
@@ -469,14 +459,13 @@ def test_propagate_from_assignment_skips_without_latest_action(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_skips_without_latest_action(
-    settings, user, make_list, content_fighter
+    user, make_list, content_fighter
 ):
     """Test fighter propagation is skipped when list has no latest_action.
 
     When the list action system is not enabled (no latest_action), propagation
     should be skipped and the input delta returned unchanged.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List", create_initial_action=False)
     lst.rating_current = 100

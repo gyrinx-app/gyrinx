@@ -430,153 +430,11 @@ def test_list_with_related_data_prefetch_latest_action(user, make_list):
     assert fetched_lst2.latest_action.id == action2_1.id
 
 
-# List check_wealth_sync Tests
-
-
-@pytest.mark.django_db
-def test_check_wealth_sync_no_latest_action(user, make_list):
-    """Test that check_wealth_sync does nothing when there is no latest_action."""
-    from unittest.mock import patch
-
-    # Create list without initial action to test edge case
-    lst = make_list("Test List", create_initial_action=False)
-
-    # No latest_action, so check_wealth_sync should do nothing
-    with patch("gyrinx.core.models.list.list.track") as mock_track:
-        lst.check_wealth_sync(wealth_calculated=1000)
-        # track should not be called
-        mock_track.assert_not_called()
-
-
-@pytest.mark.django_db
-def test_check_wealth_sync_in_sync(user, make_list):
-    """Test that check_wealth_sync does not call track when wealth is in sync."""
-    from unittest.mock import patch
-
-    lst = make_list("Test List")
-
-    # Create an action
-    ListAction.objects.create(
-        list=lst,
-        action_type=ListActionType.CREATE,
-        owner=user,
-        applied=True,
-        rating_before=0,
-        rating_delta=500,  # Spent 500 credits on rating
-        credits_before=1000,
-        credits_delta=-500,  # Spent 500 credits
-    )
-
-    # Fetch the list with latest_action populated
-    lst = List.objects.filter(id=lst.id).with_related_data().first()
-
-    # Set rating_current and credits_current to match the action
-    # After action: rating_after = 0 + 500 = 500, credits_after = 1000 - 500 = 500
-    lst.rating_current = 500
-    lst.credits_current = 500
-    lst.save()
-
-    # Calculated cost = rating_current + credits_current = 500 + 500 = 1000
-    # Action total = rating_after + credits_after = 500 + 500 = 1000
-    # Both match, so track should not be called
-    with patch("gyrinx.core.models.list.list.track") as mock_track:
-        lst.check_wealth_sync(wealth_calculated=1000)
-        mock_track.assert_not_called()
-
-
-@pytest.mark.django_db
-def test_check_wealth_sync_out_of_sync_current(user, make_list):
-    """Test that check_wealth_sync calls track when rating_current is out of sync."""
-    from unittest.mock import patch
-
-    lst = make_list("Test List")
-
-    # Create an action
-    ListAction.objects.create(
-        list=lst,
-        action_type=ListActionType.CREATE,
-        owner=user,
-        applied=True,
-        rating_before=0,
-        rating_delta=500,
-        credits_before=1000,
-        credits_delta=-500,
-    )
-
-    # Fetch the list with latest_action populated
-    lst = List.objects.filter(id=lst.id).with_related_data().first()
-
-    # Set rating_current incorrectly
-    lst.rating_current = 400
-    lst.credits_current = 500
-    lst.save()
-
-    # Calculated cost = 1000
-    # rating_current + credits_current = 400 + 500 = 900 (out of sync by 100)
-    # rating_after + credits_after = 500 + 500 = 1000 (in sync)
-    with patch("gyrinx.core.models.list.list.track") as mock_track:
-        lst.check_wealth_sync(wealth_calculated=1000)
-        mock_track.assert_called_once()
-        call_args = mock_track.call_args[1]
-        assert call_args["list_id"] == str(lst.id)
-        assert call_args["wealth_calculated"] == 1000
-        assert call_args["rating_current"] == 400
-        assert call_args["stash_current"] == 0
-        assert call_args["credits_current"] == 500
-        # Note: we don't really care about the action here, but we can check them anyway
-        assert call_args["latest_action_wealth_after"] == 1000
-        assert call_args["latest_action_rating_after"] == 500
-        assert call_args["latest_action_stash_after"] == 0
-        assert call_args["latest_action_credits_after"] == 500
-
-
-@pytest.mark.django_db
-def test_check_wealth_sync_out_of_sync_action(user, make_list):
-    """Test that check_wealth_sync calls track when latest_action is out of sync."""
-    from unittest.mock import patch
-
-    lst = make_list("Test List")
-
-    # Create an action with incorrect values
-    ListAction.objects.create(
-        list=lst,
-        action_type=ListActionType.CREATE,
-        owner=user,
-        applied=True,
-        rating_before=100,
-        rating_delta=500,
-        credits_before=1000,
-        credits_delta=-500,
-    )
-
-    # Fetch the list with latest_action populated
-    lst = List.objects.filter(id=lst.id).with_related_data().first()
-
-    # Set rating_current and credits_current correctly
-    lst.rating_current = 500
-    lst.credits_current = 500
-    lst.save()
-
-    with patch("gyrinx.core.models.list.list.track") as mock_track:
-        lst.check_wealth_sync(wealth_calculated=1000)
-        mock_track.assert_called_once()
-        call_args = mock_track.call_args[1]
-        assert call_args["list_id"] == str(lst.id)
-        assert call_args["wealth_calculated"] == 1000
-        assert call_args["rating_current"] == 500
-        assert call_args["stash_current"] == 0
-        assert call_args["credits_current"] == 500
-        assert call_args["latest_action_wealth_after"] == 1100
-        assert call_args["latest_action_rating_after"] == 600
-        assert call_args["latest_action_stash_after"] == 0
-        assert call_args["latest_action_credits_after"] == 500
-
-
 # Test for protection against negative values
 
 
 @pytest.mark.django_db
-def test_list_write_prevents_negative_rating_and_stash(user, make_list, settings):
+def test_list_write_prevents_negative_rating_and_stash(user, make_list):
     """The list-level cache writer clamps rating/stash at zero.
 
     Applying negative movement (e.g. removing fighters or equipment) clamps
@@ -584,9 +442,6 @@ def test_list_write_prevents_negative_rating_and_stash(user, make_list, settings
     propagation layer; create_action only records and never mutates.
     """
     from gyrinx.core.cost.propagation import propagate_to_list
-
-    # Enable feature flag for initial action creation
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
 

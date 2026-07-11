@@ -96,10 +96,6 @@ GITHUB_DISPATCH_TOKEN = os.getenv("GITHUB_DISPATCH_TOKEN", "")
 
 # Features
 
-FEATURE_LIST_ACTION_CREATE_INITIAL = (
-    os.getenv("FEATURE_LIST_ACTION_CREATE_INITIAL", "True") == "True"
-)
-
 # Gyrinx debug mode - shows debug info in templates (not the same as Django DEBUG)
 GYRINX_DEBUG = os.getenv("GYRINX_DEBUG", "") == "True"
 

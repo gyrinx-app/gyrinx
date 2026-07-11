@@ -183,7 +183,6 @@ class ActionLine:
     action_id: UUID
     action_type: str
     description: str
-    applied: bool
     rating_before: int
     rating_delta: int
     stash_before: int
@@ -459,7 +458,6 @@ def build_balance_sheet(lst: List) -> ListBalance:
             action_id=a.id,
             action_type=a.action_type,
             description=a.description or "",
-            applied=a.applied,
             rating_before=a.rating_before,
             rating_delta=a.rating_delta,
             stash_before=a.stash_before,

@@ -7,11 +7,10 @@ correctly without involving HTTP machinery.
 """
 
 import pytest
-from django.conf import settings
 
 from gyrinx.content.models import ContentFighter
 from gyrinx.core.handlers.list import handle_list_creation
-from gyrinx.core.models.action import ListAction, ListActionType
+from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.list import List, ListFighter
 
 
@@ -43,13 +42,10 @@ def test_handle_list_creation_with_stash(user, content_house):
     assert result.stash_fighter.list == result.lst
     assert ListFighter.objects.filter(id=result.stash_fighter.id).exists()
 
-    # Verify initial action created (if feature flag enabled)
-    if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        assert result.initial_action is not None
-        assert result.initial_action.action_type == ListActionType.CREATE
-        assert result.initial_action.description == "List created"
-    else:
-        assert result.initial_action is None
+    # Verify initial action created
+    assert result.initial_action is not None
+    assert result.initial_action.action_type == ListActionType.CREATE
+    assert result.initial_action.description == "List created"
 
 
 @pytest.mark.django_db
@@ -75,29 +71,6 @@ def test_handle_list_creation_without_stash(user, content_house):
     assert not ListFighter.objects.filter(
         list=result.lst, content_fighter__is_stash=True
     ).exists()
-
-
-@pytest.mark.django_db
-def test_handle_list_creation_initial_action_disabled(user, content_house, settings):
-    """Test that no initial action is created when feature flag is disabled."""
-    # Disable the feature flag
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = False
-
-    lst = List(
-        owner=user,
-        content_house=content_house,
-        name="Test List",
-    )
-
-    result = handle_list_creation(
-        user=user,
-        lst=lst,
-        create_stash=True,
-    )
-
-    # Verify no initial action created
-    assert result.initial_action is None
-    assert not ListAction.objects.filter(list=result.lst).exists()
 
 
 @pytest.mark.django_db

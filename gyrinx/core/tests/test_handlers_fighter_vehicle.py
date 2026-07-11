@@ -20,10 +20,8 @@ def test_handle_vehicle_purchase_initializes_crew_rating_current(
     make_content_fighter,
     content_house,
     make_equipment,
-    settings,
 ):
     """Test that vehicle purchase initializes crew rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.credits_current = 2000
     lst.save()
@@ -76,10 +74,8 @@ def test_handle_vehicle_purchase_propagates_assignment_rating_current(
     make_content_fighter,
     content_house,
     make_equipment,
-    settings,
 ):
     """Test that vehicle purchase propagates assignment cost to caches."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.credits_current = 2000
     lst.save()
@@ -137,10 +133,8 @@ def test_handle_vehicle_purchase_to_stash(
     make_content_fighter,
     content_house,
     make_equipment,
-    settings,
 ):
     """Test vehicle purchase to stash initializes correctly."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.credits_current = 2000
     lst.save()
@@ -190,10 +184,8 @@ def test_handle_vehicle_purchase_child_fighter_rating_current(
     make_content_fighter,
     content_house,
     make_equipment,
-    settings,
 ):
     """Test that auto-created vehicle fighter has rating_current matching cost_int()."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.credits_current = 2000
     lst.save()

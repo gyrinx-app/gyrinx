@@ -42,9 +42,6 @@ CSRF_TRUSTED_ORIGINS = [
 SESSION_COOKIE_NAME = f"gyrinx_sessionid_{_dev_port}"
 CSRF_COOKIE_NAME = f"gyrinx_csrftoken_{_dev_port}"
 
-# Feature flags for development
-FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
 # Use console tracing in development by default
 # Set TRACING_MODE=gcp in environment to test with GCP Cloud Trace
 TRACING_MODE = os.getenv("TRACING_MODE", "console")

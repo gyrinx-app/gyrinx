@@ -7,7 +7,7 @@ This document explains the prefetching methods used to optimize cost calculation
 The cost system relies on proper prefetching to:
 
 1. Avoid N+1 queries - List and detail views need related data prefetched
-2. Keep `latest_action` reads cheap - `create_action()` and `check_wealth_sync()` read the newest ListAction, and `with_latest_actions()` turns that into a prefetch instead of a query per list
+2. Keep `latest_action` reads cheap - `create_action()` reads the newest ListAction, and `with_latest_actions()` turns that into a prefetch instead of a query per list
 
 Display methods (`cost_display()`, `rating_display()`, `stash_fighter_cost_display`) read the persisted cache fields (`rating_current`, `stash_current`, `credits_current`) directly and need no prefetch at all. A dirty list shows its last-good numbers until the write-time heal (`List.set_dirty` enqueues `refresh_list_facts`) or a detail-page view (`get_clean_list_or_404`) recomputes them.
 
@@ -23,8 +23,8 @@ def with_latest_actions(self):
     Prefetch the latest action for each list.
 
     Populates the `latest_actions` attribute so `latest_action` (used by
-    create_action and check_wealth_sync) reads from the prefetch instead
-    of issuing a query per list.
+    create_action) reads from the prefetch instead of issuing a query
+    per list.
     """
     return self.prefetch_related(
         Prefetch(

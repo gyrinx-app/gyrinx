@@ -376,12 +376,8 @@ def test_kill_fighter_creates_campaign_action(client, user, content_house):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
-def test_kill_fighter_creates_list_action_with_stash_delta(
-    client, user, content_house, settings, feature_flag_enabled
-):
+def test_kill_fighter_creates_list_action_with_stash_delta(client, user, content_house):
     """Test that killing a fighter creates a ListAction with correct stash_delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     # Create a campaign mode list
     lst = List.objects.create(
@@ -455,7 +451,7 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
     response = client.post(url)
     assert response.status_code == 302
 
-    # Fighter should always be marked as dead regardless of feature flag
+    # Fighter should always be marked as dead
     fighter.refresh_from_db()
     assert fighter.injury_state == ListFighter.DEAD
     assert fighter.cost_override == 0
@@ -464,7 +460,6 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
     stash = lst.listfighter_set.filter(content_fighter__is_stash=True).first()
     assert stash.listfighterequipmentassignment_set.count() == 2
 
-    # Check ListAction behavior based on feature flag
     list_action = (
         ListAction.objects.filter(
             list=lst,
@@ -474,29 +469,24 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
         .first()
     )
 
-    if feature_flag_enabled:
-        assert list_action is not None, "ListAction should be created when flag enabled"
+    assert list_action is not None, "kill should record an UPDATE_FIGHTER action"
 
-        # Verify the deltas track equipment moving to stash
-        assert list_action.rating_delta == -fighter_cost  # Full cost leaves rating
-        assert list_action.stash_delta == equipment_cost  # Equipment value enters stash
-        assert list_action.credits_delta == 0
+    # Verify the deltas track equipment moving to stash
+    assert list_action.rating_delta == -fighter_cost  # Full cost leaves rating
+    assert list_action.stash_delta == equipment_cost  # Equipment value enters stash
+    assert list_action.credits_delta == 0
 
-        # Verify stored values were updated correctly by the action
-        lst.refresh_from_db()
-        assert lst.rating_current == initial_rating - fighter_cost
-        assert lst.stash_current == initial_stash + equipment_cost
+    # Verify stored values were updated correctly by the action
+    lst.refresh_from_db()
+    assert lst.rating_current == initial_rating - fighter_cost
+    assert lst.stash_current == initial_stash + equipment_cost
 
-        # Verify wealth is preserved (only lost fighter base cost, not equipment)
-        fighter_base_cost = 50
-        assert (
-            lst.rating_current + lst.stash_current
-            == initial_rating + initial_stash - fighter_base_cost
-        )
-    else:
-        assert list_action is None, (
-            "ListAction should not be created when flag disabled"
-        )
+    # Verify wealth is preserved (only lost fighter base cost, not equipment)
+    fighter_base_cost = 50
+    assert (
+        lst.rating_current + lst.stash_current
+        == initial_rating + initial_stash - fighter_base_cost
+    )
 
 
 @pytest.fixture
@@ -592,12 +582,9 @@ def test_kill_fighter_mixed_persistent_and_normal(
 
 @pytest.mark.django_db
 def test_kill_fighter_persistent_stash_delta_is_transferred_cost_only(
-    user, campaign_list_with_stash, persistent_category, settings
+    user, campaign_list_with_stash, persistent_category
 ):
     """stash_delta counts only transferred gear; rating drops by the full cost."""
-    # The kill action is only created when this flag is on; set it explicitly
-    # so the test is deterministic regardless of config defaults.
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst, stash, fighter = campaign_list_with_stash
     # make_list already seeds an initial LIST_CREATE action, so the kill action
     # can be created.

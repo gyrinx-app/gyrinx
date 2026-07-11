@@ -57,8 +57,8 @@ class ListQuerySet(models.QuerySet):
         Prefetch the latest action for each list.
 
         Populates the `latest_actions` attribute so `latest_action` (used by
-        create_action and check_wealth_sync) reads from the prefetch instead
-        of issuing a query per list.
+        create_action) reads from the prefetch instead of issuing a query
+        per list.
 
         Use this lightweight method when only the actions prefetch is needed.
         For full optimization with related data, use `with_related_data()`.
@@ -333,11 +333,8 @@ class List(AppBase):
         rating = sum(
             [f.cost_int() for f in self.fighters() if not f.content_fighter.is_stash]
         )
-        stash_fighter_cost_int = (
-            self.stash_fighter.cost_int() if self.stash_fighter else 0
-        )
-        wealth = rating + stash_fighter_cost_int + self.credits_current
-        self.check_wealth_sync(wealth)
+        stash_cost = self.stash_fighter.cost_int() if self.stash_fighter else 0
+        wealth = rating + stash_cost + self.credits_current
         return wealth
 
     def cost_display(self):
@@ -348,10 +345,6 @@ class List(AppBase):
         or a detail-page view (get_clean_list_or_404) recomputes them.
         """
         return format_cost_display(self.wealth_current)
-
-    @cached_property
-    def rating(self):
-        return sum([f.cost_int_cached for f in self.active_fighters])
 
     @property
     def rating_display(self):
@@ -371,8 +364,9 @@ class List(AppBase):
 
         Returns None when ``listfighter_set`` isn't prefetched. The selected
         rating is a display-only nicety, so on pages that don't prefetch
-        fighters (e.g. fighter edit sub-pages) it degrades to the normal rating
-        rather than triggering the heavy fighter query in the shared header.
+        fighters (e.g. fighter edit sub-pages) it degrades to the cached
+        rating rather than triggering the heavy fighter query in the shared
+        header.
         """
         if (
             hasattr(self, "_prefetched_objects_cache")
@@ -389,28 +383,30 @@ class List(AppBase):
     def selected_rating(self):
         """Rating under each fighter's active equipment set (display-only).
 
-        Parallels :attr:`rating` but sums each fighter's ``selected_cost_int``
-        (active-set cost) rather than the full-kit cost. Never persisted; it
-        does not feed credits/audit/pins — see #1853. Falls back to the normal
-        rating when fighters aren't prefetched.
+        Parallels the cached rating but sums each fighter's
+        ``selected_cost_int`` (active-set cost) rather than the full-kit
+        cost. Never persisted; it does not feed credits/audit/pins — see
+        #1853. Falls back to the cached rating when fighters aren't
+        prefetched.
         """
         fighters = self._selected_rating_fighters
         if fighters is None:
-            return self.rating
+            return self.rating_current
         return sum(f.selected_cost_int for f in fighters)
 
     @cached_property
     def selected_rating_max(self):
         """Full-kit rating over the *same* fighters used for selected_rating.
 
-        Kept on the same live basis as :attr:`selected_rating` (not the cached
-        ``rating_current``) so the "selected (max)" pair is internally
-        consistent — the gap always equals the value of the hidden gear, even if
-        the cached rating has drifted. See #1853.
+        Kept on the same live basis as :attr:`selected_rating` so the
+        "selected (max)" pair is internally consistent — the gap always
+        equals the value of the hidden gear. Both halves fall back to the
+        cached rating when fighters aren't prefetched, keeping the pair's
+        basis consistent either way. See #1853.
         """
         fighters = self._selected_rating_fighters
         if fighters is None:
-            return self.rating
+            return self.rating_current
         return sum(f.cost_int_cached for f in fighters)
 
     @cached_property
@@ -432,10 +428,6 @@ class List(AppBase):
     def selected_rating_max_display(self):
         """Display the full-kit rating on the same basis as selected_rating."""
         return format_cost_display(self.selected_rating_max)
-
-    @cached_property
-    def stash_fighter_cost_int(self):
-        return self.stash_fighter.cost_int() if self.stash_fighter else 0
 
     @property
     def stash_fighter_cost_display(self):
@@ -466,24 +458,6 @@ class List(AppBase):
             rating=self.rating_current,
             stash=self.stash_current,
             credits=self.credits_current,
-        )
-
-    @property
-    def debug_facts_in_sync(self) -> bool:
-        """
-        Check if cached facts match calculated values.
-
-        Used by debug menu to show red flag when out of sync.
-        """
-        facts = self.facts()
-        if facts is None:
-            return False  # Dirty state means not in sync
-
-        return (
-            facts.rating == self.rating
-            and facts.credits == self.credits_current
-            and facts.stash == self.stash_fighter_cost_int
-            and facts.wealth == self.wealth_current
         )
 
     @traced("list_set_dirty")
@@ -614,35 +588,6 @@ class List(AppBase):
             stash=stash,
             credits=self.credits_current,
         )
-
-    def check_wealth_sync(self, wealth_calculated):
-        """
-        Check if the stored rating_current and latest action match the calculated cost.
-
-        This is temporary and will be removed once we fully rely on rating_current and actions to track list costs.
-        """
-
-        # This is conditioned on having a latest action to avoid false positives before we have any actions in place.
-        # We refetch in the case where latest_action is not prefetched.
-        la = self.latest_action
-
-        if la:
-            calculated_current_delta = wealth_calculated - self.wealth_current
-            calculated_action_delta = wealth_calculated - la.wealth_after
-            if calculated_current_delta != 0 or calculated_action_delta != 0:
-                track(
-                    "list_cost_out_of_sync",
-                    list_id=str(self.id),
-                    wealth_calculated=wealth_calculated,
-                    wealth_current=self.wealth_current,
-                    rating_current=self.rating_current,
-                    stash_current=self.stash_current,
-                    credits_current=self.credits_current,
-                    latest_action_wealth_after=la.wealth_after,
-                    latest_action_rating_after=la.rating_after,
-                    latest_action_stash_after=la.stash_after,
-                    latest_action_credits_after=la.credits_after,
-                )
 
     #
     # Fighter & other properties
@@ -1175,7 +1120,7 @@ class List(AppBase):
         """
         # Don't run this if we haven't yet got a latest_action. We'll run a backfill
         # to ensure there is at least one action for each list, with the correct values, later.
-        if self.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
+        if self.latest_action:
             user = kwargs.pop("user", None)
 
             rating_delta = kwargs.get("rating_delta", 0)
@@ -1186,8 +1131,10 @@ class List(AppBase):
             stash_before = kwargs.pop("stash_before", self.stash_current - stash_delta)
             credits_before = kwargs.pop("credits_before", self.credits_current)
 
-            # `applied` is vestigial now that recording never applies anything;
-            # it stays True for reader compatibility.
+            # `applied` is vestigial: recording never applies anything and
+            # nothing reads the column. All writers set True on purpose —
+            # only pre-existing bootstrap CREATE rows (which took the field
+            # default) hold False.
             la = ListAction.objects.create(
                 user=user or self.owner,
                 owner=self.owner,
@@ -1215,7 +1162,6 @@ class List(AppBase):
             "list_action_skipped_no_latest_action",
             list=str(self.id),
             has_latest_action=bool(self.latest_action),
-            feature_enabled=settings.FEATURE_LIST_ACTION_CREATE_INITIAL,
             **kwargs,
         )
         return None

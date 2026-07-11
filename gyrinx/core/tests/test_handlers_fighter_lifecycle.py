@@ -17,9 +17,8 @@ from gyrinx.core.models.list import ListFighter
 
 
 @pytest.mark.django_db
-def test_handle_fighter_kill_basic(user, list_with_campaign, content_fighter, settings):
+def test_handle_fighter_kill_basic(user, list_with_campaign, content_fighter):
     """Test killing a fighter creates correct actions and reduces rating."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.rating_current = 500
     lst.save()
@@ -65,10 +64,9 @@ def test_handle_fighter_kill_basic(user, list_with_campaign, content_fighter, se
 
 @pytest.mark.django_db
 def test_handle_fighter_kill_propagates_to_fighter_rating_current(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that killing a fighter propagates negative delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.rating_current = 500
     lst.save()
@@ -103,10 +101,9 @@ def test_handle_fighter_kill_propagates_to_fighter_rating_current(
 
 @pytest.mark.django_db
 def test_handle_fighter_kill_with_equipment(
-    user, list_with_campaign, content_fighter, make_equipment, settings
+    user, list_with_campaign, content_fighter, make_equipment
 ):
     """Test killing a fighter with equipment transfers equipment to stash."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.rating_current = 500
     lst.save()
@@ -290,11 +287,8 @@ def test_handle_fighter_kill_child_fighter_not_duplicated(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_resurrect_basic(
-    user, list_with_campaign, content_fighter, settings
-):
+def test_handle_fighter_resurrect_basic(user, list_with_campaign, content_fighter):
     """Test resurrecting a dead fighter creates correct actions and restores rating."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.rating_current = 500
     lst.save()
@@ -343,10 +337,9 @@ def test_handle_fighter_resurrect_basic(
 
 @pytest.mark.django_db
 def test_handle_fighter_resurrect_propagates_to_fighter_rating_current(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that resurrecting a fighter propagates positive delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
     lst.rating_current = 500
     lst.save()
@@ -617,7 +610,7 @@ def _make_fighter_with_equipment(*, user, lst, content_fighter, make_equipment, 
 
 @pytest.mark.django_db
 def test_handle_fighter_kill_bumps_stash_rating_current(
-    user, list_with_campaign, content_fighter, make_equipment, settings
+    user, list_with_campaign, content_fighter, make_equipment
 ):
     """Kill must bump stash_fighter.rating_current by the transferred equipment cost.
 
@@ -625,7 +618,6 @@ def test_handle_fighter_kill_bumps_stash_rating_current(
     stash_fighter.rating_current (untouched) drift, and any later reassignment
     out of the stash drives the fighter's cached rating negative.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
 
     stash_fighter = _make_stash_fighter(
@@ -654,7 +646,7 @@ def test_handle_fighter_kill_bumps_stash_rating_current(
 
 @pytest.mark.django_db
 def test_handle_fighter_kill_then_refresh_keeps_list_stash_consistent(
-    user, list_with_campaign, content_fighter, make_equipment, settings
+    user, list_with_campaign, content_fighter, make_equipment
 ):
     """After kill + facts_from_db, list.stash_current must match the kill's stash bump.
 
@@ -662,7 +654,6 @@ def test_handle_fighter_kill_then_refresh_keeps_list_stash_consistent(
     returned the stale rating_current (still 0), so the +equipment bump from
     the kill action got silently undone on the next refresh.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
 
     _make_stash_fighter(user=user, lst=lst, content_fighter=content_fighter)
@@ -690,7 +681,7 @@ def test_handle_fighter_kill_then_refresh_keeps_list_stash_consistent(
 
 @pytest.mark.django_db
 def test_transfer_from_stash_after_kill_keeps_counters_non_negative(
-    user, list_with_campaign, content_fighter, make_equipment, settings
+    user, list_with_campaign, content_fighter, make_equipment
 ):
     """Reassigning equipment out of the stash after a kill must not drive either
     stash_fighter.rating_current or list.stash_current below zero.
@@ -701,7 +692,6 @@ def test_transfer_from_stash_after_kill_keeps_counters_non_negative(
         handle_equipment_reassignment,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
 
     stash_fighter = _make_stash_fighter(
@@ -746,7 +736,7 @@ def test_transfer_from_stash_after_kill_keeps_counters_non_negative(
 
 @pytest.mark.django_db
 def test_facts_from_db_clamps_negative_stash_to_zero(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """A directly-corrupted negative stash cache must not 500 the refresh path.
 
@@ -754,7 +744,6 @@ def test_facts_from_db_clamps_negative_stash_to_zero(
     .rating_current negative, facts_from_db must clamp the aggregate to
     satisfy list.stash_current's PositiveIntegerField constraint.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
 
     stash_fighter = _make_stash_fighter(
@@ -777,7 +766,7 @@ def test_facts_from_db_clamps_negative_stash_to_zero(
 
 @pytest.mark.django_db
 def test_refresh_after_kill_and_transfer_does_not_500(
-    user, list_with_campaign, content_fighter, make_equipment, settings
+    user, list_with_campaign, content_fighter, make_equipment
 ):
     """End-to-end repro of the production 500 on list 478a91b9-...:
 
@@ -793,7 +782,6 @@ def test_refresh_after_kill_and_transfer_does_not_500(
         handle_equipment_reassignment,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = list_with_campaign
 
     stash_fighter = _make_stash_fighter(

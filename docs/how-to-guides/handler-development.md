@@ -187,7 +187,7 @@ Propagation only runs when:
 
 ```python
 def _should_propagate(lst):
-    return lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
+    return bool(lst.latest_action)
 ```
 
 This prevents double-counting between the facts system (pull-based) and propagation system (push-based). You don't need to check this manually - the propagation functions handle it.

@@ -30,9 +30,8 @@ def _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment):
 
 @pytest.mark.django_db
 def test_task_recomputes_facts_and_creates_action(
-    make_list, make_list_fighter, cost_equipment, settings
+    make_list, make_list_fighter, cost_equipment
 ):
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
     before = ListAction.objects.filter(list=lst).count()
 
@@ -55,10 +54,7 @@ def test_task_recomputes_facts_and_creates_action(
 
 
 @pytest.mark.django_db
-def test_task_idempotent_on_second_run(
-    make_list, make_list_fighter, cost_equipment, settings
-):
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+def test_task_idempotent_on_second_run(make_list, make_list_fighter, cost_equipment):
     lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
 
     ContentEquipment = cost_equipment.__class__
@@ -134,7 +130,6 @@ def test_view_before_task_still_records_action(
     make_list,
     make_list_fighter,
     cost_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """A lazy recalc-on-view before the async task must not steal the delta.
@@ -146,7 +141,6 @@ def test_view_before_task_still_records_action(
     (Regression: previously the delta was read from the already-updated
     rating_current, computed as zero, and the action was silently dropped.)
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
     before = ListAction.objects.filter(
         list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
@@ -178,12 +172,9 @@ def test_view_before_task_still_records_action(
 
 
 @pytest.mark.django_db
-def test_idempotent_after_view_race(
-    make_list, make_list_fighter, cost_equipment, settings
-):
+def test_idempotent_after_view_race(make_list, make_list_fighter, cost_equipment):
     """A redelivery carrying the same frozen snapshot must not duplicate the
     action or re-apply credits, even when a view recalculated the list first."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
     old_rating = lst.rating_current
     old_stash = lst.stash_current
@@ -223,7 +214,7 @@ def test_idempotent_after_view_race(
 
 @pytest.mark.django_db
 def test_sweep_failure_enqueues_background_heal(
-    make_list, make_list_fighter, cost_equipment, settings
+    make_list, make_list_fighter, cost_equipment
 ):
     """A list the sweep fails on gets a background heal enqueued (#1860 Stage B).
 
@@ -232,7 +223,6 @@ def test_sweep_failure_enqueues_background_heal(
     its detail page. The heal refreshes caches only — the audit action for the
     change is still lost, and a redelivery remains the real recovery.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = _clean_list_with_equipment(make_list, make_list_fighter, cost_equipment)
 
     ContentEquipment = cost_equipment.__class__
