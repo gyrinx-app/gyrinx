@@ -1208,17 +1208,13 @@ def refresh_list_cost(request, id):
         raise Http404("List not found")
 
     if request.method == "POST":
-        # Get old cached facts value (from DB cache, not in-memory cache)
+        # Get old cached facts value (from DB cache)
         old_facts = lst.facts()
         old_wealth = old_facts.wealth if old_facts else None
         was_dirty = old_facts is None
 
         # Force recalculation and update DB cache
         new_facts = lst.facts_from_db(update=True)
-
-        # Clear the cached_property if present
-        if "cost_int_cached" in lst.__dict__:
-            del lst.__dict__["cost_int_cached"]
 
         track(
             "list_cost_refresh",
