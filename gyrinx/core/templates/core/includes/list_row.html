@@ -13,7 +13,7 @@ Expects `list` in context.{% endcomment %}
         </div>
         <div class="hstack column-gap-2 row-gap-1 flex-wrap">
             <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
-            <div class="badge text-bg-primary">{% credits list.facts_with_fallback.wealth %}</div>
+            <div class="badge text-bg-primary">{% credits list.wealth_current %}</div>
             {% if list.status == list.CAMPAIGN_MODE and list.campaign %}
                 <div>
                     <a href="{% url 'core:campaign' list.campaign.id %}"

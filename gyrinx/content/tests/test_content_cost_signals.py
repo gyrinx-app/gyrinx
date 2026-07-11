@@ -766,12 +766,13 @@ def test_get_clean_list_or_404_skips_clean_list(user, make_list):
 
 
 @pytest.mark.django_db
-def test_get_clean_list_or_404_enables_can_use_facts(user, make_list, content_fighter):
-    """get_clean_list_or_404 should enable can_use_facts for consistent rating display.
+def test_get_clean_list_or_404_prefetches_latest_actions(
+    user, make_list, content_fighter
+):
+    """get_clean_list_or_404 should prefetch latest_actions.
 
-    This test verifies the fix for the cost calculation bug where different views
-    showed different rating values because some views used the facts system
-    (via with_latest_actions prefetch) and others didn't.
+    The prefetch keeps latest_action reads (create_action, check_wealth_sync)
+    from issuing an extra query per list.
     """
     from gyrinx.core.views.list import get_clean_list_or_404
 
@@ -795,16 +796,11 @@ def test_get_clean_list_or_404_enables_can_use_facts(user, make_list, content_fi
     # Now get the list using get_clean_list_or_404 with List model class
     clean_list = get_clean_list_or_404(List, id=lst.id)
 
-    # The returned list should have can_use_facts enabled (via with_latest_actions prefetch)
-    assert clean_list.can_use_facts is True, (
-        "get_clean_list_or_404 should apply with_latest_actions() prefetch "
-        "to enable can_use_facts for consistent rating display"
-    )
-
-    # Verify the latest_actions attribute is populated
+    # Verify the latest_actions attribute is populated via the prefetch
     assert hasattr(clean_list, "latest_actions"), (
         "get_clean_list_or_404 should prefetch latest_actions"
     )
+    assert clean_list.latest_actions
 
 
 @pytest.mark.django_db
@@ -829,8 +825,8 @@ def test_get_clean_list_or_404_with_queryset_preserves_original_behavior(
     # The list should be returned successfully
     assert clean_list.id == lst.id
 
-    # Without the prefetch, can_use_facts will be False (since latest_actions isn't populated)
-    # This is the expected behavior when using a custom queryset
+    # Without the prefetch, latest_actions isn't populated. This is the
+    # expected behavior when using a custom queryset.
     assert not hasattr(clean_list, "latest_actions") or not clean_list.latest_actions
 
 

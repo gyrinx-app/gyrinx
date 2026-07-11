@@ -74,10 +74,9 @@ def start_campaign(request, id):
         messages.error(request, "This campaign cannot be started.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
-    # Prefetch lists with latest actions for efficient facts_with_fallback() in template.
     # Pre-campaign gangs are linked via the `lists` M2M; the `campaign` FK on List is only
     # populated when clones are created at start, so it must not be used here (see #1886).
-    lists = campaign.lists.select_related("owner").with_latest_actions()
+    lists = campaign.lists.select_related("owner")
 
     return render(
         request,

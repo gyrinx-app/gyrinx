@@ -306,71 +306,52 @@ def test_list_facts_returns_cached_when_clean(user, content_house, make_list):
 
 
 @pytest.mark.django_db
-def test_list_facts_with_fallback_returns_cached_when_clean(
-    user, content_house, make_list
-):
-    """Test that facts_with_fallback() returns cached values when dirty=False."""
+def test_list_display_shows_last_good_values_when_dirty(user, make_list):
+    """Dirty lists display their persisted last-good numbers (#1860 Stage B).
+
+    Index pages don't recompute: a dirty list shows the cached fields until
+    the write-time heal or a detail-page view refreshes them.
+    """
     lst = make_list("Test List")
     lst.rating_current = 100
     lst.stash_current = 50
     lst.credits_current = 25
-    lst.dirty = False
-    lst.save()
-
-    # Should return cached values (fast path)
-    facts = lst.facts_with_fallback()
-    assert facts is not None
-    assert isinstance(facts, ListFacts)
-    assert facts.rating == 100
-    assert facts.stash == 50
-    assert facts.credits == 25
-
-
-@pytest.mark.django_db
-def test_list_facts_with_fallback_calculates_when_dirty(
-    user, make_list, content_fighter, settings
-):
-    """Test that facts_with_fallback() calculates and tracks when dirty=True."""
-    from unittest.mock import patch
-
-    from gyrinx.core.models.list import ListFighter
-
-    lst = make_list("Test List")
-    lst.credits_current = 25
     lst.dirty = True
     lst.save()
 
-    # Create a fighter to have some rating
-    fighter = ListFighter.objects.create(
-        name="Test Fighter",
-        content_fighter=content_fighter,
-        list=lst,
-        owner=user,
-    )
+    assert lst.facts() is None  # facts() still signals staleness to heal paths
+    assert lst.wealth_current == 175
+    assert lst.cost_display() == "175¢"
+    assert lst.rating_display == "100¢"
+    assert lst.stash_fighter_cost_display == "50¢"
 
-    # Enable the feature flag for this test
-    settings.FEATURE_FACTS_FALLBACK_ENQUEUE = True
 
-    # Mock track and the background task enqueue
-    # (ImmediateBackend runs tasks synchronously, which would update dirty flag)
-    with (
-        patch("gyrinx.core.models.list.list.track") as mock_track,
-        patch("gyrinx.core.models.list.list.refresh_list_facts") as mock_task,
-    ):
-        # Should calculate and emit track event
-        facts = lst.facts_with_fallback()
-        assert facts is not None
-        assert isinstance(facts, ListFacts)
-        assert facts.rating == fighter.cost_int()
-        assert facts.credits == 25
+@pytest.mark.django_db
+def test_list_set_dirty_enqueues_refresh_on_commit(
+    user, make_list, django_capture_on_commit_callbacks
+):
+    """set_dirty() enqueues the background heal once the transaction commits.
 
-        # Verify track was called
-        mock_track.assert_called_once_with("facts_fallback", list_id=str(lst.pk))
+    The heal moved from read-time (the old facts_with_fallback) to write-time
+    in #1860 Stage B.
+    """
+    from unittest.mock import patch
 
-        # Verify background task was enqueued (when feature is enabled)
+    lst = make_list("Test List")
+    lst.dirty = False
+    lst.save()
+
+    with patch("gyrinx.core.models.list.list.refresh_list_facts") as mock_task:
+        with django_capture_on_commit_callbacks(execute=True):
+            lst.set_dirty()
         mock_task.enqueue.assert_called_once_with(list_id=str(lst.pk))
 
-    # With task mocked, dirty remains True (facts_with_fallback itself doesn't update)
+        # Already-dirty lists don't enqueue again (transition-edge only).
+        mock_task.enqueue.reset_mock()
+        with django_capture_on_commit_callbacks(execute=True):
+            lst.set_dirty()
+        mock_task.enqueue.assert_not_called()
+
     lst.refresh_from_db()
     assert lst.dirty is True
 
@@ -1244,3 +1225,32 @@ def test_list_has_no_deprecated_cost_int_cached():
     assert not hasattr(List, "cost_int_cached")
     assert hasattr(ListFighter, "cost_int_cached")
     assert hasattr(ListFighterEquipmentAssignment, "cost_int_cached")
+
+
+@pytest.mark.django_db
+def test_index_pages_render_last_good_wealth_for_dirty_list(client, user, make_list):
+    """A dirty list's wealth badge shows the persisted last-good number.
+
+    Index pages never recompute (#1860 Stage B): the home and user pages read
+    the cached fields directly, so a dirty list renders its last-known wealth
+    rather than an empty badge or a live recompute. Asserting on rendered
+    content matters here — Django templates swallow missing attributes
+    silently, so a view test that doesn't check the number can't catch a
+    broken badge.
+    """
+    from django.urls import reverse
+
+    lst = make_list("Badge Gang")
+    lst.rating_current = 123
+    lst.stash_current = 7
+    lst.credits_current = 20
+    lst.dirty = True
+    lst.save()
+
+    client.force_login(user)
+
+    home = client.get(reverse("core:index")).content.decode()
+    assert "150¢" in home  # 123 + 7 + 20, from the persisted fields
+
+    userpage = client.get(reverse("core:user", args=(user.username,))).content.decode()
+    assert "150¢" in userpage
