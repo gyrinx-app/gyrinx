@@ -2757,12 +2757,10 @@ class ListFighter(AppBase):
                 owner=clone.owner,
             )
 
-        # Recalculate cached values if propagation system is not active
-        # When propagation IS active (latest_action exists), the handler will call
-        # propagate_from_fighter() which updates rating_current
-        if not clone.list.latest_action:
-            clone.facts_from_db(update=True)
-
+        # The clone is born dirty with zero cached rating (neither field is
+        # copied). Callers settle it: List.clone() ends with a list-level
+        # facts_from_db that descends into dirty fighters; the hire/clone
+        # handler propagates the fighter's cost onto the fresh caches.
         return clone
 
     @property

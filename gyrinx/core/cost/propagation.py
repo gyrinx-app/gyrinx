@@ -29,28 +29,6 @@ class Delta:
         return self.delta != 0
 
 
-def _should_propagate(lst: "List") -> bool:
-    """
-    Check whether the list is inside the action system.
-
-    This guard is critical for avoiding double-counting bugs. The codebase
-    has TWO systems for keeping cached values (rating_current, etc.) in sync:
-
-    1. **Facts System** (pull-based): `facts_from_db()` recalculates from database
-    2. **Propagation System** (push-based): `propagate_from_*()` applies incremental deltas
-
-    Only ONE system should update cached values for any given operation:
-
-    - When guard is TRUE: Handlers use propagation, clone methods do NOT call facts_from_db()
-    - When guard is FALSE: facts_from_db() must be called explicitly after creation/cloning
-
-    A list is inside the action system once its bootstrap action exists
-    (`latest_action`). The same condition appears in ListFighter.clone()
-    and List.create_action().
-    """
-    return bool(lst.latest_action)
-
-
 def _apply_to_list(lst: "List", rating_delta: int = 0, stash_delta: int = 0) -> None:
     """Apply a rating/stash movement to the list-level cache.
 
@@ -100,9 +78,6 @@ def propagate_from_assignment(
 
     This should be called within a transaction.
 
-    Only propagates when the list is inside the action system (it has a
-    latest_action).
-
     Args:
         assignment: The equipment assignment whose cost changed
         delta: The change in the assignment's rating
@@ -110,9 +85,6 @@ def propagate_from_assignment(
     Returns:
         The delta, for chaining
     """
-    if not _should_propagate(delta.list):
-        return delta
-
     if not delta.has_change:
         # No change, return zero-delta
         return delta
@@ -158,10 +130,7 @@ def propagate_from_fighter(
 
     Clears the fighter's dirty flag (not the list's).
 
-    This should be called within a transaction (typically inside transact()).
-
-    Only propagates when the list is inside the action system (it has a
-    latest_action).
+    This should be called within a transaction.
 
     Args:
         fighter: The fighter whose cost changed
@@ -170,9 +139,6 @@ def propagate_from_fighter(
     Returns:
         The delta, for chaining
     """
-    if not _should_propagate(delta.list):
-        return delta
-
     if not delta.has_change:
         # No change, return zero-delta
         return delta
@@ -203,10 +169,5 @@ def propagate_to_list(
     fighter keeps its rating_current; it's simply excluded from the list
     aggregate), capture transfers, and similar. Buckets are explicit
     because there is no fighter to infer them from.
-
-    Only propagates when the list action system is enabled, matching the
-    other propagation entry points.
     """
-    if not _should_propagate(lst):
-        return
     _apply_to_list(lst, rating_delta=rating_delta, stash_delta=stash_delta)

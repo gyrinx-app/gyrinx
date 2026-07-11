@@ -561,14 +561,10 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
                     instance, lst, old_cost=old_cost
                 )
 
-                # Only create actions for lists that have an initial action
-                # Lists without latest_action will have dirty flag set via set_dirty()
-                # and will be recalculated on their next detail-page view
-                # (against the amounts rewritten above); index pages show the
-                # last-good cached numbers meanwhile. Archived-only lists get
-                # the rewrite but no action processing — nothing cache-visible
-                # moved, and the snapshot fallback has no baseline for them.
-                if list_id not in live_list_ids or not lst.latest_action:
+                # Archived-only lists get the rewrite but no action
+                # processing — nothing cache-visible moved, and the snapshot
+                # fallback has no baseline for them.
+                if list_id not in live_list_ids:
                     continue
 
                 if sweep.use_row_deltas:
@@ -1022,8 +1018,6 @@ def _orphan_pinned_rows(instance):
             try:
                 with transaction.atomic():
                     lst = List.objects.get(id=list_id)
-                    if not lst.latest_action:
-                        continue
                     components = "component" if count == 1 else "components"
                     lst.create_action(
                         action_type=ListActionType.CONTENT_COST_CHANGE,

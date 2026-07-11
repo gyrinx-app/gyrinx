@@ -400,8 +400,7 @@ def handle_fighter_edit(
             stash_before=stash_before,
             credits_before=credits_before,
         )
-        if action is not None:
-            list_actions.append(action)
+        list_actions.append(action)
 
         # Update before values for next action (cumulative tracking)
         rating_before += change.rating_delta

@@ -7,7 +7,6 @@ and raise ValidationError on failure.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from django.db import transaction
@@ -45,7 +44,7 @@ class EquipmentRemovalResult:
     child_fighter_cost: int
     refund_applied: bool
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
 
 
 @dataclass
@@ -58,7 +57,7 @@ class EquipmentComponentRemovalResult:
     component_cost: int
     refund_applied: bool
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
 
 
 @traced("handle_equipment_removal")

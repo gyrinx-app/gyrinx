@@ -808,7 +808,7 @@ The following describes what was actually implemented, noting changes from the o
    @dataclass
    class Delta:
        delta: int  # The change amount
-       list: List  # Reference for guard condition
+       list: List  # The list whose caches receive the movement
    ```
 
 3. **Propagation updates ALL THREE levels, and `create_action()` is a pure record** - `propagate_from_assignment()` and `propagate_from_fighter()` write the assignment/fighter caches and the list-level `rating_current`/`stash_current` (bucketed by whether the holding fighter is the stash); `propagate_to_list()` covers flows with no fighter-level counterpart (archive, deletion, capture transfers). `create_action()` records the movement but never applies it, and campaign credits are applied explicitly at call sites via `spend_credits()`/`apply_credit_delta()` — the `update_credits`/`skip_apply` parameters shown in the proposal sections above no longer exist.
@@ -821,14 +821,7 @@ The following describes what was actually implemented, noting changes from the o
        rating: int
    ```
 
-5. **Guard condition** - Added `_should_propagate()` check that both systems use to avoid double-counting:
-
-   ```python
-   def _should_propagate(lst):
-       return bool(lst.latest_action)
-   ```
-
-6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
+5. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
 
 ### Critical Invariant
 
@@ -841,7 +834,9 @@ The following describes what was actually implemented, noting changes from the o
 | Direct create | Facts | No delta to propagate |
 | Signal-triggered create | Facts | No handler context |
 
-This invariant is enforced by the guard condition `_should_propagate()`.
+The invariant holds by construction: handlers call propagation exactly once
+per movement, and the recompute paths (clone, content sweep) write via
+facts_from_db without also propagating.
 
 ### File Locations
 

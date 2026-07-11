@@ -38,7 +38,7 @@ def stake_credits(user, lst, amount):
 @pytest.fixture
 def tracked_list(user, make_list, content_fighter):
     """A list-building gang with a bootstrap action and one fighter."""
-    lst = make_list("Single Writer Gang", create_initial_action=True)
+    lst = make_list("Single Writer Gang")
     fighter = hire_fighter(user, lst, content_fighter, name="Scribe")
     return fresh(lst), fresh(fighter)
 
@@ -89,7 +89,6 @@ def test_full_lifecycle_facts_match_live_compute(
     """
     lst = make_list(
         "Lifecycle Gang",
-        create_initial_action=True,
         status=List.CAMPAIGN_MODE,
         campaign=make_campaign("Lifecycle Campaign"),
     )
@@ -147,7 +146,6 @@ def test_campaign_credits_apply_exactly_once_on_sale(
     ledger stays reconcilable (anchor + Σ deltas == cached)."""
     lst = make_list(
         "Credit Gang",
-        create_initial_action=True,
         status=List.CAMPAIGN_MODE,
         campaign=make_campaign("Credit Campaign"),
     )

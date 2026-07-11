@@ -941,7 +941,6 @@ def test_archive_toggle_is_idempotent_no_double_refund(
     """
     lst = make_list(
         "Idempotent Gang",
-        create_initial_action=True,
         status=List.CAMPAIGN_MODE,
         campaign=make_campaign("Idempotency Campaign"),
     )

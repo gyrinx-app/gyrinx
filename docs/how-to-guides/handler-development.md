@@ -181,16 +181,12 @@ propagate_from_fighter(fighter, Delta(delta=-equipment_cost, list=lst))
 # 3. Does NOT update List
 ```
 
-### The Guard Condition
+### Recording and propagation are unconditional
 
-Propagation only runs when:
-
-```python
-def _should_propagate(lst):
-    return bool(lst.latest_action)
-```
-
-This prevents double-counting between the facts system (pull-based) and propagation system (push-based). You don't need to check this manually - the propagation functions handle it.
+Propagation always applies, and `create_action` always records. A list with
+no prior actions simply starts its chain at its current cached values — the
+before-value defaults in `create_action` make this coherent. There is no
+guard to check.
 
 ---
 

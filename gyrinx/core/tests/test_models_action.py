@@ -326,10 +326,10 @@ def test_latest_for_list_multiple_actions(user, make_list):
 
 
 @pytest.mark.django_db
-def test_latest_for_list_no_actions(user, make_list):
+def test_latest_for_list_no_actions(user, content_house):
     """Test that None is returned when list has no actions."""
-    # Create list without initial action to test edge case
-    lst = make_list("Test List", create_initial_action=False)
+    # Raw ORM creation — no bootstrap action
+    lst = List.objects.create(name="Test List", content_house=content_house, owner=user)
 
     latest = ListAction.objects.latest_for_list(lst.id)
 

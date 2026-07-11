@@ -23,7 +23,7 @@ class CreditsModificationResult:
     credits_earned_before: int
     credits_earned_after: int
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 

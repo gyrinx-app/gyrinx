@@ -27,7 +27,7 @@ from gyrinx.content.models.equipment import (
 )
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.core.models.pack import CustomContentPackItem
 from gyrinx.core.tasks import propagate_default_child_fighter_assignment
 
@@ -426,22 +426,22 @@ def test_campaign_mode_no_credit_charge(
 
 
 @pytest.mark.django_db
-def test_no_action_when_list_has_no_latest_action(
+def test_action_recorded_when_list_has_no_prior_actions(
     child_spawning_setup,
     make_list,
     content_house,
     user,
     django_capture_on_commit_callbacks,
 ):
-    """A subscribed list without an initial action still materialises the child
-    but records no CONTENT_COST_CHANGE action."""
+    """A subscribed list with no prior actions materialises the child and
+    starts its action chain with the CONTENT_COST_CHANGE record."""
     parent_cf = child_spawning_setup["parent_cf"]
     child_cf = child_spawning_setup["child_cf"]
     equipment = child_spawning_setup["equipment"]
     pack = child_spawning_setup["pack"]
 
-    lst = make_list(
-        "No Initial Action", content_house=content_house, create_initial_action=False
+    lst = List.objects.create(
+        name="No Prior Actions", content_house=content_house, owner=user
     )
     lst.packs.add(pack)
     ListFighter.objects.create(
@@ -450,10 +450,10 @@ def test_no_action_when_list_has_no_latest_action(
 
     _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
-    # Child still materialised.
+    # Child materialised.
     assert ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
-    # But no action recorded (no latest_action to anchor it).
-    assert not ListAction.objects.filter(
+    # Recording is unconditional: the chain starts with this action.
+    assert ListAction.objects.filter(
         list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
     ).exists()
 

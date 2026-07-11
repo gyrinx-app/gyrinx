@@ -29,7 +29,7 @@ class FighterResurrectResult:
     fighter: ListFighter
     restored_cost: int
     target_state: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
     campaign_action: Optional[CampaignAction]
     description: str
 

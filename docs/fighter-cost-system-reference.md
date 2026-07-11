@@ -347,7 +347,7 @@ Display methods need no prefetch — they read persisted fields. The prefetches
 below optimise related-data access and `latest_action` reads:
 
 ```python
-# Latest-action prefetch (create_action reads)
+# Latest-action prefetch (staff debug header, maintenance tooling)
 lists = List.objects.with_latest_actions()
 
 # Full prefetch for detail views

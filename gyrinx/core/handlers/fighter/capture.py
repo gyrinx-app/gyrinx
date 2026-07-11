@@ -27,8 +27,8 @@ class FighterCaptureResult:
     original_list: List
     fighter_cost: int
     equipment_removed: list[tuple[str, int]]  # [(assignment_id, cost), ...]
-    capture_list_action: Optional[ListAction]
-    equipment_removal_actions: list[Optional[ListAction]]
+    capture_list_action: ListAction
+    equipment_removal_actions: list[ListAction]
     campaign_action: Optional[CampaignAction]
 
 
@@ -40,7 +40,7 @@ class FighterSellResult:
     fighter: ListFighter
     capturing_list: List
     sale_price: int
-    sell_list_action: Optional[ListAction]
+    sell_list_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 
@@ -53,7 +53,7 @@ class FighterReturnResult:
     capturing_list: List
     ransom_amount: int
     fighter_cost: int
-    original_list_action: Optional[ListAction]
+    original_list_action: ListAction
     capturing_list_action: Optional[ListAction]
     original_campaign_action: Optional[CampaignAction]
     capturing_campaign_action: Optional[CampaignAction]
@@ -66,7 +66,7 @@ class FighterReleaseResult:
     fighter: ListFighter
     original_list: List
     fighter_cost: int
-    release_list_action: Optional[ListAction]
+    release_list_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 
