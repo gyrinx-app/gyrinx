@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from django.conf import settings
 from django.db import transaction
 
 from gyrinx.content.models import ContentFighter
@@ -71,16 +70,15 @@ def handle_list_creation(
             owner=user,
         )
 
-    # Create initial action if feature flag is enabled
-    initial_action = None
-    if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        initial_action = ListAction.objects.create(
-            user=user,
-            owner=user,
-            list=lst,
-            action_type=ListActionType.CREATE,
-            description="List created",
-        )
+    # Bootstrap the action chain: every list records its creation
+    initial_action = ListAction.objects.create(
+        user=user,
+        owner=user,
+        list=lst,
+        action_type=ListActionType.CREATE,
+        description="List created",
+        applied=True,
+    )
 
     return ListCreationResult(
         lst=lst,
@@ -116,7 +114,7 @@ def handle_list_clone(
 
     Creates a clone with copied cost fields and creates ListActions:
     - On original list: Records that it was cloned
-    - On cloned list: Records creation as clone (if FEATURE_LIST_ACTION_CREATE_INITIAL)
+    - On cloned list: Records creation as clone
 
     Args:
         user: The user performing the clone
@@ -159,42 +157,39 @@ def handle_list_clone(
         description=f"List cloned to '{cloned_list.name}'",
     )
 
-    # Create ListAction on cloned list if feature flag is enabled
-    cloned_action = None
-    if settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        # The CREATE action represents creating the list from nothing, so the
-        # before values are 0 and the deltas are the CLONE's own values.
-        #
-        # Book the clone's freshly-recomputed caches (List.clone() ran
-        # facts_from_db() on it), NOT original_list.rating_current. A
-        # list-building gang's cached rating can be stale — caches drift until
-        # something recomputes them — and the clone can legitimately differ
-        # from its source (e.g. skipped fighters). Recording the source's value
-        # here writes a rating the clone's real cost immediately contradicts:
-        # the very next action, CAMPAIGN_START, prices the gang with a fresh
-        # cost_int(), so a stale source leaves a permanent chain break at the
-        # clone seam. The clone's own caches are the source of truth for what
-        # it actually is.
-        cloned_action = ListAction.objects.create(
-            user=user,
-            owner=owner,
-            list=cloned_list,
-            action_type=ListActionType.CREATE,
-            description=f"Cloned from '{original_list_name}'",
-            applied=True,
-            rating_before=0,
-            stash_before=0,
-            credits_before=0,
-            rating_delta=cloned_list.rating_current,
-            stash_delta=cloned_list.stash_current,
-            credits_delta=cloned_list.credits_current,
-        )
+    # The CREATE action represents creating the list from nothing, so the
+    # before values are 0 and the deltas are the CLONE's own values.
+    #
+    # Book the clone's freshly-recomputed caches (List.clone() ran
+    # facts_from_db() on it), NOT original_list.rating_current. A
+    # list-building gang's cached rating can be stale — caches drift until
+    # something recomputes them — and the clone can legitimately differ
+    # from its source (e.g. skipped fighters). Recording the source's value
+    # here writes a rating the clone's real cost immediately contradicts:
+    # the very next action, CAMPAIGN_START, prices the gang with a fresh
+    # cost_int(), so a stale source leaves a permanent chain break at the
+    # clone seam. The clone's own caches are the source of truth for what
+    # it actually is.
+    cloned_action = ListAction.objects.create(
+        user=user,
+        owner=owner,
+        list=cloned_list,
+        action_type=ListActionType.CREATE,
+        description=f"Cloned from '{original_list_name}'",
+        applied=True,
+        rating_before=0,
+        stash_before=0,
+        credits_before=0,
+        rating_delta=cloned_list.rating_current,
+        stash_delta=cloned_list.stash_current,
+        credits_delta=cloned_list.credits_current,
+    )
 
-        # Set up the latest_actions prefetch so that subsequent create_action calls work
-        # Clear any cached None value from the @cached_property
-        cloned_list.__dict__.pop("latest_action", None)
-        # Set the prefetch list that latest_action property will check
-        setattr(cloned_list, "latest_actions", [cloned_action])
+    # Set up the latest_actions prefetch so that subsequent create_action calls work
+    # Clear any cached None value from the @cached_property
+    cloned_list.__dict__.pop("latest_action", None)
+    # Set the prefetch list that latest_action property will check
+    setattr(cloned_list, "latest_actions", [cloned_action])
 
     return ListCloneResult(
         original_list=original_list,

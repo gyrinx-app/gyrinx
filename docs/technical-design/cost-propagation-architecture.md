@@ -496,9 +496,8 @@ def transact(
             ...
         )
     """
-    # Feature flag check (existing)
-    if not self.latest_action or not settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        # Still execute mutation even if actions disabled
+    # Lists outside the action system (no bootstrap action) still mutate
+    if not self.latest_action:
         mutation()
         # TODO: This should also preform the credit update as per current create_action
         return None
@@ -819,7 +818,7 @@ The following describes what was actually implemented, noting changes from the o
 
    ```python
    def _should_propagate(lst):
-       return lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
+       return bool(lst.latest_action)
    ```
 
 6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
@@ -850,15 +849,10 @@ This invariant is enforced by the guard condition `_should_propagate()`.
 
 ### Debugging
 
-The implementation includes debug visibility:
-
-```python
-# Check if facts match calculated values
-lst.debug_facts_in_sync       # True if facts() matches calculated
-fighter.debug_facts_in_sync   # True if facts().rating == cost_int()
-```
-
-Used in debug templates to show red flag when out of sync.
+Staff users can open the balance-sheet debug view at
+`/_debug/list/<id>/balance-sheet/`, which recomputes every fighter and
+assignment live and compares against the cached values, the credits ledger,
+and the action chain.
 
 ### See Also
 

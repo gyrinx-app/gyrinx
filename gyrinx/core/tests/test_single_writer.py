@@ -24,11 +24,6 @@ from gyrinx.core.tests.test_balance_sheet import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _action_system_on(settings):
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-
 def stake_credits(user, lst, amount):
     """Grant starting credits with a matching ledger entry."""
     lst.create_action(

@@ -35,7 +35,6 @@ def test_handle_equipment_removal_includes_child_fighter_cost(
     was recorded in the action, but not the cascaded-deleted child fighter's cost
     (e.g., 200+ for a vehicle with its own equipment).
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     house = make_content_house("Test House")
 
@@ -174,7 +173,6 @@ def test_handle_equipment_removal_without_child_fighter(
     """
     Test that removing normal equipment (without child_fighter) still works correctly.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     house = make_content_house("Test House")
     fighter_cf = make_content_fighter(

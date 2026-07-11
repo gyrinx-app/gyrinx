@@ -51,7 +51,7 @@ LIST
 │               └── ContentEquipmentUpgrade.cost
 │
 ├── Stash Fighter (special ListFighter where content_fighter.is_stash=True)
-│   └── stash_fighter_cost_int (same structure as above)
+│   └── cost_int() (same structure as above; booked to the stash side)
 │
 └── credits_current (IntegerField on List)
 ```

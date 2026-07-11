@@ -624,17 +624,13 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
                     # list (same content subject + same pre-change baseline), don't
                     # duplicate it. With a frozen snapshot a redelivery would otherwise
                     # recompute a non-zero delta and double-charge campaign credits.
-                    if (
-                        ListAction.objects.filter(
-                            list=lst,
-                            action_type=ListActionType.CONTENT_COST_CHANGE,
-                            subject_id=instance.pk,
-                            rating_before=old_rating,
-                            stash_before=old_stash,
-                        )
-                        .exclude(applied=False)
-                        .exists()
-                    ):
+                    if ListAction.objects.filter(
+                        list=lst,
+                        action_type=ListActionType.CONTENT_COST_CHANGE,
+                        subject_id=instance.pk,
+                        rating_before=old_rating,
+                        stash_before=old_stash,
+                    ).exists():
                         continue
 
                     # Recalculate with the new content costs (clears dirty flags on list and children)

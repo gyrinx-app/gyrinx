@@ -24,17 +24,14 @@ from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssig
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_removal_campaign_mode_with_refund(
     user,
     list_with_campaign,
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing equipment in campaign mode with refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -87,36 +84,30 @@ def test_handle_equipment_removal_campaign_mode_with_refund(
     ).exists()
 
     # Verify ListAction created
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.REMOVE_EQUIPMENT
-        assert result.list_action.rating_delta == -equipment_cost
-        assert result.list_action.credits_delta == equipment_cost  # Refund
-        assert result.list_action.rating_before == 1000
-        assert result.list_action.credits_before == 500
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.REMOVE_EQUIPMENT
+    assert result.list_action.rating_delta == -equipment_cost
+    assert result.list_action.credits_delta == equipment_cost  # Refund
+    assert result.list_action.rating_before == 1000
+    assert result.list_action.credits_before == 500
 
-        # Verify rating_current propagation (before deletion)
-        if lst.latest_action:
-            fighter.refresh_from_db()
-            # Rating delta is -50, so fighter rating_current should decrease
-            assert fighter.rating_current == initial_fighter_rating - equipment_cost
-            # Assignment was deleted, so we can't check it
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation (before deletion)
+    if lst.latest_action:
+        fighter.refresh_from_db()
+        # Rating delta is -50, so fighter rating_current should decrease
+        assert fighter.rating_current == initial_fighter_rating - equipment_cost
+        # Assignment was deleted, so we can't check it
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_removal_campaign_mode_without_refund(
     user,
     list_with_campaign,
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing equipment in campaign mode without refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -150,20 +141,15 @@ def test_handle_equipment_removal_campaign_mode_without_refund(
     assert "refund" not in result.description
 
     # Verify credits unchanged (no refund delta)
-    if feature_flag_enabled:
-        assert result.list_action.credits_delta == 0
-        assert result.list_action.rating_delta == -equipment_cost
-    else:
-        assert result.list_action is None
+    assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == -equipment_cost
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_removal_list_building_mode(
-    user, make_list, content_fighter, make_equipment, settings, feature_flag_enabled
+    user, make_list, content_fighter, make_equipment, settings
 ):
     """Test removing equipment in list building mode ignores refund request."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = make_list("Test List")
     lst.rating_current = 1000
@@ -196,15 +182,11 @@ def test_handle_equipment_removal_list_building_mode(
     assert "refund" not in result.description
 
     # ListAction still has rating delta but no credits delta
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == -equipment_cost
-        assert result.list_action.credits_delta == 0
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_delta == -equipment_cost
+    assert result.list_action.credits_delta == 0
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_removal_stash_fighter(
     user,
     list_with_campaign,
@@ -212,12 +194,9 @@ def test_handle_equipment_removal_stash_fighter(
     make_content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing equipment from stash fighter affects stash, not rating."""
     from gyrinx.models import FighterCategoryChoices
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -264,20 +243,15 @@ def test_handle_equipment_removal_stash_fighter(
     )
 
     # Verify stash delta, not rating delta
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == -equipment_cost
-        assert result.list_action.rating_delta == 0
-        assert (
-            result.list_action.credits_delta == equipment_cost
-        )  # Refund still applies
+    assert result.list_action.stash_delta == -equipment_cost
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.credits_delta == equipment_cost  # Refund still applies
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            fighter.refresh_from_db()
-            # Stash delta is -30, so fighter rating_current should decrease
-            assert fighter.rating_current == initial_fighter_rating - equipment_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        fighter.refresh_from_db()
+        # Stash delta is -30, so fighter rating_current should decrease
+        assert fighter.rating_current == initial_fighter_rating - equipment_cost
 
 
 @pytest.mark.django_db
@@ -331,17 +305,14 @@ def test_handle_equipment_removal_transaction_rollback(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_component_removal_upgrade_with_refund(
     user,
     list_with_campaign,
     content_fighter,
     make_equipment_with_upgrades,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing an upgrade from equipment with refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -393,35 +364,29 @@ def test_handle_equipment_component_removal_upgrade_with_refund(
     assert upgrade not in assignment.upgrades_field.all()
 
     # Verify ListAction created
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
-        assert result.list_action.rating_delta == -upgrade_cost
-        assert result.list_action.credits_delta == upgrade_cost  # Refund
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+    assert result.list_action.rating_delta == -upgrade_cost
+    assert result.list_action.credits_delta == upgrade_cost  # Refund
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            fighter.refresh_from_db()
-            # Rating delta is -20, so both should decrease
-            assert assignment.rating_current == initial_assignment_rating - upgrade_cost
-            assert fighter.rating_current == initial_fighter_rating - upgrade_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        fighter.refresh_from_db()
+        # Rating delta is -20, so both should decrease
+        assert assignment.rating_current == initial_assignment_rating - upgrade_cost
+        assert fighter.rating_current == initial_fighter_rating - upgrade_cost
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_component_removal_profile_with_refund(
     user,
     list_with_campaign,
     content_fighter,
     make_weapon_with_profile,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing a weapon profile from equipment with refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -474,33 +439,27 @@ def test_handle_equipment_component_removal_profile_with_refund(
     # Verify profile was removed
     assert profile not in assignment.weapon_profiles_field.all()
 
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            fighter.refresh_from_db()
-            # Rating delta is -30, so both should decrease
-            assert assignment.rating_current == initial_assignment_rating - profile_cost
-            assert fighter.rating_current == initial_fighter_rating - profile_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        fighter.refresh_from_db()
+        # Rating delta is -30, so both should decrease
+        assert assignment.rating_current == initial_assignment_rating - profile_cost
+        assert fighter.rating_current == initial_fighter_rating - profile_cost
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_equipment_component_removal_accessory_with_refund(
     user,
     list_with_campaign,
     content_fighter,
     make_weapon_with_accessory,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing a weapon accessory from equipment with refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -550,21 +509,16 @@ def test_handle_equipment_component_removal_accessory_with_refund(
     # Verify accessory was removed
     assert accessory not in assignment.weapon_accessories_field.all()
 
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            fighter.refresh_from_db()
-            # Rating delta is -25, so both should decrease
-            assert (
-                assignment.rating_current == initial_assignment_rating - accessory_cost
-            )
-            assert fighter.rating_current == initial_fighter_rating - accessory_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        fighter.refresh_from_db()
+        # Rating delta is -25, so both should decrease
+        assert assignment.rating_current == initial_assignment_rating - accessory_cost
+        assert fighter.rating_current == initial_fighter_rating - accessory_cost
 
 
 @pytest.mark.django_db
@@ -602,12 +556,10 @@ def test_handle_equipment_component_removal_invalid_type(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_archive_toggle_archive_with_refund(
-    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+    user, list_with_campaign, content_fighter, settings
 ):
     """Test archiving a fighter with refund in campaign mode."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -640,22 +592,17 @@ def test_handle_fighter_archive_toggle_archive_with_refund(
     fighter.refresh_from_db()
     assert fighter.archived is True
 
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.UPDATE_FIGHTER
-        assert result.list_action.rating_delta == -fighter_cost
-        assert result.list_action.credits_delta == fighter_cost  # Refund
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_FIGHTER
+    assert result.list_action.rating_delta == -fighter_cost
+    assert result.list_action.credits_delta == fighter_cost  # Refund
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_archive_toggle_archive_without_refund(
-    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+    user, list_with_campaign, content_fighter, settings
 ):
     """Test archiving a fighter without refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -681,20 +628,15 @@ def test_handle_fighter_archive_toggle_archive_without_refund(
     assert result.refund_applied is False
     assert "refund" not in result.description
 
-    if feature_flag_enabled:
-        assert result.list_action.credits_delta == 0
-        assert result.list_action.rating_delta == -fighter_cost
-    else:
-        assert result.list_action is None
+    assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == -fighter_cost
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_archive_toggle_unarchive(
-    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+    user, list_with_campaign, content_fighter, settings
 ):
     """Test unarchiving a fighter."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -728,21 +670,16 @@ def test_handle_fighter_archive_toggle_unarchive(
     fighter.refresh_from_db()
     assert fighter.archived is False
 
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.rating_delta == fighter_cost  # Added back
-        assert result.list_action.credits_delta == 0  # No refund on restore
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.rating_delta == fighter_cost  # Added back
+    assert result.list_action.credits_delta == 0  # No refund on restore
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_archive_toggle_archive_list_building_mode(
-    user, make_list, content_fighter, settings, feature_flag_enabled
+    user, make_list, content_fighter, settings
 ):
     """Test archiving a fighter in list building mode ignores refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = make_list("Test List")
     lst.rating_current = 1000
@@ -767,23 +704,18 @@ def test_handle_fighter_archive_toggle_archive_list_building_mode(
     # Refund not applied in list building mode
     assert result.refund_applied is False
 
-    if feature_flag_enabled:
-        assert result.list_action.credits_delta == 0
-        assert result.list_action.rating_delta == -fighter_cost
-    else:
-        assert result.list_action is None
+    assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == -fighter_cost
 
 
 # ===== Fighter Deletion Tests =====
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_deletion_campaign_mode_with_refund(
-    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+    user, list_with_campaign, content_fighter, settings
 ):
     """Test deleting a fighter in campaign mode with refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -816,22 +748,17 @@ def test_handle_fighter_deletion_campaign_mode_with_refund(
     # Verify fighter was deleted
     assert not ListFighter.objects.filter(id=fighter_id).exists()
 
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.REMOVE_FIGHTER
-        assert result.list_action.rating_delta == -fighter_cost
-        assert result.list_action.credits_delta == fighter_cost  # Refund
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.REMOVE_FIGHTER
+    assert result.list_action.rating_delta == -fighter_cost
+    assert result.list_action.credits_delta == fighter_cost  # Refund
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_deletion_campaign_mode_without_refund(
-    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+    user, list_with_campaign, content_fighter, settings
 ):
     """Test deleting a fighter without refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -856,20 +783,15 @@ def test_handle_fighter_deletion_campaign_mode_without_refund(
     assert result.refund_applied is False
     assert "refund" not in result.description
 
-    if feature_flag_enabled:
-        assert result.list_action.credits_delta == 0
-        assert result.list_action.rating_delta == -fighter_cost
-    else:
-        assert result.list_action is None
+    assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == -fighter_cost
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_deletion_list_building_mode(
-    user, make_list, content_fighter, settings, feature_flag_enabled
+    user, make_list, content_fighter, settings
 ):
     """Test deleting a fighter in list building mode ignores refund."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = make_list("Test List")
     lst.rating_current = 1000
@@ -897,27 +819,20 @@ def test_handle_fighter_deletion_list_building_mode(
     # Fighter was still deleted
     assert not ListFighter.objects.filter(id=fighter_id).exists()
 
-    if feature_flag_enabled:
-        assert result.list_action.credits_delta == 0
-        assert result.list_action.rating_delta == -fighter_cost
-    else:
-        assert result.list_action is None
+    assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == -fighter_cost
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_deletion_stash_fighter(
     user,
     list_with_campaign,
     content_house,
     make_content_fighter,
     settings,
-    feature_flag_enabled,
 ):
     """Test deleting a stash fighter affects stash, not rating."""
     from gyrinx.models import FighterCategoryChoices
-
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -947,12 +862,9 @@ def test_handle_fighter_deletion_stash_fighter(
         request_refund=True,
     )
 
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == -fighter_cost
-        assert result.list_action.rating_delta == 0
-        assert result.list_action.credits_delta == fighter_cost  # Refund still applies
-    else:
-        assert result.list_action is None
+    assert result.list_action.stash_delta == -fighter_cost
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.credits_delta == fighter_cost  # Refund still applies
 
 
 @pytest.mark.django_db
@@ -999,12 +911,10 @@ def test_handle_fighter_deletion_transaction_rollback(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_deletion_correct_before_values(
-    user, list_with_campaign, content_fighter, settings, feature_flag_enabled
+    user, list_with_campaign, content_fighter, settings
 ):
     """Test that before values are captured correctly in ListAction."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = list_with_campaign
     lst.credits_current = 1000
@@ -1026,12 +936,9 @@ def test_handle_fighter_deletion_correct_before_values(
         request_refund=False,
     )
 
-    if feature_flag_enabled:
-        assert result.list_action.rating_before == 500
-        assert result.list_action.stash_before == 200
-        assert result.list_action.credits_before == 1000
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_before == 500
+    assert result.list_action.stash_before == 200
+    assert result.list_action.credits_before == 1000
 
 
 @pytest.mark.django_db
@@ -1046,7 +953,6 @@ def test_archive_toggle_is_idempotent_no_double_refund(
     rating movement clamps at zero, desyncing the action chain from the
     caches.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list(
         "Idempotent Gang",
         create_initial_action=True,

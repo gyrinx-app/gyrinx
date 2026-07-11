@@ -115,7 +115,7 @@ def test_canonical_cost_unaffected_by_active_set(equipped):
     fighter = equipped["fighter"]
 
     before_fighter_cost = ListFighter.objects.get(id=fighter.id).cost_int()
-    before_list_rating = List.objects.get(id=lst.id).rating
+    before_list_rating = List.objects.get(id=lst.id).facts_from_db(update=False).rating
     before_list_wealth = List.objects.get(id=lst.id).cost_int()
     before_facts_rating = fighter.facts_from_db(update=True).rating
 
@@ -127,7 +127,10 @@ def test_canonical_cost_unaffected_by_active_set(equipped):
     fighter.save()
 
     assert ListFighter.objects.get(id=fighter.id).cost_int() == before_fighter_cost
-    assert List.objects.get(id=lst.id).rating == before_list_rating
+    assert (
+        List.objects.get(id=lst.id).facts_from_db(update=False).rating
+        == before_list_rating
+    )
     assert List.objects.get(id=lst.id).cost_int() == before_list_wealth
     # Cached rating_current (feeds credits/audit) is untouched.
     assert (
@@ -151,7 +154,7 @@ def test_list_selected_rating_reflects_active_sets(equipped):
     # Fetch with fighters prefetched so selected_rating engages.
     lst = List.objects.with_related_data(with_fighters=True).get(id=lst.id)
     assert lst.has_reduced_equipment_selection is True
-    assert lst.selected_rating == lst.rating - 50
+    assert lst.selected_rating == lst.facts_from_db(update=False).rating - 50
     # selected and max are on the same basis, so the gap is exactly the hidden gear.
     assert lst.selected_rating == lst.selected_rating_max - 50
 

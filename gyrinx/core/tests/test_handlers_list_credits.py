@@ -39,11 +39,9 @@ def campaign_list(user, make_list):
 # ===== Add Credits Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_credits_add(campaign_list, user, settings, feature_flag_enabled):
+def test_handle_credits_add(campaign_list, user, settings):
     """Test adding credits increases both current and earned."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = campaign_list
 
     initial_current = lst.credits_current
@@ -72,15 +70,12 @@ def test_handle_credits_add(campaign_list, user, settings, feature_flag_enabled)
     assert lst.credits_earned == initial_earned + amount
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.UPDATE_CREDITS
-        assert result.list_action.credits_delta == amount
-        assert result.list_action.rating_delta == 0
-        assert result.list_action.stash_delta == 0
-        assert "Added 100¢" in result.list_action.description
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_CREDITS
+    assert result.list_action.credits_delta == amount
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.stash_delta == 0
+    assert "Added 100¢" in result.list_action.description
 
     # Verify CampaignAction
     assert result.campaign_action is not None
@@ -91,7 +86,6 @@ def test_handle_credits_add(campaign_list, user, settings, feature_flag_enabled)
 @pytest.mark.django_db
 def test_handle_credits_add_with_description(campaign_list, user, settings):
     """Test adding credits with a description includes it in the action."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = campaign_list
 
     result = handle_credits_modification(
@@ -109,11 +103,9 @@ def test_handle_credits_add_with_description(campaign_list, user, settings):
 # ===== Spend Credits Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_credits_spend(campaign_list, user, settings, feature_flag_enabled):
+def test_handle_credits_spend(campaign_list, user, settings):
     """Test spending credits decreases current but not earned."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = campaign_list
 
     initial_current = lst.credits_current
@@ -141,12 +133,9 @@ def test_handle_credits_spend(campaign_list, user, settings, feature_flag_enable
     assert lst.credits_earned == initial_earned  # Unchanged
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.credits_delta == -amount
-        assert "Spent 100¢" in result.list_action.description
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.credits_delta == -amount
+    assert "Spent 100¢" in result.list_action.description
 
 
 @pytest.mark.django_db
@@ -174,11 +163,9 @@ def test_handle_credits_spend_insufficient(campaign_list, user):
 # ===== Reduce Credits Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_credits_reduce(campaign_list, user, settings, feature_flag_enabled):
+def test_handle_credits_reduce(campaign_list, user, settings):
     """Test reducing credits decreases both current and earned."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = campaign_list
 
     initial_current = lst.credits_current
@@ -206,12 +193,9 @@ def test_handle_credits_reduce(campaign_list, user, settings, feature_flag_enabl
     assert lst.credits_earned == initial_earned - amount
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.credits_delta == -amount
-        assert "Reduced 100¢" in result.list_action.description
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.credits_delta == -amount
+    assert "Reduced 100¢" in result.list_action.description
 
     # Verify CampaignAction shows all time credits
     assert result.campaign_action is not None
@@ -290,7 +274,6 @@ def test_handle_credits_invalid_operation(campaign_list, user):
 @pytest.mark.django_db
 def test_handle_credits_zero_amount(campaign_list, user, settings):
     """Test zero amount is valid but has no effect."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = campaign_list
     initial_current = lst.credits_current
 
@@ -315,7 +298,6 @@ def test_handle_credits_zero_amount(campaign_list, user, settings):
 @pytest.mark.django_db
 def test_handle_credits_non_campaign_no_campaign_action(user, make_list, settings):
     """Test no CampaignAction created when not in campaign mode."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create a list NOT in campaign mode but still test handler directly
     lst = make_list("Non-Campaign Gang", status=List.LIST_BUILDING)

@@ -145,7 +145,6 @@ def test_stash_fighter_facts_in_sync_after_campaign_start(settings):
     3. Start the campaign
     4. Check that cloned stash fighter's facts match the cost of assignments
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create a user and house
     user = User.objects.create_user(username="testuser", password="testpass")

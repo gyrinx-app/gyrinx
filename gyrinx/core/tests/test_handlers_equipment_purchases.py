@@ -21,7 +21,6 @@ from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_purchase_campaign_mode(
     user,
@@ -29,10 +28,8 @@ def test_handle_equipment_purchase_campaign_mode(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test equipment purchase in campaign mode creates actions and spends credits."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -66,15 +63,12 @@ def test_handle_equipment_purchase_campaign_mode(
     assert "Bought Test Weapon for Test Fighter" in result.description
 
     # Verify ListAction created only if feature flag enabled
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.ADD_EQUIPMENT
-        assert result.list_action.rating_delta == 50
-        assert result.list_action.credits_delta == -50
-        assert result.list_action.rating_before == 500
-        assert result.list_action.credits_before == 1000
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.ADD_EQUIPMENT
+    assert result.list_action.rating_delta == 50
+    assert result.list_action.credits_delta == -50
+    assert result.list_action.rating_before == 500
+    assert result.list_action.credits_before == 1000
 
     # Verify CampaignAction created (always created when in campaign mode, regardless of feature flag)
     assert result.campaign_action is not None
@@ -84,7 +78,6 @@ def test_handle_equipment_purchase_campaign_mode(
     assert lst.credits_current == 950
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_purchase_list_building_mode(
     user,
@@ -93,10 +86,8 @@ def test_handle_equipment_purchase_list_building_mode(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test equipment purchase in list building mode (no credits)."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -126,17 +117,13 @@ def test_handle_equipment_purchase_list_building_mode(
     assert "Added Test Weapon to Test Fighter" in result.description
 
     # Verify ListAction created only if feature flag enabled
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == 50
-        assert result.list_action.credits_delta == 0  # No credits in list building mode
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_delta == 50
+    assert result.list_action.credits_delta == 0  # No credits in list building mode
 
     # Verify no CampaignAction
     assert result.campaign_action is None
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_purchase_stash_fighter(
     user,
@@ -145,10 +132,8 @@ def test_handle_equipment_purchase_stash_fighter(
     make_content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test equipment purchase for stash fighter affects stash, not rating."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.stash_current = 100
@@ -186,15 +171,11 @@ def test_handle_equipment_purchase_stash_fighter(
     )
 
     # Verify stash delta, not rating delta
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == 50
-        assert result.list_action.rating_delta == 0
-        assert result.list_action.credits_delta == -50
-    else:
-        assert result.list_action is None
+    assert result.list_action.stash_delta == 50
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.credits_delta == -50
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_purchase_insufficient_credits(
     user,
@@ -202,10 +183,8 @@ def test_handle_equipment_purchase_insufficient_credits(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test equipment purchase fails with insufficient credits."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 25  # Not enough for 50 credit weapon
     lst.save()
@@ -240,7 +219,6 @@ def test_handle_equipment_purchase_insufficient_credits(
     assert CampaignAction.objects.count() == 0
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_accessory_purchase_campaign_mode(
     user,
@@ -248,10 +226,8 @@ def test_handle_accessory_purchase_campaign_mode(
     content_fighter,
     make_weapon_with_accessory,
     settings,
-    feature_flag_enabled,
 ):
     """Test weapon accessory purchase in campaign mode."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -283,14 +259,11 @@ def test_handle_accessory_purchase_campaign_mode(
     assert accessory in assignment.weapon_accessories_field.all()
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
-        assert result.list_action.rating_delta == 25
-        assert result.list_action.credits_delta == -25
-        assert result.list_action.rating_before == 500
-        assert result.list_action.credits_before == 1000
-    else:
-        assert result.list_action is None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+    assert result.list_action.rating_delta == 25
+    assert result.list_action.credits_delta == -25
+    assert result.list_action.rating_before == 500
+    assert result.list_action.credits_before == 1000
 
     # Verify CampaignAction (always created when in campaign mode, regardless of feature flag)
     assert result.campaign_action is not None
@@ -299,7 +272,6 @@ def test_handle_accessory_purchase_campaign_mode(
     assert lst.credits_current == 975
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_accessory_purchase_stash_fighter(
     user,
@@ -308,10 +280,8 @@ def test_handle_accessory_purchase_stash_fighter(
     make_content_fighter,
     make_weapon_with_accessory,
     settings,
-    feature_flag_enabled,
 ):
     """Test accessory purchase for stash fighter affects stash, not rating."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.stash_current = 100
@@ -347,14 +317,10 @@ def test_handle_accessory_purchase_stash_fighter(
     )
 
     # Verify stash delta
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == 25
-        assert result.list_action.rating_delta == 0
-    else:
-        assert result.list_action is None
+    assert result.list_action.stash_delta == 25
+    assert result.list_action.rating_delta == 0
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_weapon_profile_purchase_campaign_mode(
     user,
@@ -362,10 +328,8 @@ def test_handle_weapon_profile_purchase_campaign_mode(
     content_fighter,
     make_weapon_with_profile,
     settings,
-    feature_flag_enabled,
 ):
     """Test weapon profile purchase in campaign mode."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -397,18 +361,14 @@ def test_handle_weapon_profile_purchase_campaign_mode(
     assert profile in assignment.weapon_profiles_field.all()
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
-        assert result.list_action.rating_delta == 30
-        assert result.list_action.credits_delta == -30
-    else:
-        assert result.list_action is None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+    assert result.list_action.rating_delta == 30
+    assert result.list_action.credits_delta == -30
 
     # Verify credits spent (no refresh needed - handler modifies the same object)
     assert lst.credits_current == 970
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_upgrade_add_upgrades(
     user,
@@ -416,10 +376,8 @@ def test_handle_equipment_upgrade_add_upgrades(
     content_fighter,
     make_equipment_with_upgrades,
     settings,
-    feature_flag_enabled,
 ):
     """Test adding equipment upgrades in campaign mode."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -451,18 +409,14 @@ def test_handle_equipment_upgrade_add_upgrades(
     assert upgrade in assignment.upgrades_field.all()
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
-        assert result.list_action.rating_delta == 20
-        assert result.list_action.credits_delta == -20
-    else:
-        assert result.list_action is None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
+    assert result.list_action.rating_delta == 20
+    assert result.list_action.credits_delta == -20
 
     # Verify credits spent (no refresh needed - handler modifies the same object)
     assert lst.credits_current == 980
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_upgrade_remove_upgrades(
     user,
@@ -470,10 +424,8 @@ def test_handle_equipment_upgrade_remove_upgrades(
     content_fighter,
     make_equipment_with_upgrades,
     settings,
-    feature_flag_enabled,
 ):
     """Test removing equipment upgrades (negative cost delta)."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 520  # Includes fighter + equipment + upgrade
@@ -507,11 +459,8 @@ def test_handle_equipment_upgrade_remove_upgrades(
     assert assignment.upgrades_field.count() == 0
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == -20
-        assert result.list_action.credits_delta == 0  # No credits returned
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_delta == -20
+    assert result.list_action.credits_delta == 0  # No credits returned
 
     # Verify no CampaignAction (no credits spent)
     assert result.campaign_action is None
@@ -520,7 +469,6 @@ def test_handle_equipment_upgrade_remove_upgrades(
     assert "Removed upgrades" in result.description
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_upgrade_stash_fighter(
     user,
@@ -529,10 +477,8 @@ def test_handle_equipment_upgrade_stash_fighter(
     make_content_fighter,
     make_equipment_with_upgrades,
     settings,
-    feature_flag_enabled,
 ):
     """Test upgrade for stash fighter affects stash, not rating."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.stash_current = 100
@@ -568,14 +514,10 @@ def test_handle_equipment_upgrade_stash_fighter(
     )
 
     # Verify stash delta
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == 20
-        assert result.list_action.rating_delta == 0
-    else:
-        assert result.list_action is None
+    assert result.list_action.stash_delta == 20
+    assert result.list_action.rating_delta == 0
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_actions_have_correct_before_values(
     user,
@@ -583,10 +525,8 @@ def test_actions_have_correct_before_values(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test that ListAction records correct before values."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 1000
     lst.rating_current = 500
@@ -614,15 +554,11 @@ def test_actions_have_correct_before_values(
     )
 
     # Verify before values match original list state
-    if feature_flag_enabled:
-        assert result.list_action.rating_before == 500
-        assert result.list_action.stash_before == 100
-        assert result.list_action.credits_before == 1000
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_before == 500
+    assert result.list_action.stash_before == 100
+    assert result.list_action.credits_before == 1000
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_transaction_rollback_on_insufficient_credits(
     user,
@@ -630,10 +566,8 @@ def test_transaction_rollback_on_insufficient_credits(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test that transaction rolls back completely on error."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 25
     lst.save()
@@ -871,7 +805,6 @@ def test_upgrade_change_failure_preserves_existing_upgrades(
 # ===== Equipment Reassignment Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_stash_to_regular(
     user,
@@ -879,10 +812,8 @@ def test_handle_equipment_reassignment_stash_to_regular(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test reassigning equipment from stash to regular fighter."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.rating_current = 500
     lst.stash_current = 100
@@ -927,30 +858,27 @@ def test_handle_equipment_reassignment_stash_to_regular(
     )
 
     # Verify deltas: stash→regular means rating+, stash-
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == equipment_cost
-        assert result.list_action.stash_delta == -equipment_cost
-        assert result.list_action.credits_delta == 0  # Reassignment is free
+    assert result.list_action.rating_delta == equipment_cost
+    assert result.list_action.stash_delta == -equipment_cost
+    assert result.list_action.credits_delta == 0  # Reassignment is free
 
-        # Verify before values
-        assert result.list_action.rating_before == 500
-        assert result.list_action.stash_before == 100
-        assert result.list_action.credits_before == 1000
+    # Verify before values
+    assert result.list_action.rating_before == 500
+    assert result.list_action.stash_before == 100
+    assert result.list_action.credits_before == 1000
 
-        # Verify rating_current propagation
-        # Propagation only happens if list has latest_action
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            stash.refresh_from_db()
-            fighter.refresh_from_db()
-            # Assignment rating_current should stay the same
-            assert assignment.rating_current == initial_assignment_rating
-            # Stash should lose the equipment cost
-            assert stash.rating_current == initial_stash_rating - equipment_cost
-            # Fighter should gain the equipment cost
-            assert fighter.rating_current == initial_fighter_rating + equipment_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    # Propagation only happens if list has latest_action
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        stash.refresh_from_db()
+        fighter.refresh_from_db()
+        # Assignment rating_current should stay the same
+        assert assignment.rating_current == initial_assignment_rating
+        # Stash should lose the equipment cost
+        assert stash.rating_current == initial_stash_rating - equipment_cost
+        # Fighter should gain the equipment cost
+        assert fighter.rating_current == initial_fighter_rating + equipment_cost
 
     # Verify CampaignAction created (always created when in campaign mode, regardless of feature flag)
     assert result.campaign_action is not None
@@ -966,7 +894,6 @@ def test_handle_equipment_reassignment_stash_to_regular(
     assert assignment.list_fighter == fighter
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_regular_to_stash(
     user,
@@ -974,10 +901,8 @@ def test_handle_equipment_reassignment_regular_to_stash(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test reassigning equipment from regular fighter to stash."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.rating_current = 500
     lst.stash_current = 100
@@ -1022,24 +947,21 @@ def test_handle_equipment_reassignment_regular_to_stash(
     )
 
     # Verify deltas: regular→stash means rating-, stash+
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == -equipment_cost
-        assert result.list_action.stash_delta == equipment_cost
-        assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == -equipment_cost
+    assert result.list_action.stash_delta == equipment_cost
+    assert result.list_action.credits_delta == 0
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            fighter.refresh_from_db()
-            stash.refresh_from_db()
-            # Assignment rating_current should stay the same
-            assert assignment.rating_current == initial_assignment_rating
-            # Fighter should lose the equipment cost
-            assert fighter.rating_current == initial_fighter_rating - equipment_cost
-            # Stash should gain the equipment cost
-            assert stash.rating_current == initial_stash_rating + equipment_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        fighter.refresh_from_db()
+        stash.refresh_from_db()
+        # Assignment rating_current should stay the same
+        assert assignment.rating_current == initial_assignment_rating
+        # Fighter should lose the equipment cost
+        assert fighter.rating_current == initial_fighter_rating - equipment_cost
+        # Stash should gain the equipment cost
+        assert stash.rating_current == initial_stash_rating + equipment_cost
 
     # Verify CampaignAction created (always created when in campaign mode, regardless of feature flag)
     assert result.campaign_action is not None
@@ -1050,7 +972,6 @@ def test_handle_equipment_reassignment_regular_to_stash(
     assert equipment.name in result.description
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_regular_to_regular(
     user,
@@ -1058,10 +979,8 @@ def test_handle_equipment_reassignment_regular_to_regular(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test reassigning equipment between two regular fighters."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.rating_current = 500
     lst.stash_current = 100
@@ -1110,25 +1029,22 @@ def test_handle_equipment_reassignment_regular_to_regular(
     )
 
     # Verify no deltas: regular→regular means same bucket
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == 0
-        assert result.list_action.stash_delta == 0
-        assert result.list_action.credits_delta == 0
+    assert result.list_action.rating_delta == 0
+    assert result.list_action.stash_delta == 0
+    assert result.list_action.credits_delta == 0
 
-        # Verify rating_current propagation (even though list delta is 0)
-        # The fighters still exchange the equipment cost
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            fighter1.refresh_from_db()
-            fighter2.refresh_from_db()
-            # Assignment rating_current should stay the same
-            assert assignment.rating_current == initial_assignment_rating
-            # Fighter1 should lose the equipment cost
-            assert fighter1.rating_current == initial_fighter1_rating - equipment_cost
-            # Fighter2 should gain the equipment cost
-            assert fighter2.rating_current == initial_fighter2_rating + equipment_cost
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation (even though list delta is 0)
+    # The fighters still exchange the equipment cost
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        fighter1.refresh_from_db()
+        fighter2.refresh_from_db()
+        # Assignment rating_current should stay the same
+        assert assignment.rating_current == initial_assignment_rating
+        # Fighter1 should lose the equipment cost
+        assert fighter1.rating_current == initial_fighter1_rating - equipment_cost
+        # Fighter2 should gain the equipment cost
+        assert fighter2.rating_current == initial_fighter2_rating + equipment_cost
 
     # Verify description includes both fighter names
     assert "Fighter One" in result.description
@@ -1136,13 +1052,11 @@ def test_handle_equipment_reassignment_regular_to_regular(
     assert "Reassigned" in result.description
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_list_building_mode(
-    user, make_list, content_fighter, make_equipment, settings, feature_flag_enabled
+    user, make_list, content_fighter, make_equipment, settings
 ):
     """Test equipment reassignment in list building mode (no campaign)."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -1181,14 +1095,10 @@ def test_handle_equipment_reassignment_list_building_mode(
     assert result.campaign_action is None
 
     # ListAction should be created only if feature flag enabled
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
-    else:
-        assert result.list_action is None
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_with_upgrades(
     user,
@@ -1197,10 +1107,8 @@ def test_handle_equipment_reassignment_with_upgrades(
     make_equipment,
     make_equipment_upgrade,
     settings,
-    feature_flag_enabled,
 ):
     """Test reassignment of equipment with upgrades includes total cost."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.rating_current = 500
     lst.stash_current = 100
@@ -1242,14 +1150,10 @@ def test_handle_equipment_reassignment_with_upgrades(
 
     # Verify deltas use total cost including upgrades
     assert result.equipment_cost == total_cost
-    if feature_flag_enabled:
-        assert result.list_action.rating_delta == total_cost
-        assert result.list_action.stash_delta == -total_cost
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_delta == total_cost
+    assert result.list_action.stash_delta == -total_cost
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_before_values(
     user,
@@ -1257,10 +1161,8 @@ def test_handle_equipment_reassignment_before_values(
     content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test that before values are captured correctly."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.rating_current = 750
     lst.stash_current = 200
@@ -1298,12 +1200,9 @@ def test_handle_equipment_reassignment_before_values(
     )
 
     # Verify before values match list state before operation
-    if feature_flag_enabled:
-        assert result.list_action.rating_before == 750
-        assert result.list_action.stash_before == 200
-        assert result.list_action.credits_before == 1500
-    else:
-        assert result.list_action is None
+    assert result.list_action.rating_before == 750
+    assert result.list_action.stash_before == 200
+    assert result.list_action.credits_before == 1500
 
 
 @pytest.mark.django_db
@@ -1381,7 +1280,6 @@ def test_handle_equipment_reassignment_description_regular_to_stash(
 # ===== Equipment Sale Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_sale_entire_assignment(
     user,
@@ -1390,7 +1288,6 @@ def test_handle_equipment_sale_entire_assignment(
     make_content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test selling entire equipment assignment from stash."""
     from gyrinx.core.handlers.equipment import (
@@ -1398,7 +1295,6 @@ def test_handle_equipment_sale_entire_assignment(
         handle_equipment_sale,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 500
     lst.stash_current = 100
@@ -1461,25 +1357,20 @@ def test_handle_equipment_sale_entire_assignment(
     assert "Lasgun" in result.description
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action is not None
-        assert result.list_action.action_type == ListActionType.REMOVE_EQUIPMENT
-        assert (
-            result.list_action.stash_delta == -50
-        )  # Equipment cost removed from stash
-        assert result.list_action.credits_delta == 30  # Sale proceeds
-        assert result.list_action.rating_delta == 0  # Selling from stash, not rating
-        assert result.list_action.stash_before == 100
-        assert result.list_action.credits_before == 500
+    assert result.list_action is not None
+    assert result.list_action.action_type == ListActionType.REMOVE_EQUIPMENT
+    assert result.list_action.stash_delta == -50  # Equipment cost removed from stash
+    assert result.list_action.credits_delta == 30  # Sale proceeds
+    assert result.list_action.rating_delta == 0  # Selling from stash, not rating
+    assert result.list_action.stash_before == 100
+    assert result.list_action.credits_before == 500
 
-        # Verify rating_current propagation (before assignment is deleted)
-        # Note: assignment gets deleted after propagation, so we check stash only
-        if lst.latest_action:
-            stash.refresh_from_db()
-            # Stash delta is -50, so stash rating_current should decrease
-            assert stash.rating_current == initial_stash_rating - 50
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation (before assignment is deleted)
+    # Note: assignment gets deleted after propagation, so we check stash only
+    if lst.latest_action:
+        stash.refresh_from_db()
+        # Stash delta is -50, so stash rating_current should decrease
+        assert stash.rating_current == initial_stash_rating - 50
 
     # Verify CampaignAction (always created)
     assert result.campaign_action is not None
@@ -1491,16 +1382,12 @@ def test_handle_equipment_sale_entire_assignment(
     assert lst.credits_current == 530  # 500 + 30
 
     # Stash is only updated when ListAction feature is enabled
-    if feature_flag_enabled:
-        assert lst.stash_current == 50  # 100 - 50 (equipment cost removed from stash)
-    else:
-        assert lst.stash_current == 100  # Unchanged without ListAction tracking
+    assert lst.stash_current == 50  # 100 - 50 (equipment cost removed from stash)
 
     # Verify assignment deleted
     assert not ListFighterEquipmentAssignment.objects.filter(id=assignment_id).exists()
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_sale_individual_profile(
     user,
@@ -1509,7 +1396,6 @@ def test_handle_equipment_sale_individual_profile(
     make_content_fighter,
     make_weapon_with_profile,
     settings,
-    feature_flag_enabled,
 ):
     """Test selling individual weapon profile from stash."""
     from gyrinx.core.handlers.equipment import (
@@ -1517,7 +1403,6 @@ def test_handle_equipment_sale_individual_profile(
         handle_equipment_sale,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 500
     lst.stash_current = 150
@@ -1577,19 +1462,16 @@ def test_handle_equipment_sale_individual_profile(
     assert result.total_equipment_cost == 25
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == -25
-        assert result.list_action.credits_delta == 20
+    assert result.list_action.stash_delta == -25
+    assert result.list_action.credits_delta == 20
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            stash.refresh_from_db()
-            # Stash delta is -25, so both should decrease
-            assert assignment.rating_current == initial_assignment_rating - 25
-            assert stash.rating_current == initial_stash_rating - 25
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        stash.refresh_from_db()
+        # Stash delta is -25, so both should decrease
+        assert assignment.rating_current == initial_assignment_rating - 25
+        assert stash.rating_current == initial_stash_rating - 25
 
     # Verify CampaignAction (no dice)
     assert result.campaign_action.dice_count == 0
@@ -1600,7 +1482,6 @@ def test_handle_equipment_sale_individual_profile(
     assert profile not in assignment.weapon_profiles_field.all()
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_sale_individual_accessory(
     user,
@@ -1609,7 +1490,6 @@ def test_handle_equipment_sale_individual_accessory(
     make_content_fighter,
     make_weapon_with_accessory,
     settings,
-    feature_flag_enabled,
 ):
     """Test selling individual weapon accessory from stash."""
     from gyrinx.core.handlers.equipment import (
@@ -1617,7 +1497,6 @@ def test_handle_equipment_sale_individual_accessory(
         handle_equipment_sale,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 500
     lst.stash_current = 150
@@ -1677,26 +1556,22 @@ def test_handle_equipment_sale_individual_accessory(
     assert result.total_equipment_cost == 30
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == -30
-        assert result.list_action.credits_delta == 15
+    assert result.list_action.stash_delta == -30
+    assert result.list_action.credits_delta == 15
 
-        # Verify rating_current propagation
-        if lst.latest_action:
-            assignment.refresh_from_db()
-            stash.refresh_from_db()
-            # Stash delta is -30, so both should decrease
-            assert assignment.rating_current == initial_assignment_rating - 30
-            assert stash.rating_current == initial_stash_rating - 30
-    else:
-        assert result.list_action is None
+    # Verify rating_current propagation
+    if lst.latest_action:
+        assignment.refresh_from_db()
+        stash.refresh_from_db()
+        # Stash delta is -30, so both should decrease
+        assert assignment.rating_current == initial_assignment_rating - 30
+        assert stash.rating_current == initial_stash_rating - 30
 
     # Verify assignment still exists but accessory removed
     assignment.refresh_from_db()
     assert accessory not in assignment.weapon_accessories_field.all()
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_sale_multiple_items(
     user,
@@ -1705,7 +1580,6 @@ def test_handle_equipment_sale_multiple_items(
     make_content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test selling entire assignment with upgrades (multiple items in one sale)."""
     from gyrinx.core.handlers.equipment import (
@@ -1713,7 +1587,6 @@ def test_handle_equipment_sale_multiple_items(
         handle_equipment_sale,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 500
     lst.stash_current = 200
@@ -1765,11 +1638,8 @@ def test_handle_equipment_sale_multiple_items(
     assert result.total_equipment_cost == 100
 
     # Verify ListAction combines all deltas
-    if feature_flag_enabled:
-        assert result.list_action.stash_delta == -100
-        assert result.list_action.credits_delta == 75
-    else:
-        assert result.list_action is None
+    assert result.list_action.stash_delta == -100
+    assert result.list_action.credits_delta == 75
 
     # Verify CampaignAction has all dice
     assert result.campaign_action.dice_count == 2
@@ -1894,7 +1764,6 @@ def test_handle_equipment_sale_description_manual_price(
     assert "×10" not in result.description
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_equipment_sale_before_values(
     user,
@@ -1903,7 +1772,6 @@ def test_handle_equipment_sale_before_values(
     make_content_fighter,
     make_equipment,
     settings,
-    feature_flag_enabled,
 ):
     """Test that before values are captured correctly."""
     from gyrinx.core.handlers.equipment import (
@@ -1911,7 +1779,6 @@ def test_handle_equipment_sale_before_values(
         handle_equipment_sale,
     )
 
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     lst = list_with_campaign
     lst.credits_current = 750
     lst.stash_current = 200
@@ -1953,10 +1820,7 @@ def test_handle_equipment_sale_before_values(
         dice_rolls=[2],
     )
 
-    if feature_flag_enabled:
-        # Verify before values match original list state
-        assert result.list_action.rating_before == 500
-        assert result.list_action.stash_before == 200
-        assert result.list_action.credits_before == 750
-    else:
-        assert result.list_action is None
+    # Verify before values match original list state
+    assert result.list_action.rating_before == 500
+    assert result.list_action.stash_before == 200
+    assert result.list_action.credits_before == 750

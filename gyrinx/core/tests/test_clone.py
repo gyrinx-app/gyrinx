@@ -423,14 +423,10 @@ def test_list_clone_copies_cost_fields(make_list):
     assert clone.credits_earned == 2000
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_list_clone_creates_action_on_original(
-    make_list, user, settings, feature_flag_enabled
-):
+def test_list_clone_creates_action_on_original(make_list, user, settings):
     """Test that original list gets a ListAction recording the clone."""
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
 
     # Execute
@@ -442,23 +438,17 @@ def test_list_clone_creates_action_on_original(
     )
 
     # Assert
-    if feature_flag_enabled:
-        assert result.original_action is not None
-        assert result.original_action.list == original
-        assert result.original_action.action_type == ListActionType.CLONE
-        assert result.original_action.applied is True
-        assert "Clone" in result.original_action.description
-    else:
-        assert result.original_action is None
+    assert result.original_action is not None
+    assert result.original_action.list == original
+    assert result.original_action.action_type == ListActionType.CLONE
+    assert result.original_action.applied is True
+    assert "Clone" in result.original_action.description
 
 
 @pytest.mark.django_db
-def test_list_clone_creates_action_on_clone_when_feature_enabled(
-    make_list, user, settings
-):
-    """Test that cloned list gets initial ListAction if feature enabled."""
+def test_list_clone_creates_action_on_clone(make_list, user):
+    """Test that a cloned list gets its own bootstrap CREATE action."""
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("Original List")
 
     # Execute
@@ -479,29 +469,7 @@ def test_list_clone_creates_action_on_clone_when_feature_enabled(
 
 
 @pytest.mark.django_db
-def test_list_clone_no_action_on_clone_when_feature_disabled(make_list, user, settings):
-    """Test that no action on clone when FEATURE_LIST_ACTION_CREATE_INITIAL is False."""
-    # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = False
-    original = make_list("Original List")
-
-    # Execute
-    result = handle_list_clone(
-        user=user,
-        original_list=original,
-        name="Clone",
-        owner=user,
-    )
-
-    # Assert
-    assert result.cloned_action is None
-
-
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
-@pytest.mark.django_db
-def test_list_clone_actions_have_correct_deltas(
-    make_list, user, settings, feature_flag_enabled
-):
+def test_list_clone_actions_have_correct_deltas(make_list, user, settings):
     """Test that ListActions have correct cost deltas.
 
     Original's CLONE action: zero deltas (recording the clone event, not a cost change).
@@ -512,7 +480,6 @@ def test_list_clone_actions_have_correct_deltas(
     # Setup: the source's rating/stash caches are set to values that do NOT
     # match its (empty) content — the stale-cache scenario that caused the
     # clone-seam break in production.
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
     original.credits_current = 500
     original.rating_current = 1000
@@ -528,28 +495,25 @@ def test_list_clone_actions_have_correct_deltas(
     )
 
     # Assert original's action has zero deltas (recording the clone, not a cost change)
-    if feature_flag_enabled:
-        assert result.original_action.rating_delta == 0
-        assert result.original_action.stash_delta == 0
-        assert result.original_action.credits_delta == 0
+    assert result.original_action.rating_delta == 0
+    assert result.original_action.stash_delta == 0
+    assert result.original_action.credits_delta == 0
 
-        # The CREATE action records the CLONE's recalculated values, not the
-        # source's stale caches. The empty clone recalculates rating/stash to
-        # 0; credits are copied (500). Booking the source's 1000/150 here would
-        # contradict the clone's real cost and break the chain at the seam.
-        if result.cloned_action:
-            assert result.cloned_list.rating_current == 0
-            assert result.cloned_action.rating_delta == 0
-            assert result.cloned_action.stash_delta == 0
-            assert result.cloned_action.credits_delta == 500
+    # The CREATE action records the CLONE's recalculated values, not the
+    # source's stale caches. The empty clone recalculates rating/stash to
+    # 0; credits are copied (500). Booking the source's 1000/150 here would
+    # contradict the clone's real cost and break the chain at the seam.
+    if result.cloned_action:
+        assert result.cloned_list.rating_current == 0
+        assert result.cloned_action.rating_delta == 0
+        assert result.cloned_action.stash_delta == 0
+        assert result.cloned_action.credits_delta == 500
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
-def test_handle_list_clone_handler(make_list, user, settings, feature_flag_enabled):
+def test_handle_list_clone_handler(make_list, user, settings):
     """Test the handler directly."""
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     original = make_list("Original List")
     original.credits_current = 500
     original.rating_current = 1000
@@ -570,10 +534,7 @@ def test_handle_list_clone_handler(make_list, user, settings, feature_flag_enabl
     assert result.cloned_list.name == "Clone"
 
     # Assert action created only if feature flag enabled
-    if feature_flag_enabled:
-        assert result.original_action is not None
-    else:
-        assert result.original_action is None
+    assert result.original_action is not None
 
     # Assert cost fields - credits_current is copied, rating/stash recalculated
     assert result.cloned_list.credits_current == 500
@@ -703,7 +664,6 @@ def test_handle_list_clone_for_campaign_creates_clone_correctly(
 ):
     """Test that campaign clones are created correctly with proper status."""
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("Original List")
     campaign = make_campaign("Test Campaign")
 
@@ -733,7 +693,6 @@ def test_handle_list_clone_for_campaign_name_defaults_to_original(
     original name since they represent the gang entering a campaign.
     """
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("My Gang")
     campaign = make_campaign("Test Campaign")
 
@@ -752,7 +711,6 @@ def test_handle_list_clone_for_campaign_name_defaults_to_original(
 def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user, settings):
     """Test that regular clones default to the original name with '(Clone)' suffix."""
     # Setup
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("My Gang")
 
     # Execute - don't provide a name
@@ -777,7 +735,6 @@ def test_handle_list_clone_for_campaign_cloned_action_has_correct_deltas(
     break at the clone -> CAMPAIGN_START seam).
     """
     # Setup: source caches set to values its (empty) content does not support.
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     original = make_list("Original List")
     original.credits_current = 500
     original.rating_current = 1000

@@ -23,7 +23,6 @@ def test_handle_equipment_cost_override_no_change(
     user, make_list, content_fighter, make_equipment, settings
 ):
     """Test that handler returns None when override doesn't change."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
 
     fighter = ListFighter.objects.create(
@@ -56,7 +55,6 @@ def test_handle_equipment_cost_override_set(
     user, make_list, content_fighter, make_equipment, settings
 ):
     """Test that setting total_cost_override creates ListAction with correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -110,7 +108,6 @@ def test_handle_equipment_cost_override_clear(
     user, make_list, content_fighter, make_equipment, settings
 ):
     """Test that clearing total_cost_override creates ListAction with negative delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 575
     lst.save()
@@ -162,7 +159,6 @@ def test_handle_equipment_cost_override_change(
     user, make_list, content_fighter, make_equipment, settings
 ):
     """Test that changing total_cost_override value creates correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 600
     lst.save()
@@ -206,7 +202,6 @@ def test_handle_equipment_cost_override_stash_fighter(
     user, make_list, make_content_fighter, content_house, make_equipment, settings
 ):
     """Test that cost changes for stash fighter equipment go to stash_delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.stash_current = 100
     lst.save()
@@ -259,7 +254,6 @@ def test_handle_equipment_cost_override_with_profiles_and_accessories(
     user, make_list, content_fighter, make_weapon_with_accessory, settings
 ):
     """Test that cost delta is correct when equipment has profiles and accessories."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -306,7 +300,6 @@ def test_handle_equipment_cost_override_zero_delta(
     user, make_list, content_fighter, make_equipment, settings
 ):
     """Test setting override to same as calculated cost results in zero delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -353,7 +346,6 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     rating book — child fighters (vehicles/exotic beasts) included, even
     when their parent equipment sits on a stash fighter.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.stash_current = 200
     lst.save()
