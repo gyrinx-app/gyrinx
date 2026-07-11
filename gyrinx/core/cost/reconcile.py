@@ -10,10 +10,9 @@ invariant (§5.1 family 3) that the whole balance-sheet harness stands on.
 `reconcile_list` rebuilds the full chain (assignment → fighter → list caches)
 from live resolution, ignoring dirty flags, and writes a single
 ListActionType.RECONCILE action carrying the before-values and deltas when
-the list's cached totals moved. Deltas are recorded with skip_apply — the
-recompute already wrote the absolute values, so the clamped delta-apply path
-(`max(0, current + delta)`, the silent continuity hazard §4.8.2 warns about)
-never runs.
+the list's cached totals moved. The record is a pure audit entry — the
+recompute already wrote the absolute values, and create_action never applies
+deltas, so the clamped delta-apply hazard §4.8.2 warns about cannot arise.
 
 Credits are never touched: reconciliation corrects the *books*, it is not a
 wealth event.
@@ -126,6 +125,8 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
                     parts.append(
                         f"stash {format_cost_display(stash_delta, show_sign=True)}"
                     )
+                # facts_from_db already wrote the absolute values; the record
+                # is a pure audit entry (create_action never applies deltas).
                 action = fresh.create_action(
                     user=user,
                     action_type=ListActionType.RECONCILE,
@@ -143,11 +144,6 @@ def reconcile_list(lst, user=None, rebuild_fighters=True) -> ReconcileResult:
                     rating_delta=rating_delta,
                     stash_delta=stash_delta,
                     credits_delta=0,
-                    # facts_from_db already wrote the absolute values;
-                    # applying the deltas again would double-move (and the
-                    # apply path clamps at zero, which silently breaks chain
-                    # continuity).
-                    skip_apply=["rating", "stash"],
                 )
 
         return ReconcileResult(

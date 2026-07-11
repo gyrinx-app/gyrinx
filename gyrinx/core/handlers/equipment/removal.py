@@ -22,6 +22,7 @@ from gyrinx.core.cost.propagation import (
     Delta,
     propagate_from_assignment,
     propagate_from_fighter,
+    propagate_to_list,
 )
 from gyrinx.core.handlers.equipment.deltas import component_delta
 from gyrinx.core.handlers.refund import calculate_refund_credits
@@ -126,6 +127,15 @@ def handle_equipment_removal(
         fighter,
         Delta(delta=-equipment_only_cost, list=lst),
     )
+    # The cascade-deleted child fighter (vehicle/beast) contributed its own
+    # rating to the list but has no surviving fighter cache to propagate
+    # from — move the list directly for that part.
+    if child_fighter_cost:
+        propagate_to_list(
+            lst,
+            rating_delta=-child_fighter_cost if not is_stash else 0,
+            stash_delta=-child_fighter_cost if is_stash else 0,
+        )
 
     # Delete the assignment
     assignment.delete()
@@ -141,7 +151,9 @@ def handle_equipment_removal(
         if refund_applied:
             description += f" - refund applied (+{total_cost}¢)"
 
-    # Create ListAction
+    # Record the removal, then apply the refund explicitly (create_action
+    # is a pure record; rating/stash movement was applied by the
+    # propagation above).
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.REMOVE_EQUIPMENT,
@@ -156,8 +168,8 @@ def handle_equipment_removal(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,
     )
+    lst.apply_credit_delta(credits_delta)
 
     return EquipmentRemovalResult(
         assignment_id=assignment_id,
@@ -273,7 +285,9 @@ def handle_equipment_component_removal(
     # drop by the removed component's value (P4).
     propagate_from_assignment(assignment, Delta(delta=-book_delta, list=lst))
 
-    # Create ListAction
+    # Record the removal, then apply the refund explicitly (create_action
+    # is a pure record; the rating/stash movement was applied by the
+    # propagation above).
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.UPDATE_EQUIPMENT,
@@ -289,8 +303,8 @@ def handle_equipment_component_removal(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,
     )
+    lst.apply_credit_delta(credits_delta)
 
     return EquipmentComponentRemovalResult(
         assignment=assignment,

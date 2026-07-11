@@ -256,6 +256,12 @@ la_args = dict(
 
 ### Calling create_action()
 
+`create_action()` is a pure record — it never mutates the cached
+rating/stash/credits. The propagation call applies the rating/stash
+movement (including the list level); credit movement is applied explicitly
+at the call site with `spend_credits()` (validated purchases) or
+`lst.apply_credit_delta()` (grants and refunds).
+
 ```python
 list_action = lst.create_action(
     user=user,
@@ -266,19 +272,18 @@ list_action = lst.create_action(
     description="Added Lasgun to Ganger (10c)",
     list_fighter=fighter,
     list_fighter_equipment_assignment=assignment,  # None if deleted
-    update_credits=True,  # Set True if credits_delta should be applied
     **la_args,
 )
+lst.apply_credit_delta(credits_delta)  # grants/refunds only; purchases use spend_credits()
 ```
 
 ### Key Parameters
 
 | Parameter | Purpose |
 |-----------|---------|
-| `rating_delta` | Change to `lst.rating_current` |
-| `stash_delta` | Change to `lst.stash_current` |
-| `credits_delta` | Change to `lst.credits_current` |
-| `update_credits` | Set `True` to apply `credits_delta` to list |
+| `rating_delta` | Recorded change to `lst.rating_current` (applied by propagation) |
+| `stash_delta` | Recorded change to `lst.stash_current` (applied by propagation) |
+| `credits_delta` | Recorded change to `lst.credits_current` (applied explicitly) |
 | `*_before` | Before values for audit trail |
 
 ---
@@ -359,8 +364,8 @@ def handle_equipment_sale(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,  # Apply credit increase
     )
+    lst.apply_credit_delta(credits_delta)  # Apply the sale proceeds
 
     return EquipmentSaleResult(
         total_sale_credits=sale_price,
@@ -449,20 +454,19 @@ propagate_from_fighter(fighter, delta)
 assignment.delete()
 ```
 
-### 3. Missing update_credits=True
+### 3. Recording credits without applying them
 
 ```python
-# WRONG: Credits delta calculated but not applied
+# WRONG: Credits delta recorded but never applied
 lst.create_action(
     credits_delta=sale_price,
-    # Missing update_credits=True
 )
 
-# RIGHT: Explicitly enable credit updates
+# RIGHT: Record, then apply explicitly
 lst.create_action(
     credits_delta=sale_price,
-    update_credits=True,
 )
+lst.apply_credit_delta(sale_price)
 ```
 
 ### 4. Calculating deltas after mutation

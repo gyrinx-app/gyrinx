@@ -33,7 +33,7 @@ def test_transact_delta_properties(make_list):
 def test_propagate_from_assignment_basic(
     settings, user, make_list, content_fighter, make_equipment
 ):
-    """Test basic assignment propagation updates assignment and fighter, but NOT list."""
+    """Test basic assignment propagation updates assignment, fighter, and list."""
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
@@ -70,9 +70,9 @@ def test_propagate_from_assignment_basic(
     assert fighter.rating_current == 50
     assert fighter.dirty is False
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list rating updated (regular fighter's gear moves the rating book)
     lst.refresh_from_db()
-    assert lst.rating_current == 0  # Still 0!
+    assert lst.rating_current == 50
     assert lst.stash_current == 0
 
 
@@ -80,7 +80,7 @@ def test_propagate_from_assignment_basic(
 def test_propagate_from_assignment_stash(
     settings, user, make_list, content_house, make_content_fighter, make_equipment
 ):
-    """Test assignment propagation updates fighter but NOT list (even for stash)."""
+    """Test assignment propagation on stash gear moves the list's stash book."""
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
@@ -121,10 +121,10 @@ def test_propagate_from_assignment_stash(
     fighter.refresh_from_db()
     assert fighter.rating_current == 50
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list stash updated (stash fighter's gear moves the stash book)
     lst.refresh_from_db()
     assert lst.rating_current == 0
-    assert lst.stash_current == 0  # Still 0!
+    assert lst.stash_current == 50
 
 
 @pytest.mark.django_db
@@ -164,9 +164,9 @@ def test_propagate_from_assignment_negative_delta(
     fighter.refresh_from_db()
     assert fighter.rating_current == 50
 
-    # Check list NOT updated
+    # Check list updated by the negative delta
     lst.refresh_from_db()
-    assert lst.rating_current == 100  # Still 100!
+    assert lst.rating_current == 50
 
     # Check return value
     assert result.delta == -50
@@ -222,7 +222,7 @@ def test_propagate_from_assignment_zero_delta(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter):
-    """Test basic fighter propagation updates fighter but NOT list."""
+    """Test basic fighter propagation updates fighter and list."""
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
@@ -247,16 +247,16 @@ def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter
     assert fighter.rating_current == 150
     assert fighter.dirty is False
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list updated (regular fighter moves the rating book)
     lst.refresh_from_db()
-    assert lst.rating_current == 100  # Still 100!
+    assert lst.rating_current == 150
 
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_stash(
     settings, user, make_list, content_house, make_content_fighter
 ):
-    """Test fighter propagation updates fighter but NOT list (even for stash)."""
+    """Test fighter propagation on the stash fighter moves the stash book."""
     settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
@@ -288,10 +288,10 @@ def test_propagate_from_fighter_stash(
     assert fighter.rating_current == 150
     assert fighter.dirty is False
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list stash updated (stash fighter moves the stash book)
     lst.refresh_from_db()
     assert lst.rating_current == 0
-    assert lst.stash_current == 100  # Still 100!
+    assert lst.stash_current == 150
 
 
 @pytest.mark.django_db
@@ -558,9 +558,10 @@ def test_propagate_from_fighter_allows_negative_rating(
     assert fighter.rating_current == -20
     assert fighter.dirty is False
 
-    # List should NOT be updated by propagation
+    # List rating moves by the delta, clamped at zero (the field is
+    # positive-only even though fighter caches can go negative)
     lst.refresh_from_db()
-    assert lst.rating_current == 100
+    assert lst.rating_current == 30
 
 
 @pytest.mark.django_db

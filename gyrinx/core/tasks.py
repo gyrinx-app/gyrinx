@@ -229,8 +229,6 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                     rating_delta=rating_delta,
                     stash_delta=stash_delta,
                     credits_delta=0,
-                    update_credits=False,
-                    skip_apply=["rating", "stash"],
                 )
                 propagated_count += 1
         except Exception:

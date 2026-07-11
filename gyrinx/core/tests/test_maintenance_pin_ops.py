@@ -31,8 +31,8 @@ def tracked_list(user, make_list, content_fighter, make_equipment, campaign):
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=1000,
-        update_credits=True,
     )
+    lst.apply_credit_delta(1000)
     fighter = hire_fighter(user, lst, content_fighter, name="Bob")
     assignment = buy_equipment(user, lst, fighter, make_equipment("Lasgun", cost=15))
     return lst, fighter, assignment
@@ -282,8 +282,8 @@ def test_scoped_backfill_touches_only_the_target_list(
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=500,
-        update_credits=True,
     )
+    other.apply_credit_delta(500)
     other_fighter = hire_fighter(user, other, content_fighter, name="Eve")
     other_assignment = buy_equipment(
         user, other, other_fighter, make_equipment("Other Gun", cost=20)
@@ -326,8 +326,8 @@ def test_scoped_reconcile_touches_only_the_target_list(
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=500,
-        update_credits=True,
     )
+    other.apply_credit_delta(500)
     other_fighter = hire_fighter(user, fresh(other), content_fighter, name="Eve")
     # Drift on BOTH lists; only the scoped one gets corrected.
     true_fighter = fresh(fighter).rating_current

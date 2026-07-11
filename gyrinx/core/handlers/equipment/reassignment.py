@@ -76,6 +76,13 @@ def handle_equipment_reassignment(
         Equipment reassignment does not cost credits - credits_delta is always 0.
         However, rating and stash may change depending on fighter types.
     """
+    # Capture BEFORE values for the ListAction ahead of any propagation —
+    # propagation writes the list-level cache, so reading these later would
+    # capture post-move values and corrupt the action's baseline.
+    rating_before = lst.rating_current
+    stash_before = lst.stash_current
+    credits_before = lst.credits_current
+
     # Calculate cost BEFORE reassignment. The cost can depend on the holder
     # (equipment-list pricing), so it must be recomputed after the move too.
     cost_before = assignment.cost_int()
@@ -142,9 +149,9 @@ def handle_equipment_reassignment(
         rating_delta=rating_delta,
         stash_delta=stash_delta,
         credits_delta=0,  # Reassignment is free
-        rating_before=lst.rating_current,
-        stash_before=lst.stash_current,
-        credits_before=lst.credits_current,
+        rating_before=rating_before,
+        stash_before=stash_before,
+        credits_before=credits_before,
     )
 
     # Build user-friendly description based on fighter types

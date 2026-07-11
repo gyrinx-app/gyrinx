@@ -137,6 +137,13 @@ def handle_fighter_capture(
         # Delete the assignment
         assignment.delete()
 
+        # Propagate the removal into the parent fighter's cache and the
+        # list — without this the parent fighter's rating_current would
+        # keep the removed equipment's value until a reconcile.
+        propagate_from_fighter(
+            parent_fighter, Delta(delta=-equipment_cost, list=original_list)
+        )
+
         # Track what was removed
         equipment_removed.append((assignment_id, equipment_cost))
 
@@ -294,7 +301,8 @@ def handle_fighter_sell_to_guilders(
             outcome=f"+{sale_price}¢ (to {capturing_list.credits_current + credits_delta}¢)",
         )
 
-    # Create SELL_FIGHTER ListAction with update_credits=True
+    # Record the sale, then apply the proceeds explicitly (create_action
+    # is a pure record).
     sell_action = capturing_list.create_action(
         user=user,
         action_type=ListActionType.SELL_FIGHTER,
@@ -309,8 +317,8 @@ def handle_fighter_sell_to_guilders(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,
     )
+    capturing_list.apply_credit_delta(credits_delta)
 
     return FighterSellResult(
         captured_fighter_record=captured_fighter,
@@ -453,8 +461,10 @@ def handle_fighter_return_to_owner(
         rating_before=orig_rating_before,
         stash_before=orig_stash_before,
         credits_before=orig_credits_before,
-        update_credits=True,
     )
+    # Apply the ransom payment explicitly (create_action is a pure record;
+    # the rating restoration was applied by the propagation above).
+    original_list.apply_credit_delta(orig_credits_delta)
 
     # Create ListAction on capturing gang only if ransom > 0 (credits added)
     capturing_action = None
@@ -473,8 +483,8 @@ def handle_fighter_return_to_owner(
             rating_before=cap_rating_before,
             stash_before=cap_stash_before,
             credits_before=cap_credits_before,
-            update_credits=True,
         )
+        capturing_list.apply_credit_delta(cap_credits_delta)
 
     return FighterReturnResult(
         fighter=fighter,

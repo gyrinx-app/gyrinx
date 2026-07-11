@@ -127,8 +127,8 @@ def campaign_sweep_ctx(
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=1000,
-        update_credits=True,
     )
+    lst.apply_credit_delta(1000)
     return _build_sweep_ctx(
         fresh(lst),
         make_list_fighter,
@@ -425,8 +425,8 @@ def test_purchase_in_enqueue_window_is_not_double_counted(
         action_type=ListActionType.UPDATE_CREDITS,
         description="Stake",
         credits_delta=1000,
-        update_credits=True,
     )
+    lst.apply_credit_delta(1000)
     cf = make_content_fighter(
         type="Racer", category="GANGER", house=content_house, base_cost=50
     )

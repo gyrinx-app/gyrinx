@@ -10,6 +10,7 @@ from uuid import UUID
 
 from django.db import transaction
 
+from gyrinx.core.cost.propagation import propagate_to_list
 from gyrinx.core.handlers.refund import calculate_refund_credits
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
@@ -105,7 +106,15 @@ def handle_fighter_archive_toggle(
         # Build description
         description = f"Restored {fighter.name} ({fighter_cost}¢)"
 
-    # Create ListAction
+    # Apply the list-level movement directly: the fighter's own cached
+    # rating is untouched by archive/unarchive (it's simply excluded from
+    # or re-included in the list aggregate), so there is no fighter-level
+    # propagation to ride on.
+    propagate_to_list(lst, rating_delta=rating_delta, stash_delta=stash_delta)
+
+    # Record the operation, then apply any refund explicitly (create_action
+    # is a pure record). On unarchive credits_delta is always 0, so the
+    # credit application is a no-op there.
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.UPDATE_FIGHTER,
@@ -120,8 +129,8 @@ def handle_fighter_archive_toggle(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=archive,  # Only apply credits on archive (when refund may occur)
     )
+    lst.apply_credit_delta(credits_delta)
 
     return FighterArchiveResult(
         fighter=fighter,
@@ -203,7 +212,12 @@ def handle_fighter_deletion(
     if refund_applied:
         description += f" - refund applied (+{fighter_cost}¢)"
 
-    # Create ListAction
+    # Apply the list-level movement directly: the fighter is gone, so there
+    # is no fighter-level cache to propagate from.
+    propagate_to_list(lst, rating_delta=rating_delta, stash_delta=stash_delta)
+
+    # Record the deletion, then apply any refund explicitly (create_action
+    # is a pure record).
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.REMOVE_FIGHTER,
@@ -217,8 +231,8 @@ def handle_fighter_deletion(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,
     )
+    lst.apply_credit_delta(credits_delta)
 
     return FighterDeletionResult(
         fighter_id=fighter_id,

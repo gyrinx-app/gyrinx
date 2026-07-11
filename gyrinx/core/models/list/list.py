@@ -1145,140 +1145,94 @@ class List(AppBase):
         return ListAction.objects.latest_for_list(self.id)
 
     @traced("list_create_action")
-    def create_action(
-        self,
-        update_credits: bool = False,
-        skip_apply: Optional[list[str]] = None,
-        **kwargs,
-    ) -> Optional[ListAction]:
+    def create_action(self, **kwargs) -> Optional[ListAction]:
         """
-        Create a ListAction to track changes to this list.
+        Record a ListAction for this list.
+
+        Pure audit record: recording NEVER mutates the cached
+        rating/stash/credits. Cache movement is applied by the propagation
+        layer (core/cost/propagation.py) or, for recompute paths, by
+        facts_from_db(update=True); campaign-credit movement is applied
+        explicitly at the call site via apply_credit_delta()/spend_credits().
+
+        Default before-values: rating_before/stash_before default to the
+        current cached value minus the recorded delta — propagation runs
+        before recording, so the instance already carries the post-move
+        value. credits_before defaults to the current value (credit
+        application at the converted sites happens after recording,
+        preserving the historical capture point). Callers with better
+        information pass explicit values: reconcile chains off the ledger
+        head, the content sweep off its pre-change snapshots.
 
         Args:
-            update_credits: If True, applies credits_delta to the list's credits_current.
-                           This works regardless of whether the feature flag is enabled -
-                           credits are always updated when this is True.
-            skip_apply: List of delta field names to skip applying. Valid values:
-                       ["rating", "stash"]. Use this when facts_from_db(update=True)
-                       has already updated rating_current/stash_current. The deltas
-                       are still recorded in the action for history.
-                       Note: credits is controlled by update_credits, not this param.
-            **kwargs: Additional fields for the ListAction (action_type, description,
-                     rating_delta, stash_delta, credits_delta, etc.)
+            **kwargs: Fields for the ListAction (action_type, description,
+                     rating_delta, stash_delta, credits_delta, user, etc.)
 
         Returns:
-            The created ListAction if feature flag is enabled, None otherwise.
-            Note: Even when returning None, credits are still updated if update_credits=True.
+            The created ListAction, or None when the list has no bootstrap
+            action or the action system is disabled.
         """
-        skip_apply = skip_apply or []
         # Don't run this if we haven't yet got a latest_action. We'll run a backfill
         # to ensure there is at least one action for each list, with the correct values, later.
         if self.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
             user = kwargs.pop("user", None)
 
-            # Make sure we have values for the key fields
-            rating_before = kwargs.pop("rating_before", self.rating_current)
-            stash_before = kwargs.pop("stash_before", self.stash_current)
+            rating_delta = kwargs.get("rating_delta", 0)
+            stash_delta = kwargs.get("stash_delta", 0)
+            rating_before = kwargs.pop(
+                "rating_before", self.rating_current - rating_delta
+            )
+            stash_before = kwargs.pop("stash_before", self.stash_current - stash_delta)
             credits_before = kwargs.pop("credits_before", self.credits_current)
 
-            # We create the action first, with applied=False, so that we can track if the update failed
+            # `applied` is vestigial now that recording never applies anything;
+            # it stays True for reader compatibility.
             la = ListAction.objects.create(
                 user=user or self.owner,
                 owner=self.owner,
                 list=self,
-                applied=False,
+                applied=True,
                 rating_before=rating_before,
                 stash_before=stash_before,
                 credits_before=credits_before,
                 **kwargs,
             )
-            la.save()
-
-            track_args = {
-                "list": str(self.id),
-                "action_id": str(la.id),
-                "update_credits": update_credits,
-                "rating_before": rating_before,
-                "stash_before": stash_before,
-                "credits_before": credits_before,
-                **kwargs,
-            }
 
             track(
                 "list_action_created",
-                **track_args,
-            )
-
-            # Update key fields
-            # Currently we don't apply credits delta by default in actions because spend_credits exists
-            # but we should refactor in that direction later.
-            # skip_apply allows skipping rating/stash when already applied via facts_from_db
-            rating_delta = (
-                kwargs.get("rating_delta", 0) if "rating" not in skip_apply else 0
-            )
-            stash_delta = (
-                kwargs.get("stash_delta", 0) if "stash" not in skip_apply else 0
-            )
-            credits_delta = kwargs.get("credits_delta", 0) if update_credits else 0
-
-            try:
-                self.rating_current = max(0, self.rating_current + rating_delta)
-                self.stash_current = max(0, self.stash_current + stash_delta)
-                self.credits_current += credits_delta
-                self.credits_earned += max(0, credits_delta)
-                self.save(
-                    update_fields=[
-                        "rating_current",
-                        "stash_current",
-                        "credits_current",
-                        "credits_earned",
-                    ]
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to update list {self.id} cost fields after action creation: {e}"
-                )
-                track(
-                    "list_action_apply_failed",
-                    **track_args,
-                    error=str(e),
-                )
-                # Don't refresh_from_db() here - causes TransactionManagementError when
-                # called within an atomic transaction after an error
-                return la
-
-            track(
-                "list_action_apply_succeeded",
-                **track_args,
-            )
-
-            la.applied = True
-            la.save(update_fields=["applied"])
-            return la
-
-        else:
-            track(
-                "list_action_skipped_no_latest_action",
                 list=str(self.id),
+                action_id=str(la.id),
+                rating_before=rating_before,
+                stash_before=stash_before,
+                credits_before=credits_before,
                 **kwargs,
             )
 
-            # Even when actions are disabled, allow credit updates for refunds
-            if update_credits:
-                credits_delta = kwargs.get("credits_delta", 0)
-                if credits_delta != 0:
-                    self.credits_current += credits_delta
-                    self.credits_earned += max(0, credits_delta)
-                    self.save(update_fields=["credits_current", "credits_earned"])
-                    track(
-                        "list_credits_updated_without_action",
-                        list=str(self.id),
-                        credits_current=self.credits_current,
-                        credits_earned=self.credits_earned,
-                        **kwargs,
-                    )
+            return la
 
+        track(
+            "list_action_skipped_no_latest_action",
+            list=str(self.id),
+            **kwargs,
+        )
         return None
+
+    def apply_credit_delta(self, delta: int) -> None:
+        """Apply a credit movement to the cached credit fields.
+
+        The single explicit writer for campaign-credit movement outside
+        spend_credits: ``credits_current``
+        moves by the delta and ``credits_earned`` accrues positive movement.
+        Unconditional — refunds still apply for lists outside the action
+        system, preserving the old no-action branch's behaviour. Purchase
+        flows keep using spend_credits() (which validates balance and does
+        not accrue credits_earned).
+        """
+        if not delta:
+            return
+        self.credits_current += delta
+        self.credits_earned += max(0, delta)
+        self.save(update_fields=["credits_current", "credits_earned"])
 
     def ensure_stash(self, owner=None):
         """Ensure this list has a stash fighter, creating one if needed.

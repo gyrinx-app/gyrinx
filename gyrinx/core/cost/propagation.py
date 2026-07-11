@@ -57,21 +57,42 @@ def _should_propagate(lst: "List") -> bool:
     return bool(lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL)
 
 
+def _apply_to_list(lst: "List", rating_delta: int = 0, stash_delta: int = 0) -> None:
+    """Apply a rating/stash movement to the list-level cache.
+
+    The single list-cache writer for the push path. Values clamp at zero
+    (the fields are PositiveIntegerField); the dirty flag is untouched —
+    recording an action never applies anything.
+    """
+    if not rating_delta and not stash_delta:
+        return
+    lst.rating_current = max(0, lst.rating_current + rating_delta)
+    lst.stash_current = max(0, lst.stash_current + stash_delta)
+    lst.save(update_fields=["rating_current", "stash_current"])
+
+
+def _fighter_list_deltas(fighter: "ListFighter", delta: int) -> dict:
+    """Bucket a fighter-level movement into the list's rating or stash."""
+    if fighter.content_fighter.is_stash:
+        return {"stash_delta": delta}
+    return {"rating_delta": delta}
+
+
 @traced("propagate_from_assignment")
 def propagate_from_assignment(
     assignment: "ListFighterEquipmentAssignment",
     delta: Delta,
 ) -> Delta:
     """
-    Propagate rating changes to assignment and fighter cached fields.
+    Propagate rating changes to assignment, fighter, and list cached fields.
 
     Updates:
     - assignment.rating_current
     - fighter.rating_current
+    - list.rating_current or list.stash_current (by whether the holding
+      fighter is the stash) — create_action() records but never applies
 
-    Does NOT update List - that's handled by create_action().
-
-    Clears dirty flags along the path.
+    Clears dirty flags on the assignment and fighter (not the list).
 
     This should be called within a transaction.
 
@@ -80,10 +101,10 @@ def propagate_from_assignment(
 
     Args:
         assignment: The equipment assignment whose cost changed
-        rating_delta: The change in the assignment's rating
+        delta: The change in the assignment's rating
 
     Returns:
-        TransactDelta representing the rating change (for future use)
+        The delta, for chaining
     """
     if not _should_propagate(delta.list):
         return delta
@@ -103,8 +124,10 @@ def propagate_from_assignment(
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
-    # Return delta for future use
-    # NOTE: List is NOT updated here - create_action() does that
+    # Walk up to the list: gear on the stash fighter moves the stash book,
+    # gear on anyone else moves the rating book.
+    _apply_to_list(delta.list, **_fighter_list_deltas(fighter, delta.delta))
+
     return delta
 
 
@@ -121,10 +144,10 @@ def propagate_from_fighter(
 
     Updates:
     - fighter.rating_current
+    - list.rating_current or list.stash_current (by whether the fighter is
+      the stash) — create_action() records but never applies
 
-    Does NOT update List - that's handled by create_action().
-
-    Clears dirty flags along the path.
+    Clears the fighter's dirty flag (not the list's).
 
     This should be called within a transaction (typically inside transact()).
 
@@ -133,10 +156,10 @@ def propagate_from_fighter(
 
     Args:
         fighter: The fighter whose cost changed
-        rating_delta: The change in the fighter's rating
+        delta: The change in the fighter's rating
 
     Returns:
-        TransactDelta representing the rating change (for future use)
+        The delta, for chaining
     """
     if not _should_propagate(delta.list):
         return delta
@@ -150,6 +173,30 @@ def propagate_from_fighter(
     fighter.dirty = False
     fighter.save(update_fields=["rating_current", "dirty"])
 
-    # Return delta for future use
-    # NOTE: List is NOT updated here - create_action() does that
+    _apply_to_list(delta.list, **_fighter_list_deltas(fighter, delta.delta))
+
     return delta
+
+
+@traced("propagate_to_list")
+def propagate_to_list(
+    lst: "List",
+    *,
+    rating_delta: int = 0,
+    stash_delta: int = 0,
+) -> None:
+    """
+    Apply a list-level cache movement with no fighter-level counterpart.
+
+    For flows where the list total moves but no individual fighter's own
+    cached rating should change — archiving or selling a fighter (the
+    fighter keeps its rating_current; it's simply excluded from the list
+    aggregate), capture transfers, and similar. Buckets are explicit
+    because there is no fighter to infer them from.
+
+    Only propagates when the list action system is enabled, matching the
+    other propagation entry points.
+    """
+    if not _should_propagate(lst):
+        return
+    _apply_to_list(lst, rating_delta=rating_delta, stash_delta=stash_delta)
