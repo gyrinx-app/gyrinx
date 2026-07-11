@@ -186,6 +186,9 @@ Keep the fully technical version for commit messages and code comments.
 4. Consider running the **code-simplifier** agent on changed files for a quality check
 5. Commit and push changes
 
+- Manually test changes through the running app (dev server + browser) before
+  shipping — skip only when the change is trivial
+
 **In CI/GitHub Actions:** MUST commit and push before finishing or work is lost.
 
 ## Development Commands
