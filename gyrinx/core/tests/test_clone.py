@@ -424,7 +424,7 @@ def test_list_clone_copies_cost_fields(make_list):
 
 
 @pytest.mark.django_db
-def test_list_clone_creates_action_on_original(make_list, user, settings):
+def test_list_clone_creates_action_on_original(make_list, user):
     """Test that original list gets a ListAction recording the clone."""
     # Setup
     original = make_list("Original List")
@@ -469,7 +469,7 @@ def test_list_clone_creates_action_on_clone(make_list, user):
 
 
 @pytest.mark.django_db
-def test_list_clone_actions_have_correct_deltas(make_list, user, settings):
+def test_list_clone_actions_have_correct_deltas(make_list, user):
     """Test that ListActions have correct cost deltas.
 
     Original's CLONE action: zero deltas (recording the clone event, not a cost change).
@@ -503,15 +503,15 @@ def test_list_clone_actions_have_correct_deltas(make_list, user, settings):
     # source's stale caches. The empty clone recalculates rating/stash to
     # 0; credits are copied (500). Booking the source's 1000/150 here would
     # contradict the clone's real cost and break the chain at the seam.
-    if result.cloned_action:
-        assert result.cloned_list.rating_current == 0
-        assert result.cloned_action.rating_delta == 0
-        assert result.cloned_action.stash_delta == 0
-        assert result.cloned_action.credits_delta == 500
+    assert result.cloned_action is not None
+    assert result.cloned_list.rating_current == 0
+    assert result.cloned_action.rating_delta == 0
+    assert result.cloned_action.stash_delta == 0
+    assert result.cloned_action.credits_delta == 500
 
 
 @pytest.mark.django_db
-def test_handle_list_clone_handler(make_list, user, settings):
+def test_handle_list_clone_handler(make_list, user):
     """Test the handler directly."""
     # Setup
     original = make_list("Original List")
@@ -533,7 +533,7 @@ def test_handle_list_clone_handler(make_list, user, settings):
     assert result.original_list == original
     assert result.cloned_list.name == "Clone"
 
-    # Assert action created only if feature flag enabled
+    # Assert the CLONE action was recorded
     assert result.original_action is not None
 
     # Assert cost fields - credits_current is copied, rating/stash recalculated
@@ -660,7 +660,7 @@ def test_list_clone_preserves_expansion_equipment_cost(
 
 @pytest.mark.django_db
 def test_handle_list_clone_for_campaign_creates_clone_correctly(
-    make_list, make_campaign, user, settings
+    make_list, make_campaign, user
 ):
     """Test that campaign clones are created correctly with proper status."""
     # Setup
@@ -685,7 +685,7 @@ def test_handle_list_clone_for_campaign_creates_clone_correctly(
 
 @pytest.mark.django_db
 def test_handle_list_clone_for_campaign_name_defaults_to_original(
-    make_list, make_campaign, user, settings
+    make_list, make_campaign, user
 ):
     """Test that campaign clones default to the original name without a suffix.
 
@@ -708,7 +708,7 @@ def test_handle_list_clone_for_campaign_name_defaults_to_original(
 
 
 @pytest.mark.django_db
-def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user, settings):
+def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user):
     """Test that regular clones default to the original name with '(Clone)' suffix."""
     # Setup
     original = make_list("My Gang")
@@ -725,7 +725,7 @@ def test_handle_list_clone_regular_name_defaults_with_suffix(make_list, user, se
 
 @pytest.mark.django_db
 def test_handle_list_clone_for_campaign_cloned_action_has_correct_deltas(
-    make_list, make_campaign, user, settings
+    make_list, make_campaign, user
 ):
     """Test that a campaign clone's CREATE action records the CLONE's own values.
 

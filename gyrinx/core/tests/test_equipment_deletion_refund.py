@@ -15,7 +15,6 @@ def test_delete_equipment_with_refund_checked(
     make_list,
     make_list_fighter,
     make_equipment,
-    settings,
 ):
     """Test deleting equipment with refund checkbox checked adds credits."""
 
@@ -71,7 +70,6 @@ def test_delete_equipment_with_refund_unchecked(
     make_list,
     make_list_fighter,
     make_equipment,
-    settings,
 ):
     """Test deleting equipment with refund unchecked doesn't add credits."""
 
@@ -127,7 +125,6 @@ def test_delete_equipment_refund_only_in_campaign_mode(
     make_list,
     make_list_fighter,
     make_equipment,
-    settings,
 ):
     """Test that refund is only applied in campaign mode."""
 

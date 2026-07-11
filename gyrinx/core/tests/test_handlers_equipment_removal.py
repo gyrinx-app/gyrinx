@@ -25,7 +25,6 @@ def test_handle_equipment_removal_includes_child_fighter_cost(
     make_content_fighter,
     make_list_fighter,
     make_equipment,
-    settings,
 ):
     """
     Test that removing equipment with a linked fighter includes the child fighter's
@@ -168,7 +167,6 @@ def test_handle_equipment_removal_without_child_fighter(
     make_content_fighter,
     make_list_fighter,
     make_equipment,
-    settings,
 ):
     """
     Test that removing normal equipment (without child_fighter) still works correctly.

@@ -899,7 +899,6 @@ def test_equipment_cost_change_creates_action(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """When ContentEquipment.cost changes, a CONTENT_COST_CHANGE action should be created."""
@@ -958,7 +957,6 @@ def test_equipment_cost_change_campaign_mode_credits_increase(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """In campaign mode, cost increase should charge credits."""
@@ -1011,7 +1009,6 @@ def test_equipment_cost_change_campaign_mode_credits_decrease(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """In campaign mode, cost decrease should refund credits."""
@@ -1064,7 +1061,6 @@ def test_equipment_cost_change_campaign_mode_credits_can_go_negative(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """In campaign mode, credits can go negative when cost increases."""
@@ -1159,7 +1155,6 @@ def test_content_cost_change_clears_dirty_flags_on_children(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """Content cost change should clear dirty flags on list, fighter, and assignment."""
@@ -1222,7 +1217,6 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
     make_list,
     content_fighter,
     content_equipment,
-    settings,
     django_capture_on_commit_callbacks,
 ):
     """

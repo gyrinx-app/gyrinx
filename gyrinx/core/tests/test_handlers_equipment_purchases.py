@@ -27,7 +27,6 @@ def test_handle_equipment_purchase_campaign_mode(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test equipment purchase in campaign mode creates actions and spends credits."""
     lst = list_with_campaign
@@ -62,7 +61,7 @@ def test_handle_equipment_purchase_campaign_mode(
     assert result.assignment == assignment
     assert "Bought Test Weapon for Test Fighter" in result.description
 
-    # Verify ListAction created only if feature flag enabled
+    # Verify ListAction created
     assert result.list_action is not None
     assert result.list_action.action_type == ListActionType.ADD_EQUIPMENT
     assert result.list_action.rating_delta == 50
@@ -70,7 +69,7 @@ def test_handle_equipment_purchase_campaign_mode(
     assert result.list_action.rating_before == 500
     assert result.list_action.credits_before == 1000
 
-    # Verify CampaignAction created (always created when in campaign mode, regardless of feature flag)
+    # Verify CampaignAction created (always created when in campaign mode)
     assert result.campaign_action is not None
     assert "Bought Test Weapon for Test Fighter" in result.campaign_action.description
 
@@ -85,7 +84,6 @@ def test_handle_equipment_purchase_list_building_mode(
     content_house,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test equipment purchase in list building mode (no credits)."""
     lst = make_list("Test List")
@@ -116,7 +114,7 @@ def test_handle_equipment_purchase_list_building_mode(
     assert result.total_cost == 50
     assert "Added Test Weapon to Test Fighter" in result.description
 
-    # Verify ListAction created only if feature flag enabled
+    # Verify ListAction created
     assert result.list_action.rating_delta == 50
     assert result.list_action.credits_delta == 0  # No credits in list building mode
 
@@ -131,7 +129,6 @@ def test_handle_equipment_purchase_stash_fighter(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test equipment purchase for stash fighter affects stash, not rating."""
     lst = list_with_campaign
@@ -182,7 +179,6 @@ def test_handle_equipment_purchase_insufficient_credits(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test equipment purchase fails with insufficient credits."""
     lst = list_with_campaign
@@ -225,7 +221,6 @@ def test_handle_accessory_purchase_campaign_mode(
     list_with_campaign,
     content_fighter,
     make_weapon_with_accessory,
-    settings,
 ):
     """Test weapon accessory purchase in campaign mode."""
     lst = list_with_campaign
@@ -265,7 +260,7 @@ def test_handle_accessory_purchase_campaign_mode(
     assert result.list_action.rating_before == 500
     assert result.list_action.credits_before == 1000
 
-    # Verify CampaignAction (always created when in campaign mode, regardless of feature flag)
+    # Verify CampaignAction (always created when in campaign mode)
     assert result.campaign_action is not None
 
     # Verify credits spent (no refresh needed - handler modifies the same object)
@@ -279,7 +274,6 @@ def test_handle_accessory_purchase_stash_fighter(
     content_house,
     make_content_fighter,
     make_weapon_with_accessory,
-    settings,
 ):
     """Test accessory purchase for stash fighter affects stash, not rating."""
     lst = list_with_campaign
@@ -327,7 +321,6 @@ def test_handle_weapon_profile_purchase_campaign_mode(
     list_with_campaign,
     content_fighter,
     make_weapon_with_profile,
-    settings,
 ):
     """Test weapon profile purchase in campaign mode."""
     lst = list_with_campaign
@@ -375,7 +368,6 @@ def test_handle_equipment_upgrade_add_upgrades(
     list_with_campaign,
     content_fighter,
     make_equipment_with_upgrades,
-    settings,
 ):
     """Test adding equipment upgrades in campaign mode."""
     lst = list_with_campaign
@@ -423,7 +415,6 @@ def test_handle_equipment_upgrade_remove_upgrades(
     list_with_campaign,
     content_fighter,
     make_equipment_with_upgrades,
-    settings,
 ):
     """Test removing equipment upgrades (negative cost delta)."""
     lst = list_with_campaign
@@ -476,7 +467,6 @@ def test_handle_equipment_upgrade_stash_fighter(
     content_house,
     make_content_fighter,
     make_equipment_with_upgrades,
-    settings,
 ):
     """Test upgrade for stash fighter affects stash, not rating."""
     lst = list_with_campaign
@@ -524,7 +514,6 @@ def test_actions_have_correct_before_values(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test that ListAction records correct before values."""
     lst = list_with_campaign
@@ -565,7 +554,6 @@ def test_transaction_rollback_on_insufficient_credits(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test that transaction rolls back completely on error."""
     lst = list_with_campaign
@@ -811,7 +799,6 @@ def test_handle_equipment_reassignment_stash_to_regular(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test reassigning equipment from stash to regular fighter."""
     lst = list_with_campaign
@@ -868,19 +855,17 @@ def test_handle_equipment_reassignment_stash_to_regular(
     assert result.list_action.credits_before == 1000
 
     # Verify rating_current propagation
-    # Propagation only happens if list has latest_action
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        stash.refresh_from_db()
-        fighter.refresh_from_db()
-        # Assignment rating_current should stay the same
-        assert assignment.rating_current == initial_assignment_rating
-        # Stash should lose the equipment cost
-        assert stash.rating_current == initial_stash_rating - equipment_cost
-        # Fighter should gain the equipment cost
-        assert fighter.rating_current == initial_fighter_rating + equipment_cost
+    assignment.refresh_from_db()
+    stash.refresh_from_db()
+    fighter.refresh_from_db()
+    # Assignment rating_current should stay the same
+    assert assignment.rating_current == initial_assignment_rating
+    # Stash should lose the equipment cost
+    assert stash.rating_current == initial_stash_rating - equipment_cost
+    # Fighter should gain the equipment cost
+    assert fighter.rating_current == initial_fighter_rating + equipment_cost
 
-    # Verify CampaignAction created (always created when in campaign mode, regardless of feature flag)
+    # Verify CampaignAction created (always created when in campaign mode)
     assert result.campaign_action is not None
     assert result.campaign_action.description == result.description
 
@@ -900,7 +885,6 @@ def test_handle_equipment_reassignment_regular_to_stash(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test reassigning equipment from regular fighter to stash."""
     lst = list_with_campaign
@@ -952,18 +936,17 @@ def test_handle_equipment_reassignment_regular_to_stash(
     assert result.list_action.credits_delta == 0
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        fighter.refresh_from_db()
-        stash.refresh_from_db()
-        # Assignment rating_current should stay the same
-        assert assignment.rating_current == initial_assignment_rating
-        # Fighter should lose the equipment cost
-        assert fighter.rating_current == initial_fighter_rating - equipment_cost
-        # Stash should gain the equipment cost
-        assert stash.rating_current == initial_stash_rating + equipment_cost
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    stash.refresh_from_db()
+    # Assignment rating_current should stay the same
+    assert assignment.rating_current == initial_assignment_rating
+    # Fighter should lose the equipment cost
+    assert fighter.rating_current == initial_fighter_rating - equipment_cost
+    # Stash should gain the equipment cost
+    assert stash.rating_current == initial_stash_rating + equipment_cost
 
-    # Verify CampaignAction created (always created when in campaign mode, regardless of feature flag)
+    # Verify CampaignAction created (always created when in campaign mode)
     assert result.campaign_action is not None
 
     # Verify description mentions "to stash"
@@ -978,7 +961,6 @@ def test_handle_equipment_reassignment_regular_to_regular(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test reassigning equipment between two regular fighters."""
     lst = list_with_campaign
@@ -1035,16 +1017,15 @@ def test_handle_equipment_reassignment_regular_to_regular(
 
     # Verify rating_current propagation (even though list delta is 0)
     # The fighters still exchange the equipment cost
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        fighter1.refresh_from_db()
-        fighter2.refresh_from_db()
-        # Assignment rating_current should stay the same
-        assert assignment.rating_current == initial_assignment_rating
-        # Fighter1 should lose the equipment cost
-        assert fighter1.rating_current == initial_fighter1_rating - equipment_cost
-        # Fighter2 should gain the equipment cost
-        assert fighter2.rating_current == initial_fighter2_rating + equipment_cost
+    assignment.refresh_from_db()
+    fighter1.refresh_from_db()
+    fighter2.refresh_from_db()
+    # Assignment rating_current should stay the same
+    assert assignment.rating_current == initial_assignment_rating
+    # Fighter1 should lose the equipment cost
+    assert fighter1.rating_current == initial_fighter1_rating - equipment_cost
+    # Fighter2 should gain the equipment cost
+    assert fighter2.rating_current == initial_fighter2_rating + equipment_cost
 
     # Verify description includes both fighter names
     assert "Fighter One" in result.description
@@ -1054,7 +1035,7 @@ def test_handle_equipment_reassignment_regular_to_regular(
 
 @pytest.mark.django_db
 def test_handle_equipment_reassignment_list_building_mode(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test equipment reassignment in list building mode (no campaign)."""
     lst = make_list("Test List")
@@ -1094,7 +1075,7 @@ def test_handle_equipment_reassignment_list_building_mode(
     # Verify no CampaignAction in list building mode
     assert result.campaign_action is None
 
-    # ListAction should be created only if feature flag enabled
+    # ListAction should be created
     assert result.list_action is not None
     assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
 
@@ -1106,7 +1087,6 @@ def test_handle_equipment_reassignment_with_upgrades(
     content_fighter,
     make_equipment,
     make_equipment_upgrade,
-    settings,
 ):
     """Test reassignment of equipment with upgrades includes total cost."""
     lst = list_with_campaign
@@ -1160,7 +1140,6 @@ def test_handle_equipment_reassignment_before_values(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test that before values are captured correctly."""
     lst = list_with_campaign
@@ -1287,7 +1266,6 @@ def test_handle_equipment_sale_entire_assignment(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test selling entire equipment assignment from stash."""
     from gyrinx.core.handlers.equipment import (
@@ -1367,10 +1345,9 @@ def test_handle_equipment_sale_entire_assignment(
 
     # Verify rating_current propagation (before assignment is deleted)
     # Note: assignment gets deleted after propagation, so we check stash only
-    if lst.latest_action:
-        stash.refresh_from_db()
-        # Stash delta is -50, so stash rating_current should decrease
-        assert stash.rating_current == initial_stash_rating - 50
+    stash.refresh_from_db()
+    # Stash delta is -50, so stash rating_current should decrease
+    assert stash.rating_current == initial_stash_rating - 50
 
     # Verify CampaignAction (always created)
     assert result.campaign_action is not None
@@ -1381,7 +1358,7 @@ def test_handle_equipment_sale_entire_assignment(
     lst.refresh_from_db()
     assert lst.credits_current == 530  # 500 + 30
 
-    # Stash is only updated when ListAction feature is enabled
+    # Stash cache reflects the purchase
     assert lst.stash_current == 50  # 100 - 50 (equipment cost removed from stash)
 
     # Verify assignment deleted
@@ -1395,7 +1372,6 @@ def test_handle_equipment_sale_individual_profile(
     content_house,
     make_content_fighter,
     make_weapon_with_profile,
-    settings,
 ):
     """Test selling individual weapon profile from stash."""
     from gyrinx.core.handlers.equipment import (
@@ -1466,12 +1442,11 @@ def test_handle_equipment_sale_individual_profile(
     assert result.list_action.credits_delta == 20
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        stash.refresh_from_db()
-        # Stash delta is -25, so both should decrease
-        assert assignment.rating_current == initial_assignment_rating - 25
-        assert stash.rating_current == initial_stash_rating - 25
+    assignment.refresh_from_db()
+    stash.refresh_from_db()
+    # Stash delta is -25, so both should decrease
+    assert assignment.rating_current == initial_assignment_rating - 25
+    assert stash.rating_current == initial_stash_rating - 25
 
     # Verify CampaignAction (no dice)
     assert result.campaign_action.dice_count == 0
@@ -1489,7 +1464,6 @@ def test_handle_equipment_sale_individual_accessory(
     content_house,
     make_content_fighter,
     make_weapon_with_accessory,
-    settings,
 ):
     """Test selling individual weapon accessory from stash."""
     from gyrinx.core.handlers.equipment import (
@@ -1560,12 +1534,11 @@ def test_handle_equipment_sale_individual_accessory(
     assert result.list_action.credits_delta == 15
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        stash.refresh_from_db()
-        # Stash delta is -30, so both should decrease
-        assert assignment.rating_current == initial_assignment_rating - 30
-        assert stash.rating_current == initial_stash_rating - 30
+    assignment.refresh_from_db()
+    stash.refresh_from_db()
+    # Stash delta is -30, so both should decrease
+    assert assignment.rating_current == initial_assignment_rating - 30
+    assert stash.rating_current == initial_stash_rating - 30
 
     # Verify assignment still exists but accessory removed
     assignment.refresh_from_db()
@@ -1579,7 +1552,6 @@ def test_handle_equipment_sale_multiple_items(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test selling entire assignment with upgrades (multiple items in one sale)."""
     from gyrinx.core.handlers.equipment import (
@@ -1771,7 +1743,6 @@ def test_handle_equipment_sale_before_values(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test that before values are captured correctly."""
     from gyrinx.core.handlers.equipment import (

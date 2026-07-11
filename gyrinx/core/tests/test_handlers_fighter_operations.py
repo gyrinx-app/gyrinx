@@ -21,9 +21,7 @@ from gyrinx.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_handle_fighter_hire_campaign_mode(
-    user, list_with_campaign, content_fighter, settings
-):
+def test_handle_fighter_hire_campaign_mode(user, list_with_campaign, content_fighter):
     """Test hiring a fighter in campaign mode creates actions and spends credits."""
 
     lst = list_with_campaign
@@ -76,7 +74,7 @@ def test_handle_fighter_hire_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_hire_list_building_mode(
-    user, make_list, content_fighter, content_house, settings
+    user, make_list, content_fighter, content_house
 ):
     """Test hiring a fighter in list building mode (no credits)."""
 
@@ -117,7 +115,6 @@ def test_handle_fighter_hire_stash_fighter(
     list_with_campaign,
     content_house,
     make_content_fighter,
-    settings,
 ):
     """Test hiring a stash fighter affects stash, not rating."""
 
@@ -190,7 +187,7 @@ def test_handle_fighter_hire_insufficient_credits(
 
 @pytest.mark.django_db
 def test_handle_fighter_hire_correct_before_values(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that before values are captured correctly in ListAction."""
 
@@ -303,7 +300,7 @@ def test_handle_fighter_hire_campaign_action_created(
 
 @pytest.mark.django_db
 def test_handle_fighter_hire_description_format(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that description is formatted correctly."""
 
@@ -338,7 +335,7 @@ def test_handle_fighter_hire_description_format(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_same_list_campaign_mode(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test cloning a fighter to the same list in campaign mode."""
 
@@ -394,7 +391,7 @@ def test_handle_fighter_clone_same_list_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_different_list_campaign_mode(
-    user, list_with_campaign, make_list, content_fighter, settings
+    user, list_with_campaign, make_list, content_fighter
 ):
     """Test cloning a fighter to a different list in campaign mode."""
 
@@ -449,7 +446,7 @@ def test_handle_fighter_clone_different_list_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_list_building_mode(
-    user, make_list, content_fighter, content_house, settings
+    user, make_list, content_fighter, content_house
 ):
     """Test cloning a fighter in list building mode (no credits)."""
 
@@ -496,7 +493,6 @@ def test_handle_fighter_clone_stash_fighter(
     list_with_campaign,
     content_house,
     make_content_fighter,
-    settings,
 ):
     """Test cloning a stash fighter affects stash, not rating."""
 
@@ -547,7 +543,6 @@ def test_handle_fighter_clone_with_equipment(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test cloning a fighter with equipment includes equipment cost."""
 
@@ -638,7 +633,7 @@ def test_handle_fighter_clone_insufficient_credits(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_correct_before_values(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that before values are captured correctly in ListAction."""
 
@@ -728,7 +723,7 @@ def test_handle_fighter_clone_transaction_rollback(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_description_format(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that description is formatted correctly."""
 
@@ -768,7 +763,7 @@ def test_handle_fighter_clone_description_format(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_with_category_override(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test cloning a fighter with category_override preserves the override."""
 
@@ -806,7 +801,7 @@ def test_handle_fighter_clone_with_category_override(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_clear_category_override(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test cloning a fighter can clear category_override (unchecked checkbox)."""
 
@@ -844,7 +839,7 @@ def test_handle_fighter_clone_clear_category_override(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_no_category_override(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test cloning a fighter without category_override works normally."""
 
@@ -883,7 +878,7 @@ def test_handle_fighter_clone_no_category_override(
 
 @pytest.mark.django_db
 def test_handle_fighter_hire_initializes_rating_current(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that hiring a fighter initializes rating_current to cost."""
     lst = list_with_campaign
@@ -907,7 +902,7 @@ def test_handle_fighter_hire_initializes_rating_current(
 
 @pytest.mark.django_db
 def test_handle_fighter_clone_initializes_rating_current(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that cloning a fighter initializes rating_current on clone."""
     lst = list_with_campaign

@@ -100,7 +100,6 @@ def two_gang_campaign(user, content_house, make_content_fighter, make_list):
 @pytest.mark.django_db
 def test_handle_fighter_capture_basic(
     two_gang_campaign,
-    settings,
 ):
     """Test capturing a regular fighter creates correct actions."""
     data = two_gang_campaign
@@ -154,7 +153,6 @@ def test_handle_fighter_capture_with_child_equipment(
     two_gang_campaign,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test capturing a child fighter removes parent equipment."""
     data = two_gang_campaign
@@ -266,7 +264,6 @@ def test_handle_fighter_capture_child_fighter_zero_cost(
 @pytest.mark.django_db
 def test_handle_fighter_sell_to_guilders(
     two_gang_campaign,
-    settings,
 ):
     """Test selling a captured fighter to guilders adds credits."""
     data = two_gang_campaign
@@ -360,7 +357,6 @@ def test_handle_fighter_sell_zero_credits(
 @pytest.mark.django_db
 def test_handle_fighter_return_with_ransom(
     two_gang_campaign,
-    settings,
 ):
     """Test returning a fighter with ransom transfers credits."""
     data = two_gang_campaign
@@ -432,7 +428,6 @@ def test_handle_fighter_return_with_ransom(
 @pytest.mark.django_db
 def test_handle_fighter_return_without_ransom(
     two_gang_campaign,
-    settings,
 ):
     """Test returning a fighter without ransom."""
     data = two_gang_campaign
@@ -512,7 +507,6 @@ def test_handle_fighter_return_insufficient_credits(
 @pytest.mark.django_db
 def test_handle_fighter_release(
     two_gang_campaign,
-    settings,
 ):
     """Test releasing a fighter restores rating without credit transfer."""
     data = two_gang_campaign
@@ -572,7 +566,6 @@ def test_handle_fighter_release(
 @pytest.mark.django_db
 def test_capture_then_return_restores_rating(
     two_gang_campaign,
-    settings,
 ):
     """Test that capture then return properly restores rating."""
     data = two_gang_campaign
@@ -609,7 +602,6 @@ def test_multiple_equipment_removal_on_capture(
     two_gang_campaign,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test capturing a fighter linked to multiple equipment assignments."""
     data = two_gang_campaign
@@ -711,7 +703,6 @@ def test_list_building_mode_no_campaign_actions(
 @pytest.mark.django_db
 def test_handle_fighter_capture_propagates_to_fighter_rating_current(
     two_gang_campaign,
-    settings,
 ):
     """Test that capturing a fighter propagates negative delta to fighter.rating_current."""
     data = two_gang_campaign
@@ -743,7 +734,6 @@ def test_handle_fighter_capture_propagates_to_fighter_rating_current(
 @pytest.mark.django_db
 def test_handle_fighter_return_propagates_to_fighter_rating_current(
     two_gang_campaign,
-    settings,
 ):
     """Test that returning a fighter propagates positive delta to fighter.rating_current."""
     data = two_gang_campaign
@@ -781,7 +771,6 @@ def test_handle_fighter_return_propagates_to_fighter_rating_current(
 @pytest.mark.django_db
 def test_handle_fighter_release_propagates_to_fighter_rating_current(
     two_gang_campaign,
-    settings,
 ):
     """Test that releasing a fighter propagates positive delta to fighter.rating_current."""
     data = two_gang_campaign

@@ -23,7 +23,6 @@ def test_handle_campaign_start_all_lists_receive_credits(
     content_house,
     make_content_fighter,
     make_list_fighter,
-    settings,
 ):
     """Test that all lists in campaign receive correct credits when starting."""
     # Create campaign in PRE_CAMPAIGN status with budget
@@ -108,7 +107,6 @@ def test_handle_campaign_start_creates_list_actions(
     content_house,
     make_content_fighter,
     make_list_fighter,
-    settings,
 ):
     """Test that ListActions are created for each list with CAMPAIGN_START type.
 
@@ -167,7 +165,6 @@ def test_handle_campaign_start_credits_match_budget_configuration(
     content_house,
     make_content_fighter,
     make_list_fighter,
-    settings,
 ):
     """Test that credits distributed match budget configuration."""
     # Create campaign with custom budget
@@ -199,7 +196,7 @@ def test_handle_campaign_start_credits_match_budget_configuration(
 
 @pytest.mark.django_db
 def test_handle_campaign_start_zero_budget(
-    user, make_campaign, make_list, content_house, settings
+    user, make_campaign, make_list, content_house
 ):
     """Test that no credits are distributed when budget is zero."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=0)
@@ -232,7 +229,6 @@ def test_handle_campaign_start_expensive_list(
     content_house,
     make_content_fighter,
     make_list_fighter,
-    settings,
 ):
     """Test that lists more expensive than budget get zero credits."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1000)
@@ -262,9 +258,7 @@ def test_handle_campaign_start_expensive_list(
 
 
 @pytest.mark.django_db
-def test_handle_campaign_start_only_once(
-    user, make_campaign, make_list, content_house, settings
-):
+def test_handle_campaign_start_only_once(user, make_campaign, make_list, content_house):
     """Test that campaign start can only happen once."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
@@ -283,7 +277,7 @@ def test_handle_campaign_start_only_once(
 
 
 @pytest.mark.django_db
-def test_handle_campaign_start_no_lists(user, make_campaign, settings):
+def test_handle_campaign_start_no_lists(user, make_campaign):
     """Test that campaign cannot be started without lists."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
@@ -302,7 +296,6 @@ def test_handle_campaign_start_creates_campaign_actions(
     content_house,
     make_content_fighter,
     make_list_fighter,
-    settings,
 ):
     """Test that both per-list and overall CampaignActions are created."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
@@ -359,7 +352,6 @@ def test_handle_campaign_start_list_with_existing_credits(
     content_house,
     make_content_fighter,
     make_list_fighter,
-    settings,
 ):
     """Test budget distribution when list already has credits.
 
@@ -400,7 +392,7 @@ def test_handle_campaign_start_list_with_existing_credits(
 
 @pytest.mark.django_db
 def test_handle_campaign_start_updates_campaign_status(
-    user, make_campaign, make_list, content_house, settings
+    user, make_campaign, make_list, content_house
 ):
     """Test that campaign status is updated to IN_PROGRESS."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
@@ -424,7 +416,7 @@ def test_handle_campaign_start_updates_campaign_status(
 
 @pytest.mark.django_db
 def test_handle_campaign_start_clones_lists_to_campaign_mode(
-    user, make_campaign, make_list, content_house, settings
+    user, make_campaign, make_list, content_house
 ):
     """Test that lists are cloned with CAMPAIGN_MODE status."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
@@ -466,7 +458,6 @@ def test_handle_campaign_start_create_action_has_correct_deltas(
     make_content_fighter,
     make_list_fighter,
     make_equipment,
-    settings,
 ):
     """Test that the initial CREATE action for cloned lists has correct deltas.
 
@@ -526,7 +517,7 @@ def test_handle_campaign_start_create_action_has_correct_deltas(
         list=cloned_list, action_type=ListActionType.CREATE
     ).first()
 
-    # When feature flag is enabled, CREATE action should exist
+    # A CREATE action should exist for the cloned list
     assert create_action is not None, "CREATE action should exist"
 
     # Verify before values are 0 (list created from nothing)

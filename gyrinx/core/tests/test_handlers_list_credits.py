@@ -40,7 +40,7 @@ def campaign_list(user, make_list):
 
 
 @pytest.mark.django_db
-def test_handle_credits_add(campaign_list, user, settings):
+def test_handle_credits_add(campaign_list, user):
     """Test adding credits increases both current and earned."""
     lst = campaign_list
 
@@ -84,7 +84,7 @@ def test_handle_credits_add(campaign_list, user, settings):
 
 
 @pytest.mark.django_db
-def test_handle_credits_add_with_description(campaign_list, user, settings):
+def test_handle_credits_add_with_description(campaign_list, user):
     """Test adding credits with a description includes it in the action."""
     lst = campaign_list
 
@@ -104,7 +104,7 @@ def test_handle_credits_add_with_description(campaign_list, user, settings):
 
 
 @pytest.mark.django_db
-def test_handle_credits_spend(campaign_list, user, settings):
+def test_handle_credits_spend(campaign_list, user):
     """Test spending credits decreases current but not earned."""
     lst = campaign_list
 
@@ -164,7 +164,7 @@ def test_handle_credits_spend_insufficient(campaign_list, user):
 
 
 @pytest.mark.django_db
-def test_handle_credits_reduce(campaign_list, user, settings):
+def test_handle_credits_reduce(campaign_list, user):
     """Test reducing credits decreases both current and earned."""
     lst = campaign_list
 
@@ -272,7 +272,7 @@ def test_handle_credits_invalid_operation(campaign_list, user):
 
 
 @pytest.mark.django_db
-def test_handle_credits_zero_amount(campaign_list, user, settings):
+def test_handle_credits_zero_amount(campaign_list, user):
     """Test zero amount is valid but has no effect."""
     lst = campaign_list
     initial_current = lst.credits_current
@@ -296,7 +296,7 @@ def test_handle_credits_zero_amount(campaign_list, user, settings):
 
 
 @pytest.mark.django_db
-def test_handle_credits_non_campaign_no_campaign_action(user, make_list, settings):
+def test_handle_credits_non_campaign_no_campaign_action(user, make_list):
     """Test no CampaignAction created when not in campaign mode."""
 
     # Create a list NOT in campaign mode but still test handler directly

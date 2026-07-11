@@ -376,9 +376,7 @@ def test_kill_fighter_creates_campaign_action(client, user, content_house):
 
 
 @pytest.mark.django_db
-def test_kill_fighter_creates_list_action_with_stash_delta(
-    client, user, content_house, settings
-):
+def test_kill_fighter_creates_list_action_with_stash_delta(client, user, content_house):
     """Test that killing a fighter creates a ListAction with correct stash_delta."""
 
     # Create a campaign mode list
@@ -453,7 +451,7 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
     response = client.post(url)
     assert response.status_code == 302
 
-    # Fighter should always be marked as dead regardless of feature flag
+    # Fighter should always be marked as dead
     fighter.refresh_from_db()
     assert fighter.injury_state == ListFighter.DEAD
     assert fighter.cost_override == 0
@@ -462,7 +460,6 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
     stash = lst.listfighter_set.filter(content_fighter__is_stash=True).first()
     assert stash.listfighterequipmentassignment_set.count() == 2
 
-    # Check ListAction behavior based on feature flag
     list_action = (
         ListAction.objects.filter(
             list=lst,
@@ -472,7 +469,7 @@ def test_kill_fighter_creates_list_action_with_stash_delta(
         .first()
     )
 
-    assert list_action is not None, "ListAction should be created when flag enabled"
+    assert list_action is not None, "kill should record an UPDATE_FIGHTER action"
 
     # Verify the deltas track equipment moving to stash
     assert list_action.rating_delta == -fighter_cost  # Full cost leaves rating
@@ -585,11 +582,9 @@ def test_kill_fighter_mixed_persistent_and_normal(
 
 @pytest.mark.django_db
 def test_kill_fighter_persistent_stash_delta_is_transferred_cost_only(
-    user, campaign_list_with_stash, persistent_category, settings
+    user, campaign_list_with_stash, persistent_category
 ):
     """stash_delta counts only transferred gear; rating drops by the full cost."""
-    # The kill action is only created when this flag is on; set it explicitly
-    # so the test is deterministic regardless of config defaults.
     lst, stash, fighter = campaign_list_with_stash
     # make_list already seeds an initial LIST_CREATE action, so the kill action
     # can be created.

@@ -32,7 +32,7 @@ def handle_list_creation(
     Handle list creation with optional stash and initial action.
 
     Creates the list, optionally creates a stash fighter, and creates an
-    initial ListAction if the feature flag is enabled.
+    initial ListAction recording the creation.
 
     Args:
         user: The user creating the list

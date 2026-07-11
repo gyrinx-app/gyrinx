@@ -22,7 +22,6 @@ def test_handle_vehicle_purchase_campaign_mode_with_crew(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test vehicle purchase with crew in campaign mode."""
     lst = list_with_campaign
@@ -110,7 +109,6 @@ def test_handle_vehicle_purchase_list_building_mode(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test vehicle purchase with crew in list building mode (no credits)."""
     lst = make_list("Test List")
@@ -170,7 +168,6 @@ def test_handle_vehicle_purchase_stash_mode(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test vehicle purchase to stash (no crew creation)."""
     lst = list_with_campaign
@@ -293,7 +290,6 @@ def test_handle_vehicle_purchase_correct_before_values(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test that before values are captured correctly in ListActions."""
     lst = list_with_campaign
@@ -350,7 +346,6 @@ def test_handle_vehicle_purchase_transaction_rollback(
     make_content_fighter,
     make_equipment,
     monkeypatch,
-    settings,
 ):
     """Test that transaction rolls back on error."""
     lst = list_with_campaign

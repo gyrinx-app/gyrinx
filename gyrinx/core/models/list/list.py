@@ -1132,8 +1132,9 @@ class List(AppBase):
             credits_before = kwargs.pop("credits_before", self.credits_current)
 
             # `applied` is vestigial: recording never applies anything and
-            # nothing reads the column. It stays True so new rows are
-            # distinguishable from historical unapplied ones.
+            # nothing reads the column. All writers set True on purpose —
+            # only pre-existing bootstrap CREATE rows (which took the field
+            # default) hold False.
             la = ListAction.objects.create(
                 user=user or self.owner,
                 owner=self.owner,

@@ -30,7 +30,7 @@ def test_transact_delta_properties(make_list):
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_basic(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test basic assignment propagation updates assignment, fighter, and list."""
 
@@ -76,7 +76,7 @@ def test_propagate_from_assignment_basic(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_stash(
-    settings, user, make_list, content_house, make_content_fighter, make_equipment
+    user, make_list, content_house, make_content_fighter, make_equipment
 ):
     """Test assignment propagation on stash gear moves the list's stash book."""
 
@@ -126,7 +126,7 @@ def test_propagate_from_assignment_stash(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_negative_delta(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles cost decreases."""
 
@@ -170,7 +170,7 @@ def test_propagate_from_assignment_negative_delta(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_zero_delta(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles no change gracefully."""
 
@@ -216,7 +216,7 @@ def test_propagate_from_assignment_zero_delta(
 
 
 @pytest.mark.django_db
-def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter):
+def test_propagate_from_fighter_basic(user, make_list, content_fighter):
     """Test basic fighter propagation updates fighter and list."""
 
     lst = make_list("Test List")
@@ -248,7 +248,7 @@ def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_stash(
-    settings, user, make_list, content_house, make_content_fighter
+    user, make_list, content_house, make_content_fighter
 ):
     """Test fighter propagation on the stash fighter moves the stash book."""
 
@@ -289,7 +289,7 @@ def test_propagate_from_fighter_stash(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_allows_negative_assignment_rating(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation allows negative assignment ratings.
 
@@ -333,7 +333,7 @@ def test_propagate_from_assignment_allows_negative_assignment_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_allows_negative_fighter_rating(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation allows negative fighter ratings.
 
@@ -376,7 +376,7 @@ def test_propagate_from_assignment_allows_negative_fighter_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_allows_negative_rating(
-    settings, user, make_list, content_fighter
+    user, make_list, content_fighter
 ):
     """Test fighter propagation allows negative ratings.
 
@@ -414,7 +414,7 @@ def test_propagate_from_fighter_allows_negative_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_skips_without_latest_action(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation is skipped when list has no latest_action.
 
@@ -459,7 +459,7 @@ def test_propagate_from_assignment_skips_without_latest_action(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_skips_without_latest_action(
-    settings, user, make_list, content_fighter
+    user, make_list, content_fighter
 ):
     """Test fighter propagation is skipped when list has no latest_action.
 

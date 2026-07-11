@@ -434,7 +434,7 @@ def test_list_with_related_data_prefetch_latest_action(user, make_list):
 
 
 @pytest.mark.django_db
-def test_list_write_prevents_negative_rating_and_stash(user, make_list, settings):
+def test_list_write_prevents_negative_rating_and_stash(user, make_list):
     """The list-level cache writer clamps rating/stash at zero.
 
     Applying negative movement (e.g. removing fighters or equipment) clamps

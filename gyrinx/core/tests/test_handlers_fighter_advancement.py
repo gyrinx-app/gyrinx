@@ -91,7 +91,7 @@ def stash_fighter_with_xp(list_with_campaign, stash_fighter_type, user):
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_stat_campaign_mode(user, fighter_with_xp, settings):
+def test_handle_fighter_advancement_stat_campaign_mode(user, fighter_with_xp):
     """Test stat advancement in campaign mode creates correct ListAction."""
 
     lst = fighter_with_xp.list
@@ -117,7 +117,7 @@ def test_handle_fighter_advancement_stat_campaign_mode(user, fighter_with_xp, se
     assert result.advancement is not None
     assert result.cost_increase == cost_increase
 
-    # Verify ListAction based on feature flag
+    # Verify ListAction
     assert result.update_action is not None
     assert result.update_action.action_type == ListActionType.UPDATE_FIGHTER
     assert result.update_action.rating_delta == cost_increase
@@ -135,7 +135,7 @@ def test_handle_fighter_advancement_stat_campaign_mode(user, fighter_with_xp, se
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_skill_campaign_mode(
-    user, fighter_with_xp, content_skill, settings
+    user, fighter_with_xp, content_skill
 ):
     """Test skill advancement creates correct ListAction."""
 
@@ -167,7 +167,7 @@ def test_handle_fighter_advancement_skill_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_equipment_campaign_mode(
-    user, fighter_with_xp, content_advancement_assignment, settings
+    user, fighter_with_xp, content_advancement_assignment
 ):
     """Test equipment advancement creates both UPDATE_FIGHTER and ADD_EQUIPMENT actions."""
 
@@ -206,9 +206,7 @@ def test_handle_fighter_advancement_equipment_campaign_mode(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_other_campaign_mode(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_other_campaign_mode(user, fighter_with_xp):
     """Test 'other' advancement with free-text description."""
 
     lst = fighter_with_xp.list
@@ -234,7 +232,7 @@ def test_handle_fighter_advancement_other_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_list_building_mode(
-    user, make_list, content_fighter, content_skill, settings
+    user, make_list, content_fighter, content_skill
 ):
     """Test advancement in list building mode (no CampaignAction created)."""
 
@@ -263,7 +261,7 @@ def test_handle_fighter_advancement_list_building_mode(
 
     assert result is not None
 
-    # ListAction based on feature flag
+    # Verify ListAction
     assert result.update_action is not None
 
     # No CampaignAction in list building mode (regardless of flag)
@@ -274,9 +272,7 @@ def test_handle_fighter_advancement_list_building_mode(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_rating_delta_regular_fighter(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_rating_delta_regular_fighter(user, fighter_with_xp):
     """Test regular fighter: rating_delta = cost_increase, stash_delta = 0."""
 
     lst = fighter_with_xp.list
@@ -319,9 +315,7 @@ def test_handle_fighter_advancement_stash_fighter_rejected(user, stash_fighter_w
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_before_values_captured(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_before_values_captured(user, fighter_with_xp):
     """Test correct rating_before, stash_before, credits_before values."""
 
     lst = fighter_with_xp.list
@@ -346,7 +340,7 @@ def test_handle_fighter_advancement_before_values_captured(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_credits_delta_zero(user, fighter_with_xp, settings):
+def test_handle_fighter_advancement_credits_delta_zero(user, fighter_with_xp):
     """Test advancements cost XP not credits, so credits_delta = 0."""
 
     lst = fighter_with_xp.list
@@ -533,7 +527,6 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
     make_content_fighter,
     make_equipment,
     content_equipment_categories,
-    settings,
 ):
     """A child fighter linked to stash gear books and applies to RATING.
 
@@ -652,7 +645,7 @@ def test_handle_fighter_advancement_skill_with_promotion(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_propagates_to_fighter_rating_current(
-    user, fighter_with_xp, settings
+    user, fighter_with_xp
 ):
     """Test that advancement propagates positive delta to fighter.rating_current."""
 
@@ -690,9 +683,7 @@ def test_handle_fighter_advancement_propagates_to_fighter_rating_current(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_deletion_stat_basic(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_deletion_stat_basic(user, fighter_with_xp):
     """Test deleting a stat advancement restores XP and creates ListAction."""
 
     lst = fighter_with_xp.list
@@ -741,7 +732,7 @@ def test_handle_fighter_advancement_deletion_stat_basic(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_skill_basic(
-    user, fighter_with_xp, content_skill, settings
+    user, fighter_with_xp, content_skill
 ):
     """Test deleting a skill advancement removes the skill."""
 
@@ -779,7 +770,7 @@ def test_handle_fighter_advancement_deletion_skill_basic(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_promotion_reversal(
-    user, fighter_with_xp, content_skill, settings
+    user, fighter_with_xp, content_skill
 ):
     """Test deleting a promotion advancement clears category_override."""
 
@@ -816,7 +807,7 @@ def test_handle_fighter_advancement_deletion_promotion_reversal(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_equipment_warns(
-    user, fighter_with_xp, content_advancement_assignment, settings
+    user, fighter_with_xp, content_advancement_assignment
 ):
     """Test deleting equipment advancement warns about manual removal."""
 
@@ -913,7 +904,7 @@ def test_handle_fighter_advancement_deletion_already_archived(user, fighter_with
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_multiple_promotions(
-    user, fighter_with_xp, make_content_skill, settings
+    user, fighter_with_xp, make_content_skill
 ):
     """Test deleting one promotion when another remains keeps correct category."""
 
@@ -977,7 +968,7 @@ def test_handle_fighter_advancement_deletion_multiple_promotions(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_propagates_to_fighter_rating_current(
-    user, fighter_with_xp, settings
+    user, fighter_with_xp
 ):
     """Test that deleting advancement propagates negative delta to fighter.rating_current."""
 

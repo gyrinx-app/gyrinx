@@ -499,7 +499,7 @@ def transact(
     # Lists outside the action system (no bootstrap action) still mutate
     if not self.latest_action:
         mutation()
-        # TODO: This should also preform the credit update as per current create_action
+        # TODO: This should also perform the credit update as per current create_action
         return None
 
     # Capture before state

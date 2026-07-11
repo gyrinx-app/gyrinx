@@ -135,7 +135,7 @@ def test_stash_equipment_not_cloned_when_no_stash_in_original():
 
 
 @pytest.mark.django_db
-def test_stash_fighter_facts_in_sync_after_campaign_start(settings):
+def test_stash_fighter_facts_in_sync_after_campaign_start():
     """
     Regression test: stash fighter rating_current should match equipment cost after campaign start.
 

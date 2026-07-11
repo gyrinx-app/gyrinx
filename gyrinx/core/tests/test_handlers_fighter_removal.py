@@ -29,7 +29,6 @@ def test_handle_equipment_removal_campaign_mode_with_refund(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test removing equipment in campaign mode with refund."""
 
@@ -92,11 +91,10 @@ def test_handle_equipment_removal_campaign_mode_with_refund(
     assert result.list_action.credits_before == 500
 
     # Verify rating_current propagation (before deletion)
-    if lst.latest_action:
-        fighter.refresh_from_db()
-        # Rating delta is -50, so fighter rating_current should decrease
-        assert fighter.rating_current == initial_fighter_rating - equipment_cost
-        # Assignment was deleted, so we can't check it
+    fighter.refresh_from_db()
+    # Rating delta is -50, so fighter rating_current should decrease
+    assert fighter.rating_current == initial_fighter_rating - equipment_cost
+    # Assignment was deleted, so we can't check it
 
 
 @pytest.mark.django_db
@@ -105,7 +103,6 @@ def test_handle_equipment_removal_campaign_mode_without_refund(
     list_with_campaign,
     content_fighter,
     make_equipment,
-    settings,
 ):
     """Test removing equipment in campaign mode without refund."""
 
@@ -147,7 +144,7 @@ def test_handle_equipment_removal_campaign_mode_without_refund(
 
 @pytest.mark.django_db
 def test_handle_equipment_removal_list_building_mode(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test removing equipment in list building mode ignores refund request."""
 
@@ -193,7 +190,6 @@ def test_handle_equipment_removal_stash_fighter(
     content_house,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test removing equipment from stash fighter affects stash, not rating."""
     from gyrinx.models import FighterCategoryChoices
@@ -248,10 +244,9 @@ def test_handle_equipment_removal_stash_fighter(
     assert result.list_action.credits_delta == equipment_cost  # Refund still applies
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        fighter.refresh_from_db()
-        # Stash delta is -30, so fighter rating_current should decrease
-        assert fighter.rating_current == initial_fighter_rating - equipment_cost
+    fighter.refresh_from_db()
+    # Stash delta is -30, so fighter rating_current should decrease
+    assert fighter.rating_current == initial_fighter_rating - equipment_cost
 
 
 @pytest.mark.django_db
@@ -310,7 +305,6 @@ def test_handle_equipment_component_removal_upgrade_with_refund(
     list_with_campaign,
     content_fighter,
     make_equipment_with_upgrades,
-    settings,
 ):
     """Test removing an upgrade from equipment with refund."""
 
@@ -370,12 +364,11 @@ def test_handle_equipment_component_removal_upgrade_with_refund(
     assert result.list_action.credits_delta == upgrade_cost  # Refund
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        fighter.refresh_from_db()
-        # Rating delta is -20, so both should decrease
-        assert assignment.rating_current == initial_assignment_rating - upgrade_cost
-        assert fighter.rating_current == initial_fighter_rating - upgrade_cost
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    # Rating delta is -20, so both should decrease
+    assert assignment.rating_current == initial_assignment_rating - upgrade_cost
+    assert fighter.rating_current == initial_fighter_rating - upgrade_cost
 
 
 @pytest.mark.django_db
@@ -384,7 +377,6 @@ def test_handle_equipment_component_removal_profile_with_refund(
     list_with_campaign,
     content_fighter,
     make_weapon_with_profile,
-    settings,
 ):
     """Test removing a weapon profile from equipment with refund."""
 
@@ -443,12 +435,11 @@ def test_handle_equipment_component_removal_profile_with_refund(
     assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        fighter.refresh_from_db()
-        # Rating delta is -30, so both should decrease
-        assert assignment.rating_current == initial_assignment_rating - profile_cost
-        assert fighter.rating_current == initial_fighter_rating - profile_cost
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    # Rating delta is -30, so both should decrease
+    assert assignment.rating_current == initial_assignment_rating - profile_cost
+    assert fighter.rating_current == initial_fighter_rating - profile_cost
 
 
 @pytest.mark.django_db
@@ -457,7 +448,6 @@ def test_handle_equipment_component_removal_accessory_with_refund(
     list_with_campaign,
     content_fighter,
     make_weapon_with_accessory,
-    settings,
 ):
     """Test removing a weapon accessory from equipment with refund."""
 
@@ -513,12 +503,11 @@ def test_handle_equipment_component_removal_accessory_with_refund(
     assert result.list_action.action_type == ListActionType.UPDATE_EQUIPMENT
 
     # Verify rating_current propagation
-    if lst.latest_action:
-        assignment.refresh_from_db()
-        fighter.refresh_from_db()
-        # Rating delta is -25, so both should decrease
-        assert assignment.rating_current == initial_assignment_rating - accessory_cost
-        assert fighter.rating_current == initial_fighter_rating - accessory_cost
+    assignment.refresh_from_db()
+    fighter.refresh_from_db()
+    # Rating delta is -25, so both should decrease
+    assert assignment.rating_current == initial_assignment_rating - accessory_cost
+    assert fighter.rating_current == initial_fighter_rating - accessory_cost
 
 
 @pytest.mark.django_db
@@ -557,7 +546,7 @@ def test_handle_equipment_component_removal_invalid_type(
 
 @pytest.mark.django_db
 def test_handle_fighter_archive_toggle_archive_with_refund(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test archiving a fighter with refund in campaign mode."""
 
@@ -600,7 +589,7 @@ def test_handle_fighter_archive_toggle_archive_with_refund(
 
 @pytest.mark.django_db
 def test_handle_fighter_archive_toggle_archive_without_refund(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test archiving a fighter without refund."""
 
@@ -634,7 +623,7 @@ def test_handle_fighter_archive_toggle_archive_without_refund(
 
 @pytest.mark.django_db
 def test_handle_fighter_archive_toggle_unarchive(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test unarchiving a fighter."""
 
@@ -677,7 +666,7 @@ def test_handle_fighter_archive_toggle_unarchive(
 
 @pytest.mark.django_db
 def test_handle_fighter_archive_toggle_archive_list_building_mode(
-    user, make_list, content_fighter, settings
+    user, make_list, content_fighter
 ):
     """Test archiving a fighter in list building mode ignores refund."""
 
@@ -713,7 +702,7 @@ def test_handle_fighter_archive_toggle_archive_list_building_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_deletion_campaign_mode_with_refund(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test deleting a fighter in campaign mode with refund."""
 
@@ -756,7 +745,7 @@ def test_handle_fighter_deletion_campaign_mode_with_refund(
 
 @pytest.mark.django_db
 def test_handle_fighter_deletion_campaign_mode_without_refund(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test deleting a fighter without refund."""
 
@@ -788,9 +777,7 @@ def test_handle_fighter_deletion_campaign_mode_without_refund(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_deletion_list_building_mode(
-    user, make_list, content_fighter, settings
-):
+def test_handle_fighter_deletion_list_building_mode(user, make_list, content_fighter):
     """Test deleting a fighter in list building mode ignores refund."""
 
     lst = make_list("Test List")
@@ -829,7 +816,6 @@ def test_handle_fighter_deletion_stash_fighter(
     list_with_campaign,
     content_house,
     make_content_fighter,
-    settings,
 ):
     """Test deleting a stash fighter affects stash, not rating."""
     from gyrinx.models import FighterCategoryChoices
@@ -912,7 +898,7 @@ def test_handle_fighter_deletion_transaction_rollback(
 
 @pytest.mark.django_db
 def test_handle_fighter_deletion_correct_before_values(
-    user, list_with_campaign, content_fighter, settings
+    user, list_with_campaign, content_fighter
 ):
     """Test that before values are captured correctly in ListAction."""
 
@@ -943,7 +929,7 @@ def test_handle_fighter_deletion_correct_before_values(
 
 @pytest.mark.django_db
 def test_archive_toggle_is_idempotent_no_double_refund(
-    user, make_list, make_list_fighter, make_campaign, settings
+    user, make_list, make_list_fighter, make_campaign
 ):
     """Re-archiving an already-archived fighter must not move the books.
 
