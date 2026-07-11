@@ -22,11 +22,12 @@ from django.tasks import Task
 
 from gyrinx.tasks.registry import get_all_tasks
 
-# Extra modules to scan, for the rare task module NOT named ``<app>.tasks``.
-# Auto-discovery (see ``_task_module_paths``) already covers every first-party
-# ``<app>.tasks`` module and every module that owns a registered task, so this
-# is usually empty — it's an escape hatch for unconventional locations.
-TASK_MODULES = ("gyrinx.core.tasks",)
+# Escape hatch for a task module NOT named ``<app>.tasks`` (an unconventional
+# location auto-discovery in ``_task_module_paths`` wouldn't find). Empty by
+# default: every first-party ``gyrinx.*/tasks.py`` is auto-discovered, as is any
+# module that already owns a registered task, so listing those here would only
+# duplicate the scan.
+TASK_MODULES = ()
 
 
 def _task_module_paths(routes):
@@ -64,10 +65,14 @@ def _declared_tasks(module_paths):
     for mod_path in module_paths:
         try:
             module = importlib.import_module(mod_path)
-        except ImportError:
-            # A discovered <app>.tasks that fails to import surfaces at startup
-            # anyway; don't turn the whole system check into a traceback.
-            continue
+        except ModuleNotFoundError as exc:
+            # Skip only when the target module itself is absent (a typo'd
+            # TASK_MODULES entry, or a removed module) — nothing to scan. A
+            # missing *dependency* of a real module (``exc.name`` is something
+            # else) is genuine breakage and must not be hidden, so let it raise.
+            if exc.name == mod_path or mod_path.startswith(f"{exc.name}."):
+                continue
+            raise
         for obj in vars(module).values():
             if isinstance(obj, Task) and obj.func.__module__ == mod_path:
                 declared[obj.func.__name__] = mod_path
