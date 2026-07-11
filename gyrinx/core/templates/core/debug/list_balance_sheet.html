@@ -25,12 +25,15 @@
         th { background: #f5f5f5; font-weight: 600; }
         td.num, th.num { text-align: right; font-family: monospace; }
         .summary td { font-weight: 600; }
-        .mismatch { background: #fdecea; }
+        /* tr.mismatch (element+class) outranks .fighter-row/.summary so the
+           danger red wins on those rows instead of their own background. */
+        tr.mismatch { background: #fdecea; }
         .fighter-row { background: #eef3fa; font-weight: 600; }
         .assignment-row td:first-child { padding-left: 1.5rem; }
         .component-row { color: #666; }
         .component-row td:first-child { padding-left: 3rem; }
         .muted { color: #999; }
+        .pin-source { cursor: help; border-bottom: 1px dotted #999; }
         .tag { display: inline-block; background: #eee; border-radius: 4px; padding: 0 0.4rem; font-size: 0.75rem; margin-left: 0.35rem; }
         .tag-override { background: #ffe4c9; color: #8a4b00; }
         .tag-stash { background: #e2e0f7; color: #3c368e; }
@@ -150,7 +153,11 @@
                                         {% if line.detail %}<span class="muted">({{ line.detail }})</span>{% endif %}
                                     </td>
                                     <td>
-                                        {{ line.pricing }}
+                                        {% if line.source_repr %}
+                                            <span class="pin-source" title="{{ line.source_repr }}">{{ line.pricing }}</span>
+                                        {% else %}
+                                            {{ line.pricing }}
+                                        {% endif %}
                                         {% if line.detail %}<span class="text-secondary">({{ line.detail }})</span>{% endif %}
                                     </td>
                                     <td class="num">{{ line.amount }}¢</td>
