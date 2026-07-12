@@ -7,7 +7,7 @@
     {% if campaign.archived %}
         <div class="border rounded p-2 text-secondary mb-3">
             <i class="bi-archive"></i>
-            This campaign has been archived by its owner.
+            This campaign has been archived.
             {% if is_admin %}
                 <form action="{% url 'core:campaign-archive' campaign.id %}"
                       method="post"

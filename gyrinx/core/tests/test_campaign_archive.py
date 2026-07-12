@@ -92,7 +92,7 @@ def test_campaign_detail_shows_archived_message(client, archived_campaign):
     response = client.get(url)
 
     assert response.status_code == 200
-    assert b"This campaign has been archived by its owner" in response.content
+    assert b"This campaign has been archived." in response.content
     assert b"Unarchive" in response.content
 
 

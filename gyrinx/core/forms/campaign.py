@@ -192,9 +192,11 @@ class EditCampaignForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         self._old_phase = None
+        self._old_admin_ids = set()
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self._old_phase = self.instance.phase
+            self._old_admin_ids = set(self.instance.admins.values_list("id", flat=True))
             # Arbitrators can only be picked from campaign participants (gang
             # owners) plus anyone already granted admin — never the whole user
             # table, and never the owner (who is always an admin).
@@ -207,6 +209,9 @@ class EditCampaignForm(forms.ModelForm):
                 .exclude(id=self.instance.owner_id)
                 .order_by("username")
             )
+        else:
+            # Never offer the whole user table on an unbound form.
+            self.fields["admins"].queryset = get_user_model().objects.none()
 
     def save(self, commit=True, user=None):
         instance = super().save(commit=False)
@@ -236,6 +241,36 @@ class EditCampaignForm(forms.ModelForm):
                     description=description,
                     owner=user,
                 )
+
+            # Log arbitrator roster changes — granting admin is a trust-boundary
+            # change, so keep an audit trail alongside the phase log.
+            if user:
+                new_admin_ids = set(instance.admins.values_list("id", flat=True))
+                added = new_admin_ids - self._old_admin_ids
+                removed = self._old_admin_ids - new_admin_ids
+                if added or removed:
+                    from gyrinx.core.models.campaign import CampaignAction
+
+                    User = get_user_model()
+
+                    def _names(ids):
+                        return ", ".join(
+                            User.objects.filter(id__in=ids)
+                            .order_by("username")
+                            .values_list("username", flat=True)
+                        )
+
+                    parts = []
+                    if added:
+                        parts.append(f"added {_names(added)}")
+                    if removed:
+                        parts.append(f"removed {_names(removed)}")
+                    CampaignAction.objects.create(
+                        campaign=instance,
+                        user=user,
+                        description="Arbitrators updated: " + "; ".join(parts),
+                        owner=user,
+                    )
 
         return instance
 

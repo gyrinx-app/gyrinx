@@ -161,6 +161,54 @@ def test_edit_form_admins_choices_limited_to_participants(
 
 
 @pytest.mark.django_db
+def test_new_battle_page_allows_shared_admin(client, shared_admin, rando, campaign):
+    campaign.admins.add(shared_admin)
+
+    url = reverse("core:battle-new", args=[campaign.id])
+
+    # A shared admin without a gang in the campaign can create battles.
+    client.force_login(shared_admin)
+    assert client.get(url).status_code == 200
+
+    # A user with no gang and no admin rights is turned away.
+    client.force_login(rando)
+    assert client.get(url).status_code == 302
+
+
+@pytest.mark.django_db
+def test_admin_roster_changes_are_logged(
+    client, user, shared_admin, make_campaign, make_list
+):
+    from gyrinx.core.models.campaign import CampaignAction
+
+    campaign = make_campaign("Audited Campaign")
+    lst = make_list("Admin Gang", owner=shared_admin)
+    campaign.lists.add(lst)
+
+    client.force_login(user)
+    response = client.post(
+        reverse("core:campaign-edit", args=[campaign.id]),
+        {
+            "name": campaign.name,
+            "budget": campaign.budget,
+            "public": "on",
+            "admins": [str(shared_admin.id)],
+        },
+    )
+    assert response.status_code == 302
+    action = CampaignAction.objects.get(
+        campaign=campaign, description__startswith="Arbitrators updated"
+    )
+    assert f"added {shared_admin.username}" in action.description
+
+
+@pytest.mark.django_db
+def test_unbound_edit_form_offers_no_admin_choices(user):
+    form = EditCampaignForm()
+    assert not form.fields["admins"].queryset.exists()
+
+
+@pytest.mark.django_db
 def test_campaign_page_shows_admin_controls_to_shared_admin(
     client, shared_admin, rando, make_campaign, make_list
 ):

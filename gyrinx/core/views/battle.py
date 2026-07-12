@@ -98,9 +98,9 @@ def new_battle(request, campaign_id):
     """Create a new battle for a campaign."""
     campaign = get_object_or_404(Campaign, id=campaign_id)
 
-    # Check permissions - the campaign arbitrator, or any player with a gang in
-    # the campaign, can create battles.
-    is_arbitrator = campaign.owner_id == request.user.id
+    # Check permissions - a campaign admin (arbitrator), or any player with a
+    # gang in the campaign, can create battles.
+    is_arbitrator = campaign.is_admin(request.user)
     has_gang = campaign.lists.filter(owner=request.user).exists()
     if not (is_arbitrator or has_gang):
         messages.error(
