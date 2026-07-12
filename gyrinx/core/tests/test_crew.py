@@ -657,3 +657,48 @@ def test_battle_page_shows_crew_section(client, crew_setup):
     assert "Participants" in content
     assert gang.name in content
     assert f"?list={gang.id}" in content
+
+
+@pytest.mark.django_db
+def test_print_fighter_ids_by_state(crew_setup):
+    gang, fighters, battle = (
+        crew_setup["gang"],
+        crew_setup["fighters"],
+        crew_setup["battle"],
+    )
+    user = crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+
+    # Whole-gang draft (no picks, no random) -> None: print the whole gang.
+    assert crew.print_fighter_ids() is None
+
+    # Draft with picks -> exactly the chosen fighters.
+    crew.chosen_fighters.set([fighters[0], fighters[2]])
+    assert set(crew.print_fighter_ids()) == {fighters[0].id, fighters[2].id}
+
+    # Locked -> the frozen members (here, the two chosen, no random draw).
+    handle_crew_lock(user=user, crew=crew)
+    crew.refresh_from_db()
+    assert set(crew.print_fighter_ids()) == {fighters[0].id, fighters[2].id}
+
+
+@pytest.mark.django_db
+def test_crew_print_link_filters_to_crew_fighters(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    gang, fighters, battle = (
+        crew_setup["gang"],
+        crew_setup["fighters"],
+        crew_setup["battle"],
+    )
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], name="Alpha"
+    )
+    crew.chosen_fighters.set([fighters[0], fighters[1]])
+
+    resp = client.get(reverse("core:list-print", args=[gang.id]) + f"?crew={crew.id}")
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert fighters[0].name in content
+    assert fighters[1].name in content
+    # A gang fighter that isn't in the crew is filtered out of the print.
+    assert fighters[2].name not in content

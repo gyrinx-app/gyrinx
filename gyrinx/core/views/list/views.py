@@ -563,6 +563,20 @@ class ListPrintView(generic.DetailView):
         self.print_config = print_config
         context["print_config"] = print_config
 
+        # A crew print (?crew=<id>) narrows the sheet to one battle crew's
+        # fighters. Scoped to this gang so it can't leak another gang's crew.
+        crew_id = self.request.GET.get("crew")
+        print_crew = None
+        if crew_id:
+            from gyrinx.core.models.crew import Crew
+
+            print_crew = (
+                Crew.objects.select_related("battle")
+                .filter(id=crew_id, list=list_obj)
+                .first()
+            )
+        context["print_crew"] = print_crew
+
         # Get fighters with group keys for display grouping
         # Use with_related_data() to prefetch all equipment, profiles, and related data
         # to avoid N+1 queries when templates access fighter properties.
@@ -579,8 +593,13 @@ class ListPrintView(generic.DetailView):
             .filter(list=list_obj, archived=False)
         )
 
-        # Apply print config filters if available
-        if print_config:
+        # Apply print config filters if available. A crew print is authoritative:
+        # the crew *is* the selection, so config/default filtering doesn't apply.
+        if print_crew is not None:
+            crew_ids = print_crew.print_fighter_ids()
+            if crew_ids is not None:
+                fighters_qs = fighters_qs.filter(id__in=crew_ids)
+        elif print_config:
             # Handle fighter selection mode
             if print_config.fighter_selection_mode == PrintConfig.NO_FIGHTERS:
                 # No fighters - return empty queryset

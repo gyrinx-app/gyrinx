@@ -366,6 +366,18 @@ class Crew(AppBase):
         """
         return sum(cost for cost, _ in self._attendee_lines())
 
+    def print_fighter_ids(self):
+        """ListFighter ids to print for this crew, or ``None`` for the whole gang.
+
+        Locked crews print their frozen attendees; draft crews print the
+        hand-picked fighters. A draft with no picks (a whole-gang crew, or one
+        that only has a pending random draw) has nothing specific to narrow to,
+        so returns ``None`` and the print falls back to the whole gang.
+        """
+        if self.is_locked:
+            return list(self.members.values_list("list_fighter_id", flat=True))
+        return list(self.chosen_fighters.values_list("id", flat=True)) or None
+
     def extras_total(self):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
         return sum(item.cost for item in self.line_items.all())
