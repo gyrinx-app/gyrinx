@@ -222,9 +222,13 @@ class Crew(AppBase):
 
     def method_label(self):
         """Human label mirroring the rulebook's Custom / Random / Hybrid."""
-        # len() over .all() so a prefetched chosen_fighters cache is reused
-        # (a plain .count() would issue its own query even when prefetched).
-        chosen = len(self.chosen_fighters.all())
+        # Reuse a prefetched chosen_fighters cache (battle page) when present;
+        # otherwise a COUNT is cheaper than materialising every row.
+        prefetched = getattr(self, "_prefetched_objects_cache", {})
+        if "chosen_fighters" in prefetched:
+            chosen = len(self.chosen_fighters.all())
+        else:
+            chosen = self.chosen_fighters.count()
         has_random = bool((self.random_spec or "").strip())
         if chosen and has_random:
             return f"Hybrid ({chosen}+{self.random_spec})"
@@ -328,27 +332,49 @@ class Crew(AppBase):
         return self.rating() + self.extras_total()
 
     def receipt(self):
-        """Itemised receipt for the crew page: attendee lines, extra lines, the
-        subtotals, a per-payment-method breakdown of the extras, and the
-        credits-value total. One batch load; computed live, never persisted."""
+        """Columnar receipt for the crew page. Each fighter contributes to the
+        Rating column; each extra falls in the Credits, Patronage, or Free
+        column by how it's paid for. Returns the rows, the per-column subtotals,
+        and the grand total (the crew's credits value). One batch load; computed
+        live, never persisted."""
         lines = self._attendee_lines()
-        attendees = [{"cost": cost, **line} for cost, line in lines]
+        attendees = [{"rating": cost, **line} for cost, line in lines]
         fighters_total = sum(cost for cost, _ in lines)
 
-        extras = list(self.line_items.all())
-        extras_total = sum(item.cost for item in extras)
-        payment_totals = {}
-        for item in extras:
-            label = item.get_payment_display()
-            payment_totals[label] = payment_totals.get(label, 0) + item.cost
+        extras = []
+        credits_total = patronage_total = free_total = 0
+        has_free = False
+        for item in self.line_items.all():
+            credits = patronage = free = None
+            if item.payment == self.PAY_PATRONAGE:
+                patronage = item.cost
+                patronage_total += item.cost
+            elif item.payment == self.PAY_FREE:
+                free = item.cost
+                free_total += item.cost
+                has_free = True
+            else:
+                credits = item.cost
+                credits_total += item.cost
+            extras.append(
+                {
+                    "item": item,
+                    "credits": credits,
+                    "patronage": patronage,
+                    "free": free,
+                }
+            )
 
+        total = fighters_total + credits_total + patronage_total + free_total
         return {
             "attendees": attendees,
-            "fighters_total": fighters_total,
             "extras": extras,
-            "extras_total": extras_total,
-            "payment_totals": sorted(payment_totals.items()),
-            "credits_value": fighters_total + extras_total,
+            "fighters_total": fighters_total,
+            "credits_total": credits_total,
+            "patronage_total": patronage_total,
+            "free_total": free_total,
+            "has_free": has_free,
+            "total": total,
         }
 
 

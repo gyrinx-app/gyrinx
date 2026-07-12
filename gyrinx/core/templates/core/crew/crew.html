@@ -32,102 +32,111 @@
             </div>
         </div>
         <!-- Receipt -->
-        <div class="vstack gap-3">
-            <!-- Fighters -->
-            <div>
-                <div class="caps-label mb-1">{% if crew.is_locked %}Attendees{% else %}Chosen fighters{% endif %}</div>
-                {% for a in receipt.attendees %}
-                    <div class="d-flex justify-content-between align-items-center gap-2 py-1 {% if not forloop.first %}border-top{% endif %}">
-                        <div class="me-auto">
-                            <a href="{% url 'core:list-fighter-edit' crew.list.id a.fighter_id %}"
-                               class="linked">{{ a.name }}</a>
-                            {% if a.was_random %}
-                                <span class="badge text-bg-info ms-1"
-                                      data-bs-toggle="tooltip"
-                                      data-bs-title="Drawn at random">Random</span>
-                            {% endif %}
-                            {% if a.loadout %}
-                                <span class="text-secondary fs-7">· {{ a.loadout }}</span>
-                            {% elif crew.is_locked %}
-                                <span class="text-secondary fs-7">· Full kit</span>
-                            {% endif %}
-                        </div>
-                        {% if can_manage and crew.is_locked %}
-                            <a href="{% url 'core:crew-member-loadout' battle.id crew.id a.member_id %}"
-                               class="linked-secondary fs-7"><i class="bi-pencil"></i> Loadout</a>
-                        {% endif %}
-                        <div class="text-end">{{ a.cost }}¢</div>
-                    </div>
-                {% empty %}
-                    <p class="text-secondary fs-7 mb-0">
-                        {% if crew.is_locked %}
-                            No attendees.
-                        {% else %}
-                            No fighters chosen — the whole gang attends when the crew is locked.
-                        {% endif %}
-                    </p>
-                {% endfor %}
-                {% if receipt.attendees %}
-                    <div class="d-flex justify-content-between border-top pt-1 mt-1 fw-semibold">
-                        <div>Fighters</div>
-                        <div>{{ receipt.fighters_total }}¢</div>
-                    </div>
+        <div class="vstack gap-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="caps-label">Receipt</div>
+                {% if can_manage %}
+                    <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
+                       class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
                 {% endif %}
             </div>
-            <!-- Extras -->
-            <div>
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                    <div class="caps-label">Extras</div>
-                    {% if can_manage %}
-                        <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
-                           class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
-                    {% endif %}
-                </div>
-                {% for item in receipt.extras %}
-                    <div class="d-flex justify-content-between align-items-center gap-2 py-1 {% if not forloop.first %}border-top{% endif %}">
-                        <div class="me-auto">
-                            {{ item.label }}
-                            <span class="text-secondary fs-7">· {{ item.get_payment_display }}{% if item.reason %} · {{ item.reason }}{% endif %}</span>
-                        </div>
-                        {% if can_manage %}
-                            <a href="{% url 'core:crew-extra-edit' battle.id crew.id item.id %}"
-                               class="linked-secondary fs-7"
-                               aria-label="Edit extra"><i class="bi-pencil"></i></a>
-                            <form method="post"
-                                  action="{% url 'core:crew-extra-delete' battle.id crew.id item.id %}"
-                                  class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit"
-                                        class="btn btn-link btn-sm linked-secondary p-0"
-                                        aria-label="Remove extra">
-                                    <i class="bi-trash"></i>
-                                </button>
-                            </form>
-                        {% endif %}
-                        <div class="text-end">{{ item.cost }}¢</div>
-                    </div>
-                {% empty %}
-                    <p class="text-secondary fs-7 mb-0">No extras (tactics cards, hired help).</p>
-                {% endfor %}
-                {% if receipt.extras %}
-                    <div class="d-flex justify-content-between border-top pt-1 mt-1 fw-semibold">
-                        <div>Extras</div>
-                        <div>{{ receipt.extras_total }}¢</div>
-                    </div>
-                {% endif %}
-            </div>
-            <!-- Total -->
-            <div>
-                <div class="d-flex justify-content-between border-top border-2 pt-2 fs-5 fw-semibold">
-                    <div>Credits value</div>
-                    <div>{{ receipt.credits_value }}¢</div>
-                </div>
-                {% if receipt.payment_totals %}
-                    <div class="text-secondary fs-7 mt-1">
-                        Paid for with:
-                        {% for label, amount in receipt.payment_totals %}{{ label }} {{ amount }}¢{% if not forloop.last %} · {% endif %}{% endfor %}
-                    </div>
-                {% endif %}
+            <div class="table-responsive">
+                <table class="table table-sm table-borderless align-middle mb-0">
+                    <thead>
+                        <tr class="border-bottom">
+                            <th class="caps-label">{% if crew.is_locked %}Attendee{% else %}Fighter{% endif %}</th>
+                            <th class="caps-label text-end">Rating</th>
+                            <th class="caps-label text-end">Credits</th>
+                            <th class="caps-label text-end">Patronage</th>
+                            {% if receipt.has_free %}<th class="caps-label text-end">Free</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in receipt.attendees %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'core:list-fighter-edit' crew.list.id a.fighter_id %}"
+                                       class="linked">{{ a.name }}</a>
+                                    {% if a.was_random %}
+                                        <span class="badge text-bg-info ms-1"
+                                              data-bs-toggle="tooltip"
+                                              data-bs-title="Drawn at random">Random</span>
+                                    {% endif %}
+                                    <span class="text-secondary fs-7">
+                                        {% if a.loadout %}
+                                            · {{ a.loadout }}
+                                        {% elif crew.is_locked %}
+                                            · Full kit
+                                        {% endif %}
+                                        {% if can_manage and crew.is_locked %}
+                                            · <a href="{% url 'core:crew-member-loadout' battle.id crew.id a.member_id %}"
+    class="linked-secondary">Loadout</a>
+                                        {% endif %}
+                                    </span>
+                                </td>
+                                <td class="text-end">{{ a.rating }}¢</td>
+                                <td></td>
+                                <td></td>
+                                {% if receipt.has_free %}
+                                    <td></td>
+                                {% endif %}
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                    class="text-secondary fs-7">
+                                    {% if crew.is_locked %}
+                                        No attendees.
+                                    {% else %}
+                                        No fighters chosen — the whole gang attends when the crew is locked.
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        {% for e in receipt.extras %}
+                            <tr>
+                                <td>
+                                    {{ e.item.label }}
+                                    {% if e.item.reason %}<span class="text-secondary fs-7">· {{ e.item.reason }}</span>{% endif %}
+                                    {% if can_manage %}
+                                        <a href="{% url 'core:crew-extra-edit' battle.id crew.id e.item.id %}"
+                                           class="linked-secondary fs-7 ms-1"
+                                           aria-label="Edit extra"><i class="bi-pencil"></i></a>
+                                        <form method="post"
+                                              action="{% url 'core:crew-extra-delete' battle.id crew.id e.item.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-link btn-sm linked-secondary p-0"
+                                                    aria-label="Remove extra">
+                                                <i class="bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                                <td></td>
+                                <td class="text-end">{% if e.credits is not None %}{{ e.credits }}¢{% endif %}</td>
+                                <td class="text-end">{% if e.patronage is not None %}{{ e.patronage }}¢{% endif %}</td>
+                                {% if receipt.has_free %}
+                                    <td class="text-end">{% if e.free is not None %}{{ e.free }}¢{% endif %}</td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="border-top fw-semibold">
+                            <td>Subtotal</td>
+                            <td class="text-end">{{ receipt.fighters_total }}¢</td>
+                            <td class="text-end">{{ receipt.credits_total }}¢</td>
+                            <td class="text-end">{{ receipt.patronage_total }}¢</td>
+                            {% if receipt.has_free %}<td class="text-end">{{ receipt.free_total }}¢</td>{% endif %}
+                        </tr>
+                        <tr class="fs-5 fw-semibold">
+                            <td colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">Total crew rating</td>
+                            <td class="text-end">{{ receipt.total }}¢</td>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
     </div>

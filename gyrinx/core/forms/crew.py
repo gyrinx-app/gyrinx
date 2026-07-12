@@ -7,6 +7,7 @@ cost, credits, or audit — a crew is a virtual overlay.
 """
 
 from django import forms
+from django.utils.html import format_html
 
 from gyrinx.core.handlers.crew import eligible_crew_fighters
 from gyrinx.core.models.crew import (
@@ -23,6 +24,20 @@ from gyrinx.core.models.list import ListFighter
 DICE_CHOICES = [("", "No dice"), ("D3", "D3"), ("D6", "D6")]
 
 
+class CrewFighterChoiceField(forms.ModelMultipleChoiceField):
+    """Fighter checkboxes labelled ``**name** · category (rating)`` instead of
+    the raw ``__str__``. The queryset should be loaded via ``with_related_data``
+    so the category and cached cost read from the prefetch cache."""
+
+    def label_from_instance(self, obj):
+        return format_html(
+            "<strong>{}</strong> · {} ({}¢)",
+            obj.name,
+            obj.content_fighter.get_category_display(),
+            obj.cost_int_cached,
+        )
+
+
 class CrewForm(forms.ModelForm):
     """Create or edit a crew's selection recipe.
 
@@ -34,7 +49,7 @@ class CrewForm(forms.ModelForm):
     with the acting user.
     """
 
-    chosen_fighters = forms.ModelMultipleChoiceField(
+    chosen_fighters = CrewFighterChoiceField(
         queryset=ListFighter.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple(),
@@ -69,7 +84,11 @@ class CrewForm(forms.ModelForm):
         # Gang comes from the view on create, or the instance on edit.
         self.gang = gang or getattr(self.instance, "list", None)
         if self.gang is not None:
-            self.fields["chosen_fighters"].queryset = eligible_crew_fighters(self.gang)
+            # with_related_data() so the checkbox labels (category + cached cost)
+            # render without a query per fighter.
+            self.fields["chosen_fighters"].queryset = eligible_crew_fighters(
+                self.gang
+            ).with_related_data()
         self.has_eligible_fighters = self.fields["chosen_fighters"].queryset.exists()
 
         if self.instance and self.instance.pk:
