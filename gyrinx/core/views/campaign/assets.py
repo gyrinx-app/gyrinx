@@ -105,8 +105,9 @@ def campaign_asset_detail(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_detail.html`
     """
-    # One query: fetch the asset scoped to the campaign and pull the campaign in
-    # via the asset_type join, rather than a separate Campaign lookup.
+    # Fetch the asset scoped to the campaign and pull the campaign in via the
+    # asset_type join, avoiding a separate Campaign lookup. (sub_assets are
+    # prefetched in one further query.)
     asset = get_object_or_404(
         CampaignAsset.objects.select_related(
             "asset_type", "asset_type__campaign", "holder"
