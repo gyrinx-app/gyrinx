@@ -27,6 +27,8 @@ from .models import (
     ContentAdvancementEquipment,
     ContentAttribute,
     ContentAttributeValue,
+    ContentBattleRole,
+    ContentBattleRoleOption,
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -51,6 +53,7 @@ from .models import (
     ContentFighterPsykerDisciplineAssignment,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
+    ContentHouseSkillRankAccess,
     ContentCounter,
     ContentInjury,
     ContentInjuryGroup,
@@ -132,7 +135,27 @@ class ContentAdmin(admin.ModelAdmin):
         return fields
 
 
-class ContentTabularInline(admin.TabularInline):
+class _AllContentInlineMixin:
+    """Shared behaviour for content inlines that surface pack content.
+
+    Content managers exclude pack content by default; ``all_content()``
+    bypasses that filter. These inlines display *all* content (including pack
+    items) so it can be managed from the admin.
+
+    The catch: Django builds the inline formset's primary-key field as a
+    ``ModelChoiceField`` whose queryset comes from ``model._default_manager``,
+    which excludes pack content. So a pack-content row renders fine but fails
+    validation on its hidden ``id`` field with "Select a valid choice…". That
+    error is never displayed (the tabular template doesn't render hidden-field
+    errors), yet ``AdminErrorList`` counts it — the page shows "Please correct
+    the errors below" with no visible error and the row can never be saved.
+
+    To keep the display and validation querysets consistent, ``get_formset``
+    binds the pk field's queryset to the formset's own queryset (which uses
+    ``all_content()`` and is filtered to the parent instance) instead of the
+    default manager.
+    """
+
     show_change_link = True
 
     def get_queryset(self, request):
@@ -145,19 +168,36 @@ class ContentTabularInline(admin.TabularInline):
             return qs
         return super().get_queryset(request)
 
-
-class ContentStackedInline(admin.StackedInline):
-    show_change_link = True
-
-    def get_queryset(self, request):
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
         manager = self.model._default_manager
-        if hasattr(manager, "all_content"):
-            qs = manager.all_content()
-            ordering = self.get_ordering(request)
-            if ordering:
-                qs = qs.order_by(*ordering)
-            return qs
-        return super().get_queryset(request)
+        if not hasattr(manager, "all_content"):
+            return formset
+
+        pk_name = self.model._meta.pk.name
+
+        class AllContentFormSet(formset):
+            def add_fields(self, form, index):
+                super().add_fields(form, index)
+                pk_field = form.fields.get(pk_name)
+                # The pk field is a ModelChoiceField bound to the default
+                # manager, which excludes pack content — so pack-content rows
+                # this inline displays would fail validation on their hidden id.
+                # Bind it to the formset's queryset instead: it includes pack
+                # content (all_content()) yet stays scoped to this parent, so a
+                # crafted POST can't smuggle in an unrelated object's pk.
+                if pk_field is not None and hasattr(pk_field, "queryset"):
+                    pk_field.queryset = self.get_queryset()
+
+        return AllContentFormSet
+
+
+class ContentTabularInline(_AllContentInlineMixin, admin.TabularInline):
+    pass
+
+
+class ContentStackedInline(_AllContentInlineMixin, admin.StackedInline):
+    pass
 
 
 class ContentStackedPolymorphicInline(
@@ -724,6 +764,12 @@ class ContentFighterInline(ContentTabularInline):
     extra = 0
 
 
+class ContentHouseSkillRankAccessInline(ContentTabularInline):
+    model = ContentHouseSkillRankAccess
+    fields = ["fighter_category", "slot", "role"]
+    extra = 0
+
+
 @admin.register(ContentHouse)
 class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
     # ContentAdmin.__init__ builds list_display from the model's fields, so the
@@ -731,7 +777,15 @@ class ContentHouseAdmin(ContentAdmin, admin.ModelAdmin):
     # needed here. The icon is editable via the change form for the same reason.
     list_display_links = ["name"]
     search_fields = ["name"]
-    inlines = [ContentFighterInline]
+    filter_horizontal = ["skill_categories", "gang_skill_tree_choices"]
+    inlines = [ContentHouseSkillRankAccessInline, ContentFighterInline]
+
+
+@admin.register(ContentHouseSkillRankAccess)
+class ContentHouseSkillRankAccessAdmin(ContentAdmin, admin.ModelAdmin):
+    list_filter = ["house", "fighter_category", "role"]
+    list_display_links = ["fighter_category"]
+    search_fields = ["house__name"]
 
 
 @admin.register(ContentWeaponTrait)
@@ -1036,6 +1090,29 @@ class ContentModAdmin(PolymorphicParentModelAdmin, ContentAdmin):
         ContentModPsykerDisciplineAccess,
     )
     list_filter = (PolymorphicChildModelFilter,)
+    list_display_links = ("mod_description",)
+    # Downcast changelist rows to their real subclass (batched per child model
+    # by django-polymorphic) so each renders its own __str__ instead of the base
+    # "Base Modification". Without this the parent admin marks the queryset
+    # .non_polymorphic() for speed and rows come back as base ContentMod.
+    polymorphic_list = True
+
+    @admin.display(description="Modification")
+    def mod_description(self, obj):
+        # obj is downcast (polymorphic_list = True), so str(obj) renders the
+        # mod's own description, e.g. "Add rule Cunning Killers".
+        return str(obj)
+
+    def get_list_display(self, request):
+        # ContentAdmin.__init__ builds list_display from the base model's
+        # fields, which for the polymorphic parent is just ``polymorphic_ctype``
+        # — an unhelpful "Content | Fighter Rule Modifier" label. Lead with the
+        # rendered mod instead, keeping the type column alongside.
+        #
+        # ContentAdmin also appends ``packs_display``, but a ContentMod is never
+        # a CustomContentPackItem (mods attach via M2M / ContentModApplication),
+        # so it would always render "-" while costing a query per row. Drop it.
+        return ("mod_description", "polymorphic_ctype")
 
 
 @admin.register(ContentModApplication)
@@ -1161,6 +1238,32 @@ class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
         return obj.modifiers.count()
 
     get_modifier_count.short_description = "Modifiers"
+
+
+class ContentBattleRoleOptionInline(ContentTabularInline):
+    model = ContentBattleRoleOption
+    extra = 0
+    fields = ["name", "description"]
+
+
+@admin.register(ContentBattleRole)
+class ContentBattleRoleAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "description"]
+    list_display = ["name", "description", "get_option_count"]
+    readonly_fields = ["id", "created", "modified"]
+    inlines = [ContentBattleRoleOptionInline]
+
+    @admin.display(description="Options")
+    def get_option_count(self, obj):
+        return obj.options.count()
+
+
+@admin.register(ContentBattleRoleOption)
+class ContentBattleRoleOptionAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "description", "role__name"]
+    list_filter = ["role"]
+    list_display = ["name", "role", "description"]
+    readonly_fields = ["id", "created", "modified"]
 
 
 class ContentAttributeValueInline(ContentTabularInline):
@@ -1450,7 +1553,7 @@ class ContentRollFlowInline(ContentTabularInline):
 @admin.register(ContentCounter)
 class ContentCounterAdmin(ContentAdmin):
     search_fields = ["name"]
-    list_display = ["name", "description", "display_order"]
+    list_display = ["name", "description", "display_order", "warning_stat"]
     filter_horizontal = ["restricted_to_fighters"]
     inlines = [ContentRollFlowInline]
 

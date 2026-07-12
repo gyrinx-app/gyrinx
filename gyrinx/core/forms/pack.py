@@ -1,3 +1,5 @@
+import copy
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
@@ -19,10 +21,49 @@ from gyrinx.content.models.weapon import (
     ContentWeaponTrait,
 )
 from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
-from gyrinx.core.models.pack import CustomContentPack
+from gyrinx.core.models.pack import (
+    CustomContentPack,
+    CustomContentPackAttachment,
+)
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
+
+
+def rich_text_description_widget(height="200px"):
+    """TinyMCE widget for short rich-text description fields on pack content.
+
+    Mirrors the editor used for ``PackForm.summary`` so that custom rules,
+    skills, gear, traits, etc. support rich text formatting — but with image
+    insertion removed (these are short descriptions in a dense listing where
+    embedded images render awkwardly). The rest of the standard toolbar
+    (headings, lists, links, formatting, etc.) is retained. Rendered output is
+    sanitised on display via the ``safe_rich_text`` template filter.
+
+    Returns a fresh instance per call so each form owns its own widget.
+    """
+    # Drop the image item from the insert menu (deep-copied so the shared
+    # TINYMCE_EXTRA_ATTRS dict used by PackForm is left untouched).
+    menu = copy.deepcopy(TINYMCE_EXTRA_ATTRS["menu"])
+    menu["insert"]["items"] = (
+        "link media addcomment pageembed codesample inserttable | math "
+        "| charmap emoticons hr | pagebreak nonbreaking anchor "
+        "tableofcontents | insertdatetime"
+    )
+    return TinyMCEWithUpload(
+        attrs={"cols": 80, "rows": 5},
+        mce_attrs={
+            **TINYMCE_EXTRA_ATTRS,
+            "menu": menu,
+            "height": height,
+            # No image support: drop the image plugin, its toolbar button,
+            # and the empty-line quick-insert bar (which offers quickimage).
+            "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
+            "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
+            "quickbars_insert_toolbar": False,
+        },
+    )
+
 
 # Fighter categories excluded from pack creation.
 # STASH is auto-managed (one per gang); GANG_TERRAIN has its own territory
@@ -33,6 +74,24 @@ _EXCLUDED_FIGHTER_CATEGORIES = {
     FighterCategoryChoices.STASH,
     FighterCategoryChoices.GANG_TERRAIN,
 }
+
+
+# Appended to the ``cost`` / ``base_cost`` help text on pack forms when editing
+# an existing item. Cost propagation to subscribed gangs runs as a background
+# task (see ``propagate_content_cost_change``), so the change may take a moment
+# to appear on every list using this item.
+COST_PROPAGATION_HELP_SUFFIX = (
+    " Changing the cost of an existing item updates lists already using it in "
+    "the background — it may take a moment to appear on every gang."
+)
+
+
+def _append_cost_propagation_help(form, field_name="cost"):
+    """If editing an existing instance, append the propagation-delay note to
+    the named field's help text. No-op on create (nothing to propagate to)."""
+    if form.instance.pk and field_name in form.fields:
+        existing = form.fields[field_name].help_text or ""
+        form.fields[field_name].help_text = existing + COST_PROPAGATION_HELP_SUFFIX
 
 
 class PackForm(forms.ModelForm):
@@ -62,6 +121,27 @@ class PackForm(forms.ModelForm):
                 mce_attrs=TINYMCE_EXTRA_ATTRS,
             ),
             "listed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class PackAttachmentForm(forms.ModelForm):
+    class Meta:
+        model = CustomContentPackAttachment
+        fields = ["file", "title", "description"]
+        labels = {
+            "file": "File",
+            "title": "Title",
+            "description": "Description",
+        }
+        help_texts = {
+            "file": "PDF or image, up to 20MB.",
+            "title": "An optional display title. Defaults to the file name.",
+            "description": "An optional description shown alongside the file.",
+        }
+        widgets = {
+            "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "title": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
 
 
@@ -145,6 +225,7 @@ class ContentFighterPackForm(forms.ModelForm):
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._pack = pack
+        _append_cost_propagation_help(self, "base_cost")
 
         # Filter category choices.
         self.fields["category"].choices = [("", "---------")] + [
@@ -445,7 +526,7 @@ class ContentHouseForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def clean_name(self):
@@ -474,7 +555,7 @@ class ContentRuleForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
+            "description": rich_text_description_widget(),
         }
 
     def clean_name(self):
@@ -505,7 +586,7 @@ class ContentWeaponTraitPackForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 4}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -606,7 +687,7 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
             "cost": forms.NumberInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
             "rarity_roll": forms.NumberInput(attrs={"class": "form-control"}),
@@ -644,6 +725,7 @@ class ContentWeaponAccessoryPackForm(StandardFieldsMixin, forms.ModelForm):
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._pack = pack
+        _append_cost_propagation_help(self, "cost")
 
         for stat_key, stat_label in self.STAT_FIELD_KEYS:
             self.fields[f"stat_mod_{stat_key}_mode"] = forms.ChoiceField(
@@ -821,7 +903,7 @@ class ContentSkillPackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-select"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -940,7 +1022,7 @@ class ContentAttributeValuePackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "attribute": forms.Select(attrs={"class": "form-select"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):
@@ -1263,7 +1345,7 @@ class ContentGearPackForm(forms.ModelForm):
         }
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
             "category": forms.Select(attrs={"class": "form-select"}),
             "cost": forms.TextInput(attrs={"class": "form-control"}),
             "rarity": forms.Select(attrs={"class": "form-select"}),
@@ -1272,6 +1354,7 @@ class ContentGearPackForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _append_cost_propagation_help(self, "cost")
 
         # Filter to gear categories only (exclude weapons), ordered by group then name.
         # "Vehicles" is also excluded — pack vehicles are auto-created from
@@ -1341,6 +1424,7 @@ class ContentWeaponPackForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        _append_cost_propagation_help(self, "cost")
 
         # Filter to weapon categories only (exclude Ammo), ordered by name.
         self.fields["category"].queryset = (
@@ -1396,6 +1480,7 @@ class ContentWeaponProfilePackForm(forms.ModelForm):
 
     def __init__(self, *args, pack=None, **kwargs):
         super().__init__(*args, **kwargs)
+        _append_cost_propagation_help(self, "cost")
         if pack is not None:
             self.fields["traits"].queryset = ContentWeaponTrait.objects.with_packs(
                 [pack]
@@ -1436,7 +1521,7 @@ class ContentPsykerDisciplinePackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "generic": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def clean_name(self):
@@ -1471,7 +1556,7 @@ class ContentPsykerPowerPackForm(forms.ModelForm):
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "discipline": forms.Select(attrs={"class": "form-select"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "description": rich_text_description_widget(),
         }
 
     def __init__(self, *args, pack=None, **kwargs):

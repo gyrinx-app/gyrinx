@@ -145,6 +145,28 @@ class Campaign(AppBase):
             return bool(prefetch_cache["lists"])
         return self.lists.exists()
 
+    def active_lists(self):
+        """Member lists that are ready to use — i.e. not still cloning.
+
+        Excludes campaign-start stubs still being populated in the background
+        (``CLONING_IN_PROGRESS``, issue #1222). Use this — not ``lists.all()`` — anywhere a
+        member gang must be real and usable: battle participants, action-log targets, asset
+        holders, resource seeding, etc. Detail-page rendering keeps using ``lists`` so it can
+        show the "Joining…" placeholder for stubs.
+
+        It only removes stubs; it deliberately does not otherwise filter by status, so it
+        never excludes a list that the old ``campaign.lists`` code already accepted.
+        """
+        from gyrinx.core.models.list import List
+
+        return self.lists.exclude(status=List.CLONING_IN_PROGRESS)
+
+    def has_cloning_lists(self):
+        """True while any member list is still being populated by a background clone task."""
+        from gyrinx.core.models.list import List
+
+        return self.lists.filter(status=List.CLONING_IN_PROGRESS).exists()
+
     @property
     def is_post_campaign(self):
         return self.status == self.POST_CAMPAIGN
@@ -168,11 +190,12 @@ class Campaign(AppBase):
         # They are an admin if they are the owner OR if they are in the admins list
         return self.owner == user or self.admins.filter(id=user.id).exists()
 
-    def _distribute_budget_to_list(self, campaign_list):
+    def _distribute_budget_to_list(self, campaign_list, user=None):
         """Distribute budget credits to a list based on campaign budget and list cost.
 
         Args:
             campaign_list: The List to distribute budget credits to
+            user: The user performing the action (defaults to campaign owner)
         """
         if self.budget > 0:
             # Calculate credits to give: max(0, budget - list cost)
@@ -180,9 +203,25 @@ class Campaign(AppBase):
             credits_to_add = max(0, self.budget - list_cost)
 
             if credits_to_add > 0:
-                campaign_list.credits_current += credits_to_add
-                campaign_list.credits_earned += credits_to_add
-                campaign_list.save()
+                # Record the credit grant through the action system so the
+                # credits ledger stays reconcilable (see the balance-sheet
+                # invariants in gyrinx/core/cost/balance_sheet.py). Mirrors
+                # handlers/campaign_operations._distribute_budget_to_list.
+                # apply_credit_delta applies the credits (and credits_earned)
+                # even for lists without an action chain, so behaviour is
+                # unchanged where actions are disabled.
+                from gyrinx.core.models.action import ListActionType
+
+                campaign_list.create_action(
+                    user=user or self.owner,
+                    action_type=ListActionType.CAMPAIGN_START,
+                    subject_app="core",
+                    subject_type="Campaign",
+                    subject_id=self.id,
+                    description=f"Campaign starting budget: Received {credits_to_add}¢ ({self.budget}¢ budget - {list_cost}¢ gang rating)",
+                    credits_delta=credits_to_add,
+                )
+                campaign_list.apply_credit_delta(credits_to_add)
 
                 # Log the credit distribution as a campaign action
                 CampaignAction.objects.create(
@@ -376,7 +415,7 @@ class Campaign(AppBase):
             self.lists.add(campaign_clone)
 
             # Distribute budget credits to the new gang
-            self._distribute_budget_to_list(campaign_clone)
+            self._distribute_budget_to_list(campaign_clone, user=user)
 
             # Allocate default resources to the new list
             for resource_type in self.resource_types.all():

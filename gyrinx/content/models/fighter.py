@@ -321,16 +321,15 @@ class ContentFighter(Content):
         Called when this fighter's base_cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighter
+        from gyrinx.core.models.list import ListFighter, bulk_mark_fighters_dirty
 
         # Find all list fighters using this content fighter (including legacy)
         fighters = ListFighter.objects.filter(
             Q(content_fighter=self) | Q(legacy_content_fighter=self),
             archived=False,
-        ).select_related("list")
+        )
 
-        for fighter in fighters:
-            fighter.set_dirty(save=True)
+        bulk_mark_fighters_dirty(fighters)
 
     def statline(self, ignore_custom=False):
         """

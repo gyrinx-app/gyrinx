@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import tempfile
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -15,10 +16,30 @@ logger = logging.getLogger(__name__)
 DEBUG = True
 WHITENOISE_AUTOREFRESH = True
 
+_UNDER_PYTEST = bool(os.getenv("PYTEST_CURRENT_TEST")) or "pytest" in os.getenv("_", "")
+
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
 # use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.
-if os.getenv("PYTEST_CURRENT_TEST") or "pytest" in os.getenv("_", ""):
+if _UNDER_PYTEST:
     DEBUG_TOOLBAR_CONFIG = {"SHOW_TOOLBAR_CALLBACK": lambda request: False}
+
+# Background tasks: run genuinely asynchronously (in-process durable queue +
+# worker threads) when the dev server is up, so enqueued work leaves the request
+# thread just like it does in prod — but with no Pub/Sub dependency and no extra
+# process. Everything else (pytest, migrate, shell, other management commands)
+# keeps the inherited "eager" backend, which runs tasks inline on enqueue.
+# Fault-injection knobs are read from the environment (TASKS_FAULT_*), off by
+# default — see gyrinx/tasks/faults.py.
+if "runserver" in sys.argv and not _UNDER_PYTEST:
+    TASKS = {  # noqa: F405
+        "default": {
+            "BACKEND": "gyrinx.tasks.local_backend.DatabaseBackend",
+            "OPTIONS": {
+                "mode": "worker",
+                "num_workers": int(os.getenv("TASKS_WORKERS", "2")),
+            },
+        }
+    }
 
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
@@ -33,8 +54,14 @@ CSRF_TRUSTED_ORIGINS = [
     f"http://127.0.0.1:{_dev_port}",
 ]
 
-# Feature flags for development
-FEATURE_LIST_ACTION_CREATE_INITIAL = True
+# Per-worktree cookie isolation. Cookies are scoped by domain, not port, so every
+# worktree at localhost:<port> shares one cookie jar. With the default cookie names
+# (sessionid / csrftoken) each worktree's login overwrites the others' — and because
+# each worktree has its own database, the overwritten cookie resolves to a session
+# row that doesn't exist there, logging you out. Suffixing with the port gives each
+# worktree independent cookies so you can stay logged into all of them at once.
+SESSION_COOKIE_NAME = f"gyrinx_sessionid_{_dev_port}"
+CSRF_COOKIE_NAME = f"gyrinx_csrftoken_{_dev_port}"
 
 # Use console tracing in development by default
 # Set TRACING_MODE=gcp in environment to test with GCP Cloud Trace

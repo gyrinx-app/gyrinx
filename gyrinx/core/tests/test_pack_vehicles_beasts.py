@@ -769,7 +769,7 @@ def test_default_assignment_post_accepts_pack_vehicle(
         "core:pack-fighter-default-gear-add", args=(pack.id, ganger_pack_item.id)
     )
     with patch(
-        "gyrinx.core.models.list.propagate_default_child_fighter_assignment"
+        "gyrinx.core.models.list.signal_handlers.propagate_default_child_fighter_assignment"
     ) as mock_task:
         with django_capture_on_commit_callbacks(execute=True):
             response = client.post(

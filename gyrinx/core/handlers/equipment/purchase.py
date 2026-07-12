@@ -18,6 +18,8 @@ from gyrinx.content.models import (
     VirtualWeaponProfile,
 )
 from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
+from gyrinx.core.cost.pinning import pin_assignment
+from gyrinx.core.handlers.equipment.deltas import component_delta
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -105,6 +107,10 @@ def handle_equipment_purchase(
     """
     # Refetch to get the full cost including profiles, accessories, and upgrades
     assignment.refresh_from_db()
+    # Acquisition writes the receipt (#1826 Phase 7): pin the base and every
+    # component at their resolved prices. Value-neutral — the cost_int()
+    # below reads back exactly the amounts just pinned.
+    pin_assignment(assignment)
     total_cost = assignment.cost_int()
 
     # Build these beforehand so we get the credit values right
@@ -203,11 +209,15 @@ def handle_accessory_purchase(
     # Calculate the cost of this accessory
     accessory_cost = assignment.accessory_cost_int(accessory)
 
+    # Book delta is 0 when a total_cost_override pins the assignment (#1925);
+    # the credits charge below stays at the accessory's real cost.
+    book_delta = component_delta(assignment, accessory_cost)
+
     # Build these beforehand so we get the credit values right
     is_stash = fighter.is_stash
     la_args = dict(
-        rating_delta=accessory_cost if not is_stash else 0,
-        stash_delta=accessory_cost if is_stash else 0,
+        rating_delta=book_delta if not is_stash else 0,
+        stash_delta=book_delta if is_stash else 0,
         credits_delta=-accessory_cost if lst.is_campaign_mode else 0,
         rating_before=lst.rating_current,
         stash_before=lst.stash_current,
@@ -231,10 +241,12 @@ def handle_accessory_purchase(
 
     # Add the accessory to the assignment
     assignment.weapon_accessories_field.add(accessory)
+    # Receipt for the new accessory row (#1826 Phase 7); existing pins untouched.
+    pin_assignment(assignment)
 
     description = f"Bought {accessory.name} for {assignment.content_equipment.name} on {fighter.name} ({accessory_cost}¢)"
 
-    propagate_from_assignment(assignment, Delta(delta=accessory_cost, list=lst))
+    propagate_from_assignment(assignment, Delta(delta=book_delta, list=lst))
 
     # Create ListAction to track the accessory addition
     list_action = lst.create_action(
@@ -294,11 +306,14 @@ def handle_weapon_profile_purchase(
     virtual_profile = VirtualWeaponProfile(profile=profile)
     profile_cost = assignment.profile_cost_int(virtual_profile)
 
+    # Book delta is 0 when a total_cost_override pins the assignment (#1925).
+    book_delta = component_delta(assignment, profile_cost)
+
     # Build these beforehand so we get the credit values right
     is_stash = fighter.is_stash
     la_args = dict(
-        rating_delta=profile_cost if not is_stash else 0,
-        stash_delta=profile_cost if is_stash else 0,
+        rating_delta=book_delta if not is_stash else 0,
+        stash_delta=book_delta if is_stash else 0,
         credits_delta=-profile_cost if lst.is_campaign_mode else 0,
         rating_before=lst.rating_current,
         stash_before=lst.stash_current,
@@ -322,10 +337,12 @@ def handle_weapon_profile_purchase(
 
     # Add the profile to the assignment
     assignment.weapon_profiles_field.add(profile)
+    # Receipt for the new profile row (#1826 Phase 7); existing pins untouched.
+    pin_assignment(assignment)
 
     description = f"Bought {profile.name} for {assignment.content_equipment.name} on {fighter.name} ({profile_cost}¢)"
 
-    propagate_from_assignment(assignment, Delta(delta=profile_cost, list=lst))
+    propagate_from_assignment(assignment, Delta(delta=book_delta, list=lst))
 
     # Create ListAction to track the profile addition
     list_action = lst.create_action(
@@ -401,11 +418,15 @@ def handle_equipment_upgrade(
         cost_difference < 0 and new_upgrade_cost < 0
     )
 
+    # Book delta is 0 when a total_cost_override pins the assignment (#1925);
+    # the credits movement below stays at the real cost difference.
+    book_delta = component_delta(assignment, cost_difference)
+
     # Build these beforehand so we get the credit values right
     is_stash = fighter.is_stash
     la_args = dict(
-        rating_delta=cost_difference if not is_stash else 0,
-        stash_delta=cost_difference if is_stash else 0,
+        rating_delta=book_delta if not is_stash else 0,
+        stash_delta=book_delta if is_stash else 0,
         credits_delta=-cost_difference
         if lst.is_campaign_mode and involves_credits
         else 0,
@@ -450,6 +471,9 @@ def handle_equipment_upgrade(
 
     # Update the upgrades
     assignment.upgrades_field.set(new_upgrades)
+    # Receipts for the new upgrade rows (#1826 Phase 7); removed rows took
+    # their pins with them.
+    pin_assignment(assignment)
 
     # Create ListAction to track the upgrade change
     if new_upgrades:
@@ -461,7 +485,7 @@ def handle_equipment_upgrade(
     else:
         description = f"Removed upgrades from {assignment.content_equipment.name} on {fighter.name}"
 
-    propagate_from_assignment(assignment, Delta(delta=cost_difference, list=lst))
+    propagate_from_assignment(assignment, Delta(delta=book_delta, list=lst))
 
     list_action = lst.create_action(
         user=user,

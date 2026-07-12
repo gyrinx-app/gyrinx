@@ -6,9 +6,14 @@ for debugging and monitoring purposes.
 """
 
 from django.contrib import admin
-from django.utils.html import format_html
+from django.urls import NoReverseMatch, reverse
+from django.utils.html import format_html, format_html_join
 
-from gyrinx.tasks.models import TaskExecution, TaskExecutionStateTransition
+from gyrinx.tasks.models import (
+    QueuedTask,
+    TaskExecution,
+    TaskExecutionStateTransition,
+)
 
 
 @admin.register(TaskExecution)
@@ -33,6 +38,7 @@ class TaskExecutionAdmin(admin.ModelAdmin):
         "status",
         "args",
         "kwargs",
+        "related_links",
         "return_value",
         "error_message",
         "error_traceback",
@@ -49,7 +55,15 @@ class TaskExecutionAdmin(admin.ModelAdmin):
         (
             "Task Info",
             {
-                "fields": ("id", "task_id", "task_name", "status", "args", "kwargs"),
+                "fields": (
+                    "id",
+                    "task_id",
+                    "task_name",
+                    "status",
+                    "args",
+                    "kwargs",
+                    "related_links",
+                ),
             },
         ),
         (
@@ -130,6 +144,94 @@ class TaskExecutionAdmin(admin.ModelAdmin):
                 seconds = total_seconds % 60
                 return f"{minutes}m {seconds:.0f}s"
         return "-"
+
+    @admin.display(description="Related objects")
+    def related_links(self, obj):
+        """One-click links to the objects a task's kwargs reference.
+
+        Turns raw UUIDs in ``kwargs`` into admin links so a failed task is quick to debug.
+        Currently understands ``complete_campaign_list_clone`` (#1222); extend the mapping
+        below for other tasks as needed.
+        """
+        kwargs = obj.kwargs or {}
+        # (kwargs key, admin change-view name, label)
+        specs_by_task = {
+            "complete_campaign_list_clone": [
+                ("campaign_id", "admin:core_campaign_change", "Campaign"),
+                ("stub_id", "admin:core_list_change", "Stub list"),
+                ("original_list_id", "admin:core_list_change", "Original list"),
+            ],
+        }
+        specs = specs_by_task.get(obj.task_name, [])
+        rows = []
+        for key, url_name, label in specs:
+            obj_id = kwargs.get(key)
+            if not obj_id:
+                continue
+            try:
+                rows.append((reverse(url_name, args=[obj_id]), label))
+            except NoReverseMatch:
+                continue
+        if not rows:
+            return "-"
+        return format_html_join(
+            " · ", '<a href="{}">{}</a>', ((url, label) for url, label in rows)
+        )
+
+
+@admin.register(QueuedTask)
+class QueuedTaskAdmin(admin.ModelAdmin):
+    """Admin view for the local durable queue (dev/test only; prod uses Pub/Sub).
+
+    Shows what is currently in flight or waiting to retry. Rows are deleted on
+    success, so a non-empty table means undelivered or retrying work.
+    """
+
+    list_display = [
+        "id_short",
+        "task_name",
+        "attempts_display",
+        "available_at",
+        "locked_by",
+        "locked_until",
+    ]
+    list_filter = ["task_name", "locked_by"]
+    search_fields = ["id", "task_id", "task_name"]
+    readonly_fields = [
+        "id",
+        "task_id",
+        "task_name",
+        "args",
+        "kwargs",
+        "enqueued_at",
+        "available_at",
+        "attempts",
+        "max_attempts",
+        "locked_until",
+        "locked_by",
+        "last_error",
+        "created",
+        "modified",
+    ]
+    ordering = ["available_at", "created"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Allow deletion so a stuck/poison row can be cleared by hand."""
+        return True
+
+    @admin.display(description="ID")
+    def id_short(self, obj):
+        return str(obj.id)[:8]
+
+    @admin.display(description="Attempts")
+    def attempts_display(self, obj):
+        return f"{obj.attempts}/{obj.max_attempts}"
 
 
 @admin.register(TaskExecutionStateTransition)

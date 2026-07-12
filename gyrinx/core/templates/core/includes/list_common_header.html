@@ -1,13 +1,14 @@
 {% load custom_tags color_tags %}
-<div class="hstack gap-2 mb-2 {% if link_list %}mb-3 pb-4 border-bottom{% endif %} align-items-start align-items-md-center break-inside-avoid">
-    <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-3">
+<div class="{% if link_list %}mb-3 pb-4 border-bottom{% else %}mb-2{% endif %} break-inside-avoid">
+    {# Breadcrumbs get their own full-width row so they're not squished by the stats block. #}
+    {% url 'core:lists' as lists_url %}
+    {% if list.is_campaign_mode %}
+        {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url|add:"?type=gang" campaign=list.campaign print=print %}
+    {% else %}
+        {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
+    {% endif %}
+    <div class="d-flex flex-column flex-xl-row gap-2 column-gap-xl-3 align-items-xl-center">
         <div class="vstack">
-            {% url 'core:lists' as lists_url %}
-            {% if list.is_campaign_mode %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url campaign=list.campaign print=print %}
-            {% else %}
-                {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
-            {% endif %}
             <h2 class="mb-0 h2">
                 {% if link_list %}
                     <a href="{% url 'core:list' list.id %}">{% list_with_theme list %}</a>
@@ -16,82 +17,93 @@
                 {% endif %}
             </h2>
         </div>
-        <div class="ms-md-auto fs-7 vstack align-items-start align-items-md-end justify-content-center">
-            <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
-            {% if list.campaign %}
-                <div>
-                    {% if print %}
-                        <i class="bi-award"></i> {{ list.campaign.name }}
-                        {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
-                    {% else %}
-                        <a href="{% url 'core:campaign' list.campaign.id %}"
-                           class="icon-link linked">
-                            <i class="bi-award"></i> {{ list.campaign.name }}
+        <div class="d-flex flex-row flex-nowrap align-items-center column-gap-3 fs-7 ms-xl-auto">
+            <div class="d-flex flex-column align-items-start align-items-xl-end text-xl-end">
+                <div>{{ list.content_house_name }}{% house_icon list.content_house_cached %}</div>
+                {% if list.campaign %}
+                    <div>
+                        {% if print %}
+                            {{ list.campaign.name }}
                             {% include "core/campaign/includes/status.html" with campaign=list.campaign %}
-                        </a>
-                    {% endif %}
-                </div>
-            {% endif %}
-        </div>
-        <div class="flex-shrink border-start-md ps-md-2">
-            <table class="table table-sm table-borderless table-responsive text-center mb-0">
-                <thead>
-                    <tr class="fs-7 align-middle">
-                        <th class="py-0 bg-transparent"
-                            bs-tooltip
-                            data-bs-toggle="tooltip"
-                            title="Rating"
-                            aria-label="Rating">R</th>
-                        <th class="py-0 bg-transparent"
-                            bs-tooltip
-                            data-bs-toggle="tooltip"
-                            title="Credits"
-                            aria-label="Credits">Cr</th>
-                        <th class="py-0 bg-transparent"
-                            bs-tooltip
-                            data-bs-toggle="tooltip"
-                            title="Stash"
-                            aria-label="Stash">St</th>
-                        <th class="py-0 bg-transparent"
-                            bs-tooltip
-                            data-bs-toggle="tooltip"
-                            title="Wealth"
-                            aria-label="Wealth">W</th>
-                        {% if not print %}
-                            {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
-                                <th class="py-0 bg-transparent"></th>
-                            {% endif %}
+                        {% else %}
+                            <a href="{% url 'core:campaign' list.campaign.id %}"
+                               class="icon-link linked">
+                                {{ list.campaign.name }}
+                                {% include "core/campaign/includes/status.html" with campaign=list.campaign collapse="sm" %}
+                            </a>
                         {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="fs-6 align-middle">
-                        <td class="py-0 bg-transparent">{{ list.rating_display }}</td>
-                        <td class="py-0 bg-transparent">{{ list.credits_current_display }}</td>
-                        <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
-                        <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
-                        {% if not print %}
-                            {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
-                                <td class="py-0 bg-transparent align-middle">
-                                    <form method="post"
-                                          action="{% url 'core:list-refresh-cost' list.id %}"
-                                          class="d-inline">
-                                        {% csrf_token %}
-                                        <button type="submit"
-                                                class="btn btn-link btn-sm p-0 text-secondary"
-                                                bs-tooltip
-                                                data-bs-toggle="tooltip"
-                                                title="Refresh rating &amp; wealth"
-                                                aria-label="Refresh rating &amp; wealth">
-                                            <i class="bi-arrow-clockwise"></i>
-                                        </button>
-                                    </form>
-                                </td>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="ms-auto ms-xl-0 border-start-xl ps-xl-2 flex-shrink-0">
+                <table class="table table-sm table-borderless table-responsive text-center mb-0 w-auto">
+                    <thead>
+                        <tr class="fs-7 align-middle">
+                            <th class="py-0 bg-transparent"
+                                bs-tooltip
+                                data-bs-toggle="tooltip"
+                                title="Rating"
+                                aria-label="Rating">R</th>
+                            <th class="py-0 bg-transparent"
+                                bs-tooltip
+                                data-bs-toggle="tooltip"
+                                title="Credits"
+                                aria-label="Credits">Cr</th>
+                            <th class="py-0 bg-transparent"
+                                bs-tooltip
+                                data-bs-toggle="tooltip"
+                                title="Stash"
+                                aria-label="Stash">St</th>
+                            <th class="py-0 bg-transparent"
+                                bs-tooltip
+                                data-bs-toggle="tooltip"
+                                title="Wealth"
+                                aria-label="Wealth">W</th>
+                            {% if not print %}
+                                {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                                    <th class="py-0 bg-transparent"></th>
+                                {% endif %}
                             {% endif %}
-                        {% endif %}
-                    </tr>
-                </tbody>
-            </table>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="fs-6 align-middle">
+                            <td class="py-0 bg-transparent">
+                                {% if list.has_reduced_equipment_selection %}
+                                    <span data-bs-toggle="tooltip"
+                                          title="Rating of the fighters' selected equipment sets, of {{ list.selected_rating_max_display }} maximum">
+                                        {{ list.selected_rating_display }} <span class="text-secondary">({{ list.selected_rating_max_display }})</span>
+                                    </span>
+                                {% else %}
+                                    {{ list.rating_display }}
+                                {% endif %}
+                            </td>
+                            <td class="py-0 bg-transparent">{{ list.credits_current_display }}</td>
+                            <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
+                            <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
+                            {% if not print %}
+                                {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                                    <td class="py-0 bg-transparent align-middle">
+                                        <form method="post"
+                                              action="{% url 'core:list-refresh-cost' list.id %}"
+                                              class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit"
+                                                    class="btn btn-link btn-sm p-0 text-secondary"
+                                                    bs-tooltip
+                                                    data-bs-toggle="tooltip"
+                                                    title="Refresh rating &amp; wealth"
+                                                    aria-label="Refresh rating &amp; wealth">
+                                                <i class="bi-arrow-clockwise"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                {% endif %}
+                            {% endif %}
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -102,8 +114,8 @@
 {% endif %}
 {% if gyrinx_debug %}
     {% with facts=list.facts %}
-        <div class="{% if list.debug_facts_in_sync %}bg-warning-subtle border border-warning{% else %}bg-danger-subtle border border-danger{% endif %} rounded px-2 py-1 mb-2 fs-7 font-monospace d-flex align-items-center gap-3">
-            <span class="{% if list.debug_facts_in_sync %}text-warning-emphasis{% else %}text-danger-emphasis{% endif %} fw-bold">DEBUG</span>
+        <div class="bg-warning-subtle border border-warning rounded px-2 py-1 mb-2 fs-7 font-monospace d-flex align-items-center gap-3">
+            <span class="text-warning-emphasis fw-bold">DEBUG</span>
             {% if list.latest_action %}
                 <a href="{% url 'debug_list_actions' list.id %}"
                    class="text-decoration-none"
@@ -119,18 +131,13 @@
             {% endif %}
             <span class="text-secondary">|</span>
             {% if facts %}
-                <span>
-                    {% if not list.debug_facts_in_sync %}
-                        <i class="bi-flag-fill text-danger"
-                           bs-tooltip
-                           data-bs-toggle="tooltip"
-                           title="Cached values out of sync"></i>
-                    {% endif %}
-                    R: {{ facts.rating }}¢ · C: {{ facts.credits }}¢ · S: {{ facts.stash }}¢ · W: {{ facts.wealth }}¢
-                </span>
+                <span>R: {{ facts.rating }}¢ · C: {{ facts.credits }}¢ · S: {{ facts.stash }}¢ · W: {{ facts.wealth }}¢</span>
             {% else %}
                 <span><i class="bi-flag-fill text-success"></i> Dirty</span>
             {% endif %}
+            <span class="text-secondary">|</span>
+            <a href="{% url 'debug_list_balance_sheet' list.id %}"
+               class="text-decoration-none">Balance sheet</a>
         </div>
     {% endwith %}
 {% endif %}

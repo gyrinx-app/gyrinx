@@ -135,7 +135,9 @@ def test_stash_equipment_not_cloned_when_no_stash_in_original():
 
 
 @pytest.mark.django_db
-def test_stash_fighter_facts_in_sync_after_campaign_start(settings):
+def test_stash_fighter_facts_in_sync_after_campaign_start(
+    django_capture_on_commit_callbacks,
+):
     """
     Regression test: stash fighter rating_current should match equipment cost after campaign start.
 
@@ -145,7 +147,6 @@ def test_stash_fighter_facts_in_sync_after_campaign_start(settings):
     3. Start the campaign
     4. Check that cloned stash fighter's facts match the cost of assignments
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     # Create a user and house
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -207,8 +208,9 @@ def test_stash_fighter_facts_in_sync_after_campaign_start(settings):
     )
     campaign.lists.add(list_obj)
 
-    # Start the campaign using the handler
-    result = handle_campaign_start(user=user, campaign=campaign)
+    # Start the campaign using the handler (Phase 2 clone task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        result = handle_campaign_start(user=user, campaign=campaign)
     assert result.campaign == campaign
 
     # Get the cloned list from the campaign

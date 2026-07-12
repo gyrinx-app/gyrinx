@@ -61,7 +61,9 @@
         <div class="g-col-12 align-items-baseline hstack gap-3 flex-wrap">
             {# Preserve the current type filter (set by tabs) when submitting the form #}
             {% qt_getlist request "type" as type_values %}
-            {% for type_val in type_values %}<input type="hidden" name="type" value="{{ type_val }}">{% endfor %}
+            {% for type_val in type_values %}
+                <input type="hidden" name="type" value="{{ type_val }}">
+            {% endfor %}
             {# House filter dropdown #}
             <div class="btn-group">
                 <button type="button"
@@ -100,7 +102,7 @@
                             Update
                         </button>
                         •
-                        <a class="btn btn-link text-secondary icon-link btn-sm"
+                        <a class="btn btn-link linked-secondary icon-link btn-sm"
                            href="?{% qt request house="all" %}#search">Reset</a>
                     </div>
                 </div>
@@ -172,7 +174,7 @@
                     Update
                 </button>
                 •
-                <a class="btn btn-link text-secondary icon-link btn-sm"
+                <a class="btn btn-link linked-secondary icon-link btn-sm"
                    href="{{ action }}">Reset</a>
             </div>
         </div>

@@ -94,6 +94,50 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
 // Custom styles
 //
 
+// Form-submit busy state (driven by core/js/index.js).
+//
+// The submit handler keeps the clicked button's original label/icon in the DOM
+// (so it can be restored verbatim from the bfcache on Back) and only sets
+// aria-busy + prepends a spinner element. These rules hide the real content and
+// show just the centred spinner, so even small / icon-only buttons collapse to
+// the spinner — the way the old, destructive innerHTML swap looked. Removing
+// aria-busy (on submit-failure restore or pageshow) reverts all of this for
+// free, since every rule is keyed on the attribute.
+button[aria-busy="true"] {
+    position: relative;
+
+    // Snap the label out faster than Bootstrap's default .15s .btn colour
+    // transition, so the content disappears quickly when the spinner appears.
+    // Via the Bootstrap mixin so it still honours prefers-reduced-motion.
+    @include transition(color 0.06s ease-in-out);
+
+    // Hide bare text nodes and icon-font glyphs — both are painted by `color`.
+    // !important is required: the submit handler disables the button a tick
+    // after click, and Bootstrap's `.btn:disabled` / `.btn:hover` / `.btn:active`
+    // colour rules have higher specificity than `button[aria-busy]` and would
+    // otherwise restore the text colour, showing the label under the spinner.
+    color: transparent !important;
+
+    // Hide element children (nested icons, badges, images) without removing
+    // them, so the button keeps its intrinsic width and doesn't collapse.
+    > :not([data-submit-spinner]) {
+        visibility: hidden;
+    }
+
+    // Centre the spinner over the now-empty button and give it back a visible
+    // colour (the button variant's own text colour, since the button itself is
+    // now `color: transparent`). Fall back to the body colour rather than
+    // currentColor: on a submit <button> without a .btn variant (e.g. a
+    // dropdown-item), --bs-btn-color is unset and currentColor would resolve to
+    // the parent's transparent, hiding the spinner.
+    [data-submit-spinner] {
+        position: absolute;
+        inset: 0;
+        margin: auto;
+        color: var(--bs-btn-color, var(--bs-body-color));
+    }
+}
+
 // Lighten secondary in light mode, darken in dark mode
 :root,
 [data-bs-theme="light"] {
@@ -111,6 +155,17 @@ $font-sizes: map-merge($font-sizes, $custom-font-sizes);
     // Navbar needs to stand out from the page background in dark mode
     .navbar.bg-dark {
         background-color: #{lighten($dark, 5%)} !important;
+    }
+
+    // In dark mode the raw `$primary` blue is too dark for an outline button on
+    // the dark surface. Use the (lightened) link colour for the resting text and
+    // border so it matches `.linked`. Hover/active keep Bootstrap's usual primary
+    // fill.
+    .btn-outline-primary {
+        --bs-btn-color: var(--bs-link-color);
+        --bs-btn-border-color: var(--bs-link-color);
+        --bs-btn-disabled-color: var(--bs-link-color);
+        --bs-btn-disabled-border-color: var(--bs-link-color);
     }
 }
 
@@ -160,10 +215,67 @@ a[data-bs-toggle="tooltip"] {
     cursor: pointer;
 }
 
+// No underline at rest; a 50%-opacity underline on hover and keyboard focus.
+// The base `a` rule (and Bootstrap's `.btn-link`) force an always-on underline,
+// and the `link-underline-opacity-*` utilities only bite via `.link-underline`.
+// So we control the underline directly. The colour is tinted from `currentColor`
+// so it works at any link colour. `:focus-visible` (not `:focus`) keeps the
+// underline off after a mouse click on a button.
+%underline-on-interact {
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+        text-decoration-line: underline;
+        text-decoration-color: color-mix(
+            in srgb,
+            currentcolor 50%,
+            transparent
+        );
+    }
+}
+
 .linked {
-    @extend .link-underline-opacity-25;
-    @extend .link-underline-opacity-100-hover;
     @extend .link-offset-1;
+    @extend %underline-on-interact;
+}
+
+// Secondary-coloured `.linked`. Replaces the old
+// `link-secondary link-underline-opacity-50 link-underline-opacity-100-hover`.
+// We set the colour directly rather than `@extend .link-secondary`, whose
+// `text-decoration-color: … !important` would override the 50% hover underline.
+.linked-secondary {
+    @extend .linked;
+    // `--bs-secondary-color` is the theme-adjusted secondary text colour (set
+    // per theme above) — the same colour `.text-secondary` uses — so the links
+    // and the converted `.btn-link` buttons match in both light and dark mode.
+    color: var(--bs-secondary-color);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-secondary-color);
+    }
+}
+
+// Danger-coloured `.linked`. Replaces the old
+// `link-danger link-underline-opacity-50 link-underline-opacity-100-hover`.
+// Colour is set directly (not `@extend .link-danger`) for the same reason as
+// `.linked-secondary`: `.link-danger`'s `text-decoration-color: … !important`
+// would override the hover-only underline.
+.linked-danger {
+    @extend .linked;
+    color: var(--bs-danger);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-danger);
+    }
+}
+
+// Bootstrap's `.btn-link` is underlined at rest; give link-style buttons the
+// same underline-only-on-hover/focus treatment as `.linked`.
+.btn-link {
+    @extend %underline-on-interact;
 }
 
 .link-sm {
@@ -260,6 +372,90 @@ label {
     letter-spacing: 0.03em;
 }
 
+// Home row meta line (house/credits, campaign status, etc). Reserve one text
+// line of height so a line holding only a badge — badges use font-size .75em /
+// line-height 1, so they're shorter than base text — stays as tall as a line
+// with base-size text. Keeps pinned/home rows the same height across the
+// Campaign Gangs / Campaigns / Lists columns.
+.home-row-meta {
+    min-height: 1.5em;
+}
+
+// Dice roller
+@keyframes dice-roll-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.15em) scale(0.85);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.dice-tray {
+    // Big, legible dice. Everything below sizes in em, so tweak here to scale.
+    font-size: 2.5rem;
+    line-height: 1;
+
+    // Rolled dice drop/fade in on load for a bit of drama. dice.js staggers
+    // each die's animation-delay for a cascade; without JS they fade in
+    // together. Placeholders (spans) are untouched — only rolled dice (i).
+    i {
+        animation: dice-roll-in 260ms ease-out both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        i {
+            animation: none;
+        }
+    }
+
+    // An empty die: rounded outline with a muted "?" until a roll fills it in.
+    // 1em square (with border-box) matches the bi-dice glyphs, which render at
+    // exactly 1em, so placeholders and rolled dice are the same size.
+    .dice-placeholder {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1em;
+        height: 1em;
+        border: 0.045em solid var(--bs-border-color);
+        border-radius: 0.15em;
+        color: var(--bs-secondary-color);
+
+        &::before {
+            content: "?";
+            font-size: 0.5em;
+            font-weight: 700;
+        }
+    }
+}
+
+// The first dice group is the baseline and can't be removed; its remove-group
+// button is rendered (so JS can clone a group from it) but hidden.
+.js-dice-groups > .dice-group:first-child .js-remove-group {
+    display: none;
+}
+
+// Danger nav-pill — e.g. the account "Sign out" link. Red text at rest; when
+// active it fills with danger and flips to white text, instead of the default
+// blue (primary) pill that would leave red text sitting on a blue fill.
+.nav-pills .nav-link.nav-link-danger {
+    color: var(--bs-danger);
+
+    &:hover,
+    &:focus {
+        color: var(--bs-danger);
+    }
+
+    &.active {
+        color: #fff;
+        background-color: var(--bs-danger);
+    }
+}
+
 // Responsive font sizes - small by default, normal at breakpoint
 @each $bp, $bp-value in $grid-breakpoints {
     @include media-breakpoint-up($bp) {
@@ -296,6 +492,16 @@ label {
 
 img {
     max-width: 100%;
+    height: auto;
+}
+
+// Rich-text descriptions on pack content (rules, gear, skills, etc.) sit in a
+// dense listing. Image insertion is disabled in the editor, but any legacy
+// embedded images are kept to a small thumbnail so they don't dominate the row.
+.pack-rich-desc img {
+    max-width: 8em;
+    max-height: 8em;
+    width: auto;
     height: auto;
 }
 
@@ -471,6 +677,13 @@ $width-em-sizes: (
     }
 }
 
+// Flatpage headings are wrapped in an anchor by add_heading_links. That anchor
+// is inline by default, so consecutive short headings can flow onto the same
+// line. Force it to block so each heading occupies its own row.
+.flatpage-content a:has(> :is(h1, h2, h3, h4, h5, h6)) {
+    display: block;
+}
+
 // Flatpage heading link icons - only visible on hover/focus
 // Icons are positioned absolutely so they don't affect layout
 .flatpage-content a > h1,
@@ -536,14 +749,86 @@ $width-em-sizes: (
     width: 4rem;
 }
 
-// Inline house icons rendered next to house names. Sized and aligned to match
-// Bootstrap Icons (1em, baseline-aligned), and recoloured to the surrounding
-// text via currentColor (set as an attribute on the sanitised SVG).
+// Inline house icons rendered next to house names. Recoloured to the
+// surrounding text via currentColor (set as an attribute on the sanitised SVG).
+//
+// The glyph reads a touch small at 1em, so it's scaled up ~25% and nudged to
+// sit optically centred on the text. Both the size bump and the vertical
+// offset are done with a single `transform`, deliberately: a `transform` is
+// purely visual and never affects layout, whereas a larger width/height or a
+// `vertical-align` offset both feed into the line-box calculation and grow the
+// row's line-height in tight (line-height: 1) contexts like compact list rows.
+// The layout box stays 1em; the inline margins reserve horizontal room so the
+// visually-larger glyph doesn't crowd the surrounding text.
 .house-icon {
     display: inline-block;
     width: 1em;
     height: 1em;
-    vertical-align: -0.125em;
-    margin-inline-start: 0.25em;
+    margin-inline-start: 0.35em;
+    margin-inline-end: 0.1em;
     fill: currentColor;
+    transform: translateY(-0.1em) scale(1.25);
+}
+
+// Supporter badges. Pixel-art SVGs that keep their own colours; only the black
+// outline is `currentColor`, so DON'T set `fill` here (CSS fill would override
+// the coloured rects). Inline next to a username, sized relative to the text.
+.user-badge {
+    display: inline-flex;
+    // Size the badge in em so it scales with the surrounding text: bigger in a
+    // heading, smaller in fs-7 (where a fixed 16px badge was oversized and
+    // stretched the line box). Because both the badge and the offset below
+    // scale with the em, a single vertical-align value stays optically centred
+    // at every size — a fixed-px badge could not (`middle` reads low in large
+    // text, a fixed em offset drifts). -0.15em lifts it from the x-height
+    // midline (`middle`) up onto the cap-height optical centre.
+    vertical-align: -0.15em;
+    margin-inline-start: 0.25em;
+
+    // The badges are 24×24 pixel art (shape-rendering: crispEdges). At a
+    // fractional display size each source pixel maps to a fraction of a screen
+    // pixel, so crispEdges snaps cells unevenly — some edges end up 1px, others
+    // 2px. Let them anti-alias smoothly instead, so they scale cleanly at any
+    // size or device pixel ratio. --badge-size overrides the em default (see
+    // the design-system reference).
+    svg {
+        width: var(--badge-size, 1em);
+        height: var(--badge-size, 1em);
+        shape-rendering: geometricPrecision;
+    }
+}
+
+// Generic slug badge (e.g. the badge picker). Shares the inline sizing and
+// centring above; the picker centres it via flex, so vertical-align is moot
+// there but keeps it correct anywhere it sits inline in text.
+.badge-icon {
+    display: inline-flex;
+    vertical-align: -0.15em;
+
+    svg {
+        width: var(--badge-size, 1em);
+        height: var(--badge-size, 1em);
+        shape-rendering: geometricPrecision;
+    }
+}
+
+// Badge preview in the picker — larger than the inline default (1em) so the
+// pixel art's detail stays legible while choosing.
+.badge-preview {
+    --badge-size: 1.5em;
+}
+
+// Campaign list summary cards (Actions / Assets & Resources / Attributes).
+// In single-column view (below lg) each card body collapses behind a chevron
+// toggle in its header (state persisted in the URL). At lg+ the cards sit side
+// by side and are always expanded, so ignore the Bootstrap collapse state and
+// reset any leftover inline height from an in-flight animation.
+@include media-breakpoint-up(lg) {
+    .list-card-collapse {
+        height: auto !important;
+
+        &:not(.show) {
+            display: block;
+        }
+    }
 }

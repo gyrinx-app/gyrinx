@@ -6,7 +6,10 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from gyrinx.core.forms import UsernameChangeForm
+from gyrinx.core.badges import HIDE_BADGE
+from gyrinx.core.forms import BadgeSelectionForm, UsernameChangeForm
+from gyrinx.core.impersonation import can_impersonate_target
+from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
@@ -44,16 +47,20 @@ def user(request, slug_or_id):
         query = Q(id=slug_or_id)
     else:
         query = Q(username__iexact=slug_or_id)
-    profile_user = get_object_or_404(User, query)
+    profile_user = get_object_or_404(User.objects.select_related("profile"), query)
 
     is_own_profile = request.user.is_authenticated and request.user == profile_user
+
+    # Admins (superusers) may impersonate this user, unless already impersonating.
+    can_impersonate_user = not getattr(
+        request, "is_impersonating", False
+    ) and can_impersonate_target(request.user, profile_user)
 
     # --- Public Lists (non-campaign, non-archived) ---
     public_lists_qs = (
         List.objects.filter(
             owner=profile_user, status=List.LIST_BUILDING, archived=False, public=True
         )
-        .with_latest_actions()
         .select_related("content_house", "owner")
         .annotate(star_count=Count("starred_by", distinct=True))
     )
@@ -69,7 +76,6 @@ def user(request, slug_or_id):
                 archived=False,
                 public=False,
             )
-            .with_latest_actions()
             .select_related("content_house", "owner")
             .annotate(star_count=Count("starred_by", distinct=True))
         )
@@ -116,6 +122,7 @@ def user(request, slug_or_id):
         {
             "profile_user": profile_user,
             "is_own_profile": is_own_profile,
+            "can_impersonate_user": can_impersonate_user,
             "public_lists": public_lists,
             "unlisted_lists": unlisted_lists,
             "campaign_gangs": campaign_gangs,
@@ -189,5 +196,62 @@ def change_username(request):
         {
             "form": form,
             "can_change": can_change,
+        },
+    )
+
+
+@login_required
+def badge_settings(request):
+    """
+    Let the user choose which badge to display next to their name.
+
+    Only badges the user can currently display (from their live Patreon status
+    and staff access) are offered, plus an explicit "no badge" option. Users with
+    no badges see an empty state explaining how to unlock them.
+
+    **Context**
+
+    ``form``
+        The badge selection form.
+    ``available_badges``
+        The badges currently available to the user.
+
+    **Template**
+
+    :template:`core/badge_settings.html`
+    """
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        form = BadgeSelectionForm(request.POST, user=request.user)
+        if form.is_valid():
+            form.save()
+            log_event(
+                user=request.user,
+                noun=EventNoun.USER,
+                verb=EventVerb.UPDATE,
+                request=request,
+                field="selected_badge",
+                selected_badge=form.cleaned_data["selected_badge"],
+            )
+            messages.success(request, "Your badge has been updated.")
+            return redirect("core:account_home")
+    else:
+        log_event(
+            user=request.user,
+            noun=EventNoun.USER,
+            verb=EventVerb.VIEW,
+            request=request,
+            page="badge_settings",
+        )
+        form = BadgeSelectionForm(user=request.user)
+
+    return render(
+        request,
+        "core/badge_settings.html",
+        {
+            "form": form,
+            "available_badges": profile.available_badges,
+            "hide_badge_value": HIDE_BADGE,
         },
     )

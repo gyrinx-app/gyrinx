@@ -36,8 +36,7 @@
             {% if fighter_edit_url or fighter_archive_url %}
                 <span class="d-flex gap-2 flex-shrink-0 ms-auto">
                     {% if fighter_can_add and fighter_edit_url %}
-                        <a href="{{ fighter_edit_url }}"
-                           class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Edit</a>
+                        <a href="{{ fighter_edit_url }}" class="linked-secondary fs-7">Edit</a>
                     {% endif %}
                     {% if fighter_archive_url %}
                         <a href="{{ fighter_archive_url }}"
@@ -114,7 +113,7 @@
                                 Psyker
                                 {% if fighter_psyker_url %}
                                     <a href="{{ fighter_psyker_url }}"
-                                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                                       class="linked-secondary fw-normal ms-1">Edit</a>
                                 {% endif %}
                             </th>
                             <td>
@@ -146,7 +145,7 @@
                             Gear
                             {% if fighter_equipment_url %}
                                 <a href="{{ fighter_equipment_url }}"
-                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                                   class="linked-secondary fw-normal ms-1">Edit</a>
                             {% endif %}
                         </th>
                         <td>
@@ -174,7 +173,7 @@
                             Weapons
                             {% if fighter_equipment_url %}
                                 <a href="{{ fighter_equipment_url }}"
-                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                                   class="linked-secondary fw-normal ms-1">Edit</a>
                             {% endif %}
                         </th>
                         <th class="text-center" scope="col">S</th>
@@ -217,7 +216,7 @@
                             Weapons
                             {% if fighter_equipment_url %}
                                 <a href="{{ fighter_equipment_url }}"
-                                   class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fw-normal ms-1">Edit</a>
+                                   class="linked-secondary fw-normal ms-1">Edit</a>
                             {% endif %}
                         </th>
                     </tr>

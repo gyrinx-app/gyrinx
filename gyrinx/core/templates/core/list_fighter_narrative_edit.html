@@ -25,23 +25,23 @@
                     {% endif %}
                     <div class="flex-grow-1">
                         {{ form.image }}
-                        {% if form.image.help_text %}<div class="form-text">{{ form.image.help_text }}</div>{% endif %}
+                        {% if form.image.help_text %}
+                            <div class="form-text">{{ form.image.help_text }}</div>
+                        {% endif %}
                     </div>
                 </div>
                 {% if form.image.errors %}
-                    <div class="invalid-feedback d-block">
-                        {% for error in form.image.errors %}{{ error }}{% endfor %}
-                    </div>
+                    <div class="invalid-feedback d-block">{% for error in form.image.errors %}{{ error }}{% endfor %}</div>
                 {% endif %}
             </div>
             <div class="mb-3">
                 <label for="{{ form.narrative.id_for_label }}" class="form-label">{{ form.narrative.label }}</label>
                 {{ form.narrative }}
-                {% if form.narrative.help_text %}<div class="form-text">{{ form.narrative.help_text }}</div>{% endif %}
+                {% if form.narrative.help_text %}
+                    <div class="form-text">{{ form.narrative.help_text }}</div>
+                {% endif %}
                 {% if form.narrative.errors %}
-                    <div class="invalid-feedback d-block">
-                        {% for error in form.narrative.errors %}{{ error }}{% endfor %}
-                    </div>
+                    <div class="invalid-feedback d-block">{% for error in form.narrative.errors %}{{ error }}{% endfor %}</div>
                 {% endif %}
             </div>
             <div class="mt-3">

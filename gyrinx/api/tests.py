@@ -1,11 +1,15 @@
+import hashlib
+import hmac
 import json
 from unittest.mock import patch
 
 import pytest
 from django.http import HttpRequest
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
+from django.urls import reverse
 from nacl.signing import SigningKey
 
+from gyrinx.api.models import WebhookRequest
 from gyrinx.api.views import (
     DISCORD_APPLICATION_COMMAND,
     DISCORD_DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
@@ -232,3 +236,138 @@ def test_discord_command_stores_webhook_request(
     assert wr is not None
     assert wr.event == "command:Create Issue"
     assert wr.payload["data"]["target_id"] == "msg-789"
+
+
+# ---------------------------------------------------------------------------
+# Patreon webhook — view-layer signature verification (HMAC-MD5)
+#
+# test_patreon.py exercises process_patreon_webhook (below the signature
+# check); these tests cover the hook_patreon view itself: HMAC verification,
+# the missing-secret path, malformed input, and the GET health check.
+# ---------------------------------------------------------------------------
+
+PATREON_TEST_SECRET = "test-patreon-secret"  # nosec B105
+
+
+def _patreon_signature(secret: str, body: bytes) -> str:
+    """Compute the hex HMAC-MD5 signature Patreon sends in X-Patreon-Signature."""
+    return hmac.new(secret.encode(), body, hashlib.md5).hexdigest()
+
+
+def _post_patreon(client, body: bytes, *, signature, event="members:create"):
+    """POST a raw body to the Patreon webhook with the given signature header."""
+    headers = {"X-Patreon-Event": event}
+    if signature is not None:
+        headers["X-Patreon-Signature"] = signature
+    return client.post(
+        reverse("api:hook_patreon"),
+        data=body,
+        content_type="application/json",
+        headers=headers,
+    )
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET=PATREON_TEST_SECRET)
+def test_patreon_valid_signature_accepts_and_stores(client):
+    """A correctly-signed payload is accepted (204) and persisted for audit."""
+    body = json.dumps(
+        {
+            "data": {
+                "id": "member-1",
+                "type": "member",
+                "attributes": {
+                    "email": "nobody@example.com",
+                    "full_name": "Nobody",
+                    "patron_status": "active_patron",
+                },
+                "relationships": {},
+            },
+            "included": [],
+        }
+    ).encode()
+    signature = _patreon_signature(PATREON_TEST_SECRET, body)
+
+    response = _post_patreon(client, body, signature=signature)
+
+    assert response.status_code == 204
+    wr = WebhookRequest.objects.filter(source="patreon").first()
+    assert wr is not None
+    assert wr.event == "members:create"
+    assert wr.signature == signature
+    assert wr.payload["data"]["id"] == "member-1"
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET=PATREON_TEST_SECRET)
+def test_patreon_invalid_signature_rejected(client):
+    """A tampered/incorrect signature is rejected (400) and nothing is stored."""
+    body = json.dumps({"data": {"id": "x"}, "included": []}).encode()
+
+    response = _post_patreon(client, body, signature="deadbeef" * 4)
+
+    assert response.status_code == 400
+    assert not WebhookRequest.objects.filter(source="patreon").exists()
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET=PATREON_TEST_SECRET)
+def test_patreon_signature_for_different_body_rejected(client):
+    """A signature computed over a different body must not validate."""
+    sent_body = json.dumps({"data": {"id": "real"}, "included": []}).encode()
+    other_body = json.dumps({"data": {"id": "other"}, "included": []}).encode()
+    signature = _patreon_signature(PATREON_TEST_SECRET, other_body)
+
+    response = _post_patreon(client, sent_body, signature=signature)
+
+    assert response.status_code == 400
+    assert not WebhookRequest.objects.filter(source="patreon").exists()
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET=PATREON_TEST_SECRET)
+def test_patreon_missing_signature_header_rejected(client):
+    """A POST without the X-Patreon-Signature header is rejected (400)."""
+    body = json.dumps({"data": {"id": "x"}, "included": []}).encode()
+
+    response = _post_patreon(client, body, signature=None)
+
+    assert response.status_code == 400
+    assert not WebhookRequest.objects.filter(source="patreon").exists()
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET="")  # nosec B106
+def test_patreon_missing_secret_returns_503(client):
+    """With no webhook secret configured the endpoint fails closed (503)."""
+    body = json.dumps({"data": {"id": "x"}, "included": []}).encode()
+
+    response = _post_patreon(
+        client, body, signature=_patreon_signature("anything", body)
+    )
+
+    assert response.status_code == 503
+    assert not WebhookRequest.objects.filter(source="patreon").exists()
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET=PATREON_TEST_SECRET)
+def test_patreon_valid_signature_but_invalid_json_returns_400(client):
+    """A correctly-signed but non-JSON body passes the signature check then 400s."""
+    body = b"this is not json"
+    signature = _patreon_signature(PATREON_TEST_SECRET, body)
+
+    response = _post_patreon(client, body, signature=signature)
+
+    assert response.status_code == 400
+    assert not WebhookRequest.objects.filter(source="patreon").exists()
+
+
+@pytest.mark.django_db
+@override_settings(PATREON_HOOK_SECRET=PATREON_TEST_SECRET)
+def test_patreon_get_returns_health_check(client):
+    """GET is a health check that returns 200 without needing a signature."""
+    response = client.get(reverse("api:hook_patreon"))
+
+    assert response.status_code == 200
+    assert json.loads(response.content)["status"] == "ok"

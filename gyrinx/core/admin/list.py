@@ -1,8 +1,18 @@
-from django import forms
-from django.contrib import admin
+import logging
 
-from gyrinx.content.models import ContentWeaponProfile
+from django import forms
+from django.contrib import admin, messages
+from django.db import transaction
+from django.urls import reverse
+from django.utils.html import format_html
+
 from gyrinx.core.admin.base import BaseAdmin
+from gyrinx.core.cost.reconcile import reconcile_list
+from gyrinx.core.cost.reconcile_notify import notify_lists_reconciled
+from gyrinx.core.admin.filters import (
+    AutocompleteRelatedFilter,
+    autocomplete_filter_media,
+)
 from gyrinx.forms import group_select
 
 from ..models.list import (
@@ -10,8 +20,13 @@ from ..models.list import (
     ListAttributeAssignment,
     ListFighter,
     ListFighterEquipmentAssignment,
+    ListFighterEquipmentAssignmentAccessory,
+    ListFighterEquipmentAssignmentProfile,
+    ListFighterEquipmentAssignmentUpgrade,
     ListFighterPsykerPowerAssignment,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @admin.display(description="Cost")
@@ -23,6 +38,10 @@ class ListFighterInline(admin.TabularInline):
     model = ListFighter
     extra = 1
     fields = ["name", "owner", "content_fighter", "cost_override"]
+    # Without autocomplete, every inline row renders a <select> of all users and
+    # all content fighters — and each ContentFighter option label fetches its
+    # house, so a single List change page runs thousands of queries.
+    autocomplete_fields = ["owner", "content_fighter"]
     show_change_link = True
 
 
@@ -37,9 +56,99 @@ class ListForm(forms.ModelForm):
     pass
 
 
+@admin.action(description="Recompute cached cost/rating from facts (fix drift)")
+def recompute_list_cost_caches(modeladmin, request, queryset):
+    """
+    List-level wrapper around recompute_cost_caches: rebuild every fighter in
+    the selected lists (including the stash), then reconcile the lists'
+    aggregate caches.
+    """
+    fighters = ListFighter.objects.filter(list__in=queryset)
+    # {list_id: [rating_delta, stash_delta]} for lists whose cache moved during
+    # the fighter rebuild (a player-visible change).
+    moved = dict(_recompute_fighter_caches(request, fighters))
+    # recompute_cost_caches only reconciles lists it saw fighters for; cover
+    # fighterless lists too (audited the same way) without re-reconciling
+    # the ones it already handled.
+    covered = set(fighters.values_list("list_id", flat=True).distinct())
+    for lst in queryset:
+        if lst.pk not in covered:
+            result = reconcile_list(lst, user=request.user, rebuild_fighters=False)
+            if result.moved:
+                moved[lst.pk] = [
+                    result.rating_after - result.rating_before,
+                    result.stash_after - result.stash_before,
+                ]
+
+    # Notify affected owners/arbitrators once each (aggregated), for the lists
+    # in this selection that actually changed. System notification (sender=None)
+    # — this is maintenance, not a user action end-recipients need to attribute.
+    try:
+        owners, arbs = notify_lists_reconciled(moved)
+        if owners or arbs:
+            messages.info(
+                request,
+                f"Notified {owners} owner(s) and {arbs} arbitrator(s) of the changes.",
+            )
+    except Exception:
+        logger.exception("recompute_list_cost_caches: notification fan-out failed")
+
+
+@admin.action(description="Re-enqueue campaign clone (unstick gangs stuck 'joining')")
+def reenqueue_campaign_clone(modeladmin, request, queryset):
+    """Re-run the background clone task for selected stubs stuck in CLONING_IN_PROGRESS.
+
+    Covers gangs whose Phase-2 clone task failed, or whose enqueue was lost entirely (no
+    TaskExecution row) — the durable signal in that case is a List stuck in
+    CLONING_IN_PROGRESS. Filter ListAdmin by Status = "Joining Campaign" to find them.
+    Idempotent: the task no-ops if the stub has since finished (see #1222).
+    """
+    from gyrinx.core.handlers.campaign_operations import campaign_start_group_key
+    from gyrinx.core.tasks import complete_campaign_list_clone
+    from gyrinx.tasks.groups import enqueue_in_group
+
+    stubs = queryset.filter(status=List.CLONING_IN_PROGRESS)
+    enqueued = 0
+    skipped = 0
+    failed = 0
+    for stub in stubs:
+        if stub.campaign_id is None or stub.original_list_id is None:
+            skipped += 1
+            continue
+        # The stub is already committed, so enqueue directly (no on_commit needed). Use
+        # the campaign owner as the acting user (who triggered the start), and the same
+        # group as the original start so the retry shows up in the status endpoint.
+        # Isolate failures: a publish error on one stub must not abort the whole batch
+        # (matches the fire-and-forget handling in the start/retry views).
+        try:
+            enqueue_in_group(
+                complete_campaign_list_clone,
+                group_key=campaign_start_group_key(stub.campaign_id),
+                label=stub.name,
+                stub_id=str(stub.id),
+                original_list_id=str(stub.original_list_id),
+                campaign_id=str(stub.campaign_id),
+                user_id=str(stub.campaign.owner_id),
+            )
+            enqueued += 1
+        except Exception:
+            logger.exception("Failed to re-enqueue clone for stub %s", stub.id)
+            failed += 1
+
+    ignored = queryset.exclude(status=List.CLONING_IN_PROGRESS).count()
+    messages.info(
+        request,
+        f"Re-enqueued clone for {enqueued} stub(s); skipped {skipped} with a missing "
+        f"campaign/original; {failed} failed to enqueue; ignored {ignored} list(s) that "
+        f"aren't cloning.",
+    )
+
+
 @admin.register(List)
 class ListAdmin(BaseAdmin):
     form = ListForm
+    actions = [recompute_list_cost_caches, reenqueue_campaign_clone]
+    object_actions = ["recompute_list_cost_caches", "reenqueue_campaign_clone"]
     fields = [
         "name",
         "content_house",
@@ -63,6 +172,7 @@ class ListAdmin(BaseAdmin):
         "owner__username",
         "owner__email",
     ]
+    autocomplete_fields = ["owner"]
 
     inlines = [ListFighterInline, ListAttributeAssignmentInline]
 
@@ -70,6 +180,19 @@ class ListAdmin(BaseAdmin):
 class ListFighterForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # group_select below iterates every option and renders its label;
+        # ContentFighter.__str__ touches house and ContentSkill groups by
+        # category, so without select_related each option costs a query.
+        for field, related in [
+            ("content_fighter", "house"),
+            ("legacy_content_fighter", "house"),
+            ("skills", "category"),
+        ]:
+            if field in self.fields:
+                self.fields[field].queryset = self.fields[
+                    field
+                ].queryset.select_related(related)
+
         if hasattr(self.instance, "list"):
             if "disabled_default_assignments" in self.fields:
                 self.fields["disabled_default_assignments"].queryset = self.fields[
@@ -111,6 +234,8 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
     extra = 1
     fields = ["content_equipment", weapon_profiles_list, weapon_accessories_list, cost]
     readonly_fields = [weapon_profiles_list, weapon_accessories_list, cost]
+    # Avoid rendering a <select> of the entire equipment catalogue per row.
+    autocomplete_fields = ["content_equipment"]
     show_change_link = True
     fk_name = "list_fighter"
 
@@ -118,6 +243,9 @@ class ListFighterEquipmentAssignmentInline(admin.TabularInline):
 class ListFighterPsykerPowerAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["psyker_power"].queryset = self.fields[
+            "psyker_power"
+        ].queryset.select_related("discipline")
         group_select(self, "psyker_power", key=lambda x: x.discipline.name)
 
 
@@ -128,9 +256,101 @@ class ListFighterPsykerPowerAssignmentInline(admin.TabularInline):
     fields = ["psyker_power"]
 
 
+def _recompute_fighter_caches(request, queryset):
+    """Rebuild the cost cache chain for the given fighters and reconcile their
+    lists; return ``{list_id: [rating_delta, stash_delta]}`` for lists whose
+    aggregate cache actually moved.
+
+    Split out from the admin action so the list-level wrapper can learn which
+    lists changed, and by how much, to notify their owners/arbs — an admin
+    action's return value is interpreted as an HTTP response by the
+    object-actions framework, so it must stay ``None``.
+    """
+    changed = []
+    affected_lists = {}
+    fighter_count = 0
+
+    with transaction.atomic():
+        for fighter in queryset.select_related("list", "content_fighter"):
+            fighter_count += 1
+            before = fighter.rating_current
+
+            # Rebuild each real assignment's cache from cost_int(). Use
+            # with_related_data() to prefetch the equipment/profiles/accessories/
+            # upgrades that cost_int() touches and avoid N+1 across fighters.
+            assignments = (
+                ListFighterEquipmentAssignment.objects.with_related_data().filter(
+                    list_fighter=fighter
+                )
+            )
+            for assignment in assignments:
+                assignment.facts_from_db(update=True)
+
+            # ...then the fighter's own cache from the (now-correct) assignments.
+            after = fighter.facts_from_db(update=True).rating
+
+            affected_lists[fighter.list_id] = fighter.list
+            if before != after:
+                changed.append((fighter, before, after))
+
+        # Reconcile each affected list's aggregate caches (rating/stash),
+        # recording any movement as a RECONCILE action so the ledger absorbs
+        # the correction instead of silently snapping (#1826 §4.8.2).
+        moved_list_deltas = {}
+        for lst in affected_lists.values():
+            result = reconcile_list(lst, user=request.user, rebuild_fighters=False)
+            if result.moved:
+                moved_list_deltas[lst.pk] = [
+                    result.rating_after - result.rating_before,
+                    result.stash_after - result.stash_before,
+                ]
+
+    for fighter, before, after in changed:
+        messages.success(
+            request,
+            f"{fighter.name}: rating_current {before} → {after}",
+        )
+
+    messages.info(
+        request,
+        f"Recomputed {fighter_count} fighter(s) across "
+        f"{len(affected_lists)} list(s); {len(changed)} had drift corrected.",
+    )
+
+    # {list_id: [rating_delta, stash_delta]} for lists whose aggregate cache
+    # actually moved (a player-visible change).
+    return moved_list_deltas
+
+
+@admin.action(description="Recompute cached cost/rating from facts (fix drift)")
+def recompute_cost_caches(modeladmin, request, queryset):
+    """Force-recompute the cached cost/rating chain for the selected fighters
+    straight from the source-of-truth assignments (fixes cached-value drift).
+
+    Standalone fighter-level action: it does not fan out notifications (that is
+    the list-level ``recompute_list_cost_caches`` wrapper's job). Returns
+    ``None`` — the object-actions framework treats a return value as a response.
+    """
+    _recompute_fighter_caches(request, queryset)
+
+
+@admin.display(description="List", ordering="list__name")
+def list_link(obj):
+    url = reverse("admin:core_list_change", args=[obj.list_id])
+    return format_html('<a href="{}">{}</a>', url, obj.list)
+
+
+class ListFilter(AutocompleteRelatedFilter):
+    title = "list"
+    parameter_name = "list_id_in"
+    field_name = "list"
+
+
 @admin.register(ListFighter)
 class ListFighterAdmin(BaseAdmin):
     form = ListFighterForm
+    actions = [recompute_cost_caches]
+    object_actions = ["recompute_cost_caches"]
     fields = [
         "name",
         "content_fighter",
@@ -145,8 +365,20 @@ class ListFighterAdmin(BaseAdmin):
         "disabled_pskyer_default_powers",
     ]
     readonly_fields = [cost]
-    list_display = ["name", "content_fighter", "list"]
+    list_display = ["name", "content_fighter", list_link]
+    list_filter = [ListFilter]
+    list_select_related = ["content_fighter__house", "list"]
+    # Fighter UUIDs are searchable via BaseAdmin.get_search_results.
     search_fields = ["name", "content_fighter__type", "list__name"]
+    autocomplete_fields = ["list", "owner"]
+
+    @property
+    def media(self):
+        # The changelist doesn't collect filter media; ListFilter's select2
+        # widget needs the autocomplete assets.
+        return super().media + autocomplete_filter_media(
+            ListFighter, "list", self.admin_site
+        )
 
     inlines = [
         ListFighterEquipmentAssignmentInline,
@@ -157,6 +389,19 @@ class ListFighterAdmin(BaseAdmin):
 class ListFighterEquipmentAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # The group_select keys and option labels below reach through FKs
+        # (fighter's list and content_fighter via __str__, equipment's
+        # category, profile's equipment) — select_related keeps each grouped
+        # dropdown to a single query.
+        for field, related in [
+            ("list_fighter", ("list", "content_fighter")),
+            ("content_equipment", ("category",)),
+        ]:
+            if field in self.fields:
+                self.fields[field].queryset = self.fields[
+                    field
+                ].queryset.select_related(*related)
+
         exists = ListFighterEquipmentAssignment.objects.filter(
             pk=self.instance.pk
         ).exists()
@@ -164,41 +409,83 @@ class ListFighterEquipmentAssignmentForm(forms.ModelForm):
             # Disable the fighter field if it's already set
             self.fields["list_fighter"].disabled = True
             self.fields["content_equipment"].disabled = True
-            # Filter available weapon profiles and upgrade based on the equipment
-            if hasattr(self.instance, "content_equipment"):
-                self.fields["weapon_profiles_field"].queryset = self.fields[
-                    "weapon_profiles_field"
-                ].queryset.filter(equipment=self.instance.content_equipment)
-
-                self.fields["upgrades_field"].queryset = self.fields[
-                    "upgrades_field"
-                ].queryset.filter(equipment=self.instance.content_equipment)
 
         group_select(self, "list_fighter", key=lambda x: x.list.name)
         group_select(self, "content_equipment", key=lambda x: x.cat())
-        group_select(self, "weapon_profiles_field", key=lambda x: x.equipment.name)
+
+
+class AssignmentProfileRowInline(admin.TabularInline):
+    """Weapon profile rows, with pin provenance visible once pins land."""
+
+    model = ListFighterEquipmentAssignmentProfile
+    extra = 0
+    autocomplete_fields = ["contentweaponprofile"]
+    readonly_fields = [
+        "pinned_equipment_list_item",
+        "pinned_expansion_item",
+        "pinned_amount",
+        "pin_state",
+    ]
+    verbose_name = "Weapon profile"
+    verbose_name_plural = "Weapon profiles"
+
+
+class AssignmentAccessoryRowInline(admin.TabularInline):
+    model = ListFighterEquipmentAssignmentAccessory
+    extra = 0
+    autocomplete_fields = ["contentweaponaccessory"]
+    readonly_fields = [
+        "pinned_equipment_list_accessory",
+        "pinned_amount",
+        "pin_state",
+    ]
+    verbose_name = "Weapon accessory"
+    verbose_name_plural = "Weapon accessories"
+
+
+class AssignmentUpgradeRowInline(admin.TabularInline):
+    model = ListFighterEquipmentAssignmentUpgrade
+    extra = 0
+    autocomplete_fields = ["contentequipmentupgrade"]
+    readonly_fields = [
+        "pinned_equipment_list_upgrade",
+        "pinned_amount",
+        "pin_state",
+    ]
+    verbose_name = "Equipment upgrade"
+    verbose_name_plural = "Equipment upgrades"
 
 
 @admin.register(ListFighterEquipmentAssignment)
 class ListFighterEquipmentAssignmentAdmin(BaseAdmin):
     form = ListFighterEquipmentAssignmentForm
 
-    def formfield_for_manytomany(self, db_field, request, **kwargs):
-        # Only show weapon profiles that have a cost
-        if db_field.name == "weapon_profiles_field":
-            kwargs["queryset"] = ContentWeaponProfile.objects.filter(cost__gt=0)
-        return super().formfield_for_manytomany(db_field, request, **kwargs)
-
+    # The component M2Ms have explicit through models (cost-pinning
+    # programme, #1826) and cannot render as plain multi-selects
+    # (admin.E013); they are edited via the through-row inlines below.
     fields = [
         "list_fighter",
         "content_equipment",
-        "weapon_profiles_field",
-        "weapon_accessories_field",
         "child_fighter",
-        "upgrades_field",
         cost,
+        "pinned_equipment_list_item",
+        "pinned_expansion_item",
+        "pinned_base_amount",
+        "pinned_base_state",
     ]
-    readonly_fields = ["child_fighter", cost]
+    readonly_fields = [
+        "child_fighter",
+        cost,
+        "pinned_equipment_list_item",
+        "pinned_expansion_item",
+        "pinned_base_amount",
+        "pinned_base_state",
+    ]
+    inlines = [
+        AssignmentProfileRowInline,
+        AssignmentAccessoryRowInline,
+        AssignmentUpgradeRowInline,
+    ]
     list_display = [
         "list_fighter",
         "list_fighter__list__name",

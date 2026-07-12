@@ -24,6 +24,10 @@ from gyrinx.core.models.list import List, ListFighter
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
 
+# Re-export the local task-queue driver fixture so tests can request `task_queue`
+# to drive the durable queue in manual mode (inject duplicates/failures/drops).
+from gyrinx.tasks.testing import task_queue  # noqa: F401
+
 User = get_user_model()
 
 
@@ -337,8 +341,8 @@ def content_fighter(content_house, make_content_fighter):
 
 
 @pytest.fixture
-def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
-    def make_list_(name, create_initial_action=True, **kwargs) -> List:
+def make_list(user, content_house: ContentHouse) -> Callable[..., List]:
+    def make_list_(name, **kwargs) -> List:
         kwargs = {
             "content_house": content_house,
             "owner": user,
@@ -346,14 +350,15 @@ def make_list(user, content_house: ContentHouse) -> Callable[[str], List]:
         }
         lst = List.objects.create_with_facts(name=name, **kwargs)
 
-        # Create initial LIST_CREATE action so other actions can be created
-        if create_initial_action:
-            ListAction.objects.create(
-                list=lst,
-                action_type=ListActionType.CREATE,
-                owner=user,
-                applied=True,
-            )
+        # Bootstrap CREATE action, matching what handle_list_creation writes
+        ListAction.objects.create(
+            user=user,
+            owner=user,
+            list=lst,
+            action_type=ListActionType.CREATE,
+            description="List created",
+            applied=True,
+        )
 
         return lst
 
@@ -628,6 +633,43 @@ def pack_fighter(pack, content_house):
         owner=pack.owner,
     )
     return fighter
+
+
+@pytest.fixture
+def make_pack_fighter(make_pack, make_content_fighter, user):
+    """Factory fixture to create a fighter that belongs to a content pack.
+
+    Pack content is excluded by the default content manager but surfaced by
+    ``all_content()`` (and so by the content admin inlines).
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    def make_pack_fighter_(
+        house,
+        owner=None,
+        type="Pack Fighter",
+        category=FighterCategoryChoices.GANGER,
+        base_cost=50,
+        **kwargs,
+    ):
+        owner = owner or user
+        fighter = make_content_fighter(
+            type=type,
+            category=category,
+            house=house,
+            base_cost=base_cost,
+            **kwargs,
+        )
+        pack = make_pack(name="Test Pack", owner=owner)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ContentType.objects.get_for_model(ContentFighter),
+            object_id=fighter.pk,
+            owner=pack.owner,
+        )
+        return fighter
+
+    return make_pack_fighter_
 
 
 @pytest.fixture

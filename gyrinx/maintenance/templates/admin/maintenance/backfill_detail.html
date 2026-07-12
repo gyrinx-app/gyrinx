@@ -1,0 +1,188 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-meta { margin-bottom: 2rem; }
+    .mt-table { width: 100%; }
+    .mt-error { background: #fee; padding: 1rem; overflow: auto; }
+    .mt-hint { color: #888; font-size: 0.85em; }
+    .mt-cancel { margin-bottom: 2rem; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ backfill.get_operation_display }}</h1>
+    <table class="table mt-meta">
+        <tr>
+            <th>ID</th>
+            <td>
+                <code>{{ backfill.pk }}</code>
+            </td>
+        </tr>
+        <tr>
+            <th>Status</th>
+            <td>{{ backfill.get_status_display }}</td>
+        </tr>
+        <tr>
+            <th>Triggered by</th>
+            <td>{{ backfill.triggered_by|default:"—" }}</td>
+        </tr>
+        <tr>
+            <th>Created</th>
+            <td>{{ backfill.created|date:"Y-m-d H:i:s" }}</td>
+        </tr>
+        <tr>
+            <th>Scope</th>
+            <td>
+                {% if backfill.list_id_scope %}
+                    list {{ backfill.list_id_scope }}
+                {% else %}
+                    all lists
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    {% if backfill.status == "running" %}
+        <form method="post"
+              action="{% url 'admin:maintenance_backfill_cancel' backfill.pk %}"
+              class="mt-cancel">
+            {% csrf_token %}
+            <button type="submit" class="button">Cancel this run</button>
+            <span class="mt-hint">Stops the chain within one batch — no infra needed.</span>
+        </form>
+    {% endif %}
+    {% if backfill.status == "failed" %}
+        <h2>Error</h2>
+        <pre class="mt-error">{{ backfill.error }}</pre>
+    {% endif %}
+    {% comment %}
+    Always show what the run recorded — including the partial detail a failed
+    run captured before it stopped.
+    {% endcomment %}
+    {% if is_reconcile %}
+        <h2>Summary</h2>
+        <ul>
+            <li>
+                <strong>Lists scanned:</strong> {{ backfill.summary.lists|default:0 }}
+            </li>
+            <li>
+                <strong>Corrected:</strong> {{ backfill.summary.corrected|default:0 }}
+            </li>
+            <li>
+                <strong>Zero-clamped:</strong> {{ backfill.summary.clamped|default:0 }}
+                {% if backfill.summary.clamped %}
+                    <span class="mt-hint">(computed total was negative — investigate)</span>
+                {% endif %}
+            </li>
+        </ul>
+        <h2>Per-list detail</h2>
+        {% if backfill.summary.per_list %}
+            <table class="table mt-table">
+                <thead>
+                    <tr>
+                        <th>List</th>
+                        <th>Rating</th>
+                        <th>Stash</th>
+                        <th>Audit action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in backfill.summary.per_list %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'core:list' row.list_id %}"
+                                   target="_blank"
+                                   rel="noopener">{{ row.list_name }}</a>
+                            </td>
+                            <td>{{ row.rating_before }} → {{ row.rating_after }}</td>
+                            <td>{{ row.stash_before }} → {{ row.stash_after }}</td>
+                            <td>
+                                {% if row.audit_action_id %}
+                                    <code>{{ row.audit_action_id }}</code>
+                                {% else %}
+                                    <span class="mt-hint">cache-only (no ledger action)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>
+                <em>No gangs changed in this run.</em>
+            </p>
+        {% endif %}
+    {% elif is_persistent_stash %}
+        <h2>Summary</h2>
+        <ul>
+            <li>
+                <strong>Moved:</strong> {{ backfill.summary.moved }}
+            </li>
+            <li>
+                <strong>Affected lists:</strong> {{ backfill.summary.affected_lists }}
+            </li>
+        </ul>
+        <h3>Skipped</h3>
+        <ul>
+            {% for reason, count in backfill.summary.skipped.items %}
+                <li>
+                    <code>{{ reason }}</code>: {{ count }}
+                </li>
+            {% endfor %}
+        </ul>
+        <h2>Per-list detail</h2>
+        {% if backfill.summary.per_list %}
+            <table class="table mt-table">
+                <thead>
+                    <tr>
+                        <th>List</th>
+                        <th>Items moved</th>
+                        <th>Stash before</th>
+                        <th>Stash after</th>
+                        <th>Audit action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in backfill.summary.per_list %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'core:list' row.list_id %}"
+                                   target="_blank"
+                                   rel="noopener">{{ row.list_name }}</a>
+                            </td>
+                            <td>
+                                {% for item in row.items %}
+                                    {{ item }}
+                                    {% if not forloop.last %};{% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>{{ row.stash_before }}</td>
+                            <td>{{ row.stash_after }}</td>
+                            <td>
+                                <code>{{ row.audit_action_id }}</code>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>
+                <em>No lists were affected by this run.</em>
+            </p>
+        {% endif %}
+    {% else %}
+        <h2>Summary</h2>
+        <ul>
+            {% for key, value in backfill.summary.items %}
+                <li>
+                    <strong>{{ key }}:</strong> {{ value }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endblock content %}

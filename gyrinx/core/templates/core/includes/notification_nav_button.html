@@ -1,0 +1,20 @@
+{% load custom_tags %}
+{% comment %}
+    Navbar inbox button with unread badge + stateful tooltip. Rendered in two
+    places with different responsive visibility (`extra_classes`): next to the
+    dice roller on mobile, and next to the username on desktop.
+{% endcomment %}
+<a class="btn btn-dark position-relative {{ extra_classes }} {% active_view 'core:notifications' %}"
+   {% active_aria 'core:notifications' %}
+   href="{% url 'core:notifications' %}"
+   data-bs-toggle="tooltip"
+   data-bs-title="{% if unread_notification_count %}You have unread notifications{% else %}No unread notifications{% endif %}"
+   aria-label="Inbox{% if unread_notification_count %} ({{ unread_notification_count }} unread){% endif %}">
+    <i class="bi-inbox"></i>
+    {% if unread_notification_count %}
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger">
+            {% if unread_notification_count > 99 %}99+{% else %}{{ unread_notification_count }}{% endif %}
+            <span class="visually-hidden">unread notifications</span>
+        </span>
+    {% endif %}
+</a>

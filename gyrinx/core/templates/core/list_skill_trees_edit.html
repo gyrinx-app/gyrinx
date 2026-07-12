@@ -1,0 +1,65 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Edit gang skill trees - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:list' list.id as list_url %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-6">
+            <h1 class="h3">Gang skill trees</h1>
+            <p class="text-secondary">
+                Pick and rank {{ list.content_house.gang_skill_tree_count }} skill trees for your
+                gang. Fighters gain these as primary or secondary skills based on their rank.
+                You can leave trees unset and finish later.
+            </p>
+            <form method="get" class="mb-3">
+                {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
+                <div class="form-check form-switch">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           role="switch"
+                           id="include_restricted"
+                           name="include_restricted"
+                           value="1"
+                           {% if include_restricted %}checked{% endif %}
+                           onchange="this.form.submit()">
+                    <label class="form-check-label" for="include_restricted">Show restricted skill trees</label>
+                </div>
+                <noscript>
+                    <button type="submit" class="btn btn-secondary btn-sm mt-1">Apply</button>
+                </noscript>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger alert-icon mb-3" role="alert">
+                        <i class="bi-exclamation-triangle"></i>
+                        <div>{{ form.non_field_errors }}</div>
+                    </div>
+                {% endif %}
+                {% for field in form.slot_fields %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class="text-danger fs-7">{{ field.errors }}</div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+                <div class="hstack gap-2">
+                    <button type="submit" class="btn btn-success btn-sm">
+                        <i class="bi-check-lg"></i> Save
+                    </button>
+                    {% if return_url %}
+                        {% include "core/includes/cancel.html" with url=return_url %}
+                    {% else %}
+                        {% include "core/includes/cancel.html" with url=list_url %}
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

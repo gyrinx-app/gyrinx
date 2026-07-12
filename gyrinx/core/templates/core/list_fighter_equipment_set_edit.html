@@ -1,0 +1,68 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    {{ equipment_set.name }} - {{ fighter.fully_qualified_name }} - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-equipment-sets" %}
+    <div class="col-12 col-lg-8 px-0 vstack gap-3">
+        <div>
+            {% url 'core:list-fighter-equipment-sets' list.id fighter.id as back_url %}
+            {% include "core/includes/back.html" with url=back_url text="Back to sets" %}
+            <h1 class="h3 mb-0">Edit set</h1>
+        </div>
+        <form method="post"
+              action="{% url 'core:list-fighter-equipment-set-edit' list.id fighter.id equipment_set.id %}"
+              class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                <label for="card-name" class="form-label">Set name</label>
+                <input type="text"
+                       id="card-name"
+                       name="name"
+                       class="form-control"
+                       value="{{ equipment_set.name }}"
+                       maxlength="255"
+                       required>
+            </div>
+            <div>
+                <div class="bg-body-secondary rounded px-2 py-1 mb-2">
+                    <h2 class="h5 mb-0">Weapons and gear</h2>
+                </div>
+                <p class="text-secondary fs-7 px-2 mb-2">
+                    Tick what this card carries. Unticked items stay assigned to the Fighter
+                    but are hidden while this card is showing.
+                </p>
+                <div class="px-2 vstack gap-2">
+                    {% for item in items %}
+                        <div class="form-check mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   name="assignment"
+                                   value="{{ item.id }}"
+                                   id="assignment-{{ item.id }}"
+                                   {% if item.included %}checked{% endif %}>
+                            <label class="form-check-label" for="assignment-{{ item.id }}">
+                                {% if item.is_weapon %}
+                                    <i class="bi-crosshair text-secondary me-1"></i>
+                                {% else %}
+                                    <i class="bi-box text-secondary me-1"></i>
+                                {% endif %}
+                                {{ item.name }}
+                            </label>
+                        </div>
+                    {% empty %}
+                        <p class="text-secondary mb-0">This Fighter has no equipment to choose from yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="hstack gap-2">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi-check-lg"></i> Save
+                </button>
+                <a class="btn btn-link btn-sm"
+                   href="{% url 'core:list-fighter-equipment-sets' list.id fighter.id %}">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

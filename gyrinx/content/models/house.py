@@ -27,8 +27,7 @@ class ContentHouse(Content):
         help_text=(
             "Optional SVG icon rendered inline next to the house name. "
             "Stored SVGs are untrusted and only safe to render via the "
-            "house_icon template tag, which sanitises them. Display is "
-            "currently gated to the 'House Icons Alpha' group."
+            "house_icon template tag, which sanitises them."
         ),
     )
     skill_categories = models.ManyToManyField(
@@ -52,6 +51,32 @@ class ContentHouse(Content):
     can_buy_any = models.BooleanField(
         default=False,
         help_text="If checked, this House can buy any equipment from any equipment list and trading post.",
+    )
+    gang_wide_skills = models.BooleanField(
+        default=False,
+        help_text=(
+            "If checked, gangs of this House pick a ranked set of skill trees at "
+            "creation; those trees become fighters' primary/secondary skills by rank "
+            "(via the House's Skill Rank Rules). Fighter templates' own primary/secondary "
+            "skill trees are ignored in this mode."
+        ),
+    )
+    gang_skill_tree_count = models.PositiveSmallIntegerField(
+        default=0,
+        help_text=(
+            "How many skill trees the gang ranks (e.g. 4 for Venators). "
+            "Only used when Gang-wide skills is checked."
+        ),
+    )
+    gang_skill_tree_choices = models.ManyToManyField(
+        "ContentSkillCategory",
+        blank=True,
+        related_name="gang_choice_houses",
+        verbose_name="Gang Skill Tree Pool",
+        help_text=(
+            "Optional pool of skill trees a gang may pick from. Leave empty to allow any "
+            "non-restricted skill tree (restricted trees can still be revealed via a filter)."
+        ),
     )
 
     history = HistoricalRecords()
@@ -112,13 +137,12 @@ class ContentFighterHouseOverride(Content):
         """
         from django.db.models import Q
 
-        from gyrinx.core.models.list import ListFighter
+        from gyrinx.core.models.list import ListFighter, bulk_mark_fighters_dirty
 
         list_fighters = ListFighter.objects.filter(
             Q(content_fighter=self.fighter) | Q(legacy_content_fighter=self.fighter),
             list__content_house=self.house,
             archived=False,
-        ).select_related("list")
+        )
 
-        for list_fighter in list_fighters:
-            list_fighter.set_dirty(save=True)
+        bulk_mark_fighters_dirty(list_fighters)

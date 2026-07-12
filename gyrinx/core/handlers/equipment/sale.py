@@ -47,7 +47,7 @@ class EquipmentSaleResult:
     total_sale_credits: int  # Credits received from sale
     total_equipment_cost: int  # Original equipment cost removed from stash
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction
     campaign_action: Optional[CampaignAction]
 
 
@@ -135,9 +135,14 @@ def handle_equipment_sale(
     else:
         # Selling individual components - update both assignment and fighter
         propagate_from_assignment(assignment, delta)
-        # Remove individual profiles
+        # Remove individual profiles. Bypass M2M .remove() — it filters via
+        # the target's default manager, which excludes pack content and
+        # silently no-ops on pack profiles (same workaround as accessories).
         for profile in profiles_to_remove:
-            assignment.weapon_profiles_field.remove(profile)
+            assignment.weapon_profiles_field.through.objects.filter(
+                listfighterequipmentassignment=assignment,
+                contentweaponprofile=profile,
+            ).delete()
         # Remove individual accessories. Bypass M2M .remove() — it filters
         # via the target's default manager, which excludes pack content and
         # silently no-ops on pack accessories.
@@ -174,7 +179,9 @@ def handle_equipment_sale(
             dice_total=sum(dice_rolls) if dice_rolls else 0,
         )
 
-    # Create ListAction with update_credits=True to apply the credits delta
+    # Record the sale, then apply the proceeds explicitly (create_action
+    # is a pure record; the stash movement was applied by the propagation
+    # above).
     list_action = lst.create_action(
         user=user,
         action_type=ListActionType.REMOVE_EQUIPMENT,
@@ -190,8 +197,8 @@ def handle_equipment_sale(
         rating_before=rating_before,
         stash_before=stash_before,
         credits_before=credits_before,
-        update_credits=True,  # Apply credits_delta to list
     )
+    lst.apply_credit_delta(credits_delta)
 
     return EquipmentSaleResult(
         total_sale_credits=total_sale_credits,

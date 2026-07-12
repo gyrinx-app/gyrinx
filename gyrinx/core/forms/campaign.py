@@ -87,11 +87,15 @@ class CampaignActionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if campaign:
-            # Filter lists to only show those in the campaign that the user owns
+            # Filter lists to only show fully-joined gangs the user owns. active_lists()
+            # excludes CLONING_IN_PROGRESS stubs (#1222) — you can't log an action against
+            # a gang that's still joining.
             if user:
-                self.fields["list"].queryset = campaign.lists.filter(owner=user)
+                self.fields["list"].queryset = campaign.active_lists().filter(
+                    owner=user
+                )
             else:
-                self.fields["list"].queryset = campaign.lists.all()
+                self.fields["list"].queryset = campaign.active_lists()
 
             # Filter battles to only show those in the campaign
             self.fields["battle"].queryset = campaign.battles.order_by(
@@ -418,13 +422,14 @@ class CampaignAssetForm(forms.ModelForm):
             if "holder" in self.fields:
                 del self.fields["holder"]
         else:
-            # Limit holder choices to lists in the campaign
+            # Limit holder choices to fully-joined gangs (active_lists() excludes
+            # CLONING_IN_PROGRESS stubs, #1222 — a joining gang can't hold an asset).
             if self.asset_type:
-                self.fields["holder"].queryset = self.asset_type.campaign.lists.all()
+                self.fields["holder"].queryset = self.asset_type.campaign.active_lists()
             elif self.instance and self.instance.pk:
                 self.fields[
                     "holder"
-                ].queryset = self.instance.asset_type.campaign.lists.all()
+                ].queryset = self.instance.asset_type.campaign.active_lists()
 
         # Get existing properties from instance
         existing_properties = {}
@@ -508,8 +513,9 @@ class AssetTransferForm(forms.Form):
         asset = kwargs.pop("asset")
         super().__init__(*args, **kwargs)
 
-        # Set queryset to lists in the campaign, excluding current holder
-        campaign_lists = asset.asset_type.campaign.lists.all()
+        # Set queryset to fully-joined gangs in the campaign, excluding current holder
+        # (active_lists() excludes CLONING_IN_PROGRESS stubs, #1222).
+        campaign_lists = asset.asset_type.campaign.active_lists()
         if asset.holder:
             campaign_lists = campaign_lists.exclude(pk=asset.holder.pk)
         self.fields["new_holder"].queryset = campaign_lists

@@ -13,8 +13,8 @@
     <div class="hstack">
         <div class="vstack flex-grow-1 gap-0 mb-2">
             {% include "core/includes/list_common_header.html" with list=list %}
-            <div class="d-flex flex-column flex-md-row row-gap-1 column-gap-2 align-items-md-center">
-                <div class="d-flex flex-column flex-sm-row flex-wrap row-gap-1 column-gap-2 fs-7">
+            <div class="d-flex flex-column flex-lg-row row-gap-1 column-gap-2 align-items-lg-center">
+                <div class="d-flex flex-row flex-wrap row-gap-1 column-gap-2 fs-7">
                     {% if not print %}
                         <div>
                             {% if list.public %}
@@ -30,11 +30,11 @@
                                       class="tooltipped">Unlisted</span>
                             {% endif %}
                         </div>
-                        {% if list.owner_cached == user and list.archived_fighters_cached.count > 0 %}
+                        {% if list.owner_cached == user and list.archived_fighters_count_cached > 0 %}
                             <div>
                                 <i class="bi-archive"></i>
                                 <a href="{% url 'core:list-archived-fighters' list.id %}" class="linked">
-                                    {{ list.archived_fighters_cached.count }} archived fighter{{ list.archived_fighters_cached.count|pluralize }}
+                                    {{ list.archived_fighters_count_cached }} archived fighter{{ list.archived_fighters_count_cached|pluralize }}
                                 </a>
                             </div>
                         {% endif %}
@@ -89,9 +89,9 @@
                         {% endif %}
                     {% endif %}
                 </div>
-                <div class="flex-shrink-0 ms-md-auto mt-2 mt-md-0">
+                <div class="flex-shrink-0 ms-lg-auto mt-2 mt-lg-0">
                     {% if not print %}
-                        <div class="nav hstack gap-1 flex-nowrap">
+                        <div class="nav hstack gap-1 flex-wrap">
                             {% if list.owner_cached == user and pending_invitations_count > 0 %}
                                 <a href="{% url 'core:list-invitations' list.id %}"
                                    class="btn btn-info text-bg-info btn-sm">
@@ -164,6 +164,17 @@
                                         <i class="bi-three-dots-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu">
+                                        {% if is_campaign_arbitrator or list.is_campaign_mode and list.owner_cached == user %}
+                                            <li>
+                                                <a href="{% url 'core:list-post-battle' list.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-clipboard-check"></i> Post-battle updates
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <hr class="dropdown-divider">
+                                            </li>
+                                        {% endif %}
                                         <li>
                                             <a href="{% url 'core:print-config-index' list.id %}"
                                                class="dropdown-item icon-link">
@@ -236,6 +247,25 @@
                                                     <i class="bi-flag"></i> Actions
                                                 </a>
                                             </li>
+                                            <li>
+                                                <a href="{% url 'debug_list_balance_sheet' list.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-journal-text"></i> Balance Sheet
+                                                </a>
+                                            </li>
+                                            {% if can_impersonate_list_owner %}
+                                                <li>
+                                                    <form method="post"
+                                                          action="{% url 'core:impersonate-start' list.owner_cached.id %}"
+                                                          class="m-0">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                        <button type="submit" class="dropdown-item icon-link text-danger">
+                                                            <i class="bi-person-bounding-box"></i> Impersonate owner
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            {% endif %}
                                         {% endif %}
                                     </ul>
                                 </div>
@@ -254,6 +284,9 @@
             </div>
         {% endif %}
     </div>
+    {% if not print and notification_banners %}
+        <div class="mt-4">{% include "core/includes/notification_banners.html" %}</div>
+    {% endif %}
     <div class="grid auto-flow-dense mt-4 {% if print %}gap-2{% endif %}">
         {% if not print %}
             {% include "core/includes/list_campaign_actions.html" with list=list %}

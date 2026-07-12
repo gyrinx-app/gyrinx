@@ -11,7 +11,12 @@ from typing import Optional
 
 from django.db import transaction
 
-from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
+from gyrinx.core.cost.propagation import (
+    Delta,
+    propagate_from_assignment,
+    propagate_from_fighter,
+    propagate_to_list,
+)
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.list import (
@@ -72,55 +77,96 @@ def handle_equipment_reassignment(
         Equipment reassignment does not cost credits - credits_delta is always 0.
         However, rating and stash may change depending on fighter types.
     """
-    # Calculate cost BEFORE reassignment
-    # Note: We calculate the equipment cost both before and after reassignment because
-    # the cost may depend on the assigned fighter. This allows us to track if the cost
-    # changes as a result of reassignment. If cost_int() is expensive and the cost rarely
-    # changes, consider optimizing, but both calculations are required for correctness.
+    # Capture BEFORE values for the ListAction ahead of any propagation —
+    # propagation writes the list-level cache, so reading these later would
+    # capture post-move values and corrupt the action's baseline.
+    rating_before = lst.rating_current
+    stash_before = lst.stash_current
+    credits_before = lst.credits_current
+
+    # Calculate cost BEFORE reassignment. The cost can depend on the holder
+    # (equipment-list pricing), so it must be recomputed after the move too.
     cost_before = assignment.cost_int()
 
-    # Propagate to from_fighter BEFORE reassignment (decrease their rating)
-    propagate_from_fighter(from_fighter, Delta(delta=-cost_before, list=lst))
+    # Propagate to from_fighter BEFORE reassignment (decrease their rating).
+    # All three propagate calls here skip the list write; the NET list
+    # movement is applied once per bucket below, so an intermediate
+    # zero-clamp can't distort the total.
+    propagate_from_fighter(
+        from_fighter, Delta(delta=-cost_before, list=lst), update_list=False
+    )
 
     # Perform the reassignment
     assignment.list_fighter = to_fighter
     assignment.save_with_user(user=user)
 
-    # Calculate cost AFTER reassignment
-    cost_after = assignment.cost_int()
+    # Calculate cost AFTER reassignment on a FRESH instance: cost_int() reads
+    # per-instance cached_property component costs that populated during the
+    # cost_before call and never invalidate, so re-calling it on the same
+    # object would always return cost_before and silently mask re-pricing
+    # (the #1826-class drift this handler used to produce).
+    #
+    # The refetch MUST use with_related_data(): its accessory prefetch goes
+    # through all_content(), like the instances views hand this handler and
+    # like the canonical recompute path. A plain fetch resolves accessories
+    # through the pack-excluding default manager, so pack-scoped accessories
+    # would vanish from cost_after and book a phantom repricing.
+    refreshed = ListFighterEquipmentAssignment.objects.with_related_data().get(
+        pk=assignment.pk
+    )
+    cost_after = refreshed.cost_int()
 
-    # Propagate to to_fighter AFTER reassignment (increase their rating)
-    propagate_from_fighter(to_fighter, Delta(delta=cost_after, list=lst))
+    # The assignment's own cache still holds the old-context value; shift it
+    # by the re-pricing difference. This walks assignment → (new) fighter, so
+    # afterwards the to_fighter needs only the cost_before base.
+    to_fighter_fresh = refreshed.list_fighter
+    propagate_from_assignment(
+        refreshed,
+        Delta(delta=cost_after - cost_before, list=lst),
+        update_list=False,
+    )
+    propagate_from_fighter(
+        to_fighter_fresh, Delta(delta=cost_before, list=lst), update_list=False
+    )
 
     # Use the cost after reassignment for deltas
     equipment_cost = cost_after
     equipment_name = assignment.content_equipment.name
 
-    # Determine deltas based on source and target fighter types
+    # Determine deltas based on source and target fighter types. The value
+    # LEAVING the source is cost_before; the value ARRIVING at the target is
+    # cost_after — when the move re-prices the gear, the difference is a real
+    # book movement and must be recorded, or the caches and the action chain
+    # diverge on the next recompute.
     from_is_stash = from_fighter.is_stash
     to_is_stash = to_fighter.is_stash
 
     if from_is_stash and not to_is_stash:
-        # Stash → Regular: Move from stash to rating
-        rating_delta = equipment_cost
-        stash_delta = -equipment_cost
+        # Stash → Regular
+        rating_delta = cost_after
+        stash_delta = -cost_before
     elif not from_is_stash and to_is_stash:
-        # Regular → Stash: Move from rating to stash
-        rating_delta = -equipment_cost
-        stash_delta = equipment_cost
+        # Regular → Stash
+        rating_delta = -cost_before
+        stash_delta = cost_after
     else:
-        # Regular → Regular or Stash → Stash: No change
-        rating_delta = 0
-        stash_delta = 0
+        # Regular → Regular or Stash → Stash: only the re-pricing moves the book
+        rating_delta = (cost_after - cost_before) if not from_is_stash else 0
+        stash_delta = (cost_after - cost_before) if from_is_stash else 0
+
+    # Apply the net list movement in one write per bucket (the value leaving
+    # the source bucket is cost_before; the value arriving at the target
+    # bucket is cost_after).
+    propagate_to_list(lst, rating_delta=rating_delta, stash_delta=stash_delta)
 
     # Build ListAction args (credits never change for reassignment)
     la_args = dict(
         rating_delta=rating_delta,
         stash_delta=stash_delta,
         credits_delta=0,  # Reassignment is free
-        rating_before=lst.rating_current,
-        stash_before=lst.stash_current,
-        credits_before=lst.credits_current,
+        rating_before=rating_before,
+        stash_before=stash_before,
+        credits_before=credits_before,
     )
 
     # Build user-friendly description based on fighter types
@@ -180,7 +226,9 @@ def handle_equipment_reassignment(
         )
 
     return EquipmentReassignmentResult(
-        assignment=assignment,
+        # Return the refreshed instance: its cached rating reflects the
+        # propagation applied above; the original's in-memory state predates it.
+        assignment=refreshed,
         equipment_cost=equipment_cost,
         from_fighter=from_fighter,
         to_fighter=to_fighter,

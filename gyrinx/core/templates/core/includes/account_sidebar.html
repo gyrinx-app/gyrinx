@@ -9,6 +9,19 @@
                    href="{{ account_home_url_ }}"><i class="bi-house me-2"></i>{% trans "Overview" %}</a>
             </li>
         {% endif %}
+        {% url 'core:notifications' as notifications_url_ %}
+        {% if notifications_url_ %}
+            <li class="nav-item">
+                <a class="nav-link d-flex align-items-center {% active_view 'core:notifications' %}"
+                   {% active_aria 'core:notifications' %}
+                   href="{{ notifications_url_ }}">
+                    <i class="bi-inbox me-2"></i>{% trans "Notifications" %}
+                    {% if unread_notification_count %}
+                        <span class="badge rounded-pill text-bg-danger ms-auto">{{ unread_notification_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
+        {% endif %}
         {% if '@' in user.username %}
             {% url 'core:change-username' as change_username_url_ %}
             {% if change_username_url_ %}
@@ -18,6 +31,14 @@
                        href="{{ change_username_url_ }}"><i class="bi-person me-2"></i>{% trans "Change username" %}</a>
                 </li>
             {% endif %}
+        {% endif %}
+        {% url 'core:badge-settings' as badge_settings_url_ %}
+        {% if badge_settings_url_ %}
+            <li class="nav-item">
+                <a class="nav-link {% active_view 'core:badge-settings' %}"
+                   {% active_aria 'core:badge-settings' %}
+                   href="{{ badge_settings_url_ }}"><i class="bi-patch-check me-2"></i>{% trans "Badge" %}</a>
+            </li>
         {% endif %}
         {% url 'account_email' as email_url_ %}
         {% if email_url_ %}
@@ -54,7 +75,7 @@
         {% url 'account_logout' as logout_url_ %}
         {% if logout_url_ %}
             <li class="nav-item mt-2">
-                <a class="nav-link text-danger {% active_view 'account_logout' %}"
+                <a class="nav-link nav-link-danger {% active_view 'account_logout' %}"
                    {% active_aria 'account_logout' %}
                    href="{{ logout_url_ }}"><i class="bi-box-arrow-right me-2"></i>{% trans "Sign out" %}</a>
             </li>

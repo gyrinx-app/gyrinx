@@ -1,0 +1,59 @@
+{% load custom_tags %}
+{% comment %}
+    A single inbox row. Expects `notification` in context. The select checkbox is
+    associated with the standalone bulk form via the HTML5 `form` attribute so it
+    can live outside that form (no nested forms). Unread rows carry a left accent
+    border; the title is semi-bold. Row actions follow the design-system
+    inline-action-menu pattern (link-styled buttons, dot separators).
+{% endcomment %}
+<div class="p-2 vstack gap-1{% if not first %} border-top{% endif %}"
+     style="border-left: 3px solid {% if notification.is_read %}transparent{% else %}var(--bs-primary){% endif %}">
+    <div class="d-flex align-items-center gap-2 fs-7 text-secondary">
+        <input class="form-check-input m-0 flex-shrink-0"
+               type="checkbox"
+               name="ids"
+               value="{{ notification.id }}"
+               form="notif-bulk-form"
+               aria-label="Select: {{ notification.subject }}">
+        <i class="{{ notification.display_icon }}"></i>
+        <span class="d-inline-flex align-items-center">{% include "core/includes/notification_source.html" with notification=notification %}{% dot %}{{ notification.created|timesince }} ago</span>
+    </div>
+    <div class="fw-semibold">
+        {% if notification.target_url %}
+            <a href="{{ notification.target_url }}"
+               class="link-body-emphasis link-underline-opacity-25 link-underline-opacity-100-hover">{{ notification.subject }}</a>
+        {% else %}
+            {{ notification.subject }}
+        {% endif %}
+    </div>
+    {% if notification.content %}<div class="text-secondary mb-last-0">{{ notification.content|safe_rich_text|safe }}</div>{% endif %}
+    <div class="d-flex flex-wrap align-items-center fs-7">
+        <form method="post"
+              action="{% if notification.is_read %}{% url 'core:notification-unread' notification.id %}{% else %}{% url 'core:notification-read' notification.id %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-secondary">
+                {% if notification.is_read %}Mark unread{% else %}Mark read{% endif %}
+            </button>
+        </form>
+        {% dot %}
+        <form method="post"
+              action="{% if notification.archived %}{% url 'core:notification-unarchive' notification.id %}{% else %}{% url 'core:notification-archive' notification.id %}{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-secondary">
+                {% if notification.archived %}Unarchive{% else %}Archive{% endif %}
+            </button>
+        </form>
+        {% dot %}
+        <form method="post"
+              action="{% url 'core:notification-delete' notification.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit"
+                    class="btn btn-link btn-sm p-0 align-baseline link-danger">Delete</button>
+        </form>
+    </div>
+</div>

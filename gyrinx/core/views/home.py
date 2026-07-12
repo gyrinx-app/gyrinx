@@ -56,7 +56,6 @@ def index(request):
             # These can include other users' public lists/campaigns the user pinned.
             pinned_all_lists = list(
                 request.user.pinned_lists.filter(archived=False)
-                .with_latest_actions()
                 .select_related("content_house", "campaign")
                 .order_by("name")
             )
@@ -80,7 +79,6 @@ def index(request):
                     owner=request.user, status=List.LIST_BUILDING, archived=False
                 )
                 .exclude(id__in=pinned_list_ids)
-                .with_latest_actions()
                 .select_related("content_house")
             )
 
@@ -106,7 +104,6 @@ def index(request):
                     campaign__archived=False,
                 )
                 .exclude(id__in=pinned_list_ids)
-                .with_latest_actions()
                 .select_related("campaign", "content_house")
             )
 
@@ -141,7 +138,8 @@ def index(request):
                     campaigns_queryset, search_campaigns_query, ["name"]
                 )
 
-            campaigns = campaigns_queryset.order_by("-created")
+            # Order by modified and limit to 5 (matches lists / campaign gangs)
+            campaigns = campaigns_queryset.order_by("-modified")[:5]
 
     # Log the dashboard view
     if request.user.is_authenticated:
@@ -153,7 +151,7 @@ def index(request):
             page="dashboard",
             lists_count=len(lists) if lists else 0,
             campaign_gangs_count=len(campaign_gangs) if campaign_gangs else 0,
-            campaigns_count=campaigns.count() if campaigns else 0,
+            campaigns_count=len(campaigns) if campaigns else 0,
         )
 
     # Derive houses from the user's actual lists so pack-defined
@@ -172,7 +170,7 @@ def index(request):
     # Pick up to 3 random featured packs to showcase on the front page.
     featured_packs = (
         CustomContentPack.objects.filter(featured=True, listed=True, archived=False)
-        .select_related("owner")
+        .select_related("owner", "owner__profile")
         .order_by("?")[:3]
     )
 

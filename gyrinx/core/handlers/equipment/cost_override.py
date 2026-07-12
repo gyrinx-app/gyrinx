@@ -6,7 +6,6 @@ from typing import Optional
 from django.db import transaction
 
 from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
-from gyrinx.core.cost.routing import is_stash_linked as check_is_stash_linked
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.list import (
     List,
@@ -132,10 +131,10 @@ def handle_equipment_cost_override(
         assignment, old_total_cost_override, new_total_cost_override
     )
 
-    # Determine if this goes to stash or rating
-    # Use check_is_stash_linked to handle child fighters (vehicles/exotic beasts)
-    # whose parent equipment is on a stash fighter
-    is_stash = check_is_stash_linked(fighter)
+    # Bucket by the fighter's own stash-ness, matching facts_from_db — a
+    # child fighter (vehicle/beast) counts toward rating even when its
+    # parent equipment sits on the stash.
+    is_stash = fighter.is_stash
 
     # Generate description
     description = _generate_description(

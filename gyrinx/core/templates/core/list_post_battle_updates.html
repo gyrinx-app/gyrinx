@@ -1,0 +1,164 @@
+{% extends "core/layouts/base.html" %}
+{% load static custom_tags %}
+{% block head_title %}
+    Post-battle updates - {{ list.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:list' list.id as list_url %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    <div class="col-12 px-0 vstack gap-3">
+        <h1 class="h3 mb-0">Post-battle updates</h1>
+        <p class="text-secondary mb-0">
+            Record what happened this battle across the whole gang. The action fields
+            start blank and notes show what's already saved — only what you fill in or
+            change is applied, nothing else is touched.
+        </p>
+        <form method="post" data-pb-form>
+            {% csrf_token %}
+            {% if rows %}
+                <div class="vstack gap-4">
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger alert-icon" role="alert">
+                            <i class="bi-exclamation-triangle"></i>
+                            <div>{{ form.non_field_errors }}</div>
+                        </div>
+                    {% endif %}
+                    {% if has_battles %}
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <label for="{{ form.battle.id_for_label }}" class="form-label mb-1">
+                                {{ form.battle.label }}
+                                <span class="text-secondary fs-7">(optional)</span>
+                            </label>
+                            {{ form.battle }}
+                            <div class="form-text">Actions logged below will be attached to this battle.</div>
+                        </div>
+                    {% endif %}
+                    <div class="border-top">
+                        {% for row in rows %}
+                            <div class="py-3 border-bottom">
+                                <div class="d-flex flex-wrap align-items-baseline gap-2 mb-2">
+                                    <span class="fw-semibold fs-5">{{ row.fighter.name }}</span>
+                                    <span class="text-secondary fw-normal">{{ row.fighter.get_category_label }}</span>
+                                    {% if row.fighter.is_dead %}
+                                        <span class="badge text-bg-dark">Dead</span>
+                                    {% elif not row.fighter.is_active %}
+                                        <span class="badge text-bg-secondary">{{ row.fighter.get_injury_state_display }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="row g-2 g-md-3">
+                                    <div class="col-6 col-md-2">
+                                        <label class="form-label fs-7 mb-1" for="{{ row.xp.id_for_label }}">
+                                            Add XP
+                                            <span class="text-secondary">({{ row.fighter.xp_current }})</span>
+                                        </label>
+                                        {{ row.xp }}
+                                        {% for error in row.xp.errors %}
+                                            <div class="text-danger fs-7">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% for c in row.counters %}
+                                        <div class="col-6 col-md-2">
+                                            <label class="form-label fs-7 mb-1" for="{{ c.field.id_for_label }}">
+                                                {{ c.counter.name }}
+                                                <span class="text-secondary">({{ c.value }})</span>
+                                            </label>
+                                            {{ c.field }}
+                                            {% for error in c.field.errors %}
+                                                <div class="text-danger fs-7">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                    {% endfor %}
+                                    <div class="col-12 col-md">
+                                        <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injury</label>
+                                        {{ row.injury }}
+                                        {% for error in row.injury.errors %}
+                                            <div class="text-danger fs-7">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="col-12 col-md">
+                                        <label class="form-label fs-7 mb-1"
+                                               for="{{ row.injury_reason.id_for_label }}">Reason</label>
+                                        {{ row.injury_reason }}
+                                        {% for error in row.injury_reason.errors %}
+                                            <div class="text-danger fs-7">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <details class="mt-2" data-pb-notes>
+                                    <summary class="fs-7 linked">Private notes</summary>
+                                    <div class="mt-2">{{ row.private_notes }}</div>
+                                </details>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">Apply updates</button>
+                        {% include "core/includes/cancel.html" with url=list_url text="Cancel" %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="border rounded p-2">
+                    <i class="bi-info-circle"></i> This gang has no fighters to update.
+                </div>
+            {% endif %}
+        </form>
+    </div>
+    {% if rows %}
+        <script src="{% static 'tinymce/tinymce.min.js' %}"></script>
+        <script>
+         (function () {
+             function initEditor(ta) {
+                 if (!window.tinymce || ta.dataset.pbInit) return;
+                 ta.dataset.pbInit = "1";
+                 var dark = document.documentElement.getAttribute("data-bs-theme") === "dark";
+                 window.tinymce.init({
+                     target: ta,
+                     menubar: false,
+                     statusbar: false,
+                     plugins: "lists link autolink autoresize",
+                     toolbar: "bold italic underline | bullist numlist | link | removeformat",
+                     min_height: 180,
+                     branding: false,
+                     promotion: false,
+                     skin: dark ? "oxide-dark" : "oxide",
+                     content_css: dark ? "dark" : "default",
+                 });
+             }
+             document.querySelectorAll("details[data-pb-notes]").forEach(function (d) {
+                 d.addEventListener("toggle", function () {
+                     if (d.open) {
+                         var ta = d.querySelector("textarea");
+                         if (ta) initEditor(ta);
+                     }
+                 });
+             });
+             // Reason is only meaningful alongside an injury: keep it disabled
+             // until one is chosen. Server-side validation is the source of
+             // truth; this is just an affordance, so no-JS submits still work.
+             document.querySelectorAll('select[name^="injury_"]').forEach(function (sel) {
+                 var reason = document.querySelector(
+                     '[name="' + sel.name.replace(/^injury_/, "injury_reason_") + '"]'
+                 );
+                 if (!reason) return;
+                 function sync() { reason.disabled = !sel.value; }
+                 sel.addEventListener("change", sync);
+                 sync();
+             });
+             var form = document.querySelector("form[data-pb-form]");
+             if (form) {
+                 form.addEventListener("submit", function () {
+                     if (!window.tinymce) return;
+                     // Only write back editors the user actually edited. Merely
+                     // opening a fighter's notes mounts TinyMCE, which would
+                     // reserialise the HTML on a blanket triggerSave() and log a
+                     // spurious "notes changed" — so leave clean editors' textareas
+                     // holding their original server-rendered value.
+                     window.tinymce.get().forEach(function (ed) {
+                         if (ed.isDirty()) ed.save();
+                     });
+                 });
+             }
+         })();
+        </script>
+    {% endif %}
+{% endblock content %}

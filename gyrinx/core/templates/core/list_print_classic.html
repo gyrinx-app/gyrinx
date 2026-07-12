@@ -1,0 +1,12 @@
+{% extends "core/layouts/base_print.html" %}
+{% load static %}
+{% block head_title %}
+    {{ list.name }} | {{ list.content_house_name }}
+{% endblock head_title %}
+{% block stylesheet %}
+    <link rel="stylesheet" href="{% static 'core/css/print_classic.css' %}">
+{% endblock stylesheet %}
+{% block content %}
+    {% comment %} Classic cards always use the base "blank" plate {% endcomment %}
+    {% include "core/includes/classic_sheet.html" with cards=classic_cards theme="blank" auto_print=True %}
+{% endblock content %}

@@ -1,12 +1,12 @@
 {% extends "account/base_manage.html" %}
-{% load i18n group_tags %}
+{% load i18n group_tags badge_tags %}
 {% block head_title %}
     {% trans "Your Account" %}
 {% endblock head_title %}
 {% block content %}
     <div class="vstack gap-4">
         <div>
-            <h2 class="mb-0">{{ user.username }}</h2>
+            <h2 class="mb-0">{{ user.username }}{% user_badge user %}</h2>
             <p class="text-secondary mb-0 mt-1">Member since {{ user.date_joined|date:"F Y" }}</p>
         </div>
         <div class="row g-2 g-md-3">

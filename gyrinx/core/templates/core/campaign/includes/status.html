@@ -1,7 +1,8 @@
+{# Campaign status indicator. Optional param: collapse — a breakpoint (e.g. "sm") below which the pill collapses to a coloured dot with a tooltip. #}
 {% if campaign.is_pre_campaign %}
-    <span class="badge text-bg-secondary">Pre-Campaign</span>
+    {% include "core/campaign/includes/_status_indicator.html" with label="Pre-Campaign" color="secondary" collapse=collapse %}
 {% elif campaign.is_in_progress %}
-    <span class="badge text-bg-success">In Progress</span>
+    {% include "core/campaign/includes/_status_indicator.html" with label="In Progress" color="success" collapse=collapse %}
 {% elif campaign.is_post_campaign %}
-    <span class="badge text-bg-secondary">Post-Campaign</span>
+    {% include "core/campaign/includes/_status_indicator.html" with label="Post-Campaign" color="secondary" collapse=collapse %}
 {% endif %}

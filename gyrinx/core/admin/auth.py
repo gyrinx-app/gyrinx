@@ -252,6 +252,7 @@ class UserProfileAdmin(admin.ModelAdmin):
         "tos_agreed_at",
         "patreon_status",
         "patreon_tier",
+        "selected_badge",
     ]
     search_fields = [
         "user__username",

@@ -1,5 +1,6 @@
 {# djlint:off H021 #}
 {% extends "core/layouts/base.html" %}
+{% load badge_tags %}
 {% block head_title %}
     Design system
 {% endblock head_title %}
@@ -123,8 +124,7 @@
                     <span class="text-secondary fs-7 d-block">Add / create</span>
                 </div>
                 <div>
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">link-secondary</a>
+                    <a href="#" class="linked-secondary">linked-secondary</a>
                     <span class="text-secondary fs-7 d-block">Edit / reset</span>
                 </div>
                 <div>
@@ -146,8 +146,7 @@
                     <div class="fs-7 text-body-tertiary mt-1">on dark bg</div>
                 </div>
                 <div class="bg-dark rounded p-3 text-center" style="min-width: 10rem">
-                    <a href="#"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">link-secondary</a>
+                    <a href="#" class="linked-secondary">linked-secondary</a>
                     <div class="fs-7 text-body-tertiary mt-1">on dark bg</div>
                 </div>
             </div>
@@ -572,6 +571,81 @@
                         <code class="fs-7 text-secondary">{{ icon_class }}</code>
                     </div>
                 {% endfor %}
+            </div>
+            <h3 class="h6 caps-label mb-2 mt-4">House icons</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Inline badge rendered next to a house's name (gang rows, list headers, house
+                filters). Emit it with the
+                <code>{% templatetag openblock %} house_icon house {% templatetag closeblock %}</code>
+                template tag; it inherits the surrounding text colour and sits comfortably alongside
+                the name. Currently gated to the <strong>House Icons Alpha</strong> group. The
+                examples below show the badge at body and compact (<code>fs-7</code>) sizes.
+            </p>
+            <div class="d-flex flex-column gap-2">
+                <div>Squat Prospectors{{ ds_house_icon_svg }}</div>
+                <div class="text-secondary fs-7">
+                    House name at <code>fs-7</code>{{ ds_house_icon_svg }}
+                </div>
+            </div>
+        </section>
+        <!-- ============================================================ -->
+        <!-- SUPPORTER BADGES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Supporter badges</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Pixel-art badges shown next to a user's name — the staff badge and Patreon tiers.
+                Emit a user's chosen badge with
+                <code>{% templatetag openblock %} user_badge user {% templatetag closeblock %}</code>
+                (renders <code>.user-badge</code>), or a specific badge by slug with
+                <code>{% templatetag openblock %} badge_icon "staff" {% templatetag closeblock %}</code>.
+                They are 24×24 pixel art sized in <code>em</code>, so they scale with the
+                surrounding text — larger in a heading, smaller in <code>fs-7</code> — and are
+                rendered with <code>shape-rendering: geometricPrecision</code> so they anti-alias
+                cleanly instead of aliasing to uneven edges. Override the size with the
+                <code>--badge-size</code> custom property.
+            </p>
+            <h3 class="h6 caps-label mb-2">Staff badge at different sizes</h3>
+            <div class="d-flex flex-wrap align-items-end gap-4 mb-4">
+                <div class="text-center" style="--badge-size: 16px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">16px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 24px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">24px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 32px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">32px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 48px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">48px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 64px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">64px</div>
+                </div>
+                <div class="text-center" style="--badge-size: 96px">
+                    {% badge_icon "staff" %}
+                    <div class="fs-7 text-secondary mt-1">96px</div>
+                </div>
+            </div>
+            <h3 class="h6 caps-label mb-2 mt-4">Vertical alignment in headings</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Sized in <code>em</code>, the badge scales with the text and stays optically
+                centred on it at every size — from a heading down to <code>fs-7</code>.
+            </p>
+            <div class="vstack gap-2">
+                <h1 class="mb-0">Heading 1 {% badge_icon "staff" %}</h1>
+                <h2 class="mb-0">Heading 2 {% badge_icon "staff" %}</h2>
+                <h3 class="mb-0">Heading 3 {% badge_icon "staff" %}</h3>
+                <h4 class="mb-0">Heading 4 {% badge_icon "staff" %}</h4>
+                <h5 class="mb-0">Heading 5 {% badge_icon "staff" %}</h5>
+                <h6 class="mb-0">Heading 6 {% badge_icon "staff" %}</h6>
+                <p class="mb-0">Body text {% badge_icon "staff" %}</p>
+                <div class="text-secondary fs-7">Compact text (fs-7) {% badge_icon "staff" %}</div>
             </div>
         </section>
         <!-- ============================================================ -->
@@ -1091,7 +1165,7 @@
             <div class="border rounded p-3 mb-4">
                 <div class="col-lg-12 px-0 vstack gap-4">
                     <div class="vstack gap-0">
-                        {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" type_url="/lists/" only %}
+                        {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" type_url="/lists/" only %}
                         <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                             <h1 class="h2 mb-0">My Gang</h1>
                             <nav class="nav btn-group flex-nowrap ms-md-auto">
@@ -1151,16 +1225,16 @@
                 Sits above the page title on entity detail pages. Shows <code>owner / type / name</code> with optional campaign link.
                 Use <code>
                 {% verbatim %}
-                    {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" type_url="/lists/" only %}
+                    {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" type_url="/lists/" only %}
                 {% endverbatim %}
             </code>.
         </p>
         <div class="border rounded p-3 mb-4">
             <div class="vstack gap-1">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" type_url="/lists/" only %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=user name="Iron Hounds" type_url="/lists/" campaign=ds_campaign only %}
-                {% include "core/includes/breadcrumb.html" with type="Pack" owner=user name="Scavvy Pack" type_url="/packs/" only %}
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="My Gang" print=True only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="Cawdor Facts" type_url="/lists/" only %}
+                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=ds_user name="Iron Hounds" type_url="/lists/" campaign=ds_campaign only %}
+                {% include "core/includes/breadcrumb.html" with type="Pack" owner=ds_user name="Scavvy Pack" type_url="/packs/" only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" print=True only %}
             </div>
         </div>
         <p class="text-secondary fs-7 mb-4">
@@ -1171,7 +1245,7 @@
         <p class="text-secondary fs-7 mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
         <div class="border rounded p-3 mb-4">
             <div class="vstack gap-0">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=user name="Cawdor Facts" type_url="/lists/" only %}
+                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="Cawdor Facts" type_url="/lists/" only %}
                 <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                     <h1 class="h2 mb-0">Cawdor Facts</h1>
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap">
@@ -1378,12 +1452,11 @@
         </div>
         <div>
             <a href="#" class="linked">Linked style</a>
-            <code class="ms-2 fs-7 text-secondary">.linked (secondary + underline-opacity)</code>
+            <code class="ms-2 fs-7 text-secondary">.linked (underline on hover/focus)</code>
         </div>
         <div>
-            <a href="#"
-               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Secondary link</a>
-            <code class="ms-2 fs-7 text-secondary">.link-secondary (edit/reset actions)</code>
+            <a href="#" class="linked-secondary">Secondary link</a>
+            <code class="ms-2 fs-7 text-secondary">.linked-secondary (edit/reset actions)</code>
         </div>
         <div>
             <a href="#"
@@ -1401,8 +1474,9 @@
     </div>
     <p class="text-secondary fs-7 mb-0">
         All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
-        <code>.linked</code> is shorthand for <code>.link-secondary .link-underline-opacity-50 .link-underline-opacity-100-hover</code>.
-        Underline opacity is <code>50</code> (not 25) for better visibility in dark mode.
+        <code>.linked</code> shows its underline only on hover/focus, at 50% opacity (tinted from
+        <code>currentColor</code>). <code>.linked-secondary</code> is the same behaviour in the secondary
+        text colour.
     </p>
 </section>
 <!-- ============================================================ -->
@@ -1567,6 +1641,8 @@
                             <span class="tooltipped">hover me</span>
                         {% elif cls == ".table-fixed" %}
                             <span class="text-secondary">(table-layout: fixed)</span>
+                        {% elif cls == ".house-icon" %}
+                            <span>House{{ ds_house_icon_svg }}</span>
                         {% endif %}
                     </td>
                 </tr>

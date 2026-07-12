@@ -4,7 +4,6 @@ from gyrinx.content.models import (
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentHouse,
-    ContentWeaponAccessory,
 )
 from gyrinx.core.forms import (
     BsCheckboxSelectMultiple,
@@ -455,38 +454,6 @@ class ListFighterWeaponAccessoryField(forms.ModelMultipleChoiceField):
         return f"{obj.name} ({cost}{unit})"
 
 
-class ListFighterEquipmentAssignmentAccessoriesForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        inst: ListFighterEquipmentAssignment | None = kwargs.get("instance", None)
-        if inst is not None:
-            # Pack-aware queryset so subscribed pack accessories appear and
-            # already-attached pack accessories are recognised as initial
-            # values (the default M2M manager would silently exclude them).
-            packs = inst.list_fighter.list.packs.all()
-            choices_qs = ContentWeaponAccessory.objects.with_packs(
-                packs, include_archived_items=True
-            ).with_cost_for_fighter(inst.list_fighter.content_fighter)
-            initial_qs = ContentWeaponAccessory.objects.all_content().filter(
-                weapon_accessories=inst
-            )
-            self.fields["weapon_accessories_field"] = ListFighterWeaponAccessoryField(
-                label="Accessories",
-                queryset=choices_qs,
-                widget=BsCheckboxSelectMultiple(
-                    attrs={"class": "form-check-input"},
-                ),
-                help_text="Costs reflect the Fighter's Equipment List.",
-                required=False,
-                assignment=inst,
-            )
-            self.fields["weapon_accessories_field"].initial = initial_qs
-
-    class Meta:
-        model = ListFighterEquipmentAssignment
-        fields = ["weapon_accessories_field"]
-
-
 class ListFighterEquipmentAssignmentUpgradeForm(forms.ModelForm):
     def _upgrade_label_from_instance(self, obj):
         return f"{obj.name} ({self.instance.upgrade_cost_display(obj)})"
@@ -618,6 +585,43 @@ class EditListFighterNotesForm(forms.ModelForm):
         }
 
 
+def available_injuries_for_fighter(fighter):
+    """Return the ContentInjury queryset applicable to ``fighter``.
+
+    Filters injury groups by the fighter's category (``restricted_to`` /
+    ``unavailable_to``) and house (``restricted_to_house``); ungrouped injuries
+    are always available. Passing ``None`` returns every injury. Shared by
+    :class:`AddInjuryForm` and the bulk post-battle editor so the two can't
+    drift apart.
+    """
+    from django.db.models import Q
+
+    from gyrinx.content.models import ContentInjury, ContentInjuryGroup
+
+    base = ContentInjury.objects.select_related("injury_group")
+    if fighter is None:
+        return base
+
+    fighter_category = fighter.content_fighter.category
+    fighter_house = fighter.equipment_list_fighter.house
+
+    group_query = (
+        Q(restricted_to__isnull=True)
+        | Q(restricted_to="")
+        | Q(restricted_to__contains=fighter_category)
+    )
+    group_query &= ~Q(unavailable_to__contains=fighter_category)
+    if fighter_house:
+        group_query &= Q(restricted_to_house__isnull=True) | Q(
+            restricted_to_house=fighter_house
+        )
+
+    available_groups = ContentInjuryGroup.objects.filter(group_query)
+    return base.filter(
+        Q(injury_group__in=available_groups) | Q(injury_group__isnull=True)
+    )
+
+
 class AddInjuryForm(forms.Form):
     injury = forms.ModelChoiceField(
         queryset=None,  # Will be set in __init__
@@ -642,48 +646,10 @@ class AddInjuryForm(forms.Form):
         # Extract fighter from kwargs if provided
         fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
-        # Import here to avoid circular imports
-        from django.db.models import Q
-
-        from gyrinx.content.models import ContentInjury, ContentInjuryGroup
         from gyrinx.forms import group_select
 
-        # Filter injuries based on fighter category if fighter is provided
-        if fighter:
-            fighter_category = fighter.content_fighter.category
-            fighter_house = fighter.equipment_list_fighter.house
-
-            # Build query for injury groups available to this fighter
-            # Start with groups that have no category restrictions or include this category
-            group_query = (
-                Q(restricted_to__isnull=True)
-                | Q(restricted_to="")
-                | Q(restricted_to__contains=fighter_category)
-            )
-
-            # Exclude groups that are unavailable to this category
-            group_query &= ~Q(unavailable_to__contains=fighter_category)
-
-            # Apply house restrictions if present
-            if fighter_house:
-                # Include groups with no house restrictions or those restricted to this house
-                group_query &= Q(restricted_to_house__isnull=True) | Q(
-                    restricted_to_house=fighter_house
-                )
-
-            available_groups = ContentInjuryGroup.objects.filter(group_query)
-
-            # Filter injuries by available groups
-            self.fields["injury"].queryset = ContentInjury.objects.select_related(
-                "injury_group"
-            ).filter(
-                Q(injury_group__in=available_groups) | Q(injury_group__isnull=True)
-            )
-        else:
-            # If no fighter, show all injuries
-            self.fields["injury"].queryset = ContentInjury.objects.select_related(
-                "injury_group"
-            )
+        # Filter injuries to those applicable to this fighter (shared helper).
+        self.fields["injury"].queryset = available_injuries_for_fighter(fighter)
 
         # Group injuries by their injury_group field
         group_select(
@@ -1103,3 +1069,74 @@ class EditCounterForm(forms.Form):
         if self.counter:
             self.fields["value"].label = self.counter.name
             self.fields["value"].initial = self.current_value
+
+
+class SpendCounterForm(forms.Form):
+    """Form for a free-form counter spend (amount + purpose)."""
+
+    amount = forms.IntegerField(
+        min_value=1,
+        label="Amount to spend",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    reason = forms.CharField(
+        label="Purpose",
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.counter = kwargs.pop("counter", None)
+        self.current_value = kwargs.pop("current_value", 0)
+        super().__init__(*args, **kwargs)
+        # Browser-side hint only; clean_amount is the authoritative check.
+        self.fields["amount"].widget.attrs["max"] = self.current_value
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        if amount > self.current_value:
+            counter_name = self.counter.name if self.counter else "counter"
+            raise forms.ValidationError(
+                f"You cannot spend {amount} — only {self.current_value} "
+                f"{counter_name} available."
+            )
+        return amount
+
+
+class RollFlowDiceForm(forms.Form):
+    """
+    Form for the roll step of a roll flow (e.g. Power Boost).
+
+    Mirrors AdvancementDiceChoiceForm: a hidden action field distinguishes
+    an automatic roll from manual tabletop dice entry; the template renders
+    the dice fields as selects. The number of dice required depends on the
+    roll table's dice configuration (D6 = 1; D66/2D6 = 2).
+    """
+
+    roll_action = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    d6_1 = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=6,
+        widget=forms.HiddenInput(),
+    )
+    d6_2 = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=6,
+        widget=forms.HiddenInput(),
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.dice_count = kwargs.pop("dice_count", 1)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("roll_action") == "roll_manual":
+            needed = ["d6_1", "d6_2"][: self.dice_count]
+            if any(cleaned_data.get(field) is None for field in needed):
+                raise forms.ValidationError(
+                    "All dice values must be provided for manual entry."
+                )
+        return cleaned_data

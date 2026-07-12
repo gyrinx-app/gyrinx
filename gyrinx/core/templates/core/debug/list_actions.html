@@ -33,6 +33,7 @@
     <body>
         <div class="back">
             <a href="{% url 'core:list' list.id %}">← Back to {{ list.name }}</a>
+            · <a href="{% url 'debug_list_balance_sheet' list.id %}">Balance sheet</a>
         </div>
         <h1>
             List Actions <span class="count">{{ actions|length }}</span>

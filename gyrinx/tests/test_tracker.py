@@ -10,14 +10,12 @@ from gyrinx import tracker
 def caplog_json(caplog):
     """Fixture that parses JSON logs from caplog.
 
-    Explicitly adds caplog's handler to the gyrinx.tracker logger
-    since the parent gyrinx logger has propagate=False.
+    Uses caplog.set_level with an explicit logger name so pytest captures
+    records from gyrinx.tracker even though the parent gyrinx logger has
+    propagate=False. (pytest attaches its capture handler to the named
+    non-propagating logger; adding the handler manually double-counts.)
     """
-    logger = logging.getLogger("gyrinx.tracker")
-    # Add caplog's handler directly to the logger
-    logger.addHandler(caplog.handler)
-    original_level = logger.level
-    logger.setLevel(logging.INFO)
+    caplog.set_level(logging.INFO, logger="gyrinx.tracker")
 
     def get_json_logs():
         logs = []
@@ -31,10 +29,6 @@ def caplog_json(caplog):
 
     caplog.get_json_logs = get_json_logs
     yield caplog
-
-    # Cleanup
-    logger.removeHandler(caplog.handler)
-    logger.setLevel(original_level)
 
 
 def test_track_basic_event(caplog_json):

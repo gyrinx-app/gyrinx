@@ -41,12 +41,30 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 # This is handled by the load balancer
 SECURE_SSL_REDIRECT = False
-SECURE_HSTS_SECONDS = 60
+SECURE_HSTS_SECONDS = 31536000  # 1 year
 SESSION_COOKIE_SECURE = True
+# includeSubDomains is left off: we cannot verify that every subdomain serves
+# HTTPS only, so asserting it could break a plain-HTTP subdomain.
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-SECURE_HSTS_PRELOAD = True
+# Preload requires includeSubDomains (and is a one-way commitment that is hard
+# to undo), so it stays disabled until that is a deliberate, verified decision.
+SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
+
+# Persistent database connections.
+#
+# Django's default (CONN_MAX_AGE=0) opens a brand-new Postgres connection on
+# every request. On Cloud SQL each connect pays TLS + auth latency (tens of ms)
+# and adds connection-churn load on the instance. Reuse connections for up to
+# 60s, with a health check at the start of each request so a connection dropped
+# by the server (or the Cloud SQL proxy) is transparently re-established rather
+# than surfacing as an error.
+#
+# Dev/tests intentionally keep the Django default (0) — short-lived processes
+# and pytest don't benefit, and persistent connections complicate test teardown.
+DATABASES["default"]["CONN_MAX_AGE"] = 60  # noqa: F405
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
 
 STORAGES = {
     **STORAGES,

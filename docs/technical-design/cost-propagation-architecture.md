@@ -418,6 +418,8 @@ def propagate_from_fighter(
     )
 
 
+# NOTE: this sketch was NOT implemented. Bucketing follows the fighter's own
+# `is_stash` (matching facts_from_db); child fighters always book to rating.
 def is_stash_linked(fighter: "ListFighter") -> bool:
     """
     Determine if a fighter's costs route to stash or rating.
@@ -444,6 +446,13 @@ def is_stash_linked(fighter: "ListFighter") -> bool:
 ### 4. Transaction Wrapper
 
 Rename `create_action` to `transact()` and refactor to accept a mutation lambda:
+
+> **NOTE**: this rename was NOT implemented — there is no `transact()` in the
+> codebase. `create_action` kept its name and later became a pure audit record
+> that never applies anything. In the shipped code, credit movement goes
+> through `spend_credits()` / `apply_credit_delta()`, which are not gated on
+> `latest_action` — so the TODO in the sketch below (credits skipped on the
+> no-bootstrap-action path) does not correspond to a gap in the real code.
 
 ```python
 # In List model
@@ -494,11 +503,10 @@ def transact(
             ...
         )
     """
-    # Feature flag check (existing)
-    if not self.latest_action or not settings.FEATURE_LIST_ACTION_CREATE_INITIAL:
-        # Still execute mutation even if actions disabled
+    # Lists outside the action system (no bootstrap action) still mutate
+    if not self.latest_action:
         mutation()
-        # TODO: This should also preform the credit update as per current create_action
+        # TODO: This should also perform the credit update as per current create_action
         return None
 
     # Capture before state
@@ -750,7 +758,7 @@ def campaign_detail_view(request, campaign_id):
 
 1. Create `gyrinx/core/cost/propagation.py`
 2. Implement `propagate_from_assignment()` and `propagate_from_fighter()`
-3. Implement `is_stash_linked()` or reuse existing logic
+3. ~~Implement `is_stash_linked()` or reuse existing logic~~ (not implemented — bucketing follows `fighter.is_stash`, matching `facts_from_db`; a routing helper existed briefly and was removed when its child-fighter branch diverged from the recompute)
 4. Test propagation logic in isolation
 
 ### Phase 5: Handler Updates
@@ -800,10 +808,10 @@ The following describes what was actually implemented, noting changes from the o
    @dataclass
    class Delta:
        delta: int  # The change amount
-       list: List  # Reference for guard condition
+       list: List  # The list whose caches receive the movement
    ```
 
-3. **Propagation does NOT update List** - Unlike the original design, `propagate_from_assignment()` and `propagate_from_fighter()` only update the assignment/fighter levels. The list update is done by `create_action()`.
+3. **Propagation updates ALL THREE levels, and `create_action()` is a pure record** - `propagate_from_assignment()` and `propagate_from_fighter()` write the assignment/fighter caches and the list-level `rating_current`/`stash_current` (bucketed by whether the holding fighter is the stash); `propagate_to_list()` covers flows with no fighter-level counterpart (archive, deletion, capture transfers). `create_action()` records the movement but never applies it, and campaign credits are applied explicitly at call sites via `spend_credits()`/`apply_credit_delta()` — the `update_credits`/`skip_apply` parameters shown in the proposal sections above no longer exist.
 
 4. **Simpler FighterFacts** - The implemented `FighterFacts` only has `rating`, not the detailed breakdown:
 
@@ -813,14 +821,7 @@ The following describes what was actually implemented, noting changes from the o
        rating: int
    ```
 
-5. **Guard condition** - Added `_should_propagate()` check that both systems use to avoid double-counting:
-
-   ```python
-   def _should_propagate(lst):
-       return lst.latest_action and settings.FEATURE_LIST_ACTION_CREATE_INITIAL
-   ```
-
-6. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
+5. **In-memory cache removed** - The original in-memory cache (`cost_int_cached`) has been deprecated and removed from the read path (PR #1215, #1221).
 
 ### Critical Invariant
 
@@ -833,7 +834,9 @@ The following describes what was actually implemented, noting changes from the o
 | Direct create | Facts | No delta to propagate |
 | Signal-triggered create | Facts | No handler context |
 
-This invariant is enforced by the guard condition `_should_propagate()`.
+The invariant holds by construction: handlers call propagation exactly once
+per movement, and the recompute paths (clone, content sweep) write via
+facts_from_db without also propagating.
 
 ### File Locations
 
@@ -841,7 +844,6 @@ This invariant is enforced by the guard condition `_should_propagate()`.
 |-----------|------|
 | Facts dataclasses | `gyrinx/core/models/facts.py` |
 | Propagation functions | `gyrinx/core/cost/propagation.py` |
-| Stash routing | `gyrinx/core/cost/routing.py` |
 | List facts methods | `gyrinx/core/models/list.py` |
 | Content signals | `gyrinx/content/signals.py` |
 | Equipment handlers | `gyrinx/core/handlers/equipment/` |
@@ -849,15 +851,10 @@ This invariant is enforced by the guard condition `_should_propagate()`.
 
 ### Debugging
 
-The implementation includes debug visibility:
-
-```python
-# Check if facts match calculated values
-lst.debug_facts_in_sync       # True if facts() matches calculated
-fighter.debug_facts_in_sync   # True if facts().rating == cost_int()
-```
-
-Used in debug templates to show red flag when out of sync.
+Staff users can open the balance-sheet debug view at
+`/_debug/list/<id>/balance-sheet/`, which recomputes every fighter and
+assignment live and compares against the cached values, the credits ledger,
+and the action chain.
 
 ### See Also
 

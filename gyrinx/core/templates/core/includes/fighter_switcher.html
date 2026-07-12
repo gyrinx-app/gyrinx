@@ -2,7 +2,7 @@
 {# Context variables: list, fighter (current fighter), url_name (current page URL name) #}
 {% load custom_tags %}
 {% if fighter and list %}
-    {% with fighters=list.active_fighters %}
+    {% with fighters=list.active_fighters_minimal_cached %}
         {% if fighters|length > 1 %}
             <div class="dropdown">
                 <button class="btn dropdown-toggle text-secondary text-truncate fighter-switcher-btn fs-4 px-0"
@@ -16,7 +16,7 @@
                             <a class="dropdown-item text-truncate {% if f.id == fighter.id %}active{% endif %}"
                                href="{% if extra_url_arg %}{% url url_name list.id f.id extra_url_arg %}{% else %}{% url url_name list.id f.id %}{% endif %}">
                                 {{ f.name }}
-                                <span class="text-secondary">- {{ f.content_fighter.name }}</span>
+                                <span class="text-secondary">- {{ f.content_fighter_name }}</span>
                             </a>
                         </li>
                     {% endfor %}

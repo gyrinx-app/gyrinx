@@ -97,15 +97,11 @@ def two_gang_campaign(user, content_house, make_content_fighter, make_list):
 # ===== Capture Handler Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_fighter_capture_basic(
     two_gang_campaign,
-    settings,
-    feature_flag_enabled,
 ):
     """Test capturing a regular fighter creates correct actions."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     data = two_gang_campaign
     fighter = data["fighter"]
     gang1 = data["gang1"]
@@ -141,31 +137,24 @@ def test_handle_fighter_capture_basic(
     assert fighter.cost_int() == 0
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.capture_list_action is not None
-        assert result.capture_list_action.action_type == ListActionType.CAPTURE_FIGHTER
-        assert result.capture_list_action.rating_delta == -fighter_cost
-        assert result.capture_list_action.credits_delta == 0
-        assert result.capture_list_action.rating_before == initial_rating
-    else:
-        assert result.capture_list_action is None
+    assert result.capture_list_action is not None
+    assert result.capture_list_action.action_type == ListActionType.CAPTURE_FIGHTER
+    assert result.capture_list_action.rating_delta == -fighter_cost
+    assert result.capture_list_action.credits_delta == 0
+    assert result.capture_list_action.rating_before == initial_rating
 
     # Verify CampaignAction (always created in campaign mode)
     assert result.campaign_action is not None
     assert "captured by Gang 2" in result.campaign_action.description
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_fighter_capture_with_child_equipment(
     two_gang_campaign,
     make_content_fighter,
     make_equipment,
-    settings,
-    feature_flag_enabled,
 ):
     """Test capturing a child fighter removes parent equipment."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     data = two_gang_campaign
     gang1 = data["gang1"]
     gang2 = data["gang2"]
@@ -211,14 +200,10 @@ def test_handle_fighter_capture_with_child_equipment(
     assert not ListFighterEquipmentAssignment.objects.filter(id=assignment.id).exists()
 
     # Verify equipment removal ListAction
-    if feature_flag_enabled:
-        assert len(result.equipment_removal_actions) == 1
-        removal_action = result.equipment_removal_actions[0]
-        assert removal_action.action_type == ListActionType.REMOVE_EQUIPMENT
-        assert removal_action.rating_delta == -equipment_cost
-    else:
-        # Actions may be None when feature flag is disabled
-        assert all(a is None for a in result.equipment_removal_actions)
+    assert len(result.equipment_removal_actions) == 1
+    removal_action = result.equipment_removal_actions[0]
+    assert removal_action.action_type == ListActionType.REMOVE_EQUIPMENT
+    assert removal_action.rating_delta == -equipment_cost
 
     # Verify CampaignAction mentions equipment removal
     assert "linked equipment removed" in result.campaign_action.description
@@ -276,15 +261,11 @@ def test_handle_fighter_capture_child_fighter_zero_cost(
 # ===== Sell to Guilders Handler Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_fighter_sell_to_guilders(
     two_gang_campaign,
-    settings,
-    feature_flag_enabled,
 ):
     """Test selling a captured fighter to guilders adds credits."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     data = two_gang_campaign
     fighter = data["fighter"]
     gang2 = data["gang2"]
@@ -327,13 +308,10 @@ def test_handle_fighter_sell_to_guilders(
     assert gang2.credits_current == initial_credits + sale_price
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.sell_list_action is not None
-        assert result.sell_list_action.action_type == ListActionType.SELL_FIGHTER
-        assert result.sell_list_action.credits_delta == sale_price
-        assert result.sell_list_action.rating_delta == 0
-    else:
-        assert result.sell_list_action is None
+    assert result.sell_list_action is not None
+    assert result.sell_list_action.action_type == ListActionType.SELL_FIGHTER
+    assert result.sell_list_action.credits_delta == sale_price
+    assert result.sell_list_action.rating_delta == 0
 
     # Verify CampaignAction
     assert result.campaign_action is not None
@@ -376,15 +354,11 @@ def test_handle_fighter_sell_zero_credits(
 # ===== Return to Owner Handler Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_fighter_return_with_ransom(
     two_gang_campaign,
-    settings,
-    feature_flag_enabled,
 ):
     """Test returning a fighter with ransom transfers credits."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     data = two_gang_campaign
     fighter = data["fighter"]
     gang1 = data["gang1"]
@@ -435,19 +409,15 @@ def test_handle_fighter_return_with_ransom(
     assert gang2.credits_current == gang2_initial_credits + ransom
 
     # Verify ListActions on both lists
-    if feature_flag_enabled:
-        # Original gang action
-        assert result.original_list_action is not None
-        assert result.original_list_action.action_type == ListActionType.RETURN_FIGHTER
-        assert result.original_list_action.rating_delta == result.fighter_cost
-        assert result.original_list_action.credits_delta == -ransom
+    # Original gang action
+    assert result.original_list_action is not None
+    assert result.original_list_action.action_type == ListActionType.RETURN_FIGHTER
+    assert result.original_list_action.rating_delta == result.fighter_cost
+    assert result.original_list_action.credits_delta == -ransom
 
-        # Capturing gang action (only when ransom > 0)
-        assert result.capturing_list_action is not None
-        assert result.capturing_list_action.credits_delta == ransom
-    else:
-        assert result.original_list_action is None
-        assert result.capturing_list_action is None
+    # Capturing gang action (only when ransom > 0)
+    assert result.capturing_list_action is not None
+    assert result.capturing_list_action.credits_delta == ransom
 
     # Verify CampaignActions
     assert result.original_campaign_action is not None
@@ -455,15 +425,11 @@ def test_handle_fighter_return_with_ransom(
     assert result.capturing_campaign_action is not None
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_fighter_return_without_ransom(
     two_gang_campaign,
-    settings,
-    feature_flag_enabled,
 ):
     """Test returning a fighter without ransom."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     data = two_gang_campaign
     fighter = data["fighter"]
     gang1 = data["gang1"]
@@ -492,12 +458,9 @@ def test_handle_fighter_return_without_ransom(
     assert gang2.credits_current == gang2_initial_credits
 
     # Verify only original gang gets ListAction
-    if feature_flag_enabled:
-        assert result.original_list_action is not None
-        assert result.original_list_action.credits_delta == 0
-        assert result.capturing_list_action is None  # No ransom = no capturing action
-    else:
-        assert result.original_list_action is None
+    assert result.original_list_action is not None
+    assert result.original_list_action.credits_delta == 0
+    assert result.capturing_list_action is None  # No ransom = no capturing action
 
     # Verify only original gang gets CampaignAction
     assert result.original_campaign_action is not None
@@ -541,15 +504,11 @@ def test_handle_fighter_return_insufficient_credits(
 # ===== Release Handler Tests =====
 
 
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 @pytest.mark.django_db
 def test_handle_fighter_release(
     two_gang_campaign,
-    settings,
-    feature_flag_enabled,
 ):
     """Test releasing a fighter restores rating without credit transfer."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
     data = two_gang_campaign
     fighter = data["fighter"]
     gang1 = data["gang1"]
@@ -590,13 +549,10 @@ def test_handle_fighter_release(
     assert gang2.credits_current == gang2_initial_credits
 
     # Verify ListAction
-    if feature_flag_enabled:
-        assert result.release_list_action is not None
-        assert result.release_list_action.action_type == ListActionType.RELEASE_FIGHTER
-        assert result.release_list_action.rating_delta == result.fighter_cost
-        assert result.release_list_action.credits_delta == 0
-    else:
-        assert result.release_list_action is None
+    assert result.release_list_action is not None
+    assert result.release_list_action.action_type == ListActionType.RELEASE_FIGHTER
+    assert result.release_list_action.rating_delta == result.fighter_cost
+    assert result.release_list_action.credits_delta == 0
 
     # Verify CampaignAction
     assert result.campaign_action is not None
@@ -610,10 +566,8 @@ def test_handle_fighter_release(
 @pytest.mark.django_db
 def test_capture_then_return_restores_rating(
     two_gang_campaign,
-    settings,
 ):
     """Test that capture then return properly restores rating."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     data = two_gang_campaign
     fighter = data["fighter"]
     gang2 = data["gang2"]
@@ -648,10 +602,8 @@ def test_multiple_equipment_removal_on_capture(
     two_gang_campaign,
     make_content_fighter,
     make_equipment,
-    settings,
 ):
     """Test capturing a fighter linked to multiple equipment assignments."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     data = two_gang_campaign
     gang1 = data["gang1"]
     gang2 = data["gang2"]
@@ -751,10 +703,8 @@ def test_list_building_mode_no_campaign_actions(
 @pytest.mark.django_db
 def test_handle_fighter_capture_propagates_to_fighter_rating_current(
     two_gang_campaign,
-    settings,
 ):
     """Test that capturing a fighter propagates negative delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     data = two_gang_campaign
     fighter = data["fighter"]
     gang2 = data["gang2"]
@@ -784,10 +734,8 @@ def test_handle_fighter_capture_propagates_to_fighter_rating_current(
 @pytest.mark.django_db
 def test_handle_fighter_return_propagates_to_fighter_rating_current(
     two_gang_campaign,
-    settings,
 ):
     """Test that returning a fighter propagates positive delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     data = two_gang_campaign
     fighter = data["fighter"]
     gang2 = data["gang2"]
@@ -823,10 +771,8 @@ def test_handle_fighter_return_propagates_to_fighter_rating_current(
 @pytest.mark.django_db
 def test_handle_fighter_release_propagates_to_fighter_rating_current(
     two_gang_campaign,
-    settings,
 ):
     """Test that releasing a fighter propagates positive delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     data = two_gang_campaign
     fighter = data["fighter"]
     gang2 = data["gang2"]

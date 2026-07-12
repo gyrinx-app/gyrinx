@@ -1,13 +1,15 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
-from gyrinx.core.forms.battle import BattleForm, BattleNoteForm
+from gyrinx.core.forms.battle import BattleForm, BattleNoteForm, BattleRolesForm
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
 
 
@@ -27,6 +29,12 @@ class BattleDetailView(generic.DetailView):
         All notes for this battle.
     ``user_note``
         The current user's note if they have one.
+    ``participant_groups``
+        Participants grouped by role option for display.
+    ``state_display``
+        Human-readable label for the current battle state.
+    ``can_start`` / ``can_end``
+        Whether the current user can start or end the battle (managers only).
 
     **Template**
 
@@ -40,7 +48,6 @@ class BattleDetailView(generic.DetailView):
         """Retrieve the Battle by its id."""
         battle = get_object_or_404(
             Battle.objects.select_related("campaign", "owner").prefetch_related(
-                "participants",
                 "winners",
                 "notes__owner",
             ),
@@ -55,13 +62,26 @@ class BattleDetailView(generic.DetailView):
 
         if user.is_authenticated:
             context["can_edit"] = battle.can_edit(user)
+            context["can_manage"] = battle.can_manage(user)
+            context["can_unarchive"] = battle.can_unarchive(user)
             context["can_add_notes"] = battle.can_add_notes(user)
             # Check if user already has a note
             context["user_note"] = battle.notes.filter(owner=user).first()
         else:
             context["can_edit"] = False
+            context["can_manage"] = False
+            context["can_unarchive"] = False
             context["can_add_notes"] = False
             context["user_note"] = None
+
+        # Participants grouped by role (Attacker/Defender/unassigned)
+        context["participant_groups"] = battle.participants_grouped_by_role()
+
+        # Battle state, plus the start/end actions for people who can manage it.
+        context["state_display"] = battle.states.display
+        context["state_current"] = battle.states.current
+        context["can_start"] = context["can_manage"] and battle.can_start()
+        context["can_end"] = context["can_manage"] and battle.can_end()
 
         # Get all notes ordered by creation date
         context["notes"] = battle.notes.select_related("owner").order_by("created")
@@ -73,14 +93,19 @@ class BattleDetailView(generic.DetailView):
 
 
 @login_required
+@transaction.atomic
 def new_battle(request, campaign_id):
     """Create a new battle for a campaign."""
     campaign = get_object_or_404(Campaign, id=campaign_id)
 
-    # Check permissions - only users with a list in the campaign can create battles
-    if not campaign.lists.filter(owner=request.user).exists():
+    # Check permissions - the campaign arbitrator, or any player with a gang in
+    # the campaign, can create battles.
+    is_arbitrator = campaign.owner_id == request.user.id
+    has_gang = campaign.lists.filter(owner=request.user).exists()
+    if not (is_arbitrator or has_gang):
         messages.error(
-            request, "Only players with a gang in the campaign can create battles."
+            request,
+            "Only the campaign arbitrator or players with a gang in the campaign can create battles.",
         )
         return HttpResponseRedirect(reverse("core:campaign", args=[campaign.id]))
 
@@ -98,7 +123,7 @@ def new_battle(request, campaign_id):
             battle.campaign = campaign
             battle.owner = request.user
             battle.save()
-            form.save_m2m()  # Save many-to-many relationships
+            battle.set_participants(form.cleaned_data["participants"])
 
             # Log the battle creation event
             log_event(
@@ -112,19 +137,22 @@ def new_battle(request, campaign_id):
                 campaign_name=campaign.name,
             )
 
-            # Create a campaign action for the battle
-            participants_names = ", ".join([p.name for p in battle.participants.all()])
-            winners_names = ", ".join([w.name for w in battle.winners.all()])
-
-            description = f"Battle Report created: {battle.mission} on {battle.date}. {participants_names} participated."
-            outcome = f"Winners: {winners_names}" if winners_names else "Draw"
+            # Create a campaign action for the battle. The battle has not been
+            # fought yet, so record it as created rather than claiming a result.
+            participants_names = ", ".join(
+                sorted(p.name for p in battle.participants.all())
+            )
+            description = f"Battle created: {battle.mission}"
+            if battle.date:
+                description += f" on {battle.date}"
+            if participants_names:
+                description += f". Gangs: {participants_names}."
 
             CampaignAction.objects.create(
                 campaign=campaign,
                 user=request.user,
                 battle=battle,
                 description=description,
-                outcome=outcome,
                 owner=request.user,
             )
 
@@ -141,6 +169,7 @@ def new_battle(request, campaign_id):
 
 
 @login_required
+@transaction.atomic
 def edit_battle(request, id):
     """Edit an existing battle."""
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
@@ -151,9 +180,16 @@ def edit_battle(request, id):
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
-        form = BattleForm(request.POST, instance=battle, campaign=battle.campaign)
+        form = BattleForm(
+            request.POST,
+            instance=battle,
+            campaign=battle.campaign,
+            include_winners=True,
+        )
         if form.is_valid():
             form.save()
+            battle.set_participants(form.cleaned_data["participants"])
+            battle.winners.set(form.cleaned_data.get("winners") or [])
 
             # Log the battle update event
             log_event(
@@ -170,12 +206,173 @@ def edit_battle(request, id):
             messages.success(request, "Battle updated successfully!")
             return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
     else:
-        form = BattleForm(instance=battle, campaign=battle.campaign)
+        form = BattleForm(
+            instance=battle, campaign=battle.campaign, include_winners=True
+        )
 
     return render(
         request,
         "core/battle/battle_edit.html",
         {"form": form, "battle": battle},
+    )
+
+
+def _transition_battle(request, battle, new_status, invalid_message):
+    """Apply a forward state transition, then log and flash the result."""
+    try:
+        battle.states.transition_to(new_status)
+    except InvalidStateTransition:
+        messages.error(request, invalid_message)
+    else:
+        log_event(
+            user=request.user,
+            noun=EventNoun.BATTLE,
+            verb=EventVerb.UPDATE,
+            object=battle,
+            request=request,
+            action="state_changed",
+            battle_state=new_status,
+            battle_name=battle.name,
+            campaign_id=str(battle.campaign.id),
+            campaign_name=battle.campaign.name,
+        )
+        messages.success(request, f"Battle moved to {battle.states.display}.")
+    return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+
+@login_required
+def start_battle(request, id):
+    """Move a battle from pre-battle to in-progress, via a confirmation page."""
+    battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
+
+    if not battle.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this battle.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if request.method == "POST":
+        return _transition_battle(
+            request, battle, Battle.IN_PROGRESS, "This battle cannot be started."
+        )
+
+    if not battle.can_start():
+        messages.error(request, "This battle cannot be started.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    return render(request, "core/battle/battle_start.html", {"battle": battle})
+
+
+@login_required
+def end_battle(request, id):
+    """Move a battle from in-progress to post-battle, via a confirmation page."""
+    battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
+
+    if not battle.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this battle.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if request.method == "POST":
+        return _transition_battle(
+            request, battle, Battle.POST_BATTLE, "This battle cannot be ended."
+        )
+
+    if not battle.can_end():
+        messages.error(request, "This battle cannot be ended.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    return render(request, "core/battle/battle_end.html", {"battle": battle})
+
+
+@login_required
+@transaction.atomic
+def edit_battle_roles(request, id):
+    """Assign roles (e.g. Attacker/Defender) to a battle's participants."""
+    battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
+
+    if not battle.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this battle.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if not battle.participant_entries.exists():
+        messages.info(request, "Add participants before assigning roles.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if request.method == "POST":
+        form = BattleRolesForm(request.POST, battle=battle)
+        if form.is_valid():
+            form.save()
+
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.UPDATE,
+                object=battle,
+                request=request,
+                action="roles_updated",
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+
+            messages.success(request, "Participant roles updated.")
+            return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+    else:
+        form = BattleRolesForm(battle=battle)
+
+    return render(
+        request,
+        "core/battle/battle_roles.html",
+        {"form": form, "battle": battle},
+    )
+
+
+@login_required
+@transaction.atomic
+def archive_battle(request, id):
+    """Archive or unarchive a battle.
+
+    Archiving hides the battle from the campaign's battle lists and blocks
+    further edits until it is unarchived. Only the battle owner or campaign
+    owner can archive or unarchive.
+    """
+    battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
+
+    if not (battle.can_edit(request.user) or battle.can_unarchive(request.user)):
+        messages.error(request, "You don't have permission to archive this battle.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if request.method == "POST":
+        if request.POST.get("archive") == "1" and battle.can_edit(request.user):
+            battle.archive()
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.ARCHIVE,
+                object=battle,
+                request=request,
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+            messages.success(request, f"Battle '{battle.name}' archived.")
+        elif battle.can_unarchive(request.user):
+            battle.unarchive()
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.RESTORE,
+                object=battle,
+                request=request,
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+            messages.success(request, f"Battle '{battle.name}' unarchived.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    return render(
+        request,
+        "core/battle/battle_archive.html",
+        {"battle": battle},
     )
 
 

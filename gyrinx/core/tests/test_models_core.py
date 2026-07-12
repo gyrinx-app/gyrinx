@@ -1987,7 +1987,9 @@ def test_list_rating_calculation(
     lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should be the sum of active fighters only (50 + 100 + 30)
-    assert lst.rating == 180
+    facts = lst.facts_from_db(update=True)
+    assert facts.rating == 180
+    # Displays read the persisted cache, which facts_from_db just refreshed
     assert lst.rating_display == "180¢"
 
     # Add a stash fighter - it should NOT count towards rating
@@ -2010,7 +2012,7 @@ def test_list_rating_calculation(
     lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should still be 180 (stash not included)
-    assert lst.rating == 180
+    assert lst.facts_from_db(update=True).rating == 180
 
     # Archive one fighter - it should no longer count towards rating
     fighter2.archived = True
@@ -2019,7 +2021,7 @@ def test_list_rating_calculation(
     lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Rating should now be 50 + 30 = 80
-    assert lst.rating == 80
+    assert lst.facts_from_db(update=True).rating == 80
     assert lst.rating_display == "80¢"
 
 
@@ -2031,7 +2033,7 @@ def test_stash_fighter_cost_calculation(
     lst = make_list("Test Gang")
 
     # Initially no stash, cost should be 0
-    assert lst.stash_fighter_cost_int == 0
+    assert lst.facts_from_db(update=True).stash == 0
     assert lst.stash_fighter_cost_display == "0¢"
 
     # Create a stash fighter
@@ -2054,7 +2056,7 @@ def test_stash_fighter_cost_calculation(
     lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Stash fighter base cost should still be 0
-    assert lst.stash_fighter_cost_int == 0
+    assert lst.facts_from_db(update=True).stash == 0
 
     # Add equipment to the stash
     weapon = ContentEquipment.objects.create(
@@ -2076,11 +2078,19 @@ def test_stash_fighter_cost_calculation(
         list_fighter=stash_fighter,
         content_equipment=armor,
     )
+    # Direct ORM creates leave the parent fighter's cache clean, so the lazy
+    # facts walk would trust it. Mark the fighter dirty, as any real write
+    # path (handlers/propagation) does. Refresh first: the in-memory instance
+    # still carries dirty=True from creation, which would defeat set_dirty's
+    # transition guard.
+    stash_fighter.refresh_from_db()
+    stash_fighter.set_dirty()
 
     lst = List.objects.get(id=lst.id)  # Refresh to clear any cached properties
 
     # Stash fighter cost should now be 25 + 50 = 75
-    assert lst.stash_fighter_cost_int == 75
+    assert lst.facts_from_db(update=True).stash == 75
+    # Displays read the persisted cache, which facts_from_db just refreshed
     assert lst.stash_fighter_cost_display == "75¢"
 
 
@@ -2125,18 +2135,18 @@ def test_wealth_breakdown_display(
     # Sync facts after adding fighters
     lst.facts_from_db(update=True)
 
-    # Fetch fresh list with proper prefetching so can_use_facts is True
-    lst = List.objects.with_latest_actions().get(id=lst.id)
+    # Fetch a fresh list so the display reads come from persisted fields
+    lst = List.objects.get(id=lst.id)
 
     # Test display methods
     assert lst.credits_current_display == "250¢"
 
     # Rating should be 100 (from fighter)
-    assert lst.rating == 100
+    assert lst.rating_current == 100
     assert lst.rating_display == "100¢"
 
     # Stash fighter cost should be 0 (no equipment)
-    assert lst.stash_fighter_cost_int == 0
+    assert lst.stash_current == 0
     assert lst.stash_fighter_cost_display == "0¢"
 
     # Total wealth (cost_int) should be rating + stash + credits = 100 + 0 + 250 = 350

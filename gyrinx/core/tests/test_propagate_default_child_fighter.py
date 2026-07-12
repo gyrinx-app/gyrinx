@@ -27,7 +27,7 @@ from gyrinx.content.models.equipment import (
 )
 from gyrinx.content.models.fighter import ContentFighter
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 from gyrinx.core.models.pack import CustomContentPackItem
 from gyrinx.core.tasks import propagate_default_child_fighter_assignment
 
@@ -149,7 +149,7 @@ def test_signal_enqueues_only_for_child_spawning_created_default(
     plain_equipment = make_equipment("Bolt Pistol", category="Pistols", cost="10")
 
     with patch(
-        "gyrinx.core.models.list.propagate_default_child_fighter_assignment"
+        "gyrinx.core.models.list.signal_handlers.propagate_default_child_fighter_assignment"
     ) as mock_task:
         # Non-child-spawning default -> must NOT enqueue.
         with django_capture_on_commit_callbacks(execute=True):
@@ -269,7 +269,9 @@ def test_existing_materialised_assignment_untouched(
         make_list, content_house, pack, parent_cf, user
     )
     # Create the default WITHOUT propagation firing, then materialise once.
-    with patch("gyrinx.core.models.list.propagate_default_child_fighter_assignment"):
+    with patch(
+        "gyrinx.core.models.list.signal_handlers.propagate_default_child_fighter_assignment"
+    ):
         default = ContentFighterDefaultAssignment.objects.create(
             fighter=parent_cf, equipment=equipment
         )
@@ -424,22 +426,22 @@ def test_campaign_mode_no_credit_charge(
 
 
 @pytest.mark.django_db
-def test_no_action_when_list_has_no_latest_action(
+def test_action_recorded_when_list_has_no_prior_actions(
     child_spawning_setup,
     make_list,
     content_house,
     user,
     django_capture_on_commit_callbacks,
 ):
-    """A subscribed list without an initial action still materialises the child
-    but records no CONTENT_COST_CHANGE action."""
+    """A subscribed list with no prior actions materialises the child and
+    starts its action chain with the CONTENT_COST_CHANGE record."""
     parent_cf = child_spawning_setup["parent_cf"]
     child_cf = child_spawning_setup["child_cf"]
     equipment = child_spawning_setup["equipment"]
     pack = child_spawning_setup["pack"]
 
-    lst = make_list(
-        "No Initial Action", content_house=content_house, create_initial_action=False
+    lst = List.objects.create(
+        name="No Prior Actions", content_house=content_house, owner=user
     )
     lst.packs.add(pack)
     ListFighter.objects.create(
@@ -448,12 +450,94 @@ def test_no_action_when_list_has_no_latest_action(
 
     _create_default(django_capture_on_commit_callbacks, parent_cf, equipment)
 
-    # Child still materialised.
+    # Child materialised.
     assert ListFighter.objects.filter(list=lst, content_fighter=child_cf).exists()
-    # But no action recorded (no latest_action to anchor it).
-    assert not ListAction.objects.filter(
+    # Recording is unconditional: the chain starts with this action.
+    assert ListAction.objects.filter(
         list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
     ).exists()
+
+
+# --- Chaos: redelivery / transient failure through the durable local backend ---
+# These drive the real create-default → on_commit → enqueue path in manual mode
+# and inject at-least-once redelivery and a transient failure, to confirm the
+# materialisation guard holds under SEQUENTIAL duplicate delivery.
+
+
+def _child_count(lst, child_cf):
+    return ListFighter.objects.filter(list=lst, content_fighter=child_cf).count()
+
+
+@pytest.mark.django_db
+def test_chaos_sequential_redelivery_no_duplicate_child(
+    task_queue, child_spawning_setup, make_list, content_house, user
+):
+    """A duplicate (sequential) delivery of the propagation task must not spawn a
+    second child fighter or log a second awareness action."""
+    parent_cf = child_spawning_setup["parent_cf"]
+    child_cf = child_spawning_setup["child_cf"]
+    equipment = child_spawning_setup["equipment"]
+    pack = child_spawning_setup["pack"]
+
+    lst, parent = _subscribed_list_with_parent(
+        make_list, content_house, pack, parent_cf, user
+    )
+
+    with task_queue.capture():
+        ContentFighterDefaultAssignment.objects.create(
+            fighter=parent_cf, equipment=equipment
+        )
+    task_queue.deliver_all()
+
+    assert _child_count(lst, child_cf) == 1
+    actions_after = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+
+    # At-least-once duplicate.
+    task_queue.redeliver_last(task_name="propagate_default_child_fighter_assignment")
+
+    assert _child_count(lst, child_cf) == 1
+    assert (
+        ListAction.objects.filter(
+            list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+        ).count()
+        == actions_after
+    )
+
+
+@pytest.mark.django_db
+def test_chaos_transient_failure_then_retry_materialises_once(
+    task_queue, child_spawning_setup, make_list, content_house, user
+):
+    """A nacked first delivery followed by a retry materialises the child exactly
+    once."""
+    parent_cf = child_spawning_setup["parent_cf"]
+    child_cf = child_spawning_setup["child_cf"]
+    equipment = child_spawning_setup["equipment"]
+    pack = child_spawning_setup["pack"]
+
+    lst, parent = _subscribed_list_with_parent(
+        make_list, content_house, pack, parent_cf, user
+    )
+
+    with task_queue.capture():
+        ContentFighterDefaultAssignment.objects.create(
+            fighter=parent_cf, equipment=equipment
+        )
+
+    task_queue.fail_next(1)
+    task_queue.deliver_all()
+
+    assert _child_count(lst, child_cf) == 1
+    assert (
+        ListFighterEquipmentAssignment.objects.filter(
+            list_fighter=parent,
+            content_equipment=equipment,
+            from_default_assignment__isnull=False,
+        ).count()
+        == 1
+    )
 
 
 # Out of scope (not tested here, by design):

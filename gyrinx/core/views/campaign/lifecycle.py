@@ -9,11 +9,15 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from gyrinx import messages
-from gyrinx.core.handlers.campaign_operations import handle_campaign_start
+from gyrinx.core.handlers.campaign_operations import (
+    campaign_start_group_key,
+    handle_campaign_start,
+)
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 from gyrinx.core.utils import safe_redirect, toggle_membership
+from gyrinx.tasks.groups import enqueue_in_group
 from gyrinx.tracker import track
 
 
@@ -58,12 +62,13 @@ def start_campaign(request, id):
                 track(
                     "campaign_started",
                     campaign_id=str(campaign.id),
-                    list_count=len(result.list_results),
+                    list_count=len(result.stub_lists),
                 )
 
                 messages.success(
                     request,
-                    f"Campaign has been started! {len(result.list_results)} gang(s) joined.",
+                    f"Campaign has been started! {len(result.stub_lists)} "
+                    "gang(s) are joining — they'll be ready in a moment.",
                 )
         except ValidationError as e:
             messages.validation(request, e)
@@ -75,18 +80,76 @@ def start_campaign(request, id):
         messages.error(request, "This campaign cannot be started.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
-    # Prefetch lists with latest actions for efficient facts_with_fallback() in template
-    lists = (
-        List.objects.filter(campaign=campaign)
-        .select_related("owner")
-        .with_latest_actions()
-    )
+    # Pre-campaign gangs are linked via the `lists` M2M; the `campaign` FK on List is only
+    # populated when clones are created at start, so it must not be used here (see #1886).
+    lists = campaign.lists.select_related("owner")
 
     return render(
         request,
         "core/campaign/campaign_start.html",
         {"campaign": campaign, "lists": lists},
     )
+
+
+@login_required
+@require_POST
+def retry_campaign_list_clone(request, id, list_id):
+    """Re-enqueue the background clone task for a gang stuck "joining" (#1222).
+
+    Only the campaign owner — the person who triggered the start — may retry. Idempotent:
+    the clone task no-ops if the stub has since finished, so a double-click is harmless.
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    if campaign.owner != request.user:
+        messages.error(
+            request, "Only the campaign owner can retry a gang that's still joining."
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    stub = get_object_or_404(List, id=list_id, campaign=campaign)
+    if not stub.is_cloning:
+        messages.info(request, f"{stub.name} has already finished joining.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+    if stub.original_list_id is None:
+        messages.error(
+            request,
+            f"{stub.name} can't be retried automatically — its original gang is missing.",
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    original_list_id = str(stub.original_list_id)
+    campaign_id = str(campaign.id)
+    stub_id = str(stub.id)
+    label = stub.name
+    owner_id = str(campaign.owner_id)
+    group_key = campaign_start_group_key(campaign_id)
+
+    def _enqueue():
+        from gyrinx.core.tasks import complete_campaign_list_clone
+
+        try:
+            # Same group as the original start, so the poller/status endpoint sees the retry.
+            enqueue_in_group(
+                complete_campaign_list_clone,
+                group_key=group_key,
+                label=label,
+                stub_id=stub_id,
+                original_list_id=original_list_id,
+                campaign_id=campaign_id,
+                user_id=owner_id,
+            )
+        except Exception as e:
+            track(
+                "task_enqueue_failed",
+                stub_id=stub_id,
+                campaign_id=campaign_id,
+                error=str(e),
+            )
+
+    transaction.on_commit(_enqueue)
+    track("campaign_list_clone_retry", campaign_id=campaign_id, list_id=stub_id)
+    messages.success(request, f"Retrying {stub.name} — it'll be ready in a moment.")
+    return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
 
 @login_required

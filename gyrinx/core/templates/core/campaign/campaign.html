@@ -60,7 +60,7 @@
                                 {{ star_count|default:0 }}
                             </button>
                         </form>
-                        {% if campaign.owner == user or user in campaign.admins.all %}
+                        {% if campaign.owner == user %}
                             {% if campaign.can_start_campaign %}
                                 <a href="{% url 'core:campaign-start' campaign.id %}"
                                    class="btn btn-primary btn-sm">
@@ -139,22 +139,24 @@
                             </nav>
                         {% else %}
                             <a href="{% url 'core:campaign-copy-out' campaign.id %}"
-                               class="icon-link link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                               class="icon-link linked-secondary fs-7">
                                 <i class="bi-box-arrow-up"></i> Copy from this Campaign
                             </a>
+                            {% if can_impersonate_arbitrator %}
+                                <form method="post"
+                                      action="{% url 'core:impersonate-start' campaign.owner.id %}"
+                                      class="d-inline m-0 ms-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit" class="btn btn-danger btn-sm">
+                                        <i class="bi-person-bounding-box"></i> Impersonate arbitrator
+                                    </button>
+                                </form>
+                            {% endif %}
                         {% endif %}
                     </div>
                 {% endif %}
             </div>
-
-            <div class="text-secondary mb-2">
-                <i class="bi-shield-check"></i>
-                <strong>Arbitrators:</strong> {{ campaign.owner }}
-                {% for admin in campaign.admins.all %}
-                , {{ admin }}
-                {% endfor %}
-            </div>
-
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 {% if campaign.public %}
                     <span data-bs-toggle="tooltip"
@@ -203,8 +205,7 @@
                                 {% spaceless %}
                                     {% for pack in campaign_packs %}
                                         {% if pack.listed or pack.owner == request.user %}
-                                            <a href="{% url 'core:pack' pack.id %}"
-                                               class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">{{ pack.name }}</a>
+                                            <a href="{% url 'core:pack' pack.id %}" class="linked-secondary">{{ pack.name }}</a>
                                         {% else %}
                                             <span>{{ pack.name }}</span>
                                         {% endif %}
@@ -214,12 +215,12 @@
                             </div>
                             {% if is_owner %}
                                 <a href="{% url 'core:campaign-packs' campaign.id %}"
-                                   class="fs-7 link-secondary link-underline-opacity-50 link-underline-opacity-100-hover">Edit</a>
+                                   class="fs-7 linked-secondary">Edit</a>
                             {% endif %}
                         {% else %}
                             <div class="text-secondary">None – any gang can join</div>
                             <a href="{% url 'core:campaign-packs' campaign.id %}"
-                               class="fs-7 link-primary link-underline-opacity-50 link-underline-opacity-100-hover">Add packs</a>
+                               class="fs-7 linked">Add packs</a>
                         {% endif %}
                     </div>
                 {% endif %}
@@ -233,6 +234,7 @@
                 </div>
             {% endif %}
         </div>
+        {% include "core/includes/notification_banners.html" %}
         <!-- Gangs -->
         <section>
             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
@@ -240,11 +242,11 @@
                 <div class="hstack gap-3">
                     {% if attribute_types %}
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
-                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Attributes →</a>
+                           class="linked fs-7">Manage Attributes →</a>
                     {% endif %}
-                    {% if (campaign.owner == user or user in campaign.admins.all) and not campaign.is_post_campaign and not campaign.archived %}
+                    {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">
+                           class="icon-link linked fs-7">
                             <i class="bi-plus-lg"></i> Add Gangs
                         </a>
                     {% endif %}
@@ -266,7 +268,7 @@
                            data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-assets' campaign.id %}"
-                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Assets →</a>
+                       class="linked fs-7">Manage Assets →</a>
                 </div>
                 <div class="px-2">
                     {% if asset_types %}
@@ -313,7 +315,7 @@
                                                             {% endif %}
                                                             {% if is_owner and not campaign.archived %}
                                                                 <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                                   class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
+                                                                   class="icon-link linked fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
                                                             {% endif %}
                                                         </td>
                                                     </tr>
@@ -329,11 +331,12 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No asset types defined yet.
-                            {% if (campaign.owner == user or user in campaign.admins.all) and not campaign.archived %}
-                                <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
-                                or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">add an asset type →</a>
-                            {% elif campaign.owner == user or user in campaign.admins.all %}
-                                <a href="{% url 'core:campaign-assets' campaign.id %}">Manage Assets →</a>
+                            {% if campaign.owner == user and not campaign.archived %}
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
+                                or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
+    class="linked">add an asset type →</a>
+                            {% elif campaign.owner == user %}
+                                <a href="{% url 'core:campaign-assets' campaign.id %}" class="linked">Manage Assets →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -349,7 +352,7 @@
                            data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
                     </h2>
                     <a href="{% url 'core:campaign-resources' campaign.id %}"
-                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Manage Resources →</a>
+                       class="linked fs-7">Manage Resources →</a>
                 </div>
                 <div class="px-2">
                     {% if resource_types and campaign.has_lists %}
@@ -380,12 +383,16 @@
                                                 </td>
                                             </tr>
                                             {% for list in group.lists %}
-                                                {% include "core/campaign/includes/resource_row.html" %}
+                                                {% if not list.is_cloning %}
+                                                    {% include "core/campaign/includes/resource_row.html" %}
+                                                {% endif %}
                                             {% endfor %}
                                         {% endfor %}
                                     {% else %}
                                         {% for list in campaign.lists.all %}
-                                            {% include "core/campaign/includes/resource_row.html" %}
+                                            {% if not list.is_cloning %}
+                                                {% include "core/campaign/includes/resource_row.html" %}
+                                            {% endif %}
                                         {% endfor %}
                                     {% endif %}
                                 </tbody>
@@ -396,11 +403,12 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No resource types defined yet.
-                            {% if (campaign.owner == user or user in campaign.admins.all) and not campaign.archived %}
-                                <a href="{% url 'core:campaign-copy-in' campaign.id %}">Copy from another Campaign</a>
-                                or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">add a resource type →</a>
-                            {% elif campaign.owner == user or user in campaign.admins.all %}
-                                <a href="{% url 'core:campaign-resources' campaign.id %}">Manage Resources →</a>
+                            {% if campaign.owner == user and not campaign.archived %}
+                                <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
+                                or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
+    class="linked">add a resource type →</a>
+                            {% elif campaign.owner == user %}
+                                <a href="{% url 'core:campaign-resources' campaign.id %}" class="linked">Manage Resources →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -412,10 +420,10 @@
             <!-- Battles -->
             <section class="col-xl-6">
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                    <h2 class="h5 mb-0">Battle Reports</h2>
+                    <h2 class="h5 mb-0">Battles</h2>
                     {% if can_log_actions %}
                         <a href="{% url 'core:battle-new' campaign.id %}"
-                           class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> New Battle</a>
+                           class="icon-link linked fs-7"><i class="bi-plus-lg"></i> New Battle</a>
                     {% endif %}
                 </div>
                 <div class="px-2">
@@ -425,14 +433,14 @@
                                 {% include "core/includes/battle_summary_card.html" %}
                             {% endfor %}
                         </div>
-                        {% if campaign.battles.count > battles_limit %}
-                            <a href="{% url 'core:campaign-battles' campaign.id %}" class="fs-7">View all {{ campaign.battles.count }} battles →</a>
+                        {% if battles_count > battles_limit %}
+                            <a href="{% url 'core:campaign-battles' campaign.id %}" class="fs-7">View all {{ battles_count }} battles →</a>
                         {% endif %}
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
-                            No battles reported yet.
+                            No battles yet.
                             {% if can_log_actions %}
-                                <a href="{% url 'core:battle-new' campaign.id %}">Create first battle →</a>
+                                <a href="{% url 'core:battle-new' campaign.id %}" class="linked">Create first battle →</a>
                             {% endif %}
                         </p>
                     {% endif %}
@@ -450,10 +458,10 @@
                     <div class="hstack gap-3">
                         {% if can_log_actions and not campaign.archived %}
                             <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
-                               class="icon-link link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7"><i class="bi-plus-lg"></i> Log Action</a>
+                               class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Log Action</a>
                         {% endif %}
                         <a href="{% url 'core:campaign-actions' campaign.id %}"
-                           class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                           class="linked fs-7">View all →</a>
                     </div>
                 </div>
                 <div class="px-2">
@@ -481,7 +489,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Captured Fighters</h2>
                     <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                       class="link-primary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">View all →</a>
+                       class="linked fs-7">View all →</a>
                 </div>
                 <div class="px-2">
                     {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
@@ -489,4 +497,78 @@
             </section>
         {% endif %}
     </div>
+    {% if has_cloning_lists %}
+        {# Gangs are still joining in the background (#1222). Poll the generic task-group #}
+        {# status endpoint and reload once the group finishes. Progressive enhancement: #}
+        {# without JS the user can just refresh; the "Joining…" placeholders update on load. #}
+        <script>
+            (function () {
+                var url = "{{ cloning_status_url|escapejs }}";
+                var INTERVAL = 4000;
+                var MAX_ELAPSED = 300000; // give up polling after 5 minutes
+                var elapsed = 0;
+                // Reload-loop guard. The page's "Joining…" state comes from List status,
+                // but this poller only sees task-group status; they can disagree — a stub
+                // whose enqueue was lost never appears in the group, and a clone task can
+                // give up on a deleted original (marking itself successful) without flipping
+                // the stub. In those cases the group reads complete+no-failures while a stub
+                // is still joining, so an unconditional reload would loop forever. Reload at
+                // most once per completed group; if it's still joining after that, stop.
+                var RELOAD_GUARD = "campaignCloningReloaded:" + url;
+
+                function schedule() {
+                    elapsed += INTERVAL;
+                    if (elapsed < MAX_ELAPSED) {
+                        window.setTimeout(poll, INTERVAL);
+                    }
+                }
+
+                function poll() {
+                    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                        .then(function (response) {
+                            return response.ok ? response.json() : null;
+                        })
+                        .then(function (data) {
+                            if (!data) {
+                                schedule();
+                                return;
+                            }
+                            if (data.complete) {
+                                // Every task finished. Reload to show the joined gangs, but
+                                // only if none failed (a failed stub keeps its Retry button)
+                                // and only once — the guard prevents an infinite reload if a
+                                // stub is still joining after the reload.
+                                if (!data.counts || data.counts.failed === 0) {
+                                    var reloaded = false;
+                                    try {
+                                        reloaded = !!sessionStorage.getItem(RELOAD_GUARD);
+                                        if (!reloaded) {
+                                            sessionStorage.setItem(RELOAD_GUARD, "1");
+                                        }
+                                    } catch (e) {
+                                        // sessionStorage unavailable; fall through without a
+                                        // cross-reload guard rather than erroring.
+                                    }
+                                    if (!reloaded) {
+                                        window.location.reload();
+                                    }
+                                }
+                                return;
+                            }
+                            // Work still in flight: clear the guard so the eventual
+                            // completion is allowed to trigger exactly one reload.
+                            try {
+                                sessionStorage.removeItem(RELOAD_GUARD);
+                            } catch (e) {}
+                            schedule();
+                        })
+                        .catch(schedule);
+                }
+
+                // Poll immediately (catches a group that finished between render and now),
+                // then keep polling on the interval until complete.
+                poll();
+            })();
+        </script>
+    {% endif %}
 {% endblock content %}

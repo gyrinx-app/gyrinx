@@ -147,16 +147,35 @@ If you have the Pushpush MCP installed, you can use it to notify the user that y
 
 IMPORTANT: Use this when you are about to pause to get input, or about to use `AskUserQuestion`.
 
+## Summarising Work
+
+When reporting completed work to the maintainer (chat summaries, PR descriptions),
+write for a tech lead reading cold, not a changelog:
+
+- Lead with what changed and why it matters, in plain language.
+- Describe bugs by their user-visible effect ("buying an add-on for an item with a
+  fixed price made the add-on's value vanish from the books"), then the mechanism
+  only if it earns its place.
+- Avoid internal shorthand (test-group codes, harness jargon, fixture names) — or
+  explain it inline the first time it appears.
+- End with concrete "how to try it" steps (URLs, commands) when there is something
+  to see.
+
+Keep the fully technical version for commit messages and code comments.
+
 ## Critical Workflow
 
 ### Before Starting
 
 1. Create a new branch for the task: `git checkout -b issue-NAME`
-2. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
+2. **Start the dev server** (`./scripts/dev.sh`) near the start of any coding session —
+   don't wait to be asked. Share the URL (per-worktree port, printed in the startup
+   banner) so changes can be tested in the browser as they land.
+3. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
    (`CLAUDE_CODE_REMOTE=true`), label it so the team knows it's being handled:
    `gh issue edit <NUMBER> --add-label claude-code-web`
    The label definition is created automatically by `scripts/setup_web.sh` during session start; you still need to add this label to the issue manually.
-3. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
+4. For non-trivial features or bug fixes, use the **feature-planner** agent to create an implementation plan before
    writing code
 
 ### Before Push
@@ -166,6 +185,9 @@ IMPORTANT: Use this when you are about to pause to get input, or about to use `A
 3. Fix any failing tests
 4. Consider running the **code-simplifier** agent on changed files for a quality check
 5. Commit and push changes
+
+- Manually test changes through the running app (dev server + browser) before
+  shipping — skip only when the change is trivial
 
 **In CI/GitHub Actions:** MUST commit and push before finishing or work is lost.
 
@@ -232,6 +254,9 @@ If you want to reuse the test DB across runs for speed, pass `--reuse-db` explic
 but be aware that `--reuse-db` combined with `--nomigrations` does NOT detect schema
 staleness, so you'll need a one-off `--create-db` run after changing a model.
 
+- When debugging with print output, run `pytest -n 0 -s <test>` — the default `-n auto`
+  (pytest-xdist) swallows `-s`/print output in workers.
+
 ### Frontend Development
 
 ```bash
@@ -280,6 +305,10 @@ manage prodshell
 echo 'print(User.objects.count())' | manage prodshell
 echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
 ```
+
+- Piped code runs through IPython, which prints multi-line `for` loops unreliably — use a
+  single expression per query (e.g. `print([...comprehension...])`) and read results off
+  the `In [N]:` lines.
 
 **Important:** Read-only mode is enforced — all write operations raise `RuntimeError`. Requires `gcloud` CLI,
 `cloud-sql-proxy`, and valid GCP authentication (both `gcloud auth login` and `gcloud auth application-default login`).
@@ -455,9 +484,16 @@ Key fixtures:
 - `make_list_fighter(list_, name, **kwargs)` - factory for fighters
 - `list_with_campaign` - a list in CAMPAIGN_MODE with associated campaign
 - `house` - backward-compat alias, creates a separate ContentHouse (prefer `content_house`)
+- `task_queue` - puts the local task backend in `manual` mode to chaos-test background tasks
+  (script redelivery / transient failure / message drop and assert idempotency). Background tasks
+  otherwise run inline (eager mode) in tests. See `gyrinx/tasks/CLAUDE.md`.
 
 When tests need multiple distinct users (e.g. campaign owner vs list owner), use `make_user` for the extra users
 and override the `owner` kwarg on the factory fixtures.
+
+- When seeding demo/test users locally (via `manage shell`, not pytest fixtures), also give each one a verified,
+  primary allauth `EmailAddress` so they can log in without hitting email-verification gates. Set `user.email`,
+  then `EmailAddress.objects.get_or_create(user=u, email=u.email, defaults={"verified": True, "primary": True})`.
 
 ### Security
 
@@ -471,6 +507,9 @@ and override the `owner` kwarg on the factory fixtures.
 - After a `stash` then `pull`, run `git stash pop` if necessary
 - This is useful for keeping the claude local file up-to-date
 - When writing PR descriptions, keep it simple and avoid "selling the feature" in the PR
+- At the end of work, ship with the `commit-push-pr` skill — open the PR ready for
+  review (not a draft) so bot reviews and the review-agent watcher kick off
+  immediately. Only use `commit-push-draft` when a draft is explicitly requested.
 - Use conventional commit prefixes for commit messages and PR titles:
   - `feat:` — new feature or capability
   - `fix:` — bug fix

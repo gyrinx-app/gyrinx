@@ -16,6 +16,21 @@
                 {{ form.name }}
                 <small class="form-text text-secondary">{{ form.name.help_text }}</small>
             </div>
+            <!-- Card Style Section -->
+            <div>
+                <h2 class="h5 mb-3">Card style</h2>
+                <div class="vstack gap-2">
+                    {% for choice in form.card_style %}
+                        <div class="form-check">
+                            {{ choice.tag }}
+                            <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+                <p class="text-secondary fs-7 mb-0 mt-2">
+                    Classic cards print Fighter cards only — the Asset, Attribute, Action, and Stash options below apply to Web cards.
+                </p>
+            </div>
             <!-- Card Types Section -->
             <div>
                 <h2 class="h5 mb-3">Card Types</h2>

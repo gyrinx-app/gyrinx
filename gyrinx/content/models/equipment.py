@@ -556,15 +556,17 @@ class ContentEquipment(FighterCostMixin, Content):
         Called when this equipment's cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
         # Find all assignments using this equipment
         assignments = ListFighterEquipmentAssignment.objects.filter(
             content_equipment=self, archived=False
-        ).select_related("list_fighter__list")
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     class Meta:
         verbose_name = "Equipment"
@@ -651,7 +653,20 @@ class ContentEquipmentUpgrade(CostMixin, Content):
             return self.cost
 
         # Otherwise, sum the costs of all upgrades up to this position.
-        upgrades = self.equipment.upgrades.filter(position__lte=self.position)
+        # Query via all_content() so a pack-scoped upgrade is not excluded
+        # from its own stack sum (#1933) — the related manager's default
+        # queryset hides pack rows. (Do not call all_content() on the related
+        # manager itself: it bypasses the relation filter entirely.)
+        # Documented decision: this counts rungs from ANY pack attached to
+        # the same equipment, subscribed or not — there is no list context
+        # here to scope by. Booking and recompute share this sum, so books
+        # stay consistent either way; packs cannot currently define upgrades
+        # through the product, so cross-pack stacks are admin-only today.
+        upgrades = (
+            type(self)
+            .objects.all_content()
+            .filter(equipment=self.equipment, position__lte=self.position)
+        )
         return sum(upgrade.cost for upgrade in upgrades)
 
     @cached_property
@@ -678,6 +693,23 @@ class ContentEquipmentUpgrade(CostMixin, Content):
     def __str__(self):
         return f"{self.equipment.upgrade_stack_name_display} – {self.name} ({self.equipment.name})"
 
+    def same_stack_from_position(self):
+        """The upgrades a cost change to this rung reprices.
+
+        MULTI mode prices each upgrade independently: just this row. SINGLE
+        mode is cumulative, so this rung and every higher rung on the same
+        equipment reprice. all_content() so pack-scoped rungs aren't hidden
+        by the default manager (#1933).
+        """
+        if self.equipment.upgrade_mode == ContentEquipment.UpgradeMode.MULTI:
+            return type(self).objects.all_content().filter(pk=self.pk)
+        return (
+            type(self)
+            .objects.all_content()
+            .filter(equipment=self.equipment, position__gte=self.position)
+            .select_related("equipment")
+        )
+
     def set_dirty(self) -> None:
         """
         Mark all ListFighterEquipmentAssignments using this upgrade as dirty.
@@ -686,15 +718,23 @@ class ContentEquipmentUpgrade(CostMixin, Content):
         Called when this upgrade's cost field changes.
         """
         # Lazy import to avoid circular dependency
-        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+        from gyrinx.core.models.list import (
+            ListFighterEquipmentAssignment,
+            bulk_mark_assignments_dirty,
+        )
 
-        # Find all assignments using this equipment upgrade (via M2M)
+        # Find all assignments using this equipment upgrade (via M2M). SINGLE
+        # stacks price cumulatively — cost_int(position) sums every rung at or
+        # below it — so correcting one rung reprices holders of that rung OR
+        # ANY HIGHER one; the same-rung-only filter silently missed them.
+        # Keep in lockstep with the matching branch in
+        # signal_handlers._affected_list_ids (#1826 §4.7).
+        affected_upgrades = self.same_stack_from_position()
         assignments = ListFighterEquipmentAssignment.objects.filter(
-            upgrades_field=self, archived=False
-        ).select_related("list_fighter__list")
+            upgrades_field__in=affected_upgrades, archived=False
+        )
 
-        for assignment in assignments:
-            assignment.set_dirty(save=True)
+        bulk_mark_assignments_dirty(assignments)
 
     objects = ContentEquipmentUpgradeManager.from_queryset(
         ContentEquipmentUpgradeQuerySet

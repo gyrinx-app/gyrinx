@@ -96,16 +96,6 @@ GITHUB_DISPATCH_TOKEN = os.getenv("GITHUB_DISPATCH_TOKEN", "")
 
 # Features
 
-FEATURE_LIST_ACTION_CREATE_INITIAL = (
-    os.getenv("FEATURE_LIST_ACTION_CREATE_INITIAL", "True") == "True"
-)
-
-# Enable background task enqueue in facts_with_fallback
-# Uses fire-and-forget publishing so it doesn't block page loads
-FEATURE_FACTS_FALLBACK_ENQUEUE = (
-    os.getenv("FEATURE_FACTS_FALLBACK_ENQUEUE", "True") == "True"
-)
-
 # Gyrinx debug mode - shows debug info in templates (not the same as Django DEBUG)
 GYRINX_DEBUG = os.getenv("GYRINX_DEBUG", "") == "True"
 
@@ -143,6 +133,9 @@ INSTALLED_APPS = [
     "gyrinx.core",
     "gyrinx.content",
     "gyrinx.analytics",
+    # Must be loaded AFTER gyrinx.analytics so MaintenanceAdminSite extends
+    # AnalyticsAdminSite (see gyrinx/maintenance/admin.py).
+    "gyrinx.maintenance",
     "gyrinx.pages",
     "gyrinx.api",
     "gyrinx.tasks.apps.TasksConfig",
@@ -169,6 +162,9 @@ MIDDLEWARE = [
     # Django allauth
     "allauth.account.middleware.AccountMiddleware",
     "allauth.usersessions.middleware.UserSessionsMiddleware",
+    # Admin impersonation overlay — after auth/allauth (so request.user is the real
+    # admin when we authorize), before simple-history (so the swap is attributed).
+    "gyrinx.core.middleware.ImpersonationMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # CSP
@@ -198,6 +194,8 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "gyrinx.core.context_processors.site_banner",
                 "gyrinx.core.context_processors.gyrinx_debug",
+                "gyrinx.core.context_processors.notifications",
+                "gyrinx.core.context_processors.impersonation",
             ],
         },
     },
@@ -470,9 +468,15 @@ TRACING_MODE = os.getenv("TRACING_MODE", "off")
 
 # Background tasks configuration
 # https://docs.djangoproject.com/en/6.0/topics/tasks/
+#
+# Default to the local durable backend in "eager" mode — behaviourally identical
+# to Django's ImmediateBackend (runs inline on enqueue), so tests and one-off
+# commands stay synchronous. settings_dev switches it to async "worker" mode when
+# the dev server is running; settings_prod overrides it to PubSubBackend.
 TASKS = {
     "default": {
-        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+        "BACKEND": "gyrinx.tasks.local_backend.DatabaseBackend",
+        "OPTIONS": {"mode": "eager"},
     }
 }
 

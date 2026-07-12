@@ -85,15 +85,33 @@ def test_matches_case_insensitive():
 
 
 @pytest.mark.django_db
-def test_falls_back_to_user_email():
+def test_unverified_email_does_not_match():
+    # A user whose email is set on the User row but never verified via a
+    # allauth EmailAddress must NOT be matched — we require proven ownership.
     User.objects.create_user("patron3", email="fallback@example.com", password="test")  # nosec B106
-    # No EmailAddress record — should fall back to User.email
 
     payload = _make_payload("fallback@example.com", "Test Patron")
     result = process_patreon_webhook(payload, "members:create")
 
-    assert result["matched"] is True
-    assert result["user"] == "patron3"
+    assert result["matched"] is False
+    assert result["user"] is None
+
+
+@pytest.mark.django_db
+def test_unverified_email_address_does_not_match():
+    # An EmailAddress that exists but is not verified must not match either.
+    user = User.objects.create_user(
+        "patron4", email="other@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="unverified@example.com", verified=False, primary=False
+    )
+
+    payload = _make_payload("unverified@example.com", "Test Patron")
+    result = process_patreon_webhook(payload, "members:create")
+
+    assert result["matched"] is False
+    assert result["user"] is None
 
 
 @pytest.mark.django_db
@@ -250,3 +268,144 @@ def test_updates_existing_profile():
     assert UserProfile.objects.filter(user=user).count() == 1
     profile = UserProfile.objects.get(user=user)
     assert profile.patreon_status == PatreonStatus.ACTIVE
+
+
+def _make_multi_tier_payload(email, full_name, tiers, patron_status="active_patron"):
+    """Build a payload entitled to several tiers. ``tiers`` is [(id, title), ...]."""
+    return {
+        "data": {
+            "id": "multi-tier-member",
+            "type": "member",
+            "attributes": {
+                "email": email,
+                "full_name": full_name,
+                "patron_status": patron_status,
+            },
+            "relationships": {
+                "currently_entitled_tiers": {
+                    "data": [{"id": tid, "type": "tier"} for tid, _ in tiers],
+                },
+            },
+        },
+        "included": [
+            {"id": tid, "type": "tier", "attributes": {"title": title}}
+            for tid, title in tiers
+        ],
+    }
+
+
+@pytest.mark.django_db
+def test_free_tier_only_yields_no_stored_tier():
+    """The free $0 tier is never a supporter badge tier."""
+    user = User.objects.create_user(
+        "patron_free", email="free@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="free@example.com", verified=True, primary=True
+    )
+
+    payload = _make_payload(
+        "free@example.com", "Free Member", tier_title="Free", tier_id="24970901"
+    )
+    process_patreon_webhook(payload, "members:create")
+
+    profile = UserProfile.objects.get(user=user)
+    assert profile.patreon_tier == ""
+
+
+@pytest.mark.django_db
+def test_highest_ranked_tier_wins_over_free():
+    """A member entitled to Free + Scummer stores Scummer."""
+    user = User.objects.create_user(
+        "patron_multi", email="multi@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="multi@example.com", verified=True, primary=True
+    )
+
+    payload = _make_multi_tier_payload(
+        "multi@example.com",
+        "Multi Tier",
+        tiers=[("24970901", "Free"), ("24970978", "Scummer")],
+    )
+    process_patreon_webhook(payload, "members:create")
+
+    profile = UserProfile.objects.get(user=user)
+    assert profile.patreon_tier == "Scummer"
+
+
+@pytest.mark.django_db
+def test_former_via_update_clears_stale_tier():
+    """A member lapsing to former via members:update keeps no tier."""
+    user = User.objects.create_user(
+        "patron_lapse", email="lapse@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="lapse@example.com", verified=True, primary=True
+    )
+
+    # Active first.
+    process_patreon_webhook(
+        _make_payload("lapse@example.com", "Lapsing"), "members:create"
+    )
+    assert UserProfile.objects.get(user=user).patreon_tier == "Scummer"
+
+    # Now former via a plain update, still carrying the Scummer tier in payload.
+    process_patreon_webhook(
+        _make_payload("lapse@example.com", "Lapsing", patron_status="former_patron"),
+        "members:update",
+    )
+    profile = UserProfile.objects.get(user=user)
+    assert profile.patreon_status == PatreonStatus.FORMER
+    assert profile.patreon_tier == ""
+
+
+@pytest.mark.django_db
+def test_null_patron_status_yields_blank_status_and_tier():
+    user = User.objects.create_user(
+        "patron_null", email="null@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="null@example.com", verified=True, primary=True
+    )
+
+    payload = _make_payload("null@example.com", "Null Status")
+    payload["data"]["attributes"]["patron_status"] = None
+
+    process_patreon_webhook(payload, "members:create")
+
+    profile = UserProfile.objects.get(user=user)
+    assert profile.patreon_status == ""
+    assert profile.patreon_tier == ""
+
+
+@pytest.mark.django_db
+def test_legacy_pledge_event_does_not_crash():
+    """Legacy pledges:* events have a different shape; extract nothing, no error."""
+    user = User.objects.create_user(
+        "patron_pledge", email="pledge@example.com", password="test"
+    )  # nosec B106
+    EmailAddress.objects.create(
+        user=user, email="pledge@example.com", verified=True, primary=True
+    )
+
+    payload = {
+        "data": {
+            "id": "221273431",
+            "type": "pledge",
+            "attributes": {
+                "email": "pledge@example.com",
+                "amount_cents": 300,
+            },
+            "relationships": {
+                "patron": {"data": {"id": "u1", "type": "user"}},
+                "reward": {"data": {"id": "r1", "type": "reward"}},
+            },
+        },
+        "included": [],
+    }
+    result = process_patreon_webhook(payload, "pledges:create")
+
+    assert result["matched"] is True
+    profile = UserProfile.objects.get(user=user)
+    assert profile.patreon_tier == ""

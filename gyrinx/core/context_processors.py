@@ -68,3 +68,42 @@ def site_banner(request):
 def gyrinx_debug(request):
     """Add gyrinx_debug flag to the context for debug UI elements."""
     return {"gyrinx_debug": settings.GYRINX_DEBUG}
+
+
+def impersonation(request):
+    """Expose impersonation state to templates.
+
+    Set by :class:`gyrinx.core.middleware.ImpersonationMiddleware`. When
+    ``is_impersonating`` is true, ``request.user`` is the impersonated user and
+    ``impersonator`` is the real admin.
+    """
+    return {
+        "is_impersonating": getattr(request, "is_impersonating", False),
+        "impersonator": getattr(request, "impersonator", None),
+    }
+
+
+def notifications(request):
+    """Add the unread notification count for the navbar badge (authenticated only).
+
+    A single COUNT backed by a partial index — cheap and always correct. We do not
+    cache it: the cache backend is per-process ``LocMemCache``, so a cached per-user
+    count couldn't be invalidated reliably across instances. Never raises — a failure
+    here must not break page rendering.
+    """
+    context = {"unread_notification_count": 0}
+    try:
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            from gyrinx.core.models import Notification
+
+            context["unread_notification_count"] = (
+                Notification.objects.unread_count_for(user)
+            )
+    except (DatabaseError, OperationalError, InterfaceError) as e:
+        logger.warning(
+            f"Database error while counting notifications: {type(e).__name__}: {e}"
+        )
+    except Exception:
+        logger.exception("Unexpected error in notifications context processor")
+    return context

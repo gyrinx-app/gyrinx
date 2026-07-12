@@ -30,7 +30,7 @@ def test_list_default_status():
 
 
 @pytest.mark.django_db
-def test_campaign_start_clones_lists():
+def test_campaign_start_clones_lists(django_capture_on_commit_callbacks):
     """Test that starting a campaign clones all associated lists."""
     user = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="Test House")
@@ -66,8 +66,9 @@ def test_campaign_start_clones_lists():
     # Add list to campaign
     campaign.lists.add(original_list)
 
-    # Start the campaign
-    assert campaign.start_campaign()
+    # Start the campaign (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign()
 
     # Check that the original list is no longer in the campaign
     assert original_list not in campaign.lists.all()
@@ -183,7 +184,7 @@ def test_campaign_add_lists_filtering(client):
 
 
 @pytest.mark.django_db
-def test_active_campaign_clones_display(client):
+def test_active_campaign_clones_display(client, django_capture_on_commit_callbacks):
     """Test that active campaign clones are shown on the original list."""
     user = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="Test House")
@@ -205,8 +206,9 @@ def test_active_campaign_clones_display(client):
     )
     campaign.lists.add(original_list)
 
-    # Start campaign to create clone
-    campaign.start_campaign()
+    # Start campaign to create clone (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        campaign.start_campaign()
 
     # View the original list
     response = client.get(reverse("core:list", args=[original_list.id]))
@@ -457,5 +459,40 @@ def test_list_with_campaign_mode_but_no_campaign(client):
     # The page should render successfully and contain the list name
     assert b"Campaign List without Campaign" in response.content
 
-    # Should NOT show campaign info since there's no campaign
-    assert b"bi-award" not in response.content  # Campaign icon should not appear
+    # Should NOT show campaign-only UI (the campaign Actions/Assets cards) since
+    # there's no campaign.
+    assert b"list-card-actions" not in response.content
+    assert b"list-card-assets" not in response.content
+
+
+@pytest.mark.django_db
+def test_summary_cards_collapse_state_from_url(client, user, list_with_campaign):
+    """Campaign summary cards collapse by default; they open only for ?<card>_open=1."""
+    client.force_login(user)
+    url = reverse("core:list", args=[list_with_campaign.id])
+
+    # Default: cards present (with URL-sync hooks) but not expanded.
+    html = client.get(url).content.decode()
+    assert 'id="list-card-actions"' in html
+    assert 'data-gy-collapse-url="actions_open"' in html
+    assert "list-card-collapse show" not in html
+
+    # Explicit open via the "1" value.
+    html_open = client.get(url + "?actions_open=1").content.decode()
+    assert "list-card-collapse show" in html_open
+
+    # A non-"1" value must NOT open the card (guards against a truthy-string bug
+    # where ?actions_open=0 would expand it).
+    html_zero = client.get(url + "?actions_open=0").content.decode()
+    assert "list-card-collapse show" not in html_zero
+
+
+@pytest.mark.django_db
+def test_summary_cards_not_collapsible_in_print(client, user, list_with_campaign):
+    """Print output renders the card bodies without a collapse wrapper or toggles."""
+    client.force_login(user)
+    html = client.get(
+        reverse("core:list-print", args=[list_with_campaign.id])
+    ).content.decode()
+    assert "list-card-collapse" not in html
+    assert 'data-bs-toggle="collapse"' not in html

@@ -63,28 +63,7 @@
                                         </td>
                                     {% endif %}
                                 {% endfor %}
-                                <td class="text-end pe-0">
-                                    {% if (campaign.owner == user or user in campaign.admins.all) or list.owner == user %}
-                                        {% if not campaign.is_post_campaign %}
-                                            <div class="dropdown">
-                                                <button class="btn btn-link btn-sm p-0 text-secondary"
-                                                        type="button"
-                                                        data-bs-toggle="dropdown"
-                                                        aria-expanded="false">
-                                                    <i class="bi-three-dots"></i>
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-end">
-                                                    <li>
-                                                        <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                                           class="dropdown-item text-danger">
-                                                            <i class="bi-trash"></i> Remove from Campaign
-                                                        </a>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        {% endif %}
-                                    {% endif %}
-                                </td>
+                                {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
                             </tr>
                         {% endfor %}
                     {% endfor %}
@@ -118,28 +97,7 @@
                                     {% endwith %}
                                 </td>
                             {% endfor %}
-                            <td class="text-end pe-0">
-                                {% if (campaign.owner == user or user in campaign.admins.all) or list.owner == user %}
-                                    {% if not campaign.is_post_campaign %}
-                                        <div class="dropdown">
-                                            <button class="btn btn-link btn-sm p-0 text-secondary"
-                                                    type="button"
-                                                    data-bs-toggle="dropdown"
-                                                    aria-expanded="false">
-                                                <i class="bi-three-dots"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                                       class="dropdown-item text-danger">
-                                                        <i class="bi-trash"></i> Remove from Campaign
-                                                    </a>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                            </td>
+                            {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
                         </tr>
                     {% endfor %}
                 {% endif %}
@@ -167,7 +125,7 @@
 {% else %}
     <div class="p-3 text-center text-secondary">
         No gangs have been added to this campaign yet.
-        {% if (campaign.owner == user or user in campaign.admins.all) and campaign.is_pre_campaign and not campaign.archived %}
+        {% if campaign.owner == user and campaign.is_pre_campaign and not campaign.archived %}
             <br>
             <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                class="btn btn-primary btn-sm mt-2">

@@ -30,9 +30,7 @@
                 Unlisted
             {% endif %}
         </li>
-        <li>
-            {% if list.owner_cached == user %}Owner{% endif %}
-        </li>
+        <li>{% if list.owner_cached == user %}Owner{% endif %}</li>
         <li>{{ list.original_list }}</li>
         <li>{{ list.campaign }}</li>
         <li>Clones? {{ list.active_campaign_clones|length|yesno:"Yes,No" }}</li>

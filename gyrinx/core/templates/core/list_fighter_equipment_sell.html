@@ -38,9 +38,7 @@
                                     <td>
                                         {{ item.name }}
                                         {% if item.upgrades %}
-                                            <div class="text-secondary fs-7">
-                                                {% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}
-                                            </div>
+                                            <div class="text-secondary fs-7">{% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}</div>
                                         {% endif %}
                                     </td>
                                     <td>{{ item.total_cost }}¢</td>
@@ -112,9 +110,7 @@
                                 <td>
                                     {{ item.name }}
                                     {% if item.upgrades %}
-                                        <div class="text-secondary fs-7">
-                                            {% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}
-                                        </div>
+                                        <div class="text-secondary fs-7">{% for upgrade in item.upgrades %}+ {{ upgrade.name }}{% endfor %}</div>
                                     {% endif %}
                                 </td>
                                 <td>{{ item.base_cost }}¢</td>
@@ -173,7 +169,9 @@
             {% if sale_results.dice_rolls %}
                 <div class="border rounded p-2 hstack gap-3">
                     <strong>Dice Rolls:</strong>
-                    {% for roll in sale_results.dice_rolls %}<i class="bi-dice-{{ roll }} fs-4"></i>{% endfor %}
+                    {% for roll in sale_results.dice_rolls %}
+                        <i class="bi-dice-{{ roll }} fs-4"></i>
+                    {% endfor %}
                 </div>
             {% endif %}
             <div class="table-responsive">

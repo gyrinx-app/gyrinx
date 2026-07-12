@@ -6,8 +6,8 @@ from gyrinx.core.models.pack import CustomContentPack
 
 
 @pytest.mark.django_db
-def test_homepage_shows_featured_packs_for_anonymous(make_user):
-    """Featured + listed packs appear on the front page for anonymous users."""
+def test_homepage_hides_featured_packs_for_anonymous(make_user):
+    """The logged-out landing page no longer renders the featured packs bar."""
     owner = make_user("packowner", "password")
     CustomContentPack.objects.create(
         name="Prototype Weapons",
@@ -21,8 +21,8 @@ def test_homepage_shows_featured_packs_for_anonymous(make_user):
     response = client.get(reverse("core:index"))
 
     assert response.status_code == 200
-    assert b"Featured Content Packs" in response.content
-    assert b"Prototype Weapons" in response.content
+    assert b"Featured Content Packs" not in response.content
+    assert b"Prototype Weapons" not in response.content
 
 
 @pytest.mark.django_db
@@ -118,7 +118,7 @@ def test_homepage_caps_featured_packs_at_three(make_user):
 
 
 @pytest.mark.django_db
-def test_homepage_featured_description_falls_back_to_summary(make_user):
+def test_homepage_featured_description_falls_back_to_summary(client, user, make_user):
     """When featured_description is blank, the card falls back to summary text."""
     owner = make_user("packowner", "password")
     CustomContentPack.objects.create(
@@ -130,7 +130,7 @@ def test_homepage_featured_description_falls_back_to_summary(make_user):
         owner=owner,
     )
 
-    client = Client()
+    client.force_login(user)
     response = client.get(reverse("core:index"))
 
     assert response.status_code == 200

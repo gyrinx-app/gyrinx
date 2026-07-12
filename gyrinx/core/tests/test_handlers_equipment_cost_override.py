@@ -20,10 +20,9 @@ from gyrinx.models import FighterCategoryChoices
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_no_change(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test that handler returns None when override doesn't change."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
 
     fighter = ListFighter.objects.create(
@@ -53,10 +52,9 @@ def test_handle_equipment_cost_override_no_change(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_set(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test that setting total_cost_override creates ListAction with correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -107,10 +105,9 @@ def test_handle_equipment_cost_override_set(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_clear(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test that clearing total_cost_override creates ListAction with negative delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 575
     lst.save()
@@ -159,10 +156,9 @@ def test_handle_equipment_cost_override_clear(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_change(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test that changing total_cost_override value creates correct delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 600
     lst.save()
@@ -203,10 +199,9 @@ def test_handle_equipment_cost_override_change(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_stash_fighter(
-    user, make_list, make_content_fighter, content_house, make_equipment, settings
+    user, make_list, make_content_fighter, content_house, make_equipment
 ):
     """Test that cost changes for stash fighter equipment go to stash_delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.stash_current = 100
     lst.save()
@@ -256,10 +251,9 @@ def test_handle_equipment_cost_override_stash_fighter(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_with_profiles_and_accessories(
-    user, make_list, content_fighter, make_weapon_with_accessory, settings
+    user, make_list, content_fighter, make_weapon_with_accessory
 ):
     """Test that cost delta is correct when equipment has profiles and accessories."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -303,10 +297,9 @@ def test_handle_equipment_cost_override_with_profiles_and_accessories(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_zero_delta(
-    user, make_list, content_fighter, make_equipment, settings
+    user, make_list, content_fighter, make_equipment
 ):
     """Test setting override to same as calculated cost results in zero delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.rating_current = 500
     lst.save()
@@ -345,14 +338,14 @@ def test_handle_equipment_cost_override_zero_delta(
 
 @pytest.mark.django_db
 def test_handle_equipment_cost_override_child_fighter_on_stash(
-    user, make_list, make_content_fighter, content_house, make_equipment, settings
+    user, make_list, make_content_fighter, content_house, make_equipment
 ):
-    """Test that cost changes for equipment on child fighter of stash go to stash_delta.
+    """Cost changes for equipment on a child fighter of stash go to RATING.
 
-    This tests the _is_fighter_stash_linked() logic that handles child fighters
-    (vehicles/exotic beasts) whose parent equipment is on a stash fighter.
+    The recompute buckets every non-stash fighter's own cost into the
+    rating book — child fighters (vehicles/exotic beasts) included, even
+    when their parent equipment sits on a stash fighter.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
     lst = make_list("Test List")
     lst.stash_current = 200
     lst.save()
@@ -413,7 +406,7 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     # Simulate form applying new value
     child_equipment_assignment.total_cost_override = 75
 
-    # Set override on child fighter's equipment (should go to stash_delta)
+    # Set override on child fighter's equipment (books to rating)
     result = handle_equipment_cost_override(
         user=user,
         lst=lst,
@@ -426,5 +419,5 @@ def test_handle_equipment_cost_override_child_fighter_on_stash(
     # Delta = 75 - 50 = +25
     assert result is not None
     assert result.cost_delta == 25
-    assert result.list_action.stash_delta == 25
-    assert result.list_action.rating_delta == 0
+    assert result.list_action.stash_delta == 0
+    assert result.list_action.rating_delta == 25

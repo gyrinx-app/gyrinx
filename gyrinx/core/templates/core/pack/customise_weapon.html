@@ -20,7 +20,7 @@
                 <h2 class="h5 mb-0">Profiles</h2>
                 {% if archived_pack_profile_count > 0 %}
                     <a href="{% url 'core:pack-customise-weapon-archived-profiles' pack.id equipment.id %}"
-                       class="link-secondary link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Archived profiles ({{ archived_pack_profile_count }})</a>
+                       class="linked-secondary fs-7">Archived profiles ({{ archived_pack_profile_count }})</a>
                 {% endif %}
             </div>
             {% if profiles %}

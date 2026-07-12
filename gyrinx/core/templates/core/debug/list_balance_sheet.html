@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description"
+              content="Debug endpoint for the list cost balance sheet">
+        <meta name="keywords" content="debug, balance sheet, cost reconciliation">
+        <title>Balance Sheet - {{ list.name }}</title>
+        <style>
+        body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+        h1 { margin-bottom: 0.5rem; }
+        h2 { margin-top: 2rem; font-size: 1.1rem; }
+        .back { margin-bottom: 1rem; }
+        .back a { color: #0066cc; text-decoration: none; }
+        .back a:hover { text-decoration: underline; }
+        .description { color: #666; margin-bottom: 1.5rem; }
+        .status { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+        .status-ok { background: #e6f4ea; border: 1px solid #34a853; color: #1e7e34; }
+        .status-bad { background: #fdecea; border: 1px solid #dc3545; color: #a71d2a; }
+        .status-bad ul { margin: 0.5rem 0 0 1.25rem; padding: 0; }
+        .dirty-note { background: #fff8e1; border: 1px solid #e8a10a; color: #7a5b00; padding: 0.5rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.875rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin-bottom: 1rem; }
+        th, td { padding: 0.4rem 0.5rem; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #f5f5f5; font-weight: 600; }
+        td.num, th.num { text-align: right; font-family: monospace; }
+        .summary td { font-weight: 600; }
+        /* tr.mismatch (element+class) outranks .fighter-row so the danger red
+           wins on fighter rows instead of their blue background. */
+        tr.mismatch { background: #fdecea; }
+        .fighter-row { background: #eef3fa; font-weight: 600; }
+        .assignment-row td:first-child { padding-left: 1.5rem; }
+        .component-row { color: #666; }
+        .component-row td:first-child { padding-left: 3rem; }
+        .muted { color: #999; }
+        .pin-source { cursor: help; border-bottom: 1px dotted #999; }
+        .tag { display: inline-block; background: #eee; border-radius: 4px; padding: 0 0.4rem; font-size: 0.75rem; margin-left: 0.35rem; }
+        .tag-override { background: #ffe4c9; color: #8a4b00; }
+        .tag-stash { background: #e2e0f7; color: #3c368e; }
+        .tag-dead { background: #f3d3d8; color: #8e2937; }
+        .tag-dirty { background: #fff3cd; color: #7a5b00; }
+        </style>
+    </head>
+    <body>
+        <div class="back">
+            <a href="{% url 'core:list' list.id %}">← Back to {{ list.name }}</a>
+            · <a href="{% url 'debug_list_actions' list.id %}">Actions log</a>
+        </div>
+        <h1>Balance Sheet</h1>
+        <p class="description">
+            Itemised cost reconciliation for <strong>{{ list.name }}</strong>:
+            computed (live) values vs cached values, the credits ledger, and
+            action-chain continuity.
+        </p>
+        {% if problems %}
+            <div class="status status-bad">
+                <strong>{{ problems|length }} reconciliation problem{{ problems|length|pluralize }}</strong>
+                <ul>
+                    {% for problem in problems %}<li>{{ problem }}</li>{% endfor %}
+                </ul>
+            </div>
+        {% else %}
+            <div class="status status-ok"><strong>Reconciles.</strong> Computed values, caches, ledger, and action chain all agree.</div>
+        {% endif %}
+        {% if sheet.dirty_rows %}
+            <div class="dirty-note">
+                <strong>Dirty (recompute pending), skipped from cache comparison:</strong>
+                {{ sheet.dirty_rows|join:"; " }}
+            </div>
+        {% endif %}
+        <h2>Totals</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="num">Computed</th>
+                    <th class="num">Cached</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="summary {% if sheet.rating_mismatch %}mismatch{% endif %}">
+                    <td>Rating</td>
+                    <td class="num">{{ sheet.computed_rating }}¢</td>
+                    <td class="num">
+                        {{ sheet.cached_rating }}¢
+                        {% if sheet.dirty %}<span class="tag tag-dirty">dirty</span>{% endif %}
+                    </td>
+                </tr>
+                <tr class="summary {% if sheet.stash_mismatch %}mismatch{% endif %}">
+                    <td>Stash</td>
+                    <td class="num">{{ sheet.computed_stash }}¢</td>
+                    <td class="num">{{ sheet.cached_stash }}¢</td>
+                </tr>
+                <tr class="summary">
+                    <td>Credits</td>
+                    <td class="num muted">ledger-checked</td>
+                    <td class="num">{{ sheet.cached_credits }}¢</td>
+                </tr>
+            </tbody>
+        </table>
+        <h2>Fighters and equipment</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th>Pricing</th>
+                    <th class="num">Computed</th>
+                    <th class="num">Cached</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fighter in all_fighters %}
+                    <tr class="fighter-row {% if fighter.is_mismatch %}mismatch{% endif %}">
+                        <td>
+                            {{ fighter.name }}
+                            {% if fighter.is_stash %}<span class="tag tag-stash">stash</span>{% endif %}
+                            {% if fighter.zero_costed %}<span class="tag tag-dead">zero-costed</span>{% endif %}
+                            {% if fighter.dirty %}<span class="tag tag-dirty">dirty</span>{% endif %}
+                        </td>
+                        <td></td>
+                        <td class="num">{{ fighter.computed }}¢</td>
+                        <td class="num">{{ fighter.cached_rating }}¢</td>
+                    </tr>
+                    <tr class="component-row">
+                        <td>base + advancements</td>
+                        <td></td>
+                        <td class="num">{{ fighter.base }}¢ + {{ fighter.advancements }}¢</td>
+                        <td class="num muted">—</td>
+                    </tr>
+                    {% for assignment in fighter.assignments %}
+                        <tr class="assignment-row {% if assignment.is_mismatch %}mismatch{% endif %}">
+                            <td>
+                                {{ assignment.equipment_name }}
+                                {% if assignment.kind == "default" %}<span class="tag">default</span>{% endif %}
+                                {% if assignment.total_cost_override is not None %}<span class="tag tag-override">fixed total {{ assignment.total_cost_override }}¢</span>{% endif %}
+                                {% if assignment.dirty %}<span class="tag tag-dirty">dirty</span>{% endif %}
+                            </td>
+                            <td></td>
+                            <td class="num">{{ assignment.computed }}¢</td>
+                            <td class="num">
+                                {% if assignment.cached_rating is not None %}
+                                    {{ assignment.cached_rating }}¢
+                                {% else %}
+                                    <span class="muted">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% for line in assignment.lines %}
+                            {% if line.amount != 0 or line.detail %}
+                                <tr class="component-row">
+                                    <td>
+                                        {{ line.kind }}
+                                        {% if line.detail %}<span class="muted">({{ line.detail }})</span>{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if line.source_repr %}
+                                            <span class="pin-source" title="{{ line.source_repr }}">{{ line.pricing }}</span>
+                                        {% else %}
+                                            {{ line.pricing }}
+                                        {% endif %}
+                                        {% if line.detail %}<span class="text-secondary">({{ line.detail }})</span>{% endif %}
+                                    </td>
+                                    <td class="num">{{ line.amount }}¢</td>
+                                    <td class="num muted">—</td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                {% empty %}
+                    <tr>
+                        <td colspan="4" class="muted">No fighters.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <h2>
+            Action chain
+            {% if not sheet.has_action_chain %}<span class="muted">(none — ledger and continuity checks skipped)</span>{% endif %}
+        </h2>
+        {% if sheet.has_action_chain %}
+            <p class="description">
+                {{ sheet.actions|length }} action{{ sheet.actions|length|pluralize }};
+                full log in the <a href="{% url 'debug_list_actions' list.id %}">actions debug view</a>.
+            </p>
+        {% endif %}
+    </body>
+</html>

@@ -179,14 +179,47 @@ Pub/Sub uses exponential backoff between min and max delay, doubling the wait ti
 
 ## Development vs Production
 
-| Aspect | Development | Production |
-|--------|-------------|------------|
-| Backend | `ImmediateBackend` (sync) | [`PubSubBackend`](../../gyrinx/tasks/backend.py) (async) |
-| OIDC verification | Skipped | Enforced |
-| Provisioning | Skipped | Automatic on startup |
-| Topic naming | `dev--gyrinx.tasks--...` | `prod--gyrinx.tasks--...` |
+| Aspect | Development (dev server) | Tests | Production |
+|--------|--------------------------|-------|------------|
+| Backend | [`DatabaseBackend`](../../gyrinx/tasks/local_backend.py) `worker` mode | `DatabaseBackend` `eager` mode | [`PubSubBackend`](../../gyrinx/tasks/backend.py) |
+| Execution | In-process worker threads (async) | Inline on enqueue (sync), or driven by the `task_queue` fixture | Pub/Sub push → Cloud Run (async) |
+| OIDC verification | Skipped | Skipped | Enforced |
+| Provisioning | Skipped | Skipped | Automatic on startup |
+| Topic naming | n/a (no Pub/Sub) | n/a | `prod--gyrinx.tasks--...` |
 
-In development, `task.enqueue()` calls the task function immediately and synchronously. This makes debugging straightforward but doesn't test the async behaviour.
+Production stays on `PubSubBackend`; `DatabaseBackend` is a dev/test-only replacement and is never selected in production.
+
+## Local execution (development and tests)
+
+Locally there is no Pub/Sub. Instead, [`DatabaseBackend`](../../gyrinx/tasks/local_backend.py) provides an in-process, durable, Pub/Sub-like queue — no extra process, no GCP dependency. It exists only so that async behaviour (and the codebase's at-least-once/idempotency handling) can be exercised in dev and in tests.
+
+### The shared executor
+
+Both the production push handler and `DatabaseBackend` run a task's underlying function through the same [`run_task()`](../../gyrinx/tasks/executor.py) helper, which fires the identical `task_started` / `task_finished` signals and drives the same [`TaskExecution`](../../gyrinx/tasks/models.py) bookkeeping. This is deliberate: the local and production delivery paths cannot quietly diverge, so idempotency behaviour exercised locally matches what production does.
+
+### Modes
+
+`DatabaseBackend` runs in one of three modes (set via `OPTIONS["mode"]`):
+
+- **`eager`** (base default; the test default) — runs the task inline inside `enqueue()`, exactly like Django's `ImmediateBackend`. No queue row is written, so the whole test suite stays synchronous and fast.
+- **`worker`** (the dev server) — persists the task to the `QueuedTask` table and lets an in-process pool of daemon threads deliver it, with retries, exponential backoff, and visibility leases. `scripts/dev.sh` selects this automatically because `runserver` is on the command line.
+- **`manual`** (opt-in in tests) — persists the task but delivers nothing automatically; the `task_queue` pytest fixture drives delivery explicitly and can script duplicates, failures, drops, and latency.
+
+### Durability and redelivery
+
+In `worker`/`manual` mode a task is a real `QueuedTask` row claimed with `SELECT … FOR UPDATE SKIP LOCKED` under a visibility lease. If a delivery is interrupted (e.g. a `runserver` autoreload kills the daemon threads), the lease lapses and the row is redelivered rather than lost — mirroring Pub/Sub's at-least-once guarantee.
+
+### Redelivery semantics (idempotency)
+
+Because delivery is at-least-once, the signal handlers treat the `TaskExecution` record carefully (see [`signals.py`](../../gyrinx/tasks/signals.py)):
+
+- A redelivery of an already-**SUCCESSFUL** task re-runs the function (idempotency is the task's own responsibility) but leaves the record `SUCCESSFUL`.
+- A redelivery of a **FAILED** task is treated as a retry: the record is reset so the fresh attempt can record its own outcome.
+- Re-marking a task that is already terminal as `RUNNING` would be an illegal state transition — the handlers guard against it, which also prevents a production redelivery storm (a raised handler would return 500 and Pub/Sub would retry forever).
+
+### Fault injection
+
+The dev server can inject Pub/Sub-like chaos — duplicate delivery, transient failure, message drop, latency — via `TASKS_FAULT_*` environment variables, off by default. See the [reference](../technical-reference/task-framework.md#fault-injection-environment-variables) and the [how-to guide](../how-to-guides/task-framework.md#run-the-dev-server-with-async-tasks-and-fault-injection).
 
 ## Future Considerations
 

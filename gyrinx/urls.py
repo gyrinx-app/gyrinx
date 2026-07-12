@@ -22,6 +22,7 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 
 from gyrinx.core.views import debug as debug_views
+from gyrinx.core.views import print_lab as print_lab_views
 from gyrinx.pages import views
 
 admin.site.site_header = "Gyrinx Admin"
@@ -49,6 +50,21 @@ _debug_urls = [
         "_debug/list/<uuid:list_id>/actions/",
         debug_views.debug_list_actions,
         name="debug_list_actions",
+    ),
+    path(
+        "_debug/list/<uuid:list_id>/balance-sheet/",
+        debug_views.debug_list_balance_sheet,
+        name="debug_list_balance_sheet",
+    ),
+    path(
+        "_debug/print-lab/",
+        print_lab_views.print_lab,
+        name="debug_print_lab",
+    ),
+    path(
+        "_debug/print-lab/sheet/",
+        print_lab_views.print_lab_sheet,
+        name="debug_print_lab_sheet",
     ),
 ]
 

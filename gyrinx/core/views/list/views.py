@@ -65,10 +65,8 @@ class ListsListView(generic.ListView):
         Campaign mode lists are only visible within their campaigns.
         Archived lists are excluded from this view unless requested.
         """
-        queryset = (
-            List.objects.all()
-            .with_latest_actions()
-            .select_related("content_house", "owner", "campaign")
+        queryset = List.objects.all().select_related(
+            "content_house", "owner", "owner__profile", "campaign"
         )
 
         # Apply "Your Lists" filter (default on if user is authenticated)
@@ -177,8 +175,7 @@ class ListsListView(generic.ListView):
         if self.request.user.is_authenticated:
             context["pinned_lists"] = (
                 self.request.user.pinned_lists.filter(archived=False)
-                .with_latest_actions()
-                .select_related("content_house", "owner", "campaign")
+                .select_related("content_house", "owner", "owner__profile", "campaign")
                 .annotate(star_count=Count("starred_by", distinct=True))
                 .order_by("name")
             )
@@ -239,6 +236,26 @@ class ListDetailView(generic.DetailView):
     template_name = "core/list.html"
     context_object_name = "list"
 
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        # A campaign-start stub still being cloned in the background (#1222) has no
+        # fighters/cost yet and isn't safely editable — its status is CLONING_IN_PROGRESS,
+        # so credit-accounting guards would treat it as list-building. Send viewers to the
+        # campaign, which renders its "Joining…" state.
+        if self.object.is_cloning:
+            messages.info(
+                request,
+                f"{self.object.name} is still joining the campaign — it'll be ready in a moment.",
+            )
+            target = (
+                reverse("core:campaign", args=(self.object.campaign_id,))
+                if self.object.campaign_id
+                else reverse("core:lists")
+            )
+            return HttpResponseRedirect(target)
+        context = self.get_context_data(object=self.object)
+        return self.render_to_response(context)
+
     @traced("ListDetailView_get_object")
     def get_object(self):
         """
@@ -256,7 +273,10 @@ class ListDetailView(generic.DetailView):
         list_id = self.kwargs["id"]
         packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
         return get_clean_list_or_404(
-            List.objects.with_related_data(with_fighters=True, packs=packs),
+            # owner__profile is for the breadcrumb supporter badge.
+            List.objects.with_related_data(
+                with_fighters=True, packs=packs
+            ).select_related("owner__profile"),
             id=list_id,
         )
 
@@ -269,6 +289,22 @@ class ListDetailView(generic.DetailView):
         # Calling .filter() on a prefetched relation triggers new DB queries, so we
         # do all filtering in Python on the already-loaded data.
         all_fighters = list(list_obj.listfighter_set.all())
+
+        # Equipment-set URL override (#1853): ?set_<fighter_id>=<set_id|default>
+        # shows a specific card for that fighter for a linkable/shareable view,
+        # without changing the persisted default. Applied in memory only, using
+        # the prefetched sets (no extra queries).
+        for fighter in all_fighters:
+            override = self.request.GET.get(f"set_{fighter.id}")
+            if override is None:
+                continue
+            if override in ("", "0", "default"):
+                fighter.active_equipment_set = None
+            else:
+                for equipment_set in fighter.equipment_sets.all():
+                    if str(equipment_set.id) == override:
+                        fighter.active_equipment_set = equipment_set
+                        break
 
         # Check if the list has a stash fighter
         context["has_stash_fighter"] = any(
@@ -307,6 +343,14 @@ class ListDetailView(generic.DetailView):
             context["pending_invitations_count"] = CampaignInvitation.objects.filter(
                 list=list_obj, status=CampaignInvitation.PENDING
             ).count()
+
+        # Admins (superusers) may impersonate the list owner, unless already
+        # impersonating.
+        from gyrinx.core.impersonation import can_impersonate_target
+
+        context["can_impersonate_list_owner"] = not getattr(
+            self.request, "is_impersonating", False
+        ) and can_impersonate_target(self.request.user, list_obj.owner_cached)
 
         # Add subscribed packs
         context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
@@ -351,6 +395,25 @@ class ListDetailView(generic.DetailView):
         else:
             context["is_pinned"] = False
             context["is_starred"] = False
+
+        # Notification banners for this list (scoped to the viewing recipient).
+        if self.request.user.is_authenticated:
+            from gyrinx.core.models.notification import Notification
+
+            context["notification_banners"] = Notification.objects.banners_for(
+                self.request.user, list_=list_obj
+            )
+
+        # Whether the viewer is the campaign arbitrator (campaign owner) for a
+        # campaign-mode list. Mirrors get_list_for_edit's owner-or-arbitrator
+        # rule so arbitrator-only affordances (e.g. Post-battle updates) show
+        # in the menu even on a gang the arbitrator doesn't own.
+        context["is_campaign_arbitrator"] = bool(
+            self.request.user.is_authenticated
+            and list_obj.is_campaign_mode
+            and list_obj.campaign_id
+            and list_obj.campaign.owner_id == self.request.user.pk
+        )
 
         return context
 
@@ -495,14 +558,23 @@ class ListPrintView(generic.DetailView):
             # No default config anymore - just use built-in defaults
             print_config = None
 
+        # Stashed for get_template_names(), which runs after this method.
+        self.print_config = print_config
         context["print_config"] = print_config
 
         # Get fighters with group keys for display grouping
         # Use with_related_data() to prefetch all equipment, profiles, and related data
-        # to avoid N+1 queries when templates access fighter properties
+        # to avoid N+1 queries when templates access fighter properties.
+        # Thread the list's subscribed packs through so skill/rule prefetches
+        # are pack-aware and ruleline()/skilline() read from the prefetch cache
+        # instead of issuing ~6 fallback queries per fighter (this print view
+        # renders every fighter card).
+        from gyrinx.core.models.pack import CustomContentPack
+
+        packs = list(CustomContentPack.objects.filter(subscribed_lists__id=list_obj.id))
         fighters_qs = (
             ListFighter.objects.with_group_keys()
-            .with_related_data()
+            .with_related_data(packs=packs)
             .filter(list=list_obj, archived=False)
         )
 
@@ -557,7 +629,41 @@ class ListPrintView(generic.DetailView):
             context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
             context["blank_vehicle_range"] = range(print_config.blank_vehicle_cards)
 
+        # Classic-mode cards: render the grimdark fixed-size cards instead of the
+        # web cards. Reuses the already-filtered fighter queryset, then appends
+        # the configured blank cards. Fighter cards only (assets/attributes/etc.
+        # don't apply to the classic sheet).
+        if print_config and print_config.card_style == PrintConfig.CLASSIC:
+            from gyrinx.core.print_cards import blank_classic_card, card_from_fighter
+
+            # Fighter cards only — the stash is not a classic card (it has no
+            # statline/weapons to fill the fixed regions).
+            cards = []
+            for fighter in fighters_qs:
+                card = card_from_fighter(fighter, list_obj)
+                if card.kind == "stash":
+                    continue
+                cards.append(card)
+            cards += [
+                blank_classic_card("fighter")
+                for _ in range(print_config.blank_fighter_cards)
+            ]
+            cards += [
+                blank_classic_card("vehicle")
+                for _ in range(print_config.blank_vehicle_cards)
+            ]
+            context["classic_cards"] = cards
+
         return context
+
+    def get_template_names(self):
+        """Classic-style configs render the fixed-size grimdark sheet."""
+        from gyrinx.core.models import PrintConfig
+
+        pc = getattr(self, "print_config", None)
+        if pc and pc.card_style == PrintConfig.CLASSIC:
+            return ["core/list_print_classic.html"]
+        return [self.template_name]
 
 
 class ListCampaignClonesView(generic.DetailView):
@@ -594,6 +700,15 @@ class ListCampaignClonesView(generic.DetailView):
         return context
 
 
+def _carried_list_name(raw):
+    """Normalise a quick-create list name carried through the pack-selection
+    flow: strip whitespace and cap to the model field length so it can't bloat
+    redirect URLs (risking 414s) or exceed what the form would accept anyway.
+    """
+    max_length = List._meta.get_field("name").max_length
+    return (raw or "").strip()[:max_length]
+
+
 @login_required
 def new_list(request):
     """
@@ -625,9 +740,14 @@ def new_list(request):
 
     skip_packs = request.GET.get("skip_packs") == "1"
 
-    # Users who haven't visited the interstitial yet get redirected there
+    # Users who haven't visited the interstitial yet get redirected there.
+    # Preserve any name typed into the home-page quick-create box.
     if request.method == "GET" and not skip_packs and not pack_ids:
-        return HttpResponseRedirect(reverse("core:lists-new-packs"))
+        packs_url = reverse("core:lists-new-packs")
+        name = _carried_list_name(request.GET.get("name"))
+        if name:
+            packs_url += "?" + urlencode({"name": name})
+        return HttpResponseRedirect(packs_url)
 
     # Resolve selected packs
     selected_packs = CustomContentPack.objects.none()
@@ -667,6 +787,13 @@ def new_list(request):
                 content_house=result.lst.content_house.name,
                 public=result.lst.public,
             )
+
+            # Gang-wide-skills houses pick their ranked skill trees as the next
+            # step. Selection is optional (deferrable), so we don't force it.
+            if result.lst.content_house.gang_wide_skills:
+                return HttpResponseRedirect(
+                    reverse("core:list-skill-trees-edit", args=(result.lst.id,))
+                )
 
             return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
     else:
@@ -727,12 +854,15 @@ def new_list_packs(request):
             )
         )
         pack_ids = [pid for pid in sanitised_ids if pid in valid_ids]
-        # Redirect with pack IDs as URL params
+        # Redirect with pack IDs as URL params, preserving any quick-create name
+        name = _carried_list_name(request.POST.get("name"))
         url = reverse("core:lists-new")
-        if pack_ids:
-            url = f"{url}?{urlencode([('packs', pid) for pid in pack_ids], doseq=True)}"
-        else:
-            url = f"{url}?{urlencode({'skip_packs': '1'})}"
+        params = (
+            [("packs", pid) for pid in pack_ids] if pack_ids else [("skip_packs", "1")]
+        )
+        if name:
+            params.append(("name", name))
+        url = f"{url}?{urlencode(params, doseq=True)}"
         return safe_redirect(request, url, fallback_url=reverse("core:lists-new"))
 
     # Display filtering for GET requests
@@ -756,6 +886,9 @@ def new_list_packs(request):
             )
         else:
             available_packs = available_packs.filter(owner=request.user)
+
+    # Quick-create name carried through from the home-page box
+    new_list_name = _carried_list_name(request.GET.get("name"))
 
     # Search
     search_query = request.GET.get("q", "").strip()
@@ -820,6 +953,7 @@ def new_list_packs(request):
             "available_packs": available_packs,
             "search_query": search_query,
             "preselected_pack_ids": preselected_pack_ids,
+            "name": new_list_name,
         },
     )
 
@@ -1110,17 +1244,13 @@ def refresh_list_cost(request, id):
         raise Http404("List not found")
 
     if request.method == "POST":
-        # Get old cached facts value (from DB cache, not in-memory cache)
+        # Get old cached facts value (from DB cache)
         old_facts = lst.facts()
         old_wealth = old_facts.wealth if old_facts else None
         was_dirty = old_facts is None
 
         # Force recalculation and update DB cache
         new_facts = lst.facts_from_db(update=True)
-
-        # Clear the cached_property if present
-        if "cost_int_cached" in lst.__dict__:
-            del lst.__dict__["cost_int_cached"]
 
         track(
             "list_cost_refresh",

@@ -118,10 +118,23 @@ def qt(request, **kwargs):
     return updated.urlencode()
 
 
+def _qt_drop(querydict, drop):
+    """Remove comma-separated keys from a mutable QueryDict copy (no-op if falsy).
+
+    Lets query-string edits invalidate params that no longer apply — e.g. the
+    dice roller drops its reproducible-roll ``seed`` when the dice change.
+    """
+    if not drop:
+        return
+    for key in str(drop).split(","):
+        querydict.pop(key, 0)
+
+
 @register.simple_tag
-def qt_nth(request, **kwargs):
+def qt_nth(request, drop=None, **kwargs):
     nth = kwargs.pop("nth")
     updated = request.GET.copy()
+    _qt_drop(updated, drop)
     for k, v in kwargs.items():
         current = updated.getlist(k)
         if nth < len(current):
@@ -134,9 +147,10 @@ def qt_nth(request, **kwargs):
 
 
 @register.simple_tag
-def qt_rm_nth(request, **kwargs):
+def qt_rm_nth(request, drop=None, **kwargs):
     nth = kwargs.pop("nth")
     updated = request.GET.copy()
+    _qt_drop(updated, drop)
     for k, v in kwargs.items():
         if str(v) != "1":
             continue
@@ -149,8 +163,9 @@ def qt_rm_nth(request, **kwargs):
 
 
 @register.simple_tag
-def qt_append(request, **kwargs):
+def qt_append(request, drop=None, **kwargs):
     updated = request.GET.copy()
+    _qt_drop(updated, drop)
     for k, v in kwargs.items():
         current = updated.getlist(k)
         current.append(v)
@@ -435,7 +450,7 @@ def credits(value, show_sign=False):
         show_sign: If True, show '+' for positive values (default: False)
 
     Usage:
-        {% credits list.facts_with_fallback.wealth %}
+        {% credits list.wealth_current %}
         {% credits delta show_sign=True %}
     """
     return format_cost_display(value, show_sign=show_sign)

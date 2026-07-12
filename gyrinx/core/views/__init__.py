@@ -11,8 +11,19 @@ from .banner import dismiss_banner, track_banner_click
 from .csrf import csrf_failure
 from .dice import dice
 from .home import account_home, index
+from .impersonation import start_impersonation, stop_impersonation
+from .notification import (
+    NotificationInboxView,
+    notification_archive,
+    notification_delete,
+    notification_dismiss_banner,
+    notification_read,
+    notification_unarchive,
+    notification_unread,
+    notifications_bulk,
+)
 from .upload import tinymce_upload
-from .user import change_username, user
+from .user import badge_settings, change_username, user
 
 
 def make_query_params_str(**kwargs) -> str:
@@ -29,11 +40,24 @@ __all__ = [
     # User views
     "user",
     "change_username",
+    "badge_settings",
+    # Impersonation views
+    "start_impersonation",
+    "stop_impersonation",
     # Dice views
     "dice",
     # Banner views
     "dismiss_banner",
     "track_banner_click",
+    # Notification views
+    "NotificationInboxView",
+    "notification_read",
+    "notification_unread",
+    "notification_archive",
+    "notification_unarchive",
+    "notification_delete",
+    "notification_dismiss_banner",
+    "notifications_bulk",
     # Other
     "csrf_failure",
     "tinymce_upload",

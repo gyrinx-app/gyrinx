@@ -1,24 +1,15 @@
 """Tests for deleting weapon profiles from equipment assignments."""
 
 import pytest
-from django.test import Client
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighterEquipmentListItem
 from gyrinx.core.models.list import ListFighterEquipmentAssignment
 
 
-@pytest.fixture
-def client(user):
-    """Create a logged-in test client."""
-    c = Client()
-    c.login(username="testuser", password="password")
-    return c
-
-
 @pytest.mark.django_db
 def test_delete_weapon_profile_view_get_without_error(
-    client,
+    logged_in_client,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -72,7 +63,7 @@ def test_delete_weapon_profile_view_get_without_error(
         "core:list-fighter-weapon-profile-delete",
         args=[test_list.id, list_fighter.id, assignment.id, profile.id],
     )
-    response = client.get(url)
+    response = logged_in_client.get(url)
 
     # The page should load successfully without AttributeError
     assert response.status_code == 200
@@ -84,7 +75,7 @@ def test_delete_weapon_profile_view_get_without_error(
 
 @pytest.mark.django_db
 def test_delete_weapon_profile_post_without_error(
-    client,
+    logged_in_client,
     make_list,
     make_list_fighter,
     make_equipment,
@@ -139,7 +130,7 @@ def test_delete_weapon_profile_post_without_error(
         "core:list-fighter-weapon-profile-delete",
         args=[test_list.id, list_fighter.id, assignment.id, profile.id],
     )
-    response = client.post(url)
+    response = logged_in_client.post(url)
 
     # Should redirect successfully
     assert response.status_code == 302

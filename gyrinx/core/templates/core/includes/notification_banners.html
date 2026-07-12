@@ -1,0 +1,36 @@
+{% load custom_tags %}
+{% comment %}
+    In-page notification banners for a List or Campaign page. Expects
+    `notification_banners` (an iterable of Notification) in context. Each row is
+    scoped to the viewing recipient by the view, so there's no cross-user leakage.
+    Uses `border rounded p-2` (not `alert`) per the template guidelines; the colour
+    is carried by the border. Dismiss is a POST that persistently marks it read —
+    a theme-safe secondary button, not `btn-close` (which is invisible in dark mode).
+{% endcomment %}
+{% if notification_banners %}
+    <div class="vstack gap-2">
+        {% for n in notification_banners %}
+            <div class="border rounded p-2 border-{{ n.banner_colour|default:'info' }} d-flex gap-2 align-items-start"
+                 role="alert">
+                <i class="{{ n.display_icon }} text-{{ n.banner_colour|default:'info' }} pt-1"></i>
+                <div class="flex-grow-1">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <strong>{{ n.subject }}</strong>
+                        {% include "core/includes/notification_source.html" with notification=n %}
+                    </div>
+                    {% if n.content %}<div class="text-secondary mb-last-0">{{ n.content|safe_rich_text|safe }}</div>{% endif %}
+                </div>
+                <form method="post"
+                      action="{% url 'core:notification-dismiss-banner' n.id %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit"
+                            class="btn btn-link btn-sm p-0 icon-link link-secondary"
+                            aria-label="Dismiss">
+                        <i class="bi-x-lg"></i>Dismiss
+                    </button>
+                </form>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}

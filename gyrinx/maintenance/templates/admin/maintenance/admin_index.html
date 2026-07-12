@@ -1,0 +1,17 @@
+{% extends "admin/index.html" %}
+{% block content %}
+    {% if user.is_superuser %}
+        <div class="module">
+            <table>
+                <caption>Maintenance</caption>
+                <tr>
+                    <th scope="row">
+                        <a href="{% url 'admin:maintenance_index' %}">Maintenance operations</a>
+                    </th>
+                    <td>One-off data repairs and long-running backfills, with audit records.</td>
+                </tr>
+            </table>
+        </div>
+    {% endif %}
+    {{ block.super }}
+{% endblock content %}

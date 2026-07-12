@@ -7,7 +7,6 @@ from gyrinx.core.cost.propagation import (
     propagate_from_assignment,
     propagate_from_fighter,
 )
-from gyrinx.core.cost.routing import is_stash_linked
 from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
 
@@ -31,10 +30,9 @@ def test_transact_delta_properties(make_list):
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_basic(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
-    """Test basic assignment propagation updates assignment and fighter, but NOT list."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    """Test basic assignment propagation updates assignment, fighter, and list."""
 
     lst = make_list("Test List")
     lst.rating_current = 0
@@ -70,18 +68,17 @@ def test_propagate_from_assignment_basic(
     assert fighter.rating_current == 50
     assert fighter.dirty is False
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list rating updated (regular fighter's gear moves the rating book)
     lst.refresh_from_db()
-    assert lst.rating_current == 0  # Still 0!
+    assert lst.rating_current == 50
     assert lst.stash_current == 0
 
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_stash(
-    settings, user, make_list, content_house, make_content_fighter, make_equipment
+    user, make_list, content_house, make_content_fighter, make_equipment
 ):
-    """Test assignment propagation updates fighter but NOT list (even for stash)."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    """Test assignment propagation on stash gear moves the list's stash book."""
 
     lst = make_list("Test List")
     lst.rating_current = 0
@@ -121,18 +118,17 @@ def test_propagate_from_assignment_stash(
     fighter.refresh_from_db()
     assert fighter.rating_current == 50
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list stash updated (stash fighter's gear moves the stash book)
     lst.refresh_from_db()
     assert lst.rating_current == 0
-    assert lst.stash_current == 0  # Still 0!
+    assert lst.stash_current == 50
 
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_negative_delta(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles cost decreases."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -164,9 +160,9 @@ def test_propagate_from_assignment_negative_delta(
     fighter.refresh_from_db()
     assert fighter.rating_current == 50
 
-    # Check list NOT updated
+    # Check list updated by the negative delta
     lst.refresh_from_db()
-    assert lst.rating_current == 100  # Still 100!
+    assert lst.rating_current == 50
 
     # Check return value
     assert result.delta == -50
@@ -174,10 +170,9 @@ def test_propagate_from_assignment_negative_delta(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_zero_delta(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation handles no change gracefully."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -221,9 +216,8 @@ def test_propagate_from_assignment_zero_delta(
 
 
 @pytest.mark.django_db
-def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter):
-    """Test basic fighter propagation updates fighter but NOT list."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+def test_propagate_from_fighter_basic(user, make_list, content_fighter):
+    """Test basic fighter propagation updates fighter and list."""
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -247,17 +241,16 @@ def test_propagate_from_fighter_basic(settings, user, make_list, content_fighter
     assert fighter.rating_current == 150
     assert fighter.dirty is False
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list updated (regular fighter moves the rating book)
     lst.refresh_from_db()
-    assert lst.rating_current == 100  # Still 100!
+    assert lst.rating_current == 150
 
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_stash(
-    settings, user, make_list, content_house, make_content_fighter
+    user, make_list, content_house, make_content_fighter
 ):
-    """Test fighter propagation updates fighter but NOT list (even for stash)."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    """Test fighter propagation on the stash fighter moves the stash book."""
 
     lst = make_list("Test List")
     lst.rating_current = 0
@@ -288,164 +281,21 @@ def test_propagate_from_fighter_stash(
     assert fighter.rating_current == 150
     assert fighter.dirty is False
 
-    # Check list NOT updated (propagation doesn't touch List)
+    # Check list stash updated (stash fighter moves the stash book)
     lst.refresh_from_db()
     assert lst.rating_current == 0
-    assert lst.stash_current == 100  # Still 100!
-
-
-@pytest.mark.django_db
-def test_is_stash_linked_direct_stash_fighter(
-    settings, user, make_list, content_house, make_content_fighter
-):
-    """Test is_stash_linked identifies direct stash fighters."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = make_list("Test List")
-    stash_fighter_template = make_content_fighter(
-        type="Stash",
-        category="Crew",
-        house=content_house,
-        base_cost=0,
-        is_stash=True,
-    )
-    fighter = ListFighter.objects.create(
-        name="Stash Fighter",
-        content_fighter=stash_fighter_template,
-        list=lst,
-        owner=user,
-    )
-
-    assert is_stash_linked(fighter) is True
-
-
-@pytest.mark.django_db
-def test_is_stash_linked_regular_fighter(settings, user, make_list, content_fighter):
-    """Test is_stash_linked returns False for regular fighters."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = make_list("Test List")
-    fighter = ListFighter.objects.create(
-        name="Regular Fighter",
-        content_fighter=content_fighter,
-        list=lst,
-        owner=user,
-    )
-
-    assert is_stash_linked(fighter) is False
-
-
-@pytest.mark.django_db
-def test_is_stash_linked_child_fighter_on_stash(
-    settings, user, make_list, content_house, make_content_fighter, make_equipment
-):
-    """Test is_stash_linked identifies child fighters linked to stash."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = make_list("Test List")
-
-    # Create stash fighter
-    stash_fighter_template = make_content_fighter(
-        type="Stash",
-        category="Crew",
-        house=content_house,
-        base_cost=0,
-        is_stash=True,
-    )
-    stash_fighter = ListFighter.objects.create(
-        name="Stash Fighter",
-        content_fighter=stash_fighter_template,
-        list=lst,
-        owner=user,
-    )
-
-    # Create vehicle equipment on stash fighter
-    vehicle_equipment = make_equipment("Vehicle", cost="100")
-    vehicle_assignment = ListFighterEquipmentAssignment.objects.create(
-        list_fighter=stash_fighter,
-        content_equipment=vehicle_equipment,
-    )
-
-    # Create child fighter (vehicle) linked to the assignment
-    vehicle_fighter_template = make_content_fighter(
-        type="Vehicle",
-        category="Crew",
-        house=content_house,
-        base_cost=100,
-    )
-    vehicle_fighter = ListFighter.objects.create(
-        name="Vehicle",
-        content_fighter=vehicle_fighter_template,
-        list=lst,
-        owner=user,
-    )
-    vehicle_assignment.child_fighter = vehicle_fighter
-    vehicle_assignment.save()
-
-    # Child fighter should be stash-linked through parent
-    assert is_stash_linked(vehicle_fighter) is True
-
-
-@pytest.mark.django_db
-def test_is_stash_linked_child_fighter_on_regular(
-    settings,
-    user,
-    make_list,
-    content_fighter,
-    content_house,
-    make_content_fighter,
-    make_equipment,
-):
-    """Test is_stash_linked returns False for child fighters on regular fighters."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = make_list("Test List")
-
-    # Create regular fighter
-    regular_fighter = ListFighter.objects.create(
-        name="Regular Fighter",
-        content_fighter=content_fighter,
-        list=lst,
-        owner=user,
-    )
-
-    # Create vehicle equipment on regular fighter
-    vehicle_equipment = make_equipment("Vehicle", cost="100")
-    vehicle_assignment = ListFighterEquipmentAssignment.objects.create(
-        list_fighter=regular_fighter,
-        content_equipment=vehicle_equipment,
-    )
-
-    # Create child fighter (vehicle) linked to the assignment
-    vehicle_fighter_template = make_content_fighter(
-        type="Vehicle",
-        category="Crew",
-        house=content_house,
-        base_cost=100,
-    )
-    vehicle_fighter = ListFighter.objects.create(
-        name="Vehicle",
-        content_fighter=vehicle_fighter_template,
-        list=lst,
-        owner=user,
-    )
-    vehicle_assignment.child_fighter = vehicle_fighter
-    vehicle_assignment.save()
-
-    # Child fighter should NOT be stash-linked
-    assert is_stash_linked(vehicle_fighter) is False
+    assert lst.stash_current == 150
 
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_allows_negative_assignment_rating(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation allows negative assignment ratings.
 
     This can happen when a cost override makes an equipment item "free" or
     negative-cost, resulting in a negative rating.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -483,14 +333,13 @@ def test_propagate_from_assignment_allows_negative_assignment_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_assignment_allows_negative_fighter_rating(
-    settings, user, make_list, content_fighter, make_equipment
+    user, make_list, content_fighter, make_equipment
 ):
     """Test assignment propagation allows negative fighter ratings.
 
     This can happen when equipment has negative cost (e.g., Goliath
     gene-smithing), making the fighter's total rating negative.
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 50
@@ -527,14 +376,13 @@ def test_propagate_from_assignment_allows_negative_fighter_rating(
 
 @pytest.mark.django_db
 def test_propagate_from_fighter_allows_negative_rating(
-    settings, user, make_list, content_fighter
+    user, make_list, content_fighter
 ):
     """Test fighter propagation allows negative ratings.
 
     This can happen when a fighter's cost is reduced below zero through
     negative-cost equipment (e.g., Goliath gene-smithing).
     """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = make_list("Test List")
     lst.rating_current = 100
@@ -558,88 +406,7 @@ def test_propagate_from_fighter_allows_negative_rating(
     assert fighter.rating_current == -20
     assert fighter.dirty is False
 
-    # List should NOT be updated by propagation
+    # List rating moves by the delta, clamped at zero (the field is
+    # positive-only even though fighter caches can go negative)
     lst.refresh_from_db()
-    assert lst.rating_current == 100
-
-
-@pytest.mark.django_db
-def test_propagate_from_assignment_skips_without_latest_action(
-    settings, user, make_list, content_fighter, make_equipment
-):
-    """Test assignment propagation is skipped when list has no latest_action.
-
-    When the list action system is not enabled (no latest_action), propagation
-    should be skipped and the input delta returned unchanged.
-    """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = make_list("Test List", create_initial_action=False)
-    lst.rating_current = 0
-    lst.stash_current = 0
-    lst.save()
-    # Note: create_initial_action=False means no latest_action, so propagation is skipped
-
-    fighter = ListFighter.objects.create(
-        name="Test Fighter",
-        content_fighter=content_fighter,
-        list=lst,
-        owner=user,
-        rating_current=0,
-    )
-    equipment = make_equipment("Test Equipment", cost="50")
-    assignment = ListFighterEquipmentAssignment.objects.create(
-        list_fighter=fighter,
-        content_equipment=equipment,
-        rating_current=0,
-        dirty=True,
-    )
-
-    # Propagate a cost increase - should be skipped
-    delta = Delta(delta=50, list=lst)
-    propagate_from_assignment(assignment, delta)
-
-    # Check assignment NOT updated (propagation skipped)
-    assignment.refresh_from_db()
-    assert assignment.rating_current == 0
-    assert assignment.dirty is True  # Still dirty
-
-    # Check fighter NOT updated
-    fighter.refresh_from_db()
-    assert fighter.rating_current == 0
-
-
-@pytest.mark.django_db
-def test_propagate_from_fighter_skips_without_latest_action(
-    settings, user, make_list, content_fighter
-):
-    """Test fighter propagation is skipped when list has no latest_action.
-
-    When the list action system is not enabled (no latest_action), propagation
-    should be skipped and the input delta returned unchanged.
-    """
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
-
-    lst = make_list("Test List", create_initial_action=False)
-    lst.rating_current = 100
-    lst.stash_current = 0
-    lst.save()
-    # Note: create_initial_action=False means no latest_action, so propagation is skipped
-
-    fighter = ListFighter.objects.create(
-        name="Test Fighter",
-        content_fighter=content_fighter,
-        list=lst,
-        owner=user,
-        rating_current=100,
-        dirty=True,
-    )
-
-    # Propagate a fighter cost change - should be skipped
-    delta = Delta(delta=50, list=lst)
-    propagate_from_fighter(fighter, delta)
-
-    # Check fighter NOT updated (propagation skipped)
-    fighter.refresh_from_db()
-    assert fighter.rating_current == 100
-    assert fighter.dirty is True  # Still dirty
+    assert lst.rating_current == 30

@@ -91,12 +91,8 @@ def stash_fighter_with_xp(list_with_campaign, stash_fighter_type, user):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
-def test_handle_fighter_advancement_stat_campaign_mode(
-    user, fighter_with_xp, settings, feature_flag_enabled
-):
+def test_handle_fighter_advancement_stat_campaign_mode(user, fighter_with_xp):
     """Test stat advancement in campaign mode creates correct ListAction."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = fighter_with_xp.list
     lst.credits_current = 1000
@@ -121,16 +117,13 @@ def test_handle_fighter_advancement_stat_campaign_mode(
     assert result.advancement is not None
     assert result.cost_increase == cost_increase
 
-    # Verify ListAction based on feature flag
-    if feature_flag_enabled:
-        assert result.update_action is not None
-        assert result.update_action.action_type == ListActionType.UPDATE_FIGHTER
-        assert result.update_action.rating_delta == cost_increase
-        assert result.update_action.stash_delta == 0
-        assert result.update_action.credits_delta == 0
-        assert result.update_action.rating_before == rating_before
-    else:
-        assert result.update_action is None
+    # Verify ListAction
+    assert result.update_action is not None
+    assert result.update_action.action_type == ListActionType.UPDATE_FIGHTER
+    assert result.update_action.rating_delta == cost_increase
+    assert result.update_action.stash_delta == 0
+    assert result.update_action.credits_delta == 0
+    assert result.update_action.rating_before == rating_before
 
     # Verify fighter XP deducted (always happens)
     fighter_with_xp.refresh_from_db()
@@ -142,10 +135,9 @@ def test_handle_fighter_advancement_stat_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_skill_campaign_mode(
-    user, fighter_with_xp, content_skill, settings
+    user, fighter_with_xp, content_skill
 ):
     """Test skill advancement creates correct ListAction."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -175,10 +167,9 @@ def test_handle_fighter_advancement_skill_campaign_mode(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_equipment_campaign_mode(
-    user, fighter_with_xp, content_advancement_assignment, settings
+    user, fighter_with_xp, content_advancement_assignment
 ):
     """Test equipment advancement creates both UPDATE_FIGHTER and ADD_EQUIPMENT actions."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -215,11 +206,8 @@ def test_handle_fighter_advancement_equipment_campaign_mode(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_other_campaign_mode(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_other_campaign_mode(user, fighter_with_xp):
     """Test 'other' advancement with free-text description."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -243,12 +231,10 @@ def test_handle_fighter_advancement_other_campaign_mode(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("feature_flag_enabled", [True, False])
 def test_handle_fighter_advancement_list_building_mode(
-    user, make_list, content_fighter, content_skill, settings, feature_flag_enabled
+    user, make_list, content_fighter, content_skill
 ):
     """Test advancement in list building mode (no CampaignAction created)."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = feature_flag_enabled
 
     lst = make_list("List Building List")
     lst.rating_current = 500
@@ -275,11 +261,8 @@ def test_handle_fighter_advancement_list_building_mode(
 
     assert result is not None
 
-    # ListAction based on feature flag
-    if feature_flag_enabled:
-        assert result.update_action is not None
-    else:
-        assert result.update_action is None
+    # Verify ListAction
+    assert result.update_action is not None
 
     # No CampaignAction in list building mode (regardless of flag)
     assert result.campaign_action is None
@@ -289,11 +272,8 @@ def test_handle_fighter_advancement_list_building_mode(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_rating_delta_regular_fighter(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_rating_delta_regular_fighter(user, fighter_with_xp):
     """Test regular fighter: rating_delta = cost_increase, stash_delta = 0."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -335,11 +315,8 @@ def test_handle_fighter_advancement_stash_fighter_rejected(user, stash_fighter_w
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_before_values_captured(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_before_values_captured(user, fighter_with_xp):
     """Test correct rating_before, stash_before, credits_before values."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -363,9 +340,8 @@ def test_handle_fighter_advancement_before_values_captured(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_credits_delta_zero(user, fighter_with_xp, settings):
+def test_handle_fighter_advancement_credits_delta_zero(user, fighter_with_xp):
     """Test advancements cost XP not credits, so credits_delta = 0."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.credits_current = 1000
@@ -551,17 +527,18 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
     make_content_fighter,
     make_equipment,
     content_equipment_categories,
-    settings,
 ):
-    """Test child fighter (vehicle/beast) linked to stash parent uses stash_delta."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
+    """A child fighter linked to stash gear books and applies to RATING.
+
+    The recompute (facts_from_db) buckets every non-stash fighter's own cost
+    into the rating book — a child vehicle/beast counts toward rating even
+    when its parent equipment sits on the stash. Record and apply must both
+    follow that, or the action chain and the caches diverge.
+    """
 
     from gyrinx.content.models import ContentEquipmentFighterProfile
 
     lst = list_with_campaign
-    lst.rating_current = 500
-    lst.stash_current = 100
-    lst.save()
 
     # Create stash fighter type
     stash_type = make_content_fighter(
@@ -610,6 +587,12 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
     )
     child_fighter.source_assignment.add(equipment_assignment)
 
+    # Anchor the caches to the real fighters before advancing, so the
+    # record/apply/recompute comparison below is meaningful.
+    lst.facts_from_db(update=True)
+    rating_before = lst.rating_current
+    stash_before = lst.stash_current
+
     cost_increase = 30
 
     result = handle_fighter_advancement(
@@ -622,9 +605,22 @@ def test_handle_fighter_advancement_child_fighter_stash_linked(
         stat_increased="toughness",
     )
 
-    # Child fighter linked to stash should use stash_delta
-    assert result.update_action.rating_delta == 0
-    assert result.update_action.stash_delta == cost_increase
+    # Record and apply both land in the rating book, matching facts_from_db
+    assert result.update_action.rating_delta == cost_increase
+    assert result.update_action.stash_delta == 0
+
+    lst.refresh_from_db()
+    assert lst.rating_current == rating_before + cost_increase
+    assert lst.stash_current == stash_before
+
+    # And the caches agree with a from-scratch recompute (record == apply
+    # == recompute — the divergence this test exists to prevent).
+    from gyrinx.core.models.list import List
+
+    clean = List.objects.with_related_data(with_fighters=True).get(pk=lst.pk)
+    computed = clean.facts_from_db(update=False)
+    assert computed.rating == clean.rating_current
+    assert computed.stash == clean.stash_current
 
 
 @pytest.mark.django_db
@@ -649,10 +645,9 @@ def test_handle_fighter_advancement_skill_with_promotion(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_propagates_to_fighter_rating_current(
-    user, fighter_with_xp, settings
+    user, fighter_with_xp
 ):
     """Test that advancement propagates positive delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -688,11 +683,8 @@ def test_handle_fighter_advancement_propagates_to_fighter_rating_current(
 
 
 @pytest.mark.django_db
-def test_handle_fighter_advancement_deletion_stat_basic(
-    user, fighter_with_xp, settings
-):
+def test_handle_fighter_advancement_deletion_stat_basic(user, fighter_with_xp):
     """Test deleting a stat advancement restores XP and creates ListAction."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -740,10 +732,9 @@ def test_handle_fighter_advancement_deletion_stat_basic(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_skill_basic(
-    user, fighter_with_xp, content_skill, settings
+    user, fighter_with_xp, content_skill
 ):
     """Test deleting a skill advancement removes the skill."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -779,10 +770,9 @@ def test_handle_fighter_advancement_deletion_skill_basic(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_promotion_reversal(
-    user, fighter_with_xp, content_skill, settings
+    user, fighter_with_xp, content_skill
 ):
     """Test deleting a promotion advancement clears category_override."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -817,10 +807,9 @@ def test_handle_fighter_advancement_deletion_promotion_reversal(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_equipment_warns(
-    user, fighter_with_xp, content_advancement_assignment, settings
+    user, fighter_with_xp, content_advancement_assignment
 ):
     """Test deleting equipment advancement warns about manual removal."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -915,10 +904,9 @@ def test_handle_fighter_advancement_deletion_already_archived(user, fighter_with
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_multiple_promotions(
-    user, fighter_with_xp, make_content_skill, settings
+    user, fighter_with_xp, make_content_skill
 ):
     """Test deleting one promotion when another remains keeps correct category."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500
@@ -980,10 +968,9 @@ def test_handle_fighter_advancement_deletion_multiple_promotions(
 
 @pytest.mark.django_db
 def test_handle_fighter_advancement_deletion_propagates_to_fighter_rating_current(
-    user, fighter_with_xp, settings
+    user, fighter_with_xp
 ):
     """Test that deleting advancement propagates negative delta to fighter.rating_current."""
-    settings.FEATURE_LIST_ACTION_CREATE_INITIAL = True
 
     lst = fighter_with_xp.list
     lst.rating_current = 500

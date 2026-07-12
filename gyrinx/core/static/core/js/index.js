@@ -202,10 +202,9 @@ document.querySelectorAll("[data-clipboard-text]").forEach((element) => {
 
 // Support syncing two or more form elements
 document.querySelectorAll("[data-gy-sync]").forEach((element) => {
+    const key = element.getAttribute("data-gy-sync");
     const targets = Array.from(
-        document.querySelectorAll(
-            `[data-gy-sync=${element.getAttribute("data-gy-sync")}`,
-        ),
+        document.querySelectorAll(`[data-gy-sync="${CSS.escape(key)}"]`),
     ).filter((target) => target !== element);
 
     if (targets.length === 0) return;
@@ -222,76 +221,11 @@ document.querySelectorAll("[data-gy-sync]").forEach((element) => {
     element.addEventListener("input", dispatch);
 });
 
-// Equipment list filter toggle functionality
-document.addEventListener("DOMContentLoaded", () => {
-    const filterSwitch = document.getElementById("filter-switch");
-
-    // Find the availability button by its ID
-    const availabilityButton = document.getElementById(
-        "availability-dropdown-button",
-    );
-
-    if (filterSwitch && availabilityButton) {
-        filterSwitch.addEventListener("change", (event) => {
-            if (event.target.checked) {
-                // Equipment list is ON - disable availability
-                availabilityButton.classList.add("disabled");
-                availabilityButton.setAttribute("disabled", "");
-                availabilityButton.removeAttribute("data-bs-toggle");
-                availabilityButton.removeAttribute("aria-expanded");
-                availabilityButton.removeAttribute("data-bs-auto-close");
-
-                // Remove existing tooltip if any
-                const existingTooltip = bootstrap.Tooltip.getInstance(
-                    availabilityButton.parentElement,
-                );
-                if (existingTooltip) {
-                    existingTooltip.dispose();
-                }
-
-                // Add tooltip
-                availabilityButton.parentElement.setAttribute(
-                    "data-bs-toggle",
-                    "tooltip",
-                );
-                availabilityButton.parentElement.setAttribute(
-                    "data-bs-placement",
-                    "top",
-                );
-                availabilityButton.parentElement.setAttribute(
-                    "title",
-                    "Availability filters are disabled when Equipment List is toggled on. All equipment on the fighter's equipment list is shown regardless of availability.",
-                );
-                new bootstrap.Tooltip(availabilityButton.parentElement);
-            } else {
-                // Equipment list is OFF - enable availability
-                availabilityButton.classList.remove("disabled");
-                availabilityButton.removeAttribute("disabled");
-                availabilityButton.setAttribute("data-bs-toggle", "dropdown");
-                availabilityButton.setAttribute("aria-expanded", "false");
-                availabilityButton.setAttribute(
-                    "data-bs-auto-close",
-                    "outside",
-                );
-
-                // Remove tooltip
-                const tooltip = bootstrap.Tooltip.getInstance(
-                    availabilityButton.parentElement,
-                );
-                if (tooltip) {
-                    tooltip.dispose();
-                }
-                availabilityButton.parentElement.removeAttribute(
-                    "data-bs-toggle",
-                );
-                availabilityButton.parentElement.removeAttribute(
-                    "data-bs-placement",
-                );
-                availabilityButton.parentElement.removeAttribute("title");
-            }
-        });
-    }
-});
+// The availability dropdown's disabled state + tooltip when the equipment-list
+// filter is on is rendered server-side in
+// core/includes/fighter_gear_filter.html (the filter-switch is a GET
+// navigation, so the server re-renders the correct state on each toggle). No
+// client-side JS is needed to mirror it.
 
 // Generic handler for "All/None" filter links in dropdown menus
 function setupFilterLinks(config) {
@@ -345,7 +279,24 @@ setupFilterLinks({
 setupFilterLinks({ prefix: "house", param: "house", allValues: "all" });
 setupFilterLinks({ prefix: "status", param: "status", allValues: "all" });
 
-// Add loading spinner to form submit buttons
+// Site-wide form-submit "busy" affordance.
+//
+// This is a deliberate exception to our "JS is for one-off enhancements" rule:
+// it applies to *every* form on submit so the whole app feels responsive on
+// slow POSTs (content-pack saves, large list edits, etc.) and discourages
+// accidental double-submits. It is purely an enhancement — it never calls
+// preventDefault(), so forms still submit natively and redirects are followed
+// as normal even if this script fails to load.
+//
+// Two things keep it well-behaved:
+//   1. It is non-destructive. We keep the clicked button's original label/icon
+//      in the DOM and set aria-busy, rather than replacing the button's
+//      innerHTML. CSS (button[aria-busy]) then hides that content and shows a
+//      centred spinner over it, so nothing inside the button is thrown away and
+//      the original markup can be restored verbatim.
+//   2. It restores itself from the bfcache. A pageshow handler clears the busy
+//      state when a page is restored after pressing Back, so a form is never
+//      left stuck disabled/spinning.
 document.addEventListener("DOMContentLoaded", () => {
     const forms = document.querySelectorAll("form");
 
@@ -357,21 +308,72 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
             submitButtons.forEach((button) => {
-                // Only modify the button if it is the one that was clicked
+                // Only add the spinner to the button that was clicked, and do
+                // it non-destructively: keep the existing label/icon in place
+                // and let CSS hide it behind a centred spinner.
                 if (button.isSameNode(event.submitter)) {
-                    button.style.width = `${button.offsetWidth}px`;
-                    button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>`;
+                    button.setAttribute("aria-busy", "true");
+
+                    // <input type="submit"> can't hold child markup, so only
+                    // <button> gets a spinner element prepended.
+                    if (button.tagName === "BUTTON") {
+                        const spinner = document.createElement("span");
+                        // Centred over the button via CSS (button[aria-busy])
+                        // rather than flowed beside the label, so small /
+                        // icon-only buttons collapse to just the spinner.
+                        spinner.className = "spinner-border spinner-border-sm";
+                        spinner.setAttribute("role", "status");
+                        spinner.setAttribute("aria-hidden", "true");
+                        spinner.dataset.submitSpinner = "true";
+                        button.prepend(spinner);
+                    }
                 }
 
-                // Disable all the buttons
+                // Skip buttons that were already disabled before this submit —
+                // they aren't ours to re-enable on pageshow, so we must not tag
+                // them.
+                if (button.disabled) {
+                    return;
+                }
+
+                // Disable the (previously-enabled) buttons to prevent
+                // double-submits. We tag each one we touch so pageshow can
+                // restore exactly these.
                 // This is setTimeout to ensure it runs after the form submission starts so that any
                 // name/value attributes are still submitted.
                 setTimeout(() => {
+                    button.dataset.submitDisabled = "true";
                     button.disabled = true;
                 }, 0);
             });
         });
     });
+});
+
+// Clear the form-submit busy state when a page is restored from the bfcache
+// (e.g. pressing Back after submitting). Without this the restored DOM keeps
+// the disabled buttons and spinners, leaving the form looking permanently busy.
+// We only undo what the submit handler above set, identified by our data-*
+// markers, so buttons disabled for other reasons are left alone.
+window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) {
+        return;
+    }
+
+    // Only touch buttons we tagged. aria-busy is cleared here too (rather than
+    // via a separate document-wide [aria-busy] sweep) so we never clobber other
+    // UI that legitimately uses aria-busy.
+    document
+        .querySelectorAll('[data-submit-disabled="true"]')
+        .forEach((button) => {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+            delete button.dataset.submitDisabled;
+        });
+
+    document
+        .querySelectorAll('[data-submit-spinner="true"]')
+        .forEach((spinner) => spinner.remove());
 });
 
 // Find all checkboxes and add change event listeners to any hidden fields
@@ -383,26 +385,30 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     checkboxes.forEach((checkbox) => {
-        checkbox.addEventListener("change", (event) => {
-            // If this is a checkbox, find any hidden input with the same name in the same form
-            // and disable it when the checkbox is checked
+        // Find any hidden input with the same name in the same form and disable
+        // it when the checkbox is checked, so only one value is submitted.
+        const sync = () => {
             const form = checkbox.form || checkbox.closest("form");
-            if (form) {
-                // The input may not be within (DOM Child) of the form, so we need to use
-                // document.querySelector as a fallback to find it by name and form ID.
-                const hiddenInput =
-                    form.querySelector(
-                        `input[type="hidden"][name="${checkbox.name}"]`,
-                    ) ||
-                    document.querySelector(
-                        `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
-                    );
-                if (hiddenInput) {
-                    // Set initial state
-                    hiddenInput.disabled = checkbox.checked;
-                }
+            if (!form) return;
+            // The input may not be within (DOM Child) of the form, so we need to use
+            // document.querySelector as a fallback to find it by name and form ID.
+            const hiddenInput =
+                form.querySelector(
+                    `input[type="hidden"][name="${checkbox.name}"]`,
+                ) ||
+                document.querySelector(
+                    `input[type="hidden"][name="${checkbox.name}"][form="${form.id}"]`,
+                );
+            if (hiddenInput) {
+                hiddenInput.disabled = checkbox.checked;
             }
-        });
+        };
+
+        checkbox.addEventListener("change", sync);
+        // Set initial state on load — a pre-checked checkbox must disable its
+        // paired hidden input immediately, otherwise both values submit until
+        // the box is first toggled.
+        sync();
     });
 });
 
@@ -431,9 +437,50 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (form) {
-                // Submit the form
-                form.submit();
+                // Use requestSubmit() rather than submit() so the form's
+                // submit event fires (busy spinner) and HTML5 constraint
+                // validation runs, matching a real submit-button click.
+                // Fall back to submit() where requestSubmit is unavailable
+                // (e.g. Safari < 16), which would otherwise throw.
+                if (form.requestSubmit) {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
             }
+        });
+    });
+});
+
+// Persist collapse open/closed state in the URL.
+//
+// Used by the campaign list summary cards (Actions / Assets / Attributes),
+// which collapse in single-column view. The server renders the initial state
+// from the query param; here we mirror each Bootstrap collapse toggle back into
+// the URL (via replaceState, so it survives reload and is linkable) without a
+// navigation. The slide animation is Bootstrap's; this is purely state-syncing.
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("[data-gy-collapse-url]").forEach((el) => {
+        const key = el.getAttribute("data-gy-collapse-url");
+        if (!key) return;
+
+        const setParam = (open) => {
+            const url = new URL(window.location.href);
+            if (open) {
+                url.searchParams.set(key, "1");
+            } else {
+                url.searchParams.delete(key);
+            }
+            window.history.replaceState(null, "", url);
+        };
+
+        // Guard on event.target so we only react to this element's own
+        // transitions, not those of any nested collapse that bubbles up.
+        el.addEventListener("shown.bs.collapse", (event) => {
+            if (event.target === el) setParam(true);
+        });
+        el.addEventListener("hidden.bs.collapse", (event) => {
+            if (event.target === el) setParam(false);
         });
     });
 });

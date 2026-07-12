@@ -37,6 +37,7 @@ from .metadata import (
 
 # Core domain models
 from .house import ContentFighterHouseOverride, ContentHouse
+from .gang_skills import ContentHouseSkillRankAccess
 from .equipment import (
     ContentEquipment,
     ContentEquipmentCategory,
@@ -90,6 +91,10 @@ from .injury import (
     ContentInjury,
     ContentInjuryDefaultOutcome,
     ContentInjuryGroup,
+)
+from .battle import (
+    ContentBattleRole,
+    ContentBattleRoleOption,
 )
 from .counter import ContentCounter
 from .roll_table import (
@@ -157,6 +162,7 @@ __all__ = [
     # Houses
     "ContentFighterHouseOverride",
     "ContentHouse",
+    "ContentHouseSkillRankAccess",
     # Equipment
     "ContentEquipment",
     "ContentEquipmentCategory",
@@ -203,6 +209,9 @@ __all__ = [
     "ContentInjury",
     "ContentInjuryDefaultOutcome",
     "ContentInjuryGroup",
+    # Battle roles
+    "ContentBattleRole",
+    "ContentBattleRoleOption",
     # Equipment Lists
     "ContentFighterEquipmentListItem",
     "ContentFighterEquipmentListUpgrade",

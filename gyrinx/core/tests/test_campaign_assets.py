@@ -226,6 +226,47 @@ def test_campaign_assets_view():
 
 
 @pytest.mark.django_db
+def test_campaign_assets_view_sanitizes_descriptions():
+    """Script tags in asset/asset-type descriptions must be stripped on render."""
+    client = Client()
+    user = User.objects.create_user(username="testuser", password="testpass")
+    client.login(username="testuser", password="testpass")
+
+    campaign = Campaign.objects.create(
+        name="Test Campaign",
+        owner=user,
+        public=True,
+    )
+
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        description='<script>alert("type")</script><p>Safe type text</p>',
+        owner=user,
+    )
+
+    CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description='<img src=x onerror="alert(1)"><p>Safe asset text</p>',
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign-assets", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Sanitised rich text drops the <script> wrapper and the onerror handler so
+    # nothing executes; benign markup/text survives. (bleach keeps inert text
+    # content, and the page has its own legitimate <script> tags, so assert
+    # against the executable constructs rather than substrings like "alert".)
+    assert "<script>alert" not in content
+    assert "onerror" not in content
+    assert "Safe type text" in content
+    assert "Safe asset text" in content
+
+
+@pytest.mark.django_db
 def test_create_asset_type_view():
     """Test creating an asset type through the view."""
     client = Client()

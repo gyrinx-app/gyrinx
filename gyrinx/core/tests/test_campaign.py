@@ -269,7 +269,9 @@ def test_campaign_create_edit_forms():
 
 
 @pytest.mark.django_db
-def test_campaign_automatically_creates_reputation_resource():
+def test_campaign_automatically_creates_reputation_resource(
+    django_capture_on_commit_callbacks,
+):
     """Test that creating a campaign automatically creates a Reputation resource."""
     client = Client()
 
@@ -317,8 +319,9 @@ def test_campaign_automatically_creates_reputation_resource():
     )
     campaign.lists.add(list1)
 
-    # Start the campaign
-    assert campaign.start_campaign() is True
+    # Start the campaign (Phase 2 clone/resource task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign() is True
 
     # Verify reputation was allocated to the cloned list
     cloned_list = campaign.lists.first()
@@ -404,7 +407,7 @@ def test_campaign_xss_protection_recommendation():
 
 
 @pytest.mark.django_db
-def test_campaign_prevents_duplicate_list_cloning():
+def test_campaign_prevents_duplicate_list_cloning(django_capture_on_commit_callbacks):
     """Test that campaigns prevent duplicate cloning of lists."""
     # Create test users
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -429,8 +432,9 @@ def test_campaign_prevents_duplicate_list_cloning():
     # Add the list to the campaign
     campaign.lists.add(original_list)
 
-    # Start the campaign (should clone the list)
-    assert campaign.start_campaign() is True
+    # Start the campaign (Phase 2 clone task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign() is True
 
     # Verify the campaign is now in progress
     campaign.refresh_from_db()
@@ -758,7 +762,9 @@ def test_campaign_action_list_timeframe_filtering():
 
 
 @pytest.mark.django_db
-def test_campaign_restart_with_existing_clones_no_integrity_error():
+def test_campaign_restart_with_existing_clones_no_integrity_error(
+    django_capture_on_commit_callbacks,
+):
     """Test that restarting a campaign with existing clones doesn't cause IntegrityError."""
     # Create test user
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -799,8 +805,9 @@ def test_campaign_restart_with_existing_clones_no_integrity_error():
     # Add the list to the campaign
     campaign.lists.add(original_list)
 
-    # Start the campaign (should clone the list and allocate resources)
-    assert campaign.start_campaign() is True
+    # Start the campaign (Phase 2 clone + resource task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign() is True
 
     # Verify resources were allocated
     cloned_list = campaign.lists.first()
@@ -818,7 +825,8 @@ def test_campaign_restart_with_existing_clones_no_integrity_error():
 
     # Start the campaign again - this should NOT raise IntegrityError
     # The fix uses get_or_create instead of create
-    assert campaign.start_campaign() is True
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign() is True
 
     # Verify we still have the same resources (not duplicated)
     campaign.refresh_from_db()
@@ -914,7 +922,9 @@ def test_add_list_to_in_progress_campaign_with_existing_resources():
 
 
 @pytest.mark.django_db
-def test_campaign_resource_allocation_race_condition():
+def test_campaign_resource_allocation_race_condition(
+    django_capture_on_commit_callbacks,
+):
     """Test that resource allocation is safe even when called multiple times (simulating race conditions)."""
     # Create test user
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -949,8 +959,9 @@ def test_campaign_resource_allocation_race_condition():
     # Add the list to the campaign
     campaign.lists.add(original_list)
 
-    # Start the campaign
-    assert campaign.start_campaign() is True
+    # Start the campaign (Phase 2 clone + resource task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign() is True
 
     # Get the cloned list
     cloned_list = campaign.lists.first()

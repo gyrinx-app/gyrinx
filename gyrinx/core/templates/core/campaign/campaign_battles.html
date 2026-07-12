@@ -1,7 +1,7 @@
 {% extends "core/layouts/base.html" %}
 {% load custom_tags color_tags %}
 {% block head_title %}
-    Battles - {{ campaign.name }}
+    {% if show_archived %}Archived battles{% else %}Battles{% endif %} - {{ campaign.name }}
 {% endblock head_title %}
 {% block content %}
     {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
@@ -9,7 +9,14 @@
         <div class="vstack gap-0 mb-2">
             <div class="hstack gap-2 mb-2 align-items-start align-items-md-center">
                 <div class="d-flex flex-column flex-md-row flex-grow-1 align-items-start align-items-md-center gap-2">
-                    <h1 class="h3 mb-0">Battles</h1>
+                    <h1 class="h3 mb-0">{% if show_archived %}Archived battles{% else %}Battles{% endif %}</h1>
+                    {% if show_archived %}
+                        <a href="{% url 'core:campaign-battles' campaign.id %}"
+                           class="fs-7 linked ms-md-auto">← Active battles</a>
+                    {% elif archived_count %}
+                        <a href="{% url 'core:campaign-battles' campaign.id %}?archived=1"
+                           class="fs-7 linked ms-md-auto">View {{ archived_count }} archived →</a>
+                    {% endif %}
                 </div>
             </div>
             <div class="text-secondary">{{ campaign.name }}</div>
@@ -22,7 +29,12 @@
             </div>
         {% else %}
             <div class="border rounded p-2">
-                <i class="bi-info-circle"></i> No battles have been recorded in this campaign yet.
+                <i class="bi-info-circle"></i>
+                {% if show_archived %}
+                    No archived battles in this Campaign.
+                {% else %}
+                    No battles have been recorded in this Campaign yet.
+                {% endif %}
             </div>
         {% endif %}
     </div>
