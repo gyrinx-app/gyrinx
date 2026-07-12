@@ -257,6 +257,19 @@ a[data-bs-toggle="tooltip"] {
     }
 }
 
+// Body-coloured `.linked` for inline names in metadata rows, where secondary
+// reads too muted next to default-colour punctuation (e.g. comma-separated
+// arbitrator names on the campaign page).
+.linked-body {
+    @extend .linked;
+    color: var(--bs-body-color);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-body-color);
+    }
+}
+
 // Danger-coloured `.linked`. Replaces the old
 // `link-danger link-underline-opacity-50 link-underline-opacity-100-hover`.
 // Colour is set directly (not `@extend .link-danger`) for the same reason as

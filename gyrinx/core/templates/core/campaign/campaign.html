@@ -187,10 +187,10 @@
                     <div>
                         {% spaceless %}
                             <a href="{% url 'core:user' campaign.owner.username %}"
-                               class="linked-secondary">{{ campaign.owner }}</a>
+                               class="linked-body">{{ campaign.owner }}</a>
                             {% for admin in campaign.admins.all %}
-                                <span>,&nbsp;</span>
-                                <a href="{% url 'core:user' admin.username %}" class="linked-secondary">{{ admin }}</a>
+                                <span>,&#32;</span>
+                                <a href="{% url 'core:user' admin.username %}" class="linked-body">{{ admin }}</a>
                             {% endfor %}
                         {% endspaceless %}
                     </div>
@@ -218,11 +218,11 @@
                                 {% spaceless %}
                                     {% for pack in campaign_packs %}
                                         {% if pack.listed or pack.owner == request.user %}
-                                            <a href="{% url 'core:pack' pack.id %}" class="linked-secondary">{{ pack.name }}</a>
+                                            <a href="{% url 'core:pack' pack.id %}" class="linked-body">{{ pack.name }}</a>
                                         {% else %}
                                             <span>{{ pack.name }}</span>
                                         {% endif %}
-                                        {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
+                                        {% if not forloop.last %}<span>,&#32;</span>{% endif %}
                                     {% endfor %}
                                 {% endspaceless %}
                             </div>
