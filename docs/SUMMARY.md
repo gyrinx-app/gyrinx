@@ -56,6 +56,8 @@
 - [Injuries](content-library/injuries.md)
 - [Gang Attributes](content-library/gang-attributes.md)
 - [Advancements](content-library/advancements.md)
+- [Counters & Roll Tables](content-library/counters-and-roll-tables.md)
+- [Battle Roles](content-library/battle-roles.md)
 - [Content Packs](content-library/content-packs.md)
 - [Reference Library](content-library/reference-library.md)
 
