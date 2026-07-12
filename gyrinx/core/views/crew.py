@@ -10,7 +10,7 @@ canonical cost, credits, or audit stream.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -73,6 +73,9 @@ def crew_new(request, battle_id):
     battle = _get_battle(battle_id)
 
     list_id = request.POST.get("list") or request.GET.get("list")
+    if not list_id:
+        messages.error(request, "No gang was specified for the crew.")
+        return _redirect_battle(battle)
     gang = get_object_or_404(List, id=list_id)
 
     if not battle.participants.filter(pk=gang.pk).exists():
@@ -99,8 +102,21 @@ def crew_new(request, battle_id):
             # Owned by the gang's player (list-scoped convention), even when an
             # arbitrator creates it; save_with_user records who acted.
             crew.owner = gang.owner
-            crew.save_with_user(user=request.user)
-            crew.chosen_fighters.set(form.cleaned_data["chosen_fighters"])
+            try:
+                # Savepoint so a lost race on the (battle, list) unique
+                # constraint rolls back cleanly and leaves the outer
+                # transaction usable for the redirect lookup below.
+                with transaction.atomic():
+                    crew.save_with_user(user=request.user)
+                    crew.chosen_fighters.set(form.cleaned_data["chosen_fighters"])
+            except IntegrityError:
+                existing = Crew.objects.filter(battle=battle, list=gang).first()
+                if existing:
+                    messages.info(
+                        request, f"{gang.name} already has a crew for this battle."
+                    )
+                    return _redirect_crew(existing)
+                raise
             messages.success(request, "Crew created.")
             return _redirect_crew(crew)
     else:
