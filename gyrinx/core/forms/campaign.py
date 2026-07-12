@@ -4,6 +4,8 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from gyrinx.core.forms import BsCheckboxSelectMultiple
+
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -178,7 +180,9 @@ class EditCampaignForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "admins": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+            "admins": BsCheckboxSelectMultiple(
+                attrs={"class": "form-check-input"},
+            ),
             "budget": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
             "phase": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g., Occupation"}
