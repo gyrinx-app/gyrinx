@@ -1802,6 +1802,34 @@ class ListFighter(AppBase):
             + sum(e.cost_int() for e in self.displayed_assignments_cached)
         )
 
+    def cost_int_for_equipment_set(self, equipment_set) -> int:
+        """Fighter cost scoped to a given equipment set (``None`` = full kit).
+
+        Like :attr:`selected_cost_int` but for an *arbitrary* set rather than
+        the fighter's persisted active one — used for crew rating (#1346), where
+        a member brings a specific battle loadout. Virtual: never persisted,
+        never feeds credits/audit. Only the fighter's own direct ("assigned")
+        equipment is toggled by a set; innate/default kit always counts, as do
+        base/advancement/roll-result costs (a set scopes equipment, not the
+        fighter's own costs) — so a set covering everything equals ``None``.
+        """
+        if self.should_have_zero_cost:
+            return 0
+        if equipment_set is None:
+            return self.cost_int_cached
+        shown_ids = {a.id for a in equipment_set.assignments.all()}
+        shown = [
+            a
+            for a in self.assignments_cached
+            if a.kind() != "assigned" or a.id in shown_ids
+        ]
+        return (
+            self._base_cost_int
+            + self._advancement_cost_int
+            + self._roll_result_cost_int
+            + sum(e.cost_int() for e in shown)
+        )
+
     @cached_property
     def has_reduced_equipment_selection(self) -> bool:
         """True when the active set hides some costed equipment.

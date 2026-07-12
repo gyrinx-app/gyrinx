@@ -8,6 +8,7 @@ from django.views import generic
 
 from gyrinx.core.forms.battle import BattleForm, BattleNoteForm, BattleRolesForm
 from gyrinx.core.models import Battle, Campaign, CampaignAction
+from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
@@ -74,9 +75,6 @@ class BattleDetailView(generic.DetailView):
             context["can_add_notes"] = False
             context["user_note"] = None
 
-        # Participants grouped by role (Attacker/Defender/unassigned)
-        context["participant_groups"] = battle.participants_grouped_by_role()
-
         # Battle state, plus the start/end actions for people who can manage it.
         context["state_display"] = battle.states.display
         context["state_current"] = battle.states.current
@@ -89,7 +87,64 @@ class BattleDetailView(generic.DetailView):
         # Get associated campaign actions with related data
         context["actions"] = battle.get_actions().select_related("user", "list")
 
+        # Participants grouped by role, each gang carrying its rating and its
+        # crew (battle flow step 3: a virtual sub-gang per participating gang).
+        self._add_participant_context(context, battle, user)
+
         return context
+
+    def _add_participant_context(self, context, battle, user):
+        """Build the participants table: gangs grouped by role, each carrying its
+        rating and its crew inlined as a sub-row (or an 'add crew' affordance).
+        """
+        # One crew summary per gang that has one, keyed by gang id.
+        crews = list(
+            battle.crews.select_related("list").prefetch_related(
+                "members", "chosen_fighters"
+            )
+        )
+        crew_by_gang = {}
+        for crew in crews:
+            # Only the rating and pending-roll flag are needed here, so skip the
+            # full receipt() (which also builds the extras breakdown). A pending
+            # draw leaves the rating unknown, so don't compute it at all.
+            pending = crew.pending_roll
+            crew_by_gang[crew.list_id] = {
+                "crew": crew,
+                "method_label": crew.method_label(),
+                "rating": None if pending else crew.rating(),
+                "pending_roll": pending,
+            }
+
+        # Whether this user may add a crew to a gang that hasn't got one yet.
+        # The outer guard is a fast-path so anon/archived skip the per-gang work.
+        can_add_any = user.is_authenticated and not (
+            battle.archived or battle.campaign.archived
+        )
+        # winners is prefetched in get_object(); read the cache, not a new query.
+        winner_ids = {w.id for w in battle.winners.all()}
+
+        groups = []
+        for group in battle.participants_grouped_by_role():
+            rows = []
+            for entry in group["participants"]:
+                gang = entry.list
+                crew = crew_by_gang.get(gang.id)
+                rows.append(
+                    {
+                        "list": gang,
+                        "is_winner": gang.id in winner_ids,
+                        "rating": gang.rating_current,
+                        "crew": crew,
+                        "can_add_crew": (
+                            crew is None
+                            and can_add_any
+                            and Crew.can_manage_new(user, battle, gang)
+                        ),
+                    }
+                )
+            groups.append({"role_option": group["role_option"], "participants": rows})
+        context["participant_groups"] = groups
 
 
 @login_required

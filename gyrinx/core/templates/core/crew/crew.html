@@ -1,0 +1,235 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags color_tags %}
+{% block head_title %}
+    {{ crew }} - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:battle' battle.id as battle_url %}
+    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=battle_url current=crew %}
+    <div class="col-12 col-md-10 col-lg-7 px-0 vstack gap-4">
+        <!-- Header -->
+        <div class="vstack gap-0">
+            <div class="caps-label">Crew</div>
+            <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
+                <h1 class="h2 mb-0">{{ crew }}</h1>
+                <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
+                    <a href="{% url 'core:list-print' crew.list.id %}?crew={{ crew.id }}"
+                       class="btn btn-secondary btn-sm"><i class="bi-printer"></i> Print</a>
+                    {% if can_manage %}
+                        {% if not crew.is_locked %}
+                            <a href="{% url 'core:crew-lock' battle.id crew.id %}"
+                               class="btn btn-primary btn-sm"><i class="bi-dice-5"></i> {% if crew.pending_roll %}Roll for selection{% else %}Confirm crew{% endif %}</a>
+                            <a href="{% url 'core:crew-edit' battle.id crew.id %}"
+                               class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
+                        {% endif %}
+                        <a href="{% url 'core:crew-delete' battle.id crew.id %}"
+                           class="btn btn-danger btn-sm"><i class="bi-trash"></i> Delete</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2 text-secondary fs-7">
+                <span class="badge {% if crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ crew.get_status_display }}</span>
+                <span><i class="bi-people"></i> <a class="linked" href="{% url 'core:list' crew.list.id %}">{{ crew.list.name }}</a></span>
+                <span><i class="bi-diagram-3"></i> {{ crew.method_label }}</span>
+            </div>
+        </div>
+        <!-- Crew sheet -->
+        <div class="table-responsive">
+            <table class="table table-sm table-borderless align-middle mb-0">
+                <thead>
+                    <tr class="border-bottom">
+                        <th></th>
+                        <th class="caps-label text-end">Rating</th>
+                        <th class="caps-label text-end">Credits</th>
+                        <th class="caps-label text-end">Allowance</th>
+                        {% if receipt.has_free %}<th class="caps-label text-end">Free</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="caps-label">Fighters</span>
+                                {% if can_manage and not crew.is_locked %}
+                                    <a href="{% url 'core:crew-edit' battle.id crew.id %}"
+                                       class="icon-link linked fs-7"><i class="bi-pencil"></i> Edit choices</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% for a in receipt.attendees %}
+                        <tr>
+                            <td>
+                                <strong>{{ a.name }}</strong>
+                                <span class="text-secondary fs-7">· {{ a.category }}</span>
+                                {% if a.was_random %}
+                                    <span class="badge text-bg-info ms-1"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Drawn at random">Random</span>
+                                {% endif %}
+                                <span class="text-secondary fs-7">
+                                    {% if a.loadout %}
+                                        · {{ a.loadout }}
+                                    {% elif crew.is_locked %}
+                                        · Full kit
+                                    {% endif %}
+                                    {% if can_manage and crew.is_locked %}
+                                        · <a href="{% url 'core:crew-member-loadout' battle.id crew.id a.member_id %}"
+    class="linked-secondary">Loadout</a>
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="text-end">{{ a.rating }}¢</td>
+                            <td></td>
+                            <td></td>
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                class="text-secondary fs-7">
+                                {% if crew.is_locked %}
+                                    No attendees.
+                                {% elif crew.pending_roll %}
+                                    No fighters hand-picked — all drawn from the roll.
+                                {% else %}
+                                    No fighters chosen — the whole gang attends when the crew is rolled.
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    {% if receipt.pending_roll %}
+                        <tr>
+                            <td>
+                                <span class="text-secondary"><i class="bi-dice-5"></i> +{{ receipt.random_spec }} from the roll</span>
+                                {% if can_manage %}
+                                    <a href="{% url 'core:crew-lock' battle.id crew.id %}"
+                                       class="btn btn-primary btn-sm ms-2"><i class="bi-dice-5"></i> Roll for selection</a>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      title="Unknown until you roll for selection">?</span>
+                            </td>
+                            <td></td>
+                            <td></td>
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
+                        </tr>
+                    {% endif %}
+                    <tr>
+                        <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                            class="pt-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="caps-label">Extras</span>
+                                {% if can_manage %}
+                                    <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
+                                       class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% for e in receipt.extras %}
+                        <tr>
+                            <td>
+                                {{ e.item.label }}
+                                {% if e.item.reason %}<span class="text-secondary fs-7">· {{ e.item.reason }}</span>{% endif %}
+                                {% if can_manage %}
+                                    <a href="{% url 'core:crew-extra-edit' battle.id crew.id e.item.id %}"
+                                       class="linked-secondary fs-7 ms-1"
+                                       aria-label="Edit extra"><i class="bi-pencil"></i></a>
+                                    <form method="post"
+                                          action="{% url 'core:crew-extra-delete' battle.id crew.id e.item.id %}"
+                                          class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit"
+                                                class="btn btn-link btn-sm linked-secondary p-0"
+                                                aria-label="Remove extra">
+                                            <i class="bi-trash"></i>
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                            <td></td>
+                            <td class="text-end">{% if e.credits is not None %}{{ e.credits }}¢{% endif %}</td>
+                            <td class="text-end">{% if e.allowance is not None %}{{ e.allowance }}¢{% endif %}</td>
+                            {% if receipt.has_free %}
+                                <td class="text-end">{% if e.free is not None %}{{ e.free }}¢{% endif %}</td>
+                            {% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                class="text-secondary fs-7">No extras.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    {% if receipt.has_extras %}
+                        <tr class="border-top">
+                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                class="pt-3">
+                                <span class="caps-label">Subtotals</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-secondary">Rating</td>
+                            <td class="text-end">
+                                {% if receipt.pending_roll %}
+                                    <span bs-tooltip
+                                          data-bs-toggle="tooltip"
+                                          title="Unknown until you roll for selection">?</span>
+                                {% else %}
+                                    {{ receipt.fighters_total }}¢
+                                {% endif %}
+                            </td>
+                            <td></td>
+                            <td></td>
+                            {% if receipt.has_free %}<td></td>{% endif %}
+                        </tr>
+                        <tr>
+                            <td class="text-secondary">Credits</td>
+                            <td></td>
+                            <td class="text-end">{{ receipt.credits_total }}¢</td>
+                            <td></td>
+                            {% if receipt.has_free %}<td></td>{% endif %}
+                        </tr>
+                        <tr>
+                            <td class="text-secondary">Allowance</td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end">{{ receipt.allowance_total }}¢</td>
+                            {% if receipt.has_free %}<td></td>{% endif %}
+                        </tr>
+                        {% if receipt.has_free %}
+                            <tr>
+                                <td class="text-secondary">Free</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td class="text-end">{{ receipt.free_total }}¢</td>
+                            </tr>
+                        {% endif %}
+                    {% endif %}
+                    <tr class="border-top fs-5 fw-semibold">
+                        <td>Total</td>
+                        <td class="text-end"
+                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
+                            {% if receipt.pending_roll %}
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      title="Unknown until you roll for selection">?</span>
+                            {% else %}
+                                {{ receipt.total }}¢
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+{% endblock content %}
