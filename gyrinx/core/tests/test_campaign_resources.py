@@ -36,7 +36,9 @@ def test_create_resource_type():
 
 
 @pytest.mark.django_db
-def test_campaign_start_allocates_resources(content_house):
+def test_campaign_start_allocates_resources(
+    content_house, django_capture_on_commit_callbacks
+):
     """Test that starting a campaign allocates default resources to all lists."""
     user = User.objects.create_user(username="testuser", password="testpass")
     campaign = Campaign.objects.create(
@@ -68,8 +70,9 @@ def test_campaign_start_allocates_resources(content_house):
     )
     campaign.lists.add(gang1, gang2)
 
-    # Start campaign
-    assert campaign.start_campaign()
+    # Start campaign (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign()
 
     # Check that resources were allocated
     # Note: Lists are cloned when campaign starts
@@ -464,7 +467,9 @@ def test_campaign_detail_shows_resources(content_house):
 
 
 @pytest.mark.django_db
-def test_campaign_detail_creates_missing_resources_in_progress(content_house):
+def test_campaign_detail_creates_missing_resources_in_progress(
+    content_house, django_capture_on_commit_callbacks
+):
     """Test that viewing campaign detail page creates missing resources for IN_PROGRESS campaigns."""
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -498,8 +503,9 @@ def test_campaign_detail_creates_missing_resources_in_progress(content_house):
     )
     campaign.lists.add(gang1, gang2)
 
-    # Start campaign
-    campaign.start_campaign()
+    # Start campaign (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        campaign.start_campaign()
 
     # Verify resources were created
     cloned_lists = list(campaign.lists.all())
@@ -538,7 +544,9 @@ def test_campaign_detail_creates_missing_resources_in_progress(content_house):
 
 
 @pytest.mark.django_db
-def test_campaign_detail_does_not_modify_existing_resources(content_house):
+def test_campaign_detail_does_not_modify_existing_resources(
+    content_house, django_capture_on_commit_callbacks
+):
     """Test that viewing campaign detail page does not modify existing resources."""
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -561,8 +569,9 @@ def test_campaign_detail_does_not_modify_existing_resources(content_house):
     gang = List.objects.create(name="Gang One", owner=user, content_house=content_house)
     campaign.lists.add(gang)
 
-    # Start campaign
-    campaign.start_campaign()
+    # Start campaign (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        campaign.start_campaign()
 
     # Get the cloned list
     cloned_list = campaign.lists.first()

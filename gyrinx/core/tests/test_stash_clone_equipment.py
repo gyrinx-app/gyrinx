@@ -135,7 +135,9 @@ def test_stash_equipment_not_cloned_when_no_stash_in_original():
 
 
 @pytest.mark.django_db
-def test_stash_fighter_facts_in_sync_after_campaign_start():
+def test_stash_fighter_facts_in_sync_after_campaign_start(
+    django_capture_on_commit_callbacks,
+):
     """
     Regression test: stash fighter rating_current should match equipment cost after campaign start.
 
@@ -206,8 +208,9 @@ def test_stash_fighter_facts_in_sync_after_campaign_start():
     )
     campaign.lists.add(list_obj)
 
-    # Start the campaign using the handler
-    result = handle_campaign_start(user=user, campaign=campaign)
+    # Start the campaign using the handler (Phase 2 clone task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        result = handle_campaign_start(user=user, campaign=campaign)
     assert result.campaign == campaign
 
     # Get the cloned list from the campaign

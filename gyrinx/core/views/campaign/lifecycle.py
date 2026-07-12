@@ -57,12 +57,13 @@ def start_campaign(request, id):
                 track(
                     "campaign_started",
                     campaign_id=str(campaign.id),
-                    list_count=len(result.list_results),
+                    list_count=len(result.stub_lists),
                 )
 
                 messages.success(
                     request,
-                    f"Campaign has been started! {len(result.list_results)} gang(s) joined.",
+                    f"Campaign has been started! {len(result.stub_lists)} "
+                    "gang(s) are joining — they'll be ready in a moment.",
                 )
         except ValidationError as e:
             messages.validation(request, e)

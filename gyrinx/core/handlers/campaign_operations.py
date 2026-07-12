@@ -7,11 +7,11 @@ from typing import Optional
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from gyrinx.core.handlers.list import handle_list_clone
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignListResource
+from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
 from gyrinx.tracing import traced
+from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,16 @@ class ListBudgetDistributionResult:
 
 @dataclass
 class CampaignStartResult:
-    """Result of starting a campaign."""
+    """Result of starting a campaign (Phase 1 — synchronous stub creation).
+
+    The heavy per-list work — cloning fighters/equipment/stash, distributing budget,
+    allocating resources — runs afterwards in background tasks
+    (``complete_campaign_list_clone``), so this reports only what Phase 1 created
+    synchronously: the stub lists (each in ``CLONING_IN_PROGRESS``) and the overall action.
+    """
 
     campaign: Campaign
-    list_results: list[ListBudgetDistributionResult]
+    stub_lists: list[List]
     overall_campaign_action: CampaignAction
 
 
@@ -44,23 +50,34 @@ def handle_campaign_start(
     campaign: Campaign,
 ) -> CampaignStartResult:
     """
-    Handle starting a campaign.
+    Handle starting a campaign — Phase 1 (fast, synchronous).
 
-    This owns ALL campaign start logic including:
-    - Validating campaign can be started
-    - Cloning all LIST_BUILDING lists to CAMPAIGN_MODE
-    - Distributing budget credits to each list
-    - Creating ListAction for each credit distribution
-    - Creating CampaignActions for tracking
-    - Creating CampaignListResource entries
-    - Updating campaign status to IN_PROGRESS
+    Cloning a gang runs ``facts_from_db`` and touches many rows; doing that for every
+    LIST_BUILDING list inline blocks the request for tens of seconds with 10–50 gangs
+    (issue #1222). So this splits into two phases:
+
+    Phase 1 (here, synchronous, atomic):
+    - Validate the campaign can be started.
+    - Create one lightweight **stub** list per LIST_BUILDING list — a campaign-mode clone
+      row in ``CLONING_IN_PROGRESS`` with only cheap scalar fields copied (no fighters,
+      no budget, no facts recompute) — and add it to the campaign.
+    - Flip the campaign to IN_PROGRESS and record the overall "N gangs joined" action.
+    - Enqueue one ``complete_campaign_list_clone`` task per stub (on commit).
+
+    Phase 2 (``complete_campaign_list_clone``, background, one task per stub):
+    - Populate the stub, book CLONE/CREATE actions, distribute budget, allocate resources,
+      then flip it to CAMPAIGN_MODE.
+
+    Enqueue is deferred to ``transaction.on_commit`` because in production the task worker
+    runs in a separate process and must not dequeue a stub before it is committed; in
+    dev/test the ImmediateBackend runs the task inline once the transaction commits.
 
     Args:
         user: The user starting the campaign
         campaign: The campaign to start
 
     Returns:
-        CampaignStartResult with all created actions and lists
+        CampaignStartResult with the created stub lists and overall action
 
     Raises:
         ValidationError: If campaign cannot be started
@@ -85,94 +102,97 @@ def handle_campaign_start(
     )
     campaign.lists.clear()
 
-    cloned_lists = []
-    list_results = []
+    stub_lists = []
+    # (stub_id, original_list_id) pairs to enqueue for Phase 2 once we commit.
+    to_enqueue: list[tuple[str, str]] = []
 
-    # Clone each list and distribute budget
     for original_list in original_lists:
-        # Check if we already have a clone of this list
-        existing_clone = List.objects.filter(
+        # Idempotency: if a clone or in-flight stub already exists for this original
+        # (e.g. a retried Phase 1), re-add it rather than creating a duplicate.
+        existing = List.objects.filter(
             original_list=original_list,
             campaign=campaign,
-            status=List.CAMPAIGN_MODE,
+            status__in=[List.CAMPAIGN_MODE, List.CLONING_IN_PROGRESS],
         ).first()
-
-        if existing_clone:
+        if existing:
             logger.warning(
-                f"Campaign {campaign.id} already has a clone of list {original_list.id}, re-adding existing clone"
+                f"Campaign {campaign.id} already has a clone of list {original_list.id} "
+                f"({existing.status}), re-adding existing"
             )
-            # Re-add the existing clone to the campaign
-            campaign.lists.add(existing_clone)
-            cloned_lists.append(existing_clone)
-            # Don't distribute budget to existing clones
-            list_results.append(
-                ListBudgetDistributionResult(
-                    campaign_list=existing_clone,
-                    list_action=None,
-                    campaign_action=None,
-                    credits_added=0,
-                )
-            )
+            campaign.lists.add(existing)
+            stub_lists.append(existing)
+            # A stub that never finished still needs its Phase 2 task.
+            if existing.status == List.CLONING_IN_PROGRESS:
+                to_enqueue.append((str(existing.id), str(original_list.id)))
             continue
 
-        # Clone the list for campaign mode using the handler
-        clone_result = handle_list_clone(
-            user=user,
+        # Create the stub: a campaign-mode clone row whose contents Phase 2 will fill in.
+        # Copy only the cheap scalar fields (same set List.clone() sets at create time);
+        # rating/stash are recomputed by the clone task, credits handled there too.
+        stub = List.objects.create(
+            name=original_list.name,
+            content_house=original_list.content_house,
+            owner=original_list.owner,
+            public=original_list.public,
+            narrative=original_list.narrative,
+            notes=original_list.notes,
+            theme_color=original_list.theme_color,
+            credits_current=original_list.credits_current,
+            credits_earned=original_list.credits_earned,
+            status=List.CLONING_IN_PROGRESS,
             original_list=original_list,
-            for_campaign=campaign,
-        )
-        campaign_clone = clone_result.cloned_list
-
-        # Track cloning
-        campaign.lists.add(campaign_clone)
-        cloned_lists.append(campaign_clone)
-
-        # Distribute budget credits to the cloned list
-        # Calculate cost from scratch - cost_int() computes wealth (rating + stash + credits)
-        list_cost = original_list.cost_int()
-        budget_result = _distribute_budget_to_list(
-            user=user,
             campaign=campaign,
-            campaign_list=campaign_clone,
-            list_cost=list_cost,
         )
-        logger.info(
-            f"Distributed {budget_result.credits_added}¢ to list {campaign_clone.id} for campaign {campaign.id} based on list cost of {list_cost}¢"
-        )
-        list_results.append(budget_result)
-
-    # Allocate default resources to each list
-    for resource_type in campaign.resource_types.all():
-        for cloned_list in cloned_lists:
-            logger.info(
-                f"Allocating default resource {resource_type.id} to list {cloned_list.id} for campaign {campaign.id} of amount {resource_type.default_amount}"
-            )
-            CampaignListResource.objects.get_or_create(
-                campaign=campaign,
-                resource_type=resource_type,
-                list=cloned_list,
-                defaults={
-                    "amount": resource_type.default_amount,
-                    "owner": campaign.owner,
-                },
-            )
+        campaign.lists.add(stub)
+        stub_lists.append(stub)
+        to_enqueue.append((str(stub.id), str(original_list.id)))
 
     # Update campaign status to IN_PROGRESS
     campaign.status = Campaign.IN_PROGRESS
     campaign.save()
 
-    # Create overall campaign action
+    # Create overall campaign action (the count is known now — one per stub)
     overall_campaign_action = CampaignAction.objects.create(
         campaign=campaign,
         user=user,
         description=f"Campaign Started: {campaign.name} is now in progress",
-        outcome=f"{len(cloned_lists)} gang(s) joined the campaign",
+        outcome=f"{len(stub_lists)} gang(s) joined the campaign",
         owner=user,
     )
 
+    # Enqueue Phase 2 after the transaction commits (see docstring).
+    campaign_id = str(campaign.id)
+    user_id = str(user.id)
+
+    def _enqueue():
+        from gyrinx.core.tasks import complete_campaign_list_clone
+
+        for stub_id, original_list_id in to_enqueue:
+            try:
+                complete_campaign_list_clone.enqueue(
+                    stub_id=stub_id,
+                    original_list_id=original_list_id,
+                    campaign_id=campaign_id,
+                    user_id=user_id,
+                )
+            except Exception as e:
+                # Fire-and-forget: a publish failure must not break campaign start. The
+                # stub stays CLONING_IN_PROGRESS and can be retried (owner button / admin).
+                logger.warning(
+                    f"Failed to enqueue campaign clone for stub {stub_id}: {e}"
+                )
+                track(
+                    "task_enqueue_failed",
+                    stub_id=stub_id,
+                    campaign_id=campaign_id,
+                    error=str(e),
+                )
+
+    transaction.on_commit(_enqueue)
+
     return CampaignStartResult(
         campaign=campaign,
-        list_results=list_results,
+        stub_lists=stub_lists,
         overall_campaign_action=overall_campaign_action,
     )
 

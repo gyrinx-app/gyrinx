@@ -471,7 +471,7 @@ def test_campaign_post_campaign_restrictions(client):
 
 
 @pytest.mark.django_db
-def test_campaign_state_change_actions(client):
+def test_campaign_state_change_actions(client, django_capture_on_commit_callbacks):
     """Test that campaign state changes create CampaignAction entries."""
     user = User.objects.create_user(username="testuser", password="password")
     client.login(username="testuser", password="password")
@@ -500,29 +500,28 @@ def test_campaign_state_change_actions(client):
     # Verify no actions exist yet
     assert CampaignAction.objects.filter(campaign=campaign).count() == 0
 
-    # Start the campaign
-    response = client.post(reverse("core:campaign-start", args=[campaign.id]))
+    # Start the campaign (Phase 2 clone/budget task runs on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        response = client.post(reverse("core:campaign-start", args=[campaign.id]))
     assert response.status_code == 302
 
     # Verify campaign started and action was created
     campaign.refresh_from_db()
     assert campaign.status == Campaign.IN_PROGRESS
 
-    # Get all actions and find the campaign start action
-    all_actions = CampaignAction.objects.filter(campaign=campaign).order_by("created")
-    # Should have 2 actions: budget distribution and campaign start
+    # Should have 2 actions: the overall "Campaign Started" (Phase 1) and the per-list
+    # budget distribution (Phase 2). Match by content rather than order — the overall
+    # action is now written before the budget one (was the other way round pre-#1222).
+    all_actions = CampaignAction.objects.filter(campaign=campaign)
     assert all_actions.count() == 2
 
-    # First action should be budget distribution (created in start_campaign method)
-    budget_action = all_actions[0]
-    assert "Campaign starting budget" in budget_action.description
+    budget_action = all_actions.get(description__icontains="Campaign starting budget")
+    assert budget_action is not None
 
-    # Second action should be the campaign start action
-    start_action = all_actions[1]
-    assert start_action.user == user
-    assert (
-        start_action.description == "Campaign Started: Test Campaign is now in progress"
+    start_action = all_actions.get(
+        description="Campaign Started: Test Campaign is now in progress"
     )
+    assert start_action.user == user
 
     # Store the IDs of the initial actions
     initial_action_ids = list(all_actions.values_list("id", flat=True))
