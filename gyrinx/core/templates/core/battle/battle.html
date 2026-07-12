@@ -14,6 +14,7 @@
         {% endif %}
         <!-- Header -->
         <div class="vstack gap-0">
+            <div class="caps-label">Battle</div>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ battle.name }}</h1>
                 {% if can_start or can_end or can_edit or can_unarchive %}
@@ -119,37 +120,36 @@
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
                         <h2 class="h5 mb-0">Crews</h2>
                     </div>
-                    <div class="px-2 vstack gap-2">
+                    <div class="px-2">
                         {% for summary in crew_summaries %}
-                            <div class="border rounded p-2">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div>
-                                        <a href="{% url 'core:crew' battle.id summary.crew.id %}"
-                                           class="linked fw-semibold">{{ summary.crew }}</a>
-                                        <div class="text-secondary fs-7">
-                                            <span class="badge {% if summary.crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                                                {{ summary.crew.get_status_display }}
-                                            </span>
-                                            <span class="ms-1">{{ summary.method_label }}</span>
-                                        </div>
-                                    </div>
-                                    <div class="text-end fs-7">
-                                        <div><span class="text-secondary">Rating</span> {{ summary.rating }}¢</div>
-                                        <div class="text-secondary">{{ summary.rating_delta }}¢ vs gang</div>
+                            <div class="d-flex justify-content-between align-items-center gap-2 py-2 {% if not forloop.first %}border-top{% endif %}">
+                                <div class="me-auto">
+                                    <a href="{% url 'core:crew' battle.id summary.crew.id %}"
+                                       class="linked fw-semibold">{{ summary.crew }}</a>
+                                    <div class="text-secondary fs-7">
+                                        <span class="badge {% if summary.crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                                            {{ summary.crew.get_status_display }}
+                                        </span>
+                                        <span class="ms-1">{{ summary.method_label }}</span>
                                     </div>
                                 </div>
+                                <div class="text-end fs-7"><span class="text-secondary">R</span> {{ summary.rating }}¢</div>
                             </div>
                         {% empty %}
                             <p class="text-secondary fs-7 mb-0">
                                 <i class="bi-info-circle"></i> No crews yet.
                             </p>
                         {% endfor %}
-                        {% for gang in addable_crew_gangs %}
-                            <a href="{% url 'core:crew-new' battle.id %}?list={{ gang.id }}"
-                               class="icon-link linked fs-7">
-                                <i class="bi-plus-lg"></i> Add crew for {{ gang.name }}
-                            </a>
-                        {% endfor %}
+                        {% if addable_crew_gangs %}
+                            <div class="vstack gap-1 mt-2 align-items-start">
+                                {% for gang in addable_crew_gangs %}
+                                    <a href="{% url 'core:crew-new' battle.id %}?list={{ gang.id }}"
+                                       class="icon-link linked fs-7">
+                                        <i class="bi-plus-lg"></i> Add crew for {{ gang.name }}
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
                 </section>
                 <!-- Related Actions -->

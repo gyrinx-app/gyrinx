@@ -103,15 +103,11 @@ class BattleDetailView(generic.DetailView):
         )
         crew_summaries = []
         for crew in crews:
-            # Compute rating once; the delta is derived from it (calling
-            # rating_delta_vs_gang() would recompute the rating).
-            rating = crew.rating()
             crew_summaries.append(
                 {
                     "crew": crew,
                     "method_label": crew.method_label(),
-                    "rating": rating,
-                    "rating_delta": rating - crew.list.rating_current,
+                    "rating": crew.rating(),
                 }
             )
         context["crew_summaries"] = crew_summaries

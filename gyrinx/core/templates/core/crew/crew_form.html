@@ -3,7 +3,6 @@
     {% if is_create %}Add crew{% else %}Edit crew{% endif %} - {{ battle.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:battle' battle.id as battle_url %}
     {% if crew %}
         {% url 'core:crew' battle.id crew.id as cancel_url %}
     {% else %}
@@ -24,7 +23,50 @@
         </p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
-            {{ form.as_div }}
+            {{ form.non_field_errors }}
+            <div>
+                <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
+                {{ form.name.errors }}
+            </div>
+            <div>
+                <label class="form-label">Random draw</label>
+                <div class="d-flex flex-wrap gap-2 align-items-end">
+                    <div>
+                        <label class="form-text mb-1 d-block"
+                               for="{{ form.random_dice.id_for_label }}">{{ form.random_dice.label }}</label>
+                        {{ form.random_dice }}
+                    </div>
+                    <div class="pb-2">+</div>
+                    <div>
+                        <label class="form-text mb-1 d-block"
+                               for="{{ form.random_number.id_for_label }}">{{ form.random_number.label }}</label>
+                        {{ form.random_number }}
+                    </div>
+                </div>
+                <div class="form-text">
+                    Extra fighters drawn at random when the crew is locked, on top of the chosen
+                    ones. Pick a die (D3/D6), add a fixed number, or use either alone — e.g. D3,
+                    D3+4, or 6. Leave both blank for no random draw.
+                </div>
+                {{ form.random_dice.errors }}
+                {{ form.random_number.errors }}
+            </div>
+            <div>
+                <label class="form-label">{{ form.chosen_fighters.label }}</label>
+                {% if form.has_eligible_fighters %}
+                    {{ form.chosen_fighters }}
+                    <div class="form-text">{{ form.chosen_fighters.help_text }}</div>
+                {% else %}
+                    <p class="text-secondary fs-7 mb-0">
+                        <i class="bi-info-circle"></i>
+                        This gang has no active fighters available for a crew yet. Add fighters to
+                        the gang first, or set up a random draw and lock a whole-gang crew later.
+                    </p>
+                {% endif %}
+                {{ form.chosen_fighters.errors }}
+            </div>
             <div class="hstack gap-3 align-items-center">
                 <button type="submit" class="btn btn-success">Save crew</button>
                 <a href="{{ cancel_url }}" class="btn btn-link">Cancel</a>

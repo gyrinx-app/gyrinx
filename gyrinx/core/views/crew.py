@@ -108,12 +108,8 @@ def crew_new(request, battle_id):
 
 @login_required
 def crew_detail(request, battle_id, crew_id):
-    """Show a crew: its recipe or frozen attendees, rating, deltas, and extras."""
+    """Show a crew as an itemised receipt: attendees, extras, and the total."""
     crew = _get_crew(battle_id, crew_id)
-    can_manage = crew.can_manage(request.user)
-
-    members = list(crew.members.select_related("list_fighter", "equipment_set").all())
-    line_items = list(crew.line_items.select_related("member").all())
 
     return render(
         request,
@@ -121,14 +117,8 @@ def crew_detail(request, battle_id, crew_id):
         {
             "crew": crew,
             "battle": crew.battle,
-            "can_manage": can_manage,
-            "members": members,
-            "line_items": line_items,
-            "chosen_fighters": list(crew.chosen_fighters.all()),
-            "rating": crew.rating(),
-            "extras_total": crew.extras_total(),
-            "credits_value": crew.credits_value(),
-            "rating_delta": crew.rating_delta_vs_gang(),
+            "can_manage": crew.can_manage(request.user),
+            "receipt": crew.receipt(),
         },
     )
 

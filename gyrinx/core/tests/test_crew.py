@@ -19,7 +19,9 @@ from gyrinx.core.models.crew import (
     Crew,
     CrewLineItem,
     CrewMember,
+    build_selection_spec,
     roll_selection_spec,
+    split_selection_spec,
     validate_selection_spec,
 )
 from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentSet
@@ -59,6 +61,35 @@ def test_roll_selection_spec_die_plus_constant():
 def test_roll_selection_spec_invalid_raises():
     with pytest.raises(ValidationError):
         roll_selection_spec("nope")
+
+
+@pytest.mark.parametrize(
+    "spec,dice,number",
+    [
+        ("", "", None),
+        ("6", "", 6),
+        ("D3", "D3", None),
+        ("D6+2", "D6", 2),
+        ("nonsense", "", None),
+    ],
+)
+def test_split_selection_spec(spec, dice, number):
+    assert split_selection_spec(spec) == (dice, number)
+
+
+@pytest.mark.parametrize(
+    "dice,number,spec",
+    [
+        ("", None, ""),
+        ("", 0, ""),
+        ("", 6, "6"),
+        ("D3", None, "D3"),
+        ("D3", 0, "D3"),
+        ("D6", 2, "D6+2"),
+    ],
+)
+def test_build_selection_spec(dice, number, spec):
+    assert build_selection_spec(dice, number) == spec
 
 
 # --- Fixtures ---------------------------------------------------------------
@@ -214,15 +245,32 @@ def test_extras_and_credits_value(crew_setup):
 
 
 @pytest.mark.django_db
-def test_rating_delta_vs_gang(crew_setup):
+def test_receipt_totals(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
-    gang.rating_current = 500
-    gang.save()
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-    crew.chosen_fighters.set(crew_setup["fighters"][:2])
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], status=Crew.LOCKED
+    )
+    CrewMember.objects.create(
+        crew=crew, list_fighter=crew_setup["fighters"][0], owner=crew_setup["user"]
+    )
+    CrewLineItem.objects.create(
+        crew=crew, label="Tactics card", cost=20, owner=crew_setup["user"]
+    )
+    CrewLineItem.objects.create(
+        crew=crew,
+        label="Free favour",
+        cost=30,
+        payment=Crew.PAY_FREE,
+        owner=crew_setup["user"],
+    )
 
-    # 200 chosen vs 500 gang.
-    assert crew.rating_delta_vs_gang() == -300
+    receipt = crew.receipt()
+    assert receipt["fighters_total"] == 100
+    assert [a["name"] for a in receipt["attendees"]] == ["Ganger 0"]
+    assert receipt["extras_total"] == 50
+    assert receipt["credits_value"] == 150
+    # Extras grouped by how they're paid for.
+    assert dict(receipt["payment_totals"]) == {"Gang credits": 20, "Free": 30}
 
 
 @pytest.mark.django_db
@@ -375,7 +423,8 @@ def test_crew_new_creates_crew(client, crew_setup):
         {
             "list": str(gang.id),
             "name": "A Team",
-            "random_spec": "D3",
+            "random_dice": "D3",
+            "random_number": "",
             "chosen_fighters": [str(crew_setup["fighters"][0].id)],
         },
     )
@@ -394,7 +443,7 @@ def test_crew_new_permission_denied_for_stranger(client, crew_setup, make_user):
 
     resp = client.post(
         reverse("core:crew-new", args=[battle.id]),
-        {"list": str(gang.id), "name": "Nope", "random_spec": ""},
+        {"list": str(gang.id), "name": "Nope", "random_dice": "", "random_number": ""},
     )
     assert resp.status_code == 302
     assert not Crew.objects.filter(battle=battle).exists()
@@ -415,14 +464,15 @@ def test_crew_detail_and_edit(client, crew_setup):
         reverse("core:crew-edit", args=[battle.id, crew.id]),
         {
             "name": "Renamed",
-            "random_spec": "6",
+            "random_dice": "D6",
+            "random_number": "2",
             "chosen_fighters": [str(f.id) for f in crew_setup["fighters"][:3]],
         },
     )
     assert resp.status_code == 302
     crew.refresh_from_db()
     assert crew.name == "Renamed"
-    assert crew.random_spec == "6"
+    assert crew.random_spec == "D6+2"
     assert crew.chosen_fighters.count() == 3
 
 

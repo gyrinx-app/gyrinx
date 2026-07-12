@@ -32,6 +32,8 @@ __all__ = [
     "CrewLineItem",
     "validate_selection_spec",
     "roll_selection_spec",
+    "split_selection_spec",
+    "build_selection_spec",
 ]
 
 
@@ -87,6 +89,36 @@ def roll_selection_spec(value, rng=None):
     else:
         detail = f"D{sides}: rolled {roll}"
     return total, detail
+
+
+def split_selection_spec(value):
+    """Split a spec (``N`` | ``DX`` | ``DX+N``) into ``(dice, number)`` for the
+    structured form widgets. ``dice`` is ``""`` or ``"DX"``; ``number`` is the
+    flat count or the ``+N`` addend (``None`` when absent). ``("", None)`` for
+    an empty or unparseable spec."""
+    value = (value or "").strip()
+    m = _SPEC_RE.match(value)
+    if not m:
+        return "", None
+    flat, sides, plus = m.groups()
+    if flat is not None:
+        return "", int(flat)
+    return f"D{int(sides)}", (int(plus) if plus else None)
+
+
+def build_selection_spec(dice, number):
+    """Combine a ``dice`` choice (``""`` | ``"DX"``) and a ``number`` (or
+    ``None``) from the structured form widgets back into a spec string —
+    inverse of :func:`split_selection_spec`."""
+    dice = (dice or "").strip()
+    number = number or 0
+    if dice and number:
+        return f"{dice}+{number}"
+    if dice:
+        return dice
+    if number:
+        return str(number)
+    return ""
 
 
 class Crew(AppBase):
@@ -204,30 +236,28 @@ class Crew(AppBase):
 
     # --- rating & credits (computed live, never persisted) ---------------
 
-    def _rating_fighters(self):
-        """``(fighter, equipment_set)`` pairs contributing to the crew rating.
+    def _attendee_lines(self):
+        """Per-fighter ``(cost, line)`` for the crew, computed live.
 
         The fighters are loaded in one batch via ``with_related_data()`` so
         their costs compute from the prefetch cache rather than N+1 per fighter.
-        Each locked member's set is resolved against its fighter's own
-        prefetched set collection, so the set's assignments also come from the
-        cache. Respects a prefetched ``members`` / ``chosen_fighters`` cache
-        when the caller supplied one.
+        For a locked crew each frozen member's equipment set is resolved against
+        its fighter's own prefetched sets (so the set's assignments also come
+        from the cache); for a draft crew the chosen fighters are costed at full
+        kit. ``line`` is a small display dict (name, loadout, random flag, ids).
         """
         from gyrinx.core.models.list import ListFighter
 
+        lines = []
         if self.is_locked:
-            members = list(self.members.all())
+            members = list(self.members.select_related("list_fighter").all())
             loaded = ListFighter.objects.with_related_data().in_bulk(
                 [m.list_fighter_id for m in members]
             )
-            pairs = []
             for member in members:
                 fighter = loaded.get(member.list_fighter_id)
-                if fighter is None:
-                    continue
                 equipment_set = None
-                if member.equipment_set_id is not None:
+                if fighter is not None and member.equipment_set_id is not None:
                     equipment_set = next(
                         (
                             s
@@ -236,13 +266,44 @@ class Crew(AppBase):
                         ),
                         None,
                     )
-                pairs.append((fighter, equipment_set))
-            return pairs
+                cost = (
+                    fighter.cost_int_for_equipment_set(equipment_set)
+                    if fighter is not None
+                    else 0
+                )
+                lines.append(
+                    (
+                        cost,
+                        {
+                            "name": member.list_fighter.name,
+                            "fighter_id": member.list_fighter_id,
+                            "loadout": equipment_set.name if equipment_set else None,
+                            "was_random": member.was_random,
+                            "member_id": member.id,
+                        },
+                    )
+                )
+            return lines
 
-        # Draft: provisional rating from the chosen fighters at full kit.
-        chosen_ids = [f.pk for f in self.chosen_fighters.all()]
-        loaded = ListFighter.objects.with_related_data().in_bulk(chosen_ids)
-        return [(loaded[pk], None) for pk in chosen_ids if pk in loaded]
+        # Draft: provisional lines from the chosen fighters at full kit.
+        chosen = list(self.chosen_fighters.all())
+        loaded = ListFighter.objects.with_related_data().in_bulk([f.pk for f in chosen])
+        for fighter in chosen:
+            resolved = loaded.get(fighter.pk)
+            cost = resolved.cost_int_cached if resolved is not None else 0
+            lines.append(
+                (
+                    cost,
+                    {
+                        "name": fighter.name,
+                        "fighter_id": fighter.pk,
+                        "loadout": None,
+                        "was_random": False,
+                        "member_id": None,
+                    },
+                )
+            )
+        return lines
 
     def rating(self):
         """The crew's fighter rating, computed live (never reads/writes caches).
@@ -252,10 +313,7 @@ class Crew(AppBase):
         a provisional sum of the chosen fighters at full kit — the random
         component is unknown until the draw at lock, so it isn't counted.
         """
-        return sum(
-            fighter.cost_int_for_equipment_set(equipment_set)
-            for fighter, equipment_set in self._rating_fighters()
-        )
+        return sum(cost for cost, _ in self._attendee_lines())
 
     def extras_total(self):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
@@ -266,10 +324,29 @@ class Crew(AppBase):
         scenarios compare for underdog bonuses."""
         return self.rating() + self.extras_total()
 
-    def rating_delta_vs_gang(self):
-        """Crew rating minus the whole gang's current cached rating — usually
-        negative, since a crew is a subset of the gang."""
-        return self.rating() - self.list.rating_current
+    def receipt(self):
+        """Itemised receipt for the crew page: attendee lines, extra lines, the
+        subtotals, a per-payment-method breakdown of the extras, and the
+        credits-value total. One batch load; computed live, never persisted."""
+        lines = self._attendee_lines()
+        attendees = [{"cost": cost, **line} for cost, line in lines]
+        fighters_total = sum(cost for cost, _ in lines)
+
+        extras = list(self.line_items.all())
+        extras_total = sum(item.cost for item in extras)
+        payment_totals = {}
+        for item in extras:
+            label = item.get_payment_display()
+            payment_totals[label] = payment_totals.get(label, 0) + item.cost
+
+        return {
+            "attendees": attendees,
+            "fighters_total": fighters_total,
+            "extras": extras,
+            "extras_total": extras_total,
+            "payment_totals": sorted(payment_totals.items()),
+            "credits_value": fighters_total + extras_total,
+        }
 
 
 class CrewMember(AppBase):
