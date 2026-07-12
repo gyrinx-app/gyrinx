@@ -229,6 +229,24 @@ class Crew(AppBase):
             or battle.campaign.is_admin(user)
         )
 
+    @staticmethod
+    def can_manage_new(user, battle, gang):
+        """Whether ``user`` may create a crew for ``gang`` on ``battle``.
+
+        The no-crew-yet counterpart to :meth:`can_manage` (there's no Crew
+        instance to ask): the gang's owner or the battle's arbitrator (battle
+        owner or a campaign admin), and not while archived.
+        """
+        if not user or not user.is_authenticated:
+            return False
+        if battle.archived or battle.campaign.archived:
+            return False
+        return (
+            user.id == gang.owner_id
+            or user.id == battle.owner_id
+            or battle.campaign.is_admin(user)
+        )
+
     # --- selection method label (derived from recipe) --------------------
 
     def method_label(self):

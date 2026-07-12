@@ -8,32 +8,10 @@ from django.views import generic
 
 from gyrinx.core.forms.battle import BattleForm, BattleNoteForm, BattleRolesForm
 from gyrinx.core.models import Battle, Campaign, CampaignAction
+from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
-from gyrinx.core.views.crew import _can_manage_new_crew
-
-
-def _crew_breakdown(receipt):
-    """Abbreviated, tooltipped stat units for the battle page's crew row —
-    mirrors the list header's R/Cr/... block. Rating, Credits and Allowance are
-    always shown so crews line up column-wise; Free only when the crew uses it.
-    Each unit carries the full name for a tooltip; the grand total is rendered
-    separately (bold)."""
-    # Rating is unknown until a pending random draw is rolled (amount None → "?").
-    rating = None if receipt["pending_roll"] else receipt["fighters_total"]
-    rows = [
-        {"abbr": "R", "title": "Rating", "amount": rating},
-        {"abbr": "Cr", "title": "Credits", "amount": receipt["credits_total"]},
-        {
-            "abbr": "A",
-            "title": "Allowance — underdog balancing (e.g. House Patronage)",
-            "amount": receipt["allowance_total"],
-        },
-    ]
-    if receipt["has_free"]:
-        rows.append({"abbr": "F", "title": "Free", "amount": receipt["free_total"]})
-    return rows
 
 
 class BattleDetailView(generic.DetailView):
@@ -97,9 +75,6 @@ class BattleDetailView(generic.DetailView):
             context["can_add_notes"] = False
             context["user_note"] = None
 
-        # Participants grouped by role (Attacker/Defender/unassigned)
-        context["participant_groups"] = battle.participants_grouped_by_role()
-
         # Battle state, plus the start/end actions for people who can manage it.
         context["state_display"] = battle.states.display
         context["state_current"] = battle.states.current
@@ -112,46 +87,63 @@ class BattleDetailView(generic.DetailView):
         # Get associated campaign actions with related data
         context["actions"] = battle.get_actions().select_related("user", "list")
 
-        # Crews (battle flow step 3): a virtual sub-gang per participating gang.
-        self._add_crew_context(context, battle, user)
+        # Participants grouped by role, each gang carrying its rating and its
+        # crew (battle flow step 3: a virtual sub-gang per participating gang).
+        self._add_participant_context(context, battle, user)
 
         return context
 
-    def _add_crew_context(self, context, battle, user):
-        """Attach crew summaries and the per-gang 'add crew' affordances."""
+    def _add_participant_context(self, context, battle, user):
+        """Build the participants table: gangs grouped by role, each carrying its
+        rating and its crew inlined as a sub-row (or an 'add crew' affordance).
+        """
+        # One crew summary per gang that has one, keyed by gang id.
         crews = list(
             battle.crews.select_related("list").prefetch_related(
                 "members", "chosen_fighters", "line_items"
             )
         )
-        crew_summaries = []
+        crew_by_gang = {}
         for crew in crews:
             receipt = crew.receipt()
-            crew_summaries.append(
-                {
-                    "crew": crew,
-                    "method_label": crew.method_label(),
-                    "breakdown": _crew_breakdown(receipt),
-                    "total": receipt["total"],
-                    "pending_roll": receipt["pending_roll"],
-                }
-            )
-        context["crew_summaries"] = crew_summaries
+            crew_by_gang[crew.list_id] = {
+                "crew": crew,
+                "method_label": crew.method_label(),
+                # Rating is unknown until a pending random draw is rolled.
+                "rating": None
+                if receipt["pending_roll"]
+                else receipt["fighters_total"],
+                "pending_roll": receipt["pending_roll"],
+            }
 
-        # Gangs that can still have a crew added: participants with no crew yet
-        # that this user may manage. The per-gang rule (own gang, or any gang if
-        # arbitrator) lives in _can_manage_new_crew so it stays in one place; the
-        # outer guard is just a fast-path to skip the query for anon/archived.
-        addable_gangs = []
-        if user.is_authenticated and not (battle.archived or battle.campaign.archived):
-            with_crew = {crew.list_id for crew in crews}
-            for entry in battle.participant_entries.select_related("list"):
+        # Whether this user may add a crew to a gang that hasn't got one yet.
+        # The outer guard is a fast-path so anon/archived skip the per-gang work.
+        can_add_any = user.is_authenticated and not (
+            battle.archived or battle.campaign.archived
+        )
+        winner_ids = set(battle.winners.values_list("id", flat=True))
+
+        groups = []
+        for group in battle.participants_grouped_by_role():
+            rows = []
+            for entry in group["participants"]:
                 gang = entry.list
-                if gang.id in with_crew:
-                    continue
-                if _can_manage_new_crew(user, battle, gang):
-                    addable_gangs.append(gang)
-        context["addable_crew_gangs"] = addable_gangs
+                crew = crew_by_gang.get(gang.id)
+                rows.append(
+                    {
+                        "list": gang,
+                        "is_winner": gang.id in winner_ids,
+                        "rating": gang.rating_current,
+                        "crew": crew,
+                        "can_add_crew": (
+                            crew is None
+                            and can_add_any
+                            and Crew.can_manage_new(user, battle, gang)
+                        ),
+                    }
+                )
+            groups.append({"role_option": group["role_option"], "participants": rows})
+        context["participant_groups"] = groups
 
 
 @login_required

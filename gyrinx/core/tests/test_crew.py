@@ -650,6 +650,8 @@ def test_battle_page_shows_crew_section(client, crew_setup):
     resp = client.get(reverse("core:battle", args=[battle.id]))
     assert resp.status_code == 200
     content = resp.content.decode()
-    assert "Crews" in content
-    # Add-crew affordance for the manageable gang with no crew yet.
+    # The participants table lists the gang; the add-crew affordance appears
+    # for a manageable gang with no crew yet.
+    assert "Participants" in content
+    assert gang.name in content
     assert f"?list={gang.id}" in content

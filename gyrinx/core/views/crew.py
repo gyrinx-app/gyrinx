@@ -40,25 +40,6 @@ def _get_crew(battle_id, crew_id):
     )
 
 
-def _can_manage_new_crew(user, battle, gang):
-    """Whether ``user`` may create a crew for ``gang`` on ``battle``.
-
-    Mirrors :meth:`Crew.can_manage` for the no-crew-yet case: the gang's owner
-    or the battle's arbitrator, and not while archived.
-    """
-    if not user or not user.is_authenticated:
-        return False
-    if battle.archived or battle.campaign.archived:
-        return False
-    # owner_id is a column, so the owner checks avoid loading the owner objects;
-    # is_admin covers the campaign owner and any shared admins.
-    return (
-        user.id == gang.owner_id
-        or user.id == battle.owner_id
-        or battle.campaign.is_admin(user)
-    )
-
-
 def _redirect_crew(crew):
     return HttpResponseRedirect(reverse("core:crew", args=[crew.battle_id, crew.id]))
 
@@ -83,7 +64,7 @@ def crew_new(request, battle_id):
         messages.error(request, "That gang is not taking part in this battle.")
         return _redirect_battle(battle)
 
-    if not _can_manage_new_crew(request.user, battle, gang):
+    if not Crew.can_manage_new(request.user, battle, gang):
         messages.error(
             request, "You don't have permission to add a crew for that gang."
         )

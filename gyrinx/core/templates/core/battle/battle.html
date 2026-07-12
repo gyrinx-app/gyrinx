@@ -74,7 +74,7 @@
         <div class="row g-4 g-lg-5">
             <!-- Participants + Related Actions -->
             <div class="col-12 col-lg-6 vstack gap-4">
-                <!-- Participants -->
+                <!-- Participants (each gang's rating, with its crew inlined) -->
                 <section>
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
                         <h2 class="h5 mb-0">Participants</h2>
@@ -86,100 +86,76 @@
                         {% endif %}
                     </div>
                     <div class="px-2">
-                        {% for group in participant_groups %}
-                            <div class="mb-2">
-                                <div class="caps-label">{% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}</div>
-                                <div class="d-flex flex-wrap gap-3">
-                                    {% for entry in group.participants %}
-                                        <div class="d-flex align-items-center gap-1">
-                                            <a href="{% url 'core:list' entry.list.id %}"
-                                               class="link-underline-opacity-50 link-underline-opacity-100-hover">
-                                                {% list_with_theme entry.list %}
-                                            </a>
-                                            {% if entry.list in battle.winners.all %}
-                                                <i class="bi-trophy-fill text-warning"
-                                                   data-bs-toggle="tooltip"
-                                                   data-bs-title="Winner"></i>
-                                            {% endif %}
-                                        </div>
-                                    {% endfor %}
-                                </div>
+                        {% if participant_groups %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-borderless align-middle mb-0">
+                                    <thead>
+                                        <tr class="border-bottom">
+                                            <th class="caps-label">Gang</th>
+                                            <th class="caps-label text-end">Rating</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for group in participant_groups %}
+                                            <tr>
+                                                <td colspan="2"
+                                                    class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
+                                                    {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
+                                                </td>
+                                            </tr>
+                                            {% for p in group.participants %}
+                                                <tr>
+                                                    <td>
+                                                        <a href="{% url 'core:list' p.list.id %}"
+                                                           class="link-underline-opacity-50 link-underline-opacity-100-hover fw-semibold">{% list_with_theme p.list %}</a>
+                                                        {% if p.is_winner %}
+                                                            <i class="bi-trophy-fill text-warning"
+                                                               data-bs-toggle="tooltip"
+                                                               data-bs-title="Winner"></i>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-end">{% credits p.rating %}</td>
+                                                </tr>
+                                                {% if p.crew %}
+                                                    <tr>
+                                                        <td class="ps-4">
+                                                            <i class="bi-arrow-return-right text-secondary"></i>
+                                                            <a href="{% url 'core:crew' battle.id p.crew.crew.id %}" class="linked">{{ p.crew.crew }}</a>
+                                                            <span class="badge {% if p.crew.crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ p.crew.crew.get_status_display }}</span>
+                                                            <span class="text-secondary fs-7 ms-1">{{ p.crew.method_label }}</span>
+                                                        </td>
+                                                        <td class="text-end">
+                                                            {% if p.crew.pending_roll %}
+                                                                <span bs-tooltip
+                                                                      data-bs-toggle="tooltip"
+                                                                      title="Unknown until the crew is rolled for selection">?</span>
+                                                            {% else %}
+                                                                {% credits p.crew.rating %}
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                {% elif p.can_add_crew %}
+                                                    <tr>
+                                                        <td colspan="2" class="ps-4">
+                                                            <a href="{% url 'core:crew-new' battle.id %}?list={{ p.list.id }}"
+                                                               class="icon-link linked fs-7">
+                                                                <i class="bi-plus-lg"></i> Add crew
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
-                        {% empty %}
+                        {% else %}
                             <p class="text-secondary fs-7 mb-0">No gangs added yet.</p>
-                        {% endfor %}
+                        {% endif %}
                         {% if state_current == 'post_battle' and not battle.winners.exists %}
                             <p class="text-secondary fs-7 mt-2 mb-0">
                                 <i class="bi-info-circle"></i> This battle ended in a draw.
                             </p>
-                        {% endif %}
-                    </div>
-                </section>
-                <!-- Crews -->
-                <section>
-                    <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
-                        <h2 class="h5 mb-0">Crews</h2>
-                    </div>
-                    <div class="px-2">
-                        {% for summary in crew_summaries %}
-                            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-1 gap-sm-2 py-2 {% if not forloop.first %}border-top{% endif %}">
-                                <div class="me-auto">
-                                    <a href="{% url 'core:crew' battle.id summary.crew.id %}"
-                                       class="linked fw-semibold">{{ summary.crew }}</a>
-                                    <span class="text-secondary fs-7 text-nowrap ms-1"><i class="bi-people"></i> {{ summary.crew.list.name }}</span>
-                                    <div class="text-secondary fs-7">
-                                        <span class="badge {% if summary.crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                                            {{ summary.crew.get_status_display }}
-                                        </span>
-                                        <span class="ms-1">{{ summary.method_label }}</span>
-                                    </div>
-                                </div>
-                                <div class="d-flex flex-wrap align-items-baseline gap-2 column-gap-3 fs-7">
-                                    {% for unit in summary.breakdown %}
-                                        <span class="text-nowrap">
-                                            <span class="text-secondary"
-                                                  bs-tooltip
-                                                  data-bs-toggle="tooltip"
-                                                  title="{{ unit.title }}"
-                                                  aria-label="{{ unit.title }}">{{ unit.abbr }}</span>
-                                            {% if unit.amount is None %}
-                                                <span bs-tooltip
-                                                      data-bs-toggle="tooltip"
-                                                      title="Unknown until the crew is rolled for selection">?</span>
-                                            {% else %}
-                                                {{ unit.amount }}¢
-                                            {% endif %}
-                                        </span>
-                                    {% endfor %}
-                                    <span class="text-nowrap fw-semibold">
-                                        <span bs-tooltip
-                                              data-bs-toggle="tooltip"
-                                              title="Total crew value (rating + all extras)"
-                                              aria-label="Total">Total</span>
-                                        {% if summary.pending_roll %}
-                                            <span bs-tooltip
-                                                  data-bs-toggle="tooltip"
-                                                  title="Unknown until the crew is rolled for selection">?</span>
-                                        {% else %}
-                                            {{ summary.total }}¢
-                                        {% endif %}
-                                    </span>
-                                </div>
-                            </div>
-                        {% empty %}
-                            <p class="text-secondary fs-7 mb-0">
-                                <i class="bi-info-circle"></i> No crews yet.
-                            </p>
-                        {% endfor %}
-                        {% if addable_crew_gangs %}
-                            <div class="vstack gap-1 mt-2 align-items-start">
-                                {% for gang in addable_crew_gangs %}
-                                    <a href="{% url 'core:crew-new' battle.id %}?list={{ gang.id }}"
-                                       class="icon-link linked fs-7">
-                                        <i class="bi-plus-lg"></i> Add crew for {{ gang.name }}
-                                    </a>
-                                {% endfor %}
-                            </div>
                         {% endif %}
                     </div>
                 </section>
