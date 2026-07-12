@@ -186,10 +186,15 @@ class List(AppBase):
     # Status choices
     LIST_BUILDING = "list_building"
     CAMPAIGN_MODE = "campaign_mode"
+    # A campaign-mode clone whose contents are still being populated by a
+    # background task after campaign start (issue #1222). Transient: flips to
+    # CAMPAIGN_MODE once the clone task finishes.
+    CLONING_IN_PROGRESS = "cloning_in_progress"
 
     STATUS_CHOICES = [
         (LIST_BUILDING, "List Building"),
         (CAMPAIGN_MODE, "Campaign Mode"),
+        (CLONING_IN_PROGRESS, "Joining Campaign"),
     ]
 
     help_text = "A List is a reusable collection of fighters."
@@ -828,6 +833,16 @@ class List(AppBase):
     @property
     def is_campaign_mode(self):
         return self.status == self.CAMPAIGN_MODE
+
+    @property
+    def is_cloning(self):
+        """True while this is a campaign-start stub still being populated in the background.
+
+        See issue #1222. Such a list is on the campaign but has no fighters/cost yet, so it
+        should render a "Joining…" placeholder and be excluded from participation until it
+        flips to CAMPAIGN_MODE.
+        """
+        return self.status == self.CLONING_IN_PROGRESS
 
     def get_suggested_campaign_packs(self):
         """Return campaign packs not yet subscribed by this list.
