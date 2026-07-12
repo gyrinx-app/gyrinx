@@ -145,7 +145,9 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
         campaign=crew.battle.campaign,
         list=lst,
         battle=crew.battle,
-        description=f"Crew selected for {lst.name}: {crew.method_label()}",
+        # Description is a neutral headline; the concrete counts (and any skips
+        # or roll detail) live in `outcome`, so the two can never disagree.
+        description=f"Crew selected for {lst.name}",
         outcome=outcome,
     )
 
