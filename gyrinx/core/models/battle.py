@@ -105,20 +105,20 @@ class Battle(AppBase):
     def can_edit(self, user):
         """
         Check if a user can edit this battle's details (date, mission,
-        participants, winners) or archive it. Only the battle owner or campaign
-        owner (arbitrator) can. Not allowed if the battle or campaign is
+        participants, winners) or archive it. Only the battle owner or a campaign
+        admin (arbitrator) can. Not allowed if the battle or campaign is
         archived.
         """
         if not user or not user.is_authenticated:
             return False
         if self.archived or self.campaign.archived:
             return False
-        return user == self.owner or user == self.campaign.owner
+        return user == self.owner or self.campaign.is_admin(user)
 
     def can_manage(self, user):
         """
         Check if a user can run the battle flow: advance its state and assign
-        participant roles. Allowed for the battle owner, the campaign owner, and
+        participant roles. Allowed for the battle owner, campaign admins, and
         any gang owner taking part in the battle. Not allowed if the battle or
         campaign is archived.
         """
@@ -126,7 +126,7 @@ class Battle(AppBase):
             return False
         if self.archived or self.campaign.archived:
             return False
-        if user == self.owner or user == self.campaign.owner:
+        if user == self.owner or self.campaign.is_admin(user):
             return True
         # Owners of participating gangs can also manage the battle.
         return self.participants.filter(owner=user).exists()
@@ -141,13 +141,13 @@ class Battle(AppBase):
     def can_unarchive(self, user):
         """
         Check if a user can unarchive this battle. Only the battle owner or
-        campaign owner, and only while the campaign itself is not archived.
+        a campaign admin, and only while the campaign itself is not archived.
         """
         if not user or not user.is_authenticated:
             return False
         if not self.archived or self.campaign.archived:
             return False
-        return user == self.owner or user == self.campaign.owner
+        return user == self.owner or self.campaign.is_admin(user)
 
     def can_start(self):
         """Whether the battle can move from pre-battle to in-progress."""

@@ -1,6 +1,8 @@
 import json
 
 from django import forms
+from django.contrib.auth import get_user_model
+from django.db import models
 
 from gyrinx.core.models.campaign import (
     Campaign,
@@ -148,6 +150,7 @@ class EditCampaignForm(forms.ModelForm):
             "summary": "Summary",
             "narrative": "Narrative",
             "public": "Public",
+            "admins": "Arbitrators",
             "budget": "Starting Budget",
             "phase": "Phase",
             "phase_notes": "Phase Notes",
@@ -157,6 +160,10 @@ class EditCampaignForm(forms.ModelForm):
             "summary": "A short summary of the campaign (300 characters max). This will be displayed on the campaign list page.",
             "narrative": "A longer narrative description of the campaign. This will be displayed on the campaign detail page.",
             "public": "If checked, this campaign will be visible to all users.",
+            "admins": (
+                "Users who share full administrative control of this campaign. "
+                "Only owners of gangs in the campaign can be added."
+            ),
             "budget": "Starting budget for each gang in credits.",
             "phase": "Current campaign phase (e.g., 'Occupation', 'Takeover', 'Dominion')",
             "phase_notes": "Notes about the current phase - special rules, conditions, etc.",
@@ -171,6 +178,7 @@ class EditCampaignForm(forms.ModelForm):
                 attrs={"cols": 80, "rows": 20}, mce_attrs=TINYMCE_EXTRA_ATTRS
             ),
             "public": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "admins": forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
             "budget": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
             "phase": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "e.g., Occupation"}
@@ -183,6 +191,18 @@ class EditCampaignForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
             self._old_phase = self.instance.phase
+            # Arbitrators can only be picked from campaign participants (gang
+            # owners) plus anyone already granted admin — never the whole user
+            # table, and never the owner (who is always an admin).
+            User = get_user_model()
+            self.fields["admins"].queryset = (
+                User.objects.filter(
+                    models.Q(id__in=self.instance.lists.values("owner_id"))
+                    | models.Q(id__in=self.instance.admins.values("id"))
+                )
+                .exclude(id=self.instance.owner_id)
+                .order_by("username")
+            )
 
     def save(self, commit=True, user=None):
         instance = super().save(commit=False)

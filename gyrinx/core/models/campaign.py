@@ -184,11 +184,24 @@ class Campaign(AppBase):
         return self.status == self.POST_CAMPAIGN
 
     def is_admin(self, user):
-        """Return True when the authenticated user owns this campaign or is a shared admin."""
+        """Return True when the authenticated user owns this campaign or is a shared admin.
+
+        Admin ids are memoised per instance (and read from the prefetch cache when
+        ``admins`` is prefetched), so this is safe to call repeatedly — e.g. once
+        per fighter card — without issuing a query each time.
+        """
         if not user or not user.is_authenticated:
             return False
-        # They are an admin if they are the owner OR if they are in the admins list
-        return self.owner == user or self.admins.filter(id=user.id).exists()
+        if self.owner_id == user.pk:
+            return True
+        admin_ids = getattr(self, "_admin_ids_cache", None)
+        if admin_ids is None:
+            if "admins" in getattr(self, "_prefetched_objects_cache", {}):
+                admin_ids = {admin.pk for admin in self.admins.all()}
+            else:
+                admin_ids = set(self.admins.values_list("id", flat=True))
+            self._admin_ids_cache = admin_ids
+        return user.pk in admin_ids
 
     def _distribute_budget_to_list(self, campaign_list, user=None):
         """Distribute budget credits to a list based on campaign budget and list cost.

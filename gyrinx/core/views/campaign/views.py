@@ -149,6 +149,7 @@ class CampaignDetailView(generic.DetailView):
             ).prefetch_related(
                 "packs",
                 "lists",
+                "admins",
                 models.Prefetch(
                     "actions",
                     queryset=CampaignAction.objects.select_related(
@@ -190,7 +191,7 @@ class CampaignDetailView(generic.DetailView):
                 campaign.is_in_progress
                 and not campaign.archived
                 and (
-                    campaign.owner == user
+                    campaign.is_admin(user)
                     or campaign.active_lists().filter(owner=user).exists()
                 )
             )
@@ -321,7 +322,7 @@ class CampaignDetailView(generic.DetailView):
                 )
             context["grouped_lists"] = grouped_lists
 
-        context["is_owner"] = user == campaign.owner
+        context["is_admin"] = campaign.is_admin(user)
         context["campaign_packs"] = campaign.packs.all()
 
         # Admins (superusers) may impersonate the arbitrator (campaign owner),
@@ -337,9 +338,9 @@ class CampaignDetailView(generic.DetailView):
         if user.is_authenticated:
             context["is_pinned"] = campaign.pinned_by.filter(pk=user.pk).exists()
             context["is_starred"] = campaign.starred_by.filter(pk=user.pk).exists()
-            # Owner or participant (has a list in the campaign) may pin.
+            # Admins or participants (users with a list in the campaign) may pin.
             context["can_pin"] = (
-                campaign.owner == user or campaign.lists.filter(owner=user).exists()
+                campaign.is_admin(user) or campaign.lists.filter(owner=user).exists()
             )
         else:
             context["is_pinned"] = False

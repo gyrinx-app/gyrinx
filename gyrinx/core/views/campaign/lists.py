@@ -20,6 +20,7 @@ from gyrinx.core.models.invitation import CampaignInvitation
 from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -43,7 +44,7 @@ def campaign_add_lists(request, id):
 
     :template:`core/campaign/campaign_add_lists.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     # Check if campaign is in a state where lists can be added
     if campaign.is_post_campaign:
@@ -325,6 +326,8 @@ def campaign_add_lists(request, id):
         "core/campaign/campaign_add_lists.html",
         {
             "campaign": campaign,
+            # Anyone who reaches this view passed the admin gate.
+            "is_admin": True,
             "lists": page_obj,  # Pass the page object instead of the full queryset
             "page_obj": page_obj,  # Also pass page_obj for pagination controls
             "error_message": error_message,
@@ -345,7 +348,7 @@ def campaign_remove_list(request, id, list_id):
     """
     Remove a list from a campaign.
 
-    Allows the campaign owner or list owner to remove a list from a campaign.
+    Allows a campaign admin or the list owner to remove a list from a campaign.
     The list is disconnected from the campaign and archived if in campaign mode.
 
     **Context**
@@ -362,8 +365,8 @@ def campaign_remove_list(request, id, list_id):
     campaign = get_object_or_404(Campaign, id=id)
     list_to_remove = get_object_or_404(List, id=list_id)
 
-    # Check permissions - campaign owner or list owner can remove
-    if request.user != campaign.owner and request.user != list_to_remove.owner:
+    # Check permissions - campaign admin or list owner can remove
+    if not campaign.is_admin(request.user) and request.user != list_to_remove.owner:
         messages.error(
             request, "You don't have permission to remove this list from the campaign."
         )

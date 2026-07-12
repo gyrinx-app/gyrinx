@@ -15,6 +15,7 @@ from gyrinx.core.handlers.fighter import handle_fighter_resurrect
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List, ListFighter, ListFighterInjury
 from gyrinx.core.views.list.common import get_clean_list_or_404
+from gyrinx.core.views.fighter.permissions import arbitrator_q
 
 
 @login_required
@@ -37,14 +38,14 @@ def list_fighter_injuries_edit(request, id, fighter_id):
     # Allow both list owner and campaign owner to manage injuries
     lst = get_clean_list_or_404(
         List.objects.with_related_data().filter(
-            Q(owner=request.user) | Q(campaign__owner=request.user)
+            Q(owner=request.user) | arbitrator_q(request.user)
         ),
         id=id,
     )
 
     # Verify permissions
     if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
             messages.error(
                 request,
                 "You don't have permission to manage injuries for this fighter.",
@@ -98,13 +99,13 @@ def list_fighter_state_edit(request, id, fighter_id):
 
     # Allow both list owner and campaign owner to manage fighter state
     lst = get_clean_list_or_404(
-        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        List.objects.filter(Q(owner=request.user) | arbitrator_q(request.user)),
         id=id,
     )
 
     # Verify permissions
     if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
             messages.error(
                 request,
                 "You don't have permission to manage fighter state for this list.",
@@ -342,13 +343,13 @@ def list_fighter_add_injury(request, id, fighter_id):
 
     # Allow both list owner and campaign owner to add injuries
     lst = get_clean_list_or_404(
-        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        List.objects.filter(Q(owner=request.user) | arbitrator_q(request.user)),
         id=id,
     )
 
     # Verify permissions
     if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
             messages.error(
                 request,
                 "You don't have permission to add injuries to this fighter.",
@@ -472,13 +473,13 @@ def list_fighter_remove_injury(request, id, fighter_id, injury_id):
 
     # Allow both list owner and campaign owner to remove injuries
     lst = get_clean_list_or_404(
-        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        List.objects.filter(Q(owner=request.user) | arbitrator_q(request.user)),
         id=id,
     )
 
     # Verify permissions
     if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
             messages.error(
                 request,
                 "You don't have permission to remove injuries from this fighter.",

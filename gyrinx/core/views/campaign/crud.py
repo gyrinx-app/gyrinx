@@ -2,13 +2,14 @@
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import render
 from django.urls import reverse
 
 from gyrinx.core.forms.campaign import EditCampaignForm, NewCampaignForm
-from gyrinx.core.models.campaign import Campaign, CampaignResourceType
+from gyrinx.core.models.campaign import CampaignResourceType
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -90,7 +91,7 @@ def edit_campaign(request, id):
 
     :template:`core/campaign/campaign_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     error_message = None
     if request.method == "POST":

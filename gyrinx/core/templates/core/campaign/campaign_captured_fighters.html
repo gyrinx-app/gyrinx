@@ -64,7 +64,7 @@
                                 <td>{{ captured.captured_at|date:"M d, Y" }}</td>
                                 <td>
                                     {% if not captured.sold_to_guilders %}
-                                        {% if captured.capturing_list.owner == request.user or campaign.owner == request.user %}
+                                        {% if captured.capturing_list.owner == request.user or is_admin %}
                                             <div class="btn-group btn-group-sm" role="group">
                                                 <a href="{% url 'core:fighter-sell-to-guilders' campaign.id captured.fighter.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="btn btn-outline-secondary">Sell to Guilders</a>

@@ -9,6 +9,7 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.models.campaign import Campaign, CampaignContentPack
 from gyrinx.core.models.pack import CustomContentPack
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -29,9 +30,9 @@ def campaign_packs(request, id):
         ``unsubscribed_user_lists`` (the user's campaign gangs not yet
         subscribed to that pack).
     ``available_packs``
-        Packs that can be added (owner only).
-    ``is_owner``
-        Whether current user owns the campaign.
+        Packs that can be added (campaign admins only).
+    ``is_admin``
+        Whether current user administers the campaign (owner or shared admin).
     ``user_campaign_lists``
         The current user's gangs that belong to this campaign.
 
@@ -41,10 +42,10 @@ def campaign_packs(request, id):
     """
     campaign = get_object_or_404(Campaign, id=id)
     user = request.user
-    is_owner = campaign.owner == user
+    is_admin = campaign.is_admin(user)
     is_member = campaign.lists.filter(owner=user, archived=False).exists()
 
-    if not is_owner and not is_member:
+    if not is_admin and not is_member:
         raise Http404
 
     campaign_packs_qs = campaign.packs.select_related("owner").order_by("name")
@@ -77,13 +78,13 @@ def campaign_packs(request, id):
         packs_with_lists.append(pack)
 
     can_edit_required = (
-        is_owner and not campaign.archived and not campaign.is_post_campaign
+        is_admin and not campaign.archived and not campaign.is_post_campaign
     )
 
-    # Owner-only: available packs to add to the campaign.
+    # Admins only: available packs to add to the campaign.
     available_packs = None
     search_query = ""
-    if is_owner:
+    if is_admin:
         available_packs = (
             CustomContentPack.objects.filter(
                 models.Q(owner=user) | models.Q(listed=True),
@@ -111,7 +112,7 @@ def campaign_packs(request, id):
             "campaign": campaign,
             "campaign_packs": packs_with_lists,
             "available_packs": available_packs,
-            "is_owner": is_owner,
+            "is_admin": is_admin,
             "user_campaign_lists": user_campaign_lists,
             "search_query": search_query,
             "show_my_packs": show_my_packs,
@@ -126,7 +127,7 @@ def campaign_pack_add(request, id, pack_id):
     if request.method != "POST":
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(id,)))
 
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     pack = get_object_or_404(CustomContentPack, id=pack_id, archived=False)
 
     if campaign.archived:
@@ -150,7 +151,7 @@ def campaign_pack_add(request, id, pack_id):
 @login_required
 def campaign_pack_remove(request, id, pack_id):
     """Remove a pack from the campaign's allowed packs."""
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     pack = get_object_or_404(CustomContentPack, id=pack_id)
 
     if campaign.archived:
@@ -189,7 +190,7 @@ def campaign_pack_set_required(request, id, pack_id):
     if request.method != "POST":
         return HttpResponseRedirect(reverse("core:campaign-packs", args=(id,)))
 
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     pack = get_object_or_404(CustomContentPack, id=pack_id)
 
     if campaign.archived:

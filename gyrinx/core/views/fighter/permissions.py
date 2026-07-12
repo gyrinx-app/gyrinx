@@ -5,6 +5,7 @@ import enum
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
+from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.core.views.list.common import get_clean_list_or_404
 
@@ -16,12 +17,23 @@ class Permission(enum.Enum):
     ARBITRATOR = "arbitrator"
 
 
+def arbitrator_q(user):
+    """Q filter matching lists whose campaign the user arbitrates (owner or shared admin).
+
+    The shared-admin branch uses a subquery rather than a join on the admins M2M,
+    so callers don't need .distinct().
+    """
+    return Q(campaign__owner=user) | Q(
+        campaign__in=Campaign.objects.filter(admins=user)
+    )
+
+
 def get_user_permissions(request, lst):
     """Return the set of permissions the current user has on this list."""
     perms = set()
     if lst.owner == request.user:
         perms.add(Permission.OWNER)
-    if lst.campaign and lst.campaign.owner == request.user:
+    if lst.campaign and lst.campaign.is_admin(request.user):
         perms.add(Permission.ARBITRATOR)
     return perms
 
@@ -50,7 +62,7 @@ def get_list_for_edit(request, id, *, required_permissions=None):
     if Permission.OWNER in required_permissions:
         q_filter |= Q(owner=request.user)
     if Permission.ARBITRATOR in required_permissions:
-        q_filter |= Q(campaign__owner=request.user)
+        q_filter |= arbitrator_q(request.user)
 
     lst = get_clean_list_or_404(List.objects.filter(q_filter), id=id)
     perms = get_user_permissions(request, lst)

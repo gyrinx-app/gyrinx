@@ -19,6 +19,7 @@ from gyrinx.core.models.list import List
 from gyrinx.core.utils import safe_redirect, toggle_membership
 from gyrinx.tasks.groups import enqueue_in_group
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -37,7 +38,7 @@ def start_campaign(request, id):
 
     :template:`core/campaign/campaign_start.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if request.method == "POST":
         try:
@@ -96,13 +97,13 @@ def start_campaign(request, id):
 def retry_campaign_list_clone(request, id, list_id):
     """Re-enqueue the background clone task for a gang stuck "joining" (#1222).
 
-    Only the campaign owner — the person who triggered the start — may retry. Idempotent:
+    Only a campaign admin (owner or shared admin) may retry. Idempotent:
     the clone task no-ops if the stub has since finished, so a double-click is harmless.
     """
     campaign = get_object_or_404(Campaign, id=id)
-    if campaign.owner != request.user:
+    if not campaign.is_admin(request.user):
         messages.error(
-            request, "Only the campaign owner can retry a gang that's still joining."
+            request, "Only a campaign admin can retry a gang that's still joining."
         )
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
@@ -168,7 +169,7 @@ def end_campaign(request, id):
 
     :template:`core/campaign/campaign_end.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if request.method == "POST":
         with transaction.atomic():
@@ -228,7 +229,7 @@ def reopen_campaign(request, id):
 
     :template:`core/campaign/campaign_reopen.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if request.method == "POST":
         with transaction.atomic():
@@ -288,7 +289,7 @@ def archive_campaign(request, id):
 
     :template:`core/campaign/campaign_archive.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if request.method == "POST":
         with transaction.atomic():
@@ -363,13 +364,13 @@ def toggle_campaign_pin(request, id):
     Toggle whether the current user has pinned a :model:`core.Campaign`.
 
     Pins are private to each user and surface the campaign on their home page
-    and on the campaigns page sidebar. The owner and any participant (a user
-    with a list in the campaign) may pin it. POST only; redirects back to where
+    and on the campaigns page sidebar. Campaign admins and any participant (a
+    user with a list in the campaign) may pin it. POST only; redirects back to where
     the request came from.
     """
     campaign = get_object_or_404(Campaign, id=id)
     if (
-        campaign.owner != request.user
+        not campaign.is_admin(request.user)
         and not campaign.lists.filter(owner=request.user).exists()
     ):
         raise Http404("Campaign not found")

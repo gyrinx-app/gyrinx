@@ -8,7 +8,7 @@
         <div class="border rounded p-2 text-secondary mb-3">
             <i class="bi-archive"></i>
             This campaign has been archived by its owner.
-            {% if campaign.owner == request.user %}
+            {% if is_admin %}
                 <form action="{% url 'core:campaign-archive' campaign.id %}"
                       method="post"
                       class="d-inline">
@@ -60,7 +60,7 @@
                                 {{ star_count|default:0 }}
                             </button>
                         </form>
-                        {% if campaign.owner == user %}
+                        {% if is_admin %}
                             {% if campaign.can_start_campaign %}
                                 <a href="{% url 'core:campaign-start' campaign.id %}"
                                    class="btn btn-primary btn-sm">
@@ -182,6 +182,19 @@
                         {% endif %}
                     </div>
                 </div>
+                <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                    <div class="caps-label">Arbitrators</div>
+                    <div>
+                        {% spaceless %}
+                            <a href="{% url 'core:user' campaign.owner.username %}"
+                               class="linked-secondary">{{ campaign.owner }}</a>
+                            {% for admin in campaign.admins.all %}
+                                <span>,&nbsp;</span>
+                                <a href="{% url 'core:user' admin.username %}" class="linked-secondary">{{ admin }}</a>
+                            {% endfor %}
+                        {% endspaceless %}
+                    </div>
+                </div>
                 {% if campaign.phase %}
                     <div class="flex-grow-1 col-md-3 flex-md-grow-0">
                         <div class="caps-label">Phase</div>
@@ -197,7 +210,7 @@
                         <div>{{ campaign.budget }}¢</div>
                     </div>
                 {% endif %}
-                {% if campaign_packs or is_owner %}
+                {% if campaign_packs or is_admin %}
                     <div class="flex-grow-1 col-md-3 flex-md-grow-0">
                         <div class="caps-label">Content Packs</div>
                         {% if campaign_packs %}
@@ -213,7 +226,7 @@
                                     {% endfor %}
                                 {% endspaceless %}
                             </div>
-                            {% if is_owner %}
+                            {% if is_admin %}
                                 <a href="{% url 'core:campaign-packs' campaign.id %}"
                                    class="fs-7 linked-secondary">Edit</a>
                             {% endif %}
@@ -244,7 +257,7 @@
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
                            class="linked fs-7">Manage Attributes →</a>
                     {% endif %}
-                    {% if campaign.owner == user and not campaign.is_post_campaign and not campaign.archived %}
+                    {% if is_admin and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="icon-link linked fs-7">
                             <i class="bi-plus-lg"></i> Add Gangs
@@ -313,7 +326,7 @@
                                                             {% else %}
                                                                 <span class="text-secondary">Unowned</span>
                                                             {% endif %}
-                                                            {% if is_owner and not campaign.archived %}
+                                                            {% if is_admin and not campaign.archived %}
                                                                 <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                                    class="icon-link linked fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
                                                             {% endif %}
@@ -331,11 +344,11 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No asset types defined yet.
-                            {% if campaign.owner == user and not campaign.archived %}
+                            {% if is_admin and not campaign.archived %}
                                 <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
                                 or <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
     class="linked">add an asset type →</a>
-                            {% elif campaign.owner == user %}
+                            {% elif is_admin %}
                                 <a href="{% url 'core:campaign-assets' campaign.id %}" class="linked">Manage Assets →</a>
                             {% endif %}
                         </p>
@@ -403,11 +416,11 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No resource types defined yet.
-                            {% if campaign.owner == user and not campaign.archived %}
+                            {% if is_admin and not campaign.archived %}
                                 <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
                                 or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
     class="linked">add a resource type →</a>
-                            {% elif campaign.owner == user %}
+                            {% elif is_admin %}
                                 <a href="{% url 'core:campaign-resources' campaign.id %}" class="linked">Manage Resources →</a>
                             {% endif %}
                         </p>

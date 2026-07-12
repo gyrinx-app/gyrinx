@@ -8,7 +8,7 @@
     <div class="col-12 col-xl-6 px-0 vstack gap-4">
         <h1 class="h3">Content Packs</h1>
         <p class="text-secondary fs-7">
-            {% if is_owner %}
+            {% if is_admin %}
                 Gangs joining this Campaign can use content from these packs and the core game content.
                 Add packs below to restrict which packs can be used.
             {% else %}
@@ -84,7 +84,7 @@
                                             </ul>
                                         </div>
                                     {% endif %}
-                                    {% if is_owner and not campaign.archived and not campaign.is_post_campaign %}
+                                    {% if is_admin and not campaign.archived and not campaign.is_post_campaign %}
                                         <a href="{% url 'core:campaign-pack-remove' campaign.id pack.id %}"
                                            class="icon-link link-danger fs-7"
                                            aria-label="Remove {{ pack.name }} from campaign">
@@ -97,7 +97,7 @@
                     </ul>
                 {% else %}
                     <p class="text-secondary mb-0">
-                        {% if is_owner %}
+                        {% if is_admin %}
                             No packs configured. Any gang can join regardless of their packs.
                         {% else %}
                             No Content Packs configured for this Campaign.
@@ -107,7 +107,7 @@
             </div>
         </section>
         <!-- Add packs (owner only) -->
-        {% if is_owner and not campaign.archived and not campaign.is_post_campaign %}
+        {% if is_admin and not campaign.archived and not campaign.is_post_campaign %}
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Add Packs</h2>
