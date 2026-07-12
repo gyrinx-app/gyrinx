@@ -100,20 +100,20 @@ class BattleDetailView(generic.DetailView):
         # One crew summary per gang that has one, keyed by gang id.
         crews = list(
             battle.crews.select_related("list").prefetch_related(
-                "members", "chosen_fighters", "line_items"
+                "members", "chosen_fighters"
             )
         )
         crew_by_gang = {}
         for crew in crews:
-            receipt = crew.receipt()
+            # Only the rating and pending-roll flag are needed here, so skip the
+            # full receipt() (which also builds the extras breakdown). A pending
+            # draw leaves the rating unknown, so don't compute it at all.
+            pending = crew.pending_roll
             crew_by_gang[crew.list_id] = {
                 "crew": crew,
                 "method_label": crew.method_label(),
-                # Rating is unknown until a pending random draw is rolled.
-                "rating": None
-                if receipt["pending_roll"]
-                else receipt["fighters_total"],
-                "pending_roll": receipt["pending_roll"],
+                "rating": None if pending else crew.rating(),
+                "pending_roll": pending,
             }
 
         # Whether this user may add a crew to a gang that hasn't got one yet.

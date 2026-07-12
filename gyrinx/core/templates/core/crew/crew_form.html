@@ -24,6 +24,7 @@
         </p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
+            {% if is_create %}<input type="hidden" name="list" value="{{ gang.id }}">{% endif %}
             {{ form.non_field_errors }}
             <div>
                 <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
