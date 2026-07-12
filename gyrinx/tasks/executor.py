@@ -163,7 +163,7 @@ def run_task(
         )
         logger.error(
             f"Task {task_name} failed: {e}",
-            extra={"task_id": task_id, "task_name": task_name},
+            extra={"task_id": task_id, "task_name": task_name, "context": extra},
             exc_info=True,
         )
         return False, None, e

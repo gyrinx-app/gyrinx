@@ -127,6 +127,43 @@ def test_redelivery_of_completed_task_does_not_raise():
     assert execution.finished_at == finished_at
 
 
+@pytest.mark.django_db
+def test_retry_after_failure_records_eventual_success():
+    """A Pub/Sub-style retry redelivers a task whose execution is FAILED. The fresh
+    attempt must be allowed to record its own outcome (SUCCESSFUL) rather than
+    staying stuck at the prior failure — handle_task_started treats FAILED as
+    retryable and resets the record before marking it RUNNING."""
+    from django.utils import timezone
+
+    from gyrinx.tasks.executor import run_task
+
+    execution = TaskExecution.objects.create(
+        task_id="retry-me",
+        task_name="_record_task",
+        args=["r"],
+        kwargs={},
+        enqueued_at=timezone.now(),
+    )
+    execution.mark_running()
+    execution.mark_failed(error_message="transient boom")
+    assert execution.status == "FAILED"
+
+    # Redeliver the same message; this time the underlying function succeeds.
+    ok, _rv, err = run_task(
+        _record_task.func,
+        task_name="_record_task",
+        task_id="retry-me",
+        args=["r"],
+        kwargs={},
+    )
+
+    assert ok is True and err is None
+    assert _side_effects == ["r"]
+    execution.refresh_from_db()
+    assert execution.status == "SUCCESSFUL"  # reflects the successful retry
+    assert execution.error_message == ""  # prior failure cleared
+
+
 # =============================================================================
 # Manual mode — the testing layer
 # =============================================================================

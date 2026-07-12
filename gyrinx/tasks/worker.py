@@ -284,13 +284,18 @@ class TaskWorkerPool:
         self._wake.set()
         for t in self._threads:
             t.join(timeout=timeout)
+        still_alive = [t for t in self._threads if t.is_alive()]
         self._threads.clear()
         self._started = False
-        # Clear the events so the same instance is left in a restartable state:
-        # ensure_started() flips _started back on, and _loop() must not see a
-        # stale _stop from a previous stop() and exit immediately.
-        self._stop.clear()
-        self._wake.clear()
+        # Only reset to a restartable state if the workers actually exited: then
+        # ensure_started() can start fresh threads without _loop() seeing a stale
+        # _stop and exiting immediately. If a join timed out (a long-running
+        # delivery), leave _stop set so the lingering threads still wind down —
+        # clearing it would let them keep running alongside a restarted pool and
+        # double-deliver.
+        if not still_alive:
+            self._stop.clear()
+            self._wake.clear()
 
     def _loop(self) -> None:
         from gyrinx.tasks.models import QueuedTask

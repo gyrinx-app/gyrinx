@@ -66,13 +66,18 @@ def handle_task_started(sender, task_result, **kwargs):
     try:
         execution = TaskExecution.objects.get(task_id=task_result.id)
 
-        # Skip if already running or terminal (idempotency for at-least-once
-        # delivery). An overlapping redelivery finds it RUNNING; a post-completion
-        # redelivery finds it SUCCESSFUL/FAILED. Re-marking a terminal execution
-        # RUNNING is an illegal state transition that would raise (and, via the
-        # Pub/Sub push handler, 500 into a redelivery storm) — so mirror the
-        # terminal guard in handle_task_finished below.
-        if execution.status in ("RUNNING", "SUCCESSFUL", "FAILED"):
+        # At-least-once delivery can re-fire task_started for the same task_id.
+        # Re-marking a terminal execution RUNNING is an illegal state transition
+        # that would raise (and, via the Pub/Sub push handler, 500 into a
+        # redelivery storm), so handle each prior state explicitly:
+        #   - RUNNING: an overlapping delivery is already in flight — skip.
+        #   - SUCCESSFUL: a duplicate of a completed success — skip; the business
+        #     logic re-runs idempotently but the record stays SUCCESSFUL.
+        #   - FAILED: a retry (e.g. Pub/Sub redelivering after a transient
+        #     failure). Reset the record so this fresh attempt transitions cleanly
+        #     and reflects its own outcome, rather than reporting a permanent
+        #     failure for a task that eventually succeeded.
+        if execution.status in ("RUNNING", "SUCCESSFUL"):
             logger.debug(
                 "Task %s already %s, skipping task_started (task_id=%s)",
                 execution.task_name,
@@ -80,6 +85,19 @@ def handle_task_started(sender, task_result, **kwargs):
                 task_result.id,
             )
             return
+
+        if execution.status == "FAILED":
+            # Bypass the state machine on purpose (terminal states are otherwise
+            # sticky) — mirrors the local worker's _reset_execution_for_attempt.
+            TaskExecution.objects.filter(pk=execution.pk).update(
+                status="READY",
+                started_at=None,
+                finished_at=None,
+                error_message="",
+                error_traceback="",
+                modified=timezone.now(),
+            )
+            execution.refresh_from_db()
 
         execution.mark_running()
         logger.debug(
