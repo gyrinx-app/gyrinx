@@ -19,7 +19,7 @@
                     Unowned
                 {% endif %}
             </span>
-            {% if is_owner and not campaign.archived %}
+            {% if is_admin and not campaign.archived %}
                 <span class="ms-auto d-flex gap-2">
                     <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
                        class="icon-link linked"><i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer</a>

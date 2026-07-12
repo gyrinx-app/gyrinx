@@ -99,8 +99,8 @@ def campaign_asset_detail(request, id, asset_id):
         The :model:`core.CampaignAsset` being viewed.
     ``sub_assets_by_type``
         List of ``(label, [sub_asset, ...])`` tuples in schema order.
-    ``is_owner``
-        Whether the current user owns the campaign.
+    ``is_admin``
+        Whether the current user administers the campaign (owner or shared admin).
 
     **Template**
 
@@ -158,7 +158,7 @@ def campaign_asset_detail(request, id, asset_id):
             "campaign": campaign,
             "asset": asset,
             "sub_assets_by_type": sub_assets_by_type,
-            "is_owner": request.user == campaign.owner,
+            "is_admin": campaign.is_admin(request.user),
         },
     )
 
