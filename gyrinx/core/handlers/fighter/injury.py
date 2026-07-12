@@ -71,6 +71,13 @@ def handle_fighter_add_injury(
     """
     lst = fighter.list
 
+    # Injuries are a campaign-mode concept (ListFighterInjury.clean() enforces
+    # this, but save_with_user()/create_with_user() don't run full_clean).
+    # Guard here so the handler upholds its own invariant, mirroring
+    # handle_fighter_kill's precondition check.
+    if not lst.is_campaign_mode:
+        raise ValueError("Injuries can only be applied in campaign mode")
+
     injury_record = ListFighterInjury.objects.create_with_user(
         user=user,
         fighter=fighter,

@@ -61,6 +61,21 @@ def test_handle_fighter_add_injury_applies_outcome(
 
 
 @pytest.mark.django_db
+def test_handle_fighter_add_injury_requires_campaign_mode(
+    user, make_list, make_list_fighter
+):
+    lst = make_list("Building Gang")  # LIST_BUILDING, not campaign mode
+    fighter = make_list_fighter(lst, "F1")
+    injury = ContentInjury.objects.create(
+        name="Scratch", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    with pytest.raises(ValueError):
+        handle_fighter_add_injury(user=user, fighter=fighter, injury=injury)
+    # Nothing was recorded.
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 0
+
+
+@pytest.mark.django_db
 def test_handle_fighter_add_injury_no_change_keeps_state(
     user, list_with_campaign, make_list_fighter
 ):
