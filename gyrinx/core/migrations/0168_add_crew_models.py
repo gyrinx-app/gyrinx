@@ -10,7 +10,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0166_impersonation_log"),
+        ("core", "0167_campaign_admins"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
