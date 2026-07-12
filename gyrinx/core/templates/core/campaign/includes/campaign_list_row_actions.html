@@ -1,0 +1,42 @@
+{% comment %}
+Row actions for a campaign gang. Expects `campaign`, `list`, and `user` in context.
+
+For a gang still joining (CLONING_IN_PROGRESS stub, #1222) the only action is a Retry,
+shown to the campaign owner (the person who triggered the start). Otherwise the usual
+"Remove from Campaign" menu, for the campaign owner or the gang's owner.
+{% endcomment %}
+<td class="text-end pe-0">
+    {% if list.is_cloning %}
+        {% if campaign.owner == user %}
+            <form method="post"
+                  action="{% url 'core:campaign-list-retry-clone' campaign.id list.id %}"
+                  class="d-inline">
+                {% csrf_token %}
+                <button type="submit"
+                        class="btn btn-link btn-sm p-0 text-secondary"
+                        title="Retry joining">
+                    <i class="bi-arrow-clockwise"></i> Retry
+                </button>
+            </form>
+        {% endif %}
+    {% elif campaign.owner == user or list.owner == user %}
+        {% if not campaign.is_post_campaign %}
+            <div class="dropdown">
+                <button class="btn btn-link btn-sm p-0 text-secondary"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false">
+                    <i class="bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
+                           class="dropdown-item text-danger">
+                            <i class="bi-trash"></i> Remove from Campaign
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        {% endif %}
+    {% endif %}
+</td>

@@ -372,12 +372,16 @@
                                                 </td>
                                             </tr>
                                             {% for list in group.lists %}
-                                                {% include "core/campaign/includes/resource_row.html" %}
+                                                {% if not list.is_cloning %}
+                                                    {% include "core/campaign/includes/resource_row.html" %}
+                                                {% endif %}
                                             {% endfor %}
                                         {% endfor %}
                                     {% else %}
                                         {% for list in campaign.lists.all %}
-                                            {% include "core/campaign/includes/resource_row.html" %}
+                                            {% if not list.is_cloning %}
+                                                {% include "core/campaign/includes/resource_row.html" %}
+                                            {% endif %}
                                         {% endfor %}
                                     {% endif %}
                                 </tbody>
@@ -482,4 +486,41 @@
             </section>
         {% endif %}
     </div>
+    {% if has_cloning_lists %}
+        {# Gangs are still joining in the background (#1222). Poll the status endpoint and #}
+        {# reload once they're all ready. Progressive enhancement: without JS the user can #}
+        {# just refresh the page; the "Joining…" placeholders update on their own load. #}
+        <script>
+            (function () {
+                var url = "{% url 'core:campaign-cloning-status' campaign.id %}";
+                var INTERVAL = 4000;
+                var MAX_ELAPSED = 300000; // give up polling after 5 minutes
+                var elapsed = 0;
+
+                function schedule() {
+                    elapsed += INTERVAL;
+                    if (elapsed < MAX_ELAPSED) {
+                        window.setTimeout(poll, INTERVAL);
+                    }
+                }
+
+                function poll() {
+                    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                        .then(function (response) {
+                            return response.ok ? response.json() : null;
+                        })
+                        .then(function (data) {
+                            if (data && data.cloning === false) {
+                                window.location.reload();
+                                return;
+                            }
+                            schedule();
+                        })
+                        .catch(schedule);
+                }
+
+                window.setTimeout(poll, INTERVAL);
+            })();
+        </script>
+    {% endif %}
 {% endblock content %}

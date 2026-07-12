@@ -9,7 +9,7 @@ from django.views import generic
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignAsset
 from gyrinx.core.utils import search_queryset
 from gyrinx.core.models.invitation import CampaignInvitation
-from gyrinx.core.models.list import CapturedFighter
+from gyrinx.core.models.list import CapturedFighter, List
 
 from .common import (
     ensure_campaign_list_resources,
@@ -161,6 +161,12 @@ class CampaignDetailView(generic.DetailView):
         context = super().get_context_data(**kwargs)
         campaign = self.object
         user = self.request.user
+
+        # Are any member gangs still being cloned in the background (#1222)? Computed from
+        # the prefetched lists (no extra query) so the page can poll for completion.
+        context["has_cloning_lists"] = any(
+            lst.status == List.CLONING_IN_PROGRESS for lst in campaign.lists.all()
+        )
 
         # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
         if user.is_authenticated:
