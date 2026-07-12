@@ -189,7 +189,8 @@
                             <a href="{% url 'core:user' campaign.owner.username %}"
                                class="linked-body">{{ campaign.owner }}</a>
                             {% for admin in campaign.admins.all %}
-                                <span>,&#32;</span>
+                                {# ", " as a template literal: djlint trims literal trailing spaces and rejects entities (H023) #}
+                                <span>{{ ", " }}</span>
                                 <a href="{% url 'core:user' admin.username %}" class="linked-body">{{ admin }}</a>
                             {% endfor %}
                         {% endspaceless %}
@@ -222,7 +223,7 @@
                                         {% else %}
                                             <span>{{ pack.name }}</span>
                                         {% endif %}
-                                        {% if not forloop.last %}<span>,&#32;</span>{% endif %}
+                                        {% if not forloop.last %}<span>{{ ", " }}</span>{% endif %}
                                     {% endfor %}
                                 {% endspaceless %}
                             </div>
