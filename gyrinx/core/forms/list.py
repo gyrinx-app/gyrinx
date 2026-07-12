@@ -585,6 +585,43 @@ class EditListFighterNotesForm(forms.ModelForm):
         }
 
 
+def available_injuries_for_fighter(fighter):
+    """Return the ContentInjury queryset applicable to ``fighter``.
+
+    Filters injury groups by the fighter's category (``restricted_to`` /
+    ``unavailable_to``) and house (``restricted_to_house``); ungrouped injuries
+    are always available. Passing ``None`` returns every injury. Shared by
+    :class:`AddInjuryForm` and the bulk post-battle editor so the two can't
+    drift apart.
+    """
+    from django.db.models import Q
+
+    from gyrinx.content.models import ContentInjury, ContentInjuryGroup
+
+    base = ContentInjury.objects.select_related("injury_group")
+    if fighter is None:
+        return base
+
+    fighter_category = fighter.content_fighter.category
+    fighter_house = fighter.equipment_list_fighter.house
+
+    group_query = (
+        Q(restricted_to__isnull=True)
+        | Q(restricted_to="")
+        | Q(restricted_to__contains=fighter_category)
+    )
+    group_query &= ~Q(unavailable_to__contains=fighter_category)
+    if fighter_house:
+        group_query &= Q(restricted_to_house__isnull=True) | Q(
+            restricted_to_house=fighter_house
+        )
+
+    available_groups = ContentInjuryGroup.objects.filter(group_query)
+    return base.filter(
+        Q(injury_group__in=available_groups) | Q(injury_group__isnull=True)
+    )
+
+
 class AddInjuryForm(forms.Form):
     injury = forms.ModelChoiceField(
         queryset=None,  # Will be set in __init__
@@ -609,48 +646,10 @@ class AddInjuryForm(forms.Form):
         # Extract fighter from kwargs if provided
         fighter = kwargs.pop("fighter", None)
         super().__init__(*args, **kwargs)
-        # Import here to avoid circular imports
-        from django.db.models import Q
-
-        from gyrinx.content.models import ContentInjury, ContentInjuryGroup
         from gyrinx.forms import group_select
 
-        # Filter injuries based on fighter category if fighter is provided
-        if fighter:
-            fighter_category = fighter.content_fighter.category
-            fighter_house = fighter.equipment_list_fighter.house
-
-            # Build query for injury groups available to this fighter
-            # Start with groups that have no category restrictions or include this category
-            group_query = (
-                Q(restricted_to__isnull=True)
-                | Q(restricted_to="")
-                | Q(restricted_to__contains=fighter_category)
-            )
-
-            # Exclude groups that are unavailable to this category
-            group_query &= ~Q(unavailable_to__contains=fighter_category)
-
-            # Apply house restrictions if present
-            if fighter_house:
-                # Include groups with no house restrictions or those restricted to this house
-                group_query &= Q(restricted_to_house__isnull=True) | Q(
-                    restricted_to_house=fighter_house
-                )
-
-            available_groups = ContentInjuryGroup.objects.filter(group_query)
-
-            # Filter injuries by available groups
-            self.fields["injury"].queryset = ContentInjury.objects.select_related(
-                "injury_group"
-            ).filter(
-                Q(injury_group__in=available_groups) | Q(injury_group__isnull=True)
-            )
-        else:
-            # If no fighter, show all injuries
-            self.fields["injury"].queryset = ContentInjury.objects.select_related(
-                "injury_group"
-            )
+        # Filter injuries to those applicable to this fighter (shared helper).
+        self.fields["injury"].queryset = available_injuries_for_fighter(fighter)
 
         # Group injuries by their injury_group field
         group_select(
