@@ -4,7 +4,7 @@
     {{ asset.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/campaign_common_header.html" with campaign=campaign current=asset.name %}
+    {% include "core/includes/campaign_common_header.html" with campaign=campaign current=asset.name parent=asset.asset_type.name_singular %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <div>
             <div class="caps-label text-secondary mb-1">{{ asset.asset_type.name_singular }}</div>
@@ -28,9 +28,6 @@
                 </span>
             {% endif %}
         </div>
-        {% if asset.description %}
-            <div class="mb-last-0">{{ asset.description|safe_rich_text|safe }}</div>
-        {% endif %}
         {% if asset.properties_with_labels %}
             <div>
                 <div class="caps-label mb-1">Properties</div>
@@ -73,6 +70,7 @@
                 {% endfor %}
             </div>
         {% endif %}
+        {% if asset.description %}<div class="mb-last-0">{{ asset.description|safe_rich_text|safe }}</div>{% endif %}
         {% if asset.asset_type.description %}
             <div class="border-top pt-3">
                 <div class="caps-label mb-1">About {{ asset.asset_type.name_plural }}</div>

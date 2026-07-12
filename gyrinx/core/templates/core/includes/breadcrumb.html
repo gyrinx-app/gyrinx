@@ -1,6 +1,7 @@
 {# Breadcrumb component — sits above the page title. #}
 {# Required params: type (str), owner (User object), name (str) #}
-{# Optional params: type_url (str), campaign (Campaign object), print (bool) #}
+{# Optional params: type_url (str), campaign (Campaign object), print (bool), #}
+{#   parent (str) + parent_url (str) — an intermediate crumb before name #}
 {% load badge_tags %}
 <div class="fs-7 text-secondary">
     {% if print %}
@@ -20,6 +21,14 @@
             {{ campaign.name }}
         {% else %}
             <a class="linked-secondary" href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
+        {% endif %}
+        <span class="mx-1">/</span>
+    {% endif %}
+    {% if parent %}
+        {% if print or not parent_url %}
+            {{ parent }}
+        {% else %}
+            <a class="linked-secondary" href="{{ parent_url }}">{{ parent }}</a>
         {% endif %}
         <span class="mx-1">/</span>
     {% endif %}

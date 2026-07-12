@@ -783,3 +783,98 @@ def test_campaign_dashboard_shows_held_by(content_house):
     content = response.content.decode()
     assert "Held by" in content
     assert "Iron Skulls" in content
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_orders_description_after_structured_data():
+    """On the detail page, properties/sub-assets come before the long description."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        sub_asset_schema={
+            "structure": {"label": "Structure", "label_plural": "Structures"}
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        properties={"boon": "+D6 income"},
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        owner=user,
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    content = response.content.decode()
+    assert content.index("Boon") < content.index("A toxic wasteland.")
+    assert content.index("Generator Hall") < content.index("A toxic wasteland.")
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_orders_description_after_properties():
+    """On the dashboard, an asset's properties come before its description."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        owner=user,
+    )
+    CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        properties={"boon": "+D6 income"},
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    content = response.content.decode()
+    assert content.index("Boon") < content.index("A toxic wasteland.")
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_breadcrumb_includes_type():
+    """The breadcrumb shows the asset type (singular) as an intermediate crumb."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    # Distinct singular/plural so counting the singular is unambiguous.
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Zone",
+        name_plural="Districts",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Pit", owner=user
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    content = response.content.decode()
+    # Appears in the caps-label heading and, now, the breadcrumb crumb.
+    assert content.count("Zone") >= 2
