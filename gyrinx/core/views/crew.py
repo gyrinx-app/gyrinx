@@ -50,7 +50,12 @@ def _can_manage_new_crew(user, battle, gang):
         return False
     if battle.archived or battle.campaign.archived:
         return False
-    return user == gang.owner or user == battle.owner or user == battle.campaign.owner
+    # Compare ids (owner_id is a column) to avoid loading the owner objects.
+    return (
+        user.id == gang.owner_id
+        or user.id == battle.owner_id
+        or user.id == battle.campaign.owner_id
+    )
 
 
 def _redirect_crew(crew):

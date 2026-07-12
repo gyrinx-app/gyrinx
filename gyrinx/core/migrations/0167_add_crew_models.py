@@ -202,7 +202,7 @@ class Migration(migrations.Migration):
                         choices=[
                             ("credits", "Gang credits"),
                             ("free", "Free"),
-                            ("patronage", "House patronage"),
+                            ("allowance", "Allowance"),
                         ],
                         default="credits",
                         help_text="How this is paid for (descriptive; no credits are moved).",
@@ -213,7 +213,7 @@ class Migration(migrations.Migration):
                     "reason",
                     models.CharField(
                         blank=True,
-                        help_text="Why, when free or by patronage.",
+                        help_text="Why, when free or from an allowance.",
                         max_length=255,
                     ),
                 ),
@@ -395,7 +395,7 @@ class Migration(migrations.Migration):
                         choices=[
                             ("credits", "Gang credits"),
                             ("free", "Free"),
-                            ("patronage", "House patronage"),
+                            ("allowance", "Allowance"),
                         ],
                         default="credits",
                         help_text="How this is paid for (descriptive; no credits are moved).",
@@ -406,7 +406,7 @@ class Migration(migrations.Migration):
                     "reason",
                     models.CharField(
                         blank=True,
-                        help_text="Why, when free or by patronage.",
+                        help_text="Why, when free or from an allowance.",
                         max_length=255,
                     ),
                 ),

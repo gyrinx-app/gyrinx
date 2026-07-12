@@ -267,10 +267,13 @@ def test_receipt_totals(crew_setup):
     receipt = crew.receipt()
     assert receipt["fighters_total"] == 100
     assert [a["name"] for a in receipt["attendees"]] == ["Ganger 0"]
+    # Each attendee carries its fighter category for the bold "name · category".
+    assert all(a["category"] for a in receipt["attendees"])
+    assert receipt["has_extras"] is True
     # Extras land in the column for how they're paid.
     assert receipt["credits_total"] == 20
     assert receipt["free_total"] == 30
-    assert receipt["patronage_total"] == 0
+    assert receipt["allowance_total"] == 0
     assert receipt["has_free"] is True
     # Grand total = fighters + all extras (the crew's credits value).
     assert receipt["total"] == 150

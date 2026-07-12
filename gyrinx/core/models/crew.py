@@ -133,13 +133,16 @@ class Crew(AppBase):
 
     # Payment / provenance for extra credit-consuming things. Descriptive only:
     # crews never move real credits. Lives on CrewLineItem.
+    # "Allowance" is the underdog's pre-battle balancing allowance — House
+    # Patronage is only one source of it (see #1346 discussion), so the name
+    # stays source-neutral.
     PAY_CREDITS = "credits"
     PAY_FREE = "free"
-    PAY_PATRONAGE = "patronage"
+    PAY_ALLOWANCE = "allowance"
     PAYMENT_CHOICES = [
         (PAY_CREDITS, "Gang credits"),
         (PAY_FREE, "Free"),
-        (PAY_PATRONAGE, "House patronage"),
+        (PAY_ALLOWANCE, "Allowance"),
     ]
 
     battle = models.ForeignKey(
@@ -212,10 +215,11 @@ class Crew(AppBase):
         battle = self.battle
         if battle.archived or battle.campaign.archived:
             return False
+        # Compare ids (owner_id is a column) to avoid loading the owner objects.
         return (
-            user == self.list.owner
-            or user == battle.owner
-            or user == battle.campaign.owner
+            user.id == self.list.owner_id
+            or user.id == battle.owner_id
+            or user.id == battle.campaign.owner_id
         )
 
     # --- selection method label (derived from recipe) --------------------
@@ -283,6 +287,11 @@ class Crew(AppBase):
                         cost,
                         {
                             "name": fighter.name if fighter is not None else "",
+                            "category": (
+                                fighter.content_fighter.get_category_display()
+                                if fighter is not None
+                                else ""
+                            ),
                             "fighter_id": member.list_fighter_id,
                             "loadout": equipment_set.name if equipment_set else None,
                             "was_random": member.was_random,
@@ -303,6 +312,11 @@ class Crew(AppBase):
                     cost,
                     {
                         "name": fighter.name,
+                        "category": (
+                            resolved.content_fighter.get_category_display()
+                            if resolved is not None
+                            else ""
+                        ),
                         "fighter_id": fighter.pk,
                         "loadout": None,
                         "was_random": False,
@@ -332,23 +346,24 @@ class Crew(AppBase):
         return self.rating() + self.extras_total()
 
     def receipt(self):
-        """Columnar receipt for the crew page. Each fighter contributes to the
-        Rating column; each extra falls in the Credits, Patronage, or Free
-        column by how it's paid for. Returns the rows, the per-column subtotals,
-        and the grand total (the crew's credits value). One batch load; computed
-        live, never persisted."""
+        """Columnar receipt for the crew page, grouped into a Fighters section
+        and an Extras section. Each fighter contributes to the Rating column;
+        each extra falls in the Credits, Allowance, or Free column by how it is
+        paid for. Returns the grouped rows, the per-column totals (for the
+        annotated subtotal rows), and the grand total (the crew's credits
+        value). One batch load; computed live, never persisted."""
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
         fighters_total = sum(cost for cost, _ in lines)
 
         extras = []
-        credits_total = patronage_total = free_total = 0
+        credits_total = allowance_total = free_total = 0
         has_free = False
         for item in self.line_items.all():
-            credits = patronage = free = None
-            if item.payment == self.PAY_PATRONAGE:
-                patronage = item.cost
-                patronage_total += item.cost
+            credits = allowance = free = None
+            if item.payment == self.PAY_ALLOWANCE:
+                allowance = item.cost
+                allowance_total += item.cost
             elif item.payment == self.PAY_FREE:
                 free = item.cost
                 free_total += item.cost
@@ -360,18 +375,19 @@ class Crew(AppBase):
                 {
                     "item": item,
                     "credits": credits,
-                    "patronage": patronage,
+                    "allowance": allowance,
                     "free": free,
                 }
             )
 
-        total = fighters_total + credits_total + patronage_total + free_total
+        total = fighters_total + credits_total + allowance_total + free_total
         return {
             "attendees": attendees,
             "extras": extras,
+            "has_extras": bool(extras),
             "fighters_total": fighters_total,
             "credits_total": credits_total,
-            "patronage_total": patronage_total,
+            "allowance_total": allowance_total,
             "free_total": free_total,
             "has_free": has_free,
             "total": total,
@@ -469,7 +485,7 @@ class CrewLineItem(AppBase):
     reason = models.CharField(
         max_length=255,
         blank=True,
-        help_text="Why, when free or by patronage.",
+        help_text="Why, when free or from an allowance.",
     )
 
     history = HistoricalRecords()

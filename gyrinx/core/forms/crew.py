@@ -141,7 +141,7 @@ class CrewLineItemForm(forms.ModelForm):
             "reason": "Reason",
         }
         help_texts = {
-            "reason": "Optional — note why, when free or by patronage.",
+            "reason": "Optional — note why, when free or from an allowance.",
         }
         widgets = {
             "label": forms.TextInput(

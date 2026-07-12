@@ -13,6 +13,26 @@ from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
 
 
+def _crew_breakdown(receipt):
+    """Abbreviated, tooltipped stat units for the battle page's crew row —
+    mirrors the list header's R/Cr/... block. Rating, Credits and Allowance are
+    always shown so crews line up column-wise; Free only when the crew uses it.
+    Each unit carries the full name for a tooltip; the grand total is rendered
+    separately (bold)."""
+    rows = [
+        {"abbr": "R", "title": "Rating", "amount": receipt["fighters_total"]},
+        {"abbr": "Cr", "title": "Credits", "amount": receipt["credits_total"]},
+        {
+            "abbr": "A",
+            "title": "Allowance — underdog balancing (e.g. House Patronage)",
+            "amount": receipt["allowance_total"],
+        },
+    ]
+    if receipt["has_free"]:
+        rows.append({"abbr": "F", "title": "Free", "amount": receipt["free_total"]})
+    return rows
+
+
 class BattleDetailView(generic.DetailView):
     """
     Display a single :model:`core.Battle` object.
@@ -98,16 +118,18 @@ class BattleDetailView(generic.DetailView):
         """Attach crew summaries and the per-gang 'add crew' affordances."""
         crews = list(
             battle.crews.select_related("list").prefetch_related(
-                "members", "chosen_fighters"
+                "members", "chosen_fighters", "line_items"
             )
         )
         crew_summaries = []
         for crew in crews:
+            receipt = crew.receipt()
             crew_summaries.append(
                 {
                     "crew": crew,
                     "method_label": crew.method_label(),
-                    "rating": crew.rating(),
+                    "breakdown": _crew_breakdown(receipt),
+                    "total": receipt["total"],
                 }
             )
         context["crew_summaries"] = crew_summaries
@@ -116,7 +138,9 @@ class BattleDetailView(generic.DetailView):
         # that this user may manage (their own gang, or any gang if arbitrator).
         addable_gangs = []
         if user.is_authenticated and not (battle.archived or battle.campaign.archived):
-            is_arbiter = user == battle.owner or user == battle.campaign.owner
+            is_arbiter = (
+                user.id == battle.owner_id or user.id == battle.campaign.owner_id
+            )
             with_crew = {crew.list_id for crew in crews}
             for entry in battle.participant_entries.select_related("list"):
                 gang = entry.list
