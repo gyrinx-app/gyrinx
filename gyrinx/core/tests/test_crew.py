@@ -702,3 +702,22 @@ def test_crew_print_link_filters_to_crew_fighters(client, crew_setup):
     assert fighters[1].name in content
     # A gang fighter that isn't in the crew is filtered out of the print.
     assert fighters[2].name not in content
+
+
+@pytest.mark.django_db
+def test_print_ignores_malformed_crew_param(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    gang = crew_setup["gang"]
+    # A non-UUID ?crew= fails closed (whole gang), not a 500.
+    resp = client.get(reverse("core:list-print", args=[gang.id]) + "?crew=not-a-uuid")
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_crew_new_rejects_malformed_list_param(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    # A non-UUID ?list= redirects to the battle rather than 500ing.
+    resp = client.get(reverse("core:crew-new", args=[battle.id]) + "?list=not-a-uuid")
+    assert resp.status_code == 302
+    assert reverse("core:battle", args=[battle.id]) in resp.url

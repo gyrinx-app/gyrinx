@@ -7,6 +7,8 @@ lock, per-member loadout, extras, delete — but never write to the gang's
 canonical cost, credits, or audit stream.
 """
 
+import uuid
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -55,7 +57,11 @@ def crew_new(request, battle_id):
     battle = _get_battle(battle_id)
 
     list_id = request.POST.get("list") or request.GET.get("list")
-    if not list_id:
+    try:
+        # Missing or malformed ?list= — can't identify a gang; fail closed with
+        # a message rather than 500ing on a bad UUID in get_object_or_404.
+        uuid.UUID(str(list_id))
+    except ValueError:
         messages.error(request, "No gang was specified for the crew.")
         return _redirect_battle(battle)
     gang = get_object_or_404(List, id=list_id)

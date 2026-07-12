@@ -1,5 +1,6 @@
 """List CRUD views."""
 
+import uuid
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
@@ -568,13 +569,20 @@ class ListPrintView(generic.DetailView):
         crew_id = self.request.GET.get("crew")
         print_crew = None
         if crew_id:
-            from gyrinx.core.models.crew import Crew
+            try:
+                # Fail closed on a malformed ?crew= rather than 500ing when the
+                # UUIDField filter tries to prepare a non-UUID value.
+                uuid.UUID(str(crew_id))
+            except ValueError:
+                pass
+            else:
+                from gyrinx.core.models.crew import Crew
 
-            print_crew = (
-                Crew.objects.select_related("battle")
-                .filter(id=crew_id, list=list_obj)
-                .first()
-            )
+                print_crew = (
+                    Crew.objects.select_related("battle")
+                    .filter(id=crew_id, list=list_obj)
+                    .first()
+                )
         context["print_crew"] = print_crew
 
         # Get fighters with group keys for display grouping
