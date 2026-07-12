@@ -170,7 +170,7 @@
         <!-- Campaign Info Section -->
         <div class="vstack gap-2">
             <div class="d-flex flex-wrap gap-3 border-bottom pb-3 mb-2">
-                <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                <div class="flex-grow-1 col-md-auto flex-md-grow-0">
                     <div class="caps-label">Status</div>
                     <div>
                         {% if campaign.is_pre_campaign %}
@@ -182,7 +182,7 @@
                         {% endif %}
                     </div>
                 </div>
-                <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                <div class="flex-grow-1 col-md-auto flex-md-grow-0">
                     <div class="caps-label">Arbitrators</div>
                     <div>
                         {% spaceless %}
@@ -196,7 +196,7 @@
                     </div>
                 </div>
                 {% if campaign.phase %}
-                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                    <div class="flex-grow-1 col-md-auto flex-md-grow-0">
                         <div class="caps-label">Phase</div>
                         <div>{{ campaign.phase }}</div>
                         {% if campaign.phase_notes %}
@@ -205,13 +205,13 @@
                     </div>
                 {% endif %}
                 {% if campaign.budget > 0 %}
-                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                    <div class="flex-grow-1 col-md-auto flex-md-grow-0">
                         <div class="caps-label">Budget</div>
                         <div>{{ campaign.budget }}¢</div>
                     </div>
                 {% endif %}
                 {% if campaign_packs or is_admin %}
-                    <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                    <div class="flex-grow-1 col-md-auto flex-md-grow-0">
                         <div class="caps-label">Content Packs</div>
                         {% if campaign_packs %}
                             <div>
