@@ -11,6 +11,7 @@ from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
+from gyrinx.core.views.crew import _can_manage_new_crew
 
 
 def _crew_breakdown(receipt):
@@ -138,18 +139,17 @@ class BattleDetailView(generic.DetailView):
         context["crew_summaries"] = crew_summaries
 
         # Gangs that can still have a crew added: participants with no crew yet
-        # that this user may manage (their own gang, or any gang if arbitrator).
+        # that this user may manage. The per-gang rule (own gang, or any gang if
+        # arbitrator) lives in _can_manage_new_crew so it stays in one place; the
+        # outer guard is just a fast-path to skip the query for anon/archived.
         addable_gangs = []
         if user.is_authenticated and not (battle.archived or battle.campaign.archived):
-            is_arbiter = (
-                user.id == battle.owner_id or user.id == battle.campaign.owner_id
-            )
             with_crew = {crew.list_id for crew in crews}
             for entry in battle.participant_entries.select_related("list"):
                 gang = entry.list
                 if gang.id in with_crew:
                     continue
-                if is_arbiter or gang.owner_id == user.id:
+                if _can_manage_new_crew(user, battle, gang):
                     addable_gangs.append(gang)
         context["addable_crew_gangs"] = addable_gangs
 
