@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:battle' battle.id as battle_url %}
-    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=battle_url current=crew %}
     <div class="col-12 col-md-10 col-lg-7 px-0 vstack gap-4">
         <!-- Header -->
         <div class="vstack gap-0">
