@@ -16,19 +16,30 @@
         <div class="vstack gap-0">
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ battle.name }}</h1>
-                {% if can_edit or can_unarchive %}
-                    <nav class="nav btn-group flex-nowrap ms-md-auto">
-                        {% if can_edit %}
-                            <a href="{% url 'core:battle-edit' battle.id %}"
-                               class="btn btn-primary btn-sm"><i class="bi-pencil"></i> Edit</a>
-                            <a href="{% url 'core:battle-archive' battle.id %}"
-                               class="btn btn-secondary btn-sm"><i class="bi-archive"></i> Archive</a>
+                {% if can_start or can_end or can_edit or can_unarchive %}
+                    <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
+                        {% if can_start %}
+                            <a href="{% url 'core:battle-start' battle.id %}"
+                               class="btn btn-primary btn-sm"><i class="bi-play-circle"></i> Start</a>
+                        {% elif can_end %}
+                            <a href="{% url 'core:battle-end' battle.id %}"
+                               class="btn btn-danger btn-sm"><i class="bi-stop-circle"></i> End</a>
                         {% endif %}
-                        {% if can_unarchive %}
-                            <a href="{% url 'core:battle-archive' battle.id %}"
-                               class="btn btn-secondary btn-sm"><i class="bi-archive"></i> Unarchive</a>
+                        {% if can_edit or can_unarchive %}
+                            <nav class="nav btn-group flex-nowrap">
+                                {% if can_edit %}
+                                    <a href="{% url 'core:battle-edit' battle.id %}"
+                                       class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
+                                    <a href="{% url 'core:battle-archive' battle.id %}"
+                                       class="btn btn-secondary btn-sm"><i class="bi-archive"></i> Archive</a>
+                                {% endif %}
+                                {% if can_unarchive %}
+                                    <a href="{% url 'core:battle-archive' battle.id %}"
+                                       class="btn btn-secondary btn-sm"><i class="bi-archive"></i> Unarchive</a>
+                                {% endif %}
+                            </nav>
                         {% endif %}
-                    </nav>
+                    </div>
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2 text-secondary fs-7">
@@ -42,27 +53,10 @@
                 <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a></span>
             </div>
         </div>
-        <!-- State controls -->
-        {% if state_transitions %}
-            <div class="border rounded p-2 d-flex flex-column flex-sm-row align-items-sm-center gap-2">
-                <span class="fs-7 text-secondary">Current state: <strong>{{ state_display }}</strong></span>
-                <div class="hstack gap-2 ms-sm-auto">
-                    {% for transition in state_transitions %}
-                        <form method="post"
-                              action="{% url 'core:battle-set-state' battle.id %}"
-                              class="d-inline">
-                            {% csrf_token %}
-                            <input type="hidden" name="status" value="{{ transition.value }}">
-                            <button type="submit" class="btn btn-success btn-sm">Move to {{ transition.label }} →</button>
-                        </form>
-                    {% endfor %}
-                </div>
-            </div>
-        {% endif %}
-        <!-- Two-column layout on super-wide screens -->
-        <div class="row g-4 g-xxl-5">
+        <!-- Two-column layout on wide screens -->
+        <div class="row g-4 g-lg-5">
             <!-- Participants + Related Actions -->
-            <div class="col-12 col-xxl-6 vstack gap-4">
+            <div class="col-12 col-lg-6 vstack gap-4">
                 <!-- Participants -->
                 <section>
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
@@ -119,7 +113,7 @@
                 {% endif %}
             </div>
             <!-- Battle Reports -->
-            <div class="col-12 col-xxl-6">
+            <div class="col-12 col-lg-6">
                 <section>
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
                         <h2 class="h5 mb-0">Battle Reports</h2>

@@ -149,6 +149,14 @@ class Battle(AppBase):
             return False
         return user == self.owner or user == self.campaign.owner
 
+    def can_start(self):
+        """Whether the battle can move from pre-battle to in-progress."""
+        return self.states.current == self.PRE_BATTLE
+
+    def can_end(self):
+        """Whether the battle can move from in-progress to post-battle."""
+        return self.states.current == self.IN_PROGRESS
+
     def get_actions(self):
         """Get all campaign actions associated with this battle."""
         return self.campaign.actions.filter(battle=self)

@@ -52,23 +52,36 @@ def test_state_is_forward_only(user, campaign):
 
 
 @pytest.mark.django_db
-def test_set_battle_state_view(client, user, campaign, make_list):
+def test_start_and_end_battle_views(client, user, campaign, make_list):
     client.force_login(user)
     lst = make_list("Gang 1")
     campaign.lists.add(lst)
     battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
     battle.set_participants([lst])
 
-    url = reverse("core:battle-set-state", args=[battle.id])
-    resp = client.post(url, {"status": "in_progress"})
+    # The confirmation pages render for a manager.
+    assert client.get(reverse("core:battle-start", args=[battle.id])).status_code == 200
+
+    # Start: pre-battle -> in-progress.
+    resp = client.post(reverse("core:battle-start", args=[battle.id]))
     assert resp.status_code == 302
     battle.refresh_from_db()
     assert battle.status == "in_progress"
 
-    # An invalid (backwards) transition is rejected and leaves state unchanged.
-    resp = client.post(url, {"status": "pre_battle"})
+    # Starting again is rejected (not a valid transition) and leaves state unchanged.
+    client.post(reverse("core:battle-start", args=[battle.id]))
     battle.refresh_from_db()
     assert battle.status == "in_progress"
+
+    # End: in-progress -> post-battle.
+    resp = client.post(reverse("core:battle-end", args=[battle.id]))
+    assert resp.status_code == 302
+    battle.refresh_from_db()
+    assert battle.status == "post_battle"
+
+    # A post-battle battle can no longer be started or ended.
+    assert battle.can_start() is False
+    assert battle.can_end() is False
 
 
 # --- Participants and roles ------------------------------------------------
@@ -275,9 +288,7 @@ def test_participant_manages_via_views(
     client.force_login(player)
 
     # A participant can advance state...
-    resp = client.post(
-        reverse("core:battle-set-state", args=[battle.id]), {"status": "in_progress"}
-    )
+    resp = client.post(reverse("core:battle-start", args=[battle.id]))
     assert resp.status_code == 302
     battle.refresh_from_db()
     assert battle.status == "in_progress"
@@ -356,9 +367,7 @@ def test_archive_view_hides_battle_and_blocks_manage(client, user, campaign, mak
     assert battle_link in archived.content.decode()
 
     # Managing an archived battle is blocked.
-    client.post(
-        reverse("core:battle-set-state", args=[battle.id]), {"status": "in_progress"}
-    )
+    client.post(reverse("core:battle-start", args=[battle.id]))
     battle.refresh_from_db()
     assert battle.status == "pre_battle"
 

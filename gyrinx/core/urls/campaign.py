@@ -263,9 +263,14 @@ patterns = [
         name="battle-roles-edit",
     ),
     path(
-        "battle/<id>/state",
-        battle.set_battle_state,
-        name="battle-set-state",
+        "battle/<id>/start",
+        battle.start_battle,
+        name="battle-start",
+    ),
+    path(
+        "battle/<id>/end",
+        battle.end_battle,
+        name="battle-end",
     ),
     path(
         "battle/<id>/archive",

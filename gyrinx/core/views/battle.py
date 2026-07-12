@@ -13,15 +13,6 @@ from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
 
 
-def _state_transition_options(battle):
-    """Valid onward states for a battle, as {value, label} dicts for buttons."""
-    state_labels = dict(Battle.states.states)
-    return [
-        {"value": value, "label": state_labels.get(value, value)}
-        for value in battle.states.get_valid_transitions()
-    ]
-
-
 class BattleDetailView(generic.DetailView):
     """
     Display a single :model:`core.Battle` object.
@@ -42,8 +33,8 @@ class BattleDetailView(generic.DetailView):
         Participants grouped by role option for display.
     ``state_display``
         Human-readable label for the current battle state.
-    ``state_transitions``
-        Valid onward states (only populated for editors).
+    ``can_start`` / ``can_end``
+        Whether the current user can start or end the battle (managers only).
 
     **Template**
 
@@ -86,12 +77,11 @@ class BattleDetailView(generic.DetailView):
         # Participants grouped by role (Attacker/Defender/unassigned)
         context["participant_groups"] = battle.participants_grouped_by_role()
 
-        # Battle state and, for people who can manage it, the valid transitions
+        # Battle state, plus the start/end actions for people who can manage it.
         context["state_display"] = battle.states.display
         context["state_current"] = battle.states.current
-        context["state_transitions"] = (
-            _state_transition_options(battle) if context["can_manage"] else []
-        )
+        context["can_start"] = context["can_manage"] and battle.can_start()
+        context["can_end"] = context["can_manage"] and battle.can_end()
 
         # Get all notes ordered by creation date
         context["notes"] = battle.notes.select_related("owner").order_by("created")
@@ -227,9 +217,32 @@ def edit_battle(request, id):
     )
 
 
+def _transition_battle(request, battle, new_status, invalid_message):
+    """Apply a forward state transition, then log and flash the result."""
+    try:
+        battle.states.transition_to(new_status)
+    except InvalidStateTransition:
+        messages.error(request, invalid_message)
+    else:
+        log_event(
+            user=request.user,
+            noun=EventNoun.BATTLE,
+            verb=EventVerb.UPDATE,
+            object=battle,
+            request=request,
+            action="state_changed",
+            battle_state=new_status,
+            battle_name=battle.name,
+            campaign_id=str(battle.campaign.id),
+            campaign_name=battle.campaign.name,
+        )
+        messages.success(request, f"Battle moved to {battle.states.display}.")
+    return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+
 @login_required
-def set_battle_state(request, id):
-    """Advance a battle to a new state (pre-battle -> in-progress -> post-battle)."""
+def start_battle(request, id):
+    """Move a battle from pre-battle to in-progress, via a confirmation page."""
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
     if not battle.can_manage(request.user):
@@ -237,27 +250,36 @@ def set_battle_state(request, id):
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
-        new_status = request.POST.get("status", "")
-        try:
-            battle.states.transition_to(new_status)
-        except InvalidStateTransition:
-            messages.error(request, "That battle state change is not allowed.")
-        else:
-            log_event(
-                user=request.user,
-                noun=EventNoun.BATTLE,
-                verb=EventVerb.UPDATE,
-                object=battle,
-                request=request,
-                action="state_changed",
-                battle_state=new_status,
-                battle_name=battle.name,
-                campaign_id=str(battle.campaign.id),
-                campaign_name=battle.campaign.name,
-            )
-            messages.success(request, f"Battle moved to {battle.states.display}.")
+        return _transition_battle(
+            request, battle, Battle.IN_PROGRESS, "This battle cannot be started."
+        )
 
-    return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+    if not battle.can_start():
+        messages.error(request, "This battle cannot be started.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    return render(request, "core/battle/battle_start.html", {"battle": battle})
+
+
+@login_required
+def end_battle(request, id):
+    """Move a battle from in-progress to post-battle, via a confirmation page."""
+    battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
+
+    if not battle.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this battle.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if request.method == "POST":
+        return _transition_battle(
+            request, battle, Battle.POST_BATTLE, "This battle cannot be ended."
+        )
+
+    if not battle.can_end():
+        messages.error(request, "This battle cannot be ended.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    return render(request, "core/battle/battle_end.html", {"battle": battle})
 
 
 @login_required
