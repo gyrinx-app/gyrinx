@@ -101,7 +101,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     for fighter in non_random:
         CrewMember.objects.create_with_user(
             user=user,
-            owner=lst.owner,
+            owner_id=lst.owner_id,
             crew=crew,
             list_fighter=fighter,
             was_random=False,
@@ -118,7 +118,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
             for fighter in drawn:
                 CrewMember.objects.create_with_user(
                     user=user,
-                    owner=lst.owner,
+                    owner_id=lst.owner_id,
                     crew=crew,
                     list_fighter=fighter,
                     was_random=True,

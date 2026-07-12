@@ -83,7 +83,7 @@ def crew_new(request, battle_id):
             crew.list = gang
             # Owned by the gang's player (list-scoped convention), even when an
             # arbitrator creates it; save_with_user records who acted.
-            crew.owner = gang.owner
+            crew.owner_id = gang.owner_id
             try:
                 # Savepoint so a lost race on the (battle, list) unique
                 # constraint rolls back cleanly and leaves the outer
@@ -296,7 +296,7 @@ def crew_extra(request, battle_id, crew_id, item_id=None):
             line_item = form.save(commit=False)
             line_item.crew = crew
             # Owned by the gang's player, matching the crew and its members.
-            line_item.owner = crew.list.owner
+            line_item.owner_id = crew.list.owner_id
             line_item.save_with_user(user=request.user)
             messages.success(request, "Extra saved.")
             return _redirect_crew(crew)

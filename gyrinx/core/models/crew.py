@@ -300,7 +300,7 @@ class Crew(AppBase):
                     equipment_set = next(
                         (
                             s
-                            for s in fighter._equipment_sets_cached
+                            for s in fighter.equipment_sets.all()
                             if s.id == member.equipment_set_id
                         ),
                         None,
