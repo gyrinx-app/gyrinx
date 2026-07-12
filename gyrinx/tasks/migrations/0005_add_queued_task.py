@@ -6,7 +6,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("tasks", "0003_add_task_id_to_taskexecution"),
+        ("tasks", "0004_task_execution_group_key"),
     ]
 
     operations = [
