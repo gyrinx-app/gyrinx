@@ -25,7 +25,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 
 from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+    _materialise_child_fighter_defaults,
+)
 from gyrinx.core.tasks import (
     propagate_content_cost_change,
     propagate_default_child_fighter_assignment,
@@ -104,6 +109,11 @@ def test_concurrent_redelivery_charges_campaign_credits_once(
             try:
                 barrier.wait(timeout=2)
             except threading.BrokenBarrierError:
+                # Expected once the fix is in place: the select_for_update lock
+                # serialises the two deliveries, so the second thread cannot reach
+                # the barrier while the first holds the lock, and the wait times
+                # out. Swallow it and let this delivery proceed — the assertions
+                # below verify the single-charge outcome regardless of ordering.
                 pass
         return orig_facts(self, *args, **kwargs)
 
@@ -209,12 +219,11 @@ def test_concurrent_redelivery_child_fighter_materialises_once(
         )
 
     barrier = threading.Barrier(2)
-    import gyrinx.core.models.list as list_pkg
 
     # The task does `from gyrinx.core.models.list import
     # _materialise_child_fighter_defaults` at call time, so patch the name on the
     # PACKAGE (what the import reads), not on the fighter submodule.
-    orig = list_pkg._materialise_child_fighter_defaults
+    orig = _materialise_child_fighter_defaults
     sync_hits = []
 
     def synced(list_fighter):
@@ -222,6 +231,11 @@ def test_concurrent_redelivery_child_fighter_materialises_once(
         try:
             barrier.wait(timeout=2)  # both deliveries pass the guard, then release
         except threading.BrokenBarrierError:
+            # Expected once the fix is in place: the select_for_update lock
+            # serialises the two deliveries, so they no longer arrive at the
+            # barrier together and the wait times out. Swallow it and let this
+            # delivery proceed — the assertions below verify a single child is
+            # materialised regardless of ordering.
             pass
         return orig(list_fighter)
 
