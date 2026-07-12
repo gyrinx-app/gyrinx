@@ -16,10 +16,12 @@ reconcile a cost change — it records the true zero delta and charges no
 credits.
 """
 
+import uuid
 from unittest.mock import patch
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
+from django.db.models.signals import post_save
 
 from gyrinx.content.models.default_assignment import ContentFighterDefaultAssignment
 from gyrinx.content.models.equipment import (
@@ -170,6 +172,34 @@ def test_signal_enqueues_only_for_child_spawning_created_default(
         with django_capture_on_commit_callbacks(execute=True):
             default.cost = 5
             default.save()
+        mock_task.enqueue.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_signal_skips_raw_fixture_saves(
+    child_spawning_setup, django_capture_on_commit_callbacks
+):
+    """Fixture loading (``raw=True``, e.g. a ``loaddata_overwrite`` content
+    import) must not enqueue propagation — and must not query the equipment
+    relation, whose row may not be inserted yet mid-fixture."""
+    parent_cf = child_spawning_setup["parent_cf"]
+    # Equipment FK points at a row that does not exist, as happens when the
+    # fixture lists a default assignment before its equipment.
+    instance = ContentFighterDefaultAssignment(
+        id=uuid.uuid4(), fighter=parent_cf, equipment_id=uuid.uuid4()
+    )
+
+    with patch(
+        "gyrinx.core.models.list.signal_handlers.propagate_default_child_fighter_assignment"
+    ) as mock_task:
+        with django_capture_on_commit_callbacks(execute=True):
+            post_save.send(
+                sender=ContentFighterDefaultAssignment,
+                instance=instance,
+                created=True,
+                raw=True,
+                using="default",
+            )
         mock_task.enqueue.assert_not_called()
 
 

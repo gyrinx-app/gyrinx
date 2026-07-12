@@ -51,6 +51,10 @@ def enqueue_propagate_default_child_fighter_assignment(
     and need no materialisation. The work is offloaded to a task because it can
     touch many list-fighters across all subscribed gangs.
     """
+    if kwargs.get("raw"):
+        # Fixture loading (loaddata / loaddata_overwrite): the equipment row may
+        # not be inserted yet, and a bulk content import must not propagate.
+        return
     if not created:
         return
     if not instance.equipment.contentequipmentfighterprofile_set.exists():
