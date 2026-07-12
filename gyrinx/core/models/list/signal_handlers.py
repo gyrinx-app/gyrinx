@@ -27,6 +27,10 @@ pylist = list
 @receiver(post_save, sender=ListFighter, dispatch_uid="create_linked_objects")
 @traced("signal_create_linked_objects")
 def create_linked_objects(sender, instance, **kwargs):
+    if kwargs.get("raw"):
+        # Fixture loading: the content_fighter row may not be inserted yet,
+        # and restoring already-consistent data must not materialise defaults.
+        return
     _materialise_child_fighter_defaults(instance)
 
 
@@ -86,6 +90,9 @@ def enqueue_propagate_default_child_fighter_assignment(
 )
 def touch_list_modified_on_fighter_save(sender, instance, **kwargs):
     """Bump the parent list's modified timestamp when any fighter is saved."""
+    if kwargs.get("raw"):
+        # Fixture loading: don't churn timestamps while restoring data.
+        return
     from django.utils import timezone
 
     List.objects.filter(pk=instance.list_id).update(modified=timezone.now())
@@ -98,6 +105,10 @@ def touch_list_modified_on_fighter_save(sender, instance, **kwargs):
 )
 @traced("signal_create_related_objects")
 def create_related_objects(sender, instance, **kwargs):
+    if kwargs.get("raw"):
+        # Fixture loading: the content_equipment row may not be inserted yet,
+        # and restoring already-consistent data must not create child objects.
+        return
     equipment_fighter_profile = ContentEquipmentFighterProfile.objects.filter(
         equipment=instance.content_equipment,
     )
@@ -186,6 +197,11 @@ def clear_fighter_cached_properties_for_assignment(
     sender, instance: ListFighterEquipmentAssignment, **kwargs
 ):
     """Clear the fighter's cached properties that depend on assignments."""
+    if kwargs.get("raw"):
+        # Fixture loading: the list_fighter row may not be inserted yet, and a
+        # freshly-deserialized instance has no cached properties to clear.
+        # post_delete sends no "raw" kwarg, so the delete path is unaffected.
+        return
     fighter = instance.list_fighter
     for prop in [
         "cost_int_cached",

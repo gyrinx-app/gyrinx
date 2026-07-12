@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.contenttypes.models import ContentType
+from django.db.models.signals import post_save
 from django.urls import reverse
 
 from gyrinx.content.models.equipment import (
@@ -990,3 +991,46 @@ def test_add_fighter_page_uses_singular_label_override(client, user, pack):
     body = response.content.decode()
     assert "Add Fighter or Vehicle" in body
     assert "Add Fighters & Vehicle" not in body
+
+
+# --- Fixture-loading (raw) guard — issue #1992 ---------------------------------
+
+
+@pytest.mark.django_db
+def test_companion_sync_skips_raw_fixture_saves(content_house):
+    """Fixture loading (``raw=True``, e.g. a ``loaddata_overwrite`` content
+    import) must not rewrite companion equipment or ``get_or_create`` the auto
+    category — the fixture already carries the consistent end state, and a
+    mid-import write can collide with rows the fixture inserts later."""
+    fighter = ContentFighter.objects.create(
+        type="Goliath Mauler",
+        category="VEHICLE",
+        house=content_house,
+        base_cost=150,
+    )
+    plain_category = ContentEquipmentCategory.objects.create(
+        name="Plain Gear", group="Gear"
+    )
+    # Companion whose name/cost/category deliberately disagree with the
+    # fighter, as they transiently can mid-fixture.
+    companion = ContentEquipment.objects.create(
+        name="Stale Name",
+        category=plain_category,
+        cost="99",
+        auto_companion_for_fighter=fighter,
+    )
+    categories_before = ContentEquipmentCategory.objects.count()
+
+    post_save.send(
+        sender=ContentFighter,
+        instance=fighter,
+        created=True,
+        raw=True,
+        using="default",
+    )
+
+    companion.refresh_from_db()
+    assert companion.name == "Stale Name"
+    assert companion.cost == "99"
+    assert companion.category_id == plain_category.pk
+    assert ContentEquipmentCategory.objects.count() == categories_before
