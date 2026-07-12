@@ -49,9 +49,10 @@ class _ApplySummary:
             parts.append(f"notes for {self.notes} fighter{_s(self.notes)}")
         summary = "Post-battle updates applied: " + ", ".join(parts) + "."
         if self.killed_names:
+            names = ", ".join(self.killed_names)
             summary += (
-                f" {', '.join(self.killed_names)} died — their equipment moved to"
-                " the stash."
+                f" {names} died — any equipment they carried was returned to"
+                " the gang's stash."
             )
         return summary
 

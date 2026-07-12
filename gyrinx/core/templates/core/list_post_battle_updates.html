@@ -62,11 +62,17 @@
                                                 <span class="text-secondary">({{ c.value }})</span>
                                             </label>
                                             {{ c.field }}
+                                            {% for error in c.field.errors %}
+                                                <div class="text-danger fs-7">{{ error }}</div>
+                                            {% endfor %}
                                         </div>
                                     {% endfor %}
                                     <div class="col-12 col-md">
                                         <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injury</label>
                                         {{ row.injury }}
+                                        {% for error in row.injury.errors %}
+                                            <div class="text-danger fs-7">{{ error }}</div>
+                                        {% endfor %}
                                     </div>
                                     <div class="col-12 col-md">
                                         <label class="form-label fs-7 mb-1"
