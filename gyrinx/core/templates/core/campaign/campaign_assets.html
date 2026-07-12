@@ -11,7 +11,7 @@
             <h1 class="h3 mb-2">Campaign Assets</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                 <p class="text-secondary mb-0">{{ campaign.name }}</p>
-                {% if is_owner %}
+                {% if is_admin %}
                     <div class="hstack gap-3 ms-md-auto fs-7">
                         <a href="{% url 'core:campaign-asset-type-new' campaign.id %}"
                            class="icon-link linked">
@@ -32,7 +32,7 @@
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h2 class="h5 mb-0">{{ asset_type.name_plural }}</h2>
-                    {% if is_owner %}
+                    {% if is_admin %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}"
                                class="icon-link linked fs-7">
@@ -83,7 +83,7 @@
                                 <tr>
                                     <th class="caps-label ps-0">Name</th>
                                     <th class="caps-label w-em-10 w-em-sm-12">Holder</th>
-                                    {% if is_owner and not campaign.archived %}
+                                    {% if is_admin and not campaign.archived %}
                                         <th class="caps-label text-end pe-0 w-em-3 w-em-sm-12">
                                             <span class="d-none d-sm-inline">Actions</span>
                                         </th>
@@ -129,7 +129,7 @@
                                                 <span class="text-secondary">Unowned</span>
                                             {% endif %}
                                         </td>
-                                        {% if is_owner and not campaign.archived %}
+                                        {% if is_admin and not campaign.archived %}
                                             <td class="text-end pe-0 text-nowrap">
                                                 <!-- Expanded links for sm and up -->
                                                 <span class="d-none d-sm-inline">
@@ -180,7 +180,7 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No {{ asset_type.name_plural|lower }} have been created yet.
-                            {% if is_owner %}
+                            {% if is_admin %}
                                 <a href="{% url 'core:campaign-asset-new' campaign.id asset_type.id %}">Add {{ asset_type.name_singular }} →</a>
                             {% endif %}
                         </p>
@@ -190,7 +190,7 @@
         {% empty %}
             <p class="text-secondary fs-7 mb-0">
                 No asset types have been defined for this campaign yet.
-                {% if is_owner %}
+                {% if is_admin %}
                     <a href="{% url 'core:campaign-asset-type-new' campaign.id %}">Create first asset type →</a>
                 {% endif %}
             </p>

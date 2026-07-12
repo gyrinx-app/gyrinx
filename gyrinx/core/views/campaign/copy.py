@@ -15,6 +15,7 @@ from gyrinx.core.handlers.campaign_copy import (
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -25,7 +26,7 @@ def campaign_copy_from(request, id):
     and resource types from another campaign they own or from template campaigns
     into the current campaign.
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if campaign.archived:
         messages.error(request, "Cannot copy to an archived campaign.")
@@ -275,9 +276,7 @@ def campaign_copy_to(request, id):
         if action == "confirm":
             target_id = request.POST.get("target_campaign_id")
             if target_id:
-                target_campaign = get_object_or_404(
-                    Campaign, id=target_id, owner=request.user
-                )
+                target_campaign = get_campaign_admin_or_404(request, target_id)
 
                 # Validate target campaign is not archived (race condition check)
                 if target_campaign.archived:

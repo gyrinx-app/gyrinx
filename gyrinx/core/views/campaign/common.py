@@ -1,8 +1,25 @@
 """Common utilities for campaign views."""
 
 from django.db import models, transaction
+from django.shortcuts import get_object_or_404
 
-from gyrinx.core.models.campaign import CampaignListResource
+from gyrinx.core.models.campaign import Campaign, CampaignListResource
+
+
+def get_campaign_admin_or_404(request, id):
+    """Fetch a campaign the user can administer (owner or shared admin), or 404.
+
+    Drop-in replacement for ``get_object_or_404(Campaign, id=id, owner=request.user)``
+    in views that gate on campaign administration. The shared-admin branch uses a
+    subquery rather than a join on the admins M2M, so no .distinct() is needed.
+    """
+    return get_object_or_404(
+        Campaign.objects.filter(
+            models.Q(owner=request.user)
+            | models.Q(id__in=Campaign.objects.filter(admins=request.user))
+        ),
+        id=id,
+    )
 
 
 def ensure_campaign_list_resources(campaign, resource_types, campaign_lists):

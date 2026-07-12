@@ -47,7 +47,7 @@ def campaign_log_action(request, id):
     if (
         not campaign.is_in_progress
         or campaign.archived
-        or (campaign.owner != request.user and not user_lists_in_campaign)
+        or (not campaign.is_admin(request.user) and not user_lists_in_campaign)
     ):
         messages.error(request, "You cannot log actions for this campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
@@ -287,7 +287,7 @@ class CampaignActionList(generic.ListView):
                 self.campaign.is_in_progress
                 and not self.campaign.archived
                 and (
-                    self.campaign.owner == user
+                    self.campaign.is_admin(user)
                     or self.campaign.lists.filter(owner=user).exists()
                 )
             )

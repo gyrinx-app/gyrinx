@@ -23,6 +23,7 @@ from gyrinx.core.views.campaign.common import (
     get_campaign_resource_types_with_resources,
 )
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 # Constants for transaction limits
 MAX_CREDITS = 10000
@@ -53,7 +54,7 @@ def campaign_resources(request, id):
 
     # Check permissions
     user = request.user
-    is_owner = user == campaign.owner
+    is_admin = campaign.is_admin(user)
     user_lists = campaign.lists.filter(owner=user) if user.is_authenticated else []
 
     # Log viewing campaign resources
@@ -75,7 +76,7 @@ def campaign_resources(request, id):
         {
             "campaign": campaign,
             "resource_types": resource_types,
-            "is_owner": is_owner,
+            "is_admin": is_admin,
             "user_lists": user_lists,
         },
     )
@@ -98,7 +99,7 @@ def campaign_resource_type_new(request, id):
 
     :template:`core/campaign/campaign_resource_type_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     # Prevent creation of new resource types for archived campaigns
     if campaign.archived:
@@ -190,7 +191,7 @@ def campaign_resource_type_edit(request, id, type_id):
 
     :template:`core/campaign/campaign_resource_type_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     resource_type = get_object_or_404(
         CampaignResourceType, id=type_id, campaign=campaign
     )
@@ -244,7 +245,7 @@ def campaign_resource_type_remove(request, id, type_id):
 
     :template:`core/campaign/campaign_resource_type_remove.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     resource_type = get_object_or_404(
         CampaignResourceType, id=type_id, campaign=campaign
     )
@@ -321,7 +322,7 @@ def campaign_resource_modify(request, id, resource_id):
     )
 
     # Check permissions - owner can modify any, list owner can modify their own
-    if request.user != campaign.owner and request.user != resource.list.owner:
+    if not campaign.is_admin(request.user) and request.user != resource.list.owner:
         messages.error(request, "You don't have permission to modify this resource.")
         return HttpResponseRedirect(
             reverse("core:campaign-resources", args=(campaign.id,))

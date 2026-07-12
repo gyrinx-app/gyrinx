@@ -60,7 +60,7 @@
                                 title="Wealth"
                                 aria-label="Wealth">W</th>
                             {% if not print %}
-                                {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                                {% if list.owner_cached.id == request.user.id or list.campaign|is_campaign_admin:request.user %}
                                     <th class="py-0 bg-transparent"></th>
                                 {% endif %}
                             {% endif %}
@@ -82,7 +82,7 @@
                             <td class="py-0 bg-transparent">{{ list.stash_fighter_cost_display }}</td>
                             <td class="py-0 bg-transparent">{{ list.cost_display }}</td>
                             {% if not print %}
-                                {% if list.owner_cached.id == request.user.id or list.campaign and list.campaign.owner.id == request.user.id %}
+                                {% if list.owner_cached.id == request.user.id or list.campaign|is_campaign_admin:request.user %}
                                     <td class="py-0 bg-transparent align-middle">
                                         <form method="post"
                                               action="{% url 'core:list-refresh-cost' list.id %}"

@@ -9,7 +9,7 @@
                 {% with res=list_resources|lookup:resource_type.id %}
                     {% if res %}
                         {{ res.amount }}
-                        {% if is_owner or res.list.owner == user %}
+                        {% if is_admin or res.list.owner == user %}
                             {% if not campaign.archived %}
                                 <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
                                    class="link-secondary fs-7 ms-1"><i class="bi-pencil"></i></a>

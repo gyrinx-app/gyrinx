@@ -47,7 +47,7 @@ def campaign_captured_fighters(request, id):
     user_owns_list = any(
         list.owner_id == request.user.id for list in campaign.lists.all()
     )
-    if campaign.owner != request.user and not user_owns_list:
+    if not campaign.is_admin(request.user) and not user_owns_list:
         messages.error(
             request,
             "You don't have permission to view this campaign's captured fighters.",
@@ -85,6 +85,7 @@ def campaign_captured_fighters(request, id):
         {
             "campaign": campaign,
             "captured_fighters": captured_fighters,
+            "is_admin": campaign.is_admin(request.user),
         },
     )
 
@@ -118,9 +119,8 @@ def fighter_sell_to_guilders(request, id, fighter_id):
     )
 
     # Check permissions: must be capturing list owner OR campaign owner
-    if (
-        request.user != captured_fighter.capturing_list.owner
-        and request.user != campaign.owner
+    if request.user != captured_fighter.capturing_list.owner and not campaign.is_admin(
+        request.user
     ):
         raise Http404()
 
@@ -217,7 +217,7 @@ def fighter_return_to_owner(request, id, fighter_id):
     # Check permissions: must be capturing list owner OR campaign owner OR captured fighter owner
     if (
         request.user != captured_fighter.capturing_list.owner
-        and request.user != campaign.owner
+        and not campaign.is_admin(request.user)
         and request.user != captured_fighter.fighter.list.owner
     ):
         raise Http404()
@@ -330,7 +330,7 @@ def fighter_release(request, id, fighter_id):
     # Check permissions: must be capturing list owner OR campaign owner OR captured fighter owner
     if (
         request.user != captured_fighter.capturing_list.owner
-        and request.user != campaign.owner
+        and not campaign.is_admin(request.user)
         and request.user != captured_fighter.fighter.list.owner
     ):
         raise Http404()

@@ -10,7 +10,7 @@
             <h1 class="h3 mb-2">Campaign Attributes</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                 <p class="text-secondary mb-0">{{ campaign.name }}</p>
-                {% if is_owner and not campaign.archived %}
+                {% if is_admin and not campaign.archived %}
                     <div class="hstack gap-3 ms-md-auto">
                         <a href="{% url 'core:campaign-attribute-type-new' campaign.id %}"
                            class="icon-link linked fs-7">
@@ -20,7 +20,7 @@
                 {% endif %}
             </div>
         </div>
-        {% if is_owner and not campaign.archived and single_select_attribute_types %}
+        {% if is_admin and not campaign.archived and single_select_attribute_types %}
             <section>
                 <form method="post"
                       action="{% url 'core:campaign-set-group-attribute' campaign.id %}"
@@ -51,7 +51,7 @@
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h2 class="h5 mb-0">{{ attribute_type.name }}</h2>
-                    {% if is_owner and not campaign.archived %}
+                    {% if is_admin and not campaign.archived %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}"
                                class="icon-link linked fs-7">
@@ -86,7 +86,7 @@
                                             {% endif %}
                                             <strong>{{ value.name }}</strong>
                                         </div>
-                                        {% if is_owner and not campaign.archived %}
+                                        {% if is_admin and not campaign.archived %}
                                             <div class="hstack gap-2">
                                                 <a href="{% url 'core:campaign-attribute-value-edit' campaign.id value.id %}"
                                                    class="icon-link linked-secondary fs-7">
@@ -141,7 +141,7 @@
                                             </td>
                                             <td class="text-end pe-0">
                                                 {% if not campaign.archived %}
-                                                    {% if is_owner or list.id in user_list_ids %}
+                                                    {% if is_admin or list.id in user_list_ids %}
                                                         <a href="{% url 'core:campaign-list-attribute-assign' campaign.id list.id attribute_type.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                            class="icon-link linked-secondary fs-7">
                                                             <i class="bi-pencil"></i> Assign
@@ -157,7 +157,7 @@
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             No values have been defined for this attribute yet.
-                            {% if is_owner and not campaign.archived %}
+                            {% if is_admin and not campaign.archived %}
                                 <a href="{% url 'core:campaign-attribute-value-new' campaign.id attribute_type.id %}">Create first value →</a>
                             {% endif %}
                         </p>
@@ -167,7 +167,7 @@
         {% empty %}
             <p class="text-secondary fs-7 mb-0">
                 No attribute types have been defined for this Campaign yet.
-                {% if is_owner and not campaign.archived %}
+                {% if is_admin and not campaign.archived %}
                     <a href="{% url 'core:campaign-attribute-type-new' campaign.id %}">Create first Attribute type →</a>
                 {% endif %}
             </p>

@@ -11,7 +11,7 @@
             <h1 class="h3 mb-2">Campaign Resources</h1>
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                 <p class="text-secondary mb-0">{{ campaign.name }}</p>
-                {% if is_owner %}
+                {% if is_admin %}
                     <div class="hstack gap-3 ms-md-auto">
                         {% if not campaign.archived %}
                             <a href="{% url 'core:campaign-copy-in' campaign.id %}"
@@ -31,7 +31,7 @@
             <section>
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h2 class="h5 mb-0">{{ resource_type.name }}</h2>
-                    {% if is_owner %}
+                    {% if is_admin %}
                         <div class="hstack gap-3">
                             <a href="{% url 'core:campaign-resource-type-edit' campaign.id resource_type.id %}"
                                class="icon-link linked-secondary fs-7">
@@ -68,7 +68,7 @@
                                         <td class="text-end pe-0">
                                             {% if campaign.is_pre_campaign %}
                                                 <span class="text-secondary fs-7">Campaign not started</span>
-                                            {% elif not campaign.archived and is_owner or not campaign.archived and resource.list in user_lists %}
+                                            {% elif not campaign.archived and is_admin or not campaign.archived and resource.list in user_lists %}
                                                 <a href="{% url 'core:campaign-resource-modify' campaign.id resource.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                    class="icon-link linked-secondary fs-7">
                                                     <i class="bi-pencil"></i> Modify
@@ -93,7 +93,7 @@
         {% empty %}
             <p class="text-secondary fs-7 mb-0">
                 No resource types have been defined for this campaign yet.
-                {% if is_owner %}
+                {% if is_admin %}
                     <a href="{% url 'core:campaign-resource-type-new' campaign.id %}">Create first resource type →</a>
                 {% endif %}
             </p>

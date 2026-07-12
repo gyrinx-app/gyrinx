@@ -35,6 +35,7 @@ from gyrinx.core.views.list.common import get_clean_list_or_404
 from gyrinx.models import is_valid_uuid
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
+from gyrinx.core.views.fighter.permissions import arbitrator_q
 
 
 class ListsListView(generic.ListView):
@@ -1036,13 +1037,13 @@ def edit_list_credits(request, id):
     from gyrinx.core.handlers.list import handle_credits_modification
 
     lst = get_clean_list_or_404(
-        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        List.objects.filter(Q(owner=request.user) | arbitrator_q(request.user)),
         id=id,
     )
 
     # Check permissions - must be list owner or campaign owner
     if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
             messages.error(
                 request, "You don't have permission to modify credits for this list."
             )
@@ -1234,12 +1235,12 @@ def refresh_list_cost(request, id):
     Only processes POST requests. Forces recalculation of facts via facts_from_db(),
     then redirects back to the list detail page.
 
-    Can be accessed by either the list owner or the campaign owner (if list is in a campaign).
+    Can be accessed by either the list owner or a campaign admin (if list is in a campaign).
     """
     lst = get_clean_list_or_404(List, id=id)
 
     if lst.owner != request.user and (
-        not lst.campaign or lst.campaign.owner != request.user
+        not lst.campaign or not lst.campaign.is_admin(request.user)
     ):
         raise Http404("List not found")
 

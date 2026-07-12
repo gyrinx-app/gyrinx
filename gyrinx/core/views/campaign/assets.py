@@ -21,6 +21,7 @@ from gyrinx.core.models.campaign import (
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.utils import get_return_url, safe_redirect
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -76,7 +77,7 @@ def campaign_assets(request, id):
         {
             "campaign": campaign,
             "asset_types": asset_types,
-            "is_owner": request.user == campaign.owner,
+            "is_admin": campaign.is_admin(request.user),
         },
     )
 
@@ -98,8 +99,8 @@ def campaign_asset_detail(request, id, asset_id):
         The :model:`core.CampaignAsset` being viewed.
     ``sub_assets_by_type``
         List of ``(label, [sub_asset, ...])`` tuples in schema order.
-    ``is_owner``
-        Whether the current user owns the campaign.
+    ``is_admin``
+        Whether the current user administers the campaign (owner or shared admin).
 
     **Template**
 
@@ -157,7 +158,7 @@ def campaign_asset_detail(request, id, asset_id):
             "campaign": campaign,
             "asset": asset,
             "sub_assets_by_type": sub_assets_by_type,
-            "is_owner": request.user == campaign.owner,
+            "is_admin": campaign.is_admin(request.user),
         },
     )
 
@@ -178,7 +179,7 @@ def campaign_asset_type_new(request, id):
 
     :template:`core/campaign/campaign_asset_type_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     # Prevent creation of new asset types for archived campaigns
     if campaign.archived:
@@ -250,7 +251,7 @@ def campaign_asset_type_edit(request, id, type_id):
 
     :template:`core/campaign/campaign_asset_type_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
 
     if request.method == "POST":
@@ -302,7 +303,7 @@ def campaign_asset_type_remove(request, id, type_id):
 
     :template:`core/campaign/campaign_asset_type_remove.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset_type = get_object_or_404(CampaignAssetType, id=type_id, campaign=campaign)
 
     # Prevent removal from archived campaigns
@@ -371,7 +372,7 @@ def campaign_asset_new(request, id, type_id):
 
     :template:`core/campaign/campaign_asset_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset_type: CampaignAssetType = get_object_or_404(
         CampaignAssetType, id=type_id, campaign=campaign
     )
@@ -454,7 +455,7 @@ def campaign_asset_edit(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     if request.method == "POST":
@@ -514,7 +515,7 @@ def campaign_asset_transfer(request, id, asset_id):
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     # Check if user has permission: must be either campaign owner or owner of the list holding the asset
-    has_permission = request.user == campaign.owner or (
+    has_permission = campaign.is_admin(request.user) or (
         asset.holder and request.user == asset.holder.owner
     )
 
@@ -599,7 +600,7 @@ def campaign_asset_remove(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_remove.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     # Prevent removal from archived campaigns

@@ -753,3 +753,9 @@ def safe_rich_text(value):
     )
 
     return mark_safe(cleaned)
+
+
+@register.filter
+def is_campaign_admin(campaign, user):
+    """True when user administers campaign (owner or shared admin). None-safe."""
+    return campaign is not None and campaign.is_admin(user)

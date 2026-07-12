@@ -10,6 +10,7 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.core.views.list.common import get_clean_list_or_404
+from gyrinx.core.views.fighter.permissions import arbitrator_q
 
 
 @login_required
@@ -36,13 +37,13 @@ def edit_list_fighter_xp(request, id, fighter_id):
 
     # Allow both list owner and campaign owner to modify XP
     lst = get_clean_list_or_404(
-        List.objects.filter(Q(owner=request.user) | Q(campaign__owner=request.user)),
+        List.objects.filter(Q(owner=request.user) | arbitrator_q(request.user)),
         id=id,
     )
 
     # Verify permissions
     if lst.owner != request.user:
-        if not (lst.campaign and lst.campaign.owner == request.user):
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
             messages.error(
                 request, "You don't have permission to modify XP for this fighter."
             )

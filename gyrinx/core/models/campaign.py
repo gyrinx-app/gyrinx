@@ -36,6 +36,14 @@ class Campaign(AppBase):
         help_text="Public Campaigns are visible to all users.",
         db_index=True,
     )
+
+    admins = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="administered_campaigns",
+        blank=True,
+        help_text="Users who have shared administrative rights for this campaign.",
+    )
+
     summary = models.TextField(
         blank=True,
         validators=[HTMLTextMaxLengthValidator(300)],
@@ -176,12 +184,24 @@ class Campaign(AppBase):
         return self.status == self.POST_CAMPAIGN
 
     def is_admin(self, user):
-        """Check if user has admin permissions on this campaign.
+        """Return True when the authenticated user owns this campaign or is a shared admin.
 
-        Currently, only the campaign owner is an admin.
-        This method exists to allow future expansion of admin permissions.
+        Admin ids are memoised per instance (and read from the prefetch cache when
+        ``admins`` is prefetched), so this is safe to call repeatedly — e.g. once
+        per fighter card — without issuing a query each time.
         """
-        return self.owner == user
+        if not user or not user.is_authenticated:
+            return False
+        if self.owner_id == user.pk:
+            return True
+        admin_ids = getattr(self, "_admin_ids_cache", None)
+        if admin_ids is None:
+            if "admins" in getattr(self, "_prefetched_objects_cache", {}):
+                admin_ids = {admin.pk for admin in self.admins.all()}
+            else:
+                admin_ids = set(self.admins.values_list("id", flat=True))
+            self._admin_ids_cache = admin_ids
+        return user.pk in admin_ids
 
     def _distribute_budget_to_list(self, campaign_list, user=None):
         """Distribute budget credits to a list based on campaign budget and list cost.

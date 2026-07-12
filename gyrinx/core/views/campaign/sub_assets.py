@@ -8,9 +8,10 @@ from django.urls import reverse
 
 from gyrinx import messages
 from gyrinx.core.forms.campaign import CampaignSubAssetForm
-from gyrinx.core.models.campaign import Campaign, CampaignAsset, CampaignSubAsset
+from gyrinx.core.models.campaign import CampaignAsset, CampaignSubAsset
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.tracker import track
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 
 @login_required
@@ -35,7 +36,7 @@ def campaign_sub_asset_new(request, id, asset_id, sub_asset_type):
 
     :template:`core/campaign/campaign_sub_asset_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
 
     if campaign.archived:
@@ -134,7 +135,7 @@ def campaign_sub_asset_edit(request, id, asset_id, sub_asset_id):
 
     :template:`core/campaign/campaign_sub_asset_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
     sub_asset = get_object_or_404(CampaignSubAsset, id=sub_asset_id, parent_asset=asset)
 
@@ -217,7 +218,7 @@ def campaign_sub_asset_remove(request, id, asset_id, sub_asset_id):
 
     :template:`core/campaign/campaign_sub_asset_remove.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
     sub_asset = get_object_or_404(CampaignSubAsset, id=sub_asset_id, parent_asset=asset)
 

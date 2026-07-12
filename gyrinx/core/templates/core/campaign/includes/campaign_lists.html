@@ -125,7 +125,7 @@
 {% else %}
     <div class="p-3 text-center text-secondary">
         No gangs have been added to this campaign yet.
-        {% if campaign.owner == user and campaign.is_pre_campaign and not campaign.archived %}
+        {% if is_admin and campaign.is_pre_campaign and not campaign.archived %}
             <br>
             <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                class="btn btn-primary btn-sm mt-2">

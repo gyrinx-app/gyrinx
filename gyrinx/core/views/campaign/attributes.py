@@ -23,6 +23,7 @@ from gyrinx.core.models.campaign import (
 )
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.utils import get_return_url, safe_redirect
+from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def campaign_attributes(request, id):
     ).order_by("name")
 
     user = request.user
-    is_owner = user == campaign.owner
+    is_admin = campaign.is_admin(user)
     user_lists = campaign.lists.filter(owner=user) if user.is_authenticated else []
     user_list_ids = set(user_lists.values_list("id", flat=True))
 
@@ -93,7 +94,7 @@ def campaign_attributes(request, id):
             "attribute_types": attribute_types,
             "single_select_attribute_types": single_select_attribute_types,
             "campaign_lists": campaign_lists,
-            "is_owner": is_owner,
+            "is_admin": is_admin,
             "user_lists": user_lists,
             "user_list_ids": user_list_ids,
             "assignment_lookup": assignment_lookup,
@@ -118,7 +119,7 @@ def campaign_attribute_type_new(request, id):
 
     :template:`core/campaign/campaign_attribute_type_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if campaign.archived:
         messages.error(
@@ -194,7 +195,7 @@ def campaign_attribute_type_edit(request, id, type_id):
 
     :template:`core/campaign/campaign_attribute_type_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     attribute_type = get_object_or_404(
         CampaignAttributeType, id=type_id, campaign=campaign
     )
@@ -262,7 +263,7 @@ def campaign_attribute_type_remove(request, id, type_id):
 
     :template:`core/campaign/campaign_attribute_type_remove.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     attribute_type = get_object_or_404(
         CampaignAttributeType, id=type_id, campaign=campaign
     )
@@ -332,7 +333,7 @@ def campaign_attribute_value_new(request, id, type_id):
 
     :template:`core/campaign/campaign_attribute_value_new.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     attribute_type = get_object_or_404(
         CampaignAttributeType, id=type_id, campaign=campaign
     )
@@ -413,7 +414,7 @@ def campaign_attribute_value_edit(request, id, value_id):
 
     :template:`core/campaign/campaign_attribute_value_edit.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     attribute_value = get_object_or_404(
         CampaignAttributeValue, id=value_id, attribute_type__campaign=campaign
     )
@@ -478,7 +479,7 @@ def campaign_attribute_value_remove(request, id, value_id):
 
     :template:`core/campaign/campaign_attribute_value_remove.html`
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
     attribute_value = get_object_or_404(
         CampaignAttributeValue, id=value_id, attribute_type__campaign=campaign
     )
@@ -540,7 +541,7 @@ def campaign_set_group_attribute(request, id):
     ``campaign``
         The :model:`core.Campaign` being updated.
     """
-    campaign = get_object_or_404(Campaign, id=id, owner=request.user)
+    campaign = get_campaign_admin_or_404(request, id)
 
     if campaign.archived:
         messages.error(
@@ -635,7 +636,7 @@ def campaign_list_attribute_assign(request, id, list_id, type_id):
         CampaignAttributeType, id=type_id, campaign=campaign
     )
 
-    if request.user != list_obj.owner and request.user != campaign.owner:
+    if request.user != list_obj.owner and not campaign.is_admin(request.user):
         messages.error(
             request, "You don't have permission to modify this Gang's attributes."
         )
