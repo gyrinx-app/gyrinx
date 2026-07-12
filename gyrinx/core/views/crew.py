@@ -50,11 +50,12 @@ def _can_manage_new_crew(user, battle, gang):
         return False
     if battle.archived or battle.campaign.archived:
         return False
-    # Compare ids (owner_id is a column) to avoid loading the owner objects.
+    # owner_id is a column, so the owner checks avoid loading the owner objects;
+    # is_admin covers the campaign owner and any shared admins.
     return (
         user.id == gang.owner_id
         or user.id == battle.owner_id
-        or user.id == battle.campaign.owner_id
+        or battle.campaign.is_admin(user)
     )
 
 

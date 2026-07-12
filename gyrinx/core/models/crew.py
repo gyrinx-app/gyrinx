@@ -214,18 +214,19 @@ class Crew(AppBase):
 
     def can_manage(self, user):
         """Who may create/edit/lock/delete this crew: the crew's own gang owner
-        or the battle's arbitrator (battle owner or campaign owner). Blocked
+        or the battle's arbitrator (battle owner or a campaign admin). Blocked
         while the battle or its campaign is archived."""
         if not user or not user.is_authenticated:
             return False
         battle = self.battle
         if battle.archived or battle.campaign.archived:
             return False
-        # Compare ids (owner_id is a column) to avoid loading the owner objects.
+        # owner_id is a column, so the owner checks avoid loading the owner
+        # objects; is_admin covers the campaign owner and any shared admins.
         return (
             user.id == self.list.owner_id
             or user.id == battle.owner_id
-            or user.id == battle.campaign.owner_id
+            or battle.campaign.is_admin(user)
         )
 
     # --- selection method label (derived from recipe) --------------------
