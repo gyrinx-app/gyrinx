@@ -126,6 +126,7 @@
                                 <div class="me-auto">
                                     <a href="{% url 'core:crew' battle.id summary.crew.id %}"
                                        class="linked fw-semibold">{{ summary.crew }}</a>
+                                    <span class="text-secondary fs-7 text-nowrap ms-1"><i class="bi-people"></i> {{ summary.crew.list.name }}</span>
                                     <div class="text-secondary fs-7">
                                         <span class="badge {% if summary.crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">
                                             {{ summary.crew.get_status_display }}
