@@ -108,6 +108,7 @@ class PostBattleUpdatesForm(forms.Form):
                         "class": "form-control",
                         "rows": 4,
                         "placeholder": "Private notes (only visible to you)",
+                        "aria-label": f"Private notes for {fighter.name}",
                     }
                 ),
             )

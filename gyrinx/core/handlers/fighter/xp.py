@@ -1,7 +1,8 @@
 """Handler for granting XP to a fighter (post-battle participation, etc.).
 
-Extracted so both the single-fighter XP view and the bulk post-battle editor
-apply the same rules and write the same audit trail.
+Encapsulates the XP-add rules and audit trail used by the bulk post-battle
+editor. The single-fighter XP view still adds XP inline and could adopt this
+handler later to share the same rules.
 """
 
 import logging
