@@ -30,8 +30,14 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from django.utils import timezone
+
 from gyrinx.content.house_icons import CUSTOM_GANG_ICON_SLUG, set_house_icon
 from gyrinx.content.models.house import ContentHouse
+from gyrinx.core.impersonation import (
+    IMPERSONATE_LOG_KEY,
+    IMPERSONATE_SESSION_KEYS,
+)
 from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.events import Event, EventField, EventNoun, EventVerb, log_event
 from gyrinx.core.models.pack import CustomContentPackItem
@@ -62,6 +68,28 @@ def log_user_logout(sender, request, user, **kwargs):
             verb=EventVerb.LOGOUT,
             request=request,
         )
+
+
+@receiver(user_logged_out)
+def close_impersonation_on_logout(sender, request, user, **kwargs):
+    """Close any open impersonation log when the admin logs out.
+
+    ``logout()`` sends this signal before flushing the session, so the overlay
+    keys are still readable here.
+    """
+    session = getattr(request, "session", None)
+    if session is None:
+        return
+    log_id = session.get(IMPERSONATE_LOG_KEY)
+    if log_id:
+        from gyrinx.core.models import ImpersonationLog
+
+        ImpersonationLog.objects.filter(pk=log_id, ended_at__isnull=True).update(
+            ended_at=timezone.now(),
+            ended_reason=ImpersonationLog.EndedReason.LOGOUT,
+        )
+    for key in IMPERSONATE_SESSION_KEYS:
+        session.pop(key, None)
 
 
 @receiver(user_signed_up)

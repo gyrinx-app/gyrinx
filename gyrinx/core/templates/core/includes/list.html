@@ -242,6 +242,19 @@
                                                     <i class="bi-journal-text"></i> Balance Sheet
                                                 </a>
                                             </li>
+                                            {% if can_impersonate_list_owner %}
+                                                <li>
+                                                    <form method="post"
+                                                          action="{% url 'core:impersonate-start' list.owner_cached.id %}"
+                                                          class="m-0">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                        <button type="submit" class="dropdown-item icon-link text-danger">
+                                                            <i class="bi-person-bounding-box"></i> Impersonate owner
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            {% endif %}
                                         {% endif %}
                                     </ul>
                                 </div>

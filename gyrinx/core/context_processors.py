@@ -70,6 +70,19 @@ def gyrinx_debug(request):
     return {"gyrinx_debug": settings.GYRINX_DEBUG}
 
 
+def impersonation(request):
+    """Expose impersonation state to templates.
+
+    Set by :class:`gyrinx.core.middleware.ImpersonationMiddleware`. When
+    ``is_impersonating`` is true, ``request.user`` is the impersonated user and
+    ``impersonator`` is the real admin.
+    """
+    return {
+        "is_impersonating": getattr(request, "is_impersonating", False),
+        "impersonator": getattr(request, "impersonator", None),
+    }
+
+
 def notifications(request):
     """Add the unread notification count for the navbar badge (authenticated only).
 

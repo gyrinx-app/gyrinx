@@ -162,6 +162,9 @@ MIDDLEWARE = [
     # Django allauth
     "allauth.account.middleware.AccountMiddleware",
     "allauth.usersessions.middleware.UserSessionsMiddleware",
+    # Admin impersonation overlay — after auth/allauth (so request.user is the real
+    # admin when we authorize), before simple-history (so the swap is attributed).
+    "gyrinx.core.middleware.ImpersonationMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # CSP
@@ -192,6 +195,7 @@ TEMPLATES = [
                 "gyrinx.core.context_processors.site_banner",
                 "gyrinx.core.context_processors.gyrinx_debug",
                 "gyrinx.core.context_processors.notifications",
+                "gyrinx.core.context_processors.impersonation",
             ],
         },
     },
