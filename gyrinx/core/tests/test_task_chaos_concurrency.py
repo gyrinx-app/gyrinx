@@ -1,0 +1,260 @@
+"""Concurrency chaos: two *simultaneous* deliveries of the same task.
+
+An at-least-once queue (Pub/Sub, or the local worker pool with >1 worker) can
+deliver the same message to two handlers at the same time. The propagation tasks
+guard against duplicates with check-then-act logic (``ListAction.exists()``,
+materialisation ``exists()``) that is not backed by a row lock or a unique
+constraint — so a *sequential* redelivery is caught, but a *concurrent* one may
+not be.
+
+These tests run two deliveries on separate threads against a real (committed)
+database, using a ``threading.Barrier`` to force both past the idempotency guard
+before either commits — the exact interleaving a concurrent redelivery produces.
+They are marked ``xfail(strict=True)`` where they currently reproduce a real
+double-apply: the assertion states the *correct* behaviour, the xfail records
+that the code doesn't yet meet it, and the marker will flip to a hard failure
+(alerting us to delete it) once the guard is made concurrency-safe.
+"""
+
+import threading
+from unittest.mock import patch
+
+import pytest
+from django.contrib.contenttypes.models import ContentType
+from django.db import connection
+
+from gyrinx.core.models.action import ListAction, ListActionType
+from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from gyrinx.core.tasks import (
+    propagate_content_cost_change,
+    propagate_default_child_fighter_assignment,
+)
+
+
+def _run_concurrently(target, barrier_point, *, n=2, timeout=15):
+    """Run ``target`` on ``n`` threads, synchronised at ``barrier_point``.
+
+    ``barrier_point`` is a callable-name to patch on some object so that every
+    thread blocks there until all ``n`` have arrived — guaranteeing they are all
+    inside the critical section (past the idempotency guard) simultaneously.
+    Returns the list of exceptions raised by the threads (empty if none).
+    """
+    errors = []
+
+    def wrapped():
+        try:
+            target()
+        except Exception as e:  # noqa: BLE001 - surface, don't swallow
+            errors.append(e)
+        finally:
+            connection.close()
+
+    threads = [threading.Thread(target=wrapped) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=timeout)
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# propagate_content_cost_change — campaign credit double-charge
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Concurrent redelivery double-charges campaign credits: the "
+    "ListAction.exists() idempotency guard in _create_content_cost_change_actions "
+    "is check-then-act with no row lock / no unique constraint, so two "
+    "simultaneous deliveries both pass the guard and both apply_credit_delta.",
+)
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_redelivery_double_charges_campaign_credits(
+    make_list, make_list_fighter, make_equipment
+):
+    equipment = make_equipment("Boltgun", cost="100", category="Weapons & Ammo")
+    lst = make_list("Campaign Gang", status=List.CAMPAIGN_MODE)
+    lst.credits_current = 500
+    lst.save()
+    fighter = make_list_fighter(lst, "Fighter")
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=equipment
+    )
+    lst.facts_from_db(update=True)
+    lst.refresh_from_db()
+
+    credits_before = lst.credits_current
+    old_rating, old_stash = lst.rating_current, lst.stash_current
+
+    # Apply the content cost change and mark the list dirty (as the pre_save
+    # handler would), then deliver the task twice with the same frozen snapshot.
+    type(equipment).objects.filter(pk=equipment.pk).update(cost="150")
+    equipment.refresh_from_db()
+    equipment.set_dirty()
+    snapshot = {str(lst.id): [old_rating, old_stash]}
+    ct = ContentType.objects.get_for_model(type(equipment))
+
+    barrier = threading.Barrier(2)
+    orig_facts = List.facts_from_db
+
+    def synced_facts(self, *args, **kwargs):
+        # Sync the two deliveries here: both have already passed the
+        # ListAction.exists() guard (which precedes facts_from_db) by the time
+        # they arrive, so releasing the barrier lets both create an action.
+        if self.pk == lst.pk:
+            try:
+                barrier.wait(timeout=10)
+            except threading.BrokenBarrierError:
+                pass
+        return orig_facts(self, *args, **kwargs)
+
+    def deliver():
+        propagate_content_cost_change.func(
+            content_type_id=ct.id,
+            object_id=str(equipment.pk),
+            before_snapshots=snapshot,
+        )
+
+    with patch.object(List, "facts_from_db", synced_facts):
+        _run_concurrently(deliver, "facts_from_db")
+
+    lst.refresh_from_db()
+    actions = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+
+    # Correct behaviour: exactly one action, charged exactly once.
+    assert actions == 1, f"duplicate CONTENT_COST_CHANGE actions: {actions}"
+    assert lst.credits_current == credits_before - 50, (
+        f"credits double-charged: {lst.credits_current} "
+        f"(expected {credits_before - 50})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# propagate_default_child_fighter_assignment — duplicate child fighter
+# ---------------------------------------------------------------------------
+
+_STATS = dict(
+    movement='5"',
+    weapon_skill="4+",
+    ballistic_skill="4+",
+    strength="3",
+    toughness="3",
+    wounds="1",
+    initiative="4+",
+    attacks="1",
+    leadership="7+",
+    cool="7+",
+    willpower="7+",
+    intelligence="7+",
+)
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Concurrent redelivery materialises a DUPLICATE child fighter: "
+    "_materialise_child_fighter_defaults is check-then-act (is_disabled / "
+    "exists()) with no row lock and no unique constraint on "
+    "(list_fighter, content_equipment, from_default_assignment), so two "
+    "simultaneous deliveries both create the assignment and both spawn a child.",
+)
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_redelivery_child_fighter_materialisation(
+    pack, content_house, make_content_fighter, make_equipment, make_list, user
+):
+    """Two simultaneous deliveries of the child-fighter propagation.
+
+    Reproduced deterministically: both threads pass the materialisation guard
+    before either commits, and nothing (row lock or unique constraint) stops the
+    second create — so the gang ends up with two copies of the same child
+    fighter. The assertion states the correct outcome (one child).
+    """
+    from gyrinx.content.models.default_assignment import (
+        ContentFighterDefaultAssignment,
+    )
+    from gyrinx.content.models.equipment import ContentEquipmentFighterProfile
+    from gyrinx.content.models.fighter import FighterCategoryChoices
+    from gyrinx.core.models.pack import CustomContentPackItem
+
+    parent_cf = make_content_fighter(
+        type="Driver",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=60,
+        **_STATS,
+    )
+    child_cf = make_content_fighter(
+        type="Hive Cur",
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=content_house,
+        base_cost=25,
+        **_STATS,
+    )
+    equipment = make_equipment("Hive Cur", category="Status Items", cost="25")
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=equipment, content_fighter=child_cf
+    )
+    for obj in (parent_cf, equipment):
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ContentType.objects.get_for_model(type(obj)),
+            object_id=obj.pk,
+            owner=pack.owner,
+        )
+
+    lst = make_list("Subscribed Gang", content_house=content_house)
+    lst.packs.add(pack)
+    ListFighter.objects.create(
+        list=lst, content_fighter=parent_cf, name="Driver", owner=user
+    )
+    lst.facts_from_db(update=True)
+
+    # Create the default WITHOUT propagation, so both concurrent deliveries start
+    # from the un-materialised state.
+    with patch(
+        "gyrinx.core.models.list.signal_handlers."
+        "propagate_default_child_fighter_assignment"
+    ):
+        default = ContentFighterDefaultAssignment.objects.create(
+            fighter=parent_cf, equipment=equipment
+        )
+
+    barrier = threading.Barrier(2)
+    import gyrinx.core.models.list as list_pkg
+
+    # The task does `from gyrinx.core.models.list import
+    # _materialise_child_fighter_defaults` at call time, so patch the name on the
+    # PACKAGE (what the import reads), not on the fighter submodule.
+    orig = list_pkg._materialise_child_fighter_defaults
+    sync_hits = []
+
+    def synced(list_fighter):
+        sync_hits.append(1)
+        try:
+            barrier.wait(timeout=10)  # both deliveries pass the guard, then release
+        except threading.BrokenBarrierError:
+            pass
+        return orig(list_fighter)
+
+    def deliver():
+        propagate_default_child_fighter_assignment.func(
+            default_assignment_id=str(default.pk)
+        )
+
+    with patch("gyrinx.core.models.list._materialise_child_fighter_defaults", synced):
+        _run_concurrently(deliver, "_materialise_child_fighter_defaults")
+
+    # Sanity: both deliveries really did reach the synchronised critical section
+    # (so the duplication below is the deterministic interleaving, not a fluke).
+    assert len(sync_hits) == 2, f"barrier not reached by both threads: {sync_hits}"
+
+    children = ListFighter.objects.filter(list=lst, content_fighter=child_cf).count()
+    assignments = ListFighterEquipmentAssignment.objects.filter(
+        list_fighter__list=lst,
+        content_equipment=equipment,
+        from_default_assignment=default,
+    ).count()
+    assert children == 1, f"duplicate child fighters materialised: {children}"
+    assert assignments == 1, f"duplicate default assignments: {assignments}"

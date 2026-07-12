@@ -135,24 +135,37 @@ class ManualTaskQueue:
             "(self-re-enqueue without a base case?)"
         )
 
-    def redeliver_last(self):
+    def redeliver_last(self, task_name: str | None = None):
         """Re-run the most recently delivered task (at-least-once duplicate).
 
         Runs the underlying function again with the same arguments and task_id but
         without touching the observability record — exactly how the worker handles
         a duplicate delivery of an already-completed task.
+
+        ``task_name`` picks the most recent delivery of a *specific* task, for when
+        one trigger fans out into several (e.g. a cost change enqueues both
+        ``propagate_content_cost_change`` and ``refresh_list_facts``).
         """
-        if self._last is None:
+        if task_name is not None:
+            payload = next(
+                (d for d in reversed(self.delivered) if d["task_name"] == task_name),
+                None,
+            )
+            if payload is None:
+                raise RuntimeError(f"no delivered task named {task_name!r}")
+        else:
+            payload = self._last
+        if payload is None:
             raise RuntimeError("no task has been delivered yet")
-        func, _route = _resolve(self._last["task_name"])
+        func, _route = _resolve(payload["task_name"])
         if func is None:
-            raise RuntimeError(f"unknown task {self._last['task_name']!r}")
+            raise RuntimeError(f"unknown task {payload['task_name']!r}")
         return run_task(
             func,
-            task_name=self._last["task_name"],
-            task_id=self._last["task_id"],
-            args=self._last["args"],
-            kwargs=self._last["kwargs"],
+            task_name=payload["task_name"],
+            task_id=payload["task_id"],
+            args=payload["args"],
+            kwargs=payload["kwargs"],
             sender=local_backend.DatabaseBackend,
             track_extra={"duplicate": True},
             emit_signals=False,

@@ -458,6 +458,88 @@ def test_action_recorded_when_list_has_no_prior_actions(
     ).exists()
 
 
+# --- Chaos: redelivery / transient failure through the durable local backend ---
+# These drive the real create-default → on_commit → enqueue path in manual mode
+# and inject at-least-once redelivery and a transient failure, to confirm the
+# materialisation guard holds under SEQUENTIAL duplicate delivery.
+
+
+def _child_count(lst, child_cf):
+    return ListFighter.objects.filter(list=lst, content_fighter=child_cf).count()
+
+
+@pytest.mark.django_db
+def test_chaos_sequential_redelivery_no_duplicate_child(
+    task_queue, child_spawning_setup, make_list, content_house, user
+):
+    """A duplicate (sequential) delivery of the propagation task must not spawn a
+    second child fighter or log a second awareness action."""
+    parent_cf = child_spawning_setup["parent_cf"]
+    child_cf = child_spawning_setup["child_cf"]
+    equipment = child_spawning_setup["equipment"]
+    pack = child_spawning_setup["pack"]
+
+    lst, parent = _subscribed_list_with_parent(
+        make_list, content_house, pack, parent_cf, user
+    )
+
+    with task_queue.capture():
+        ContentFighterDefaultAssignment.objects.create(
+            fighter=parent_cf, equipment=equipment
+        )
+    task_queue.deliver_all()
+
+    assert _child_count(lst, child_cf) == 1
+    actions_after = ListAction.objects.filter(
+        list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+    ).count()
+
+    # At-least-once duplicate.
+    task_queue.redeliver_last(task_name="propagate_default_child_fighter_assignment")
+
+    assert _child_count(lst, child_cf) == 1
+    assert (
+        ListAction.objects.filter(
+            list=lst, action_type=ListActionType.CONTENT_COST_CHANGE
+        ).count()
+        == actions_after
+    )
+
+
+@pytest.mark.django_db
+def test_chaos_transient_failure_then_retry_materialises_once(
+    task_queue, child_spawning_setup, make_list, content_house, user
+):
+    """A nacked first delivery followed by a retry materialises the child exactly
+    once."""
+    parent_cf = child_spawning_setup["parent_cf"]
+    child_cf = child_spawning_setup["child_cf"]
+    equipment = child_spawning_setup["equipment"]
+    pack = child_spawning_setup["pack"]
+
+    lst, parent = _subscribed_list_with_parent(
+        make_list, content_house, pack, parent_cf, user
+    )
+
+    with task_queue.capture():
+        ContentFighterDefaultAssignment.objects.create(
+            fighter=parent_cf, equipment=equipment
+        )
+
+    task_queue.fail_next(1)
+    task_queue.deliver_all()
+
+    assert _child_count(lst, child_cf) == 1
+    assert (
+        ListFighterEquipmentAssignment.objects.filter(
+            list_fighter=parent,
+            content_equipment=equipment,
+            from_default_assignment__isnull=False,
+        ).count()
+        == 1
+    )
+
+
 # Out of scope (not tested here, by design):
 # - Deleting a default does NOT retract already-spawned child fighters — they
 #   are user-owned data once materialised. We add no deletion-propagation, and
