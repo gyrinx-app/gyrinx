@@ -248,6 +248,20 @@ def test_backend_rejects_invalid_mode():
         DatabaseBackend("default", {"OPTIONS": {"mode": "nonsense"}})
 
 
+def test_worker_pool_stop_leaves_instance_restartable():
+    """stop() must clear the _stop/_wake events, otherwise a later
+    ensure_started() would spin up threads whose _loop sees _stop already set and
+    exits immediately — a pool that looks started but never does work."""
+    from gyrinx.tasks.worker import TaskWorkerPool
+
+    pool = TaskWorkerPool(num_workers=1)
+    pool.stop()  # exercises the event reset directly, without starting threads
+
+    assert not pool._stop.is_set()
+    assert not pool._wake.is_set()
+    assert pool._started is False
+
+
 @pytest.mark.django_db
 def test_mode_override_flips_backend(task_queue):
     """The fixture's manual override is what defers execution."""

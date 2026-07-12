@@ -37,15 +37,15 @@ from gyrinx.core.tasks import (
 )
 
 
-def _run_concurrently(target, barrier_point, *, n=2, timeout=15):
-    """Run ``target`` on ``n`` threads, synchronised at ``barrier_point``.
+def _run_concurrently(target, *, n=2, timeout=15):
+    """Run ``target`` on ``n`` threads concurrently.
 
-    ``barrier_point`` is a callable-name to patch on some object so that every
-    thread blocks there until all ``n`` have arrived — guaranteeing they are all
-    inside the critical section (past the idempotency guard) simultaneously.
-    Fails the test if a thread deadlocks (still alive after the join timeout) or
-    raises — otherwise those would surface only as confusing partial-state
-    assertion failures. Returns the (empty) list of thread exceptions.
+    Each caller synchronises the threads itself by patching a method with a
+    ``threading.Barrier`` wait, so that all ``n`` are inside the critical section
+    (past the idempotency guard) simultaneously. Fails the test if a thread
+    deadlocks (still alive after the join timeout) or raises — otherwise those
+    would surface only as confusing partial-state assertion failures. Returns the
+    (empty) list of thread exceptions.
     """
     errors = []
 
@@ -133,7 +133,7 @@ def test_concurrent_redelivery_charges_campaign_credits_once(
         )
 
     with patch.object(List, "facts_from_db", synced_facts):
-        _run_concurrently(deliver, "facts_from_db")
+        _run_concurrently(deliver)
 
     lst.refresh_from_db()
     actions = ListAction.objects.filter(
@@ -253,7 +253,7 @@ def test_concurrent_redelivery_child_fighter_materialises_once(
         )
 
     with patch("gyrinx.core.models.list._materialise_child_fighter_defaults", synced):
-        _run_concurrently(deliver, "_materialise_child_fighter_defaults")
+        _run_concurrently(deliver)
 
     # Sanity: both deliveries really did reach the synchronised critical section
     # (so the duplication below is the deterministic interleaving, not a fluke).

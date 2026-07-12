@@ -286,6 +286,11 @@ class TaskWorkerPool:
             t.join(timeout=timeout)
         self._threads.clear()
         self._started = False
+        # Clear the events so the same instance is left in a restartable state:
+        # ensure_started() flips _started back on, and _loop() must not see a
+        # stale _stop from a previous stop() and exit immediately.
+        self._stop.clear()
+        self._wake.clear()
 
     def _loop(self) -> None:
         from gyrinx.tasks.models import QueuedTask
