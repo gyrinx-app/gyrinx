@@ -25,15 +25,22 @@ from gyrinx.core.models.list import (
 
 
 @pytest.mark.django_db
-def test_list_fighter_receivers_skip_raw_fixture_saves():
+def test_list_fighter_receivers_skip_raw_fixture_saves(make_list):
     """``create_linked_objects`` (dereferences ``content_fighter`` and creates
     default assignments) and ``touch_list_modified_on_fighter_save`` (writes to
-    the parent list) must both no-op on a raw save with dangling FKs."""
+    the parent list) must both no-op on a raw save.
+
+    The list is real so the touch handler's ``update()`` would be observable
+    if its guard were removed; the ``content_fighter`` FK dangles, as it can
+    mid-fixture."""
+    lst = make_list("Raw Load Gang")
+    modified_before = lst.modified
+
     fighter = ListFighter(
         id=uuid.uuid4(),
         name="Raw Fighter",
         content_fighter_id=uuid.uuid4(),
-        list_id=uuid.uuid4(),
+        list_id=lst.pk,
         owner_id=uuid.uuid4(),
     )
 
@@ -45,6 +52,8 @@ def test_list_fighter_receivers_skip_raw_fixture_saves():
         using="default",
     )
 
+    lst.refresh_from_db()
+    assert lst.modified == modified_before
     assert ListFighterEquipmentAssignment.objects.count() == 0
 
 
