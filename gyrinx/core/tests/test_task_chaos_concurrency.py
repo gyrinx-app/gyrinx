@@ -43,7 +43,9 @@ def _run_concurrently(target, barrier_point, *, n=2, timeout=15):
     ``barrier_point`` is a callable-name to patch on some object so that every
     thread blocks there until all ``n`` have arrived — guaranteeing they are all
     inside the critical section (past the idempotency guard) simultaneously.
-    Returns the list of exceptions raised by the threads (empty if none).
+    Fails the test if a thread deadlocks (still alive after the join timeout) or
+    raises — otherwise those would surface only as confusing partial-state
+    assertion failures. Returns the (empty) list of thread exceptions.
     """
     errors = []
 
@@ -60,6 +62,12 @@ def _run_concurrently(target, barrier_point, *, n=2, timeout=15):
         t.start()
     for t in threads:
         t.join(timeout=timeout)
+
+    stuck = [t for t in threads if t.is_alive()]
+    assert not stuck, (
+        f"{len(stuck)} delivery thread(s) did not finish within {timeout}s (deadlock?)"
+    )
+    assert not errors, f"delivery thread(s) raised: {errors!r}"
     return errors
 
 

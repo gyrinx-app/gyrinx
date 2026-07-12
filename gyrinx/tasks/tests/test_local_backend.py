@@ -97,6 +97,36 @@ def test_eager_records_failure_without_raising():
     assert "boom" in execution.error_message
 
 
+@pytest.mark.django_db
+def test_redelivery_of_completed_task_does_not_raise():
+    """Post-completion redelivery: task_started re-fires for an already-terminal
+    execution (the Pub/Sub at-least-once case). handle_task_started must skip the
+    illegal SUCCESSFUL->RUNNING transition rather than raise — a raise here
+    propagates out of run_task and, via the prod push handler, 500s into a
+    redelivery storm."""
+    from gyrinx.tasks.executor import run_task
+
+    result = _record_task.enqueue("once")  # eager: runs inline, records SUCCESSFUL
+    execution = TaskExecution.objects.get(task_id=result.id)
+    assert execution.status == "SUCCESSFUL"
+    finished_at = execution.finished_at
+
+    # Redeliver the same completed message straight through the shared executor.
+    ok, _rv, err = run_task(
+        _record_task.func,
+        task_name="_record_task",
+        task_id=result.id,
+        args=["once"],
+        kwargs={},
+    )
+
+    assert ok is True and err is None  # did not raise
+    assert _side_effects == ["once", "once"]  # business logic ran again
+    execution.refresh_from_db()
+    assert execution.status == "SUCCESSFUL"  # canonical record untouched
+    assert execution.finished_at == finished_at
+
+
 # =============================================================================
 # Manual mode — the testing layer
 # =============================================================================
@@ -228,10 +258,18 @@ def test_mode_override_flips_backend(task_queue):
 
 @pytest.mark.django_db
 def test_deliver_unknown_task_is_discarded():
-    """A queue row for a task missing from the registry is dropped, not retried
-    forever."""
+    """A queue row for a task missing from the registry is dropped (not retried
+    forever), and its enqueue-time observability record is marked FAILED rather
+    than left pending forever."""
     from django.utils import timezone
 
+    TaskExecution.objects.create(
+        task_id="orphan",
+        task_name="_no_such_task",
+        args=[],
+        kwargs={},
+        enqueued_at=timezone.now(),
+    )
     qt = QueuedTask.objects.create(
         task_id="orphan",
         task_name="_no_such_task",
@@ -243,4 +281,44 @@ def test_deliver_unknown_task_is_discarded():
     )
     outcome = deliver(qt)
     assert outcome == Outcome.UNKNOWN_TASK
+    assert QueuedTask.objects.count() == 0
+    execution = TaskExecution.objects.get(task_id="orphan")
+    assert execution.status == "FAILED"
+    assert "_no_such_task" in execution.error_message
+
+
+@pytest.mark.django_db
+def test_reclaim_does_not_clobber_completed_execution():
+    """Crash-after-success reclaim: a worker died after run_task succeeded but
+    before deleting the queue row, so the lease lapsed and the row is reclaimed
+    (attempts > 1). The SUCCESSFUL execution must survive — not be reset to READY
+    and re-terminalised as a fresh execution."""
+    from django.utils import timezone
+
+    execution = TaskExecution.objects.create(
+        task_id="reclaimed",
+        task_name="_record_task",
+        args=["r"],
+        kwargs={},
+        enqueued_at=timezone.now(),
+    )
+    execution.mark_running()
+    execution.mark_successful(return_value="recorded r")
+    finished_at = execution.finished_at
+
+    qt = QueuedTask.objects.create(
+        task_id="reclaimed",
+        task_name="_record_task",
+        args=["r"],
+        kwargs={},
+        enqueued_at=timezone.now(),
+        available_at=timezone.now(),
+        attempts=2,  # a reclaim
+    )
+    outcome = deliver(qt)
+
+    assert outcome == Outcome.SUCCESS
+    execution.refresh_from_db()
+    assert execution.status == "SUCCESSFUL"  # not reset to READY / regenerated
+    assert execution.finished_at == finished_at
     assert QueuedTask.objects.count() == 0

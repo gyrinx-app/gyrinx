@@ -66,11 +66,17 @@ def handle_task_started(sender, task_result, **kwargs):
     try:
         execution = TaskExecution.objects.get(task_id=task_result.id)
 
-        # Skip if already running (idempotency for at-least-once delivery)
-        if execution.status == "RUNNING":
+        # Skip if already running or terminal (idempotency for at-least-once
+        # delivery). An overlapping redelivery finds it RUNNING; a post-completion
+        # redelivery finds it SUCCESSFUL/FAILED. Re-marking a terminal execution
+        # RUNNING is an illegal state transition that would raise (and, via the
+        # Pub/Sub push handler, 500 into a redelivery storm) — so mirror the
+        # terminal guard in handle_task_finished below.
+        if execution.status in ("RUNNING", "SUCCESSFUL", "FAILED"):
             logger.debug(
-                "Task %s already RUNNING, skipping (task_id=%s)",
+                "Task %s already %s, skipping task_started (task_id=%s)",
                 execution.task_name,
+                execution.status,
                 task_result.id,
             )
             return

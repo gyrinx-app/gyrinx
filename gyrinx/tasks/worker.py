@@ -74,10 +74,16 @@ def _reset_execution_for_attempt(task_id: str) -> None:
     machine, the local worker resets the row here (bypassing the state machine on
     purpose) before re-running, so ``task_started``'s READY→RUNNING stays valid.
     Local/observability-only; prod never calls this.
+
+    SUCCESSFUL is excluded: if a worker crashed after ``run_task`` succeeded but
+    before ``qt.delete()``, the lease lapses and the row is reclaimed — we must not
+    resurrect the completed record back to READY (and re-run erasing the success).
     """
     from gyrinx.tasks.models import TaskExecution
 
-    TaskExecution.objects.filter(task_id=task_id).exclude(status="READY").update(
+    TaskExecution.objects.filter(task_id=task_id).exclude(
+        status__in=["READY", "SUCCESSFUL"]
+    ).update(
         status="READY",
         started_at=None,
         finished_at=None,
@@ -127,6 +133,10 @@ def deliver(
             qt.task_id,
             qt.task_name,
         )
+        # enqueue() created a READY TaskExecution; mark it FAILED before dropping
+        # the row so status/polling reflects that the work was discarded rather
+        # than showing it stuck pending forever.
+        _mark_execution_failed(qt.task_id, f"Unregistered task {qt.task_name!r}")
         qt.delete()
         return Outcome.UNKNOWN_TASK
 
