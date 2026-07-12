@@ -9,8 +9,6 @@ import base64
 import json
 import logging
 import os
-import traceback
-from datetime import datetime
 
 from django.conf import settings
 from django.db import OperationalError, connection
@@ -20,18 +18,14 @@ from django.http import (
     HttpResponseForbidden,
     JsonResponse,
 )
-from django.tasks import TaskResult
-from django.tasks.base import TaskError, TaskResultStatus
-from django.tasks.signals import task_finished, task_started
-from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from gyrinx.tasks.backend import PubSubBackend
+from gyrinx.tasks.executor import run_task
 from gyrinx.tasks.groups import group_status
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracing import span, traced
-from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
 
@@ -53,79 +47,6 @@ def task_group_status(request):
     if not group_key:
         return HttpResponseBadRequest("Missing required 'group' query parameter.")
     return JsonResponse(group_status(group_key))
-
-
-class _MockTask:
-    """
-    Minimal mock Task to satisfy Django's signal handler logging.
-
-    Django's built-in task_started/task_finished signal handlers access
-    task_result.task.module_path for logging. Since we're in the push handler
-    and don't have access to the actual Task object, we provide this mock.
-    """
-
-    def __init__(self, name: str):
-        self.module_path = name
-
-
-def _build_task_result(
-    task_id: str,
-    task_name: str,
-    args: list,
-    kwargs: dict,
-    status: TaskResultStatus,
-    enqueued_at: datetime | None = None,
-    return_value=None,
-    error: Exception | None = None,
-) -> TaskResult:
-    """
-    Build a TaskResult object for sending signals.
-
-    The push handler needs to construct TaskResult objects to send
-    task_started and task_finished signals.
-    """
-    now = timezone.now()
-
-    errors = []
-    if error is not None:
-        exception_type = type(error)
-        errors.append(
-            TaskError(
-                exception_class_path=f"{exception_type.__module__}.{exception_type.__qualname__}",
-                traceback=traceback.format_exc(),
-            )
-        )
-
-    result = TaskResult(
-        task=_MockTask(task_name),  # Mock task for Django's signal handler logging
-        id=task_id,
-        status=status,
-        enqueued_at=enqueued_at,
-        started_at=now if status == TaskResultStatus.RUNNING else None,
-        finished_at=now
-        if status in (TaskResultStatus.SUCCESSFUL, TaskResultStatus.FAILED)
-        else None,
-        last_attempted_at=now,
-        args=args,
-        kwargs=kwargs,
-        backend="default",
-        errors=errors,
-        worker_ids=[],
-    )
-
-    # Set return value for successful tasks
-    if return_value is not None and status == TaskResultStatus.SUCCESSFUL:
-        # Test if serializable before storing
-        try:
-            json.dumps(return_value)
-            object.__setattr__(result, "_return_value", return_value)
-        except (TypeError, ValueError):
-            logger.debug(
-                "Task return value is not JSON-serializable, not storing",
-                extra={"task_id": task_id},
-            )
-
-    return result
 
 
 def _verify_oidc_token(request) -> bool:
@@ -373,73 +294,23 @@ def pubsub_push_handler(request):
             except (ValueError, ImportError):
                 pass
 
-        # Send task_started signal (signal handler calls mark_running)
-        started_result = _build_task_result(
-            task_id=task_id,
+        # Run through the shared executor so prod fires the exact same
+        # task_started/task_finished signals (and TaskExecution bookkeeping) as
+        # the local backend. run_task swallows the task's own exception into
+        # ok=False rather than propagating, so we map that to a 500 (nack) here.
+        ok, _return_value, _error = run_task(
+            route._underlying_func,
             task_name=task_name,
+            task_id=task_id,
             args=args,
             kwargs=kwargs,
-            status=TaskResultStatus.RUNNING,
             enqueued_at=enqueued_at,
+            sender=PubSubBackend,
+            track_extra={"message_id": message_id},
         )
-        task_started.send(sender=PubSubBackend, task_result=started_result)
 
-        try:
-            track(
-                "task_started",
-                task_id=task_id,
-                task_name=task_name,
-                message_id=message_id,
-            )
-
-            # Call the underlying function directly, not the Task wrapper
-            result = route._underlying_func(*args, **kwargs)
-
-            # Send task_finished signal for success (signal handler calls mark_successful)
-            finished_result = _build_task_result(
-                task_id=task_id,
-                task_name=task_name,
-                args=args,
-                kwargs=kwargs,
-                status=TaskResultStatus.SUCCESSFUL,
-                enqueued_at=enqueued_at,
-                return_value=result,
-            )
-            task_finished.send(sender=PubSubBackend, task_result=finished_result)
-
-            track(
-                "task_completed",
-                task_id=task_id,
-                task_name=task_name,
-                message_id=message_id,
-            )
-
+        if ok:
             return HttpResponse("OK", status=200)
 
-        except Exception as e:
-            # Send task_finished signal for failure (signal handler calls mark_failed)
-            failed_result = _build_task_result(
-                task_id=task_id,
-                task_name=task_name,
-                args=args,
-                kwargs=kwargs,
-                status=TaskResultStatus.FAILED,
-                enqueued_at=enqueued_at,
-                error=e,
-            )
-            task_finished.send(sender=PubSubBackend, task_result=failed_result)
-
-            track(
-                "task_failed",
-                task_id=task_id,
-                task_name=task_name,
-                message_id=message_id,
-                error=str(e),
-            )
-            logger.error(
-                f"Task {task_name} failed: {e}",
-                extra={"task_id": task_id, "task_name": task_name},
-                exc_info=True,
-            )
-            # Return 500 to nack message and trigger retry
-            return HttpResponse("Task failed", status=500)
+        # Return 500 to nack message and trigger retry
+        return HttpResponse("Task failed", status=500)

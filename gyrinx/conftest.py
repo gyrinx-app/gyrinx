@@ -24,6 +24,10 @@ from gyrinx.core.models.list import List, ListFighter
 from gyrinx.core.models.pack import CustomContentPack, CustomContentPackItem
 from gyrinx.models import FighterCategoryChoices
 
+# Re-export the local task-queue driver fixture so tests can request `task_queue`
+# to drive the durable queue in manual mode (inject duplicates/failures/drops).
+from gyrinx.tasks.testing import task_queue  # noqa: F401
+
 User = get_user_model()
 
 
