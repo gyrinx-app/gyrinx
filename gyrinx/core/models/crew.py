@@ -190,7 +190,9 @@ class Crew(AppBase):
 
     def method_label(self):
         """Human label mirroring the rulebook's Custom / Random / Hybrid."""
-        chosen = self.chosen_fighters.count()
+        # len() over .all() so a prefetched chosen_fighters cache is reused
+        # (a plain .count() would issue its own query even when prefetched).
+        chosen = len(self.chosen_fighters.all())
         has_random = bool((self.random_spec or "").strip())
         if chosen and has_random:
             return f"Hybrid ({chosen}+{self.random_spec})"
@@ -202,8 +204,45 @@ class Crew(AppBase):
 
     # --- rating & credits (computed live, never persisted) ---------------
 
-    def _member_fighters(self):
-        return self.members.select_related("list_fighter", "equipment_set")
+    def _rating_fighters(self):
+        """``(fighter, equipment_set)`` pairs contributing to the crew rating.
+
+        The fighters are loaded in one batch via ``with_related_data()`` so
+        their costs compute from the prefetch cache rather than N+1 per fighter.
+        Each locked member's set is resolved against its fighter's own
+        prefetched set collection, so the set's assignments also come from the
+        cache. Respects a prefetched ``members`` / ``chosen_fighters`` cache
+        when the caller supplied one.
+        """
+        from gyrinx.core.models.list import ListFighter
+
+        if self.is_locked:
+            members = list(self.members.all())
+            loaded = ListFighter.objects.with_related_data().in_bulk(
+                [m.list_fighter_id for m in members]
+            )
+            pairs = []
+            for member in members:
+                fighter = loaded.get(member.list_fighter_id)
+                if fighter is None:
+                    continue
+                equipment_set = None
+                if member.equipment_set_id is not None:
+                    equipment_set = next(
+                        (
+                            s
+                            for s in fighter._equipment_sets_cached
+                            if s.id == member.equipment_set_id
+                        ),
+                        None,
+                    )
+                pairs.append((fighter, equipment_set))
+            return pairs
+
+        # Draft: provisional rating from the chosen fighters at full kit.
+        chosen_ids = [f.pk for f in self.chosen_fighters.all()]
+        loaded = ListFighter.objects.with_related_data().in_bulk(chosen_ids)
+        return [(loaded[pk], None) for pk in chosen_ids if pk in loaded]
 
     def rating(self):
         """The crew's fighter rating, computed live (never reads/writes caches).
@@ -213,9 +252,10 @@ class Crew(AppBase):
         a provisional sum of the chosen fighters at full kit — the random
         component is unknown until the draw at lock, so it isn't counted.
         """
-        if self.is_locked:
-            return sum(member.rating() for member in self._member_fighters())
-        return sum(fighter.cost_int_cached for fighter in self.chosen_fighters.all())
+        return sum(
+            fighter.cost_int_for_equipment_set(equipment_set)
+            for fighter, equipment_set in self._rating_fighters()
+        )
 
     def extras_total(self):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""

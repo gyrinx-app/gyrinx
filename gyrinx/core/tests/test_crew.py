@@ -119,6 +119,26 @@ def test_cost_int_for_equipment_set(crew_setup, equipped_fighter):
     assert fighter.cost_int_for_equipment_set(card) == 145
 
 
+@pytest.mark.django_db
+def test_cost_int_for_full_coverage_set_equals_full_kit(
+    crew_setup, make_list_fighter, make_equipment, make_weapon_profile
+):
+    """A set that includes every assignment costs the same as the full kit."""
+    fighter = make_list_fighter(crew_setup["gang"], "Trooper")
+    lasgun = make_equipment(name="Lasgun 2", cost=30, category="Basic Weapons")
+    make_weapon_profile(lasgun)
+    armour = make_equipment(name="Flak 2", cost=15, category="Armour")
+    a1 = fighter.assign(lasgun)
+    a2 = fighter.assign(armour)
+    full_card = ListFighterEquipmentSet.objects.create(
+        list_fighter=fighter, name="Everything", owner=fighter.owner
+    )
+    full_card.assignments.set([a1, a2])
+
+    fighter = ListFighter.objects.with_related_data().get(id=fighter.id)
+    assert fighter.cost_int_for_equipment_set(full_card) == fighter.cost_int_cached
+
+
 # --- Crew model -------------------------------------------------------------
 
 
@@ -283,6 +303,28 @@ def test_lock_writes_campaign_action(crew_setup):
     assert action is not None
     assert action == result.campaign_action
     assert "Crew locked" in action.description
+
+
+@pytest.mark.django_db
+def test_lock_whole_gang_enrols_all_eligible(crew_setup):
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    # No chosen fighters and no random spec = "Custom (whole gang)".
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    assert crew.method_label() == "Custom (whole gang)"
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    crew.refresh_from_db()
+    assert crew.status == Crew.LOCKED
+    # All five eligible fighters attend, none marked random.
+    members = list(crew.members.all())
+    assert len(members) == 5
+    assert all(not m.was_random for m in members)
+    assert result.chosen_count == 5
+    assert result.random_count == 0
+    assert result.whole_gang is True
+    action = CampaignAction.objects.filter(battle=battle).first()
+    assert "whole gang" in action.outcome
 
 
 @pytest.mark.django_db

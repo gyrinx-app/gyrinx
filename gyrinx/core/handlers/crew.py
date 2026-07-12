@@ -48,6 +48,7 @@ class CrewLockResult:
     random_count: int
     roll_detail: str
     campaign_action: Optional[CampaignAction]
+    whole_gang: bool = False
 
 
 @traced("handle_crew_lock")
@@ -58,13 +59,17 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
 
     Creates a :class:`CrewMember` for every chosen fighter, then rolls
     ``crew.random_spec`` and draws that many more at random from the eligible
-    pool (excluding the already-chosen). Sets the crew LOCKED and writes a
-    battle-linked CampaignAction. Idempotency: a crew that is already locked
-    raises rather than drawing again (no re-rolls).
+    pool (excluding the already-chosen). A crew with neither chosen fighters nor
+    a random spec is a "whole gang" crew: the entire eligible roster attends.
+    Sets the crew LOCKED and writes a battle-linked CampaignAction. Idempotency:
+    a crew that is already locked raises rather than drawing again (no re-rolls).
 
     Pass ``rng`` (any object with ``randint``/``shuffle``) for deterministic
     tests.
     """
+    # Lock the crew row for the duration of the draw so two concurrent lock
+    # POSTs can't both pass the guard and race on the member INSERTs.
+    crew = Crew.objects.select_for_update().get(pk=crew.pk)
     if crew.is_locked:
         raise ValidationError("This crew has already been locked.")
 
@@ -73,7 +78,14 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
 
     chosen = list(crew.chosen_fighters.all())
     chosen_ids = {f.pk for f in chosen}
-    for fighter in chosen:
+    random_spec = (crew.random_spec or "").strip()
+
+    # "Custom (whole gang)": no explicit picks and no random draw means the
+    # whole eligible roster attends (rulebook: Custom Selection with no number).
+    whole_gang = not chosen and not random_spec
+
+    non_random = chosen if not whole_gang else list(eligible_crew_fighters(lst))
+    for fighter in non_random:
         CrewMember.objects.create_with_user(
             user=user,
             owner=lst.owner,
@@ -82,47 +94,53 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
             was_random=False,
         )
 
-    random_count, roll_detail = roll_selection_spec(crew.random_spec, rng=rng)
+    random_count, roll_detail = (0, "")
     drawn = []
-    if random_count > 0:
-        pool = list(eligible_crew_fighters(lst).exclude(pk__in=chosen_ids))
-        rng.shuffle(pool)
-        drawn = pool[:random_count]
-        for fighter in drawn:
-            CrewMember.objects.create_with_user(
-                user=user,
-                owner=lst.owner,
-                crew=crew,
-                list_fighter=fighter,
-                was_random=True,
-            )
+    if not whole_gang:
+        random_count, roll_detail = roll_selection_spec(random_spec, rng=rng)
+        if random_count > 0:
+            pool = list(eligible_crew_fighters(lst).exclude(pk__in=chosen_ids))
+            rng.shuffle(pool)
+            drawn = pool[:random_count]
+            for fighter in drawn:
+                CrewMember.objects.create_with_user(
+                    user=user,
+                    owner=lst.owner,
+                    crew=crew,
+                    list_fighter=fighter,
+                    was_random=True,
+                )
 
     crew.status = Crew.LOCKED
     crew.save_with_user(user=user)
 
-    campaign_action = None
-    campaign = crew.battle.campaign
-    if campaign:
+    if whole_gang:
+        outcome = f"{len(non_random)} fighters (whole gang)"
+    else:
         outcome_parts = [f"{len(chosen)} chosen"]
         if random_count:
             drew = f"{len(drawn)} random"
             if roll_detail:
                 drew += f" ({roll_detail})"
             outcome_parts.append(drew)
-        campaign_action = CampaignAction.objects.create(
-            user=user,
-            owner=user,
-            campaign=campaign,
-            list=lst,
-            battle=crew.battle,
-            description=f"Crew locked for {lst.name}: {crew.method_label()}",
-            outcome=", ".join(outcome_parts),
-        )
+        outcome = ", ".join(outcome_parts)
+
+    # Battle.campaign is a non-nullable FK, so there is always a campaign to log.
+    campaign_action = CampaignAction.objects.create(
+        user=user,
+        owner=user,
+        campaign=crew.battle.campaign,
+        list=lst,
+        battle=crew.battle,
+        description=f"Crew locked for {lst.name}: {crew.method_label()}",
+        outcome=outcome,
+    )
 
     return CrewLockResult(
         crew=crew,
-        chosen_count=len(chosen),
+        chosen_count=len(non_random),
         random_count=len(drawn),
         roll_detail=roll_detail,
         campaign_action=campaign_action,
+        whole_gang=whole_gang,
     )

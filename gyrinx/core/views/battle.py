@@ -96,16 +96,22 @@ class BattleDetailView(generic.DetailView):
 
     def _add_crew_context(self, context, battle, user):
         """Attach crew summaries and the per-gang 'add crew' affordances."""
-        crews = list(battle.crews.select_related("list").prefetch_related("members"))
+        crews = list(
+            battle.crews.select_related("list").prefetch_related(
+                "members", "chosen_fighters"
+            )
+        )
         crew_summaries = []
         for crew in crews:
+            # Compute rating once; the delta is derived from it (calling
+            # rating_delta_vs_gang() would recompute the rating).
+            rating = crew.rating()
             crew_summaries.append(
                 {
                     "crew": crew,
                     "method_label": crew.method_label(),
-                    "rating": crew.rating(),
-                    "rating_delta": crew.rating_delta_vs_gang(),
-                    "can_manage": crew.can_manage(user),
+                    "rating": rating,
+                    "rating_delta": rating - crew.list.rating_current,
                 }
             )
         context["crew_summaries"] = crew_summaries

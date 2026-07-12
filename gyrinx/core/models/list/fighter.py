@@ -1809,7 +1809,9 @@ class ListFighter(AppBase):
         the fighter's persisted active one — used for crew rating (#1346), where
         a member brings a specific battle loadout. Virtual: never persisted,
         never feeds credits/audit. Only the fighter's own direct ("assigned")
-        equipment is toggled by a set; innate/default kit always counts.
+        equipment is toggled by a set; innate/default kit always counts, as do
+        base/advancement/roll-result costs (a set scopes equipment, not the
+        fighter's own costs) — so a set covering everything equals ``None``.
         """
         if self.should_have_zero_cost:
             return 0
@@ -1824,6 +1826,7 @@ class ListFighter(AppBase):
         return (
             self._base_cost_int
             + self._advancement_cost_int
+            + self._roll_result_cost_int
             + sum(e.cost_int() for e in shown)
         )
 

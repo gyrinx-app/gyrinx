@@ -11,9 +11,13 @@
             {% csrf_token %}
             <p>
                 Locking freezes the crew's attendees for {{ battle.name }}.
-                {{ chosen_fighters|length }} chosen fighter{{ chosen_fighters|length|pluralize }} will be
-                included{% if crew.random_spec %}, and <strong>{{ crew.random_spec }}</strong> more will be
-                drawn at random from the rest of the gang{% endif %}.
+                {% if whole_gang %}
+                    The whole eligible gang will attend.
+                {% else %}
+                    {{ chosen_fighters|length }} chosen fighter{{ chosen_fighters|length|pluralize }} will be
+                    included{% if crew.random_spec %}, and <strong>{{ crew.random_spec }}</strong> more will be
+                    drawn at random from the rest of the gang{% endif %}.
+            {% endif %}
         </p>
         <div class="alert alert-warning alert-icon mb-0" role="alert">
             <i class="bi-exclamation-triangle"></i>

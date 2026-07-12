@@ -186,21 +186,30 @@ def crew_lock(request, battle_id, crew_id):
             messages.error(request, exc.messages[0])
             return _redirect_crew(crew)
 
-        detail = f" — {result.roll_detail}" if result.roll_detail else ""
-        messages.success(
-            request,
-            f"Crew locked: {result.chosen_count} chosen, "
-            f"{result.random_count} random{detail}.",
-        )
+        if result.whole_gang:
+            messages.success(
+                request,
+                f"Crew locked: whole gang ({result.chosen_count} fighters).",
+            )
+        else:
+            detail = f" — {result.roll_detail}" if result.roll_detail else ""
+            messages.success(
+                request,
+                f"Crew locked: {result.chosen_count} chosen, "
+                f"{result.random_count} random{detail}.",
+            )
         return _redirect_crew(crew)
 
+    chosen_fighters = list(crew.chosen_fighters.all())
     return render(
         request,
         "core/crew/crew_lock.html",
         {
             "crew": crew,
             "battle": crew.battle,
-            "chosen_fighters": list(crew.chosen_fighters.all()),
+            "chosen_fighters": chosen_fighters,
+            # No picks and no random draw = the whole eligible roster attends.
+            "whole_gang": not chosen_fighters and not (crew.random_spec or "").strip(),
         },
     )
 
