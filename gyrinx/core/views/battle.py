@@ -121,7 +121,8 @@ class BattleDetailView(generic.DetailView):
         can_add_any = user.is_authenticated and not (
             battle.archived or battle.campaign.archived
         )
-        winner_ids = set(battle.winners.values_list("id", flat=True))
+        # winners is prefetched in get_object(); read the cache, not a new query.
+        winner_ids = {w.id for w in battle.winners.all()}
 
         groups = []
         for group in battle.participants_grouped_by_role():

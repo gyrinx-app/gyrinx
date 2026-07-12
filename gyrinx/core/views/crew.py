@@ -143,7 +143,17 @@ def crew_edit(request, battle_id, crew_id):
         return _redirect_crew(crew)
 
     if request.method == "POST":
-        form = CrewForm(request.POST, instance=crew, gang=crew.list)
+        gang = crew.list
+        # Re-fetch under a row lock so a crew being locked concurrently can't
+        # slip a recipe edit past the is_locked guard above — locked crews can
+        # no longer be re-drawn (mirrors handle_crew_lock's own lock).
+        crew = Crew.objects.select_for_update().get(pk=crew.pk)
+        if crew.is_locked:
+            messages.info(
+                request, "This crew was just locked and can no longer be re-drawn."
+            )
+            return _redirect_crew(crew)
+        form = CrewForm(request.POST, instance=crew, gang=gang)
         if form.is_valid():
             crew = form.save(commit=False)
             crew.save_with_user(user=request.user)
