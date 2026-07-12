@@ -258,6 +258,26 @@ patterns = [
         name="battle-edit",
     ),
     path(
+        "battle/<id>/roles",
+        battle.edit_battle_roles,
+        name="battle-roles-edit",
+    ),
+    path(
+        "battle/<id>/start",
+        battle.start_battle,
+        name="battle-start",
+    ),
+    path(
+        "battle/<id>/end",
+        battle.end_battle,
+        name="battle-end",
+    ),
+    path(
+        "battle/<id>/archive",
+        battle.archive_battle,
+        name="battle-archive",
+    ),
+    path(
         "battle/<battle_id>/notes/add",
         battle.add_battle_note,
         name="battle-note-add",

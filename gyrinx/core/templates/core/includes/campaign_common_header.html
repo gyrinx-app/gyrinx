@@ -1,0 +1,14 @@
+{# Campaign context header for pages nested under a campaign (e.g. a battle). #}
+{# Required params: campaign. Optional: current (label for the current page). #}
+{# Deliberately low-interaction: breadcrumb + campaign name (linking back) + status. #}
+<div class="mb-3 pb-3 border-bottom">
+    {% url 'core:campaigns' as campaigns_url %}
+    {% include "core/includes/breadcrumb.html" with type="Campaigns" owner=campaign.owner name=current type_url=campaigns_url campaign=campaign only %}
+    <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-sm-center mt-1">
+        <a class="linked fw-semibold"
+           href="{% url 'core:campaign' campaign.id %}">
+            <i class="bi-chevron-left"></i> {{ campaign.name }}
+        </a>
+        <span class="ms-sm-auto">{% include "core/campaign/includes/status.html" with campaign=campaign %}</span>
+    </div>
+</div>

@@ -7,7 +7,7 @@
     {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">New Battle</h1>
-        <p class="text-secondary">Create a new battle report for {{ campaign.name }}</p>
+        <p class="text-secondary">Set up a new battle for {{ campaign.name }}. You can add the result later.</p>
         <form method="post" class="vstack gap-3">
             {% if form.non_field_errors %}
                 <div class="alert alert-danger alert-icon mb-0" role="alert">

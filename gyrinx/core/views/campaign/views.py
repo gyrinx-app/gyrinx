@@ -182,10 +182,12 @@ class CampaignDetailView(generic.DetailView):
             )
         )
 
-        # Get recent battles
+        # Get recent battles (archived battles are hidden)
         context["battles_limit"] = 5
+        active_battles = campaign.battles.filter(archived=False)
+        context["battles_count"] = active_battles.count()
         context["recent_battles"] = (
-            campaign.battles.select_related("owner")
+            active_battles.select_related("owner")
             .prefetch_related("participants", "winners")
             .order_by("-date", "-created")[: context["battles_limit"]]
         )

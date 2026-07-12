@@ -4,7 +4,8 @@
         <div>
             <h6 class="mb-1">
                 <strong>{{ battle.mission }}</strong>
-                <span class="text-secondary">• {{ battle.date|date:"M d, Y" }}</span>
+                {% if battle.date %}<span class="text-secondary">• {{ battle.date|date:"M d, Y" }}</span>{% endif %}
+                {% if battle.status != 'post_battle' %}<span class="badge {% if battle.status == 'in_progress' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ battle.states.display }}</span>{% endif %}
             </h6>
             <p class="mb-0 text-secondary fs-7">
                 {% for participant in battle.participants.all %}

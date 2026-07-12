@@ -1,0 +1,20 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Assign roles - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:battle' battle.id as battle_url %}
+    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Assign roles</h1>
+        <p class="text-secondary">Give each gang a role in {{ battle.name }} (e.g. Attacker or Defender).</p>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form }}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-success">Save</button>
+                <a href="{{ battle_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

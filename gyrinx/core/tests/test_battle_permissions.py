@@ -118,14 +118,15 @@ def test_non_campaign_player_cannot_create_battle():
     # Check error message was set
     messages = list(response.wsgi_request._messages)
     assert len(messages) == 1
-    assert "Only players with a gang in the campaign can create battles." in str(
-        messages[0]
+    assert (
+        "Only the campaign arbitrator or players with a gang in the campaign can create battles."
+        in str(messages[0])
     )
 
 
 @pytest.mark.django_db
-def test_campaign_owner_can_still_create_battle():
-    """Test that the campaign owner can still create battles even without a list."""
+def test_campaign_owner_can_create_battle_without_a_gang():
+    """The campaign arbitrator can create battles even without owning a gang."""
     # Create test user
     campaign_owner = User.objects.create_user(
         username="campaignowner", password="password"
@@ -151,21 +152,20 @@ def test_campaign_owner_can_still_create_battle():
     )
     campaign.lists.add(player_list)
 
-    # Login as campaign owner
+    # Login as campaign owner (who has no gang of their own)
     client = Client()
     client.login(username="campaignowner", password="password")
 
-    # Try to access battle creation page
     url = reverse("core:battle-new", args=[campaign.id])
-    response = client.get(url)
-
-    # Campaign owner without a list should be redirected
-    assert response.status_code == 302
-    assert response.url == reverse("core:campaign", args=[campaign.id])
-
-    # Check error message
-    messages = list(response.wsgi_request._messages)
-    assert len(messages) == 1
-    assert "Only players with a gang in the campaign can create battles." in str(
-        messages[0]
+    response = client.post(
+        url,
+        {"mission": "Arbiter Battle", "participants": [str(player_list.id)]},
     )
+
+    # The arbitrator can create the battle, and owns it.
+    assert Battle.objects.count() == 1
+    battle = Battle.objects.first()
+    assert battle.owner == campaign_owner
+    assert battle.mission == "Arbiter Battle"
+    assert response.status_code == 302
+    assert response.url == reverse("core:battle", args=[battle.id])

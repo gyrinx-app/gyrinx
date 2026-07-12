@@ -27,6 +27,8 @@ from .models import (
     ContentAdvancementEquipment,
     ContentAttribute,
     ContentAttributeValue,
+    ContentBattleRole,
+    ContentBattleRoleOption,
     ContentBook,
     ContentEquipment,
     ContentEquipmentCategory,
@@ -1236,6 +1238,32 @@ class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
         return obj.modifiers.count()
 
     get_modifier_count.short_description = "Modifiers"
+
+
+class ContentBattleRoleOptionInline(ContentTabularInline):
+    model = ContentBattleRoleOption
+    extra = 0
+    fields = ["name", "description"]
+
+
+@admin.register(ContentBattleRole)
+class ContentBattleRoleAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "description"]
+    list_display = ["name", "description", "get_option_count"]
+    readonly_fields = ["id", "created", "modified"]
+    inlines = [ContentBattleRoleOptionInline]
+
+    @admin.display(description="Options")
+    def get_option_count(self, obj):
+        return obj.options.count()
+
+
+@admin.register(ContentBattleRoleOption)
+class ContentBattleRoleOptionAdmin(ContentAdmin, admin.ModelAdmin):
+    search_fields = ["name", "description", "role__name"]
+    list_filter = ["role"]
+    list_display = ["name", "role", "description"]
+    readonly_fields = ["id", "created", "modified"]
 
 
 class ContentAttributeValueInline(ContentTabularInline):

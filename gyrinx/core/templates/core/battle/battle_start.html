@@ -1,0 +1,28 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Start {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:battle' battle.id as battle_url %}
+    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Start {{ battle.name }}</h1>
+        <form action="{% url 'core:battle-start' battle.id %}" method="post">
+            {% csrf_token %}
+            <p>Are you sure you want to start this battle?</p>
+            <div class="alert alert-warning alert-icon mb-0" role="alert">
+                <i class="bi-exclamation-triangle"></i>
+                <div>
+                    Once started, the battle moves from <strong>Pre-battle</strong> to
+                    <strong>In progress</strong>. Battle states only move forward, so this
+                    cannot be undone.
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">Start battle</button>
+                {% include "core/includes/cancel.html" with url=battle_url %}
+            </div>
+        </form>
+    </div>
+{% endblock content %}
