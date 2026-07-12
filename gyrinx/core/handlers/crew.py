@@ -80,8 +80,8 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     chosen_ids = {f.pk for f in chosen}
     random_spec = (crew.random_spec or "").strip()
 
-    # "Custom (whole gang)": no explicit picks and no random draw means the
-    # whole eligible roster attends (rulebook: Custom Selection with no number).
+    # Whole gang: no explicit picks and no random draw means the whole eligible
+    # roster attends (rulebook: Custom Selection with no number).
     whole_gang = not chosen and not random_spec
 
     non_random = chosen if not whole_gang else list(eligible_crew_fighters(lst))

@@ -178,18 +178,18 @@ def test_method_label(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
 
-    assert crew.method_label() == "Custom (whole gang)"
+    assert crew.method_label() == "Whole gang"
 
     crew.random_spec = "D3"
     crew.save()
-    assert crew.method_label() == "Random (D3)"
+    assert crew.method_label() == "D3 random"
 
     crew.chosen_fighters.set(crew_setup["fighters"][:2])
-    assert crew.method_label() == "Hybrid (2+D3)"
+    assert crew.method_label() == "2 chosen + D3 random"
 
     crew.random_spec = ""
     crew.save()
-    assert crew.method_label() == "Custom (2)"
+    assert crew.method_label() == "2 chosen"
 
 
 @pytest.mark.django_db
@@ -363,9 +363,9 @@ def test_lock_writes_campaign_action(crew_setup):
 @pytest.mark.django_db
 def test_lock_whole_gang_enrols_all_eligible(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
-    # No chosen fighters and no random spec = "Custom (whole gang)".
+    # No chosen fighters and no random spec = "Whole gang".
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-    assert crew.method_label() == "Custom (whole gang)"
+    assert crew.method_label() == "Whole gang"
 
     result = handle_crew_lock(user=crew_setup["user"], crew=crew)
 

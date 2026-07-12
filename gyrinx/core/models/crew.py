@@ -225,7 +225,10 @@ class Crew(AppBase):
     # --- selection method label (derived from recipe) --------------------
 
     def method_label(self):
-        """Human label mirroring the rulebook's Custom / Random / Hybrid."""
+        """Plain-language summary of how the crew is selected: how many fighters
+        are hand-picked and how many are drawn at random. Covers the rulebook's
+        Custom / Random / Hybrid methods without the terse bracket notation
+        (e.g. "2 chosen + D6+2 random" rather than "Hybrid (2+D6+2)")."""
         # Reuse a prefetched chosen_fighters cache (battle page) when present;
         # otherwise a COUNT is cheaper than materialising every row.
         prefetched = getattr(self, "_prefetched_objects_cache", {})
@@ -235,12 +238,12 @@ class Crew(AppBase):
             chosen = self.chosen_fighters.count()
         has_random = bool((self.random_spec or "").strip())
         if chosen and has_random:
-            return f"Hybrid ({chosen}+{self.random_spec})"
+            return f"{chosen} chosen + {self.random_spec} random"
         if has_random:
-            return f"Random ({self.random_spec})"
+            return f"{self.random_spec} random"
         if chosen:
-            return f"Custom ({chosen})"
-        return "Custom (whole gang)"
+            return f"{chosen} chosen"
+        return "Whole gang"
 
     # --- rating & credits (computed live, never persisted) ---------------
 

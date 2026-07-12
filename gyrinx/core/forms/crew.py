@@ -54,7 +54,7 @@ class CrewForm(forms.ModelForm):
         required=False,
         widget=forms.CheckboxSelectMultiple(),
         label="Chosen fighters",
-        help_text="Fighters you specifically pick for this crew.",
+        help_text="Tick the fighters you're hand-picking for this battle.",
     )
     random_dice = forms.ChoiceField(
         choices=DICE_CHOICES,

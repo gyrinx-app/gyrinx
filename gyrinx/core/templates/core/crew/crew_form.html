@@ -18,8 +18,9 @@
             {% endif %}
         </h1>
         <p class="text-secondary">
-            Pick the fighters this crew brings to {{ battle.name }}, and how many extra
-            fighters to draw at random when the crew is locked at battle start.
+            Choose this crew's fighters for {{ battle.name }}. Tick the ones you're
+            hand-picking; the dice draw <em>extra</em> fighters at random when the crew is
+            locked at battle start.
         </p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
@@ -46,9 +47,11 @@
                     </div>
                 </div>
                 <div class="form-text">
-                    Extra fighters drawn at random when the crew is locked, on top of the chosen
-                    ones. Pick a die (D3/D6), add a fixed number, or use either alone — e.g. D3,
-                    D3+4, or 6. Leave both blank for no random draw.
+                    Extra fighters drawn at random when the crew is locked — you don't choose
+                    which ones. Pick a die (D3/D6), add a number, or use either alone (e.g. D3,
+                    D3+4, or 6); leave both blank for no random draw. If a scenario instead rolls
+                    for how many you may <em>hand-pick</em> (e.g. Custom Selection (D3+7)), roll it
+                    yourself and tick that many below.
                 </div>
                 {{ form.random_dice.errors }}
                 {{ form.random_number.errors }}
