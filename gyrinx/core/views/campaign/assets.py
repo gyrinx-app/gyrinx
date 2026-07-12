@@ -82,6 +82,84 @@ def campaign_assets(request, id):
 
 
 @login_required
+def campaign_asset_detail(request, id, asset_id):
+    """
+    Read-only detail page for a single campaign asset.
+
+    Shows the asset's full description, properties, its type's description, and
+    its sub-assets grouped by type. This is the canonical "asset text" page
+    that the compact asset panels (list page, campaign dashboard) link to.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset belongs to.
+    ``asset``
+        The :model:`core.CampaignAsset` being viewed.
+    ``sub_assets_by_type``
+        List of ``(label, [sub_asset, ...])`` tuples in schema order.
+    ``return_url``
+        URL for the back button.
+    ``is_owner``
+        Whether the current user owns the campaign.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_detail.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    asset = get_object_or_404(
+        CampaignAsset.objects.select_related("asset_type", "holder").prefetch_related(
+            "sub_assets"
+        ),
+        id=asset_id,
+        asset_type__campaign=campaign,
+    )
+
+    # Group sub-assets by type, in the order the schema declares them. Point
+    # each sub-asset's parent_asset FK at the already-loaded asset so
+    # properties_with_labels doesn't re-query the parent/asset_type per row.
+    sub_asset_schema = asset.asset_type.sub_asset_schema or {}
+    grouped = {}
+    for sub_asset in asset.sub_assets.all():
+        sub_asset.parent_asset = asset
+        grouped.setdefault(sub_asset.sub_asset_type, []).append(sub_asset)
+
+    sub_assets_by_type = []
+    for type_key, type_def in sub_asset_schema.items():
+        items = grouped.get(type_key)
+        if items:
+            label = type_def.get("label_plural", type_def.get("label", type_key))
+            sub_assets_by_type.append((label, items))
+
+    default_url = reverse("core:campaign-assets", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
+    log_event(
+        user=request.user,
+        noun=EventNoun.CAMPAIGN_ASSET,
+        verb=EventVerb.VIEW,
+        object=asset,
+        request=request,
+        campaign_id=str(campaign.id),
+        campaign_name=campaign.name,
+        asset_name=asset.name,
+    )
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_detail.html",
+        {
+            "campaign": campaign,
+            "asset": asset,
+            "sub_assets_by_type": sub_assets_by_type,
+            "return_url": return_url,
+            "is_owner": request.user == campaign.owner,
+        },
+    )
+
+
+@login_required
 def campaign_asset_type_new(request, id):
     """
     Create a new asset type for a campaign.

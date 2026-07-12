@@ -253,7 +253,11 @@ def get_list_held_assets(list_obj):
     Returns:
         QuerySet of held assets
     """
-    return list_obj.held_assets.select_related("asset_type")
+    # prefetch_related("sub_assets") because the list-page panel renders
+    # asset.sub_asset_counts, which iterates sub_assets.all() (N+1 otherwise).
+    return list_obj.held_assets.select_related("asset_type").prefetch_related(
+        "sub_assets"
+    )
 
 
 def get_list_recent_campaign_actions(list_obj, limit=5):
