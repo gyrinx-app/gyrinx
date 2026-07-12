@@ -164,6 +164,17 @@
                                         <i class="bi-three-dots-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu">
+                                        {% if is_campaign_arbitrator or list.is_campaign_mode and list.owner_cached == user %}
+                                            <li>
+                                                <a href="{% url 'core:list-post-battle' list.id %}"
+                                                   class="dropdown-item icon-link">
+                                                    <i class="bi-clipboard-check"></i> Post-battle updates
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <hr class="dropdown-divider">
+                                            </li>
+                                        {% endif %}
                                         <li>
                                             <a href="{% url 'core:print-config-index' list.id %}"
                                                class="dropdown-item icon-link">

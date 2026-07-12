@@ -4,6 +4,7 @@ from ..views import print_config, vehicle
 from ..views import pack as pack_views
 from ..views.list import attributes as list_attributes
 from ..views.list import invitations as list_invitations
+from ..views.list import post_battle as list_post_battle
 from ..views.list import skill_trees as list_skill_trees
 from ..views.list import views as list_views
 
@@ -31,6 +32,11 @@ patterns = [
     path("list/<id>/pin", list_views.toggle_list_pin, name="list-pin"),
     path("list/<id>/star", list_views.toggle_list_star, name="list-star"),
     path("list/<id>/edit", list_views.edit_list, name="list-edit"),
+    path(
+        "list/<id>/post-battle",
+        list_post_battle.post_battle_updates,
+        name="list-post-battle",
+    ),
     path("list/<id>/packs", pack_views.list_packs_manage, name="list-packs"),
     path("list/<id>/credits", list_views.edit_list_credits, name="list-credits-edit"),
     path("list/<id>/clone", list_views.clone_list, name="list-clone"),
