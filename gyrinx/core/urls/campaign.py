@@ -98,6 +98,11 @@ patterns = [
         name="campaign-assets",
     ),
     path(
+        "campaign/<id>/asset/<asset_id>",
+        campaign_assets.campaign_asset_detail,
+        name="campaign-asset-detail",
+    ),
+    path(
         "campaign/<id>/assets/type/new",
         campaign_assets.campaign_asset_type_new,
         name="campaign-asset-type-new",

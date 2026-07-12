@@ -814,6 +814,11 @@ def sync_auto_equipment_cost(sender, instance, created, **kwargs):
     companion alone — see #1725-related discussion in the PR for the
     follow-up form-level guard.
     """
+    if kwargs.get("raw"):
+        # Fixture loading (loaddata / loaddata_overwrite): the fixture already
+        # carries consistent companion rows, and writing mid-import could
+        # collide with rows the fixture inserts later.
+        return
     if instance.category not in AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY:
         return
 
