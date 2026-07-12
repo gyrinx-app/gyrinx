@@ -1,0 +1,34 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    {% if is_create %}Add crew{% else %}Edit crew{% endif %} - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:battle' battle.id as battle_url %}
+    {% if crew %}
+        {% url 'core:crew' battle.id crew.id as cancel_url %}
+    {% else %}
+        {% url 'core:battle' battle.id as cancel_url %}
+    {% endif %}
+    {% include "core/includes/back.html" with url=cancel_url text="Back" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">
+            {% if is_create %}
+                Add a crew for {{ gang.name }}
+            {% else %}
+                Edit crew
+            {% endif %}
+        </h1>
+        <p class="text-secondary">
+            Pick the fighters this crew brings to {{ battle.name }}, and how many extra
+            fighters to draw at random when the crew is locked at battle start.
+        </p>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form.as_div }}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-success">Save crew</button>
+                <a href="{{ cancel_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

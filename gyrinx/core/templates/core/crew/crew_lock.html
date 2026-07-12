@@ -1,0 +1,31 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Lock crew - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:crew' battle.id crew.id as crew_url %}
+    {% include "core/includes/back.html" with url=crew_url text="Back to Crew" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Lock {{ crew }}</h1>
+        <form action="{% url 'core:crew-lock' battle.id crew.id %}" method="post">
+            {% csrf_token %}
+            <p>
+                Locking freezes the crew's attendees for {{ battle.name }}.
+                {{ chosen_fighters|length }} chosen fighter{{ chosen_fighters|length|pluralize }} will be
+                included{% if crew.random_spec %}, and <strong>{{ crew.random_spec }}</strong> more will be
+                drawn at random from the rest of the gang{% endif %}.
+        </p>
+        <div class="alert alert-warning alert-icon mb-0" role="alert">
+            <i class="bi-exclamation-triangle"></i>
+            <div>
+                The random draw runs once and cannot be re-rolled. After locking, the
+                recipe can no longer be changed.
+            </div>
+        </div>
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary">Lock crew</button>
+            {% include "core/includes/cancel.html" with url=crew_url %}
+        </div>
+    </form>
+</div>
+{% endblock content %}

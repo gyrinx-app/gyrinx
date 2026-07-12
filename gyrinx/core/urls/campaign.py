@@ -1,6 +1,7 @@
 from django.urls import path
 
 from ..views import battle
+from ..views import crew as crew_views
 from ..views.campaign import actions as campaign_actions
 from ..views.campaign import assets as campaign_assets
 from ..views.campaign import attributes as campaign_attributes
@@ -291,6 +292,52 @@ patterns = [
         "battle/<battle_id>/notes/add",
         battle.add_battle_note,
         name="battle-note-add",
+    ),
+    # Crews (battle flow step 3)
+    path(
+        "battle/<battle_id>/crew/new",
+        crew_views.crew_new,
+        name="crew-new",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>",
+        crew_views.crew_detail,
+        name="crew",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/edit",
+        crew_views.crew_edit,
+        name="crew-edit",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/lock",
+        crew_views.crew_lock,
+        name="crew-lock",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/delete",
+        crew_views.crew_delete,
+        name="crew-delete",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/member/<member_id>/loadout",
+        crew_views.crew_member_loadout,
+        name="crew-member-loadout",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/extra/new",
+        crew_views.crew_extra,
+        name="crew-extra-new",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/extra/<item_id>/edit",
+        crew_views.crew_extra,
+        name="crew-extra-edit",
+    ),
+    path(
+        "battle/<battle_id>/crew/<crew_id>/extra/<item_id>/delete",
+        crew_views.crew_extra_delete,
+        name="crew-extra-delete",
     ),
     # Captured fighters
     path(

@@ -89,7 +89,40 @@ class BattleDetailView(generic.DetailView):
         # Get associated campaign actions with related data
         context["actions"] = battle.get_actions().select_related("user", "list")
 
+        # Crews (battle flow step 3): a virtual sub-gang per participating gang.
+        self._add_crew_context(context, battle, user)
+
         return context
+
+    def _add_crew_context(self, context, battle, user):
+        """Attach crew summaries and the per-gang 'add crew' affordances."""
+        crews = list(battle.crews.select_related("list").prefetch_related("members"))
+        crew_summaries = []
+        for crew in crews:
+            crew_summaries.append(
+                {
+                    "crew": crew,
+                    "method_label": crew.method_label(),
+                    "rating": crew.rating(),
+                    "rating_delta": crew.rating_delta_vs_gang(),
+                    "can_manage": crew.can_manage(user),
+                }
+            )
+        context["crew_summaries"] = crew_summaries
+
+        # Gangs that can still have a crew added: participants with no crew yet
+        # that this user may manage (their own gang, or any gang if arbitrator).
+        addable_gangs = []
+        if user.is_authenticated and not (battle.archived or battle.campaign.archived):
+            is_arbiter = user == battle.owner or user == battle.campaign.owner
+            with_crew = {crew.list_id for crew in crews}
+            for entry in battle.participant_entries.select_related("list"):
+                gang = entry.list
+                if gang.id in with_crew:
+                    continue
+                if is_arbiter or gang.owner_id == user.id:
+                    addable_gangs.append(gang)
+        context["addable_crew_gangs"] = addable_gangs
 
 
 @login_required
