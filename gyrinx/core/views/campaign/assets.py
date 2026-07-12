@@ -98,8 +98,6 @@ def campaign_asset_detail(request, id, asset_id):
         The :model:`core.CampaignAsset` being viewed.
     ``sub_assets_by_type``
         List of ``(label, [sub_asset, ...])`` tuples in schema order.
-    ``return_url``
-        URL for the back button.
     ``is_owner``
         Whether the current user owns the campaign.
 
@@ -107,14 +105,16 @@ def campaign_asset_detail(request, id, asset_id):
 
     :template:`core/campaign/campaign_asset_detail.html`
     """
-    campaign = get_object_or_404(Campaign, id=id)
+    # One query: fetch the asset scoped to the campaign and pull the campaign in
+    # via the asset_type join, rather than a separate Campaign lookup.
     asset = get_object_or_404(
-        CampaignAsset.objects.select_related("asset_type", "holder").prefetch_related(
-            "sub_assets"
-        ),
+        CampaignAsset.objects.select_related(
+            "asset_type", "asset_type__campaign", "holder"
+        ).prefetch_related("sub_assets"),
         id=asset_id,
-        asset_type__campaign=campaign,
+        asset_type__campaign_id=id,
     )
+    campaign = asset.asset_type.campaign
 
     # Group sub-assets by type, in the order the schema declares them. Point
     # each sub-asset's parent_asset FK at the already-loaded asset so
@@ -127,13 +127,16 @@ def campaign_asset_detail(request, id, asset_id):
 
     sub_assets_by_type = []
     for type_key, type_def in sub_asset_schema.items():
-        items = grouped.get(type_key)
+        items = grouped.pop(type_key, None)
         if items:
             label = type_def.get("label_plural", type_def.get("label", type_key))
             sub_assets_by_type.append((label, items))
 
-    default_url = reverse("core:campaign-assets", args=(campaign.id,))
-    return_url = get_return_url(request, default_url)
+    # Any groups left over have types no longer in the schema; show them last,
+    # labelled by their raw type, so the canonical page never drops persisted
+    # sub-assets.
+    for type_key, items in grouped.items():
+        sub_assets_by_type.append((type_key, items))
 
     log_event(
         user=request.user,
@@ -153,7 +156,6 @@ def campaign_asset_detail(request, id, asset_id):
             "campaign": campaign,
             "asset": asset,
             "sub_assets_by_type": sub_assets_by_type,
-            "return_url": return_url,
             "is_owner": request.user == campaign.owner,
         },
     )

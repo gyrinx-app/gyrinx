@@ -4,7 +4,7 @@
     {{ asset.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=return_url text="Back" %}
+    {% include "core/includes/campaign_common_header.html" with campaign=campaign current=asset.name %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <div>
             <div class="caps-label text-secondary mb-1">{{ asset.asset_type.name_singular }}</div>

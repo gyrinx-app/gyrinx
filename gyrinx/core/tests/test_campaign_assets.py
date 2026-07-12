@@ -655,3 +655,102 @@ def test_list_page_shows_asset_metadata(client, list_with_campaign, user):
     assert (
         reverse("core:campaign-asset-detail", args=[campaign.id, asset.id]) in content
     )
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_details_link_hidden_for_anonymous():
+    """The Details link (login-only page) is not shown to anonymous viewers."""
+    user = User.objects.create_user(username="owner", password="pw")
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        owner=user,
+    )
+
+    # Anonymous client viewing the public campaign dashboard.
+    response = Client().get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Description preview is still visible...
+    assert "A toxic wasteland." in content
+    # ...but the login-only Details link is not offered.
+    assert (
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+        not in content
+    )
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_shows_campaign_header():
+    """The detail page carries the shared campaign header (name + link back)."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Ashmoot Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=user
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Ashmoot Campaign" in content
+    assert reverse("core:campaign", args=[campaign.id]) in content
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_shows_sub_assets_missing_from_schema():
+    """Sub-assets whose type left the schema still render (canonical page)."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        sub_asset_schema={
+            "structure": {"label": "Structure", "label_plural": "Structures"}
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=user
+    )
+    # In-schema and orphaned (schema no longer lists "outpost") sub-assets.
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset, sub_asset_type="outpost", name="Lost Bunker", owner=user
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Generator Hall" in content
+    # The orphaned sub-asset is not silently dropped.
+    assert "Lost Bunker" in content
