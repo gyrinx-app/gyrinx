@@ -376,6 +376,17 @@ class ListDetailView(generic.DetailView):
                 self.request.user, list_=list_obj
             )
 
+        # Whether the viewer is the campaign arbitrator (campaign owner) for a
+        # campaign-mode list. Mirrors get_list_for_edit's owner-or-arbitrator
+        # rule so arbitrator-only affordances (e.g. Post-battle updates) show
+        # in the menu even on a gang the arbitrator doesn't own.
+        context["is_campaign_arbitrator"] = bool(
+            self.request.user.is_authenticated
+            and list_obj.is_campaign_mode
+            and list_obj.campaign_id
+            and list_obj.campaign.owner_id == self.request.user.pk
+        )
+
         return context
 
 

@@ -1,5 +1,6 @@
 """Bulk post-battle updates editor for a list (campaign mode)."""
 
+import uuid
 from dataclasses import dataclass, field
 
 from django.contrib.auth.decorators import login_required
@@ -195,9 +196,15 @@ def post_battle_updates(request, id):
             return HttpResponseRedirect(default_url)
     else:
         # A ?battle=<id> query param preselects that battle (only if the list
-        # actually fought in it — otherwise it's ignored).
+        # actually fought in it — otherwise it's ignored). Validate the UUID
+        # first so a malformed value is ignored rather than 500ing the lookup.
         initial = {}
         battle_param = request.GET.get("battle")
+        if battle_param:
+            try:
+                uuid.UUID(str(battle_param))
+            except (ValueError, TypeError):
+                battle_param = None
         if battle_param and battles.filter(pk=battle_param).exists():
             initial["battle"] = battle_param
         form = PostBattleUpdatesForm(

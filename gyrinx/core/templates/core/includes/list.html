@@ -164,7 +164,7 @@
                                         <i class="bi-three-dots-vertical"></i>
                                     </button>
                                     <ul class="dropdown-menu">
-                                        {% if list.owner_cached == user and list.is_campaign_mode %}
+                                        {% if is_campaign_arbitrator or list.is_campaign_mode and list.owner_cached == user %}
                                             <li>
                                                 <a href="{% url 'core:list-post-battle' list.id %}"
                                                    class="dropdown-item icon-link">

@@ -275,6 +275,53 @@ def test_post_battle_battle_url_param_preselects(
 
 
 @pytest.mark.django_db
+def test_post_battle_malformed_battle_param_is_ignored(
+    client, user, list_with_campaign, make_list_fighter
+):
+    client.force_login(user)
+    make_list_fighter(list_with_campaign, "F1")
+    # A non-UUID ?battle= must not 500 the lookup — it's simply ignored.
+    resp = client.get(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {"battle": "not-a-uuid"},
+    )
+    assert resp.status_code == 200
+    assert resp.context["form"]["battle"].value() in (None, "")
+
+
+@pytest.mark.django_db
+def test_post_battle_link_visible_to_arbitrator_on_list_page(
+    client, user, make_user, campaign, make_list, make_list_fighter
+):
+    from gyrinx.core.models.list import List
+
+    player = make_user("player_pb_menu", "password")
+    plist = make_list(
+        "Player Gang", owner=player, status=List.CAMPAIGN_MODE, campaign=campaign
+    )
+    campaign.lists.add(plist)
+    post_battle_url = reverse("core:list-post-battle", args=[plist.id])
+
+    # Arbitrator (campaign owner = user) sees the menu item on a gang they
+    # don't own — the view lets them edit, so the link must be discoverable.
+    client.force_login(user)
+    resp = client.get(reverse("core:list", args=[plist.id]))
+    assert resp.status_code == 200
+    assert resp.context["is_campaign_arbitrator"] is True
+    assert post_battle_url in resp.content.decode()
+
+    # An unrelated viewer is not the arbitrator and does not see it.
+    outsider = make_user("outsider_pb_menu", "password")
+    plist.public = True
+    plist.save()
+    client.force_login(outsider)
+    resp = client.get(reverse("core:list", args=[plist.id]))
+    assert resp.status_code == 200
+    assert resp.context["is_campaign_arbitrator"] is False
+    assert post_battle_url not in resp.content.decode()
+
+
+@pytest.mark.django_db
 def test_post_battle_arbitrator_can_edit_and_outsider_cannot(
     client, user, make_user, campaign, content_house, make_list, make_list_fighter
 ):
