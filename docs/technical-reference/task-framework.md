@@ -112,15 +112,34 @@ Individual tasks can define their own environment variable kill switches:
 
 ## Django Settings
 
-### Development (settings.py)
+### Base default (settings.py)
 
 ```python
 TASKS = {
     "default": {
-        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+        "BACKEND": "gyrinx.tasks.local_backend.DatabaseBackend",
+        "OPTIONS": {"mode": "eager"},
     }
 }
 TASKS_ENVIRONMENT = os.getenv("TASKS_ENVIRONMENT", "dev")
+```
+
+`eager` mode runs tasks inline on enqueue (a drop-in for Django's `ImmediateBackend`), so the test suite stays synchronous.
+
+### Dev server (settings_dev.py)
+
+When `runserver` is on the command line (and not under pytest), the backend switches to `worker` mode so enqueued work runs asynchronously on an in-process thread pool:
+
+```python
+TASKS = {
+    "default": {
+        "BACKEND": "gyrinx.tasks.local_backend.DatabaseBackend",
+        "OPTIONS": {
+            "mode": "worker",
+            "num_workers": int(os.getenv("TASKS_WORKERS", "2")),
+        },
+    }
+}
 ```
 
 ### Production (settings_prod.py)
@@ -135,6 +154,57 @@ TASKS = {
     }
 }
 ```
+
+## Local backend (DatabaseBackend)
+
+[`DatabaseBackend`](../../gyrinx/tasks/local_backend.py) is the dev/test-only, in-process, durable queue. Production is never routed through it.
+
+### Modes
+
+| Mode | Where | Behaviour |
+|------|-------|-----------|
+| `eager` | base default / tests | Runs the task inline inside `enqueue()`; no `QueuedTask` row. Drop-in for `ImmediateBackend`. |
+| `worker` | dev server (`runserver`) | Persists a `QueuedTask` row; a daemon-thread pool delivers it with retries, backoff, and visibility leases. |
+| `manual` | opt-in in tests | Persists a `QueuedTask` row; the `task_queue` fixture drives delivery explicitly. |
+
+### OPTIONS
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `mode` | `eager` | One of `eager`, `worker`, `manual`. |
+| `num_workers` | `2` | Worker threads in `worker` mode. |
+| `lease_seconds` | `300` | Visibility lease; a claimed row is hidden this long before it can be reclaimed. |
+| `poll_interval` | `1.0` | Seconds a worker waits between queue polls. |
+| `max_attempts` | `5` | Delivery attempts before a task is given up. |
+| `faults` | from env | Fault-injection config (see below). |
+
+### Fault-injection environment variables
+
+Read by `worker` mode (dev server), off by default. All rates are in `[0, 1]`.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `TASKS_FAULT_DUPLICATE_RATE` | `0` | Chance a successful delivery is redelivered once (at-least-once duplicate). |
+| `TASKS_FAULT_FAILURE_RATE` | `0` | Chance a delivery fails (nack → retry with backoff). |
+| `TASKS_FAULT_DROP_RATE` | `0` | Chance a delivery is silently lost (never runs). |
+| `TASKS_FAULT_LATENCY_SECONDS` | `0` | Fixed delay added before each delivery. |
+| `TASKS_FAULT_LATENCY_JITTER` | `0` | Extra uniform-random delay in `[0, jitter)`. |
+| `TASKS_FAULT_SEED` | (none) | Seed the fault RNG for reproducible chaos. |
+| `TASKS_WORKERS` | `2` | Number of worker threads on the dev server. |
+
+### QueuedTask model
+
+In `worker`/`manual` mode a task is a durable row in `QueuedTask` (`gyrinx/tasks/models.py`), claimed with `SELECT … FOR UPDATE SKIP LOCKED` under a visibility lease so an interrupted delivery is redelivered rather than lost. Key fields:
+
+| Field | Description |
+|-------|-------------|
+| `task_id` | Matches `TaskExecution.task_id` (the Django `TaskResult.id`). |
+| `task_name` | Registered task name to resolve and run. |
+| `args` / `kwargs` | JSON-serialised call arguments. |
+| `available_at` | Earliest delivery time (set forward for deferred tasks and retry backoff). |
+| `attempts` / `max_attempts` | Delivery-attempt counter and give-up threshold. |
+| `locked_until` / `locked_by` | Visibility lease: while set and in the future, the row is hidden from other workers. |
+| `last_error` | Error from the most recent failed attempt. |
 
 ## HTTP Response Codes
 
@@ -196,6 +266,8 @@ The `PubSubBackend` has the following capability flags:
 | `supports_async_task` | No | To implement, use async Pub/Sub client |
 | `supports_get_result` | Yes | Results stored in `TaskExecution` model |
 | `supports_priority` | No | Unclear |
+
+`DatabaseBackend` (dev/tests) additionally sets `supports_defer = True` (deferred delivery via `QueuedTask.available_at`) and `supports_get_result = True` (reading back the `TaskExecution` row).
 
 ## Task Execution Tracking
 

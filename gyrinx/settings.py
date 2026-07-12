@@ -464,9 +464,15 @@ TRACING_MODE = os.getenv("TRACING_MODE", "off")
 
 # Background tasks configuration
 # https://docs.djangoproject.com/en/6.0/topics/tasks/
+#
+# Default to the local durable backend in "eager" mode — behaviourally identical
+# to Django's ImmediateBackend (runs inline on enqueue), so tests and one-off
+# commands stay synchronous. settings_dev switches it to async "worker" mode when
+# the dev server is running; settings_prod overrides it to PubSubBackend.
 TASKS = {
     "default": {
-        "BACKEND": "django.tasks.backends.immediate.ImmediateBackend",
+        "BACKEND": "gyrinx.tasks.local_backend.DatabaseBackend",
+        "OPTIONS": {"mode": "eager"},
     }
 }
 

@@ -234,6 +234,7 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
     from gyrinx.content.models.fighter import ContentFighter
     from gyrinx.core.models.action import ListActionType
     from gyrinx.core.models.list import (
+        List,
         ListFighter,
         _materialise_child_fighter_defaults,
     )
@@ -293,6 +294,17 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
     for list_id, fighters in fighters_by_list.items():
         try:
             with transaction.atomic():
+                # Lock the list row for this per-list transaction. This task is
+                # at-least-once and can be delivered to two workers concurrently;
+                # _materialise_child_fighter_defaults is a check-then-act
+                # (exists() then create) with no unique constraint on
+                # (list_fighter, content_equipment, from_default_assignment), so
+                # two concurrent deliveries both pass the check and each spawn a
+                # duplicate child fighter. Locking the list serialises the
+                # deliveries, so the second sees the first's committed
+                # materialisation and skips (created_total == 0 below).
+                lst = List.objects.select_for_update().get(pk=list_id)
+
                 created_total = 0
                 for fighter in fighters:
                     created_total += _materialise_child_fighter_defaults(fighter)
@@ -300,10 +312,6 @@ def propagate_default_child_fighter_assignment(default_assignment_id: str):
                 # Idempotent no-op: already materialised on every fighter.
                 if created_total == 0:
                     continue
-
-                # affected is select_related("list"), so reuse the loaded
-                # instance rather than re-fetching the list.
-                lst = fighters[0].list
 
                 # Keep the list's cached rating/stash consistent. Deltas are
                 # booked from the WRITTEN (zero-clamped) values, not the raw

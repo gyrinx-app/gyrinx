@@ -550,7 +550,16 @@ def _create_content_cost_change_actions(instance, before_snapshots=None, old_cos
     for list_id in rewrite_list_ids:
         try:
             with transaction.atomic():
-                lst = List.objects.get(id=list_id)
+                # Lock the list row for the duration of this per-list
+                # transaction. This task is at-least-once and can be delivered
+                # to two workers concurrently; without the lock, both pass the
+                # ListAction.exists() idempotency guard below (and both read the
+                # pre-rewrite pinned amounts) before either commits, so both
+                # create an action and both apply_credit_delta — double-charging
+                # campaign credits. The lock serialises concurrent deliveries so
+                # the second one sees the first's committed action/amounts and
+                # skips. Mirrors reconcile_list's select_for_update pattern.
+                lst = List.objects.select_for_update().get(id=list_id)
 
                 # Rewrite pinned amounts FIRST (#1826 §4.7 ordering): any
                 # recompute — the facts_from_db below or a later lazy
