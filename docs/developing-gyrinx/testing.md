@@ -118,6 +118,22 @@ def test_list_fighter_cost_calculation():
     pass
 ```
 
+#### Background Task Tests
+
+By default (eager mode) `task.enqueue()` runs the task synchronously, so a test can enqueue and then assert on the effect. To exercise Pub/Sub-like adverse conditions — duplicate delivery, transient failure, message loss — add the `task_queue` fixture, which flips the backend to `manual` mode and lets the test drive delivery:
+
+```python
+@pytest.mark.django_db
+def test_cost_change_is_idempotent(task_queue, ...):
+    with task_queue.capture():        # fire the on_commit enqueue
+        change_content_cost(...)
+    task_queue.deliver_all()          # deliver once
+    task_queue.redeliver_last()       # at-least-once duplicate
+    assert ...                        # effect applied exactly once
+```
+
+See [How-to: Test Redelivery, Failure, and Message Loss](../how-to-guides/task-framework.md#test-redelivery-failure-and-message-loss-the-task_queue-fixture) for the full fixture API.
+
 ## Test Configuration
 
 ### Static Files

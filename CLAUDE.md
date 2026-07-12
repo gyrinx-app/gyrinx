@@ -484,6 +484,9 @@ Key fixtures:
 - `make_list_fighter(list_, name, **kwargs)` - factory for fighters
 - `list_with_campaign` - a list in CAMPAIGN_MODE with associated campaign
 - `house` - backward-compat alias, creates a separate ContentHouse (prefer `content_house`)
+- `task_queue` - puts the local task backend in `manual` mode to chaos-test background tasks
+  (script redelivery / transient failure / message drop and assert idempotency). Background tasks
+  otherwise run inline (eager mode) in tests. See `gyrinx/tasks/CLAUDE.md`.
 
 When tests need multiple distinct users (e.g. campaign owner vs list owner), use `make_user` for the extra users
 and override the `owner` kwarg on the factory fixtures.
