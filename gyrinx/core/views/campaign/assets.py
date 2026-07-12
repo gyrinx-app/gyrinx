@@ -133,10 +133,10 @@ def campaign_asset_detail(request, id, asset_id):
             label = type_def.get("label_plural", type_def.get("label", type_key))
             sub_assets_by_type.append((label, items))
 
-    # Any groups left over have types no longer in the schema; show them last,
-    # labelled by their raw type, so the canonical page never drops persisted
-    # sub-assets.
-    for type_key, items in grouped.items():
+    # Any groups left over have types no longer in the schema; show them last
+    # (sorted for deterministic order), labelled by their raw type, so the
+    # canonical page never drops persisted sub-assets.
+    for type_key, items in sorted(grouped.items()):
         sub_assets_by_type.append((type_key, items))
 
     log_event(
