@@ -15,22 +15,54 @@
                     {% if held_assets %}
                         <div>
                             <h4 class="caps-label mb-1">Assets</h4>
-                            <div class="vstack gap-1">
+                            <div class="vstack gap-2">
                                 {% for asset in held_assets %}
-                                    <div class="d-flex align-items-center fs-7">
-                                        <div>
-                                            <strong>{{ asset.name }}</strong>
-                                            {% if asset.asset_type.name_singular %}
-                                                <span class="text-secondary">({{ asset.asset_type.name_singular }})</span>
+                                    <div>
+                                        <div class="d-flex align-items-center">
+                                            <div>
+                                                {% if not print and request.user.is_authenticated %}
+                                                    <a href="{% url 'core:campaign-asset-detail' list.campaign.id asset.id %}"
+                                                       class="fw-semibold linked">{{ asset.name }}</a>
+                                                {% else %}
+                                                    <strong>{{ asset.name }}</strong>
+                                                {% endif %}
+                                                {% if asset.asset_type.name_singular %}
+                                                    <span class="text-secondary fs-7">({{ asset.asset_type.name_singular }})</span>
+                                                {% endif %}
+                                            </div>
+                                            {% if list.campaign.is_pre_campaign %}
+                                                <span class="text-secondary fs-7 ms-auto">Campaign not started</span>
+                                            {% elif not list.campaign.archived and not print %}
+                                                <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                                   class="icon-link link-secondary fs-7 ms-auto">
+                                                    <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
+                                                </a>
                                             {% endif %}
                                         </div>
-                                        {% if list.campaign.is_pre_campaign %}
-                                            <span class="text-secondary fs-7 ms-auto">Campaign not started</span>
-                                        {% elif not list.campaign.archived and not print %}
-                                            <a href="{% url 'core:campaign-asset-transfer' list.campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                               class="icon-link link-secondary fs-7 ms-auto">
-                                                <i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer
-                                            </a>
+                                        {% if asset.properties_with_labels %}
+                                            <div class="text-secondary fs-7">
+                                                {% for label, value in asset.properties_with_labels %}
+                                                    {% spaceless %}
+                                                        <span class="{% property_nowrap_class label value %}">{{ label }}: {{ value }}
+                                                            {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                        </span>
+                                                    {% endspaceless %}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        {% if asset.sub_asset_counts %}
+                                            <div class="text-secondary fs-7">
+                                                {% for label, count in asset.sub_asset_counts %}
+                                                    {% spaceless %}
+                                                        <span class="{% property_nowrap_class count label %}">{{ count }} {{ label }}
+                                                            {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                        </span>
+                                                    {% endspaceless %}
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        {% if asset.description %}
+                                            <div class="text-secondary fs-7 mb-last-0 {% if not print %}text-clamp-2{% endif %}">{{ asset.description|safe_rich_text|safe }}</div>
                                         {% endif %}
                                     </div>
                                 {% endfor %}

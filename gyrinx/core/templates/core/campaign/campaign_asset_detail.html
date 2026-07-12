@@ -1,0 +1,81 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags color_tags %}
+{% block head_title %}
+    {{ asset.name }}
+{% endblock head_title %}
+{% block content %}
+    {% include "core/includes/campaign_common_header.html" with campaign=campaign current=asset.name parent=asset.asset_type.name_singular %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <div>
+            <div class="caps-label text-secondary mb-1">{{ asset.asset_type.name_singular }}</div>
+            <h1 class="h3 mb-0">{{ asset.name }}</h1>
+        </div>
+        <div class="hstack gap-2 flex-wrap fs-7">
+            <span class="text-secondary">
+                {% if asset.holder %}
+                    Held by <a href="{% url 'core:list' asset.holder.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
+                {% else %}
+                    Unowned
+                {% endif %}
+            </span>
+            {% if is_owner and not campaign.archived %}
+                <span class="ms-auto d-flex gap-2">
+                    <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
+                       class="icon-link linked"><i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer</a>
+                    <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
+                       class="icon-link linked"><i class="bi-pencil" aria-hidden="true"></i> Edit</a>
+                </span>
+            {% endif %}
+        </div>
+        {% if asset.properties_with_labels %}
+            <div>
+                <div class="caps-label mb-1">Properties</div>
+                <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                        {% for label, value in asset.properties_with_labels %}
+                            <tr>
+                                <td class="ps-0 text-secondary w-em-10">{{ label }}</td>
+                                <td>{{ value }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+        {% if sub_assets_by_type %}
+            <div class="border-top pt-3 vstack gap-3">
+                {% for label, sub_assets in sub_assets_by_type %}
+                    <div>
+                        <div class="caps-label mb-2">{{ label }}</div>
+                        <div class="vstack gap-2">
+                            {% for sub_asset in sub_assets %}
+                                <div>
+                                    <div class="fw-semibold">{{ sub_asset.name }}</div>
+                                    {% if sub_asset.properties_with_labels %}
+                                        <div class="fs-7 text-secondary">
+                                            {% for plabel, pvalue in sub_asset.properties_with_labels %}
+                                                {% spaceless %}
+                                                    <span class="{% property_nowrap_class plabel pvalue %}">{{ plabel }}: {{ pvalue }}
+                                                        {% if not forloop.last %}&nbsp;·&nbsp;{% endif %}
+                                                    </span>
+                                                {% endspaceless %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% if asset.description %}<div class="mb-last-0">{{ asset.description|safe_rich_text|safe }}</div>{% endif %}
+        {% if asset.asset_type.description %}
+            <div class="border-top pt-3">
+                <div class="caps-label mb-1">About {{ asset.asset_type.name_plural }}</div>
+                <div class="text-secondary fs-7 mb-last-0">{{ asset.asset_type.description|safe_rich_text|safe }}</div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

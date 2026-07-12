@@ -197,11 +197,14 @@ class CampaignDetailView(generic.DetailView):
         else:
             context["can_log_actions"] = False
 
-        # Get asset types with their assets for the summary
+        # Get asset types with their assets for the summary. prefetch sub_assets
+        # so the dashboard's asset.sub_asset_counts doesn't run N+1 queries.
         context["asset_types"] = campaign.asset_types.prefetch_related(
             models.Prefetch(
                 "assets",
-                queryset=CampaignAsset.objects.select_related("holder", "asset_type"),
+                queryset=CampaignAsset.objects.select_related(
+                    "holder", "asset_type"
+                ).prefetch_related("sub_assets"),
             )
         )
 

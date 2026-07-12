@@ -282,7 +282,22 @@
                                                 {% for asset in assets %}
                                                     <tr>
                                                         <td class="ps-0">
-                                                            <div class="fw-semibold">{{ asset.name }}</div>
+                                                            <div class="fw-semibold">
+                                                                {% if request.user.is_authenticated %}
+                                                                    <a href="{% url 'core:campaign-asset-detail' campaign.id asset.id %}"
+                                                                       class="linked">{{ asset.name }}</a>
+                                                                {% else %}
+                                                                    {{ asset.name }}
+                                                                {% endif %}
+                                                            </div>
+                                                            <div class="fs-7 text-secondary">
+                                                                {% if asset.holder %}
+                                                                    Held by <a href="{% url 'core:list' asset.holder.id %}"
+    class="link-secondary link-underline-opacity-25 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
+                                                                {% else %}
+                                                                    Unowned
+                                                                {% endif %}
+                                                            </div>
                                                             {% if asset.properties_with_labels %}
                                                                 <div class="fs-7 text-secondary">
                                                                     {% for label, value in asset.properties_with_labels %}
@@ -305,17 +320,14 @@
                                                                     {% endfor %}
                                                                 </div>
                                                             {% endif %}
+                                                            {% if asset.description %}
+                                                                <div class="fs-7 text-secondary text-clamp-2 mb-last-0">{{ asset.description|safe_rich_text|safe }}</div>
+                                                            {% endif %}
                                                         </td>
                                                         <td class="text-end align-top text-nowrap">
-                                                            {% if asset.holder %}
-                                                                <a href="{% url 'core:list' asset.holder.id %}"
-                                                                   class="link-underline-opacity-50 link-underline-opacity-100-hover">{% list_with_theme asset.holder %}</a>
-                                                            {% else %}
-                                                                <span class="text-secondary">Unowned</span>
-                                                            {% endif %}
                                                             {% if is_owner and not campaign.archived %}
                                                                 <a href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                                                                   class="icon-link linked fs-7 ms-2"><i class="bi-arrow-left-right"></i> Transfer</a>
+                                                                   class="icon-link linked fs-7"><i class="bi-arrow-left-right"></i> Transfer</a>
                                                             {% endif %}
                                                         </td>
                                                     </tr>

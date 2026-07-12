@@ -8,6 +8,7 @@ from gyrinx.core.models.campaign import (
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignSubAsset,
 )
 from gyrinx.core.models.list import List
 
@@ -449,3 +450,431 @@ def test_campaign_asset_transfer_to_none(content_house):
         action.description
         == "Territory Transfer: The Sump transferred from Test Gang to no one"
     )
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_view():
+    """The asset detail page shows description, properties, sub-assets and type text."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        description="<p>Territory type blurb</p>",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        sub_asset_schema={
+            "structure": {
+                "label": "Structure",
+                "label_plural": "Structures",
+                "property_schema": [{"key": "benefit", "label": "Benefit"}],
+            }
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland at the base of the hive.</p>",
+        properties={"boon": "+D6 income"},
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        properties={"benefit": "Free power"},
+        owner=user,
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "The Sump" in content
+    assert "A toxic wasteland at the base of the hive." in content
+    assert "Boon" in content
+    assert "+D6 income" in content
+    assert "Structures" in content
+    assert "Generator Hall" in content
+    assert "Free power" in content
+    assert "Territory type blurb" in content
+    # Owner sees the edit control on their own campaign's asset.
+    assert reverse("core:campaign-asset-edit", args=[campaign.id, asset.id]) in content
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_accessible_to_non_owner():
+    """Any authenticated user can view the read-only page; edit controls are hidden."""
+    owner = User.objects.create_user(username="owner", password="pw")
+    User.objects.create_user(username="member", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=owner, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=owner,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=owner
+    )
+
+    client = Client()
+    client.login(username="member", password="pw")
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "The Sump" in content
+    # No owner-only edit control for a non-owner.
+    assert (
+        reverse("core:campaign-asset-edit", args=[campaign.id, asset.id]) not in content
+    )
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_404_for_other_campaign():
+    """An asset belonging to a different campaign 404s under this campaign's URL."""
+    user = User.objects.create_user(username="owner", password="pw")
+    campaign_a = Campaign.objects.create(name="A", owner=user, public=True)
+    campaign_b = Campaign.objects.create(name="B", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign_b,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=user
+    )
+
+    client = Client()
+    client.login(username="owner", password="pw")
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign_a.id, asset.id])
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_requires_login():
+    """Anonymous users are redirected to login."""
+    user = User.objects.create_user(username="owner", password="pw")
+    campaign = Campaign.objects.create(name="Test", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=user
+    )
+
+    response = Client().get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 302
+    assert "login" in response.url
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_links_asset_name_and_previews_text():
+    """The dashboard links each asset name to its detail page and previews text."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "A toxic wasteland." in content
+    assert (
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id]) in content
+    )
+
+
+@pytest.mark.django_db
+def test_list_page_shows_asset_metadata(client, list_with_campaign, user):
+    """The list page asset panel shows properties, sub-asset counts, text and a link."""
+    campaign = list_with_campaign.campaign
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        sub_asset_schema={
+            "structure": {"label": "Structure", "label_plural": "Structures"}
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        properties={"boon": "+D6 income"},
+        holder=list_with_campaign,
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        owner=user,
+    )
+
+    client.force_login(user)
+    response = client.get(reverse("core:list", args=[list_with_campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "The Sump" in content
+    assert "Boon" in content
+    assert "+D6 income" in content
+    assert "1 Structures" in content
+    assert "A toxic wasteland." in content
+    assert (
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id]) in content
+    )
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_details_link_hidden_for_anonymous():
+    """The Details link (login-only page) is not shown to anonymous viewers."""
+    user = User.objects.create_user(username="owner", password="pw")
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        owner=user,
+    )
+
+    # Anonymous client viewing the public campaign dashboard.
+    response = Client().get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    # Description preview is still visible...
+    assert "A toxic wasteland." in content
+    # ...but the login-only Details link is not offered.
+    assert (
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+        not in content
+    )
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_shows_campaign_header():
+    """The detail page carries the shared campaign header (name + link back)."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Ashmoot Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=user
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Ashmoot Campaign" in content
+    assert reverse("core:campaign", args=[campaign.id]) in content
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_shows_sub_assets_missing_from_schema():
+    """Sub-assets whose type left the schema still render (canonical page)."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        sub_asset_schema={
+            "structure": {"label": "Structure", "label_plural": "Structures"}
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", owner=user
+    )
+    # In-schema and orphaned (schema no longer lists "outpost") sub-assets.
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset, sub_asset_type="outpost", name="Lost Bunker", owner=user
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Generator Hall" in content
+    # The orphaned sub-asset is not silently dropped.
+    assert "Lost Bunker" in content
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_shows_held_by(content_house):
+    """The dashboard shows the holder using the 'Held by X' pattern."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    gang = List.objects.create(
+        name="Iron Skulls", owner=user, content_house=content_house
+    )
+    campaign.lists.add(gang)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", holder=gang, owner=user
+    )
+
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Held by" in content
+    assert "Iron Skulls" in content
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_orders_description_after_structured_data():
+    """On the detail page, properties/sub-assets come before the long description."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        sub_asset_schema={
+            "structure": {"label": "Structure", "label_plural": "Structures"}
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        properties={"boon": "+D6 income"},
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        owner=user,
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    content = response.content.decode()
+    assert content.index("Boon") < content.index("A toxic wasteland.")
+    assert content.index("Generator Hall") < content.index("A toxic wasteland.")
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_orders_description_after_properties():
+    """On the dashboard, an asset's properties come before its description."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        owner=user,
+    )
+    CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="The Sump",
+        description="<p>A toxic wasteland.</p>",
+        properties={"boon": "+D6 income"},
+        owner=user,
+    )
+
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    content = response.content.decode()
+    assert content.index("Boon") < content.index("A toxic wasteland.")
+
+
+@pytest.mark.django_db
+def test_campaign_asset_detail_breadcrumb_includes_type():
+    """The breadcrumb shows the asset type (singular) as an intermediate crumb."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    # Distinct singular/plural so counting the singular is unambiguous.
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Zone",
+        name_plural="Districts",
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Pit", owner=user
+    )
+
+    response = client.get(
+        reverse("core:campaign-asset-detail", args=[campaign.id, asset.id])
+    )
+    content = response.content.decode()
+    # Appears in the caps-label heading and, now, the breadcrumb crumb.
+    assert content.count("Zone") >= 2
