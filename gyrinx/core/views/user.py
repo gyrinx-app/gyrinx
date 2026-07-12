@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.core.badges import HIDE_BADGE
 from gyrinx.core.forms import BadgeSelectionForm, UsernameChangeForm
+from gyrinx.core.impersonation import can_impersonate_target
 from gyrinx.core.models.auth import UserProfile
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
@@ -49,6 +50,11 @@ def user(request, slug_or_id):
     profile_user = get_object_or_404(User.objects.select_related("profile"), query)
 
     is_own_profile = request.user.is_authenticated and request.user == profile_user
+
+    # Admins (superusers) may impersonate this user, unless already impersonating.
+    can_impersonate_user = not getattr(
+        request, "is_impersonating", False
+    ) and can_impersonate_target(request.user, profile_user)
 
     # --- Public Lists (non-campaign, non-archived) ---
     public_lists_qs = (
@@ -116,6 +122,7 @@ def user(request, slug_or_id):
         {
             "profile_user": profile_user,
             "is_own_profile": is_own_profile,
+            "can_impersonate_user": can_impersonate_user,
             "public_lists": public_lists,
             "unlisted_lists": unlisted_lists,
             "campaign_gangs": campaign_gangs,

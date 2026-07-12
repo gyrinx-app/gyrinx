@@ -142,6 +142,17 @@
                                class="icon-link linked-secondary fs-7">
                                 <i class="bi-box-arrow-up"></i> Copy from this Campaign
                             </a>
+                            {% if can_impersonate_arbitrator %}
+                                <form method="post"
+                                      action="{% url 'core:impersonate-start' campaign.owner.id %}"
+                                      class="d-inline m-0 ms-2">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit" class="btn btn-danger btn-sm">
+                                        <i class="bi-person-bounding-box"></i> Impersonate arbitrator
+                                    </button>
+                                </form>
+                            {% endif %}
                         {% endif %}
                     </div>
                 {% endif %}

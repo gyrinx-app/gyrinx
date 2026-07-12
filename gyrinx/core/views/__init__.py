@@ -11,6 +11,7 @@ from .banner import dismiss_banner, track_banner_click
 from .csrf import csrf_failure
 from .dice import dice
 from .home import account_home, index
+from .impersonation import start_impersonation, stop_impersonation
 from .notification import (
     NotificationInboxView,
     notification_archive,
@@ -40,6 +41,9 @@ __all__ = [
     "user",
     "change_username",
     "badge_settings",
+    # Impersonation views
+    "start_impersonation",
+    "stop_impersonation",
     # Dice views
     "dice",
     # Banner views

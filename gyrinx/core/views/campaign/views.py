@@ -324,6 +324,14 @@ class CampaignDetailView(generic.DetailView):
         context["is_owner"] = user == campaign.owner
         context["campaign_packs"] = campaign.packs.all()
 
+        # Admins (superusers) may impersonate the arbitrator (campaign owner),
+        # unless already impersonating. Hidden for the owner (can't self-impersonate).
+        from gyrinx.core.impersonation import can_impersonate_target
+
+        context["can_impersonate_arbitrator"] = not getattr(
+            self.request, "is_impersonating", False
+        ) and can_impersonate_target(user, campaign.owner)
+
         # Pin/star state for the header toggle buttons.
         context["star_count"] = campaign.starred_by.count()
         if user.is_authenticated:

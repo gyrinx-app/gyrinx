@@ -18,6 +18,17 @@ patterns = [
     path("dice/", gyrinx.core.views.dice, name="dice"),
     # Users
     path("user/<slug_or_id>", gyrinx.core.views.user, name="user"),
+    # Impersonation (superuser only)
+    path(
+        "impersonate/<int:user_id>/start",
+        gyrinx.core.views.start_impersonation,
+        name="impersonate-start",
+    ),
+    path(
+        "impersonate/stop",
+        gyrinx.core.views.stop_impersonation,
+        name="impersonate-stop",
+    ),
     # TinyMCE upload
     path(
         "tinymce/upload/",

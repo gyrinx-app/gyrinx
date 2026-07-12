@@ -344,6 +344,14 @@ class ListDetailView(generic.DetailView):
                 list=list_obj, status=CampaignInvitation.PENDING
             ).count()
 
+        # Admins (superusers) may impersonate the list owner, unless already
+        # impersonating.
+        from gyrinx.core.impersonation import can_impersonate_target
+
+        context["can_impersonate_list_owner"] = not getattr(
+            self.request, "is_impersonating", False
+        ) and can_impersonate_target(self.request.user, list_obj.owner_cached)
+
         # Add subscribed packs
         context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
 
