@@ -146,7 +146,15 @@
              var form = document.querySelector("form[data-pb-form]");
              if (form) {
                  form.addEventListener("submit", function () {
-                     if (window.tinymce) window.tinymce.triggerSave();
+                     if (!window.tinymce) return;
+                     // Only write back editors the user actually edited. Merely
+                     // opening a fighter's notes mounts TinyMCE, which would
+                     // reserialise the HTML on a blanket triggerSave() and log a
+                     // spurious "notes changed" — so leave clean editors' textareas
+                     // holding their original server-rendered value.
+                     window.tinymce.editors.forEach(function (ed) {
+                         if (ed.isDirty()) ed.save();
+                     });
                  });
              }
          })();

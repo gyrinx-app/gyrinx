@@ -148,8 +148,21 @@ def _apply(request, lst, fighters, form):
                     fighter=fighter,
                     injury=injury,
                     notes=(cd.get(f"injury_reason_{pk}") or "").strip(),
-                    request=request,
                     battle=battle,
+                )
+                # The handler stays HTTP-free; the view owns event logging.
+                log_event(
+                    user=user,
+                    noun=EventNoun.LIST_FIGHTER,
+                    verb=EventVerb.UPDATE,
+                    object=fighter,
+                    request=request,
+                    action="injury_added",
+                    fighter_name=fighter.name,
+                    list_id=str(lst.id),
+                    list_name=lst.name,
+                    injury_name=injury.name,
+                    injury_state=result.outcome_state,
                 )
                 summary.injuries += 1
                 if result.killed:

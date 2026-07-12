@@ -37,6 +37,7 @@ def handle_fighter_kill(
     user,
     lst: List,
     fighter: ListFighter,
+    battle=None,
 ) -> FighterKillResult:
     """
     Handle fighter death in campaign mode.
@@ -67,6 +68,9 @@ def handle_fighter_kill(
         user: User performing the kill
         lst: List containing the fighter
         fighter: Fighter being killed (must not be stash, must be campaign mode)
+        battle: Optional Battle to attach the death CampaignAction to (e.g. a
+            kill applied from the post-battle editor), so it lands on that
+            battle's timeline.
 
     Returns:
         FighterKillResult with all operation details
@@ -246,6 +250,7 @@ def handle_fighter_kill(
             owner=user,
             campaign=lst.campaign,
             list=lst,
+            battle=battle,
             description=f"Death: {fighter.name} was killed",
             outcome=f"{fighter.name} is permanently dead.{equipment_desc}",
         )

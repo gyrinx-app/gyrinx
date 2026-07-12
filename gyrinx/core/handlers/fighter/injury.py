@@ -17,7 +17,6 @@ from gyrinx.content.models import ContentInjury
 from gyrinx.content.models.injury import ContentInjuryDefaultOutcome
 from gyrinx.core.handlers.fighter.kill import handle_fighter_kill
 from gyrinx.core.models.campaign import CampaignAction
-from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import ListFighter, ListFighterInjury
 from gyrinx.tracing import traced
 
@@ -43,7 +42,6 @@ def handle_fighter_add_injury(
     fighter: ListFighter,
     injury: ContentInjury,
     notes: str = "",
-    request=None,
     battle=None,
 ) -> FighterAddInjuryResult:
     """
@@ -56,15 +54,17 @@ def handle_fighter_add_injury(
       ``injury_state = DEAD`` would skip all of that).
     - Any other outcome sets ``injury_state`` directly.
 
-    Writes a CampaignAction in campaign mode and logs an event.
+    Writes a CampaignAction in campaign mode. Event logging (which needs the
+    HTTP request) is the caller's responsibility, matching the project's
+    view/handler layering.
 
     Args:
         user: The user applying the injury.
         fighter: The injured fighter.
         injury: The ContentInjury to apply.
         notes: Optional notes recorded on the injury and campaign log.
-        request: Optional request, threaded to ``log_event``.
-        battle: Optional Battle to attach the CampaignAction to.
+        battle: Optional Battle to attach the CampaignAction(s) to — including
+            the death action when the outcome is DEAD.
 
     Returns:
         FighterAddInjuryResult.
@@ -82,8 +82,9 @@ def handle_fighter_add_injury(
     killed = False
     outcome = injury.phase
     if outcome == ContentInjuryDefaultOutcome.DEAD:
-        # Full kill logic: equipment -> stash, cost 0, rating propagation.
-        handle_fighter_kill(user=user, lst=lst, fighter=fighter)
+        # Full kill logic: equipment -> stash, cost 0, rating propagation. Pass
+        # the battle so the death CampaignAction also lands on its timeline.
+        handle_fighter_kill(user=user, lst=lst, fighter=fighter, battle=battle)
         killed = True
         final_state = ListFighter.DEAD
     elif outcome and outcome != ContentInjuryDefaultOutcome.NO_CHANGE:
@@ -113,20 +114,6 @@ def handle_fighter_add_injury(
             description=description,
             outcome=f"{fighter.name} was put into {state_display}",
         )
-
-    log_event(
-        user=user,
-        noun=EventNoun.LIST_FIGHTER,
-        verb=EventVerb.UPDATE,
-        object=fighter,
-        request=request,
-        fighter_name=fighter.name,
-        list_id=str(lst.id),
-        list_name=lst.name,
-        action="injury_added",
-        injury_name=injury.name,
-        injury_state=final_state,
-    )
 
     return FighterAddInjuryResult(
         fighter=fighter,

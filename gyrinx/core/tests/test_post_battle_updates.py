@@ -275,6 +275,43 @@ def test_post_battle_battle_url_param_preselects(
 
 
 @pytest.mark.django_db
+def test_post_battle_fatal_injury_links_death_action_to_battle(
+    client, user, list_with_campaign, make_list_fighter
+):
+    from gyrinx.core.models.battle import Battle
+
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "Doomed")
+    injury = ContentInjury.objects.create(
+        name="Fatal Blow", phase=ContentInjuryDefaultOutcome.DEAD
+    )
+    battle = Battle.objects.create(
+        campaign=list_with_campaign.campaign, mission="Last Stand", owner=user
+    )
+    battle.set_participants([list_with_campaign])
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {
+            "battle": str(battle.pk),
+            f"injury_{fighter.pk}": str(injury.pk),
+            f"injury_reason_{fighter.pk}": "Took a fatal blow",
+        },
+    )
+    assert resp.status_code == 302
+    fighter.refresh_from_db()
+    assert fighter.is_dead is True
+
+    # Both the injury action and the kill handler's "Death:" action link to the
+    # battle — no action logged by this submit is left off the timeline.
+    actions = CampaignAction.objects.filter(list=list_with_campaign)
+    death = actions.filter(description__startswith="Death:").first()
+    assert death is not None
+    assert death.battle_id == battle.pk
+    assert not actions.filter(battle__isnull=True).exists()
+
+
+@pytest.mark.django_db
 def test_post_battle_omitted_notes_field_does_not_wipe_notes(
     client, user, list_with_campaign, make_list_fighter
 ):
