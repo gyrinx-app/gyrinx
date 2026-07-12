@@ -383,6 +383,27 @@ def test_lock_whole_gang_enrols_all_eligible(crew_setup):
 
 
 @pytest.mark.django_db
+def test_lock_skips_chosen_now_ineligible(crew_setup):
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    fighters = crew_setup["fighters"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    crew.chosen_fighters.set(fighters[:2])
+    # A hand-picked fighter becomes ineligible between recipe and lock.
+    fighters[1].archived = True
+    fighters[1].save()
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    # Only the still-eligible pick is enrolled; the archived one is dropped.
+    members = list(crew.members.all())
+    assert [m.list_fighter_id for m in members] == [fighters[0].id]
+    assert result.chosen_count == 1
+    assert result.skipped_ineligible == 1
+    # Picks were named, so it's a custom crew (now short one), not a whole-gang one.
+    assert result.whole_gang is False
+
+
+@pytest.mark.django_db
 def test_lock_is_idempotent(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(

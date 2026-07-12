@@ -49,6 +49,9 @@ class CrewLockResult:
     roll_detail: str
     campaign_action: Optional[CampaignAction]
     whole_gang: bool = False
+    # Hand-picked fighters dropped at lock because they were no longer eligible
+    # (archived / stashed / killed / in recovery since the recipe was built).
+    skipped_ineligible: int = 0
 
 
 @traced("handle_crew_lock")
@@ -76,15 +79,25 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     lst = crew.list
     rng = rng or Random()  # nosec B311 - game dice, not crypto
 
-    chosen = list(crew.chosen_fighters.all())
+    # Re-check eligibility at lock time: a fighter hand-picked while the recipe
+    # was being built may since have been archived, stashed, killed, or put in
+    # recovery. The rulebook excludes fighters who can't take part from every
+    # selection method, so drop them here rather than enrolling them.
+    eligible = eligible_crew_fighters(lst)
+    eligible_ids = set(eligible.values_list("pk", flat=True))
+    picked = list(crew.chosen_fighters.all())
+    chosen = [f for f in picked if f.pk in eligible_ids]
+    skipped_ineligible = len(picked) - len(chosen)
     chosen_ids = {f.pk for f in chosen}
     random_spec = (crew.random_spec or "").strip()
 
     # Whole gang: no explicit picks and no random draw means the whole eligible
-    # roster attends (rulebook: Custom Selection with no number).
-    whole_gang = not chosen and not random_spec
+    # roster attends (rulebook: Custom Selection with no number). Judged from the
+    # original recipe — picks that are all now ineligible make an empty custom
+    # crew, not a whole-gang one.
+    whole_gang = not picked and not random_spec
 
-    non_random = chosen if not whole_gang else list(eligible_crew_fighters(lst))
+    non_random = chosen if not whole_gang else list(eligible)
     for fighter in non_random:
         CrewMember.objects.create_with_user(
             user=user,
@@ -99,7 +112,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     if not whole_gang:
         random_count, roll_detail = roll_selection_spec(random_spec, rng=rng)
         if random_count > 0:
-            pool = list(eligible_crew_fighters(lst).exclude(pk__in=chosen_ids))
+            pool = list(eligible.exclude(pk__in=chosen_ids))
             rng.shuffle(pool)
             drawn = pool[:random_count]
             for fighter in drawn:
@@ -143,4 +156,5 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
         roll_detail=roll_detail,
         campaign_action=campaign_action,
         whole_gang=whole_gang,
+        skipped_ineligible=skipped_ineligible,
     )

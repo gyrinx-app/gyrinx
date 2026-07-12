@@ -195,6 +195,14 @@ def crew_lock(request, battle_id, crew_id):
                 f"Crew locked: {result.chosen_count} chosen, "
                 f"{result.random_count} random{detail}.",
             )
+        if result.skipped_ineligible:
+            n = result.skipped_ineligible
+            noun = "fighter" if n == 1 else "fighters"
+            was = "was" if n == 1 else "were"
+            messages.warning(
+                request,
+                f"{n} chosen {noun} {was} skipped — no longer available for a crew.",
+            )
         return _redirect_crew(crew)
 
     chosen_fighters = list(crew.chosen_fighters.all())
