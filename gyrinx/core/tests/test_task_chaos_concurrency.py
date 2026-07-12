@@ -10,10 +10,11 @@ not be.
 These tests run two deliveries on separate threads against a real (committed)
 database, using a ``threading.Barrier`` to force both past the idempotency guard
 before either commits — the exact interleaving a concurrent redelivery produces.
-They are marked ``xfail(strict=True)`` where they currently reproduce a real
-double-apply: the assertion states the *correct* behaviour, the xfail records
-that the code doesn't yet meet it, and the marker will flip to a hard failure
-(alerting us to delete it) once the guard is made concurrency-safe.
+Both reproduced a real double-apply (double-charged campaign credits; a duplicate
+child fighter); both are now fixed by taking a ``select_for_update`` lock on the
+``List`` row for the per-list transaction, which serialises concurrent deliveries
+so the existing check-then-act guards see the first delivery's committed effect
+and skip. These tests now pass and guard against a regression of that fix.
 """
 
 import threading
@@ -62,17 +63,14 @@ def _run_concurrently(target, barrier_point, *, n=2, timeout=15):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Concurrent redelivery double-charges campaign credits: the "
-    "ListAction.exists() idempotency guard in _create_content_cost_change_actions "
-    "is check-then-act with no row lock / no unique constraint, so two "
-    "simultaneous deliveries both pass the guard and both apply_credit_delta.",
-)
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_redelivery_double_charges_campaign_credits(
+def test_concurrent_redelivery_charges_campaign_credits_once(
     make_list, make_list_fighter, make_equipment
 ):
+    """Two simultaneous deliveries of a cost change must charge campaign credits
+    exactly once. The per-list select_for_update lock in
+    _create_content_cost_change_actions serialises them, so the second delivery
+    hits the ListAction.exists() guard and skips."""
     equipment = make_equipment("Boltgun", cost="100", category="Weapons & Ammo")
     lst = make_list("Campaign Gang", status=List.CAMPAIGN_MODE)
     lst.credits_current = 500
@@ -104,7 +102,7 @@ def test_concurrent_redelivery_double_charges_campaign_credits(
         # they arrive, so releasing the barrier lets both create an action.
         if self.pk == lst.pk:
             try:
-                barrier.wait(timeout=10)
+                barrier.wait(timeout=2)
             except threading.BrokenBarrierError:
                 pass
         return orig_facts(self, *args, **kwargs)
@@ -152,25 +150,14 @@ _STATS = dict(
 )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Concurrent redelivery materialises a DUPLICATE child fighter: "
-    "_materialise_child_fighter_defaults is check-then-act (is_disabled / "
-    "exists()) with no row lock and no unique constraint on "
-    "(list_fighter, content_equipment, from_default_assignment), so two "
-    "simultaneous deliveries both create the assignment and both spawn a child.",
-)
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_redelivery_child_fighter_materialisation(
+def test_concurrent_redelivery_child_fighter_materialises_once(
     pack, content_house, make_content_fighter, make_equipment, make_list, user
 ):
-    """Two simultaneous deliveries of the child-fighter propagation.
-
-    Reproduced deterministically: both threads pass the materialisation guard
-    before either commits, and nothing (row lock or unique constraint) stops the
-    second create — so the gang ends up with two copies of the same child
-    fighter. The assertion states the correct outcome (one child).
-    """
+    """Two simultaneous deliveries of the child-fighter propagation must spawn
+    exactly one child. The per-list select_for_update lock in the task serialises
+    them, so the second delivery's materialisation guard sees the first's
+    committed assignment and skips."""
     from gyrinx.content.models.default_assignment import (
         ContentFighterDefaultAssignment,
     )
@@ -233,7 +220,7 @@ def test_concurrent_redelivery_child_fighter_materialisation(
     def synced(list_fighter):
         sync_hits.append(1)
         try:
-            barrier.wait(timeout=10)  # both deliveries pass the guard, then release
+            barrier.wait(timeout=2)  # both deliveries pass the guard, then release
         except threading.BrokenBarrierError:
             pass
         return orig(list_fighter)
