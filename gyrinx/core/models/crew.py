@@ -250,7 +250,10 @@ class Crew(AppBase):
 
         lines = []
         if self.is_locked:
-            members = list(self.members.select_related("list_fighter").all())
+            # self.members.all() (no select_related) so a caller's
+            # prefetch_related("members") cache is honoured; the fighter and its
+            # name come from the batched with_related_data() load below.
+            members = list(self.members.all())
             loaded = ListFighter.objects.with_related_data().in_bulk(
                 [m.list_fighter_id for m in members]
             )
@@ -275,7 +278,7 @@ class Crew(AppBase):
                     (
                         cost,
                         {
-                            "name": member.list_fighter.name,
+                            "name": fighter.name if fighter is not None else "",
                             "fighter_id": member.list_fighter_id,
                             "loadout": equipment_set.name if equipment_set else None,
                             "was_random": member.was_random,

@@ -91,7 +91,9 @@ def crew_new(request, battle_id):
             crew = form.save(commit=False)
             crew.battle = battle
             crew.list = gang
-            crew.owner = request.user
+            # Owned by the gang's player (list-scoped convention), even when an
+            # arbitrator creates it; save_with_user records who acted.
+            crew.owner = gang.owner
             crew.save_with_user(user=request.user)
             crew.chosen_fighters.set(form.cleaned_data["chosen_fighters"])
             messages.success(request, "Crew created.")
@@ -277,7 +279,8 @@ def crew_extra(request, battle_id, crew_id, item_id=None):
         if form.is_valid():
             line_item = form.save(commit=False)
             line_item.crew = crew
-            line_item.owner = request.user
+            # Owned by the gang's player, matching the crew and its members.
+            line_item.owner = crew.list.owner
             line_item.save_with_user(user=request.user)
             messages.success(request, "Extra saved.")
             return _redirect_crew(crew)

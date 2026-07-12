@@ -450,6 +450,43 @@ def test_crew_new_permission_denied_for_stranger(client, crew_setup, make_user):
 
 
 @pytest.mark.django_db
+def test_crew_and_extra_owned_by_gang_owner(
+    client, crew_setup, make_user, make_list, make_list_fighter
+):
+    """An arbitrator creating a crew for another player's gang: the crew and its
+    extras are owned by the gang's player, not the acting arbitrator."""
+    arbiter = crew_setup["user"]  # owns the campaign and the battle
+    campaign, battle = crew_setup["campaign"], crew_setup["battle"]
+    player = make_user("player2", "pw")
+    other_gang = make_list(
+        "Other Gang", owner=player, status=List.CAMPAIGN_MODE, campaign=campaign
+    )
+    campaign.lists.add(other_gang)
+    make_list_fighter(other_gang, "Their Ganger", owner=player)
+    battle.set_participants(list(battle.participants.all()) + [other_gang])
+
+    client.force_login(arbiter)
+    resp = client.post(
+        reverse("core:crew-new", args=[battle.id]),
+        {
+            "list": str(other_gang.id),
+            "name": "For player",
+            "random_dice": "",
+            "random_number": "",
+        },
+    )
+    assert resp.status_code == 302
+    crew = Crew.objects.get(battle=battle, list=other_gang)
+    assert crew.owner == player
+
+    client.post(
+        reverse("core:crew-extra-new", args=[battle.id, crew.id]),
+        {"label": "Card", "cost": "10", "payment": Crew.PAY_CREDITS, "reason": ""},
+    )
+    assert CrewLineItem.objects.get(crew=crew).owner == player
+
+
+@pytest.mark.django_db
 def test_crew_detail_and_edit(client, crew_setup):
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
