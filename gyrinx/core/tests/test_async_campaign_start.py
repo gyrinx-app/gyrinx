@@ -8,11 +8,13 @@ action. (End-to-end equivalence with the old synchronous path is covered in
 test_handlers_campaign_operations.py.)
 """
 
+import base64
+import json
 from unittest import mock
 
 import pytest
 from django.contrib.messages.storage.fallback import FallbackStorage
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 from django.urls import reverse
 
 from gyrinx.core.admin.list import reenqueue_campaign_clone
@@ -25,6 +27,8 @@ from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
 from gyrinx.core.tasks import complete_campaign_list_clone
+from gyrinx.tasks.backend import PubSubBackend
+from gyrinx.tasks.groups import group_status
 
 
 def _pre_campaign_with_lists(make_campaign, make_list, names, budget=1500):
@@ -152,6 +156,111 @@ def test_cloning_status_endpoint_visible_to_all(
     assert data["counts"]["successful"] == 2
     assert data["complete"] is True
     assert {entry["label"] for entry in data["units"]} == {"Gang 1", "Gang 2"}
+
+
+# The prod task backend: publishes to Pub/Sub and returns immediately (task runs later, in a
+# separate worker process). Locally we run ImmediateBackend, so the test below is the only
+# place the genuine async path — enqueue, defer, worker picks up, completes — is exercised.
+_PUBSUB_TASKS = {
+    "default": {
+        "BACKEND": "gyrinx.tasks.backend.PubSubBackend",
+        "OPTIONS": {"project_id": "test-project"},
+    }
+}
+
+
+def _drain_pubsub_to_handler(client, published):
+    """Feed each captured Pub/Sub payload into the push handler, exactly like the prod worker.
+
+    ``published`` holds the raw message bodies PubSubBackend handed to ``publish``. Wrapping
+    each in a Pub/Sub push envelope and POSTing it to the handler runs the task the way Cloud
+    Run's push subscription does.
+    """
+    for data in published:
+        envelope = {
+            "message": {
+                "messageId": "test-msg",
+                "data": base64.b64encode(data).decode(),
+            }
+        }
+        resp = client.post(
+            reverse("tasks:pubsub"),
+            data=json.dumps(envelope),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200, resp.content
+
+
+@pytest.mark.django_db
+@override_settings(TASKS=_PUBSUB_TASKS)
+def test_prod_async_path_roundtrips_through_pubsub(
+    client,
+    user,
+    make_campaign,
+    make_list,
+    make_list_fighter,
+    content_fighter,
+    django_capture_on_commit_callbacks,
+):
+    """End-to-end over the real prod path: enqueue → Pub/Sub → worker push handler → complete.
+
+    This is the one test that reproduces what prod actually does (ImmediateBackend hides it
+    locally): after start, the clone tasks are *deferred*, so the stubs sit "joining" and the
+    group status reports them pending. Only when the worker picks up each Pub/Sub message do
+    they complete. It also proves the group tag survives — it's stamped on the DB row at
+    enqueue, never carried in the Pub/Sub payload.
+    """
+    campaign, [orig1, orig2] = _pre_campaign_with_lists(
+        make_campaign, make_list, ["Gang 1", "Gang 2"]
+    )
+    make_list_fighter(orig1, "Fighter", content_fighter=content_fighter)
+
+    published = []
+
+    def fake_publish(topic_path, data):
+        published.append(data)
+        future = mock.MagicMock()
+        future.result.return_value = "message-id"
+        return future
+
+    # Bypass the OIDC check on the push handler (prod verifies a Google-signed JWT).
+    with (
+        mock.patch("gyrinx.tasks.views._verify_oidc_token", return_value=True),
+        mock.patch.object(
+            PubSubBackend, "publisher", new_callable=mock.MagicMock
+        ) as publisher,
+    ):
+        publisher.publish.side_effect = fake_publish
+        publisher.topic_path.return_value = "projects/test/topics/t"
+
+        with django_capture_on_commit_callbacks(execute=True):
+            handle_campaign_start(user=user, campaign=campaign)
+
+        # Phase 1 committed: tasks are enqueued but NOT run yet. This is the "joining" gap a
+        # prod user sees — the stubs exist, the group is pending, nothing has cloned.
+        group_key = campaign_start_group_key(campaign.id)
+        pending = group_status(group_key)
+        assert pending["counts"]["total"] == 2
+        assert pending["counts"]["ready"] == 2
+        assert pending["complete"] is False
+        assert len(published) == 2
+        for stub in List.objects.filter(campaign=campaign):
+            assert stub.status == List.CLONING_IN_PROGRESS
+            assert stub.listfighter_set.count() == 0  # not populated yet
+
+        # The worker picks up each Pub/Sub message and runs the clone.
+        _drain_pubsub_to_handler(client, published)
+
+    # Now the group is complete and both stubs have finished joining.
+    done = group_status(group_key)
+    assert done["complete"] is True
+    assert done["counts"]["successful"] == 2
+    stub1 = List.objects.get(campaign=campaign, original_list=orig1)
+    stub2 = List.objects.get(campaign=campaign, original_list=orig2)
+    assert stub1.status == List.CAMPAIGN_MODE
+    assert stub2.status == List.CAMPAIGN_MODE
+    # The fighter was cloned across (alongside the auto-created campaign stash fighter).
+    assert stub1.listfighter_set.filter(name="Fighter").count() == 1
 
 
 @pytest.mark.django_db
