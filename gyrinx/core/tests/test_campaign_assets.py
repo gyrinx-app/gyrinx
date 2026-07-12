@@ -585,8 +585,8 @@ def test_campaign_asset_detail_requires_login():
 
 
 @pytest.mark.django_db
-def test_campaign_dashboard_shows_asset_description_and_details_link():
-    """The campaign dashboard links each asset to its detail page and previews text."""
+def test_campaign_dashboard_links_asset_name_and_previews_text():
+    """The dashboard links each asset name to its detail page and previews text."""
     client = Client()
     user = User.objects.create_user(username="owner", password="pw")
     client.login(username="owner", password="pw")
@@ -754,3 +754,32 @@ def test_campaign_asset_detail_shows_sub_assets_missing_from_schema():
     assert "Generator Hall" in content
     # The orphaned sub-asset is not silently dropped.
     assert "Lost Bunker" in content
+
+
+@pytest.mark.django_db
+def test_campaign_dashboard_shows_held_by(content_house):
+    """The dashboard shows the holder using the 'Held by X' pattern."""
+    client = Client()
+    user = User.objects.create_user(username="owner", password="pw")
+    client.login(username="owner", password="pw")
+
+    campaign = Campaign.objects.create(name="Test Campaign", owner=user, public=True)
+    gang = List.objects.create(
+        name="Iron Skulls", owner=user, content_house=content_house
+    )
+    campaign.lists.add(gang)
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    CampaignAsset.objects.create(
+        asset_type=asset_type, name="The Sump", holder=gang, owner=user
+    )
+
+    response = client.get(reverse("core:campaign", args=[campaign.id]))
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Held by" in content
+    assert "Iron Skulls" in content
