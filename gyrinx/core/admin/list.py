@@ -94,11 +94,61 @@ def recompute_list_cost_caches(modeladmin, request, queryset):
         logger.exception("recompute_list_cost_caches: notification fan-out failed")
 
 
+@admin.action(description="Re-enqueue campaign clone (unstick gangs stuck 'joining')")
+def reenqueue_campaign_clone(modeladmin, request, queryset):
+    """Re-run the background clone task for selected stubs stuck in CLONING_IN_PROGRESS.
+
+    Covers gangs whose Phase-2 clone task failed, or whose enqueue was lost entirely (no
+    TaskExecution row) — the durable signal in that case is a List stuck in
+    CLONING_IN_PROGRESS. Filter ListAdmin by Status = "Joining Campaign" to find them.
+    Idempotent: the task no-ops if the stub has since finished (see #1222).
+    """
+    from gyrinx.core.handlers.campaign_operations import campaign_start_group_key
+    from gyrinx.core.tasks import complete_campaign_list_clone
+    from gyrinx.tasks.groups import enqueue_in_group
+
+    stubs = queryset.filter(status=List.CLONING_IN_PROGRESS)
+    enqueued = 0
+    skipped = 0
+    failed = 0
+    for stub in stubs:
+        if stub.campaign_id is None or stub.original_list_id is None:
+            skipped += 1
+            continue
+        # The stub is already committed, so enqueue directly (no on_commit needed). Use
+        # the campaign owner as the acting user (who triggered the start), and the same
+        # group as the original start so the retry shows up in the status endpoint.
+        # Isolate failures: a publish error on one stub must not abort the whole batch
+        # (matches the fire-and-forget handling in the start/retry views).
+        try:
+            enqueue_in_group(
+                complete_campaign_list_clone,
+                group_key=campaign_start_group_key(stub.campaign_id),
+                label=stub.name,
+                stub_id=str(stub.id),
+                original_list_id=str(stub.original_list_id),
+                campaign_id=str(stub.campaign_id),
+                user_id=str(stub.campaign.owner_id),
+            )
+            enqueued += 1
+        except Exception:
+            logger.exception("Failed to re-enqueue clone for stub %s", stub.id)
+            failed += 1
+
+    ignored = queryset.exclude(status=List.CLONING_IN_PROGRESS).count()
+    messages.info(
+        request,
+        f"Re-enqueued clone for {enqueued} stub(s); skipped {skipped} with a missing "
+        f"campaign/original; {failed} failed to enqueue; ignored {ignored} list(s) that "
+        f"aren't cloning.",
+    )
+
+
 @admin.register(List)
 class ListAdmin(BaseAdmin):
     form = ListForm
-    actions = [recompute_list_cost_caches]
-    object_actions = ["recompute_list_cost_caches"]
+    actions = [recompute_list_cost_caches, reenqueue_campaign_clone]
+    object_actions = ["recompute_list_cost_caches", "reenqueue_campaign_clone"]
     fields = [
         "name",
         "content_house",

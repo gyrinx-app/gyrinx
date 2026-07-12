@@ -186,10 +186,15 @@ class List(AppBase):
     # Status choices
     LIST_BUILDING = "list_building"
     CAMPAIGN_MODE = "campaign_mode"
+    # A campaign-mode clone whose contents are still being populated by a
+    # background task after campaign start (issue #1222). Transient: flips to
+    # CAMPAIGN_MODE once the clone task finishes.
+    CLONING_IN_PROGRESS = "cloning_in_progress"
 
     STATUS_CHOICES = [
         (LIST_BUILDING, "List Building"),
         (CAMPAIGN_MODE, "Campaign Mode"),
+        (CLONING_IN_PROGRESS, "Joining Campaign"),
     ]
 
     help_text = "A List is a reusable collection of fighters."
@@ -829,6 +834,16 @@ class List(AppBase):
     def is_campaign_mode(self):
         return self.status == self.CAMPAIGN_MODE
 
+    @property
+    def is_cloning(self):
+        """True while this is a campaign-start stub still being populated in the background.
+
+        See issue #1222. Such a list is on the campaign but has no fighters/cost yet, so it
+        should render a "Joining…" placeholder and be excluded from participation until it
+        flips to CAMPAIGN_MODE.
+        """
+        return self.status == self.CLONING_IN_PROGRESS
+
     def get_suggested_campaign_packs(self):
         """Return campaign packs not yet subscribed by this list.
 
@@ -1269,11 +1284,6 @@ class List(AppBase):
             for_campaign: If provided, creates a campaign mode clone for this campaign
             **kwargs: Additional fields to set on the clone
         """
-        from gyrinx.core.models.list.campaign_state import (
-            ListAttributeAssignment,
-            ListSkillTreeAssignment,
-        )
-
         if for_campaign:
             # Campaign clones keep the same name but go into campaign mode
             if not name:
@@ -1309,34 +1319,63 @@ class List(AppBase):
 
         # Note: ListAction creation for clones is handled by handle_list_clone handler.
         # The model method only handles the data cloning, not side effects like actions.
+        clone._populate_clone_from(self, owner=owner)
+
+        return clone
+
+    def _populate_clone_from(self, source, *, owner=None) -> None:
+        """Copy relations from ``source`` into this already-created list and recompute facts.
+
+        ``self`` is the destination clone (or a background-cloning stub); ``source`` is the
+        list being cloned. The caller is responsible for having already set ``self``'s scalar
+        fields (name/public/narrative/notes/theme_color/credits and, for campaign clones,
+        status/original_list/campaign). This method does the expensive relation copying —
+        packs, attribute and skill-tree assignments, fighters, stash — and then recomputes
+        cached facts.
+
+        Split out of :meth:`clone` so campaign start can create a lightweight stub row up
+        front and populate it later in a background task (issue #1222). :meth:`clone` still
+        calls this, so the eager and deferred paths never diverge.
+        """
+        from gyrinx.core.models.list.campaign_state import (
+            ListAttributeAssignment,
+            ListSkillTreeAssignment,
+        )
+
+        if owner is None:
+            owner = self.owner
+
+        # A campaign clone (or its stub) has its campaign FK set at creation time; regular
+        # clones don't. This mirrors the old ``for_campaign`` truthiness check.
+        is_campaign_clone = self.campaign_id is not None
 
         # Clone pack subscriptions
-        clone.packs.set(self.packs.all())
+        self.packs.set(source.packs.all())
 
         # Clone attributes first - this must happen before fighters so that
         # equipment cost calculations can use expansion costs from affiliations
         # See: https://github.com/gyrinx-app/gyrinx/issues/1333
-        for attribute_assignment in self.listattributeassignment_set.filter(
+        for attribute_assignment in source.listattributeassignment_set.filter(
             archived=False
         ):
             ListAttributeAssignment.objects.create(
-                list=clone,
+                list=self,
                 attribute_value=attribute_assignment.attribute_value,
             )
 
         # Clone gang-wide skill-tree picks
-        for skill_tree_assignment in self.listskilltreeassignment_set.filter(
+        for skill_tree_assignment in source.listskilltreeassignment_set.filter(
             archived=False
         ):
             ListSkillTreeAssignment.objects.create(
-                list=clone,
+                list=self,
                 slot=skill_tree_assignment.slot,
                 skill_category=skill_tree_assignment.skill_category,
             )
 
         with span("list_clone_fighters"):
             # Clone fighters, but skip linked fighters and stash fighters
-            for fighter in self.fighters():
+            for fighter in source.fighters():
                 # Skip if this fighter is linked to an equipment assignment
                 is_linked = (
                     hasattr(fighter, "source_assignment")
@@ -1346,16 +1385,16 @@ class List(AppBase):
                 is_stash = fighter.content_fighter.is_stash
 
                 if not is_linked and not is_stash:
-                    fighter.clone(list=clone)
+                    fighter.clone(list=self)
 
         # Clone stash fighter
-        original_stash = self.listfighter_set.filter(
+        original_stash = source.listfighter_set.filter(
             content_fighter__is_stash=True
         ).first()
 
         # For campaign mode, always ensure a stash exists
-        if for_campaign or original_stash:
-            new_stash = clone.ensure_stash(owner=owner)
+        if is_campaign_clone or original_stash:
+            new_stash = self.ensure_stash(owner=owner)
             # Clone equipment from original stash if it existed
             if original_stash:
                 for assignment in original_stash._direct_assignments():
@@ -1366,16 +1405,14 @@ class List(AppBase):
 
         track(
             "list_cloned",
-            original_list=str(self.id),
-            cloned_list=str(clone.id),
-            for_campaign=str(for_campaign.id) if for_campaign else "",
+            original_list=str(source.id),
+            cloned_list=str(self.id),
+            for_campaign=str(self.campaign_id) if self.campaign_id else "",
         )
 
         # Always recalculate cached values after cloning
         # Cloning is not part of the action/propagation system - it needs explicit recalculation
-        clone.facts_from_db(update=True)
-
-        return clone
+        self.facts_from_db(update=True)
 
     class Meta:
         verbose_name = "List"

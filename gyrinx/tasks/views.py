@@ -14,20 +14,45 @@ from datetime import datetime
 
 from django.conf import settings
 from django.db import OperationalError, connection
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.http import (
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseForbidden,
+    JsonResponse,
+)
 from django.tasks import TaskResult
 from django.tasks.base import TaskError, TaskResultStatus
 from django.tasks.signals import task_finished, task_started
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from gyrinx.tasks.backend import PubSubBackend
+from gyrinx.tasks.groups import group_status
 from gyrinx.tasks.registry import get_task
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
+
+
+@require_GET
+def task_group_status(request):
+    """Report the status of a group of task runs as JSON — a generic progress-poll endpoint.
+
+    ``GET /tasks/status?group=<group_key>`` returns each task run tagged with that group
+    plus a rollup (see :func:`gyrinx.tasks.groups.group_status`). Any feature that fans a
+    logical operation out into background tasks can tag them with a shared ``group_key`` (via
+    :func:`gyrinx.tasks.groups.enqueue_in_group`) and poll this to drive a progress UI.
+
+    Readable without authentication — it exposes only task status/label (no args, kwargs, or
+    tracebacks), and callers are expected to use group keys that embed an unguessable
+    component (e.g. a UUID), so knowledge of the key is the access control.
+    """
+    group_key = request.GET.get("group", "").strip()
+    if not group_key:
+        return HttpResponseBadRequest("Missing required 'group' query parameter.")
+    return JsonResponse(group_status(group_key))
 
 
 class _MockTask:

@@ -97,6 +97,63 @@ class ListCloneResult:
     cloned_action: ListAction
 
 
+def book_clone_actions(
+    *, user, original_list: List, cloned_list: List, original_list_name: str = None
+) -> tuple[ListAction, ListAction]:
+    """Record the ListActions for a clone: CLONE on the source, CREATE on the clone.
+
+    The CREATE action's deltas read the clone's freshly-recomputed caches
+    (``rating_current``/``stash_current``/``credits_current``), so this MUST run *after*
+    the clone is fully populated (``List._populate_clone_from`` / ``facts_from_db`` done).
+    Booking it against an empty clone would write zero deltas and leave a permanent break
+    in the audit chain at the clone seam (see the ``handle_list_clone`` history for #1222).
+
+    Split out so the async campaign-start task (issue #1222) can book identical actions
+    after populating a stub, without duplicating the delta logic.
+
+    Returns ``(original_action, cloned_action)``.
+    """
+    if original_list_name is None:
+        original_list_name = original_list.name
+
+    # Create ListAction on original list recording the clone
+    original_action = original_list.create_action(
+        user=user,
+        action_type=ListActionType.CLONE,
+        description=f"List cloned to '{cloned_list.name}'",
+    )
+
+    # The CREATE action represents creating the list from nothing, so the
+    # before values are 0 and the deltas are the CLONE's own values.
+    #
+    # Book the clone's freshly-recomputed caches (List.clone() ran
+    # facts_from_db() on it), NOT original_list.rating_current. A
+    # list-building gang's cached rating can be stale — caches drift until
+    # something recomputes them — and the clone can legitimately differ
+    # from its source (e.g. skipped fighters). Recording the source's value
+    # here writes a rating the clone's real cost immediately contradicts:
+    # the very next action, CAMPAIGN_START, prices the gang with a fresh
+    # cost_int(), so a stale source leaves a permanent chain break at the
+    # clone seam. The clone's own caches are the source of truth for what
+    # it actually is.
+    cloned_action = ListAction.objects.create(
+        user=user,
+        owner=cloned_list.owner,
+        list=cloned_list,
+        action_type=ListActionType.CREATE,
+        description=f"Cloned from '{original_list_name}'",
+        applied=True,
+        rating_before=0,
+        stash_before=0,
+        credits_before=0,
+        rating_delta=cloned_list.rating_current,
+        stash_delta=cloned_list.stash_current,
+        credits_delta=cloned_list.credits_current,
+    )
+
+    return original_action, cloned_action
+
+
 @traced("handle_list_clone")
 @transaction.atomic
 def handle_list_clone(
@@ -150,39 +207,13 @@ def handle_list_clone(
         name=name, owner=owner, for_campaign=for_campaign, **kwargs
     )
 
-    # Create ListAction on original list recording the clone
-    original_action = original_list.create_action(
+    # Book the CLONE (on original) and CREATE (on clone) actions. Deltas read the
+    # clone's freshly-recomputed caches, so this runs after clone() populated it.
+    original_action, cloned_action = book_clone_actions(
         user=user,
-        action_type=ListActionType.CLONE,
-        description=f"List cloned to '{cloned_list.name}'",
-    )
-
-    # The CREATE action represents creating the list from nothing, so the
-    # before values are 0 and the deltas are the CLONE's own values.
-    #
-    # Book the clone's freshly-recomputed caches (List.clone() ran
-    # facts_from_db() on it), NOT original_list.rating_current. A
-    # list-building gang's cached rating can be stale — caches drift until
-    # something recomputes them — and the clone can legitimately differ
-    # from its source (e.g. skipped fighters). Recording the source's value
-    # here writes a rating the clone's real cost immediately contradicts:
-    # the very next action, CAMPAIGN_START, prices the gang with a fresh
-    # cost_int(), so a stale source leaves a permanent chain break at the
-    # clone seam. The clone's own caches are the source of truth for what
-    # it actually is.
-    cloned_action = ListAction.objects.create(
-        user=user,
-        owner=owner,
-        list=cloned_list,
-        action_type=ListActionType.CREATE,
-        description=f"Cloned from '{original_list_name}'",
-        applied=True,
-        rating_before=0,
-        stash_before=0,
-        credits_before=0,
-        rating_delta=cloned_list.rating_current,
-        stash_delta=cloned_list.stash_current,
-        credits_delta=cloned_list.credits_current,
+        original_list=original_list,
+        cloned_list=cloned_list,
+        original_list_name=original_list_name,
     )
 
     return ListCloneResult(

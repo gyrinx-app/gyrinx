@@ -1,9 +1,16 @@
 """
 Tests for campaign operation handlers.
 
-These tests directly test the handle_campaign_start function in
-gyrinx.core.handlers.campaign_operations, ensuring that business logic works
-correctly without involving HTTP machinery.
+These tests drive handle_campaign_start in gyrinx.core.handlers.campaign_operations.
+
+Campaign start is now two-phase (issue #1222): handle_campaign_start synchronously
+creates stub lists (status CLONING_IN_PROGRESS) and enqueues one
+complete_campaign_list_clone task per stub on commit; those tasks do the actual cloning
+and budget distribution and flip each stub to CAMPAIGN_MODE. In dev/test the ImmediateBackend
+runs the tasks inline, but only once the on_commit callbacks fire — so tests that want the
+finished result wrap the call in ``django_capture_on_commit_callbacks(execute=True)`` via the
+``_start`` helper below. These are end-to-end equivalence tests: the final state must match
+the old synchronous behaviour.
 """
 
 import pytest
@@ -15,6 +22,18 @@ from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
 
 
+def _start(user, campaign, capture):
+    """Start the campaign AND run its deferred Phase-2 clone tasks.
+
+    The clone tasks are enqueued via ``transaction.on_commit``; ``capture(execute=True)``
+    fires those callbacks (running the tasks inline under the ImmediateBackend), so on
+    return the campaign is fully started just like the old synchronous path.
+    """
+    with capture(execute=True):
+        result = handle_campaign_start(user=user, campaign=campaign)
+    return result
+
+
 @pytest.mark.django_db
 def test_handle_campaign_start_all_lists_receive_credits(
     user,
@@ -23,6 +42,7 @@ def test_handle_campaign_start_all_lists_receive_credits(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    django_capture_on_commit_callbacks,
 ):
     """Test that all lists in campaign receive correct credits when starting."""
     # Create campaign in PRE_CAMPAIGN status with budget
@@ -57,44 +77,30 @@ def test_handle_campaign_start_all_lists_receive_credits(
 
     campaign.lists.add(list1, list2, list3)
 
-    # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    # Start campaign (runs Phase 2 clone tasks inline)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
 
-    # Verify all 3 lists received credits
-    assert len(result.list_results) == 3
+    # Verify all 3 stubs were created
+    assert len(result.stub_lists) == 3
 
-    # Get the cloned lists and verify credits
+    # Get the cloned lists and verify credits (all should have finished cloning)
     cloned_lists = List.objects.filter(
         campaign=campaign, status=List.CAMPAIGN_MODE
     ).order_by("name")
+    assert cloned_lists.count() == 3
 
     # Gang 1: Cost 1000, gets 500 credits (1500 budget - 1000 cost)
     gang1_clone = cloned_lists.get(name="Gang 1")
-    gang1_result = next(
-        r for r in result.list_results if r.campaign_list == gang1_clone
-    )
-    assert gang1_result.credits_added == 500
-    gang1_clone.refresh_from_db()
     assert gang1_clone.credits_current == 500
     assert gang1_clone.credits_earned == 500
 
     # Gang 2: Cost 1200, gets 300 credits (1500 budget - 1200 cost)
     gang2_clone = cloned_lists.get(name="Gang 2")
-    gang2_result = next(
-        r for r in result.list_results if r.campaign_list == gang2_clone
-    )
-    assert gang2_result.credits_added == 300
-    gang2_clone.refresh_from_db()
     assert gang2_clone.credits_current == 300
     assert gang2_clone.credits_earned == 300
 
     # Gang 3: Cost 500, gets 1000 credits (1500 budget - 500 cost)
     gang3_clone = cloned_lists.get(name="Gang 3")
-    gang3_result = next(
-        r for r in result.list_results if r.campaign_list == gang3_clone
-    )
-    assert gang3_result.credits_added == 1000
-    gang3_clone.refresh_from_db()
     assert gang3_clone.credits_current == 1000
     assert gang3_clone.credits_earned == 1000
 
@@ -107,8 +113,9 @@ def test_handle_campaign_start_creates_list_actions(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    django_capture_on_commit_callbacks,
 ):
-    """Test that ListActions are created for each list with CAMPAIGN_START type.
+    """Test that CAMPAIGN_START ListActions are created for each list.
 
     Campaign-cloned lists get an initial CREATE ListAction, which allows
     subsequent CAMPAIGN_START actions to be created properly.
@@ -137,24 +144,23 @@ def test_handle_campaign_start_creates_list_actions(
     campaign.lists.add(list1, list2)
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
+    assert len(result.stub_lists) == 2
 
-    # Verify ListActions created for both lists
-    assert len(result.list_results) == 2
-    for list_result in result.list_results:
-        assert list_result.list_action is not None
-        assert list_result.list_action.action_type == ListActionType.CAMPAIGN_START
-        assert list_result.list_action.rating_delta == 0
-        assert list_result.list_action.stash_delta == 0
-        assert list_result.list_action.credits_delta == list_result.credits_added
-        assert list_result.list_action.subject_app == "core"
-        assert list_result.list_action.subject_type == "Campaign"
-        assert list_result.list_action.subject_id == campaign.id
-        assert "Campaign starting budget" in list_result.list_action.description
-
-    # Verify ListActions are in database
+    # Verify CAMPAIGN_START ListActions created for both lists, with correct shape.
     list_actions = ListAction.objects.filter(action_type=ListActionType.CAMPAIGN_START)
     assert list_actions.count() == 2
+    for list_action in list_actions:
+        assert list_action.rating_delta == 0
+        assert list_action.stash_delta == 0
+        assert list_action.credits_delta > 0
+        assert list_action.subject_app == "core"
+        assert list_action.subject_type == "Campaign"
+        assert list_action.subject_id == campaign.id
+        assert "Campaign starting budget" in list_action.description
+
+    # Gang 1 (cost 1000) -> +500, Gang 2 (cost 1200) -> +300
+    assert {a.credits_delta for a in list_actions} == {500, 300}
 
 
 @pytest.mark.django_db
@@ -165,6 +171,7 @@ def test_handle_campaign_start_credits_match_budget_configuration(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    django_capture_on_commit_callbacks,
 ):
     """Test that credits distributed match budget configuration."""
     # Create campaign with custom budget
@@ -183,20 +190,17 @@ def test_handle_campaign_start_credits_match_budget_configuration(
     campaign.lists.add(lst)
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
+    assert len(result.stub_lists) == 1
 
     # Cost 800, budget 2000, should get 1200 credits (2000 - 800)
-    assert len(result.list_results) == 1
-    assert result.list_results[0].credits_added == 1200
-
     cloned_list = List.objects.get(campaign=campaign, status=List.CAMPAIGN_MODE)
-    cloned_list.refresh_from_db()
     assert cloned_list.credits_current == 1200
 
 
 @pytest.mark.django_db
 def test_handle_campaign_start_zero_budget(
-    user, make_campaign, make_list, content_house
+    user, make_campaign, make_list, content_house, django_capture_on_commit_callbacks
 ):
     """Test that no credits are distributed when budget is zero."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=0)
@@ -208,17 +212,15 @@ def test_handle_campaign_start_zero_budget(
     campaign.lists.add(lst)
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
+    assert len(result.stub_lists) == 1
 
-    # Verify no credits added
-    assert len(result.list_results) == 1
-    assert result.list_results[0].credits_added == 0
-    assert result.list_results[0].list_action is None
-    assert result.list_results[0].campaign_action is None
-
+    # Verify no credits added and no CAMPAIGN_START action
     cloned_list = List.objects.get(campaign=campaign, status=List.CAMPAIGN_MODE)
-    cloned_list.refresh_from_db()
     assert cloned_list.credits_current == 0
+    assert not ListAction.objects.filter(
+        list=cloned_list, action_type=ListActionType.CAMPAIGN_START
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -229,6 +231,7 @@ def test_handle_campaign_start_expensive_list(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    django_capture_on_commit_callbacks,
 ):
     """Test that lists more expensive than budget get zero credits."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1000)
@@ -246,19 +249,21 @@ def test_handle_campaign_start_expensive_list(
     campaign.lists.add(lst)
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
+    assert len(result.stub_lists) == 1
 
     # Cost 1500 > budget 1000, should get 0 credits (max(1000 - 1500, 0) = 0)
-    assert len(result.list_results) == 1
-    assert result.list_results[0].credits_added == 0
-
     cloned_list = List.objects.get(campaign=campaign, status=List.CAMPAIGN_MODE)
-    cloned_list.refresh_from_db()
     assert cloned_list.credits_current == 0
+    assert not ListAction.objects.filter(
+        list=cloned_list, action_type=ListActionType.CAMPAIGN_START
+    ).exists()
 
 
 @pytest.mark.django_db
-def test_handle_campaign_start_only_once(user, make_campaign, make_list, content_house):
+def test_handle_campaign_start_only_once(
+    user, make_campaign, make_list, content_house, django_capture_on_commit_callbacks
+):
     """Test that campaign start can only happen once."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
@@ -266,10 +271,10 @@ def test_handle_campaign_start_only_once(user, make_campaign, make_list, content
     campaign.lists.add(lst)
 
     # Start campaign first time
-    result1 = handle_campaign_start(user=user, campaign=campaign)
+    result1 = _start(user, campaign, django_capture_on_commit_callbacks)
     assert result1.campaign.status == Campaign.IN_PROGRESS
 
-    # Try to start again - should raise ValidationError
+    # Try to start again - should raise ValidationError (campaign no longer PRE_CAMPAIGN)
     with pytest.raises(ValidationError) as exc_info:
         handle_campaign_start(user=user, campaign=campaign)
 
@@ -296,6 +301,7 @@ def test_handle_campaign_start_creates_campaign_actions(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    django_capture_on_commit_callbacks,
 ):
     """Test that both per-list and overall CampaignActions are created."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
@@ -324,7 +330,8 @@ def test_handle_campaign_start_creates_campaign_actions(
     actions_before = CampaignAction.objects.filter(campaign=campaign).count()
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
+    assert len(result.stub_lists) == 2
 
     # Verify overall CampaignAction created
     assert result.overall_campaign_action is not None
@@ -332,12 +339,13 @@ def test_handle_campaign_start_creates_campaign_actions(
     assert "is now in progress" in result.overall_campaign_action.description
     assert "2 gang(s) joined" in result.overall_campaign_action.outcome
 
-    # Verify per-list CampaignActions created
-    assert len(result.list_results) == 2
-    for list_result in result.list_results:
-        assert list_result.campaign_action is not None
-        assert "Campaign starting budget" in list_result.campaign_action.description
-        assert list_result.campaign_action.list == list_result.campaign_list
+    # Verify per-list CampaignActions created (one budget action per cloned list)
+    per_list_actions = CampaignAction.objects.filter(
+        campaign=campaign, list__isnull=False
+    )
+    assert per_list_actions.count() == 2
+    for action in per_list_actions:
+        assert "Campaign starting budget" in action.description
 
     # Verify total CampaignActions: 2 per-list + 1 overall = 3 new actions
     actions_after = CampaignAction.objects.filter(campaign=campaign).count()
@@ -352,11 +360,12 @@ def test_handle_campaign_start_list_with_existing_credits(
     content_house,
     make_content_fighter,
     make_list_fighter,
+    django_capture_on_commit_callbacks,
 ):
     """Test budget distribution when list already has credits.
 
     Note: Existing credits are copied to the clone, and the budget calculation
-    is based on rating + stash (not reduced by existing credits).
+    is based on rating + stash + existing credits (cost_int includes credits).
     """
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
@@ -378,21 +387,17 @@ def test_handle_campaign_start_list_with_existing_credits(
     campaign.lists.add(lst)
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    _start(user, campaign, django_capture_on_commit_callbacks)
 
     # List cost is 1200 (1000 fighter cost + 200 existing credits), budget is 1500
-    # Credits to add: 1500 - 1200 = 300
-    assert result.list_results[0].credits_added == 300
-
+    # Credits to add: 1500 - 1200 = 300. Clone inherits 200, then +300 = 500 total.
     cloned_list = List.objects.get(campaign=campaign, status=List.CAMPAIGN_MODE)
-    cloned_list.refresh_from_db()
-    # Clone inherits 200 credits, then receives 300 more = 500 total
     assert cloned_list.credits_current == 500
 
 
 @pytest.mark.django_db
 def test_handle_campaign_start_updates_campaign_status(
-    user, make_campaign, make_list, content_house
+    user, make_campaign, make_list, content_house, django_capture_on_commit_callbacks
 ):
     """Test that campaign status is updated to IN_PROGRESS."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
@@ -405,9 +410,9 @@ def test_handle_campaign_start_updates_campaign_status(
     assert campaign.is_pre_campaign
 
     # Start campaign
-    result = handle_campaign_start(user=user, campaign=campaign)
+    result = _start(user, campaign, django_capture_on_commit_callbacks)
 
-    # Verify status updated
+    # Verify status updated (Phase 1 flips this synchronously)
     campaign.refresh_from_db()
     assert campaign.status == Campaign.IN_PROGRESS
     assert campaign.is_in_progress
@@ -415,10 +420,51 @@ def test_handle_campaign_start_updates_campaign_status(
 
 
 @pytest.mark.django_db
-def test_handle_campaign_start_clones_lists_to_campaign_mode(
+def test_handle_campaign_start_creates_stubs_before_cloning(
     user, make_campaign, make_list, content_house
 ):
-    """Test that lists are cloned with CAMPAIGN_MODE status."""
+    """Phase 1 creates CLONING_IN_PROGRESS stubs and flips the campaign, without cloning.
+
+    Without firing the on_commit callbacks, the clone tasks never run, so the stubs
+    should still be in CLONING_IN_PROGRESS and no budget actions should exist yet.
+    """
+    campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
+
+    list1 = make_list("Gang 1", content_house=content_house)
+    list2 = make_list("Gang 2", content_house=content_house)
+    campaign.lists.add(list1, list2)
+
+    # Start campaign but DON'T fire on_commit -> Phase 2 does not run.
+    result = handle_campaign_start(user=user, campaign=campaign)
+
+    assert len(result.stub_lists) == 2
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.IN_PROGRESS
+
+    # Two stubs on the campaign, both still cloning
+    stubs = List.objects.filter(campaign=campaign, status=List.CLONING_IN_PROGRESS)
+    assert stubs.count() == 2
+    assert set(campaign.lists.values_list("id", flat=True)) == set(
+        stubs.values_list("id", flat=True)
+    )
+    for stub in stubs:
+        assert stub.is_cloning
+        assert stub.original_list_id in {list1.id, list2.id}
+
+    # No cloned (CAMPAIGN_MODE) lists and no budget actions yet
+    assert not List.objects.filter(
+        campaign=campaign, status=List.CAMPAIGN_MODE
+    ).exists()
+    assert not ListAction.objects.filter(
+        action_type=ListActionType.CAMPAIGN_START
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_handle_campaign_start_clones_lists_to_campaign_mode(
+    user, make_campaign, make_list, content_house, django_capture_on_commit_callbacks
+):
+    """Test that lists are cloned with CAMPAIGN_MODE status (after Phase 2 runs)."""
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
     list1 = make_list("Gang 1", content_house=content_house)
@@ -430,8 +476,8 @@ def test_handle_campaign_start_clones_lists_to_campaign_mode(
 
     campaign.lists.add(list1, list2)
 
-    # Start campaign
-    handle_campaign_start(user=user, campaign=campaign)
+    # Start campaign (runs clone tasks inline)
+    _start(user, campaign, django_capture_on_commit_callbacks)
 
     # Verify original lists still in LIST_BUILDING
     list1.refresh_from_db()
@@ -439,7 +485,7 @@ def test_handle_campaign_start_clones_lists_to_campaign_mode(
     assert list1.status == List.LIST_BUILDING
     assert list2.status == List.LIST_BUILDING
 
-    # Verify cloned lists are in CAMPAIGN_MODE
+    # Verify cloned lists are now in CAMPAIGN_MODE (Phase 2 flipped them)
     cloned_lists = List.objects.filter(campaign=campaign, status=List.CAMPAIGN_MODE)
     assert cloned_lists.count() == 2
 
@@ -447,6 +493,11 @@ def test_handle_campaign_start_clones_lists_to_campaign_mode(
         assert cloned_list.status == List.CAMPAIGN_MODE
         assert cloned_list.campaign == campaign
         assert cloned_list.original_list in [list1, list2]
+
+    # No stubs left behind
+    assert not List.objects.filter(
+        campaign=campaign, status=List.CLONING_IN_PROGRESS
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -458,11 +509,13 @@ def test_handle_campaign_start_create_action_has_correct_deltas(
     make_content_fighter,
     make_list_fighter,
     make_equipment,
+    django_capture_on_commit_callbacks,
 ):
     """Test that the initial CREATE action for cloned lists has correct deltas.
 
-    The CREATE action should represent creating the list from nothing,
-    so before values should be 0 and deltas should equal the cloned values.
+    The CREATE action should represent creating the list from nothing, so before
+    values should be 0 and deltas should equal the cloned values. This is the key
+    equivalence check that the async split books the same audit chain as before.
     """
     campaign = make_campaign("Test Campaign", status=Campaign.PRE_CAMPAIGN, budget=1500)
 
@@ -506,8 +559,8 @@ def test_handle_campaign_start_create_action_has_correct_deltas(
 
     campaign.lists.add(lst)
 
-    # Start campaign
-    handle_campaign_start(user=user, campaign=campaign)
+    # Start campaign (runs clone task inline)
+    _start(user, campaign, django_capture_on_commit_callbacks)
 
     # Get the cloned list
     cloned_list = List.objects.get(campaign=campaign, status=List.CAMPAIGN_MODE)

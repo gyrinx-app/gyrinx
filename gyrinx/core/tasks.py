@@ -16,6 +16,103 @@ def hello_world(name: str = "World"):
 
 
 @task
+def complete_campaign_list_clone(
+    stub_id: str,
+    original_list_id: str,
+    campaign_id: str,
+    user_id: str,
+):
+    """Phase 2 of async campaign start (issue #1222).
+
+    ``handle_campaign_start`` creates an empty stub list in ``CLONING_IN_PROGRESS`` and
+    enqueues one of these tasks per stub (on commit). This populates the stub from its
+    original — clone fighters/equipment/stash, book the CLONE/CREATE actions, distribute the
+    campaign starting budget, allocate default resources — then flips it to ``CAMPAIGN_MODE``.
+
+    Idempotent: the whole task runs in one transaction under a ``SELECT FOR UPDATE`` on the
+    stub and returns early unless the stub is still ``CLONING_IN_PROGRESS``. So a Pub/Sub
+    redelivery, or a manual/admin retry after success, is a clean no-op — no double budget,
+    no duplicate fighters or actions. A failure mid-populate rolls the whole transaction back,
+    leaving the stub in ``CLONING_IN_PROGRESS`` for a clean retry, and never affects sibling
+    lists (each has its own task).
+    """
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
+
+    from gyrinx.core.handlers.campaign_operations import _distribute_budget_to_list
+    from gyrinx.core.handlers.list.operations import book_clone_actions
+    from gyrinx.core.models.campaign import Campaign, CampaignListResource
+    from gyrinx.core.models.list import List
+
+    User = get_user_model()
+
+    with transaction.atomic():
+        try:
+            stub = List.objects.select_for_update().get(pk=stub_id)
+        except List.DoesNotExist:
+            logger.warning(
+                f"Campaign clone stub {stub_id} not found; nothing to complete"
+            )
+            return
+
+        if stub.status != List.CLONING_IN_PROGRESS:
+            # Already populated by an earlier delivery / retry, or manually resolved.
+            logger.info(
+                f"Campaign clone stub {stub_id} is {stub.status}, not "
+                f"{List.CLONING_IN_PROGRESS}; skipping (idempotent no-op)"
+            )
+            return
+
+        try:
+            original = List.objects.get(pk=original_list_id)
+            campaign = Campaign.objects.get(pk=campaign_id)
+            user = User.objects.get(pk=user_id)
+        except (List.DoesNotExist, Campaign.DoesNotExist, User.DoesNotExist) as e:
+            # A referenced object is gone (e.g. original deleted). Retrying can't fix
+            # this, so give up rather than have Pub/Sub redeliver forever.
+            logger.error(
+                f"Campaign clone for stub {stub_id} cannot proceed: {e}. "
+                f"Stub left in {List.CLONING_IN_PROGRESS}."
+            )
+            return
+
+        # Populate the stub from the original (fighters, equipment, stash, facts).
+        stub._populate_clone_from(original, owner=stub.owner)
+
+        # Book CLONE (on original) + CREATE (on stub). Runs after populate so the CREATE
+        # deltas read the stub's now-recomputed caches (not zeros).
+        book_clone_actions(user=user, original_list=original, cloned_list=stub)
+
+        # Distribute the campaign starting budget. Price off the ORIGINAL's cost to match
+        # the old synchronous path (campaign_operations.handle_campaign_start).
+        _distribute_budget_to_list(
+            user=user,
+            campaign=campaign,
+            campaign_list=stub,
+            list_cost=original.cost_int(),
+        )
+
+        # Allocate default campaign resources to the stub.
+        for resource_type in campaign.resource_types.all():
+            CampaignListResource.objects.get_or_create(
+                campaign=campaign,
+                resource_type=resource_type,
+                list=stub,
+                defaults={
+                    "amount": resource_type.default_amount,
+                    "owner": campaign.owner,
+                },
+            )
+
+        stub.status = List.CAMPAIGN_MODE
+        stub.save(update_fields=["status", "modified"])
+
+    logger.info(
+        f"Completed campaign clone: stub {stub_id} now CAMPAIGN_MODE (campaign {campaign_id})"
+    )
+
+
+@task
 def refresh_list_facts(list_id: str):
     """
     Refresh the cached facts for a list by recalculating from database.

@@ -63,28 +63,7 @@
                                         </td>
                                     {% endif %}
                                 {% endfor %}
-                                <td class="text-end pe-0">
-                                    {% if campaign.owner == user or list.owner == user %}
-                                        {% if not campaign.is_post_campaign %}
-                                            <div class="dropdown">
-                                                <button class="btn btn-link btn-sm p-0 text-secondary"
-                                                        type="button"
-                                                        data-bs-toggle="dropdown"
-                                                        aria-expanded="false">
-                                                    <i class="bi-three-dots"></i>
-                                                </button>
-                                                <ul class="dropdown-menu dropdown-menu-end">
-                                                    <li>
-                                                        <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                                           class="dropdown-item text-danger">
-                                                            <i class="bi-trash"></i> Remove from Campaign
-                                                        </a>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        {% endif %}
-                                    {% endif %}
-                                </td>
+                                {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
                             </tr>
                         {% endfor %}
                     {% endfor %}
@@ -118,28 +97,7 @@
                                     {% endwith %}
                                 </td>
                             {% endfor %}
-                            <td class="text-end pe-0">
-                                {% if campaign.owner == user or list.owner == user %}
-                                    {% if not campaign.is_post_campaign %}
-                                        <div class="dropdown">
-                                            <button class="btn btn-link btn-sm p-0 text-secondary"
-                                                    type="button"
-                                                    data-bs-toggle="dropdown"
-                                                    aria-expanded="false">
-                                                <i class="bi-three-dots"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li>
-                                                    <a href="{% url 'core:campaign-remove-list' campaign.id list.id %}"
-                                                       class="dropdown-item text-danger">
-                                                        <i class="bi-trash"></i> Remove from Campaign
-                                                    </a>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                            </td>
+                            {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
                         </tr>
                     {% endfor %}
                 {% endif %}

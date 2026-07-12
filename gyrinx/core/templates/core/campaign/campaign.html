@@ -372,12 +372,16 @@
                                                 </td>
                                             </tr>
                                             {% for list in group.lists %}
-                                                {% include "core/campaign/includes/resource_row.html" %}
+                                                {% if not list.is_cloning %}
+                                                    {% include "core/campaign/includes/resource_row.html" %}
+                                                {% endif %}
                                             {% endfor %}
                                         {% endfor %}
                                     {% else %}
                                         {% for list in campaign.lists.all %}
-                                            {% include "core/campaign/includes/resource_row.html" %}
+                                            {% if not list.is_cloning %}
+                                                {% include "core/campaign/includes/resource_row.html" %}
+                                            {% endif %}
                                         {% endfor %}
                                     {% endif %}
                                 </tbody>
@@ -482,4 +486,78 @@
             </section>
         {% endif %}
     </div>
+    {% if has_cloning_lists %}
+        {# Gangs are still joining in the background (#1222). Poll the generic task-group #}
+        {# status endpoint and reload once the group finishes. Progressive enhancement: #}
+        {# without JS the user can just refresh; the "Joining…" placeholders update on load. #}
+        <script>
+            (function () {
+                var url = "{{ cloning_status_url|escapejs }}";
+                var INTERVAL = 4000;
+                var MAX_ELAPSED = 300000; // give up polling after 5 minutes
+                var elapsed = 0;
+                // Reload-loop guard. The page's "Joining…" state comes from List status,
+                // but this poller only sees task-group status; they can disagree — a stub
+                // whose enqueue was lost never appears in the group, and a clone task can
+                // give up on a deleted original (marking itself successful) without flipping
+                // the stub. In those cases the group reads complete+no-failures while a stub
+                // is still joining, so an unconditional reload would loop forever. Reload at
+                // most once per completed group; if it's still joining after that, stop.
+                var RELOAD_GUARD = "campaignCloningReloaded:" + url;
+
+                function schedule() {
+                    elapsed += INTERVAL;
+                    if (elapsed < MAX_ELAPSED) {
+                        window.setTimeout(poll, INTERVAL);
+                    }
+                }
+
+                function poll() {
+                    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+                        .then(function (response) {
+                            return response.ok ? response.json() : null;
+                        })
+                        .then(function (data) {
+                            if (!data) {
+                                schedule();
+                                return;
+                            }
+                            if (data.complete) {
+                                // Every task finished. Reload to show the joined gangs, but
+                                // only if none failed (a failed stub keeps its Retry button)
+                                // and only once — the guard prevents an infinite reload if a
+                                // stub is still joining after the reload.
+                                if (!data.counts || data.counts.failed === 0) {
+                                    var reloaded = false;
+                                    try {
+                                        reloaded = !!sessionStorage.getItem(RELOAD_GUARD);
+                                        if (!reloaded) {
+                                            sessionStorage.setItem(RELOAD_GUARD, "1");
+                                        }
+                                    } catch (e) {
+                                        // sessionStorage unavailable; fall through without a
+                                        // cross-reload guard rather than erroring.
+                                    }
+                                    if (!reloaded) {
+                                        window.location.reload();
+                                    }
+                                }
+                                return;
+                            }
+                            // Work still in flight: clear the guard so the eventual
+                            // completion is allowed to trigger exactly one reload.
+                            try {
+                                sessionStorage.removeItem(RELOAD_GUARD);
+                            } catch (e) {}
+                            schedule();
+                        })
+                        .catch(schedule);
+                }
+
+                // Poll immediately (catches a group that finished between render and now),
+                // then keep polling on the interval until complete.
+                poll();
+            })();
+        </script>
+    {% endif %}
 {% endblock content %}

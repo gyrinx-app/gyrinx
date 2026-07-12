@@ -117,9 +117,11 @@ def campaign_resource_type_new(request, id):
                 resource_type.owner = request.user
                 resource_type.save()
 
-                # If campaign is already started, allocate resources to existing lists
+                # If campaign is already started, allocate resources to existing lists.
+                # active_lists() excludes CLONING_IN_PROGRESS stubs (#1222) — a gang still
+                # joining gets its resources when its Phase 2 clone task finishes.
                 if campaign.is_in_progress:
-                    campaign_lists = list(campaign.lists.all())
+                    campaign_lists = list(campaign.active_lists())
                     ensure_campaign_list_resources(
                         campaign=campaign,
                         resource_types=[resource_type],

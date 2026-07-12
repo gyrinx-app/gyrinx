@@ -30,7 +30,7 @@ def test_list_default_status():
 
 
 @pytest.mark.django_db
-def test_campaign_start_clones_lists():
+def test_campaign_start_clones_lists(django_capture_on_commit_callbacks):
     """Test that starting a campaign clones all associated lists."""
     user = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="Test House")
@@ -66,8 +66,9 @@ def test_campaign_start_clones_lists():
     # Add list to campaign
     campaign.lists.add(original_list)
 
-    # Start the campaign
-    assert campaign.start_campaign()
+    # Start the campaign (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        assert campaign.start_campaign()
 
     # Check that the original list is no longer in the campaign
     assert original_list not in campaign.lists.all()
@@ -183,7 +184,7 @@ def test_campaign_add_lists_filtering(client):
 
 
 @pytest.mark.django_db
-def test_active_campaign_clones_display(client):
+def test_active_campaign_clones_display(client, django_capture_on_commit_callbacks):
     """Test that active campaign clones are shown on the original list."""
     user = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="Test House")
@@ -205,8 +206,9 @@ def test_active_campaign_clones_display(client):
     )
     campaign.lists.add(original_list)
 
-    # Start campaign to create clone
-    campaign.start_campaign()
+    # Start campaign to create clone (Phase 2 clone tasks run on commit)
+    with django_capture_on_commit_callbacks(execute=True):
+        campaign.start_campaign()
 
     # View the original list
     response = client.get(reverse("core:list", args=[original_list.id]))

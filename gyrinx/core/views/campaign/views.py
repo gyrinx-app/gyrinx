@@ -4,12 +4,14 @@ from django.db import models
 from django.db.models import Count, Max, Q
 from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
+from django.utils.http import urlencode
 from django.views import generic
 
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignAsset
 from gyrinx.core.utils import search_queryset
 from gyrinx.core.models.invitation import CampaignInvitation
-from gyrinx.core.models.list import CapturedFighter
+from gyrinx.core.models.list import CapturedFighter, List
 
 from .common import (
     ensure_campaign_list_resources,
@@ -162,13 +164,34 @@ class CampaignDetailView(generic.DetailView):
         campaign = self.object
         user = self.request.user
 
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
+        # Are any member gangs still being cloned in the background (#1222)? Computed from
+        # the prefetched lists (no extra query) so the page can poll for completion.
+        context["has_cloning_lists"] = any(
+            lst.status == List.CLONING_IN_PROGRESS for lst in campaign.lists.all()
+        )
+        if context["has_cloning_lists"]:
+            from gyrinx.core.handlers.campaign_operations import (
+                campaign_start_group_key,
+            )
+
+            # Poll the generic task-group status endpoint for this campaign's clone tasks.
+            context["cloning_status_url"] = (
+                reverse("tasks:group-status")
+                + "?"
+                + urlencode({"group": campaign_start_group_key(campaign.id)})
+            )
+
+        # Check if user can log actions (owner or has a fully-joined list in the campaign,
+        # and the campaign is in progress and not archived). active_lists() excludes
+        # CLONING_IN_PROGRESS stubs (#1222) — a user whose only gang is still joining has no
+        # selectable gang in the action form, so shouldn't be offered the Log Action UI yet.
         if user.is_authenticated:
             context["can_log_actions"] = (
                 campaign.is_in_progress
                 and not campaign.archived
                 and (
-                    campaign.owner == user or campaign.lists.filter(owner=user).exists()
+                    campaign.owner == user
+                    or campaign.active_lists().filter(owner=user).exists()
                 )
             )
         else:
@@ -197,9 +220,11 @@ class CampaignDetailView(generic.DetailView):
 
         # Defensive fix: Ensure all lists have resources for all resource types
         # This handles edge cases where resources weren't created due to race conditions,
-        # transaction failures, or other issues during resource type/list addition
+        # transaction failures, or other issues during resource type/list addition.
+        # Only seed fully-joined gangs — a CLONING_IN_PROGRESS stub gets its resources
+        # when its background clone task finishes (#1222).
         if campaign.is_in_progress:
-            campaign_lists = campaign.lists.all()
+            campaign_lists = campaign.active_lists()
             ensure_campaign_list_resources(
                 campaign=campaign,
                 resource_types=context["resource_types"],
