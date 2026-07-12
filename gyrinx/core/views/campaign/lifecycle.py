@@ -3,17 +3,21 @@
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import Http404, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_POST
 
 from gyrinx import messages
-from gyrinx.core.handlers.campaign_operations import handle_campaign_start
+from gyrinx.core.handlers.campaign_operations import (
+    campaign_start_group_key,
+    handle_campaign_start,
+)
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.list import List
 from gyrinx.core.utils import safe_redirect, toggle_membership
+from gyrinx.tasks.groups import enqueue_in_group
 from gyrinx.tracker import track
 
 
@@ -87,43 +91,6 @@ def start_campaign(request, id):
     )
 
 
-@require_GET
-def campaign_cloning_status(request, id):
-    """Return the background-cloning status of a campaign's member gangs as JSON (#1222).
-
-    Visible to anyone who can load the campaign page (fetched by id, like the detail view).
-    The campaign page polls this so it can swap each gang's "Joining…" placeholder for the
-    finished gang without a full-page reload. Kept deliberately generic — status comes from
-    each list's own ``status`` field — so it can serve other async-progress UIs later.
-
-    Response::
-
-        {
-          "campaign_id": "...",
-          "cloning": true,                       # any gang still joining?
-          "lists": [{"id", "name", "status", "ready"}, ...]
-        }
-    """
-    campaign = get_object_or_404(Campaign, id=id)
-    lists = campaign.lists.all().only("id", "name", "status")
-    entries = [
-        {
-            "id": str(lst.id),
-            "name": lst.name,
-            "status": lst.status,
-            "ready": lst.status != List.CLONING_IN_PROGRESS,
-        }
-        for lst in lists
-    ]
-    return JsonResponse(
-        {
-            "campaign_id": str(campaign.id),
-            "cloning": any(not entry["ready"] for entry in entries),
-            "lists": entries,
-        }
-    )
-
-
 @login_required
 @require_POST
 def retry_campaign_list_clone(request, id, list_id):
@@ -153,13 +120,19 @@ def retry_campaign_list_clone(request, id, list_id):
     original_list_id = str(stub.original_list_id)
     campaign_id = str(campaign.id)
     stub_id = str(stub.id)
+    label = stub.name
     owner_id = str(campaign.owner_id)
+    group_key = campaign_start_group_key(campaign_id)
 
     def _enqueue():
         from gyrinx.core.tasks import complete_campaign_list_clone
 
         try:
-            complete_campaign_list_clone.enqueue(
+            # Same group as the original start, so the poller/status endpoint sees the retry.
+            enqueue_in_group(
+                complete_campaign_list_clone,
+                group_key=group_key,
+                label=label,
                 stub_id=stub_id,
                 original_list_id=original_list_id,
                 campaign_id=campaign_id,

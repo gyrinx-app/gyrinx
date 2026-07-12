@@ -10,10 +10,21 @@ from django.db import transaction
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign, CampaignAction
 from gyrinx.core.models.list import List
+from gyrinx.tasks.groups import enqueue_in_group
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
+
+
+def campaign_start_group_key(campaign_id) -> str:
+    """Task group key for the background gang-clones of one campaign start (#1222).
+
+    Shared by the enqueue (Phase 1), the owner retry endpoint, and the admin re-enqueue
+    action so they all land in the same group, and by the campaign page's poller (via the
+    generic /tasks/status endpoint). The campaign UUID makes the key unguessable.
+    """
+    return f"campaign-start:{campaign_id}"
 
 
 @dataclass
@@ -123,7 +134,9 @@ def handle_campaign_start(
             stub_lists.append(existing)
             # A stub that never finished still needs its Phase 2 task.
             if existing.status == List.CLONING_IN_PROGRESS:
-                to_enqueue.append((str(existing.id), str(original_list.id)))
+                to_enqueue.append(
+                    (str(existing.id), str(original_list.id), existing.name)
+                )
             continue
 
         # Create the stub: a campaign-mode clone row whose contents Phase 2 will fill in.
@@ -145,7 +158,7 @@ def handle_campaign_start(
         )
         campaign.lists.add(stub)
         stub_lists.append(stub)
-        to_enqueue.append((str(stub.id), str(original_list.id)))
+        to_enqueue.append((str(stub.id), str(original_list.id), stub.name))
 
     # Update campaign status to IN_PROGRESS
     campaign.status = Campaign.IN_PROGRESS
@@ -163,13 +176,17 @@ def handle_campaign_start(
     # Enqueue Phase 2 after the transaction commits (see docstring).
     campaign_id = str(campaign.id)
     user_id = str(user.id)
+    group_key = campaign_start_group_key(campaign_id)
 
     def _enqueue():
         from gyrinx.core.tasks import complete_campaign_list_clone
 
-        for stub_id, original_list_id in to_enqueue:
+        for stub_id, original_list_id, label in to_enqueue:
             try:
-                complete_campaign_list_clone.enqueue(
+                enqueue_in_group(
+                    complete_campaign_list_clone,
+                    group_key=group_key,
+                    label=label,
                     stub_id=stub_id,
                     original_list_id=original_list_id,
                     campaign_id=campaign_id,

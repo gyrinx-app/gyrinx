@@ -72,6 +72,25 @@ class TaskExecution(Base):
     )
     task_name = models.CharField(max_length=255, db_index=True)
 
+    # Grouping: a logical operation may fan out into many task runs (e.g. starting a
+    # campaign spawns one clone task per gang). Tag them with a shared group_key so the
+    # generic /tasks/status endpoint can report the group's progress as a whole. group_key
+    # should embed an unguessable component (e.g. a UUID) since the status endpoint is
+    # readable by anyone who knows the key.
+    group_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Logical operation this task run belongs to (e.g. 'campaign-start:<uuid>').",
+    )
+    label = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Human-readable name for this unit of work within its group.",
+    )
+
     # Task arguments (stored as JSON)
     args = models.JSONField(default=list)
     kwargs = models.JSONField(default=dict)

@@ -51,11 +51,6 @@ patterns = [
         name="campaign-start",
     ),
     path(
-        "campaign/<id>/cloning-status",
-        campaign_lifecycle.campaign_cloning_status,
-        name="campaign-cloning-status",
-    ),
-    path(
         "campaign/<id>/list/<list_id>/retry-clone",
         campaign_lifecycle.retry_campaign_list_clone,
         name="campaign-list-retry-clone",

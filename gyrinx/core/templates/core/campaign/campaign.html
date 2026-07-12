@@ -487,15 +487,16 @@
         {% endif %}
     </div>
     {% if has_cloning_lists %}
-        {# Gangs are still joining in the background (#1222). Poll the status endpoint and #}
-        {# reload once they're all ready. Progressive enhancement: without JS the user can #}
-        {# just refresh the page; the "Joining…" placeholders update on their own load. #}
+        {# Gangs are still joining in the background (#1222). Poll the generic task-group #}
+        {# status endpoint and reload once the group finishes. Progressive enhancement: #}
+        {# without JS the user can just refresh; the "Joining…" placeholders update on load. #}
         <script>
             (function () {
-                var url = "{% url 'core:campaign-cloning-status' campaign.id %}";
+                var url = "{{ cloning_status_url }}";
                 var INTERVAL = 4000;
                 var MAX_ELAPSED = 300000; // give up polling after 5 minutes
                 var elapsed = 0;
+                var sawPending = false;
 
                 function schedule() {
                     elapsed += INTERVAL;
@@ -510,8 +511,19 @@
                             return response.ok ? response.json() : null;
                         })
                         .then(function (data) {
-                            if (data && data.cloning === false) {
-                                window.location.reload();
+                            if (!data) {
+                                schedule();
+                                return;
+                            }
+                            if (data.counts && data.counts.pending > 0) {
+                                sawPending = true;
+                            }
+                            if (data.complete) {
+                                // Only reload if we actually watched work finish, so an
+                                // already-complete group on first load doesn't loop.
+                                if (sawPending) {
+                                    window.location.reload();
+                                }
                                 return;
                             }
                             schedule();

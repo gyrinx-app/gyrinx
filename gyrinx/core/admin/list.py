@@ -103,7 +103,9 @@ def reenqueue_campaign_clone(modeladmin, request, queryset):
     CLONING_IN_PROGRESS. Filter ListAdmin by Status = "Joining Campaign" to find them.
     Idempotent: the task no-ops if the stub has since finished (see #1222).
     """
+    from gyrinx.core.handlers.campaign_operations import campaign_start_group_key
     from gyrinx.core.tasks import complete_campaign_list_clone
+    from gyrinx.tasks.groups import enqueue_in_group
 
     stubs = queryset.filter(status=List.CLONING_IN_PROGRESS)
     enqueued = 0
@@ -113,8 +115,12 @@ def reenqueue_campaign_clone(modeladmin, request, queryset):
             skipped += 1
             continue
         # The stub is already committed, so enqueue directly (no on_commit needed). Use
-        # the campaign owner as the acting user (who triggered the start).
-        complete_campaign_list_clone.enqueue(
+        # the campaign owner as the acting user (who triggered the start), and the same
+        # group as the original start so the retry shows up in the status endpoint.
+        enqueue_in_group(
+            complete_campaign_list_clone,
+            group_key=campaign_start_group_key(stub.campaign_id),
+            label=stub.name,
             stub_id=str(stub.id),
             original_list_id=str(stub.original_list_id),
             campaign_id=str(stub.campaign_id),

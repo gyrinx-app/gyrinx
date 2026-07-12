@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Count, Max, Q
 from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views import generic
 
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignAsset
@@ -167,6 +168,17 @@ class CampaignDetailView(generic.DetailView):
         context["has_cloning_lists"] = any(
             lst.status == List.CLONING_IN_PROGRESS for lst in campaign.lists.all()
         )
+        if context["has_cloning_lists"]:
+            from gyrinx.core.handlers.campaign_operations import (
+                campaign_start_group_key,
+            )
+
+            # Poll the generic task-group status endpoint for this campaign's clone tasks.
+            context["cloning_status_url"] = (
+                reverse("tasks:group-status")
+                + "?group="
+                + campaign_start_group_key(campaign.id)
+            )
 
         # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
         if user.is_authenticated:

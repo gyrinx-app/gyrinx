@@ -17,7 +17,10 @@ from django.urls import reverse
 
 from gyrinx.core.admin.list import reenqueue_campaign_clone
 from gyrinx.core.forms.battle import BattleForm
-from gyrinx.core.handlers.campaign_operations import handle_campaign_start
+from gyrinx.core.handlers.campaign_operations import (
+    campaign_start_group_key,
+    handle_campaign_start,
+)
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import Campaign
 from gyrinx.core.models.list import List
@@ -124,31 +127,31 @@ def test_clone_task_failure_rolls_back_and_isolates_siblings(
 def test_cloning_status_endpoint_visible_to_all(
     client, user, make_campaign, make_list, django_capture_on_commit_callbacks
 ):
-    """The poll endpoint reports per-gang status and is readable without logging in."""
+    """The campaign's clone tasks are pollable via the generic group endpoint, readable by anyone.
+
+    Campaign start enqueues one clone task per gang tagged with the campaign's group key. Under
+    the ImmediateBackend the tasks also run inline, so once the on_commit callbacks fire the
+    group reports every unit successful and complete.
+    """
     campaign, _ = _pre_campaign_with_lists(
         make_campaign, make_list, ["Gang 1", "Gang 2"]
     )
-    _start_phase1_only(user, campaign)
 
-    url = reverse("core:campaign-cloning-status", args=[campaign.id])
+    with django_capture_on_commit_callbacks(execute=True):
+        handle_campaign_start(user=user, campaign=campaign)
+
+    group_key = campaign_start_group_key(campaign.id)
+    url = reverse("tasks:group-status") + "?group=" + group_key
 
     # Anonymous client can read it (visible to all, like the campaign page).
     resp = client.get(url)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["cloning"] is True
-    assert len(data["lists"]) == 2
-    assert all(entry["ready"] is False for entry in data["lists"])
-
-    # After the clone tasks run, everything reports ready.
-    for stub in List.objects.filter(campaign=campaign):
-        orig = stub.original_list
-        _run_clone(stub, orig, campaign, user)
-
-    resp = client.get(url)
-    data = resp.json()
-    assert data["cloning"] is False
-    assert all(entry["ready"] is True for entry in data["lists"])
+    assert data["group"] == group_key
+    assert data["counts"]["total"] == 2
+    assert data["counts"]["successful"] == 2
+    assert data["complete"] is True
+    assert {entry["label"] for entry in data["units"]} == {"Gang 1", "Gang 2"}
 
 
 @pytest.mark.django_db
@@ -221,8 +224,13 @@ def test_campaign_page_renders_joining_state(client, user, make_campaign, make_l
 
     # Joining placeholder instead of the rating/stash line.
     assert "Joining Campaign" in content
-    # The poller is wired to the status endpoint.
-    assert reverse("core:campaign-cloning-status", args=[campaign.id]) in content
+    # The poller is wired to the generic task-group status endpoint for this campaign.
+    assert (
+        reverse("tasks:group-status")
+        + "?group="
+        + campaign_start_group_key(campaign.id)
+        in content
+    )
     # The owner sees a Retry action for the stub.
     assert (
         reverse("core:campaign-list-retry-clone", args=[campaign.id, stub.id])
