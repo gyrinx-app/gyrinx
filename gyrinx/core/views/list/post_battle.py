@@ -99,8 +99,14 @@ def _apply(request, lst, fighters, form):
             # Notes first: a fatal injury (below) calls the kill handler, which
             # mutates and saves the fighter — we don't want a later notes save
             # on a now-stale instance to clobber that.
-            new_private = cd.get(f"private_notes_{pk}", "") or ""
-            if new_private != fighter.private_notes:
+            #
+            # Only touch notes if the field was actually submitted. If the roster
+            # changed between GET and POST (a fighter added/removed), its notes
+            # field is absent from the payload and `cleaned_data` would default
+            # it to "" — writing that back would silently wipe existing notes.
+            notes_field = f"private_notes_{pk}"
+            new_private = cd.get(notes_field, "") or ""
+            if notes_field in form.data and new_private != fighter.private_notes:
                 fighter.private_notes = new_private
                 fighter.save_with_user(user=user)
                 log_event(

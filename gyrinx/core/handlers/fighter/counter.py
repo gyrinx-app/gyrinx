@@ -70,7 +70,7 @@ def handle_fighter_adjust_counter(
         fighter_counter.value = new_value
         fighter_counter.save_with_user(user=user)
     else:
-        fighter_counter = ListFighterCounter.objects.create_with_user(
+        ListFighterCounter.objects.create_with_user(
             user=user,
             fighter=fighter,
             counter=counter,

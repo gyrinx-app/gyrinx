@@ -275,6 +275,26 @@ def test_post_battle_battle_url_param_preselects(
 
 
 @pytest.mark.django_db
+def test_post_battle_omitted_notes_field_does_not_wipe_notes(
+    client, user, list_with_campaign, make_list_fighter
+):
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "F1")
+    fighter.private_notes = "<p>Keep me</p>"
+    fighter.save()
+
+    # Submit without this fighter's private_notes field (simulating a roster
+    # that drifted between GET and POST). Notes must be left untouched.
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"xp_{fighter.pk}": "1"},
+    )
+    assert resp.status_code == 302
+    fighter.refresh_from_db()
+    assert fighter.private_notes == "<p>Keep me</p>"
+
+
+@pytest.mark.django_db
 def test_post_battle_malformed_battle_param_is_ignored(
     client, user, list_with_campaign, make_list_fighter
 ):
