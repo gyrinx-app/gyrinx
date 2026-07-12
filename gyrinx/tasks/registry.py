@@ -35,6 +35,7 @@ def _get_tasks() -> list[TaskRoute]:
     if _tasks is None:
         from gyrinx.core.tasks import (
             backfill_pins,
+            complete_campaign_list_clone,
             reconcile_all_lists,
             hello_world,
             propagate_content_cost_change,
@@ -53,6 +54,9 @@ def _get_tasks() -> list[TaskRoute]:
             # the worker room before Pub/Sub redelivers.
             TaskRoute(backfill_pins, ack_deadline=600),
             TaskRoute(reconcile_all_lists, ack_deadline=600),
+            # Cloning a full gang (fighters, equipment, stash, facts recompute) is
+            # many queries; give the worker room before Pub/Sub redelivers.
+            TaskRoute(complete_campaign_list_clone, ack_deadline=600),
         ]
     return _tasks
 
