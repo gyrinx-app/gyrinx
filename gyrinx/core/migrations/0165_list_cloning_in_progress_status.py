@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0163_merge_20260707_2141"),
+        ("core", "0164_battle_state_and_participants"),
     ]
 
     operations = [

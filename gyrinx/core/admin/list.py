@@ -110,6 +110,7 @@ def reenqueue_campaign_clone(modeladmin, request, queryset):
     stubs = queryset.filter(status=List.CLONING_IN_PROGRESS)
     enqueued = 0
     skipped = 0
+    failed = 0
     for stub in stubs:
         if stub.campaign_id is None or stub.original_list_id is None:
             skipped += 1
@@ -117,22 +118,29 @@ def reenqueue_campaign_clone(modeladmin, request, queryset):
         # The stub is already committed, so enqueue directly (no on_commit needed). Use
         # the campaign owner as the acting user (who triggered the start), and the same
         # group as the original start so the retry shows up in the status endpoint.
-        enqueue_in_group(
-            complete_campaign_list_clone,
-            group_key=campaign_start_group_key(stub.campaign_id),
-            label=stub.name,
-            stub_id=str(stub.id),
-            original_list_id=str(stub.original_list_id),
-            campaign_id=str(stub.campaign_id),
-            user_id=str(stub.campaign.owner_id),
-        )
-        enqueued += 1
+        # Isolate failures: a publish error on one stub must not abort the whole batch
+        # (matches the fire-and-forget handling in the start/retry views).
+        try:
+            enqueue_in_group(
+                complete_campaign_list_clone,
+                group_key=campaign_start_group_key(stub.campaign_id),
+                label=stub.name,
+                stub_id=str(stub.id),
+                original_list_id=str(stub.original_list_id),
+                campaign_id=str(stub.campaign_id),
+                user_id=str(stub.campaign.owner_id),
+            )
+            enqueued += 1
+        except Exception:
+            logger.exception("Failed to re-enqueue clone for stub %s", stub.id)
+            failed += 1
 
     ignored = queryset.exclude(status=List.CLONING_IN_PROGRESS).count()
     messages.info(
         request,
         f"Re-enqueued clone for {enqueued} stub(s); skipped {skipped} with a missing "
-        f"campaign/original; ignored {ignored} list(s) that aren't cloning.",
+        f"campaign/original; {failed} failed to enqueue; ignored {ignored} list(s) that "
+        f"aren't cloning.",
     )
 
 

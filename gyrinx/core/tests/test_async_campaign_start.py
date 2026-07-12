@@ -16,6 +16,7 @@ import pytest
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.test import RequestFactory, override_settings
 from django.urls import reverse
+from django.utils.http import urlencode
 
 from gyrinx.core.admin.list import reenqueue_campaign_clone
 from gyrinx.core.forms.battle import BattleForm
@@ -333,12 +334,13 @@ def test_campaign_page_renders_joining_state(client, user, make_campaign, make_l
 
     # Joining placeholder instead of the rating/stash line.
     assert "Joining Campaign" in content
-    # The poller is wired to the generic task-group status endpoint for this campaign.
-    assert (
+    # The poller is wired to the generic task-group status endpoint for this campaign. The
+    # URL is urlencoded (and escapejs'd into the <script>), so assert on the context value
+    # rather than a brittle escaped substring.
+    assert resp.context["cloning_status_url"] == (
         reverse("tasks:group-status")
-        + "?group="
-        + campaign_start_group_key(campaign.id)
-        in content
+        + "?"
+        + urlencode({"group": campaign_start_group_key(campaign.id)})
     )
     # The owner sees a Retry action for the stub.
     assert (
@@ -358,6 +360,56 @@ def test_stub_list_detail_redirects_to_campaign(client, user, make_campaign, mak
     resp = client.get(reverse("core:list", args=[stub.id]))
     assert resp.status_code == 302
     assert resp.url == reverse("core:campaign", args=[campaign.id])
+
+
+@pytest.mark.django_db
+def test_remove_list_blocked_while_cloning(client, user, make_campaign, make_list):
+    """A still-joining stub can't be removed from the campaign until it finishes."""
+    campaign, [orig] = _pre_campaign_with_lists(make_campaign, make_list, ["Gang 1"])
+    _start_phase1_only(user, campaign)
+    stub = List.objects.get(campaign=campaign, status=List.CLONING_IN_PROGRESS)
+
+    client.force_login(user)
+    resp = client.post(
+        reverse("core:campaign-remove-list", args=[campaign.id, stub.id])
+    )
+    assert resp.status_code == 302
+    # The removal was refused: the stub is still attached and still cloning.
+    stub.refresh_from_db()
+    assert stub.status == List.CLONING_IN_PROGRESS
+    assert stub in campaign.lists.all()
+
+
+@pytest.mark.django_db
+def test_resource_type_seeding_skips_cloning_stub(
+    client, user, make_campaign, make_list
+):
+    """Adding a resource type to a running campaign seeds finished gangs, not joining stubs."""
+    from gyrinx.core.models.campaign import CampaignListResource, CampaignResourceType
+
+    campaign, [orig_a, orig_b] = _pre_campaign_with_lists(
+        make_campaign, make_list, ["Gang A", "Gang B"]
+    )
+    _start_phase1_only(user, campaign)
+    stub_a = List.objects.get(campaign=campaign, original_list=orig_a)
+    stub_b = List.objects.get(campaign=campaign, original_list=orig_b)
+    _run_clone(stub_a, orig_a, campaign, user)  # A finishes joining; B is still a stub.
+
+    client.force_login(user)
+    resp = client.post(
+        reverse("core:campaign-resource-type-new", args=[campaign.id]),
+        {"name": "Meat", "description": "", "default_amount": 5},
+    )
+    assert resp.status_code == 302
+
+    rt = CampaignResourceType.objects.get(campaign=campaign, name="Meat")
+    seeded_list_ids = set(
+        CampaignListResource.objects.filter(resource_type=rt).values_list(
+            "list_id", flat=True
+        )
+    )
+    assert stub_a.id in seeded_list_ids  # finished gang got the resource
+    assert stub_b.id not in seeded_list_ids  # still-joining stub was skipped
 
 
 @pytest.mark.django_db

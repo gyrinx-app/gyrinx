@@ -114,8 +114,8 @@ def handle_campaign_start(
     campaign.lists.clear()
 
     stub_lists = []
-    # (stub_id, original_list_id) pairs to enqueue for Phase 2 once we commit.
-    to_enqueue: list[tuple[str, str]] = []
+    # (stub_id, original_list_id, label) entries to enqueue for Phase 2 once we commit.
+    to_enqueue: list[tuple[str, str, str]] = []
 
     for original_list in original_lists:
         # Idempotency: if a clone or in-flight stub already exists for this original

@@ -5,6 +5,7 @@ from django.db.models import Count, Max, Q
 from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
+from django.utils.http import urlencode
 from django.views import generic
 
 from gyrinx.core.models.campaign import Campaign, CampaignAction, CampaignAsset
@@ -176,17 +177,21 @@ class CampaignDetailView(generic.DetailView):
             # Poll the generic task-group status endpoint for this campaign's clone tasks.
             context["cloning_status_url"] = (
                 reverse("tasks:group-status")
-                + "?group="
-                + campaign_start_group_key(campaign.id)
+                + "?"
+                + urlencode({"group": campaign_start_group_key(campaign.id)})
             )
 
-        # Check if user can log actions (owner or has a list in campaign, and campaign is in progress and not archived)
+        # Check if user can log actions (owner or has a fully-joined list in the campaign,
+        # and the campaign is in progress and not archived). active_lists() excludes
+        # CLONING_IN_PROGRESS stubs (#1222) — a user whose only gang is still joining has no
+        # selectable gang in the action form, so shouldn't be offered the Log Action UI yet.
         if user.is_authenticated:
             context["can_log_actions"] = (
                 campaign.is_in_progress
                 and not campaign.archived
                 and (
-                    campaign.owner == user or campaign.lists.filter(owner=user).exists()
+                    campaign.owner == user
+                    or campaign.active_lists().filter(owner=user).exists()
                 )
             )
         else:

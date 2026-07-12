@@ -492,11 +492,10 @@
         {# without JS the user can just refresh; the "Joining…" placeholders update on load. #}
         <script>
             (function () {
-                var url = "{{ cloning_status_url }}";
+                var url = "{{ cloning_status_url|escapejs }}";
                 var INTERVAL = 4000;
                 var MAX_ELAPSED = 300000; // give up polling after 5 minutes
                 var elapsed = 0;
-                var sawPending = false;
 
                 function schedule() {
                     elapsed += INTERVAL;
@@ -515,13 +514,14 @@
                                 schedule();
                                 return;
                             }
-                            if (data.counts && data.counts.pending > 0) {
-                                sawPending = true;
-                            }
                             if (data.complete) {
-                                // Only reload if we actually watched work finish, so an
-                                // already-complete group on first load doesn't loop.
-                                if (sawPending) {
+                                // Every task finished. Reload to show the joined gangs —
+                                // but only if none failed: a fully-successful group means
+                                // the stubs are now real gangs, so the reloaded page won't
+                                // re-render this poller (no loop). If any failed, the stub
+                                // stays "joining" with a Retry button, so reloading would
+                                // loop — stop and leave it for the owner to retry.
+                                if (!data.counts || data.counts.failed === 0) {
                                     window.location.reload();
                                 }
                                 return;
@@ -531,7 +531,9 @@
                         .catch(schedule);
                 }
 
-                window.setTimeout(poll, INTERVAL);
+                // Poll immediately (catches a group that finished between render and now),
+                // then keep polling on the interval until complete.
+                poll();
             })();
         </script>
     {% endif %}

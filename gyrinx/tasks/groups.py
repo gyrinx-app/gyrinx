@@ -43,9 +43,18 @@ def enqueue_in_group(task, *, group_key, label="", **kwargs):
     task_id = getattr(result, "id", None)
     if task_id:
         try:
-            TaskExecution.objects.filter(task_id=task_id).update(
+            updated = TaskExecution.objects.filter(task_id=task_id).update(
                 group_key=group_key, label=label
             )
+            if not updated:
+                # The task_enqueued signal should have created the row synchronously; if it
+                # didn't, the task still runs but won't appear in the group's status rollup.
+                logger.warning(
+                    "No TaskExecution row for task %s to tag with group_key=%s "
+                    "(it won't show in group status)",
+                    task_id,
+                    group_key,
+                )
         except Exception:
             logger.exception(
                 "Failed to tag task %s with group_key=%s", task_id, group_key

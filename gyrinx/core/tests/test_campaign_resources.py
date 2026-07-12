@@ -218,7 +218,9 @@ def test_resource_modification_requires_user(content_house):
 
 
 @pytest.mark.django_db
-def test_resource_type_creation_in_progress_campaign(content_house):
+def test_resource_type_creation_in_progress_campaign(
+    content_house, django_capture_on_commit_callbacks
+):
     """Test creating a resource type when campaign is already in progress."""
     client = Client()
     user = User.objects.create_user(username="testuser", password="testpass")
@@ -230,7 +232,10 @@ def test_resource_type_creation_in_progress_campaign(content_house):
         public=True,
     )
 
-    # Add lists and start campaign
+    # Add lists and start campaign. Run Phase 2 (background cloning) inline so the gangs
+    # finish joining and become real CAMPAIGN_MODE lists before the resource type is added —
+    # a still-joining stub isn't seeded (#1222); it gets its resources when its clone task
+    # completes.
     gang1 = List.objects.create(
         name="Gang One", owner=user, content_house=content_house
     )
@@ -238,7 +243,8 @@ def test_resource_type_creation_in_progress_campaign(content_house):
         name="Gang Two", owner=user, content_house=content_house
     )
     campaign.lists.add(gang1, gang2)
-    campaign.start_campaign()
+    with django_capture_on_commit_callbacks(execute=True):
+        campaign.start_campaign()
 
     # Create resource type after campaign started
     response = client.post(
