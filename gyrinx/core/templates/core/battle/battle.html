@@ -26,17 +26,33 @@
                                class="btn btn-danger btn-sm"><i class="bi-stop-circle"></i> End</a>
                         {% endif %}
                         {% if can_edit or can_unarchive %}
-                            <nav class="nav btn-group flex-nowrap">
+                            <nav class="btn-group flex-nowrap">
                                 {% if can_edit %}
                                     <a href="{% url 'core:battle-edit' battle.id %}"
                                        class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
-                                    <a href="{% url 'core:battle-archive' battle.id %}"
-                                       class="btn btn-secondary btn-sm"><i class="bi-archive"></i> Archive</a>
                                 {% endif %}
-                                {% if can_unarchive %}
-                                    <a href="{% url 'core:battle-archive' battle.id %}"
-                                       class="btn btn-secondary btn-sm"><i class="bi-archive"></i> Unarchive</a>
-                                {% endif %}
+                                <div class="btn-group" role="group">
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm dropdown-toggle"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            aria-label="More options">
+                                        <i class="bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:battle-archive' battle.id %}">
+                                                <i class="bi-{% if battle.archived %}box-arrow-up{% else %}archive{% endif %}"></i>
+                                                {% if battle.archived %}
+                                                    Unarchive
+                                                {% else %}
+                                                    Archive
+                                                {% endif %}
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
                             </nav>
                         {% endif %}
                     </div>
