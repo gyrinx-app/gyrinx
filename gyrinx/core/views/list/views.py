@@ -236,6 +236,26 @@ class ListDetailView(generic.DetailView):
     template_name = "core/list.html"
     context_object_name = "list"
 
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        # A campaign-start stub still being cloned in the background (#1222) has no
+        # fighters/cost yet and isn't safely editable — its status is CLONING_IN_PROGRESS,
+        # so credit-accounting guards would treat it as list-building. Send viewers to the
+        # campaign, which renders its "Joining…" state.
+        if self.object.is_cloning:
+            messages.info(
+                request,
+                f"{self.object.name} is still joining the campaign — it'll be ready in a moment.",
+            )
+            target = (
+                reverse("core:campaign", args=(self.object.campaign_id,))
+                if self.object.campaign_id
+                else reverse("core:lists")
+            )
+            return HttpResponseRedirect(target)
+        context = self.get_context_data(object=self.object)
+        return self.render_to_response(context)
+
     @traced("ListDetailView_get_object")
     def get_object(self):
         """

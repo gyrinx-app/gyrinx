@@ -379,6 +379,16 @@ def campaign_remove_list(request, id, list_id):
         messages.error(request, "Lists cannot be removed from a completed campaign.")
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
 
+    # Don't allow removing a gang that's still joining — its background clone hasn't
+    # finished, and removing a CLONING_IN_PROGRESS stub would skip the archive branch
+    # below and orphan a half-built clone (#1222).
+    if list_to_remove.is_cloning:
+        messages.error(
+            request,
+            "This gang is still joining the campaign. Please wait until it has finished joining before removing it.",
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
     if request.method == "POST":
         # Store list info for logging before removal
         list_name = list_to_remove.name

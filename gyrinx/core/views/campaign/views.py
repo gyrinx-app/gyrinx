@@ -197,9 +197,11 @@ class CampaignDetailView(generic.DetailView):
 
         # Defensive fix: Ensure all lists have resources for all resource types
         # This handles edge cases where resources weren't created due to race conditions,
-        # transaction failures, or other issues during resource type/list addition
+        # transaction failures, or other issues during resource type/list addition.
+        # Only seed fully-joined gangs — a CLONING_IN_PROGRESS stub gets its resources
+        # when its background clone task finishes (#1222).
         if campaign.is_in_progress:
-            campaign_lists = campaign.lists.all()
+            campaign_lists = campaign.active_lists()
             ensure_campaign_list_resources(
                 campaign=campaign,
                 resource_types=context["resource_types"],

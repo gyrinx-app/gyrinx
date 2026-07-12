@@ -138,17 +138,20 @@ class Campaign(AppBase):
         return self.lists.exists()
 
     def active_lists(self):
-        """Member lists that are fully in campaign mode.
+        """Member lists that are ready to use — i.e. not still cloning.
 
-        Excludes campaign-start stubs still being cloned in the background
+        Excludes campaign-start stubs still being populated in the background
         (``CLONING_IN_PROGRESS``, issue #1222). Use this — not ``lists.all()`` — anywhere a
-        member gang must be a real, populated gang: battle participants, action-log targets,
-        asset holders, resource seeding, etc. Detail-page rendering keeps using ``lists`` so
-        it can show the "Joining…" placeholder for stubs.
+        member gang must be real and usable: battle participants, action-log targets, asset
+        holders, resource seeding, etc. Detail-page rendering keeps using ``lists`` so it can
+        show the "Joining…" placeholder for stubs.
+
+        It only removes stubs; it deliberately does not otherwise filter by status, so it
+        never excludes a list that the old ``campaign.lists`` code already accepted.
         """
         from gyrinx.core.models.list import List
 
-        return self.lists.filter(status=List.CAMPAIGN_MODE)
+        return self.lists.exclude(status=List.CLONING_IN_PROGRESS)
 
     def has_cloning_lists(self):
         """True while any member list is still being populated by a background clone task."""

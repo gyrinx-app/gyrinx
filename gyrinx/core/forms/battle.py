@@ -48,9 +48,11 @@ class BattleForm(forms.ModelForm):
             self.instance.campaign = campaign
 
         # Restrict participant/winner choices to the campaign's active gangs.
+        # active_lists() excludes CLONING_IN_PROGRESS stubs (#1222) — a gang still
+        # joining in the background isn't a valid battle participant.
         campaign = campaign or getattr(self.instance, "campaign", None)
         campaign_lists = (
-            campaign.lists.filter(archived_at__isnull=True)
+            campaign.active_lists().filter(archived_at__isnull=True)
             if campaign
             else List.objects.none()
         )
