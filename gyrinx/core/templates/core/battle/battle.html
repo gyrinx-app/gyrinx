@@ -141,7 +141,13 @@
                                                   data-bs-toggle="tooltip"
                                                   title="{{ unit.title }}"
                                                   aria-label="{{ unit.title }}">{{ unit.abbr }}</span>
-                                            {{ unit.amount }}¢
+                                            {% if unit.amount is None %}
+                                                <span bs-tooltip
+                                                      data-bs-toggle="tooltip"
+                                                      title="Unknown until the crew is rolled for selection">?</span>
+                                            {% else %}
+                                                {{ unit.amount }}¢
+                                            {% endif %}
                                         </span>
                                     {% endfor %}
                                     <span class="text-nowrap fw-semibold">
@@ -149,7 +155,13 @@
                                               data-bs-toggle="tooltip"
                                               title="Total crew value (rating + all extras)"
                                               aria-label="Total">Total</span>
-                                        {{ summary.total }}¢
+                                        {% if summary.pending_roll %}
+                                            <span bs-tooltip
+                                                  data-bs-toggle="tooltip"
+                                                  title="Unknown until the crew is rolled for selection">?</span>
+                                        {% else %}
+                                            {{ summary.total }}¢
+                                        {% endif %}
                                     </span>
                                 </div>
                             </div>

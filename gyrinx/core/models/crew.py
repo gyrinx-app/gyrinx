@@ -206,6 +206,12 @@ class Crew(AppBase):
     def is_locked(self):
         return self.status == self.LOCKED
 
+    @property
+    def pending_roll(self):
+        """A draft crew whose random draw hasn't happened yet. Until it's rolled,
+        the random attendees — and therefore the crew's rating — are unknown."""
+        return self.status == self.DRAFT and bool((self.random_spec or "").strip())
+
     def can_manage(self, user):
         """Who may create/edit/lock/delete this crew: the crew's own gang owner
         or the battle's arbitrator (battle owner or campaign owner). Blocked
@@ -394,6 +400,11 @@ class Crew(AppBase):
             "free_total": free_total,
             "has_free": has_free,
             "total": total,
+            # Draft crew with a draw still to roll: the random attendees aren't
+            # known, so rating/total render as "?" and a "+spec from the roll"
+            # row stands in for them.
+            "pending_roll": self.pending_roll,
+            "random_spec": self.random_spec,
         }
 
 

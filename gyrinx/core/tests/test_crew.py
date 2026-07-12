@@ -357,7 +357,7 @@ def test_lock_writes_campaign_action(crew_setup):
     action = CampaignAction.objects.filter(battle=battle).first()
     assert action is not None
     assert action == result.campaign_action
-    assert "Crew locked" in action.description
+    assert "Crew selected" in action.description
 
 
 @pytest.mark.django_db

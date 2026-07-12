@@ -16,7 +16,7 @@
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
                         {% if not crew.is_locked %}
                             <a href="{% url 'core:crew-lock' battle.id crew.id %}"
-                               class="btn btn-primary btn-sm"><i class="bi-dice-5"></i> Lock crew</a>
+                               class="btn btn-primary btn-sm"><i class="bi-dice-5"></i> {% if crew.pending_roll %}Roll for selection{% else %}Confirm crew{% endif %}</a>
                             <a href="{% url 'core:crew-edit' battle.id crew.id %}"
                                class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
                         {% endif %}
@@ -90,12 +90,35 @@
                                 class="text-secondary fs-7">
                                 {% if crew.is_locked %}
                                     No attendees.
+                                {% elif crew.pending_roll %}
+                                    No fighters hand-picked — all drawn from the roll.
                                 {% else %}
-                                    No fighters chosen — the whole gang attends when the crew is locked.
+                                    No fighters chosen — the whole gang attends when the crew is rolled.
                                 {% endif %}
                             </td>
                         </tr>
                     {% endfor %}
+                    {% if receipt.pending_roll %}
+                        <tr>
+                            <td>
+                                <span class="text-secondary"><i class="bi-dice-5"></i> +{{ receipt.random_spec }} from the roll</span>
+                                {% if can_manage %}
+                                    <a href="{% url 'core:crew-lock' battle.id crew.id %}"
+                                       class="btn btn-primary btn-sm ms-2"><i class="bi-dice-5"></i> Roll for selection</a>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      title="Unknown until you roll for selection">?</span>
+                            </td>
+                            <td></td>
+                            <td></td>
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
+                        </tr>
+                    {% endif %}
                     <tr>
                         <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
                             class="pt-3">
@@ -153,7 +176,15 @@
                         </tr>
                         <tr>
                             <td class="text-secondary">Rating</td>
-                            <td class="text-end">{{ receipt.fighters_total }}¢</td>
+                            <td class="text-end">
+                                {% if receipt.pending_roll %}
+                                    <span bs-tooltip
+                                          data-bs-toggle="tooltip"
+                                          title="Unknown until you roll for selection">?</span>
+                                {% else %}
+                                    {{ receipt.fighters_total }}¢
+                                {% endif %}
+                            </td>
                             <td></td>
                             <td></td>
                             {% if receipt.has_free %}<td></td>{% endif %}
@@ -185,7 +216,15 @@
                     <tr class="border-top fs-5 fw-semibold">
                         <td>Total</td>
                         <td class="text-end"
-                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">{{ receipt.total }}¢</td>
+                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
+                            {% if receipt.pending_roll %}
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      title="Unknown until you roll for selection">?</span>
+                            {% else %}
+                                {{ receipt.total }}¢
+                            {% endif %}
+                        </td>
                     </tr>
                 </tfoot>
             </table>

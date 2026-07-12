@@ -145,7 +145,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
         campaign=crew.battle.campaign,
         list=lst,
         battle=crew.battle,
-        description=f"Crew locked for {lst.name}: {crew.method_label()}",
+        description=f"Crew selected for {lst.name}: {crew.method_label()}",
         outcome=outcome,
     )
 

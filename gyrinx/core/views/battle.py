@@ -19,8 +19,10 @@ def _crew_breakdown(receipt):
     always shown so crews line up column-wise; Free only when the crew uses it.
     Each unit carries the full name for a tooltip; the grand total is rendered
     separately (bold)."""
+    # Rating is unknown until a pending random draw is rolled (amount None → "?").
+    rating = None if receipt["pending_roll"] else receipt["fighters_total"]
     rows = [
-        {"abbr": "R", "title": "Rating", "amount": receipt["fighters_total"]},
+        {"abbr": "R", "title": "Rating", "amount": rating},
         {"abbr": "Cr", "title": "Credits", "amount": receipt["credits_total"]},
         {
             "abbr": "A",
@@ -130,6 +132,7 @@ class BattleDetailView(generic.DetailView):
                     "method_label": crew.method_label(),
                     "breakdown": _crew_breakdown(receipt),
                     "total": receipt["total"],
+                    "pending_roll": receipt["pending_roll"],
                 }
             )
         context["crew_summaries"] = crew_summaries

@@ -186,14 +186,19 @@ def crew_lock(request, battle_id, crew_id):
         if result.whole_gang:
             messages.success(
                 request,
-                f"Crew locked: whole gang ({result.chosen_count} fighters).",
+                f"Crew set: whole gang ({result.chosen_count} fighters).",
             )
-        else:
+        elif result.random_count or result.roll_detail:
             detail = f" — {result.roll_detail}" if result.roll_detail else ""
             messages.success(
                 request,
-                f"Crew locked: {result.chosen_count} chosen, "
+                f"Crew rolled: {result.chosen_count} chosen, "
                 f"{result.random_count} random{detail}.",
+            )
+        else:
+            messages.success(
+                request,
+                f"Crew set: {result.chosen_count} chosen.",
             )
         if result.skipped_ineligible:
             n = result.skipped_ineligible
