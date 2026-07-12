@@ -152,7 +152,7 @@
                      // reserialise the HTML on a blanket triggerSave() and log a
                      // spurious "notes changed" — so leave clean editors' textareas
                      // holding their original server-rendered value.
-                     window.tinymce.editors.forEach(function (ed) {
+                     window.tinymce.get().forEach(function (ed) {
                          if (ed.isDirty()) ed.save();
                      });
                  });
