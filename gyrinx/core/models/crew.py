@@ -44,7 +44,9 @@ __all__ = [
 # small dice spec that is rolled once at battle start; the chosen component is
 # the ``chosen_fighters`` M2M. Every scenario's random count fits N / DX / DX+N.
 
-_SPEC_RE = re.compile(r"^(?:(\d+)|[dD]([1-9]\d*)(?:\+(\d+))?)$")
+# Counts must be positive: a flat "0" (or a redundant "+0") would be a no-op
+# draw that still reads as a pending roll, so reject it — blank means "no draw".
+_SPEC_RE = re.compile(r"^(?:([1-9]\d*)|[dD]([1-9]\d*)(?:\+([1-9]\d*))?)$")
 
 
 def validate_selection_spec(value):

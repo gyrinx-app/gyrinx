@@ -35,7 +35,9 @@ def test_validate_selection_spec_accepts_valid(spec):
     validate_selection_spec(spec)  # must not raise
 
 
-@pytest.mark.parametrize("spec", ["x", "D", "3+D3", "-1", "D0", "D3+", "+2", "D-1"])
+@pytest.mark.parametrize(
+    "spec", ["x", "D", "3+D3", "-1", "D0", "D3+", "+2", "D-1", "0", "D6+0"]
+)
 def test_validate_selection_spec_rejects_invalid(spec):
     with pytest.raises(ValidationError):
         validate_selection_spec(spec)
