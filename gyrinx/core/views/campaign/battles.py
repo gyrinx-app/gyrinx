@@ -22,8 +22,10 @@ def campaign_battles(request, id):
     """
     campaign = get_object_or_404(Campaign.objects.prefetch_related("lists"), id=id)
 
+    show_archived = request.GET.get("archived") == "1"
     battles = (
-        campaign.battles.select_related("owner")
+        campaign.battles.filter(archived=show_archived)
+        .select_related("owner")
         .prefetch_related("participants", "winners")
         .order_by("-date", "-created")
     )
@@ -34,5 +36,7 @@ def campaign_battles(request, id):
         {
             "campaign": campaign,
             "battles": battles,
+            "show_archived": show_archived,
+            "archived_count": campaign.battles.filter(archived=True).count(),
         },
     )

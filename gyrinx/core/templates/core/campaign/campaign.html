@@ -418,8 +418,8 @@
                                 {% include "core/includes/battle_summary_card.html" %}
                             {% endfor %}
                         </div>
-                        {% if campaign.battles.count > battles_limit %}
-                            <a href="{% url 'core:campaign-battles' campaign.id %}" class="fs-7">View all {{ campaign.battles.count }} battles →</a>
+                        {% if battles_count > battles_limit %}
+                            <a href="{% url 'core:campaign-battles' campaign.id %}" class="fs-7">View all {{ battles_count }} battles →</a>
                         {% endif %}
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">

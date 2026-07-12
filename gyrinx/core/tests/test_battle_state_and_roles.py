@@ -241,3 +241,143 @@ def test_campaign_page_battles_section_renamed(client, user, campaign):
     content = resp.content.decode()
     assert ">Battles<" in content
     assert "Battle Reports" not in content
+
+
+# --- Permissions: manage vs edit -------------------------------------------
+
+
+@pytest.mark.django_db
+def test_participant_can_manage_but_not_edit(user, make_user, campaign, make_list):
+    player = make_user("player_pm", "password")
+    plist = make_list("Player Gang", owner=player)
+    campaign.lists.add(plist)
+    battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
+    battle.set_participants([plist])
+
+    # A participant gang owner can manage (state + roles + notes) but not edit.
+    assert battle.can_manage(player) is True
+    assert battle.can_add_notes(player) is True
+    assert battle.can_edit(player) is False
+
+
+@pytest.mark.django_db
+def test_participant_manages_via_views(
+    client, user, make_user, campaign, make_list, battle_roles
+):
+    _, attacker, _ = battle_roles
+    player = make_user("player_pv", "password")
+    plist = make_list("Player Gang", owner=player)
+    campaign.lists.add(plist)
+    battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
+    battle.set_participants([plist])
+    bp = BattleParticipant.objects.get(battle=battle, list=plist)
+
+    client.force_login(player)
+
+    # A participant can advance state...
+    resp = client.post(
+        reverse("core:battle-set-state", args=[battle.id]), {"status": "in_progress"}
+    )
+    assert resp.status_code == 302
+    battle.refresh_from_db()
+    assert battle.status == "in_progress"
+
+    # ...and assign roles...
+    resp = client.post(
+        reverse("core:battle-roles-edit", args=[battle.id]),
+        {f"role_{bp.pk}": str(attacker.pk)},
+    )
+    assert resp.status_code == 302
+    bp.refresh_from_db()
+    assert bp.role_option == attacker
+
+    # ...but cannot edit the roster or mission.
+    client.post(
+        reverse("core:battle-edit", args=[battle.id]),
+        {"mission": "HACKED", "participants": [str(plist.id)]},
+    )
+    battle.refresh_from_db()
+    assert battle.mission == "M"
+
+
+@pytest.mark.django_db
+def test_non_participant_player_cannot_manage(user, make_user, campaign, make_list):
+    other = make_user("other_np", "password")
+    other_list = make_list("Other Gang", owner=other)
+    campaign.lists.add(other_list)  # in the campaign, but not in this battle
+    battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
+    assert battle.can_manage(other) is False
+
+
+# --- Archive ---------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_archive_permission_transitions(user, campaign):
+    battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
+    assert battle.can_edit(user) is True
+    assert battle.can_unarchive(user) is False
+
+    battle.archive()
+    assert battle.can_edit(user) is False
+    assert battle.can_manage(user) is False
+    assert battle.can_unarchive(user) is True
+
+    battle.unarchive()
+    assert battle.can_edit(user) is True
+    assert battle.can_unarchive(user) is False
+
+
+@pytest.mark.django_db
+def test_archive_view_hides_battle_and_blocks_manage(client, user, campaign, make_list):
+    client.force_login(user)
+    l1 = make_list("G1")
+    campaign.lists.add(l1)
+    battle = Battle.objects.create(campaign=campaign, mission="Zzsabotage", owner=user)
+    battle.set_participants([l1])
+
+    # Archive via the view.
+    resp = client.post(
+        reverse("core:battle-archive", args=[battle.id]), {"archive": "1"}
+    )
+    assert resp.status_code == 302
+    battle.refresh_from_db()
+    assert battle.archived is True
+    # Consume the "archived" flash message so it doesn't leak onto later pages.
+    client.get(reverse("core:battle", args=[battle.id]))
+
+    # Hidden from the active battle list, visible under ?archived=1.
+    battle_link = reverse("core:battle", args=[battle.id])
+    active = client.get(reverse("core:campaign-battles", args=[campaign.id]))
+    assert battle_link not in active.content.decode()
+    archived = client.get(
+        reverse("core:campaign-battles", args=[campaign.id]) + "?archived=1"
+    )
+    assert battle_link in archived.content.decode()
+
+    # Managing an archived battle is blocked.
+    client.post(
+        reverse("core:battle-set-state", args=[battle.id]), {"status": "in_progress"}
+    )
+    battle.refresh_from_db()
+    assert battle.status == "pre_battle"
+
+    # Unarchive via the view (no archive flag means unarchive).
+    resp = client.post(reverse("core:battle-archive", args=[battle.id]))
+    assert resp.status_code == 302
+    battle.refresh_from_db()
+    assert battle.archived is False
+
+
+@pytest.mark.django_db
+def test_participant_cannot_archive(client, user, make_user, campaign, make_list):
+    player = make_user("player_arch", "password")
+    plist = make_list("Player Gang", owner=player)
+    campaign.lists.add(plist)
+    battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
+    battle.set_participants([plist])
+
+    client.force_login(player)
+    client.post(reverse("core:battle-archive", args=[battle.id]), {"archive": "1"})
+    battle.refresh_from_db()
+    assert battle.archived is False

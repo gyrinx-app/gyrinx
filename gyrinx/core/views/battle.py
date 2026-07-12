@@ -71,22 +71,26 @@ class BattleDetailView(generic.DetailView):
 
         if user.is_authenticated:
             context["can_edit"] = battle.can_edit(user)
+            context["can_manage"] = battle.can_manage(user)
+            context["can_unarchive"] = battle.can_unarchive(user)
             context["can_add_notes"] = battle.can_add_notes(user)
             # Check if user already has a note
             context["user_note"] = battle.notes.filter(owner=user).first()
         else:
             context["can_edit"] = False
+            context["can_manage"] = False
+            context["can_unarchive"] = False
             context["can_add_notes"] = False
             context["user_note"] = None
 
         # Participants grouped by role (Attacker/Defender/unassigned)
         context["participant_groups"] = battle.participants_grouped_by_role()
 
-        # Battle state and, for editors, the valid onward transitions
+        # Battle state and, for people who can manage it, the valid transitions
         context["state_display"] = battle.states.display
         context["state_current"] = battle.states.current
         context["state_transitions"] = (
-            _state_transition_options(battle) if context["can_edit"] else []
+            _state_transition_options(battle) if context["can_manage"] else []
         )
 
         # Get all notes ordered by creation date
@@ -104,10 +108,14 @@ def new_battle(request, campaign_id):
     """Create a new battle for a campaign."""
     campaign = get_object_or_404(Campaign, id=campaign_id)
 
-    # Check permissions - only users with a list in the campaign can create battles
-    if not campaign.lists.filter(owner=request.user).exists():
+    # Check permissions - the campaign arbitrator, or any player with a gang in
+    # the campaign, can create battles.
+    is_arbitrator = campaign.owner_id == request.user.id
+    has_gang = campaign.lists.filter(owner=request.user).exists()
+    if not (is_arbitrator or has_gang):
         messages.error(
-            request, "Only players with a gang in the campaign can create battles."
+            request,
+            "Only the campaign arbitrator or players with a gang in the campaign can create battles.",
         )
         return HttpResponseRedirect(reverse("core:campaign", args=[campaign.id]))
 
@@ -224,8 +232,8 @@ def set_battle_state(request, id):
     """Advance a battle to a new state (pre-battle -> in-progress -> post-battle)."""
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
-    if not battle.can_edit(request.user):
-        messages.error(request, "You don't have permission to edit this battle.")
+    if not battle.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this battle.")
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
@@ -258,8 +266,8 @@ def edit_battle_roles(request, id):
     """Assign roles (e.g. Attacker/Defender) to a battle's participants."""
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
-    if not battle.can_edit(request.user):
-        messages.error(request, "You don't have permission to edit this battle.")
+    if not battle.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this battle.")
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if not battle.participant_entries.exists():
@@ -292,6 +300,57 @@ def edit_battle_roles(request, id):
         request,
         "core/battle/battle_roles.html",
         {"form": form, "battle": battle},
+    )
+
+
+@login_required
+@transaction.atomic
+def archive_battle(request, id):
+    """Archive or unarchive a battle.
+
+    Archiving hides the battle from the campaign's battle lists and blocks
+    further edits until it is unarchived. Only the battle owner or campaign
+    owner can archive or unarchive.
+    """
+    battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
+
+    if not (battle.can_edit(request.user) or battle.can_unarchive(request.user)):
+        messages.error(request, "You don't have permission to archive this battle.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    if request.method == "POST":
+        if request.POST.get("archive") == "1" and battle.can_edit(request.user):
+            battle.archive()
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.ARCHIVE,
+                object=battle,
+                request=request,
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+            messages.success(request, f"Battle '{battle.name}' archived.")
+        elif battle.can_unarchive(request.user):
+            battle.unarchive()
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.RESTORE,
+                object=battle,
+                request=request,
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+            messages.success(request, f"Battle '{battle.name}' unarchived.")
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+    return render(
+        request,
+        "core/battle/battle_archive.html",
+        {"battle": battle},
     )
 
 

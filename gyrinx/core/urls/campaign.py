@@ -268,6 +268,11 @@ patterns = [
         name="battle-set-state",
     ),
     path(
+        "battle/<id>/archive",
+        battle.archive_battle,
+        name="battle-archive",
+    ),
+    path(
         "battle/<battle_id>/notes/add",
         battle.add_battle_note,
         name="battle-note-add",
