@@ -89,3 +89,24 @@ def test_list_clone_matches_legacy(user, make_list):
     request = _request(user)
     context = {"form": form, "list": lst, "error_message": None}
     assert_equivalent("core/list_clone.html", context, request)
+
+
+@pytest.mark.django_db
+def test_campaign_new_matches_legacy(user):
+    from gyrinx.core.forms.campaign import NewCampaignForm
+
+    form = NewCampaignForm()
+    request = _request(user)
+    context = {"form": form, "error_message": None}
+    assert_equivalent("core/campaign/campaign_new.html", context, request)
+
+
+@pytest.mark.django_db
+def test_campaign_edit_matches_legacy(user, make_campaign):
+    from gyrinx.core.forms.campaign import EditCampaignForm
+
+    campaign = make_campaign("Underhive Wars")
+    form = EditCampaignForm(instance=campaign)
+    request = _request(user)
+    context = {"form": form, "campaign": campaign, "error_message": None}
+    assert_equivalent("core/campaign/campaign_edit.html", context, request)
