@@ -10,8 +10,10 @@ from ..design import CsrfInput, PageShell
 from ..elements import Node, fragment
 from ..layout import Page
 from ..registry import register_page
-from ..tags import button, div, form, h1, input_, label, p
+from ..tags import a, button, div, form, h1, i, input_, label, li, p, strong, ul
 from ._shared import back_link, cancel_link
+
+FORM_SHELL = "col-12 col-md-8 col-lg-6 px-0 vstack gap-3"
 
 
 def _refund_checkbox(lst: Any, refund_cost: Any) -> Node:
@@ -55,10 +57,54 @@ def list_fighter_delete(context: dict[str, Any]) -> Page:
                     cancel_link(context, url=reverse("core:list", args=[lst.id])),
                 ],
             ],
-            kind="col-12 col-md-8 col-lg-6 px-0 vstack gap-3",
+            kind=FORM_SHELL,
         ),
     ]
     return Page(
         title=f"Delete - {fighter.fully_qualified_name} - {lst.name}",
+        content=content,
+    )
+
+
+@register_page("core/list_fighter_kill.html")
+def list_fighter_kill(context: dict[str, Any]) -> Page:
+    lst = context["list"]
+    fighter = context["fighter"]
+
+    content = fragment[
+        back_link(context, text=lst.name),
+        PageShell(
+            h1(class_="h3")[f"Kill Fighter: {fighter.fully_qualified_name}"],
+            form(
+                action=reverse("core:list-fighter-kill", args=[lst.id, fighter.id]),
+                method="post",
+            )[
+                CsrfInput(context["request"]),
+                p["Are you sure you want to mark ", strong[fighter.name], " as dead?"],
+                p["This will:"],
+                ul[
+                    li[
+                        "Transfer their equipment to the stash — except gear that stays with the fighter"
+                    ],
+                    li["Set their rating to 0¢"],
+                    li["Mark them as permanently dead"],
+                ],
+                p[
+                    "Dead fighters will remain visible but will no longer contribute to your gang's rating."
+                ],
+                div(class_="mt-3")[
+                    button(type="submit", class_="btn btn-danger")[
+                        i(class_="bi-heartbreak"), " Kill Fighter"
+                    ],
+                    a(href=reverse("core:list", args=[lst.id]), class_="btn btn-link")[
+                        "Cancel"
+                    ],
+                ],
+            ],
+            kind=FORM_SHELL,
+        ),
+    ]
+    return Page(
+        title=f"Kill Fighter - {fighter.fully_qualified_name} - {lst.name}",
         content=content,
     )
