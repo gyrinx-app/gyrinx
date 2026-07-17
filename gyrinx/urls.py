@@ -47,6 +47,11 @@ _debug_urls = [
         name="debug_design_system",
     ),
     path(
+        "_debug/components/",
+        debug_views.debug_components,
+        name="debug_components",
+    ),
+    path(
         "_debug/list/<uuid:list_id>/actions/",
         debug_views.debug_list_actions,
         name="debug_list_actions",

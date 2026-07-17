@@ -175,7 +175,32 @@ ROOT_URLCONF = "gyrinx.urls"
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
+# Shared across the component backend and the Django template backend so a
+# converted page component sees exactly the same context as a legacy template.
+_CONTEXT_PROCESSORS = [
+    "django.template.context_processors.debug",
+    "django.template.context_processors.request",
+    "django.contrib.auth.context_processors.auth",
+    "django.contrib.messages.context_processors.messages",
+    "gyrinx.core.context_processors.site_banner",
+    "gyrinx.core.context_processors.gyrinx_debug",
+    "gyrinx.core.context_processors.notifications",
+    "gyrinx.core.context_processors.impersonation",
+]
+
 TEMPLATES = [
+    {
+        # Gyrinx component system. Listed FIRST so it claims the template names
+        # that have a registered page component; every other name (unconverted
+        # pages, allauth/admin/third-party templates) raises TemplateDoesNotExist
+        # here and falls through to the DjangoTemplates backend below.
+        "BACKEND": "gyrinx.components.backend.Components",
+        "DIRS": [],
+        "APP_DIRS": False,
+        "OPTIONS": {
+            "context_processors": _CONTEXT_PROCESSORS,
+        },
+    },
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
@@ -187,16 +212,7 @@ TEMPLATES = [
         ],
         "APP_DIRS": True,
         "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-                "gyrinx.core.context_processors.site_banner",
-                "gyrinx.core.context_processors.gyrinx_debug",
-                "gyrinx.core.context_processors.notifications",
-                "gyrinx.core.context_processors.impersonation",
-            ],
+            "context_processors": _CONTEXT_PROCESSORS,
         },
     },
 ]

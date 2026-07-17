@@ -49,6 +49,15 @@ def debug_test_plan_index(request):
     )
 
 
+def debug_components(request):
+    """Living gallery of the gyrinx.components design-system components."""
+    if not settings.DEBUG:
+        raise Http404("Debug views are only available in development")
+
+    # Rendered by the component backend (registered under this template name).
+    return render(request, "core/debug/components.html", {})
+
+
 def debug_test_plan_detail(request, filename):
     """Serve raw content of a test plan file."""
     if not settings.DEBUG:
