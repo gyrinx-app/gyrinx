@@ -75,9 +75,17 @@ minimal view changes, fully tested + browser-verified, single PR.
       components correctly (nav, footer flatpages, badges, alerts, tables, icons, etc.)
 - [x] 92 component tests passing; existing view tests still green (no regression)
 - CONVENTION: raw HTML tags use `tag[children]`; design components use call form `C(children)`.
-- [ ] convert real pages (confirm/form/index archetypes) + golden tests
-- [ ] fan out via workflow
-- [ ] fmt + full suite + PR
+- [x] convert real pages + golden tests — 14 committed & golden-verified:
+      list_fighter_delete/kill/mark_captured/restore_confirm, list_archive, list_clone,
+      campaign start/end/reopen/archive/remove_list/new/edit.
+- [x] fan out via workflow — batch1 (3 pages) done & verified; batch2 (6 form pages) running.
+- [x] full suite green (3450 passed, 0 regressions) + e2e view-render test + PR #1997 open.
+- CONVERSION PIPELINE (proven, repeatable): read template+view context → write
+  @register_page component (design components + _shared back/cancel + CsrfInput + reverse) →
+  golden test via testing.assert_equivalent → central `pytest gyrinx/components/`.
+- Remaining: big detail/index pages (list/campaign/pack detail, fighter card subtree) are
+  large multi-include jobs, left for incremental follow-up (documented in PR).
+- [ ] verify batch2, commit, push; continue batches as time allows.
 - [ ] design layer + tests + gallery
 - [ ] Django backend + context processors + tests
 - [ ] layouts (foundation/base/page) as components
