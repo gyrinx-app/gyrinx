@@ -69,3 +69,23 @@ def test_campaign_archive_matches_legacy(user, make_campaign):
     assert_equivalent(
         "core/campaign/campaign_archive.html", {"campaign": campaign}, request
     )
+
+
+@pytest.mark.django_db
+def test_campaign_remove_list_matches_legacy(user, make_campaign, make_list):
+    campaign = make_campaign("Underhive Wars")
+    lst = make_list("Iron Skulls", owner=user)
+    request = _request(user)
+    context = {"campaign": campaign, "list": lst}
+    assert_equivalent("core/campaign/campaign_remove_list.html", context, request)
+
+
+@pytest.mark.django_db
+def test_list_clone_matches_legacy(user, make_list):
+    from gyrinx.core.forms.list import CloneListForm
+
+    lst = make_list("Iron Skulls", owner=user)
+    form = CloneListForm(list_to_clone=lst)
+    request = _request(user)
+    context = {"form": form, "list": lst, "error_message": None}
+    assert_equivalent("core/list_clone.html", context, request)

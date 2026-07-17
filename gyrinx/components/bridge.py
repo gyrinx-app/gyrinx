@@ -25,6 +25,8 @@ __all__ = [
     "credits",
     "user_badge",
     "house_icon",
+    "list_with_theme",
+    "theme_square",
     "badge_icon",
     "get_page_by_url",
     "root_pages",
@@ -126,6 +128,24 @@ def house_icon(house: Any, *, extra_classes: str = "") -> Node:
     from gyrinx.core.templatetags.color_tags import house_icon as _hi
 
     return raw(str(_hi(house, extra_classes)))
+
+
+def list_with_theme(
+    list_obj: Any, *, extra_classes: str = "", square_size: str = "0.8em"
+) -> Node:
+    """Gang name prefixed with its theme-colour swatch (``{% list_with_theme %}``)."""
+    from gyrinx.core.templatetags.color_tags import list_with_theme as _lwt
+
+    return raw(str(_lwt(list_obj, extra_classes, square_size)))
+
+
+def theme_square(
+    list_obj: Any, *, size: str = "0.8em", extra_classes: str = ""
+) -> Node:
+    """Gang theme-colour swatch (``{% theme_square %}``)."""
+    from gyrinx.core.templatetags.color_tags import theme_square as _ts
+
+    return raw(str(_ts(list_obj, size, extra_classes)))
 
 
 def get_page_by_url(url: str) -> Any:
