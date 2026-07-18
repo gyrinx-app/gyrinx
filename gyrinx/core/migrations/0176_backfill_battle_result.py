@@ -23,29 +23,21 @@ def backfill_recorded_winners(apps, schema_editor):
         Battle.objects.filter(pk__in=ids).update(result="winners")
 
 
-def unset_recorded_winners(apps, schema_editor):
-    """Reverse: put the backfilled rows back to unrecorded.
-
-    Only rows this migration could have set are touched — a battle recorded as a
-    draw was not set here, so it keeps its result.
-    """
-    Battle = apps.get_model("core", "Battle")
-    ids = list(
-        Battle.objects.filter(
-            status="post_battle", result="winners", winners__isnull=False
-        )
-        .values_list("pk", flat=True)
-        .distinct()
-    )
-    if ids:
-        Battle.objects.filter(pk__in=ids).update(result="")
-
-
 class Migration(migrations.Migration):
+    """Reversing is a no-op, deliberately.
+
+    Nothing records which rows this backfill touched, so a reverse could only
+    guess from the same "post-battle and has winners" shape — which by then also
+    matches every battle ended *after* this ran, whose result was recorded
+    properly. Clearing those would destroy real data to undo a backfill, so
+    going back simply leaves the values in place. The column itself only
+    disappears when 0169 is reversed.
+    """
+
     dependencies = [
         ("core", "0175_crew_loadout_overrides"),
     ]
 
     operations = [
-        migrations.RunPython(backfill_recorded_winners, unset_recorded_winners),
+        migrations.RunPython(backfill_recorded_winners, migrations.RunPython.noop),
     ]
