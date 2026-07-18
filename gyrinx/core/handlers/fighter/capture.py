@@ -77,6 +77,7 @@ def handle_fighter_capture(
     user,
     fighter: ListFighter,
     capturing_list: List,
+    battle=None,
 ) -> FighterCaptureResult:
     """
     Handle the capture of a fighter by another gang.
@@ -93,6 +94,7 @@ def handle_fighter_capture(
         user: The user performing the capture
         fighter: The fighter being captured
         capturing_list: The gang capturing the fighter
+        battle: Optional Battle to attach the CampaignAction to
 
     Returns:
         FighterCaptureResult with all created objects
@@ -210,6 +212,7 @@ def handle_fighter_capture(
             owner=user,
             campaign=original_list.campaign,
             list=original_list,
+            battle=battle,
             description=description,
             outcome=f"Rating reduced by {total_cost}¢",
         )

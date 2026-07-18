@@ -36,6 +36,7 @@ def handle_credits_modification(
     operation: Literal["add", "spend", "reduce"],
     amount: int,
     description: str = "",
+    battle=None,
 ) -> CreditsModificationResult:
     """
     Handle modification of credits on a list.
@@ -58,6 +59,7 @@ def handle_credits_modification(
         operation: Type of operation ("add", "spend", "reduce")
         amount: Amount of credits to add/spend/reduce (must be >= 0)
         description: Optional description of the reason for the change
+        battle: Optional Battle to attach the CampaignAction to
 
     Returns:
         CreditsModificationResult with all details
@@ -151,6 +153,7 @@ def handle_credits_modification(
             owner=user,
             campaign=lst.campaign,
             list=lst,
+            battle=battle,
             description=action_desc,
             outcome=outcome,
         )
