@@ -7,6 +7,7 @@ from typing import Any
 from django.template.defaultfilters import date as date_filter
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.timezone import template_localtime
 
 from ..design import CsrfInput, PageShell
 from ..elements import Node, fragment, raw
@@ -135,7 +136,7 @@ def edit_list_fighter_counter(context: dict[str, Any]) -> Page:
                     ],
                     div(class_="fs-7")[spend.reason] if spend.reason else None,
                     div(class_="fs-7 text-secondary")[
-                        date_filter(spend.date_spent, "j M Y, H:i")
+                        date_filter(template_localtime(spend.date_spent), "j M Y, H:i")
                     ],
                 ]
                 for spend in spends

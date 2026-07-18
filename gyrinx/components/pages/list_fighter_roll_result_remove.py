@@ -6,6 +6,7 @@ from typing import Any
 
 from django.template.defaultfilters import date as date_filter
 from django.urls import reverse
+from django.utils.timezone import template_localtime
 
 from ..design import Alert, CsrfInput, PageShell
 from ..elements import Node, fragment
@@ -58,7 +59,7 @@ def list_fighter_roll_result_remove(context: dict[str, Any]) -> Page:
                     h5(class_="card-title")[row.name],
                     p(class_="card-text")[tuple(card_text)],
                     p(class_="text-secondary mb-0")[
-                        f"Received: {date_filter(roll_result.date_received, 'M j, Y')}"
+                        f"Received: {date_filter(template_localtime(roll_result.date_received), 'M j, Y')}"
                     ],
                 ]
             ],
