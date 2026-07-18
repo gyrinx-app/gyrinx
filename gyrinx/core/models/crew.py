@@ -539,6 +539,12 @@ class Crew(AppBase):
         the gang carries on changing after the battle — so it is surfaced rather
         than corrected.
         """
+        # Checked before computing the live rating, not inside _drift(): there is
+        # nothing to compare a draft against, and live_rating() batch-loads every
+        # attendee. The battle page asks each crew for its drift, so evaluating it
+        # first would cost that load per draft crew and then discard it.
+        if self.rating_locked is None:
+            return None
         return self._drift(self.live_rating())
 
     def print_fighter_ids(self):

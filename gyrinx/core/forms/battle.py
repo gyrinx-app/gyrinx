@@ -23,8 +23,13 @@ def validate_result_and_winners(result, winners, add_error):
         )
 
 
-def result_field():
-    """The 'how did it finish' radio, shared by the end and edit forms."""
+def result_field(required_error="Choose a result before ending the battle."):
+    """The 'how did it finish' radio, shared by the end and edit forms.
+
+    The edit form passes its own ``required_error``: it records a result for a
+    battle that has *already* ended, so telling the user to choose one "before
+    ending the battle" would be nonsense there.
+    """
     return forms.ChoiceField(
         choices=[
             (Battle.RESULT_WINNERS, "One or more gangs won"),
@@ -32,7 +37,7 @@ def result_field():
         ],
         widget=BsRadioSelect(),
         label="Result",
-        error_messages={"required": "Choose a result before ending the battle."},
+        error_messages={"required": required_error},
     )
 
 
@@ -105,7 +110,9 @@ class BattleForm(forms.ModelForm):
             include_winners and self.instance.status == Battle.POST_BATTLE
         )
         if self.include_result:
-            self.fields["result"] = result_field()
+            self.fields["result"] = result_field(
+                required_error="Choose how this battle finished."
+            )
             self.fields["result"].initial = self.instance.result
 
         # Pre-fill selections when editing an existing battle.

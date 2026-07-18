@@ -1830,6 +1830,38 @@ def test_crew_page_forecast_costs_no_per_fighter_query(
 
 
 @pytest.mark.django_db
+def test_draft_crews_drift_costs_no_queries(crew_setup):
+    """A draft has no snapshot to compare against, so asking for its drift must
+    answer ``None`` outright.
+
+    Computing the live rating first would batch-load every attendee and then
+    throw the answer away — and the battle page asks each crew for its drift, so
+    that load would be paid per draft crew on the page.
+    """
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+        custom_count=3,
+    )
+    # Members are what make the wasted load expensive; an empty crew would be
+    # cheap either way and this guard would pass without proving anything.
+    for fighter in crew_setup["fighters"][:3]:
+        CrewMember.objects.create(
+            crew=crew,
+            list_fighter=fighter,
+            owner=crew_setup["user"],
+            source=CrewMember.CHOSEN,
+        )
+    assert crew.rating_locked is None
+
+    with CaptureQueriesContext(connection) as ctx:
+        assert crew.rating_drift() is None
+    assert len(ctx) == 0
+
+
+@pytest.mark.django_db
 def test_loadouts_page_prefills_from_the_resolver(client, crew_setup, equipped_fighter):
     client.force_login(crew_setup["user"])
     battle = crew_setup["battle"]
