@@ -136,6 +136,12 @@
                                                                       data-bs-toggle="tooltip"
                                                                       title="Unknown until the crew is rolled for selection">?</span>
                                                             {% else %}
+                                                                {% if p.crew.has_drifted %}
+                                                                    <i class="bi-exclamation-triangle text-warning"
+                                                                       bs-tooltip
+                                                                       data-bs-toggle="tooltip"
+                                                                       title="The fighters in this crew have changed since it was locked — they would be {{ p.crew.live_rating }}¢ today"></i>
+                                                                {% endif %}
                                                                 {% credits p.crew.rating %}
                                                             {% endif %}
                                                         </td>

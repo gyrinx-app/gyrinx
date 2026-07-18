@@ -119,11 +119,17 @@ class BattleDetailView(generic.DetailView):
             # full receipt() (which also builds the extras breakdown). A pending
             # draw leaves the rating unknown, so don't compute it at all.
             pending = crew.pending_roll
+            # A locked crew shows the rating it was locked at. The gang carries
+            # on changing, so flag when those fighters no longer add up to it —
+            # the arbitrator can then see the played number is historical.
+            drift = None if pending else crew.rating_drift()
             crew_by_gang[crew.list_id] = {
                 "crew": crew,
                 "method_label": crew.method_label(),
                 "rating": None if pending else crew.rating(),
                 "pending_roll": pending,
+                "has_drifted": bool(drift and drift["has_drifted"]),
+                "live_rating": drift["live"] if drift else None,
             }
 
         is_over = battle.states.current == Battle.POST_BATTLE

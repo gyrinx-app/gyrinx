@@ -10,9 +10,12 @@ lifecycle views.
 import pytest
 from django.apps import apps
 from django.core.exceptions import ValidationError
-from django.urls import reverse
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.urls import NoReverseMatch, reverse
 
 from random import Random
+from uuid import uuid4
 
 from gyrinx.core.handlers.crew import eligible_crew_fighters, handle_crew_lock
 from gyrinx.core.models import Battle
@@ -714,25 +717,11 @@ def test_crew_delete_view(client, crew_setup):
     assert not Crew.objects.filter(id=crew.id).exists()
 
 
-@pytest.mark.django_db
-def test_crew_member_loadout_view(client, crew_setup, equipped_fighter):
-    client.force_login(crew_setup["user"])
-    battle, gang = crew_setup["battle"], crew_setup["gang"]
-    fighter, card = equipped_fighter(gang)
-    crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], status=Crew.LOCKED
-    )
-    member = CrewMember.objects.create(
-        crew=crew, list_fighter=fighter, owner=crew_setup["user"]
-    )
-
-    resp = client.post(
-        reverse("core:crew-member-loadout", args=[battle.id, crew.id, member.id]),
-        {"equipment_set": str(card.id)},
-    )
-    assert resp.status_code == 302
-    member.refresh_from_db()
-    assert member.equipment_set_id == card.id
+def test_post_lock_loadout_editing_is_gone():
+    """A locked crew is frozen: equipment sets are chosen during selection, and
+    there is no route to change one afterwards."""
+    with pytest.raises(NoReverseMatch):
+        reverse("core:crew-member-loadout", args=[uuid4(), uuid4(), uuid4()])
 
 
 @pytest.mark.django_db
@@ -1248,6 +1237,215 @@ def test_switching_method_clears_the_other_methods_fields(client, crew_setup):
     assert crew.random_spec == ""
     assert crew.custom_count == 1
     assert [m.list_fighter_id for m in crew.members.all()] == [fighters[0].id]
+
+
+# --- Equipment sets during selection ----------------------------------------
+
+
+@pytest.mark.django_db
+def test_chosen_fighter_brings_the_selected_equipment_set(
+    client, crew_setup, equipped_fighter
+):
+    """Custom Selection lets the player choose which card each model uses, and
+    that scopes the model's contribution to the crew's rating."""
+    client.force_login(crew_setup["user"])
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    fighter, card = equipped_fighter(gang)
+
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "method": Crew.CUSTOM,
+            "list": str(gang.id),
+            "name": "",
+            "custom_count": "1",
+            "chosen_fighters": [str(fighter.id)],
+            f"equipment_set_{fighter.id}": str(card.id),
+        },
+    )
+    assert resp.status_code == 302
+
+    crew = Crew.objects.get(battle=battle, list=gang)
+    assert crew.members.get().equipment_set_id == card.id
+    # The light kit (145), not the 195 full kit — see the set-scoped cost test.
+    assert crew.rating() == 145
+
+    # Re-opening the recipe shows the card that was chosen.
+    edit_page = client.get(reverse("core:crew-edit", args=[battle.id, crew.id]))
+    assert f'value="{card.id}" selected' in edit_page.content.decode()
+
+    # Switching back to the Default card clears the choice.
+    resp = client.post(
+        reverse("core:crew-edit", args=[battle.id, crew.id]),
+        {
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "1",
+            "chosen_fighters": [str(fighter.id)],
+            f"equipment_set_{fighter.id}": "",
+        },
+    )
+    assert resp.status_code == 302
+    assert crew.members.get().equipment_set_id is None
+    assert crew.rating() == 195
+
+
+@pytest.mark.django_db
+def test_set_select_rendered_only_for_fighters_with_sets(
+    client, crew_setup, equipped_fighter
+):
+    """A fighter with one card has nothing to choose, so gets no select."""
+    client.force_login(crew_setup["user"])
+    fighter, card = equipped_fighter(crew_setup["gang"])
+
+    resp = client.get(_crew_new_url(crew_setup, Crew.CUSTOM))
+    form = resp.context["form"]
+    content = resp.content.decode()
+
+    assert f"equipment_set_{fighter.id}" in form.fields
+    assert f'name="equipment_set_{fighter.id}"' in content
+    assert card.name in content
+    for plain in crew_setup["fighters"]:
+        assert f"equipment_set_{plain.id}" not in form.fields
+
+
+@pytest.mark.django_db
+def test_selection_form_issues_no_per_fighter_set_query(
+    client, crew_setup, equipped_fighter, make_list_fighter
+):
+    """The sets come from ``with_related_data()``'s prefetch: more fighters with
+    sets must not mean more queries."""
+    gang = crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    url = _crew_new_url(crew_setup, Crew.CUSTOM)
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            assert client.get(url).status_code == 200
+        return len(ctx)
+
+    equipped_fighter(gang)
+    render_query_count()  # warm anything cached per process
+    one_fighter_with_sets = render_query_count()
+
+    for i in range(2):
+        fighter = make_list_fighter(gang, f"Carrier {i}")
+        ListFighterEquipmentSet.objects.create(
+            list_fighter=fighter, name=f"Kit {i}", owner=fighter.owner
+        )
+    assert render_query_count() == one_fighter_with_sets
+
+
+@pytest.mark.django_db
+def test_random_draw_also_draws_the_card(crew_setup, equipped_fighter):
+    """Random Selection determines the card at random too — the deck holds one
+    card per model, chosen at random for models with several."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    fighter, card = equipped_fighter(gang)
+    crew = Crew.objects.create(
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        # Six: the five plain gangers plus the specialist, so the fighter with
+        # cards is certain to be drawn.
+        random_spec="6",
+    )
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
+
+    member = crew.members.get(list_fighter=fighter)
+    assert member.equipment_set_id in (None, card.id)
+    # What was drawn is in the campaign log, so the draw can be audited.
+    outcome = CampaignAction.objects.get(battle=battle).outcome
+    drawn_card = card.name if member.equipment_set_id else "Default"
+    assert f"{fighter.name} ({drawn_card})" in outcome
+
+
+# --- Locked rating snapshot and drift ---------------------------------------
+
+
+def _lock_one_fighter_crew(crew_setup):
+    """A locked crew of a single 100¢ fighter."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    return handle_crew_lock(user=crew_setup["user"], crew=crew).crew
+
+
+@pytest.mark.django_db
+def test_locked_rating_stable_when_fighter_gains_equipment(
+    crew_setup, make_equipment, make_weapon_profile
+):
+    """The crew is a historical record: the gang carrying on buying gear must
+    not move the rating of a battle already fought."""
+    crew = _lock_one_fighter_crew(crew_setup)
+    assert crew.rating() == 100
+    assert crew.rating_locked == 100
+    assert [m.rating_locked for m in crew.members.all()] == [100]
+
+    bolter = make_equipment(name="Bolter", cost=35, category="Basic Weapons")
+    make_weapon_profile(bolter)
+    crew_setup["fighters"][0].assign(bolter)
+
+    crew.refresh_from_db()
+    assert crew.rating() == 100
+    assert crew.members.get().rating() == 100
+    assert crew.receipt()["fighters_total"] == 100
+    # The live figure has moved — the snapshot simply doesn't follow it.
+    assert crew.live_rating() == 135
+
+
+@pytest.mark.django_db
+def test_rating_drift_is_detected_and_surfaced(
+    client, crew_setup, make_equipment, make_weapon_profile
+):
+    crew = _lock_one_fighter_crew(crew_setup)
+    bolter = make_equipment(name="Bolter 2", cost=35, category="Basic Weapons")
+    make_weapon_profile(bolter)
+    crew_setup["fighters"][0].assign(bolter)
+    crew.refresh_from_db()
+
+    drift = crew.rating_drift()
+    assert drift == {"locked": 100, "live": 135, "has_drifted": True}
+
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert resp.context["has_drifted"] is True
+    assert "have changed since it was locked" in resp.content.decode()
+
+    # The arbitrator sees it on the battle page too.
+    resp = client.get(reverse("core:battle", args=[battle.id]))
+    crew_row = resp.context["participant_groups"][0]["participants"][0]["crew"]
+    assert crew_row["has_drifted"] is True
+    assert crew_row["rating"] == 100
+    assert crew_row["live_rating"] == 135
+    assert "changed since it was locked" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_crew_locked_before_snapshots_computes_live_and_reports_no_drift(crew_setup):
+    """Crews locked before snapshotting shipped keep ``rating_locked`` NULL —
+    inventing one now would be inventing a moment. They compute live, and have
+    nothing to compare against, so they report no drift."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    assert crew.rating_locked is None
+    assert crew.rating() == 200
+    assert crew.rating() == crew.live_rating()
+    assert crew.rating_drift() is None
+    assert crew.receipt()["drift"] is None
 
 
 # --- Wording ----------------------------------------------------------------

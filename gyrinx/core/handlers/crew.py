@@ -6,10 +6,11 @@ Two pieces of real business logic live here:
   clearing whatever belongs to the *other* methods and reconciling the chosen
   :class:`CrewMember` rows with the player's picks.
 - **Locking a crew** — at battle start we roll the random-selection spec once,
-  draw that many fighters from the eligible pool, add them as members, and
-  record a battle-linked campaign action. There are no re-rolls after this.
+  draw that many fighters (and a card each) from the eligible pool, add them as
+  members, freeze the rating, and record a battle-linked campaign action. There
+  are no re-rolls after this, and a locked crew is not editable.
 
-Simple CRUD (loadouts, extras) stays in the views.
+Simple CRUD (extras) stays in the views.
 """
 
 import logging
@@ -54,6 +55,7 @@ def handle_crew_recipe_save(
     custom_count=None,
     chosen_fighters=None,
     random_spec: str = "",
+    equipment_sets=None,
 ) -> Crew:
     """Save a crew's selection recipe under ``method``.
 
@@ -65,8 +67,10 @@ def handle_crew_recipe_save(
 
     The crew's chosen :class:`CrewMember` rows are then reconciled with
     ``chosen_fighters``: members exist from selection time, not just after the
-    lock. Drawn members are never touched here — only a draft crew is editable,
-    and a draft has none.
+    lock. ``equipment_sets`` maps a chosen fighter's id to the equipment set
+    they bring (``None`` = the Default card) — Custom Selection lets the player
+    choose that, so it is part of the recipe. Drawn members are never touched
+    here — only a draft crew is editable, and a draft has none.
     """
     crew.selection_method = method
     crew.custom_count = custom_count if method in (Crew.CUSTOM, Crew.HYBRID) else None
@@ -80,12 +84,27 @@ def handle_crew_recipe_save(
         else {f.pk for f in (chosen_fighters or []) if f is not None}
     )
 
+    sets = equipment_sets or {}
+
+    def set_id_for(fighter_id):
+        chosen_set = sets.get(fighter_id)
+        return chosen_set.pk if chosen_set is not None else None
+
     chosen = {
         m.list_fighter_id: m for m in crew.members.filter(source=CrewMember.CHOSEN)
     }
     stale = [m.pk for fighter_id, m in chosen.items() if fighter_id not in wanted]
     if stale:
         crew.members.filter(pk__in=stale).delete()
+
+    # A fighter who stays on the crew may have been switched to a different card.
+    for fighter_id, member in chosen.items():
+        if fighter_id not in wanted:
+            continue
+        set_id = set_id_for(fighter_id)
+        if member.equipment_set_id != set_id:
+            member.equipment_set_id = set_id
+            member.save_with_user(user=user)
 
     # Exclude every current member, not just the chosen ones: a fighter already
     # on the crew must not get a second row (unique(crew, list_fighter)).
@@ -97,9 +116,28 @@ def handle_crew_recipe_save(
             crew=crew,
             list_fighter_id=fighter_id,
             source=CrewMember.CHOSEN,
+            equipment_set_id=set_id_for(fighter_id),
         )
 
     return crew
+
+
+@traced("snapshot_crew_rating")
+def snapshot_crew_rating(*, user, crew: Crew) -> int:
+    """Freeze the crew's rating, and each member's share of it, as it stands now.
+
+    Called once, at lock. Sets ``crew.rating_locked`` on the instance (the
+    caller saves it alongside the status change) and persists each member's
+    ``rating_locked``. See :meth:`Crew.rating` for why a virtual overlay object
+    keeps a snapshot: the gang legitimately carries on changing after the
+    battle, and the played crew must not change with it.
+    """
+    ratings = crew.live_member_ratings()
+    for member in crew.members.all():
+        member.rating_locked = ratings.get(member.id, 0)
+        member.save_with_user(user=user)
+    crew.rating_locked = sum(ratings.values())
+    return crew.rating_locked
 
 
 @dataclass
@@ -174,25 +212,39 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
 
     random_count, roll_detail = (0, "")
     drawn = []
+    drawn_cards = []
     if crew.selection_method in (Crew.RANDOM, Crew.HYBRID):
         random_count, roll_detail = roll_selection_spec(crew.random_spec, rng=rng)
         if random_count > 0:
             # Exclude everyone already on the crew, not just the chosen ones:
             # re-drawing a present fighter would trip unique(crew, list_fighter).
             present_ids = set(crew.members.values_list("list_fighter_id", flat=True))
-            pool = list(eligible.exclude(pk__in=present_ids))
+            pool = list(
+                eligible.exclude(pk__in=present_ids).prefetch_related("equipment_sets")
+            )
             rng.shuffle(pool)
             drawn = pool[:random_count]
             for fighter in drawn:
+                # A fighter drawn at random brings a randomly determined card
+                # too — the rulebook's deck holds one card per model, chosen at
+                # random when the model has several. None is the Default card.
+                cards = [None] + list(fighter.equipment_sets.all())
+                equipment_set = rng.choice(cards)
                 CrewMember.objects.create_with_user(
                     user=user,
                     owner_id=lst.owner_id,
                     crew=crew,
                     list_fighter=fighter,
                     source=CrewMember.DRAWN,
+                    equipment_set=equipment_set,
+                )
+                drawn_cards.append(
+                    f"{fighter.name} ({equipment_set.name if equipment_set else 'Default'})"
                 )
 
     crew.status = Crew.LOCKED
+    # Freeze the rating as it stands at battle start (see Crew.rating).
+    snapshot_crew_rating(user=user, crew=crew)
     crew.save_with_user(user=user)
 
     if whole_gang:
@@ -205,6 +257,10 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                 drew += f" ({roll_detail})"
             outcome_parts.append(drew)
         outcome = ", ".join(outcome_parts)
+        # Name what the draw produced, with each drawn model's card, so the
+        # result is auditable after the fact.
+        if drawn_cards:
+            outcome += " — " + ", ".join(drawn_cards)
 
     # Battle.campaign is a non-nullable FK, so there is always a campaign to log.
     campaign_action = CampaignAction.objects.create(

@@ -73,8 +73,24 @@
                 <div>
                     <label class="form-label">{{ form.chosen_fighters.label }}</label>
                     {% if form.has_eligible_fighters %}
-                        {{ form.chosen_fighters }}
-                        <div class="form-text">{{ form.chosen_fighters.help_text }}</div>
+                        <div class="vstack gap-2">
+                            {% for row in form.fighter_rows %}
+                                <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                                    <div class="form-check mb-0">
+                                        {{ row.checkbox.tag }}
+                                        <label class="form-check-label" for="{{ row.checkbox.id_for_label }}">{{ row.checkbox.choice_label }}</label>
+                                    </div>
+                                    {% if row.set_field %}
+                                        <div class="ms-sm-auto">{{ row.set_field }}</div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">
+                            {{ form.chosen_fighters.help_text }}
+                            Fighters with equipment sets also choose which one they bring
+                            to the battle.
+                        </div>
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             <i class="bi-info-circle"></i>

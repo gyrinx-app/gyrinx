@@ -220,6 +220,14 @@ class Crew(AppBase):
         default=DRAFT,
         help_text="Draft while being set up; locked once drawn at battle start.",
     )
+    rating_locked = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The crew's rating at the moment it was locked. Blank on a draft, "
+            "and on crews locked before snapshotting existed."
+        ),
+    )
 
     history = HistoricalRecords()
 
@@ -311,10 +319,10 @@ class Crew(AppBase):
             return f"{label} ({self.custom_count})"
         return label
 
-    # --- rating & credits (computed live, never persisted) ---------------
+    # --- rating & credits (computed live until the lock freezes them) ----
 
     def _attendee_lines(self):
-        """Per-member ``(cost, line)`` for the crew, computed live.
+        """Per-member ``(cost, line)`` for the crew.
 
         Members are the single source of attendance at every stage: the chosen
         ones exist from selection time, the drawn ones join at lock. The
@@ -322,8 +330,12 @@ class Crew(AppBase):
         costs compute from the prefetch cache rather than N+1 per fighter. Each
         member's equipment set is resolved against its fighter's own prefetched
         sets (so the set's assignments also come from the cache); a member with
-        no set is costed at full kit. ``line`` is a small display dict (name,
-        loadout, random flag, ids).
+        no set is costed at their whole kit.
+
+        ``cost`` is the member's locked rating once they have one, falling back
+        to the live figure; ``line["live_rating"]`` always carries what the
+        fighter costs *now*, which is what drift is measured against. ``line``
+        is otherwise a small display dict (name, loadout, random flag, ids).
         """
         from gyrinx.core.models.list import ListFighter
 
@@ -348,15 +360,19 @@ class Crew(AppBase):
                     ),
                     None,
                 )
-            cost = (
+            live_cost = (
                 fighter.cost_int_for_equipment_set(equipment_set)
                 if fighter is not None
                 else 0
+            )
+            cost = (
+                member.rating_locked if member.rating_locked is not None else live_cost
             )
             lines.append(
                 (
                     cost,
                     {
+                        "live_rating": live_cost,
                         "name": fighter.name if fighter is not None else "",
                         "category": (
                             fighter.content_fighter.get_category_display()
@@ -373,14 +389,59 @@ class Crew(AppBase):
         return lines
 
     def rating(self):
-        """The crew's fighter rating, computed live (never reads/writes caches).
+        """The crew's fighter rating: the snapshot taken at lock, or, before
+        there is one, the sum of each member's cost scoped to the equipment set
+        they bring. While the crew is a draft that only means the chosen members
+        — the random component is unknown until the draw at lock, so it isn't
+        counted.
 
-        The sum of each member's cost scoped to their chosen battle equipment
-        set. While the crew is a draft that only means the chosen members (at
-        full kit) — the random component is unknown until the draw at lock, so
-        it isn't counted.
+        ``rating_locked`` is a **read-model snapshot on a virtual overlay
+        object**, not a cost cache. A crew is a historical record of who fought
+        with what, and the gang it was drawn from legitimately keeps changing
+        afterwards (new weapons bought, equipment sets re-cut), which would
+        otherwise silently move the rating of a battle already fought. Nothing
+        here feeds gang rating, credits, the audit stream, or any cached cost:
+        it is written once, by the lock, and never reconciled — where the live
+        figure has since moved, that is reported as drift
+        (:meth:`rating_drift`), not absorbed. Crews locked before this existed
+        have no snapshot and compute live.
         """
-        return sum(cost for cost, _ in self._attendee_lines())
+        if self.rating_locked is not None:
+            return self.rating_locked
+        return self.live_rating()
+
+    def live_rating(self):
+        """The crew's rating recomputed from the fighters as they are *now* —
+        what :meth:`rating` would have said had the crew been locked today."""
+        return sum(line["live_rating"] for _, line in self._attendee_lines())
+
+    def live_member_ratings(self):
+        """Map of member id → that member's live cost. The input to the lock
+        snapshot (see ``handlers.crew.snapshot_crew_rating``)."""
+        return {
+            line["member_id"]: line["live_rating"] for _, line in self._attendee_lines()
+        }
+
+    def _drift(self, live):
+        """Snapshot vs ``live``, or ``None`` when there is no snapshot to
+        compare against (a draft, or a crew locked before snapshotting)."""
+        if self.rating_locked is None:
+            return None
+        return {
+            "locked": self.rating_locked,
+            "live": live,
+            "has_drifted": live != self.rating_locked,
+        }
+
+    def rating_drift(self):
+        """How far the crew's rating has moved since it was locked.
+
+        ``None`` when there is no snapshot to compare against; otherwise
+        ``{"locked", "live", "has_drifted"}``. Drift is expected and allowed —
+        the gang carries on changing after the battle — so it is surfaced rather
+        than corrected.
+        """
+        return self._drift(self.live_rating())
 
     def print_fighter_ids(self):
         """ListFighter ids to print for this crew, or ``None`` for the whole gang.
@@ -409,11 +470,19 @@ class Crew(AppBase):
         and an Extras section. Each fighter contributes to the Rating column;
         each extra falls in the Credits, Allowance, or Free column by how it is
         paid for. Returns the grouped rows, the per-column totals (for the
-        annotated subtotal rows), and the grand total (the crew's credits
-        value). One batch load; computed live, never persisted."""
+        annotated subtotal rows), the grand total (the crew's credits value),
+        and any rating drift since the lock. One batch load; the extras are
+        computed live and only the locked rating is ever persisted."""
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
-        fighters_total = sum(cost for cost, _ in lines)
+        # The locked snapshot is the crew's rating once it has one; before that
+        # the per-member figures are live and sum to the same thing.
+        fighters_total = (
+            self.rating_locked
+            if self.rating_locked is not None
+            else sum(cost for cost, _ in lines)
+        )
+        drift = self._drift(sum(line["live_rating"] for _, line in lines))
 
         extras = []
         credits_total = allowance_total = free_total = 0
@@ -450,6 +519,9 @@ class Crew(AppBase):
             "free_total": free_total,
             "has_free": has_free,
             "total": total,
+            # None when there's no snapshot to compare against; otherwise the
+            # locked and live ratings plus whether they differ.
+            "drift": drift,
             # Draft crew with a draw still to roll: the random attendees aren't
             # known, so rating/total render as "?" and a "+spec from the roll"
             # row stands in for them.
@@ -501,6 +573,14 @@ class CrewMember(AppBase):
         default=CHOSEN,
         help_text="How this fighter joined the crew (audit of the draw).",
     )
+    rating_locked = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "This member's contribution to the crew's rating at the moment the "
+            "crew was locked. Blank until then."
+        ),
+    )
 
     history = HistoricalRecords()
 
@@ -518,8 +598,16 @@ class CrewMember(AppBase):
         return f"{self.list_fighter.name} in {self.crew}"
 
     def rating(self):
-        """This member's contribution to crew rating: the fighter's cost scoped
-        to the chosen equipment set (full kit when no set is chosen)."""
+        """This member's contribution to crew rating: the figure frozen when the
+        crew was locked, or, before that, the fighter's cost scoped to the
+        equipment set they bring (their whole kit when no set is chosen).
+
+        Like :attr:`Crew.rating_locked`, the snapshot is a read-model record of
+        what was fielded — it never feeds gang rating, credits, or any cost
+        cache.
+        """
+        if self.rating_locked is not None:
+            return self.rating_locked
         return self.list_fighter.cost_int_for_equipment_set(self.equipment_set)
 
 

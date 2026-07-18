@@ -4,9 +4,9 @@ The recipe form (:class:`CrewForm`) captures a crew's selection method and the
 numbers it needs while the crew is a draft. The method is URL-driven (see
 ``views/crew.py``) and the form prunes itself to the fields that method
 actually uses — that is what makes a contradictory recipe, such as an entirely
-random selection that also names fighters, impossible to express. Loadout and
-extras forms edit a crew after it has been locked (drawn). None of these touch
-the gang's canonical cost, credits, or audit — a crew is a virtual overlay.
+random selection that also names fighters, impossible to express. The extras
+form adds credit-consuming line items. None of these touch the gang's canonical
+cost, credits, or audit — a crew is a virtual overlay.
 """
 
 from django import forms
@@ -21,6 +21,10 @@ from gyrinx.core.models.crew import (
     split_selection_spec,
 )
 from gyrinx.core.models.list import ListFighter
+
+# The implicit "everything the fighter owns" card, which has no row of its own.
+# Same wording as the fighter card's set switcher.
+DEFAULT_SET_LABEL = "Default (all equipment)"
 
 # The dice offered for a random draw. The model still stores/validates any
 # ``DX`` for data integrity; the UI offers the ones scenarios actually use.
@@ -76,6 +80,42 @@ class CrewFighterChoiceField(forms.ModelMultipleChoiceField):
         )
 
 
+def equipment_set_field_name(fighter_id):
+    """The per-fighter equipment-set field on :class:`CrewForm`."""
+    return f"equipment_set_{fighter_id}"
+
+
+class CrewEquipmentSetField(forms.ModelChoiceField):
+    """One fighter's "which card does this model use?" picker.
+
+    Custom Selection lets the player choose the equipment set each chosen model
+    brings, so the crew form carries one of these per eligible fighter that has
+    named sets. The empty choice is the implicit Default card.
+
+    The choices are set from the sets already loaded by ``with_related_data()``
+    rather than left to ``ModelChoiceIterator``, which calls
+    ``queryset.iterator()`` — that bypasses the prefetch cache and would cost a
+    query per fighter on a form that lists the whole gang. The queryset is still
+    the fighter's own sets, so validation can't accept another fighter's card.
+    """
+
+    def __init__(self, *, fighter, sets, **kwargs):
+        super().__init__(
+            queryset=fighter.equipment_sets.all(),
+            required=False,
+            empty_label=DEFAULT_SET_LABEL,
+            label=f"Equipment set for {fighter.name}",
+            widget=forms.Select(
+                attrs={
+                    "class": "form-select form-select-sm",
+                    "aria-label": f"Equipment set for {fighter.name}",
+                }
+            ),
+            **kwargs,
+        )
+        self.choices = [("", self.empty_label)] + [(s.pk, s.name) for s in sets]
+
+
 class CrewForm(forms.ModelForm):
     """Create or edit a crew's selection recipe for one selection method.
 
@@ -98,7 +138,7 @@ class CrewForm(forms.ModelForm):
     chosen_fighters = CrewFighterChoiceField(
         queryset=ListFighter.objects.none(),
         required=False,
-        widget=forms.CheckboxSelectMultiple(),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
         label="Fighters",
         help_text="Choose the fighters for this crew.",
     )
@@ -143,14 +183,12 @@ class CrewForm(forms.ModelForm):
         )
 
         # with_related_data() so the checkbox labels (category + cached cost)
-        # render without a query per fighter.
+        # and each fighter's equipment sets render without a query per fighter.
         self.eligible = (
             eligible_crew_fighters(self.gang).with_related_data()
             if self.gang is not None
             else ListFighter.objects.none()
         )
-        self.eligible_count = self.eligible.count()
-        self.has_eligible_fighters = self.eligible_count > 0
 
         # Prune to the current method's fields. A Random Selection form has no
         # fighter checkboxes at all, so "all random, but also these three" is
@@ -168,7 +206,27 @@ class CrewForm(forms.ModelForm):
         self.method_intro = METHOD_INTRO[self.method]
 
         if self.shows_picks:
-            self.fields["chosen_fighters"].queryset = self.eligible
+            picks_field = self.fields["chosen_fighters"]
+            picks_field.queryset = self.eligible
+            # Evaluate the eligible fighters once, through the field's own
+            # queryset: the checkboxes, the count, and the equipment-set selects
+            # below then all read from that single load.
+            self.eligible_fighters = list(picks_field.queryset)
+            self.eligible_count = len(self.eligible_fighters)
+            # A fighter with named sets gets a select for which one they bring;
+            # a fighter with only the Default card has nothing to choose.
+            for fighter in self.eligible_fighters:
+                sets = list(fighter.equipment_sets.all())
+                if not sets:
+                    continue
+                self.fields[equipment_set_field_name(fighter.pk)] = (
+                    CrewEquipmentSetField(fighter=fighter, sets=sets)
+                )
+        else:
+            self.eligible_fighters = []
+            self.eligible_count = self.eligible.count()
+        self.has_eligible_fighters = self.eligible_count > 0
+
         if self.shows_count:
             self.fields["custom_count"].help_text = CUSTOM_COUNT_HELP[self.method]
         if self.shows_random:
@@ -176,16 +234,40 @@ class CrewForm(forms.ModelForm):
 
         if self.instance and self.instance.pk:
             if self.shows_picks:
+                chosen = list(self.instance.members.filter(source=CrewMember.CHOSEN))
                 self.fields["chosen_fighters"].initial = [
-                    m.list_fighter_id
-                    for m in self.instance.members.filter(source=CrewMember.CHOSEN)
+                    m.list_fighter_id for m in chosen
                 ]
+                for member in chosen:
+                    field = self.fields.get(
+                        equipment_set_field_name(member.list_fighter_id)
+                    )
+                    if field is not None:
+                        field.initial = member.equipment_set_id
             if self.shows_count:
                 self.fields["custom_count"].initial = self.instance.custom_count
             if self.shows_random:
                 dice, number = split_selection_spec(self.instance.random_spec)
                 self.fields["random_dice"].initial = dice
                 self.fields["random_number"].initial = number
+
+    def fighter_rows(self):
+        """One row per eligible fighter for the template: the checkbox, and the
+        equipment-set select for fighters that have named sets (``None``
+        otherwise). Pairing the two here keeps the template free of dynamic
+        field-name lookups."""
+        if not self.shows_picks:
+            return []
+        rows = []
+        for checkbox in self["chosen_fighters"]:
+            name = equipment_set_field_name(checkbox.data["value"])
+            rows.append(
+                {
+                    "checkbox": checkbox,
+                    "set_field": self[name] if name in self.fields else None,
+                }
+            )
+        return rows
 
     def clean(self):
         cleaned = super().clean()
@@ -202,6 +284,13 @@ class CrewForm(forms.ModelForm):
 
         picks = list(cleaned.get("chosen_fighters") or [])
         count = cleaned.get("custom_count")
+
+        # Which card each chosen fighter brings. Only the ticked fighters count:
+        # a select left set on a fighter the player then unticked is ignored.
+        cleaned["equipment_sets"] = {
+            fighter.pk: cleaned.get(equipment_set_field_name(fighter.pk))
+            for fighter in picks
+        }
 
         if self.method == Crew.RANDOM:
             if not spec:
@@ -245,28 +334,6 @@ class CrewForm(forms.ModelForm):
             self.add_error("chosen_fighters", message)
 
         return cleaned
-
-
-class CrewMemberLoadoutForm(forms.ModelForm):
-    """Pick the equipment set (battle loadout) a crew member brings.
-
-    Choices are the member's fighter's own equipment sets; the empty choice
-    means their full kit. The chosen set scopes this member's contribution to
-    crew rating.
-    """
-
-    class Meta:
-        model = CrewMember
-        fields = ["equipment_set"]
-        labels = {"equipment_set": "Battle loadout"}
-        widgets = {"equipment_set": forms.Select(attrs={"class": "form-select"})}
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        field = self.fields["equipment_set"]
-        field.required = False
-        field.empty_label = "Full kit (all equipment)"
-        field.queryset = self.instance.list_fighter.equipment_sets.all()
 
 
 class CrewLineItemForm(forms.ModelForm):

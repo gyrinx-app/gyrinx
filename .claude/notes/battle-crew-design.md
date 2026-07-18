@@ -93,6 +93,15 @@ CrewLineItem (AppBase)                 # generic credit-consuming line item
   fly, no caches. Line-item costs are shown as a separate "extras" total, not
   folded into fighter rating. Deltas view: crew rating vs gang rating, extras
   total, later vs opposing crews.
+- **As built:** the lock also *snapshots* that rating onto
+  `Crew.rating_locked` / `CrewMember.rating_locked`. The crew is a historical
+  record but the gang it came from keeps changing (new gear bought, sets
+  re-cut), which would otherwise silently move the rating of a battle already
+  fought. This is a read-model snapshot on a virtual overlay object, not a cost
+  cache: it never feeds gang rating, credits, audit, or pins, and it is never
+  reconciled — where the live figure has moved, `crew.rating_drift()` reports
+  it and the crew/battle pages say so. Crews locked before this shipped keep
+  `rating_locked = NULL` and compute live (deliberately not backfilled).
 - Implementation note: a set-scoped fighter cost does not exist yet (#1853
   made sets display-only). Build it as a pure virtual computation from the
   set's assignments; do NOT touch `cost_int()`/caches.
@@ -106,10 +115,13 @@ CrewLineItem (AppBase)                 # generic credit-consuming line item
 2. **Edit** freely while pre-battle.
 3. **Lock at battle start** (explicit action, and/or hooked to the
    pre_battle → in_progress transition): roll `random_spec`, draw that many
-   at random from eligible-not-chosen, create `CrewMember` rows
-   (`was_random=True` for draws), set status LOCKED, write a CampaignAction
-   ("Crew drawn: rolled D3 = 2 → X, Y") linked to the battle.
-4. Locked crews may be manually edited (swap members) but never re-drawn.
+   at random from eligible-not-chosen (drawing each of their cards at random
+   too, per the rulebook's one-card-per-model deck), create `CrewMember` rows
+   (`source=random` for draws), snapshot the rating, set status LOCKED, write a
+   CampaignAction ("Crew drawn: rolled D3 = 2 → X, Y") linked to the battle.
+4. Locked crews are frozen: no re-draw, no member swaps, no loadout edits. The
+   equipment set each model brings is part of *selection*, not something edited
+   afterwards.
 
 ## Crew-only fighters (line of sight, NOT in v1)
 

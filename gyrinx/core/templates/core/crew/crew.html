@@ -33,6 +33,16 @@
                 <span><i class="bi-diagram-3"></i> {{ crew.method_label }}</span>
             </div>
         </div>
+        {% if has_drifted %}
+            <!-- The crew is frozen, but the gang it came from isn't: say so rather
+            than quietly showing a rating the crew never fought at. -->
+            <div class="border rounded p-2 fs-7">
+                <i class="bi-exclamation-triangle text-warning"></i>
+                <strong>The fighters in this crew have changed since it was locked.</strong>
+                The crew was locked at {{ drift.locked }}¢, which is the rating shown below;
+                the same fighters would be {{ drift.live }}¢ today.
+            </div>
+        {% endif %}
         <!-- Crew sheet -->
         <div class="table-responsive">
             <table class="table table-sm table-borderless align-middle mb-0">
@@ -71,20 +81,14 @@
                                     {% if a.loadout %}
                                         · {{ a.loadout }}
                                     {% elif crew.is_locked %}
-                                        · Full kit
-                                    {% endif %}
-                                    {% if can_manage and crew.is_locked %}
-                                        · <a href="{% url 'core:crew-member-loadout' battle.id crew.id a.member_id %}"
-    class="linked-secondary">Loadout</a>
+                                        · Default
                                     {% endif %}
                                 </span>
                             </td>
                             <td class="text-end">{{ a.rating }}¢</td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                     {% empty %}
                         <tr>
@@ -189,7 +193,9 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}<td></td>{% endif %}
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
                         </tr>
                         <tr>
                             <td class="text-secondary">Credits</td>
@@ -203,7 +209,9 @@
                             <td></td>
                             <td></td>
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
-                            {% if receipt.has_free %}<td></td>{% endif %}
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
                         </tr>
                         {% if receipt.has_free %}
                             <tr>

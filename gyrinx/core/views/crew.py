@@ -1,10 +1,11 @@
 """Views for battle crews (#1346).
 
 A crew is a virtual sub-gang assigned to a battle: the recipe (the scenario's
-selection method and its numbers) while it is a draft, then the frozen
-attendees once it is locked at battle start. These views cover the whole
-lifecycle — create, edit, lock, per-member loadout, extras, delete — but never
-write to the gang's canonical cost, credits, or audit stream.
+selection method, its numbers, and the card each chosen fighter brings) while it
+is a draft, then the frozen attendees once it is locked at battle start. These
+views cover the whole lifecycle — create, edit, lock, extras, delete — but never
+write to the gang's canonical cost, credits, or audit stream. Once locked, a
+crew is a historical record and can no longer be edited.
 
 The selection method is URL state (``?method=custom|random|hybrid``): the
 picker is a set of server-rendered links and the server returns the form
@@ -23,14 +24,10 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-from gyrinx.core.forms.crew import (
-    CrewForm,
-    CrewLineItemForm,
-    CrewMemberLoadoutForm,
-)
+from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm
 from gyrinx.core.handlers.crew import handle_crew_lock, handle_crew_recipe_save
 from gyrinx.core.models import Battle
-from gyrinx.core.models.crew import Crew, CrewLineItem, CrewMember
+from gyrinx.core.models.crew import Crew, CrewLineItem
 from gyrinx.core.models.list import List
 
 VALID_METHODS = {value for value, _ in Crew.SELECTION_METHOD_CHOICES}
@@ -138,6 +135,7 @@ def crew_new(request, battle_id):
                         custom_count=form.cleaned_data.get("custom_count"),
                         chosen_fighters=form.cleaned_data.get("chosen_fighters"),
                         random_spec=form.cleaned_data.get("random_spec", ""),
+                        equipment_sets=form.cleaned_data.get("equipment_sets"),
                     )
             except IntegrityError:
                 existing = Crew.objects.filter(battle=battle, list=gang).first()
@@ -172,8 +170,15 @@ def crew_new(request, battle_id):
 
 @login_required
 def crew_detail(request, battle_id, crew_id):
-    """Show a crew as an itemised receipt: attendees, extras, and the total."""
+    """Show a crew as an itemised receipt: attendees, extras, and the total.
+
+    A locked crew shows the rating it was locked at — that is what was played.
+    The gang keeps changing afterwards, so when the fighters no longer add up to
+    that number the page says so rather than quietly showing a different total.
+    """
     crew = _get_crew(battle_id, crew_id)
+    receipt = crew.receipt()
+    drift = receipt["drift"]
 
     return render(
         request,
@@ -182,7 +187,9 @@ def crew_detail(request, battle_id, crew_id):
             "crew": crew,
             "battle": crew.battle,
             "can_manage": crew.can_manage(request.user),
-            "receipt": crew.receipt(),
+            "receipt": receipt,
+            "has_drifted": bool(drift and drift["has_drifted"]),
+            "drift": drift,
         },
     )
 
@@ -226,6 +233,7 @@ def crew_edit(request, battle_id, crew_id):
                 custom_count=form.cleaned_data.get("custom_count"),
                 chosen_fighters=form.cleaned_data.get("chosen_fighters"),
                 random_spec=form.cleaned_data.get("random_spec", ""),
+                equipment_sets=form.cleaned_data.get("equipment_sets"),
             )
             messages.success(request, "Crew updated.")
             return _redirect_crew(crew)
@@ -332,37 +340,6 @@ def crew_delete(request, battle_id, crew_id):
         request,
         "core/crew/crew_delete.html",
         {"crew": crew, "battle": battle},
-    )
-
-
-@login_required
-@transaction.atomic
-def crew_member_loadout(request, battle_id, crew_id, member_id):
-    """Choose the equipment set a locked crew member brings to the battle."""
-    crew = _get_crew(battle_id, crew_id)
-
-    if not crew.can_manage(request.user):
-        messages.error(request, "You don't have permission to edit this crew.")
-        return _redirect_crew(crew)
-
-    member = get_object_or_404(
-        CrewMember.objects.select_related("list_fighter"), id=member_id, crew=crew
-    )
-
-    if request.method == "POST":
-        form = CrewMemberLoadoutForm(request.POST, instance=member)
-        if form.is_valid():
-            member = form.save(commit=False)
-            member.save_with_user(user=request.user)
-            messages.success(request, "Loadout updated.")
-            return _redirect_crew(crew)
-    else:
-        form = CrewMemberLoadoutForm(instance=member)
-
-    return render(
-        request,
-        "core/crew/crew_member_loadout.html",
-        {"form": form, "crew": crew, "battle": crew.battle, "member": member},
     )
 
 
