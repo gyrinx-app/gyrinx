@@ -45,6 +45,72 @@ def eligible_crew_fighters(lst):
     )
 
 
+def eligible_crew_fighters_for_loadouts(lst):
+    """The eligible fighters, loaded for loadout work.
+
+    ``with_related_data()`` brings each fighter's equipment sets *and* their
+    assignments in with the batch, which is what lets the resolver and the
+    set-scoped cost run without a query per fighter.
+    """
+    return eligible_crew_fighters(lst).with_related_data()
+
+
+@traced("crew_whole_gang_projection")
+def crew_whole_gang_projection(crew: Crew):
+    """What locking a whole-gang crew would enrol, as it stands right now.
+
+    One row per currently-eligible fighter — the equipment set they would bring
+    (resolved by :meth:`Crew.resolve_loadout`, the same call the lock makes) and
+    what they would cost under it — plus the total.
+
+    This is a **forecast, not a promise**: the roster resolves at battle start,
+    so a fighter recruited or lost in the meantime legitimately changes it. The
+    total is display-only and is deliberately not ``Crew.rating()``, which stays
+    live-for-drafts / snapshot-once-locked.
+    """
+    rows = []
+    total = 0
+    for fighter in eligible_crew_fighters_for_loadouts(crew.list):
+        equipment_set = crew.resolve_loadout(fighter)
+        rating = fighter.cost_int_for_equipment_set(equipment_set)
+        total += rating
+        rows.append(
+            {
+                "fighter_id": fighter.pk,
+                "name": fighter.name,
+                "category": fighter.content_fighter.get_category_display(),
+                "loadout": equipment_set.name if equipment_set else None,
+                "rating": rating,
+            }
+        )
+    return {"rows": rows, "total": total}
+
+
+@traced("handle_crew_loadouts_save")
+@transaction.atomic
+def handle_crew_loadouts_save(*, user, crew: Crew, choices) -> Crew:
+    """Record which equipment set each fighter should bring at lock.
+
+    ``choices`` maps a fighter id to the set they should bring, with ``None``
+    meaning an explicit choice of the Default card — stored as such, so it
+    sticks even if the fighter's own active set changes afterwards.
+
+    The map is rebuilt from the choices rather than merged into what was there,
+    which is what prunes it: only fighters the form offered (i.e. eligible
+    fighters that have named sets) survive.
+    """
+    crew.loadout_overrides = {
+        str(fighter_id): {
+            Crew.LOADOUT_SET_KEY: (
+                str(chosen_set.pk) if chosen_set is not None else None
+            )
+        }
+        for fighter_id, chosen_set in (choices or {}).items()
+    }
+    crew.save_with_user(user=user)
+    return crew
+
+
 @traced("handle_crew_recipe_save")
 @transaction.atomic
 def handle_crew_recipe_save(
@@ -198,18 +264,30 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     if stale:
         crew.members.filter(pk__in=stale).delete()
 
-    if whole_gang:
-        # Nobody was asked which card each model brings, so each one brings the
-        # set they are already using on their fighter card (None = Default).
-        for fighter in eligible:
-            CrewMember.objects.create_with_user(
-                user=user,
-                owner_id=lst.owner_id,
-                crew=crew,
-                list_fighter=fighter,
-                source=CrewMember.CHOSEN,
-                equipment_set_id=fighter.active_equipment_set_id,
-            )
+    if whole_gang or crew.loadout_overrides:
+        # Loaded once, with each fighter's sets, so resolving the whole roster's
+        # loadouts costs no query per fighter.
+        roster = list(eligible_crew_fighters_for_loadouts(lst))
+        # Self-heal the advisory map while we have the roster in hand: entries
+        # for fighters who are no longer eligible, or for sets that have since
+        # been deleted, are dropped. Persisted by the save below.
+        crew.loadout_overrides = crew.pruned_loadout_overrides(roster)
+
+        if whole_gang:
+            # Nobody was asked at selection time which card each model brings,
+            # so each one brings what the pre-lock forecast showed: the loadout
+            # chosen for this battle, or failing that the set they are already
+            # using on their fighter card (None = Default).
+            for fighter in roster:
+                equipment_set = crew.resolve_loadout(fighter)
+                CrewMember.objects.create_with_user(
+                    user=user,
+                    owner_id=lst.owner_id,
+                    crew=crew,
+                    list_fighter=fighter,
+                    source=CrewMember.CHOSEN,
+                    equipment_set_id=equipment_set.pk if equipment_set else None,
+                )
 
     chosen_count = crew.members.count()
 

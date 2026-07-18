@@ -14,11 +14,17 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import NoReverseMatch, reverse
 
+from itertools import count
 from random import Random
 from uuid import uuid4
 
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
-from gyrinx.core.handlers.crew import eligible_crew_fighters, handle_crew_lock
+from gyrinx.core.handlers.crew import (
+    crew_whole_gang_projection,
+    eligible_crew_fighters,
+    eligible_crew_fighters_for_loadouts,
+    handle_crew_lock,
+)
 from gyrinx.core.models import Battle
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.crew import (
@@ -1507,3 +1513,427 @@ def test_crew_pages_use_rulebook_vocabulary(client, crew_setup):
         content = client.get(url).content.decode().lower()
         assert "hand-pick" not in content, url
         assert "hand pick" not in content, url
+
+
+# --- Pre-lock loadout overrides (whole-gang crews) --------------------------
+#
+# A whole-gang crew has no members until the lock enrols the roster, so the
+# equipment set each model will bring is recorded on the crew as advisory
+# intent. Every read goes through Crew.resolve_loadout, which the forecast on
+# the crew page and the enrolment at lock both use — so the two cannot
+# disagree — and which falls back to the fighter's own kit whenever the stored
+# entry no longer makes sense.
+
+
+@pytest.fixture
+def carded_fighter(make_list_fighter, make_equipment, make_weapon_profile):
+    """Build a fighter with a weapon, some gear, and a set holding the weapon
+    only. Unlike ``equipped_fighter`` this can be called several times in one
+    test — each call makes its own equipment, so nothing collides on
+    ``unique(name, category)``."""
+    made = count()
+
+    def build(gang):
+        i = next(made)
+        fighter = make_list_fighter(gang, f"Carrier {i}")
+        gun = make_equipment(name=f"Crew Gun {i}", cost=30, category="Basic Weapons")
+        make_weapon_profile(gun)
+        gear = make_equipment(name=f"Crew Gear {i}", cost=20, category="Armour")
+        a_gun = fighter.assign(gun)
+        fighter.assign(gear)
+        card = ListFighterEquipmentSet.objects.create(
+            list_fighter=fighter, name=f"Kit {i}", owner=fighter.owner
+        )
+        card.assignments.set([a_gun])
+        return fighter, card
+
+    return build
+
+
+def _loadout_crew(crew_setup, **kwargs):
+    """A draft whole-gang crew: Custom Selection, no number, nobody chosen."""
+    return Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        **kwargs,
+    )
+
+
+def _override(fighter, equipment_set):
+    """The stored shape for one fighter (``None`` = explicitly Default)."""
+    return {
+        str(fighter.pk): {
+            "equipment_set": str(equipment_set.pk) if equipment_set else None
+        }
+    }
+
+
+def _loaded(fighter):
+    """The fighter as the resolver sees it — sets read from the prefetch."""
+    return ListFighter.objects.with_related_data().get(pk=fighter.pk)
+
+
+@pytest.mark.django_db
+def test_resolve_loadout_falls_back_to_the_fighters_own_set(
+    crew_setup, equipped_fighter
+):
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    fighter.active_equipment_set = card
+    fighter.save()
+    crew = _loadout_crew(crew_setup)
+
+    assert crew.resolve_loadout(_loaded(fighter)) == card
+
+
+@pytest.mark.django_db
+def test_resolve_loadout_override_wins(crew_setup, equipped_fighter):
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    # The fighter's own card is Default; the override says otherwise.
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, card))
+
+    assert crew.resolve_loadout(_loaded(fighter)) == card
+
+
+@pytest.mark.django_db
+def test_resolve_loadout_stored_null_is_an_explicit_default(
+    crew_setup, equipped_fighter
+):
+    """An explicit Default sticks even though the fighter's own card is a set —
+    that is the point of a per-battle override."""
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    fighter.active_equipment_set = card
+    fighter.save()
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, None))
+
+    assert crew.resolve_loadout(_loaded(fighter)) is None
+
+
+@pytest.mark.django_db
+def test_resolve_loadout_falls_back_when_the_set_was_deleted(
+    crew_setup, equipped_fighter
+):
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    other = ListFighterEquipmentSet.objects.create(
+        list_fighter=fighter, name="Heavy kit", owner=fighter.owner
+    )
+    fighter.active_equipment_set = other
+    fighter.save()
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, card))
+    card.delete()
+
+    # No error: the intent can't be honoured, so the fighter's own kit stands.
+    assert crew.resolve_loadout(_loaded(fighter)) == other
+
+
+@pytest.mark.django_db
+def test_resolve_loadout_rejects_another_fighters_set(crew_setup, equipped_fighter):
+    """A stale or forged id pointing at someone else's card is not honoured."""
+    gang = crew_setup["gang"]
+    fighter, card = equipped_fighter(gang)
+    intruder = crew_setup["fighters"][0]
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(intruder, card))
+
+    assert crew.resolve_loadout(_loaded(intruder)) is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        None,
+        [],
+        "nonsense",
+        {"not-a-uuid": {"equipment_set": "also-not-a-uuid"}},
+        {"FIGHTER": "a bare string"},
+        {"FIGHTER": []},
+        {"FIGHTER": {"something_else": 1}},
+        {"FIGHTER": {"equipment_set": "not-a-uuid"}},
+        {"FIGHTER": {"equipment_set": 42}},
+    ],
+)
+def test_resolve_loadout_tolerates_malformed_overrides(
+    crew_setup, equipped_fighter, overrides
+):
+    """Whatever the JSON column holds, resolving must not raise: it falls back
+    to the fighter's own kit."""
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    fighter.active_equipment_set = card
+    fighter.save()
+    if isinstance(overrides, dict):
+        overrides = {
+            (str(fighter.pk) if k == "FIGHTER" else k): v for k, v in overrides.items()
+        }
+    crew = _loadout_crew(crew_setup)
+    # Assigned rather than saved: the column is NOT NULL, so a None can only
+    # arrive in memory — but the resolver must survive it either way.
+    crew.loadout_overrides = overrides
+
+    assert crew.resolve_loadout(_loaded(fighter)) == card
+
+
+@pytest.mark.django_db
+def test_ineligible_fighters_override_is_never_read(crew_setup, equipped_fighter):
+    """An entry for someone who can no longer take part simply never comes up:
+    they aren't in the eligible roster the forecast and the lock work from."""
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, card))
+    fighter.archived = True
+    fighter.save()
+
+    projection = crew_whole_gang_projection(crew)
+    assert fighter.id not in [row["fighter_id"] for row in projection["rows"]]
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+    assert not crew.members.filter(list_fighter=fighter).exists()
+
+
+@pytest.mark.django_db
+def test_pruned_loadout_overrides_drops_stale_entries(crew_setup, carded_fighter):
+    gang = crew_setup["gang"]
+    keeper, keeper_card = carded_fighter(gang)
+    defaulted = crew_setup["fighters"][0]
+    gone, gone_card = carded_fighter(gang)
+
+    crew = _loadout_crew(
+        crew_setup,
+        loadout_overrides={
+            **_override(keeper, keeper_card),
+            # Explicit Default: kept.
+            **_override(defaulted, None),
+            # Set deleted below: dropped.
+            **_override(gone, gone_card),
+            # A fighter who has left the roster: dropped.
+            **_override(crew_setup["fighters"][1], None),
+            # Junk: dropped.
+            "not-a-fighter": {"equipment_set": None},
+        },
+    )
+    gone_card.delete()
+    crew_setup["fighters"][1].delete()
+
+    roster = list(eligible_crew_fighters_for_loadouts(gang))
+    pruned = crew.pruned_loadout_overrides(roster)
+
+    assert pruned == {
+        str(keeper.pk): {"equipment_set": str(keeper_card.pk)},
+        str(defaulted.pk): {"equipment_set": None},
+    }
+
+
+@pytest.mark.django_db
+def test_lock_prunes_the_overrides(crew_setup, equipped_fighter):
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(
+        crew_setup,
+        loadout_overrides={
+            **_override(fighter, card),
+            "not-a-fighter": {"equipment_set": None},
+        },
+    )
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {str(fighter.pk): {"equipment_set": str(card.pk)}}
+
+
+@pytest.mark.django_db
+def test_lock_enrols_exactly_what_the_forecast_showed(crew_setup, carded_fighter):
+    """The forecast and the lock run the same resolver, so what the crew page
+    promised is what the confirmed crew gets."""
+    gang = crew_setup["gang"]
+    overridden, overridden_card = carded_fighter(gang)
+    own_kit, own_card = carded_fighter(gang)
+    own_kit.active_equipment_set = own_card
+    own_kit.save()
+    explicit_default, explicit_card = carded_fighter(gang)
+    explicit_default.active_equipment_set = explicit_card
+    explicit_default.save()
+
+    crew = _loadout_crew(
+        crew_setup,
+        loadout_overrides={
+            **_override(overridden, overridden_card),
+            **_override(explicit_default, None),
+        },
+    )
+
+    forecast = {
+        row["fighter_id"]: row["loadout"]
+        for row in crew_whole_gang_projection(crew)["rows"]
+    }
+    assert forecast[overridden.id] == overridden_card.name
+    assert forecast[own_kit.id] == own_card.name
+    assert forecast[explicit_default.id] is None
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    enrolled = {
+        m.list_fighter_id: (m.equipment_set.name if m.equipment_set else None)
+        for m in crew.members.select_related("equipment_set")
+    }
+    assert enrolled == forecast
+
+
+@pytest.mark.django_db
+def test_crew_page_forecasts_the_whole_gang(client, crew_setup, equipped_fighter):
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, card))
+
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert resp.status_code == 200
+    projection = resp.context["projection"]
+    content = resp.content.decode()
+
+    # Every eligible fighter is forecast, with the resolved set and its cost.
+    assert len(projection["rows"]) == 6  # five plain gangers plus the specialist
+    assert projection["total"] == 5 * 100 + 145  # the light kit, not the 195 full kit
+    assert resp.context["provisional_total"] == projection["total"]
+    assert card.name in content
+    assert "645¢" in content
+    # Labelled as a forecast, not as the crew's rating.
+    assert "Provisional" in content
+    assert crew.rating() == 0
+    # And the way to change it.
+    assert reverse("core:crew-loadouts", args=[battle.id, crew.id]) in content
+
+
+@pytest.mark.django_db
+def test_crew_page_forecast_costs_no_per_fighter_query(
+    client, crew_setup, equipped_fighter, make_list_fighter
+):
+    """The forecast reads sets and assignments from ``with_related_data()``'s
+    prefetch: more fighters must not mean more queries."""
+    gang = crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    crew = _loadout_crew(crew_setup)
+    url = reverse("core:crew", args=[crew_setup["battle"].id, crew.id])
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            assert client.get(url).status_code == 200
+        return len(ctx)
+
+    equipped_fighter(gang)
+    render_query_count()  # warm anything cached per process
+    baseline = render_query_count()
+
+    for i in range(2):
+        extra = make_list_fighter(gang, f"Carrier {i}")
+        ListFighterEquipmentSet.objects.create(
+            list_fighter=extra, name=f"Kit {i}", owner=extra.owner
+        )
+    assert render_query_count() == baseline
+
+
+@pytest.mark.django_db
+def test_loadouts_page_prefills_from_the_resolver(client, crew_setup, equipped_fighter):
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, card))
+
+    resp = client.get(reverse("core:crew-loadouts", args=[battle.id, crew.id]))
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    # The stored choice is selected; fighters with no sets have no select.
+    assert f'value="{card.id}" selected' in content
+    assert f'name="{equipment_set_field_name(fighter.id)}"' in content
+    for plain in crew_setup["fighters"]:
+        assert f'name="{equipment_set_field_name(plain.id)}"' not in content
+
+
+@pytest.mark.django_db
+def test_loadouts_page_saves_choices(client, crew_setup, equipped_fighter):
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup)
+    url = reverse("core:crew-loadouts", args=[battle.id, crew.id])
+
+    resp = client.post(url, {equipment_set_field_name(fighter.id): str(card.id)})
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {str(fighter.id): {"equipment_set": str(card.id)}}
+
+    # Choosing Default is recorded as an explicit choice, not as "no answer":
+    # it must survive the fighter's own card changing afterwards.
+    resp = client.post(url, {equipment_set_field_name(fighter.id): ""})
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {str(fighter.id): {"equipment_set": None}}
+    fighter.active_equipment_set = card
+    fighter.save()
+    assert crew.resolve_loadout(_loaded(fighter)) is None
+
+
+@pytest.mark.django_db
+def test_loadouts_page_rejects_another_fighters_set(client, crew_setup, carded_fighter):
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    fighter, card = carded_fighter(crew_setup["gang"])
+    other, other_card = carded_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup)
+
+    resp = client.post(
+        reverse("core:crew-loadouts", args=[battle.id, crew.id]),
+        {equipment_set_field_name(fighter.id): str(other_card.id)},
+    )
+    # The field's queryset is the fighter's own sets, so this can't validate.
+    assert resp.status_code == 200
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {}
+
+
+@pytest.mark.django_db
+def test_loadouts_page_refused_when_locked(client, crew_setup, equipped_fighter):
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup, status=Crew.LOCKED)
+
+    url = reverse("core:crew-loadouts", args=[battle.id, crew.id])
+    assert client.get(url).status_code == 302
+    resp = client.post(url, {equipment_set_field_name(fighter.id): str(card.id)})
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {}
+
+
+@pytest.mark.django_db
+def test_loadouts_page_refused_for_non_manager(
+    client, crew_setup, equipped_fighter, make_user
+):
+    stranger = make_user("interloper", "pw")
+    client.force_login(stranger)
+    battle = crew_setup["battle"]
+    fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _loadout_crew(crew_setup)
+
+    url = reverse("core:crew-loadouts", args=[battle.id, crew.id])
+    assert client.get(url).status_code == 302
+    assert (
+        client.post(
+            url, {equipment_set_field_name(fighter.id): str(card.id)}
+        ).status_code
+        == 302
+    )
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {}
+
+
+@pytest.mark.django_db
+def test_loadouts_page_sends_chosen_crews_to_the_recipe(client, crew_setup):
+    """Chosen fighters pick their card on the crew form itself, and drawn ones
+    get theirs at random — so only whole-gang crews need this screen."""
+    client.force_login(crew_setup["user"])
+    battle = crew_setup["battle"]
+    crew = _loadout_crew(crew_setup, custom_count=1)
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    resp = client.get(reverse("core:crew-loadouts", args=[battle.id, crew.id]))
+    assert resp.status_code == 302
+    assert resp.url == reverse("core:crew", args=[battle.id, crew.id])

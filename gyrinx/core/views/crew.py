@@ -24,8 +24,14 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm
-from gyrinx.core.handlers.crew import handle_crew_lock, handle_crew_recipe_save
+from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
+from gyrinx.core.handlers.crew import (
+    crew_whole_gang_projection,
+    eligible_crew_fighters_for_loadouts,
+    handle_crew_lock,
+    handle_crew_loadouts_save,
+    handle_crew_recipe_save,
+)
 from gyrinx.core.models import Battle
 from gyrinx.core.models.crew import Crew, CrewLineItem
 from gyrinx.core.models.list import List
@@ -179,6 +185,19 @@ def crew_detail(request, battle_id, crew_id):
     crew = _get_crew(battle_id, crew_id)
     receipt = crew.receipt()
     drift = receipt["drift"]
+    can_manage = crew.can_manage(request.user)
+
+    # A draft whole-gang crew has no members yet — the roster resolves at
+    # battle start — so instead of an empty section, forecast it: who is
+    # eligible now, the set each would bring, and what that would cost. Shown
+    # as provisional; the confirmed crew legitimately differs if the gang
+    # changes in the meantime.
+    projection = None
+    provisional_total = None
+    if not crew.is_locked and crew.is_whole_gang and not receipt["attendees"]:
+        projection = crew_whole_gang_projection(crew)
+        # The receipt's own total is extras-only while there are no attendees.
+        provisional_total = projection["total"] + receipt["total"]
 
     return render(
         request,
@@ -186,10 +205,13 @@ def crew_detail(request, battle_id, crew_id):
         {
             "crew": crew,
             "battle": crew.battle,
-            "can_manage": crew.can_manage(request.user),
+            "can_manage": can_manage,
             "receipt": receipt,
             "has_drifted": bool(drift and drift["has_drifted"]),
             "drift": drift,
+            "projection": projection,
+            "provisional_total": provisional_total,
+            "can_edit_loadouts": bool(projection and can_manage),
         },
     )
 
@@ -254,6 +276,58 @@ def crew_edit(request, battle_id, crew_id):
                 current=method,
             ),
         },
+    )
+
+
+@login_required
+@transaction.atomic
+def crew_loadouts(request, battle_id, crew_id):
+    """Choose the equipment set each fighter brings when a whole-gang crew is
+    confirmed.
+
+    Whole-gang crews are the one case with nowhere else to say this: they have
+    no members until the lock enrols the roster, so the choices are stored on
+    the crew as advisory intent and read back by the same resolver the lock and
+    the forecast use. Every other selection method asks for the card on the crew
+    form itself (chosen fighters) or draws it at random, so those are sent
+    there.
+    """
+    crew = _get_crew(battle_id, crew_id)
+
+    if not crew.can_manage(request.user):
+        messages.error(request, "You don't have permission to edit this crew.")
+        return _redirect_crew(crew)
+
+    if crew.is_locked:
+        messages.info(
+            request, "This crew is locked — its loadouts can no longer be changed."
+        )
+        return _redirect_crew(crew)
+
+    if not (crew.is_whole_gang and not crew.members.exists()):
+        messages.info(
+            request,
+            "Loadouts for this crew are chosen with its fighters — edit the crew.",
+        )
+        return _redirect_crew(crew)
+
+    fighters = list(eligible_crew_fighters_for_loadouts(crew.list))
+
+    if request.method == "POST":
+        form = CrewLoadoutsForm(request.POST, crew=crew, fighters=fighters)
+        if form.is_valid():
+            handle_crew_loadouts_save(
+                user=request.user, crew=crew, choices=form.loadout_choices()
+            )
+            messages.success(request, "Loadouts saved.")
+            return _redirect_crew(crew)
+    else:
+        form = CrewLoadoutsForm(crew=crew, fighters=fighters)
+
+    return render(
+        request,
+        "core/crew/crew_loadouts.html",
+        {"form": form, "crew": crew, "battle": crew.battle},
     )
 
 

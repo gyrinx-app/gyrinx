@@ -61,8 +61,14 @@
                             <div class="d-flex justify-content-between align-items-center">
                                 <span class="caps-label">Fighters</span>
                                 {% if can_manage and not crew.is_locked %}
-                                    <a href="{% url 'core:crew-edit' battle.id crew.id %}"
-                                       class="icon-link linked fs-7"><i class="bi-pencil"></i> Edit choices</a>
+                                    <span class="d-flex gap-3">
+                                        {% if can_edit_loadouts %}
+                                            <a href="{% url 'core:crew-loadouts' battle.id crew.id %}"
+                                               class="icon-link linked fs-7"><i class="bi-bag"></i> Edit loadouts</a>
+                                        {% endif %}
+                                        <a href="{% url 'core:crew-edit' battle.id crew.id %}"
+                                           class="icon-link linked fs-7"><i class="bi-pencil"></i> Edit choices</a>
+                                    </span>
                                 {% endif %}
                             </div>
                         </td>
@@ -91,18 +97,61 @@
                             {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                     {% empty %}
-                        <tr>
-                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
-                                class="text-secondary fs-7">
-                                {% if crew.is_locked %}
-                                    No attendees.
-                                {% elif crew.pending_roll %}
-                                    No fighters chosen — the whole crew is drawn at random.
-                                {% else %}
-                                    No fighters chosen — the whole gang attends when the crew is confirmed.
-                                {% endif %}
-                            </td>
-                        </tr>
+                        {% if projection %}
+                            <!-- Whole-gang draft: nobody is enrolled until the crew is
+                            confirmed, so forecast who would attend and with what. -->
+                            {% for p in projection.rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ p.name }}</strong>
+                                        <span class="text-secondary fs-7">· {{ p.category }}</span>
+                                        <span class="text-secondary fs-7">
+                                            {% if p.loadout %}
+                                                · {{ p.loadout }}
+                                            {% else %}
+                                                · Default
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td class="text-end text-secondary">{{ p.rating }}¢</td>
+                                    <td></td>
+                                    <td></td>
+                                    {% if receipt.has_free %}
+                                        <td></td>
+                                    {% endif %}
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                        class="text-secondary fs-7">This gang has no fighters available for a crew yet.</td>
+                                </tr>
+                            {% endfor %}
+                            <tr>
+                                <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}">
+                                    <div class="border rounded p-2 fs-7 text-secondary">
+                                        <i class="bi-info-circle"></i>
+                                        <strong>Provisional.</strong>
+                                        The whole gang takes part, so this is a forecast of who would
+                                        attend and what they would bring. It resolves when the crew is
+                                        confirmed — if the gang changes before then, the confirmed crew
+                                        will differ.
+                                    </div>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                    class="text-secondary fs-7">
+                                    {% if crew.is_locked %}
+                                        No attendees.
+                                    {% elif crew.pending_roll %}
+                                        No fighters chosen — the whole crew is drawn at random.
+                                    {% else %}
+                                        No fighters chosen — the whole gang attends when the crew is confirmed.
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
                     {% endfor %}
                     {% if receipt.pending_roll %}
                         <tr>
@@ -120,9 +169,7 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                     {% endif %}
                     <tr>
@@ -183,7 +230,9 @@
                         <tr>
                             <td class="text-secondary">Rating</td>
                             <td class="text-end">
-                                {% if receipt.pending_roll %}
+                                {% if projection %}
+                                    <span class="text-secondary">{{ projection.total }}¢</span>
+                                {% elif receipt.pending_roll %}
                                     <span bs-tooltip
                                           data-bs-toggle="tooltip"
                                           title="Unknown until you roll for selection">?</span>
@@ -193,9 +242,7 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                         <tr>
                             <td class="text-secondary">Credits</td>
@@ -209,9 +256,7 @@
                             <td></td>
                             <td></td>
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                         {% if receipt.has_free %}
                             <tr>
@@ -227,7 +272,10 @@
                         <td>Total</td>
                         <td class="text-end"
                             colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
-                            {% if receipt.pending_roll %}
+                            {% if projection %}
+                                {{ provisional_total }}¢
+                                <span class="fs-7 fw-normal text-secondary">provisional</span>
+                            {% elif receipt.pending_roll %}
                                 <span bs-tooltip
                                       data-bs-toggle="tooltip"
                                       title="Unknown until you roll for selection">?</span>

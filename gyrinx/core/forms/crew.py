@@ -344,6 +344,66 @@ class CrewForm(forms.ModelForm):
         return cleaned
 
 
+class CrewLoadoutsForm(forms.Form):
+    """Which equipment set each fighter brings when a whole-gang crew is locked.
+
+    A whole-gang crew has no members to hang a choice off until it is locked, so
+    the choices are stored on the crew as advisory intent (see
+    ``Crew.loadout_overrides``) and read back by ``Crew.resolve_loadout``. Only
+    fighters with named sets get a select — a fighter with only the Default card
+    has nothing to choose.
+
+    Each select starts from the resolver, so re-opening the page shows what the
+    forecast and the lock would currently do. Every offered fighter's answer is
+    recorded, including the empty one: choosing Default is an explicit choice
+    for this battle, not "leave it to the fighter card".
+    """
+
+    def __init__(self, *args, crew, fighters, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.crew = crew
+        self.fighters = list(fighters)
+        for fighter in self.fighters:
+            sets = list(fighter.equipment_sets.all())
+            if not sets:
+                continue
+            resolved = crew.resolve_loadout(fighter)
+            self.fields[equipment_set_field_name(fighter.pk)] = CrewEquipmentSetField(
+                fighter=fighter,
+                sets=sets,
+                initial=resolved.pk if resolved else None,
+            )
+        self.has_fighters = bool(self.fighters)
+        self.has_choices = bool(self.fields)
+
+    def fighter_rows(self):
+        """One row per eligible fighter: the fighter, their select if they have
+        one, and the kit they bring when they don't (so the page still says what
+        that fighter will field)."""
+        rows = []
+        for fighter in self.fighters:
+            name = equipment_set_field_name(fighter.pk)
+            resolved = self.crew.resolve_loadout(fighter)
+            rows.append(
+                {
+                    "fighter": fighter,
+                    "category": fighter.content_fighter.get_category_display(),
+                    "set_field": self[name] if name in self.fields else None,
+                    "loadout": resolved.name if resolved else DEFAULT_SET_LABEL,
+                }
+            )
+        return rows
+
+    def loadout_choices(self):
+        """Cleaned map of fighter id → chosen set (``None`` = the Default card),
+        for the fighters that had something to choose."""
+        return {
+            fighter.pk: self.cleaned_data[equipment_set_field_name(fighter.pk)]
+            for fighter in self.fighters
+            if equipment_set_field_name(fighter.pk) in self.fields
+        }
+
+
 class CrewLineItemForm(forms.ModelForm):
     """Add or edit a crew extra (tactics card, etc.) with its payment method."""
 

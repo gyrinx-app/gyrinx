@@ -214,6 +214,17 @@ class Crew(AppBase):
         related_name="chosen_in_crews",
         help_text="Deprecated: superseded by CrewMember rows.",
     )
+    loadout_overrides = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Advisory pre-lock intent: which equipment set each fighter should "
+            "bring when a whole-gang crew is enrolled at lock. Shape: "
+            '{"<list_fighter_id>": {"equipment_set": "<set_id>"}}, where a '
+            "stored null means the Default card. Never authoritative — see "
+            "Crew.resolve_loadout."
+        ),
+    )
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,
@@ -299,6 +310,93 @@ class Crew(AppBase):
             or user.id == battle.owner_id
             or battle.campaign.is_admin(user)
         )
+
+    # --- pre-lock loadout intent -----------------------------------------
+    #
+    # A whole-gang crew has no members until it is locked (the roster is
+    # whoever is eligible at battle start), so there is nowhere to record which
+    # card each model will bring. ``loadout_overrides`` records that intent
+    # ahead of time. It is deliberately **advisory**: every read goes through
+    # :meth:`resolve_loadout`, which falls back to the fighter's own active set
+    # whenever the stored entry no longer makes sense. Nothing downstream may
+    # treat the blob as authoritative — it can be stale, partial, or (having
+    # been a JSON column touched by past code) malformed, and none of those may
+    # break a lock.
+
+    LOADOUT_SET_KEY = "equipment_set"
+
+    def _override_entry(self, fighter_id):
+        """The stored entry for ``fighter_id``, or ``None`` when there isn't a
+        usable one. Tolerates anything the column might hold."""
+        overrides = self.loadout_overrides
+        if not isinstance(overrides, dict):
+            return None
+        entry = overrides.get(str(fighter_id))
+        if not isinstance(entry, dict) or self.LOADOUT_SET_KEY not in entry:
+            return None
+        return entry
+
+    def resolve_loadout(self, fighter):
+        """The equipment set ``fighter`` brings to this battle (``None`` = the
+        Default card). The single source of truth for both the pre-lock forecast
+        and the enrolment at lock, so the two cannot disagree.
+
+        An override applies only when it still resolves: the referenced set must
+        still exist *and* still belong to this fighter, which also rejects a
+        stale or forged id pointing at someone else's card. A stored ``null`` is
+        an explicit choice of the Default card and is honoured even when the
+        fighter's own active set is something else — that is the point of a
+        per-battle override. Anything else falls back to the set the fighter is
+        already using.
+
+        Reads the fighter's sets from the prefetch cache
+        (``with_related_data()``), so this costs no query per fighter.
+        """
+        entry = self._override_entry(fighter.pk)
+        if entry is not None:
+            raw = entry[self.LOADOUT_SET_KEY]
+            if raw is None:
+                return None
+            for candidate in fighter.equipment_sets.all():
+                if str(candidate.pk) == str(raw):
+                    return candidate
+            # The set has been deleted, or never belonged to this fighter: the
+            # intent can't be honoured, so fall through to the fighter's own kit.
+
+        if fighter.active_equipment_set_id is None:
+            return None
+        for candidate in fighter.equipment_sets.all():
+            if candidate.pk == fighter.active_equipment_set_id:
+                return candidate
+        return None
+
+    def pruned_loadout_overrides(self, fighters):
+        """``loadout_overrides`` with the entries that no longer mean anything
+        removed, given the fighters currently eligible for this crew.
+
+        Dropped: entries for fighters who are no longer eligible (left the gang,
+        archived, killed, in recovery), entries whose set has been deleted or
+        belongs to someone else, and malformed leftovers. Explicit ``null``
+        (Default) entries are kept. Called opportunistically whenever the
+        overrides are written and again at lock, so the blob self-heals instead
+        of accumulating junk.
+        """
+        pruned = {}
+        for fighter in fighters:
+            entry = self._override_entry(fighter.pk)
+            if entry is None:
+                continue
+            raw = entry[self.LOADOUT_SET_KEY]
+            if raw is None:
+                pruned[str(fighter.pk)] = {self.LOADOUT_SET_KEY: None}
+                continue
+            match = next(
+                (s for s in fighter.equipment_sets.all() if str(s.pk) == str(raw)),
+                None,
+            )
+            if match is not None:
+                pruned[str(fighter.pk)] = {self.LOADOUT_SET_KEY: str(match.pk)}
+        return pruned
 
     # --- selection method label ------------------------------------------
 
