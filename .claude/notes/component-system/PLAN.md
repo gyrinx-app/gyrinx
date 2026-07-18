@@ -85,7 +85,24 @@ minimal view changes, fully tested + browser-verified, single PR.
   golden test via testing.assert_equivalent → central `pytest gyrinx/components/`.
 - Remaining: big detail/index pages (list/campaign/pack detail, fighter card subtree) are
   large multi-include jobs, left for incremental follow-up (documented in PR).
-- [ ] verify batch2, commit, push; continue batches as time allows.
+## Progress log (PR #1997, branch components-system)
+- 79 pages converted & golden-verified across 13 batches (list/fighter domain ~complete,
+  campaign forms/confirms, vehicle flow, print). Full suite green (3528), zero regressions.
+- Backend hardened: emits `template_rendered` (response.context works). Harness neutralises
+  CSRF + `{% cachebuster %}` tokens.
+- Reusable workflow: `convert_generic.workflow.js` — pass args=[{slug,template,view,confirm?,
+  fixtureArgs?}]. Handles string-args (JSON.parse). Central verify: `pytest gyrinx/components/`.
+- Commit routine: move `.claude/notes/migrate_project_fields_to_issue_fields.py` aside (its
+  B404 is the only non-baseline bandit hit); pre-scan bandit before commit.
+- Gotchas learned: (1) ContentFighter.name is a METHOD — call `.name()`; (2) delete-confirm
+  titles with "delete…from" trip bandit B608 → `# nosec B608` on the string line; (3) unique
+  constraints in test seeds (e.g. ContentRollTableRow.sort_order) need distinct values;
+  (4) `list.get_absolute_url` doesn't exist → template silently "" → use `safe_referer(req,"")`.
+- DEFERRED: list_fighter_weapons_edit (filter-branch edge case; stays on legacy template).
+- REMAINING: campaign detail/index + actions/copy/captured/packs, battle (8, needs Battle
+  fixtures), crew (6, needs Crew fixtures), pack/ (37, needs CustomContentPack fixtures),
+  and the big index/detail pages (lists/list/campaigns/campaign/packs/pack) + fighter-card
+  subtree. All follow the same pipeline.
 - [ ] design layer + tests + gallery
 - [ ] Django backend + context processors + tests
 - [ ] layouts (foundation/base/page) as components

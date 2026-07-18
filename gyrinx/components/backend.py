@@ -72,13 +72,16 @@ class ComponentTemplate:
             ctx["request"] = request
             for processor in self.backend.context_processors:
                 ctx.update(processor(request))
-        page = coerce_page(self.component(ctx), ctx)
-        html = render_page(page, ctx)
-        # Populate `response.context` / `response.templates` under the test client:
-        # Django's test instrumentation only sees templates that fire this signal.
-        # No receivers in production, so this is a cheap no-op there.
+        # Fire the page's template_rendered signal BEFORE running the component,
+        # so that under the test client `response.context`/`response.templates`
+        # reflect the PAGE's context and name. A component may bridge legacy
+        # partials via render_to_string(); those fire their own signals while it
+        # runs, and firing ours first keeps the page context first in the
+        # ContextList (so response.context["form"] etc. resolve to the page's
+        # values, not a nested include's). No receivers in production — a no-op.
         template_rendered.send(sender=self, template=self, context=ctx)
-        return html
+        page = coerce_page(self.component(ctx), ctx)
+        return render_page(page, ctx)
 
 
 class _Origin:
