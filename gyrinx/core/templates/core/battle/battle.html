@@ -158,9 +158,16 @@
                         {% else %}
                             <p class="text-secondary fs-7 mb-0">No gangs added yet.</p>
                         {% endif %}
-                        {% if state_current == 'post_battle' and not battle.winners.exists %}
+                        {% if show_draw_note %}
                             <p class="text-secondary fs-7 mt-2 mb-0">
                                 <i class="bi-info-circle"></i> This battle ended in a draw.
+                            </p>
+                        {% elif show_no_result_note %}
+                            <p class="text-secondary fs-7 mt-2 mb-0">
+                                <i class="bi-info-circle"></i> No result was recorded for this battle.
+                                {% if can_edit %}
+                                    <a href="{% url 'core:battle-edit' battle.id %}" class="linked">Record it</a>.
+                                {% endif %}
                             </p>
                         {% endif %}
                     </div>

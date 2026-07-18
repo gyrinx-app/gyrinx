@@ -74,11 +74,12 @@ def test_start_and_end_battle_views(client, user, campaign, make_list):
     battle.refresh_from_db()
     assert battle.status == "in_progress"
 
-    # End: in-progress -> post-battle.
-    resp = client.post(reverse("core:battle-end", args=[battle.id]))
+    # End: in-progress -> post-battle. Ending requires a recorded result.
+    resp = client.post(reverse("core:battle-end", args=[battle.id]), {"result": "draw"})
     assert resp.status_code == 302
     battle.refresh_from_db()
     assert battle.status == "post_battle"
+    assert battle.result == Battle.RESULT_DRAW
 
     # A post-battle battle can no longer be started or ended.
     assert battle.can_start() is False

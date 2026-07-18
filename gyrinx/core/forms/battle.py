@@ -1,9 +1,39 @@
 from django import forms
 
 from gyrinx.content.models import ContentBattleRoleOption
+from gyrinx.core.forms import BsCheckboxSelectMultiple, BsRadioSelect
 from gyrinx.core.models import Battle, BattleNote
 from gyrinx.core.models.list import List
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
+
+
+def validate_result_and_winners(result, winners, add_error):
+    """Cross-field rule shared by the end-battle and edit-battle forms.
+
+    The result radio and the winners checkboxes are always both visible, so the
+    radio changes what counts as valid rather than what is on screen.
+    """
+    if result == Battle.RESULT_WINNERS and not winners:
+        add_error("winners", "Select at least one winning gang, or choose Draw.")
+    elif result == Battle.RESULT_DRAW and winners:
+        add_error(
+            "winners",
+            "A draw has no winners. Clear the selection, or choose "
+            "'One or more gangs won'.",
+        )
+
+
+def result_field():
+    """The 'how did it finish' radio, shared by the end and edit forms."""
+    return forms.ChoiceField(
+        choices=[
+            (Battle.RESULT_WINNERS, "One or more gangs won"),
+            (Battle.RESULT_DRAW, "Draw — no winner"),
+        ],
+        widget=BsRadioSelect(),
+        label="Result",
+        error_messages={"required": "Choose a result before ending the battle."},
+    )
 
 
 class BattleForm(forms.ModelForm):
@@ -67,6 +97,17 @@ class BattleForm(forms.ModelForm):
                 help_text="Select the winners (leave empty for a draw)",
             )
 
+        # An ended battle must say how it finished — a blank result means
+        # "nobody recorded one", which is not something an editor should be
+        # able to leave behind. Battles that have not been fought yet are
+        # unaffected.
+        self.include_result = (
+            include_winners and self.instance.status == Battle.POST_BATTLE
+        )
+        if self.include_result:
+            self.fields["result"] = result_field()
+            self.fields["result"].initial = self.instance.result
+
         # Pre-fill selections when editing an existing battle.
         if self.instance and self.instance.pk:
             self.fields["participants"].initial = self.instance.participants.all()
@@ -85,6 +126,51 @@ class BattleForm(forms.ModelForm):
                         f"{winner} cannot be a winner without being a participant."
                     )
 
+        if self.include_result:
+            validate_result_and_winners(
+                cleaned_data.get("result"), winners, self.add_error
+            )
+
+        return cleaned_data
+
+
+class BattleEndForm(forms.Form):
+    """Record the result when a battle ends.
+
+    Both fields always render: the radio decides which shape of answer is
+    valid, never which fields are on screen. No JavaScript, no hidden fields.
+    """
+
+    winners = forms.ModelMultipleChoiceField(
+        queryset=List.objects.none(),
+        required=False,
+        widget=BsCheckboxSelectMultiple(),
+        label="Winner(s)",
+        help_text="Only gangs taking part in this battle can be selected",
+    )
+
+    def __init__(self, *args, battle=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.battle = battle
+        # `result` is declared here rather than as a class attribute so the
+        # edit form can share the same field definition.
+        self.fields["result"] = result_field()
+        self.order_fields(["result", "winners"])
+
+        if battle is not None:
+            self.fields["winners"].queryset = battle.participants.all()
+            # Someone may have already set winners via the edit form; carry
+            # that through rather than making them pick again.
+            existing_winners = battle.winners.all()
+            if existing_winners:
+                self.fields["winners"].initial = existing_winners
+                self.fields["result"].initial = Battle.RESULT_WINNERS
+
+    def clean(self):
+        cleaned_data = super().clean()
+        validate_result_and_winners(
+            cleaned_data.get("result"), cleaned_data.get("winners"), self.add_error
+        )
         return cleaned_data
 
 

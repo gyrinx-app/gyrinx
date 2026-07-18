@@ -1,12 +1,19 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
-from gyrinx.core.forms.battle import BattleForm, BattleNoteForm, BattleRolesForm
+from gyrinx.core.forms.battle import (
+    BattleEndForm,
+    BattleForm,
+    BattleNoteForm,
+    BattleRolesForm,
+)
+from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
@@ -80,6 +87,13 @@ class BattleDetailView(generic.DetailView):
         context["state_current"] = battle.states.current
         context["can_start"] = context["can_manage"] and battle.can_start()
         context["can_end"] = context["can_manage"] and battle.can_end()
+
+        # How the battle finished. An ended battle with no recorded result is
+        # not a draw — battles ended before results were captured look exactly
+        # like this, and must not be labelled as draws.
+        ended = battle.states.current == Battle.POST_BATTLE
+        context["show_draw_note"] = ended and battle.is_draw
+        context["show_no_result_note"] = ended and not battle.result_recorded
 
         # Get all notes ordered by creation date
         context["notes"] = battle.notes.select_related("owner").order_by("created")
@@ -264,6 +278,8 @@ def edit_battle(request, id):
             include_winners=True,
         )
         if form.is_valid():
+            if "result" in form.cleaned_data:
+                battle.result = form.cleaned_data["result"]
             form.save()
             battle.set_participants(form.cleaned_data["participants"])
             battle.winners.set(form.cleaned_data.get("winners") or [])
@@ -340,23 +356,65 @@ def start_battle(request, id):
 
 @login_required
 def end_battle(request, id):
-    """Move a battle from in-progress to post-battle, via a confirmation page."""
+    """End a battle, recording who won (or that it was a draw)."""
     battle = get_object_or_404(Battle.objects.select_related("campaign"), id=id)
 
     if not battle.can_manage(request.user):
         messages.error(request, "You don't have permission to manage this battle.")
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
-    if request.method == "POST":
-        return _transition_battle(
-            request, battle, Battle.POST_BATTLE, "This battle cannot be ended."
-        )
-
+    # Guarded before the POST branch so re-submitting an already-ended battle
+    # short-circuits rather than doing form work first.
     if not battle.can_end():
-        messages.error(request, "This battle cannot be ended.")
+        if battle.states.current == Battle.POST_BATTLE:
+            messages.error(request, "This battle has already been ended.")
+        else:
+            messages.error(request, "This battle cannot be ended.")
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
-    return render(request, "core/battle/battle_end.html", {"battle": battle})
+    if request.method == "POST":
+        form = BattleEndForm(request.POST, battle=battle)
+        if form.is_valid():
+            is_draw = form.cleaned_data["result"] == Battle.RESULT_DRAW
+            try:
+                handle_battle_end(
+                    user=request.user,
+                    battle=battle,
+                    winners=form.cleaned_data.get("winners") or [],
+                    is_draw=is_draw,
+                )
+            except ValidationError as e:
+                messages.error(request, e.messages[0])
+                return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+            log_event(
+                user=request.user,
+                noun=EventNoun.BATTLE,
+                verb=EventVerb.UPDATE,
+                object=battle,
+                request=request,
+                action="state_changed",
+                battle_state=Battle.POST_BATTLE,
+                battle_result=Battle.RESULT_DRAW if is_draw else Battle.RESULT_WINNERS,
+                battle_name=battle.name,
+                campaign_id=str(battle.campaign.id),
+                campaign_name=battle.campaign.name,
+            )
+
+            messages.success(request, "Battle ended and result recorded.")
+            return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+    else:
+        form = BattleEndForm(battle=battle)
+
+    return render(
+        request,
+        "core/battle/battle_end.html",
+        {
+            "battle": battle,
+            "form": form,
+            "has_participants": battle.participants.exists(),
+        },
+    )
 
 
 @login_required
