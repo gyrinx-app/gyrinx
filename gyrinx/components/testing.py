@@ -34,6 +34,9 @@ def _normalise_tag(root: Tag) -> None:
     # Drop CSRF hidden inputs (random token each render).
     for csrf in root.find_all("input", attrs={"name": "csrfmiddlewaretoken"}):
         csrf.decompose()
+    # Neutralise the {% cachebuster %} hidden input (random hex each render).
+    for cb in root.find_all("input", attrs={"name": "cb"}):
+        cb["value"] = "X"
     # Sort attributes for order-independent comparison.
     for node in root.find_all(True):
         if node.attrs:
@@ -54,11 +57,19 @@ def _normalise_tag(root: Tag) -> None:
             text.extract()
 
 
+def _finalise(out: str) -> str:
+    out = re.sub(r">\s+<", "><", out)
+    # Neutralise per-render random tokens so two independent renders compare
+    # equal: the {% cachebuster %} tag emits a fresh hex value each call, just
+    # like the (already-stripped) CSRF token.
+    out = re.sub(r"cb=[0-9A-Fa-f]+", "cb=X", out)
+    return out.strip()
+
+
 def normalise_fragment(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     _normalise_tag(soup)
-    out = soup.decode()
-    return re.sub(r">\s+<", "><", out).strip()
+    return _finalise(soup.decode())
 
 
 def extract_content(html: str) -> str:
@@ -69,8 +80,7 @@ def extract_content(html: str) -> str:
     if content is None:
         raise AssertionError("No #content element in rendered page")
     _normalise_tag(content)
-    out = content.decode()
-    return re.sub(r">\s+<", "><", out).strip()
+    return _finalise(content.decode())
 
 
 def assert_equivalent(
