@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.template import TemplateDoesNotExist
+from django.template import Context, TemplateDoesNotExist
 from django.template.backends.base import BaseEngine
 from django.test.signals import template_rendered
 from django.utils.module_loading import import_string
@@ -79,7 +79,9 @@ class ComponentTemplate:
         # runs, and firing ours first keeps the page context first in the
         # ContextList (so response.context["form"] etc. resolve to the page's
         # values, not a nested include's). No receivers in production — a no-op.
-        template_rendered.send(sender=self, template=self, context=ctx)
+        # Send a Django Context (not a bare dict): the test client's receiver and
+        # the Debug Toolbar's both expect a Context-like object (``.dicts``).
+        template_rendered.send(sender=self, template=self, context=Context(ctx))
         page = coerce_page(self.component(ctx), ctx)
         return render_page(page, ctx)
 
