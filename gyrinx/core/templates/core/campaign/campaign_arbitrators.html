@@ -1,0 +1,53 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Arbitrators - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:campaign' campaign.id as campaign_url %}
+    {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
+    <div class="col-12 col-xl-6 px-0 vstack gap-4">
+        <div>
+            <h1 class="h3 mb-1">Arbitrators</h1>
+            <p class="text-secondary mb-0">{{ campaign.name }}</p>
+        </div>
+        <p class="mb-0">
+            Arbitrators share full administrative control of the campaign: they can
+            edit its settings, add and remove gangs, manage assets, resources and
+            attributes, run battles, and act on any gang as a referee.
+        </p>
+        <div class="vstack gap-2">
+            <div class="d-flex align-items-center gap-2 border rounded p-2">
+                <a href="{% url 'core:user' campaign.owner.username %}"
+                   class="linked-body">{{ campaign.owner }}</a>
+                <span class="text-secondary fs-7 ms-auto">Owner — always an arbitrator</span>
+            </div>
+            {% for admin in admins %}
+                <div class="d-flex align-items-center gap-2 border rounded p-2">
+                    <a href="{% url 'core:user' admin.username %}" class="linked-body">{{ admin }}</a>
+                    <form method="post"
+                          action="{% url 'core:campaign-arbitrator-remove' campaign.id admin.id %}"
+                          class="ms-auto">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="btn btn-link btn-sm p-0 link-danger link-underline-opacity-25 link-underline-opacity-100-hover">
+                            Remove
+                        </button>
+                    </form>
+                </div>
+            {% empty %}
+                <p class="text-secondary fs-7 mb-0">
+                    No shared arbitrators yet — the owner runs this campaign alone. Add
+                    someone by username to share control.
+                </p>
+            {% endfor %}
+        </div>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {% include "core/includes/form_field.html" with field=form.username %}
+            <div>
+                <button type="submit" class="btn btn-primary btn-sm">Add Arbitrator</button>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

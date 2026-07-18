@@ -55,13 +55,14 @@ def test_edit_campaign_view_allows_shared_admin(client, shared_admin, make_campa
             "name": "Renamed by Admin",
             "budget": campaign.budget,
             "public": "on",
-            "admins": [str(shared_admin.id)],
         },
     )
     assert response.status_code == 302
     campaign.refresh_from_db()
     assert campaign.name == "Renamed by Admin"
-    assert shared_admin in campaign.admins.all()
+    assert shared_admin in campaign.admins.all(), (
+        "Editing the campaign must not touch the arbitrator roster"
+    )
 
 
 @pytest.mark.django_db
@@ -138,26 +139,108 @@ def test_shared_admin_can_open_fighter_injuries_page(
 
 
 @pytest.mark.django_db
-def test_edit_form_admins_choices_limited_to_participants(
-    user, make_user, make_campaign, make_list
+def test_edit_form_has_no_admins_field():
+    assert "admins" not in EditCampaignForm().fields, (
+        "The roster is managed on the arbitrators page, not the edit form"
+    )
+
+
+@pytest.mark.django_db
+def test_arbitrators_page_add_by_username(client, user, shared_admin, make_campaign):
+    from gyrinx.core.models.campaign import CampaignAction
+
+    campaign = make_campaign("Roster Campaign")
+    client.force_login(user)
+
+    url = reverse("core:campaign-arbitrators", args=[campaign.id])
+    assert client.get(url).status_code == 200
+
+    # shared_admin owns no gang in the campaign — that must not matter.
+    response = client.post(url, {"username": shared_admin.username})
+    assert response.status_code == 302
+    assert shared_admin in campaign.admins.all()
+    action = CampaignAction.objects.get(
+        campaign=campaign, description__startswith="Arbitrator added"
+    )
+    assert shared_admin.username in action.description
+
+
+@pytest.mark.django_db
+def test_arbitrators_page_add_is_case_insensitive(
+    client, user, make_user, make_campaign
 ):
-    campaign = make_campaign("Choosy Campaign")
-    participant = make_user("participant", "password")
-    stranger = make_user("stranger", "password")
-    legacy_admin = make_user("legacy_admin", "password")
+    campaign = make_campaign("Case Campaign")
+    target = make_user("MixedCaseUser", "password")
+    client.force_login(user)
 
-    lst = make_list("Participant Gang", owner=participant)
-    campaign.lists.add(lst)
-    # An admin who no longer has a gang in the campaign must stay selectable,
-    # otherwise saving the form would silently drop them.
-    campaign.admins.add(legacy_admin)
+    response = client.post(
+        reverse("core:campaign-arbitrators", args=[campaign.id]),
+        {"username": "mixedcaseuser"},
+    )
+    assert response.status_code == 302
+    assert target in campaign.admins.all()
 
-    form = EditCampaignForm(instance=campaign)
-    choice_ids = set(form.fields["admins"].queryset.values_list("id", flat=True))
 
-    assert choice_ids == {participant.id, legacy_admin.id}
-    assert user.id not in choice_ids, "The owner is always an admin — not a choice"
-    assert stranger.id not in choice_ids
+@pytest.mark.django_db
+def test_arbitrators_page_add_rejects_bad_usernames(
+    client, user, shared_admin, make_campaign
+):
+    campaign = make_campaign("Picky Campaign")
+    campaign.admins.add(shared_admin)
+    client.force_login(user)
+    url = reverse("core:campaign-arbitrators", args=[campaign.id])
+
+    for username, fragment in [
+        ("no_such_user", "No user with that username"),
+        (user.username, "always an arbitrator"),
+        (shared_admin.username, "already an arbitrator"),
+    ]:
+        response = client.post(url, {"username": username})
+        assert response.status_code == 200, username
+        assert fragment in response.content.decode(), username
+    assert campaign.admins.count() == 1
+
+
+@pytest.mark.django_db
+def test_arbitrators_page_remove(client, user, shared_admin, make_campaign):
+    from gyrinx.core.models.campaign import CampaignAction
+
+    campaign = make_campaign("Revoking Campaign")
+    campaign.admins.add(shared_admin)
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaign-arbitrator-remove", args=[campaign.id, shared_admin.id])
+    )
+    assert response.status_code == 302
+    assert shared_admin not in campaign.admins.all()
+    assert CampaignAction.objects.filter(
+        campaign=campaign, description__startswith="Arbitrator removed"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_arbitrator_can_remove_self(client, shared_admin, make_campaign):
+    campaign = make_campaign("Leaving Campaign")
+    campaign.admins.add(shared_admin)
+    client.force_login(shared_admin)
+
+    response = client.post(
+        reverse("core:campaign-arbitrator-remove", args=[campaign.id, shared_admin.id])
+    )
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaign", args=[campaign.id])
+    assert shared_admin not in campaign.admins.all()
+
+
+@pytest.mark.django_db
+def test_arbitrators_page_404_for_non_admin(client, rando, make_campaign):
+    campaign = make_campaign("Private Roster Campaign")
+    client.force_login(rando)
+    assert (
+        client.get(reverse("core:campaign-arbitrators", args=[campaign.id])).status_code
+        == 404
+    )
 
 
 @pytest.mark.django_db
@@ -173,39 +256,6 @@ def test_new_battle_page_allows_shared_admin(client, shared_admin, rando, campai
     # A user with no gang and no admin rights is turned away.
     client.force_login(rando)
     assert client.get(url).status_code == 302
-
-
-@pytest.mark.django_db
-def test_admin_roster_changes_are_logged(
-    client, user, shared_admin, make_campaign, make_list
-):
-    from gyrinx.core.models.campaign import CampaignAction
-
-    campaign = make_campaign("Audited Campaign")
-    lst = make_list("Admin Gang", owner=shared_admin)
-    campaign.lists.add(lst)
-
-    client.force_login(user)
-    response = client.post(
-        reverse("core:campaign-edit", args=[campaign.id]),
-        {
-            "name": campaign.name,
-            "budget": campaign.budget,
-            "public": "on",
-            "admins": [str(shared_admin.id)],
-        },
-    )
-    assert response.status_code == 302
-    action = CampaignAction.objects.get(
-        campaign=campaign, description__startswith="Arbitrators updated"
-    )
-    assert f"added {shared_admin.username}" in action.description
-
-
-@pytest.mark.django_db
-def test_unbound_edit_form_offers_no_admin_choices(user):
-    form = EditCampaignForm()
-    assert not form.fields["admins"].queryset.exists()
 
 
 @pytest.mark.django_db
