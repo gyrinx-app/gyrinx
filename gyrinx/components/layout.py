@@ -139,7 +139,7 @@ def Foundation(
             meta(name="keywords", content="Necromunda, Gyrinx"),
             meta(name="application-name", content="Gyrinx"),
             _favicons(),
-            title[raw((head_title or "").strip()), " | Gyrinx"],
+            title[(head_title or "").strip(), " | Gyrinx"],
             link(rel="dns-prefetch", href="https://use.typekit.net"),
             link(rel="preconnect", href="https://use.typekit.net", crossorigin=True),
             link(rel="stylesheet", href="https://use.typekit.net/rso6ezl.css"),

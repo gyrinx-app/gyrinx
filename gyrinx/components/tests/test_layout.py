@@ -61,6 +61,23 @@ def test_base_layout_authenticated(django_user_model):
 
 
 @pytest.mark.django_db
+def test_page_title_is_escaped():
+    """Page titles are built from user data (gang/battle/campaign names), so the
+    ``<title>`` text must be escaped exactly as the legacy ``{% block head_title %}``
+    was. Marking it safe let a name containing ``</title>`` break out of the
+    element and inject markup on every converted page."""
+    ctx = _context()
+    page = Page(title="</title><script>alert(1)</script>", content=div["x"])
+    html = render_page(page, ctx)
+
+    assert "<script>alert(1)</script>" not in html
+    assert (
+        "<title>&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt; | Gyrinx</title>"
+        in html
+    )
+
+
+@pytest.mark.django_db
 def test_foundation_layout_only():
     ctx = _context()
     page = Page(title="Bare", content=div["x"], layout="foundation")

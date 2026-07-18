@@ -15,11 +15,7 @@ from gyrinx.components import registry
 
 @pytest.fixture
 def components_engine():
-    return (
-        engines["gyrinx.components.backend.Components"]
-        if False
-        else _get_components_engine()
-    )
+    return _get_components_engine()
 
 
 def _get_components_engine():

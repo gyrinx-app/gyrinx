@@ -10,7 +10,7 @@ from typing import Any, Iterable
 from ..elements import Element, Node
 from ..tags import table, tbody, td, th, thead, tr
 
-__all__ = ["Table", "Tr", "Td", "Th"]
+__all__ = ["Table", "TBody", "Tr", "Td", "Th"]
 
 # Re-export tag primitives under design names for readability at call sites.
 Tr = tr

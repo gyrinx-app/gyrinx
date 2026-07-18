@@ -43,15 +43,20 @@ def autodiscover() -> None:
     global _DISCOVERED
     if _DISCOVERED:
         return
-    _DISCOVERED = True
     try:
         pages_pkg = importlib.import_module("gyrinx.components.pages")
     except ModuleNotFoundError:
+        _DISCOVERED = True
         return
     for module_info in pkgutil.walk_packages(
         pages_pkg.__path__, prefix=pages_pkg.__name__ + "."
     ):
         importlib.import_module(module_info.name)
+    # Only publish completion once every page module has imported successfully:
+    # setting the flag up-front would let a failed import (or a concurrent
+    # caller mid-walk) leave a partially-populated registry looking complete,
+    # silently falling every unregistered page back to DjangoTemplates.
+    _DISCOVERED = True
 
 
 def resolve_page(name: str) -> Callable[[dict[str, Any]], Any] | None:

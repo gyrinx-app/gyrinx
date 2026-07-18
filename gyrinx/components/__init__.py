@@ -9,8 +9,8 @@ JSX-like ``tag(**attrs)[children]`` syntax and rendered with :func:`render`.
 
     render(div(class_="card")[p["Hello"], Button(variant="primary")["Save"]])
 
-See ``gyrinx/components/README`` (module docstrings) and the design-system
-components under ``gyrinx.components.design``.
+See the module docstrings in this package (``elements``, ``tags``, ``layout``)
+and the design-system components under ``gyrinx.components.design``.
 """
 
 from __future__ import annotations

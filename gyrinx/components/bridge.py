@@ -45,7 +45,7 @@ def active_view(request: Any, name: str) -> str:
     return "active" if _view_name(request) == name else ""
 
 
-def active_aria(request: Any, name: str) -> Node:
+def active_aria(request: Any, name: str) -> dict[str, str]:
     """``aria-current="page"`` attribute-safe marker for the active nav item.
 
     Returns a dict suitable for splatting into an element's attributes."""
