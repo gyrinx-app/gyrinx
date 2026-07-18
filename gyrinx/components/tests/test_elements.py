@@ -132,6 +132,19 @@ def test_ampersand_in_text_escaped():
     assert render(span["Tom & Jerry"]) == "<span>Tom &amp; Jerry</span>"
 
 
+def test_quotes_not_escaped_in_text():
+    # Quotes are safe in text nodes (they only matter in attributes), so they
+    # stay verbatim — matching how Django emits template text. This keeps output
+    # byte-compatible with the templates being replaced.
+    assert render(span["gang's credits"]) == "<span>gang's credits</span>"
+    assert render(span['say "hi"']) == '<span>say "hi"</span>'
+
+
+def test_quotes_escaped_in_attributes():
+    # Attribute values DO escape quotes (they sit inside double quotes).
+    assert render(span(title='say "hi"')) == '<span title="say &quot;hi&quot;"></span>'
+
+
 # --------------------------------------------------------------------------
 # Children handling
 # --------------------------------------------------------------------------

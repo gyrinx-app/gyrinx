@@ -309,13 +309,27 @@ class Fragment(Node):
 fragment = Fragment()
 
 
+def escape_text(value: Any) -> str:
+    """HTML-escape a value for use as *text-node* content.
+
+    Only ``&``, ``<`` and ``>`` are escaped — quotes are safe inside text (they
+    only matter inside attribute values, which use full escaping). This mirrors
+    how Django emits template text and keeps rendered bytes byte-compatible with
+    the templates being replaced (e.g. ``gang's`` stays ``gang's``, not
+    ``gang&#x27;s``). Values that are already safe (``__html__``) pass through.
+    """
+    if hasattr(value, "__html__"):
+        return value.__html__()
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _render_child(child: Any, out: list[str]) -> None:
     """Append the HTML of a single node to ``out`` (see module docstring)."""
     if child is None or child is True or child is False:
         return
     if isinstance(child, str):
-        # SafeString is a str subclass; conditional_escape passes it through.
-        out.append(conditional_escape(child))
+        # SafeString is a str subclass; escape_text passes it through unchanged.
+        out.append(escape_text(child))
         return
     if isinstance(child, (Element, Fragment)):
         child._render_into(out)
@@ -336,7 +350,7 @@ def _render_child(child: Any, out: list[str]) -> None:
         for item in child:
             _render_child(item, out)
         return
-    out.append(conditional_escape(str(child)))
+    out.append(escape_text(child))
 
 
 def render(node: Any) -> SafeString:
