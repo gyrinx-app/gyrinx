@@ -229,7 +229,7 @@ class AddArbitratorForm(forms.Form):
                 "autocomplete": "off",
             }
         ),
-        help_text="The exact username of the person to make an arbitrator.",
+        help_text="The username of the person to make an arbitrator.",
     )
 
     def __init__(self, *args, campaign=None, **kwargs):
@@ -240,7 +240,14 @@ class AddArbitratorForm(forms.Form):
     def clean_username(self):
         username = self.cleaned_data["username"].strip()
         User = get_user_model()
-        user = User.objects.filter(username__iexact=username, is_active=True).first()
+        # Exact match wins; otherwise accept a case-insensitive match only when
+        # it is unambiguous (usernames differing only by case are permitted).
+        user = User.objects.filter(username=username, is_active=True).first()
+        if user is None:
+            matches = list(
+                User.objects.filter(username__iexact=username, is_active=True)[:2]
+            )
+            user = matches[0] if len(matches) == 1 else None
         if user is None:
             raise forms.ValidationError("No user with that username was found.")
         if self.campaign:

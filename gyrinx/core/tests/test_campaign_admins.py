@@ -1,7 +1,7 @@
 """Tests for shared campaign admins ("Arbitrators", #988).
 
 Covers the Campaign.is_admin helper, the admin-gated campaign views, the
-arbitrator permission on fighter views, and the EditCampaignForm admins field.
+arbitrator permission on fighter views, and the arbitrators management page.
 """
 
 from types import SimpleNamespace
@@ -138,7 +138,6 @@ def test_shared_admin_can_open_fighter_injuries_page(
     assert client.get(url).status_code == 404
 
 
-@pytest.mark.django_db
 def test_edit_form_has_no_admins_field():
     assert "admins" not in EditCampaignForm().fields, (
         "The roster is managed on the arbitrators page, not the edit form"

@@ -2,6 +2,7 @@
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -42,14 +43,16 @@ def campaign_arbitrators(request, id):
         form = AddArbitratorForm(request.POST, campaign=campaign)
         if form.is_valid():
             new_admin = form.user_to_add
-            campaign.admins.add(new_admin)
-
-            CampaignAction.objects.create(
-                campaign=campaign,
-                user=request.user,
-                description=f"Arbitrator added: {new_admin.username}",
-                owner=request.user,
-            )
+            # Granting admin is a trust-boundary change: the grant and its
+            # audit record must land together.
+            with transaction.atomic():
+                campaign.admins.add(new_admin)
+                CampaignAction.objects.create(
+                    campaign=campaign,
+                    user=request.user,
+                    description=f"Arbitrator added: {new_admin.username}",
+                    owner=request.user,
+                )
             log_event(
                 user=request.user,
                 noun=EventNoun.CAMPAIGN,
@@ -71,7 +74,11 @@ def campaign_arbitrators(request, id):
         "core/campaign/campaign_arbitrators.html",
         {
             "campaign": campaign,
-            "admins": campaign.admins.order_by("username"),
+            # The owner should never be in admins, but exclude defensively so
+            # weird data can't render them twice or make them removable.
+            "admins": campaign.admins.exclude(id=campaign.owner_id).order_by(
+                "username"
+            ),
             "form": form,
         },
     )
@@ -88,19 +95,23 @@ def campaign_arbitrator_remove(request, id, user_id):
     """
     campaign = get_campaign_admin_or_404(request, id)
     User = get_user_model()
+    # Excluding the owner keeps them irremovable even if weird data ever put
+    # them in the admins M2M.
     admin_to_remove = get_object_or_404(
-        User, id=user_id, administered_campaigns=campaign
+        User.objects.exclude(id=campaign.owner_id),
+        id=user_id,
+        administered_campaigns=campaign,
     )
     removing_self = admin_to_remove == request.user
 
-    campaign.admins.remove(admin_to_remove)
-
-    CampaignAction.objects.create(
-        campaign=campaign,
-        user=request.user,
-        description=f"Arbitrator removed: {admin_to_remove.username}",
-        owner=request.user,
-    )
+    with transaction.atomic():
+        campaign.admins.remove(admin_to_remove)
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            description=f"Arbitrator removed: {admin_to_remove.username}",
+            owner=request.user,
+        )
     log_event(
         user=request.user,
         noun=EventNoun.CAMPAIGN,
@@ -113,7 +124,7 @@ def campaign_arbitrator_remove(request, id, user_id):
     messages.success(request, f"{admin_to_remove.username} is no longer an arbitrator.")
 
     # Someone who just removed themselves can no longer see the manage page.
-    if removing_self and campaign.owner != request.user:
+    if removing_self:
         return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
     return HttpResponseRedirect(
         reverse("core:campaign-arbitrators", args=(campaign.id,))

@@ -28,7 +28,7 @@ patterns = [
         name="campaign-arbitrators",
     ),
     path(
-        "campaign/<id>/arbitrator/<user_id>/remove",
+        "campaign/<id>/arbitrator/<int:user_id>/remove",
         campaign_arbitrators.campaign_arbitrator_remove,
         name="campaign-arbitrator-remove",
     ),
