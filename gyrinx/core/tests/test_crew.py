@@ -17,6 +17,7 @@ from django.urls import NoReverseMatch, reverse
 from random import Random
 from uuid import uuid4
 
+from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
 from gyrinx.core.handlers.crew import eligible_crew_fighters, handle_crew_lock
 from gyrinx.core.models import Battle
 from gyrinx.core.models.campaign import CampaignAction
@@ -466,6 +467,39 @@ def test_lock_whole_gang_enrols_all_eligible(crew_setup):
     assert result.whole_gang is True
     action = CampaignAction.objects.filter(battle=battle).first()
     assert "whole gang" in action.outcome
+
+
+@pytest.mark.django_db
+def test_lock_whole_gang_brings_each_fighters_own_set(crew_setup, equipped_fighter):
+    """Nobody is asked which card a whole-gang crew brings, so each model brings
+    the set already active on its fighter card rather than the Default."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    fighter, card = equipped_fighter(gang)
+    fighter.active_equipment_set = card
+    fighter.save()
+
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    member = crew.members.get(list_fighter=fighter)
+    assert member.equipment_set_id == card.id
+    # Fighters with no active set still come as Default.
+    others = crew.members.exclude(list_fighter=fighter)
+    assert all(m.equipment_set_id is None for m in others)
+
+
+@pytest.mark.django_db
+def test_crew_form_preselects_the_fighters_active_set(crew_setup, equipped_fighter):
+    """The per-fighter select starts on the set the fighter is already using, so
+    leaving it alone brings what the player set up on the fighter."""
+    gang = crew_setup["gang"]
+    fighter, card = equipped_fighter(gang)
+    fighter.active_equipment_set = card
+    fighter.save()
+
+    form = CrewForm(gang=gang, method=Crew.CUSTOM)
+    field = form.fields[equipment_set_field_name(fighter.pk)]
+    assert field.initial == card.id
 
 
 @pytest.mark.django_db

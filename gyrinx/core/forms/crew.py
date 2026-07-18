@@ -219,8 +219,16 @@ class CrewForm(forms.ModelForm):
                 sets = list(fighter.equipment_sets.all())
                 if not sets:
                     continue
+                # Start from the set the fighter is already using rather than
+                # Default, so leaving the select alone brings what the player
+                # has set up on the fighter. An existing member's own choice
+                # overrides this below.
                 self.fields[equipment_set_field_name(fighter.pk)] = (
-                    CrewEquipmentSetField(fighter=fighter, sets=sets)
+                    CrewEquipmentSetField(
+                        fighter=fighter,
+                        sets=sets,
+                        initial=fighter.active_equipment_set_id,
+                    )
                 )
         else:
             self.eligible_fighters = []

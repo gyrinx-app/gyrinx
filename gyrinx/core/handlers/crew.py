@@ -199,6 +199,8 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
         crew.members.filter(pk__in=stale).delete()
 
     if whole_gang:
+        # Nobody was asked which card each model brings, so each one brings the
+        # set they are already using on their fighter card (None = Default).
         for fighter in eligible:
             CrewMember.objects.create_with_user(
                 user=user,
@@ -206,6 +208,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                 crew=crew,
                 list_fighter=fighter,
                 source=CrewMember.CHOSEN,
+                equipment_set_id=fighter.active_equipment_set_id,
             )
 
     chosen_count = crew.members.count()
