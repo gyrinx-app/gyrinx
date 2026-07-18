@@ -96,3 +96,29 @@ def test_component_receives_context_processor_values(register_temp_page):
     assert "user" in captured
     # gyrinx_debug context processor injects this key
     assert "gyrinx_debug" in captured
+
+
+@pytest.mark.django_db
+def test_view_context_beats_context_processor(register_temp_page, django_user_model):
+    """RequestContext precedence: an explicit view value wins over a context
+    processor of the same name. A page showing someone else's profile passes its
+    own ``user``; letting the auth processor overwrite it with ``request.user``
+    would render the wrong person — and silently diverge from the legacy template."""
+    captured = {}
+
+    def my_page(context):
+        captured.update(context)
+        return Page(title="Ctx", content=div["x"])
+
+    register_temp_page("core/__test_ctx_precedence__.html", my_page)
+
+    viewer = django_user_model.objects.create_user(username="viewer", password="pw")
+    subject = django_user_model.objects.create_user(username="subject", password="pw")
+    request = RequestFactory().get("/")
+    request.user = viewer
+
+    render_to_string(
+        "core/__test_ctx_precedence__.html", {"user": subject}, request=request
+    )
+
+    assert captured["user"] == subject

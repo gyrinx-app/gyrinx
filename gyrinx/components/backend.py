@@ -67,11 +67,17 @@ class ComponentTemplate:
         self.origin = _Origin(self.name)
 
     def render(self, context: dict[str, Any] | None = None, request: Any = None) -> str:
-        ctx: dict[str, Any] = dict(context or {})
+        # Match RequestContext precedence: context processors run FIRST and the
+        # view's context is layered on top, so an explicit view value wins over a
+        # processor of the same name (e.g. a profile page passing its own "user").
+        # Updating in the other order would silently discard the view's value and
+        # diverge from the legacy template it replaced.
+        ctx: dict[str, Any] = {}
         if request is not None:
             ctx["request"] = request
             for processor in self.backend.context_processors:
                 ctx.update(processor(request))
+        ctx.update(context or {})
         # Fire the page's template_rendered signal BEFORE running the component,
         # so that under the test client `response.context`/`response.templates`
         # reflect the PAGE's context and name. A component may bridge legacy
