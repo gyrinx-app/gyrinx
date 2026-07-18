@@ -53,12 +53,14 @@ DOCTYPE = raw("<!DOCTYPE html>\n")
 _APPLE_SIZES = ["57", "114", "72", "144", "60", "120", "76", "152"]
 _PNG_SIZES = ["196", "96", "32", "16", "128"]
 
+# Verbatim from foundation.html (newlines + indentation preserved) so a
+# page-scope render is byte-faithful to the legacy shell.
 _GTM_HEAD = raw(
-    "(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':"
-    "new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],"
-    "j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src="
-    "'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);"
-    "})(window,document,'script','dataLayer','GTM-PFFPCMPF');"
+    "(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':\n"
+    "            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],\n"
+    "            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=\n"
+    "            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);\n"
+    "            })(window,document,'script','dataLayer','GTM-PFFPCMPF');"
 )
 
 
@@ -154,7 +156,7 @@ def Foundation(
             noscript[
                 raw(
                     '<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFFPCMPF" '
-                    'height="0" width="0" style="display:none;visibility:hidden"></iframe>'
+                    'height="0" width="0" style="display:none; visibility:hidden"></iframe>'
                 )
             ],
             content,
