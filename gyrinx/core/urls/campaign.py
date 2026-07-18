@@ -3,6 +3,7 @@ from django.urls import path
 from ..views import battle
 from ..views import crew as crew_views
 from ..views.campaign import actions as campaign_actions
+from ..views.campaign import arbitrators as campaign_arbitrators
 from ..views.campaign import assets as campaign_assets
 from ..views.campaign import attributes as campaign_attributes
 from ..views.campaign import battles as campaign_battles
@@ -21,6 +22,16 @@ patterns = [
     path("campaigns/new/", campaign_crud.new_campaign, name="campaigns-new"),
     path("campaign/<id>", campaign_views.CampaignDetailView.as_view(), name="campaign"),
     path("campaign/<id>/edit/", campaign_crud.edit_campaign, name="campaign-edit"),
+    path(
+        "campaign/<id>/arbitrators",
+        campaign_arbitrators.campaign_arbitrators,
+        name="campaign-arbitrators",
+    ),
+    path(
+        "campaign/<id>/arbitrator/<int:user_id>/remove",
+        campaign_arbitrators.campaign_arbitrator_remove,
+        name="campaign-arbitrator-remove",
+    ),
     path(
         "campaign/<id>/lists/add",
         campaign_lists.campaign_add_lists,

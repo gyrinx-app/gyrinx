@@ -195,6 +195,10 @@
                             {% endfor %}
                         {% endspaceless %}
                     </div>
+                    {% if is_admin %}
+                        <a href="{% url 'core:campaign-arbitrators' campaign.id %}"
+                           class="fs-7 linked">Manage</a>
+                    {% endif %}
                 </div>
                 {% if campaign.phase %}
                     <div class="g-col-6 g-col-md-3">
