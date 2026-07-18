@@ -51,6 +51,10 @@ def handle_battle_end(*, user, battle: Battle, winners, is_draw) -> BattleEndRes
     # Re-check participation under the lock: a gang may have been removed from
     # the battle between rendering the form and this POST.
     winners = [] if is_draw else list(winners)
+    if not is_draw and not winners:
+        # The form stops this, but the invariant belongs here: a "someone won"
+        # result with nobody in it would record an empty "Winner:" outcome.
+        raise ValidationError("Choose at least one winning gang, or record a draw.")
     if winners:
         participant_ids = set(battle.participants.values_list("pk", flat=True))
         for winner in winners:

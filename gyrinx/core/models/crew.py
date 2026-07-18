@@ -206,8 +206,11 @@ class Crew(AppBase):
         ),
     )
     # Superseded by CrewMember rows tagged ``source=CHOSEN``, which now exist
-    # from selection time rather than only after the lock. Kept (unread,
-    # unwritten) so this change can be rolled back without losing the picks.
+    # from selection time rather than only after the lock. Neither read nor
+    # written any more, and deliberately NOT kept in sync: it holds the picks as
+    # they were before this change, so reversing 0172 recovers those but loses
+    # any editing done since. Dropped in a later migration once that no longer
+    # matters.
     chosen_fighters = models.ManyToManyField(
         "core.ListFighter",
         blank=True,
@@ -264,10 +267,17 @@ class Crew(AppBase):
     @property
     def pending_roll(self):
         """A draft crew whose random draw hasn't happened yet. Until it's rolled,
-        the random attendees — and therefore the crew's rating — are unknown."""
-        return self.status == self.DRAFT and self.selection_method in (
-            self.RANDOM,
-            self.HYBRID,
+        the random attendees — and therefore the crew's rating — are unknown.
+
+        The spec has to actually draw someone: the method alone isn't enough,
+        because a Random or Hybrid crew saved with a blank spec would otherwise
+        advertise an unknown rating for a draw that enrols nobody. The form
+        requires a spec for those methods, but the column allows a blank.
+        """
+        return (
+            self.status == self.DRAFT
+            and self.selection_method in (self.RANDOM, self.HYBRID)
+            and bool((self.random_spec or "").strip())
         )
 
     @property

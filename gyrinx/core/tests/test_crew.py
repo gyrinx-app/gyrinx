@@ -1969,3 +1969,20 @@ def test_loadouts_page_sends_chosen_crews_to_the_recipe(client, crew_setup):
     resp = client.get(reverse("core:crew-loadouts", args=[battle.id, crew.id]))
     assert resp.status_code == 302
     assert resp.url == reverse("core:crew", args=[battle.id, crew.id])
+
+
+@pytest.mark.django_db
+def test_pending_roll_needs_a_spec_that_actually_draws(crew_setup):
+    """Random/Hybrid with a blank spec draws nobody, so it must not advertise an
+    unknown rating. The form requires a spec; the column allows a blank."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="",
+    )
+    assert crew.pending_roll is False
+
+    crew.random_spec = "D3"
+    assert crew.pending_roll is True

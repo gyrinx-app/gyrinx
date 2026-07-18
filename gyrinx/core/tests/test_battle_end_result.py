@@ -78,6 +78,21 @@ def test_handler_records_draw(user, in_progress_battle):
 
 
 @pytest.mark.django_db
+def test_handler_rejects_a_win_with_no_winners(user, in_progress_battle):
+    """The form stops this, but the handler owns the invariant: "someone won"
+    with nobody in it would record an empty "Winner:" outcome."""
+    battle, _ = in_progress_battle()
+
+    with pytest.raises(ValidationError, match="at least one winning gang"):
+        handle_battle_end(user=user, battle=battle, winners=[], is_draw=False)
+
+    battle.refresh_from_db()
+    assert battle.result == Battle.RESULT_UNRECORDED
+    assert battle.states.current == Battle.IN_PROGRESS
+    assert not CampaignAction.objects.filter(battle=battle).exists()
+
+
+@pytest.mark.django_db
 def test_handler_draw_clears_prefilled_winners(user, in_progress_battle):
     """Winners set earlier via the edit form must not survive a draw."""
     battle, (l1, _) = in_progress_battle()
