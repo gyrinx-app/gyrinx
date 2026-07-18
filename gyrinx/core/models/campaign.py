@@ -711,12 +711,13 @@ class CampaignAsset(AppBase):
 
         return result
 
-    def transfer_to(self, new_holder, user):
+    def transfer_to(self, new_holder, user, battle=None):
         """Transfer this asset to a new holder and log the action
 
         Args:
             new_holder: The List that will hold this asset (can be None)
             user: The User performing the transfer (required)
+            battle: Optional Battle to attach the logged action to
         """
         if not user:
             raise ValueError("User is required for asset transfers")
@@ -735,6 +736,7 @@ class CampaignAsset(AppBase):
                 campaign=self.asset_type.campaign,
                 user=user,
                 list=new_holder,
+                battle=battle,
                 description=description,
                 dice_count=0,
                 owner=user,
@@ -813,12 +815,13 @@ class CampaignListResource(AppBase):
     def __str__(self):
         return f"{self.list.name} - {self.resource_type.name}: {self.amount}"
 
-    def modify_amount(self, modification, user):
+    def modify_amount(self, modification, user, battle=None):
         """Modify the resource amount and log the action
 
         Args:
             modification: Integer amount to add (positive) or subtract (negative)
             user: The User performing the modification
+            battle: Optional Battle to attach the logged action to
 
         Raises:
             ValueError: If modification would result in negative amount
@@ -847,6 +850,7 @@ class CampaignListResource(AppBase):
             campaign=self.campaign,
             user=user,
             list=self.list,
+            battle=battle,
             description=description,
             dice_count=0,
             owner=user,

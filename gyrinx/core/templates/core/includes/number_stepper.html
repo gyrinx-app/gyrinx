@@ -1,0 +1,23 @@
+{% comment %}
+A compact number input with −/+ nudge buttons.
+
+Pass `field` (a bound IntegerField rendered as a number input) and `label`
+(short name used in the buttons' aria-labels). The page must include the
+shared stepper JS (see list_post_battle_updates.html) to wire the buttons;
+without JS the native number input still works.
+{% endcomment %}
+<div class="input-group input-group-sm flex-nowrap" data-stepper>
+    <button type="button"
+            class="btn btn-outline-secondary px-2"
+            data-step="-1"
+            aria-label="Decrease {{ label|default:'value' }}">
+        <i class="bi-dash-lg"></i>
+    </button>
+    {{ field }}
+    <button type="button"
+            class="btn btn-outline-secondary px-2"
+            data-step="1"
+            aria-label="Increase {{ label|default:'value' }}">
+        <i class="bi-plus-lg"></i>
+    </button>
+</div>

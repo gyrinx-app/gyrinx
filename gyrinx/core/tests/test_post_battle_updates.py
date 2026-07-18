@@ -188,9 +188,7 @@ def test_post_battle_applies_only_edited_fields(
         {
             f"xp_{f_xp.pk}": "2",
             f"injury_{f_injury.pk}": str(injury.pk),
-            f"injury_reason_{f_injury.pk}": "Took a bad hit",
             f"counter_{f_counter.pk}_{counter.pk}": "4",
-            f"private_notes_{f_xp.pk}": "Fought bravely",
         },
     )
     assert resp.status_code == 302
@@ -202,7 +200,6 @@ def test_post_battle_applies_only_edited_fields(
 
     # Only the edited fields were applied.
     assert f_xp.xp_current == 2
-    assert f_xp.private_notes == "Fought bravely"
     assert f_injury.injury_state == ListFighter.RECOVERY
     assert ListFighterInjury.objects.filter(fighter=f_injury).count() == 1
     assert ListFighterCounter.objects.get(fighter=f_counter, counter=counter).value == 4
@@ -215,24 +212,71 @@ def test_post_battle_applies_only_edited_fields(
 
 
 @pytest.mark.django_db
-def test_post_battle_injury_requires_reason(
+def test_post_battle_multiple_injuries_applied(
+    client, user, list_with_campaign, make_list_fighter
+):
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "HurtGuy")
+    sprain = ContentInjury.objects.create(
+        name="Sprain", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    scar = ContentInjury.objects.create(
+        name="Scar", phase=ContentInjuryDefaultOutcome.NO_CHANGE
+    )
+
+    # The injury select can be repeated (same name, multiple values); blank
+    # rows from untouched cloned selects are ignored.
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"injury_{fighter.pk}": ["", str(sprain.pk), str(scar.pk)]},
+    )
+    assert resp.status_code == 302
+    fighter.refresh_from_db()
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 2
+    # RECOVERY (from Sprain) sticks; Scar is NO_CHANGE.
+    assert fighter.injury_state == ListFighter.RECOVERY
+
+
+@pytest.mark.django_db
+def test_post_battle_same_injury_twice(
     client, user, list_with_campaign, make_list_fighter
 ):
     client.force_login(user)
     fighter = make_list_fighter(list_with_campaign, "HurtGuy")
     injury = ContentInjury.objects.create(
+        name="Humiliated", phase=ContentInjuryDefaultOutcome.NO_CHANGE
+    )
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"injury_{fighter.pk}": [str(injury.pk), str(injury.pk)]},
+    )
+    assert resp.status_code == 302
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 2
+
+
+@pytest.mark.django_db
+def test_post_battle_fatal_injury_stops_further_injuries(
+    client, user, list_with_campaign, make_list_fighter
+):
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "Doomed")
+    fatal = ContentInjury.objects.create(
+        name="Critical", phase=ContentInjuryDefaultOutcome.DEAD
+    )
+    sprain = ContentInjury.objects.create(
         name="Sprain", phase=ContentInjuryDefaultOutcome.RECOVERY
     )
 
-    # Selecting an injury without a reason is rejected; nothing is applied.
     resp = client.post(
         reverse("core:list-post-battle", args=[list_with_campaign.id]),
-        {f"injury_{fighter.pk}": str(injury.pk)},
+        {f"injury_{fighter.pk}": [str(fatal.pk), str(sprain.pk)]},
     )
-    assert resp.status_code == 200  # re-render with errors
+    assert resp.status_code == 302
     fighter.refresh_from_db()
-    assert fighter.injury_state == ListFighter.ACTIVE
-    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 0
+    assert fighter.is_dead is True
+    # Only the fatal injury was recorded; the rest were dropped.
+    assert ListFighterInjury.objects.filter(fighter=fighter).count() == 1
 
 
 @pytest.mark.django_db
@@ -310,7 +354,6 @@ def test_post_battle_fatal_injury_links_death_action_to_battle(
         {
             "battle": str(battle.pk),
             f"injury_{fighter.pk}": str(injury.pk),
-            f"injury_reason_{fighter.pk}": "Took a fatal blow",
         },
     )
     assert resp.status_code == 302
@@ -327,23 +370,220 @@ def test_post_battle_fatal_injury_links_death_action_to_battle(
 
 
 @pytest.mark.django_db
-def test_post_battle_omitted_notes_field_does_not_wipe_notes(
-    client, user, list_with_campaign, make_list_fighter
+def test_post_battle_capture(
+    client, user, list_with_campaign, make_list, make_list_fighter
 ):
-    client.force_login(user)
-    fighter = make_list_fighter(list_with_campaign, "F1")
-    fighter.private_notes = "<p>Keep me</p>"
-    fighter.save()
+    from gyrinx.core.models.battle import Battle
+    from gyrinx.core.models.list import CapturedFighter, List
 
-    # Submit without this fighter's private_notes field (simulating a roster
-    # that drifted between GET and POST). Notes must be left untouched.
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "Snatched")
+    rivals = make_list(
+        "Rivals", status=List.CAMPAIGN_MODE, campaign=list_with_campaign.campaign
+    )
+    battle = Battle.objects.create(
+        campaign=list_with_campaign.campaign, mission="Ambush", owner=user
+    )
+    battle.set_participants([list_with_campaign])
+
     resp = client.post(
         reverse("core:list-post-battle", args=[list_with_campaign.id]),
-        {f"xp_{fighter.pk}": "1"},
+        {
+            "battle": str(battle.pk),
+            f"captured_by_{fighter.pk}": str(rivals.pk),
+        },
+    )
+    assert resp.status_code == 302
+
+    record = CapturedFighter.objects.get(fighter=fighter)
+    assert record.capturing_list == rivals
+    fighter.refresh_from_db()
+    assert fighter.is_captured is True
+    # The capture's campaign log entry lands on the battle timeline.
+    action = CampaignAction.objects.get(description__contains="was captured by")
+    assert action.battle_id == battle.pk
+
+
+@pytest.mark.django_db
+def test_post_battle_capture_skipped_when_killed_same_submit(
+    client, user, list_with_campaign, make_list, make_list_fighter
+):
+    from gyrinx.core.models.list import CapturedFighter, List
+
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "Doomed")
+    rivals = make_list(
+        "Rivals", status=List.CAMPAIGN_MODE, campaign=list_with_campaign.campaign
+    )
+    fatal = ContentInjury.objects.create(
+        name="Critical", phase=ContentInjuryDefaultOutcome.DEAD
+    )
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {
+            f"injury_{fighter.pk}": str(fatal.pk),
+            f"captured_by_{fighter.pk}": str(rivals.pk),
+        },
     )
     assert resp.status_code == 302
     fighter.refresh_from_db()
-    assert fighter.private_notes == "<p>Keep me</p>"
+    assert fighter.is_dead is True
+    # The fatal injury wins; the capture is not applied.
+    assert not CapturedFighter.objects.filter(fighter=fighter).exists()
+
+
+@pytest.mark.django_db
+def test_post_battle_state_change(client, user, list_with_campaign, make_list_fighter):
+    from gyrinx.core.models.battle import Battle
+
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "Winded")
+    battle = Battle.objects.create(
+        campaign=list_with_campaign.campaign, mission="Skirmish", owner=user
+    )
+    battle.set_participants([list_with_campaign])
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {
+            "battle": str(battle.pk),
+            f"state_{fighter.pk}": ListFighter.RECOVERY,
+        },
+    )
+    assert resp.status_code == 302
+    fighter.refresh_from_db()
+    assert fighter.injury_state == ListFighter.RECOVERY
+    action = CampaignAction.objects.get(description__startswith="State Change:")
+    assert action.battle_id == battle.pk
+
+
+@pytest.mark.django_db
+def test_post_battle_state_dead_routes_through_kill(
+    client, user, list_with_campaign, make_list_fighter
+):
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "Goner")
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"state_{fighter.pk}": ListFighter.DEAD},
+    )
+    assert resp.status_code == 302
+    fighter.refresh_from_db()
+    assert fighter.is_dead is True
+    # The kill handler zeroes the fighter's cost.
+    assert fighter.cost_int() == 0
+
+
+@pytest.mark.django_db
+def test_post_battle_credits_gained(
+    client, user, list_with_campaign, make_list_fighter
+):
+    from gyrinx.core.models.battle import Battle
+
+    client.force_login(user)
+    make_list_fighter(list_with_campaign, "F1")
+    battle = Battle.objects.create(
+        campaign=list_with_campaign.campaign, mission="Heist", owner=user
+    )
+    battle.set_participants([list_with_campaign])
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {"battle": str(battle.pk), "credits_gained": "55"},
+    )
+    assert resp.status_code == 302
+    list_with_campaign.refresh_from_db()
+    assert list_with_campaign.credits_current == 55
+    assert list_with_campaign.credits_earned == 55
+    action = CampaignAction.objects.get(description__startswith="Added 55¢")
+    assert action.battle_id == battle.pk
+
+
+@pytest.mark.django_db
+def test_post_battle_resource_delta(
+    client, user, list_with_campaign, make_list_fighter
+):
+    from gyrinx.core.models.campaign import (
+        CampaignListResource,
+        CampaignResourceType,
+    )
+
+    client.force_login(user)
+    make_list_fighter(list_with_campaign, "F1")
+    campaign = list_with_campaign.campaign
+    rtype = CampaignResourceType.objects.create(
+        campaign=campaign, name="Meat", owner=user
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=campaign,
+        resource_type=rtype,
+        list=list_with_campaign,
+        amount=5,
+        owner=user,
+    )
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"resource_{resource.pk}": "-2"},
+    )
+    assert resp.status_code == 302
+    resource.refresh_from_db()
+    assert resource.amount == 3
+
+    # A loss below zero is rejected up front; nothing is applied.
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"resource_{resource.pk}": "-10"},
+    )
+    assert resp.status_code == 200  # re-render with errors
+    resource.refresh_from_db()
+    assert resource.amount == 3
+
+
+@pytest.mark.django_db
+def test_post_battle_asset_claim(
+    client, user, list_with_campaign, make_list, make_list_fighter
+):
+    from gyrinx.core.models.battle import Battle
+    from gyrinx.core.models.campaign import CampaignAsset, CampaignAssetType
+    from gyrinx.core.models.list import List
+
+    client.force_login(user)
+    make_list_fighter(list_with_campaign, "F1")
+    campaign = list_with_campaign.campaign
+    rivals = make_list("Rivals", status=List.CAMPAIGN_MODE, campaign=campaign)
+    atype = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        owner=user,
+    )
+    held = CampaignAsset.objects.create(
+        asset_type=atype, name="The Sump", holder=rivals, owner=user
+    )
+    unclaimed = CampaignAsset.objects.create(
+        asset_type=atype, name="Old Ruins", holder=None, owner=user
+    )
+    battle = Battle.objects.create(campaign=campaign, mission="Turf War", owner=user)
+    battle.set_participants([list_with_campaign, rivals])
+
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {
+            "battle": str(battle.pk),
+            "assets_captured": [str(held.pk), str(unclaimed.pk)],
+        },
+    )
+    assert resp.status_code == 302
+    held.refresh_from_db()
+    unclaimed.refresh_from_db()
+    assert held.holder == list_with_campaign
+    assert unclaimed.holder == list_with_campaign
+    transfers = CampaignAction.objects.filter(description__contains="Transfer")
+    assert transfers.count() == 2
+    assert all(a.battle_id == battle.pk for a in transfers)
 
 
 @pytest.mark.django_db

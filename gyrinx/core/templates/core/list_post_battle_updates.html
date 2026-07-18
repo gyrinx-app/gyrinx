@@ -1,5 +1,4 @@
 {% extends "core/layouts/base.html" %}
-{% load static custom_tags %}
 {% block head_title %}
     Post-battle updates - {{ list.name }}
 {% endblock head_title %}
@@ -9,11 +8,11 @@
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3 mb-0">Post-battle updates</h1>
         <p class="text-secondary mb-0">
-            Record what happened this battle across the whole gang. The action fields
-            start blank and notes show what's already saved — only what you fill in or
-            change is applied, nothing else is touched.
+            Record what happened this battle — what the gang gained at the top, then
+            what happened to each fighter. Everything starts blank and only what you
+            fill in is applied, nothing else is touched.
         </p>
-        <form method="post" data-pb-form>
+        <form method="post">
             {% csrf_token %}
             {% if rows %}
                 <div class="vstack gap-4">
@@ -33,63 +32,190 @@
                             <div class="form-text">Actions logged below will be attached to this battle.</div>
                         </div>
                     {% endif %}
-                    <div class="border-top">
-                        {% for row in rows %}
-                            <div class="py-3 border-bottom">
-                                <div class="d-flex flex-wrap align-items-baseline gap-2 mb-2">
-                                    <span class="fw-semibold fs-5">{{ row.fighter.name }}</span>
-                                    <span class="text-secondary fw-normal">{{ row.fighter.get_category_label }}</span>
-                                    {% if row.fighter.is_dead %}
-                                        <span class="badge text-bg-dark">Dead</span>
-                                    {% elif not row.fighter.is_active %}
-                                        <span class="badge text-bg-secondary">{{ row.fighter.get_injury_state_display }}</span>
-                                    {% endif %}
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
+                            <h2 class="h5 mb-0">Gang results</h2>
+                        </div>
+                        <div class="px-2 row g-2 g-md-3">
+                            <div class="col-6 col-md-3 col-lg-2">
+                                <label class="form-label fs-7 mb-1"
+                                       for="{{ form.credits_gained.id_for_label }}">
+                                    Credits gained
+                                    <span class="text-secondary">({{ list.credits_current }}¢)</span>
+                                </label>
+                                {% include "core/includes/number_stepper.html" with field=form.credits_gained label="credits gained" %}
+                                {% for error in form.credits_gained.errors %}
+                                    <div class="text-danger fs-7">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            {% for entry in resource_fields %}
+                                <div class="col-6 col-md-3 col-lg-2">
+                                    <label class="form-label fs-7 mb-1" for="{{ entry.field.id_for_label }}">
+                                        {{ entry.resource.resource_type.name }}
+                                        <span class="text-secondary">({{ entry.resource.amount }})</span>
+                                    </label>
+                                    {% include "core/includes/number_stepper.html" with field=entry.field label=entry.resource.resource_type.name %}
+                                    {% for error in entry.field.errors %}
+                                        <div class="text-danger fs-7">{{ error }}</div>
+                                    {% endfor %}
                                 </div>
-                                <div class="row g-2 g-md-3">
-                                    <div class="col-6 col-md-2">
-                                        <label class="form-label fs-7 mb-1" for="{{ row.xp.id_for_label }}">
-                                            Add XP
-                                            <span class="text-secondary">({{ row.fighter.xp_current }})</span>
-                                        </label>
-                                        {{ row.xp }}
-                                        {% for error in row.xp.errors %}
-                                            <div class="text-danger fs-7">{{ error }}</div>
-                                        {% endfor %}
+                            {% endfor %}
+                            {% if has_assets %}
+                                <div class="col-12 col-md-6 col-lg-4">
+                                    <label class="form-label fs-7 mb-1"
+                                           for="{{ form.assets_captured.id_for_label }}">
+                                        Assets claimed
+                                        <span class="text-secondary fs-7">(Territories and other Assets won this battle)</span>
+                                    </label>
+                                    <div class="vstack gap-1" data-pb-repeat>
+                                        <div class="d-flex gap-1 align-items-center" data-pb-repeat-item>{{ form.assets_captured }}</div>
+                                        <div>
+                                            <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another</a>
+                                        </div>
                                     </div>
-                                    {% for c in row.counters %}
+                                    {% for error in form.assets_captured.errors %}
+                                        <div class="text-danger fs-7">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center bg-body-secondary rounded px-2 py-1">
+                            <h2 class="h5 mb-0">Fighters</h2>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2 py-2 px-2 border-bottom sticky-top bg-body"
+                             data-pb-jsonly
+                             data-pb-toolbar
+                             hidden>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input"
+                                       type="checkbox"
+                                       id="pb-select-all"
+                                       data-pb-select-all
+                                       aria-label="Select all fighters">
+                                <label class="form-check-label fs-7" for="pb-select-all">
+                                    <span data-pb-count>0</span> selected
+                                </label>
+                            </div>
+                            <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+                                <div class="input-group input-group-sm flex-nowrap w-auto"
+                                     data-stepper
+                                     data-stepper-floor>
+                                    <button type="button"
+                                            class="btn btn-outline-secondary px-2"
+                                            data-step="-1"
+                                            aria-label="Decrease XP amount">
+                                        <i class="bi-dash-lg"></i>
+                                    </button>
+                                    {# djlint:off H021 #}
+                                    <input type="number"
+                                           class="form-control form-control-sm text-center"
+                                           style="max-width: 3.5rem"
+                                           min="1"
+                                           value="1"
+                                           data-pb-xp-amount
+                                           aria-label="XP to apply to selected fighters">
+                                    {# djlint:on H021 #}
+                                    <button type="button"
+                                            class="btn btn-outline-secondary px-2"
+                                            data-step="1"
+                                            aria-label="Increase XP amount">
+                                        <i class="bi-plus-lg"></i>
+                                    </button>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-primary btn-sm text-nowrap"
+                                        data-pb-xp-add
+                                        disabled>Add XP to selected</button>
+                                <button type="button"
+                                        class="btn btn-outline-secondary btn-sm text-nowrap"
+                                        data-pb-xp-clear
+                                        disabled>Clear XP</button>
+                            </div>
+                        </div>
+                        <div class="border-top">
+                            {% for row in rows %}
+                                <div class="py-3 border-bottom" data-pb-row>
+                                    <div class="d-flex flex-wrap align-items-baseline gap-2 mb-2">
+                                        <span data-pb-jsonly hidden>
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   data-pb-select
+                                                   aria-label="Select {{ row.fighter.name }}">
+                                        </span>
+                                        <span class="fw-semibold fs-5">{{ row.fighter.name }}</span>
+                                        <span class="text-secondary fw-normal">{{ row.fighter.get_category_label }}</span>
+                                        {% if row.fighter.is_dead %}
+                                            <span class="badge text-bg-dark">Dead</span>
+                                        {% elif row.fighter.is_captured %}
+                                            <span class="badge text-bg-warning">Captured</span>
+                                        {% elif row.fighter.is_sold_to_guilders %}
+                                            <span class="badge text-bg-secondary">Sold</span>
+                                        {% elif not row.fighter.is_active %}
+                                            <span class="badge text-bg-secondary">{{ row.fighter.get_injury_state_display }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="row g-2 g-md-3">
                                         <div class="col-6 col-md-2">
-                                            <label class="form-label fs-7 mb-1" for="{{ c.field.id_for_label }}">
-                                                {{ c.counter.name }}
-                                                <span class="text-secondary">({{ c.value }})</span>
+                                            <label class="form-label fs-7 mb-1" for="{{ row.xp.id_for_label }}">
+                                                Add XP
+                                                <span class="text-secondary">({{ row.fighter.xp_current }})</span>
                                             </label>
-                                            {{ c.field }}
-                                            {% for error in c.field.errors %}
+                                            {% include "core/includes/number_stepper.html" with field=row.xp label="XP" %}
+                                            {% for error in row.xp.errors %}
                                                 <div class="text-danger fs-7">{{ error }}</div>
                                             {% endfor %}
                                         </div>
-                                    {% endfor %}
-                                    <div class="col-12 col-md">
-                                        <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injury</label>
-                                        {{ row.injury }}
-                                        {% for error in row.injury.errors %}
-                                            <div class="text-danger fs-7">{{ error }}</div>
+                                        {% for c in row.counters %}
+                                            <div class="col-6 col-md-2">
+                                                <label class="form-label fs-7 mb-1" for="{{ c.field.id_for_label }}">
+                                                    {{ c.counter.name }}
+                                                    <span class="text-secondary">({{ c.value }})</span>
+                                                </label>
+                                                {% include "core/includes/number_stepper.html" with field=c.field label=c.counter.name %}
+                                                {% for error in c.field.errors %}
+                                                    <div class="text-danger fs-7">{{ error }}</div>
+                                                {% endfor %}
+                                            </div>
                                         {% endfor %}
-                                    </div>
-                                    <div class="col-12 col-md">
-                                        <label class="form-label fs-7 mb-1"
-                                               for="{{ row.injury_reason.id_for_label }}">Reason</label>
-                                        {{ row.injury_reason }}
-                                        {% for error in row.injury_reason.errors %}
-                                            <div class="text-danger fs-7">{{ error }}</div>
-                                        {% endfor %}
+                                        <div class="col-12 col-md">
+                                            <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injuries</label>
+                                            <div class="vstack gap-1" data-pb-repeat>
+                                                <div class="d-flex gap-1 align-items-center" data-pb-repeat-item>{{ row.injury }}</div>
+                                                <div>
+                                                    <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another injury</a>
+                                                </div>
+                                            </div>
+                                            {% for error in row.injury.errors %}
+                                                <div class="text-danger fs-7">{{ error }}</div>
+                                            {% endfor %}
+                                        </div>
+                                        {% if row.state %}
+                                            <div class="col-6 col-md-2">
+                                                <label class="form-label fs-7 mb-1" for="{{ row.state.id_for_label }}">
+                                                    State
+                                                    <span class="text-secondary">({{ row.fighter.get_injury_state_display }})</span>
+                                                </label>
+                                                {{ row.state }}
+                                                {% for error in row.state.errors %}
+                                                    <div class="text-danger fs-7">{{ error }}</div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        {% if row.captured_by %}
+                                            <div class="col-12 col-md-3">
+                                                <label class="form-label fs-7 mb-1" for="{{ row.captured_by.id_for_label }}">Captured by</label>
+                                                {{ row.captured_by }}
+                                                {% for error in row.captured_by.errors %}
+                                                    <div class="text-danger fs-7">{{ error }}</div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
                                     </div>
                                 </div>
-                                <details class="mt-2" data-pb-notes>
-                                    <summary class="fs-7 linked">Private notes</summary>
-                                    <div class="mt-2">{{ row.private_notes }}</div>
-                                </details>
-                            </div>
-                        {% endfor %}
+                            {% endfor %}
+                        </div>
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-success">Apply updates</button>
@@ -104,60 +230,135 @@
         </form>
     </div>
     {% if rows %}
-        <script src="{% static 'tinymce/tinymce.min.js' %}"></script>
         <script>
          (function () {
-             function initEditor(ta) {
-                 if (!window.tinymce || ta.dataset.pbInit) return;
-                 ta.dataset.pbInit = "1";
-                 var dark = document.documentElement.getAttribute("data-bs-theme") === "dark";
-                 window.tinymce.init({
-                     target: ta,
-                     menubar: false,
-                     statusbar: false,
-                     plugins: "lists link autolink autoresize",
-                     toolbar: "bold italic underline | bullist numlist | link | removeformat",
-                     min_height: 180,
-                     branding: false,
-                     promotion: false,
-                     skin: dark ? "oxide-dark" : "oxide",
-                     content_css: dark ? "dark" : "default",
-                 });
-             }
-             document.querySelectorAll("details[data-pb-notes]").forEach(function (d) {
-                 d.addEventListener("toggle", function () {
-                     if (d.open) {
-                         var ta = d.querySelector("textarea");
-                         if (ta) initEditor(ta);
+             // Reveal JS-only affordances (row checkboxes, mass-XP toolbar).
+             document.querySelectorAll("[data-pb-jsonly]").forEach(function (el) {
+                 el.hidden = false;
+             });
+
+             // --- Steppers: −/+ nudge buttons around number inputs. -------
+             // Below the input's min the value clears back to "no change";
+             // with data-stepper-floor it clamps at min instead (used by the
+             // toolbar's XP amount, where empty makes no sense).
+             document.addEventListener("click", function (e) {
+                 var btn = e.target.closest("[data-step]");
+                 if (!btn) return;
+                 var group = btn.closest("[data-stepper]");
+                 var input = group && group.querySelector("input");
+                 if (!input) return;
+                 var step = parseInt(btn.dataset.step, 10);
+                 var min = input.min === "" ? null : parseInt(input.min, 10);
+                 var floor = group.hasAttribute("data-stepper-floor");
+                 var val = input.value === "" ? null : parseInt(input.value, 10);
+                 var next;
+                 if (val === null || isNaN(val)) {
+                     if (step > 0) {
+                         next = min !== null ? Math.max(min, step) : step;
+                     } else {
+                         next = min !== null ? null : step;
                      }
+                 } else {
+                     next = val + step;
+                     if (min !== null && next < min) next = floor ? min : null;
+                     // For min-less deltas (counters, resources) zero means
+                     // "no change" — clear rather than submit a pointless 0.
+                     if (next === 0 && min === null) next = null;
+                 }
+                 input.value = next === null ? "" : next;
+                 input.dispatchEvent(new Event("change", { bubbles: true }));
+             });
+
+             // --- Repeatable selects: injuries and assets. ----------------
+             // The form field collects repeated names via getlist, so extra
+             // rows are just clones of the original select.
+             document.querySelectorAll("[data-pb-repeat]").forEach(function (wrap) {
+                 var add = wrap.querySelector("[data-pb-repeat-add]");
+                 if (!add) return;
+                 add.hidden = false;
+                 add.addEventListener("click", function (e) {
+                     e.preventDefault();
+                     var first = wrap.querySelector("[data-pb-repeat-item]");
+                     var clone = first.cloneNode(true);
+                     var select = clone.querySelector("select");
+                     select.value = "";
+                     select.removeAttribute("id");
+                     var rm = document.createElement("button");
+                     rm.type = "button";
+                     rm.className = "btn btn-outline-secondary btn-sm px-2";
+                     rm.setAttribute("aria-label", "Remove this row");
+                     var rmIcon = document.createElement("i");
+                     rmIcon.className = "bi-x-lg";
+                     rm.appendChild(rmIcon);
+                     rm.addEventListener("click", function () {
+                         clone.remove();
+                     });
+                     clone.appendChild(rm);
+                     wrap.insertBefore(clone, add.parentElement);
+                     select.focus();
                  });
              });
-             // Reason is only meaningful alongside an injury: keep it disabled
-             // until one is chosen. Server-side validation is the source of
-             // truth; this is just an affordance, so no-JS submits still work.
-             document.querySelectorAll('select[name^="injury_"]').forEach(function (sel) {
-                 var reason = document.querySelector(
-                     '[name="' + sel.name.replace(/^injury_/, "injury_reason_") + '"]'
-                 );
-                 if (!reason) return;
-                 function sync() { reason.disabled = !sel.value; }
-                 sel.addEventListener("change", sync);
+
+             // --- Mass XP: select fighters, apply an amount to all. -------
+             var toolbar = document.querySelector("[data-pb-toolbar]");
+             if (!toolbar) return;
+             var selectAll = toolbar.querySelector("[data-pb-select-all]");
+             var count = toolbar.querySelector("[data-pb-count]");
+             var amountInput = toolbar.querySelector("[data-pb-xp-amount]");
+             var addBtn = toolbar.querySelector("[data-pb-xp-add]");
+             var clearBtn = toolbar.querySelector("[data-pb-xp-clear]");
+             var boxes = Array.prototype.slice.call(
+                 document.querySelectorAll("[data-pb-select]")
+             );
+
+             function selected() {
+                 return boxes.filter(function (b) { return b.checked; });
+             }
+
+             function sync() {
+                 var n = selected().length;
+                 count.textContent = n;
+                 addBtn.disabled = n === 0;
+                 clearBtn.disabled = n === 0;
+                 selectAll.checked = n > 0 && n === boxes.length;
+                 selectAll.indeterminate = n > 0 && n < boxes.length;
+             }
+
+             boxes.forEach(function (b) {
+                 b.addEventListener("change", sync);
+             });
+             selectAll.addEventListener("change", function () {
+                 boxes.forEach(function (b) { b.checked = selectAll.checked; });
                  sync();
              });
-             var form = document.querySelector("form[data-pb-form]");
-             if (form) {
-                 form.addEventListener("submit", function () {
-                     if (!window.tinymce) return;
-                     // Only write back editors the user actually edited. Merely
-                     // opening a fighter's notes mounts TinyMCE, which would
-                     // reserialise the HTML on a blanket triggerSave() and log a
-                     // spurious "notes changed" — so leave clean editors' textareas
-                     // holding their original server-rendered value.
-                     window.tinymce.get().forEach(function (ed) {
-                         if (ed.isDirty()) ed.save();
-                     });
-                 });
+
+             function xpInputFor(box) {
+                 var row = box.closest("[data-pb-row]");
+                 return row && row.querySelector("[data-pb-xp]");
              }
+
+             addBtn.addEventListener("click", function () {
+                 var amount = parseInt(amountInput.value, 10);
+                 if (isNaN(amount) || amount < 1) amount = 1;
+                 selected().forEach(function (box) {
+                     var input = xpInputFor(box);
+                     if (!input) return;
+                     var current = parseInt(input.value, 10);
+                     input.value = (isNaN(current) ? 0 : current) + amount;
+                     input.dispatchEvent(new Event("change", { bubbles: true }));
+                 });
+             });
+
+             clearBtn.addEventListener("click", function () {
+                 selected().forEach(function (box) {
+                     var input = xpInputFor(box);
+                     if (!input) return;
+                     input.value = "";
+                     input.dispatchEvent(new Event("change", { bubbles: true }));
+                 });
+             });
+
+             sync();
          })();
         </script>
     {% endif %}
