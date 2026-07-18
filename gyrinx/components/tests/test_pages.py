@@ -26,6 +26,11 @@ def test_converted_page_renders_through_view(
     assert f"Delete: {fighter.fully_qualified_name}" in body
     assert "navbar" in body  # full shell rendered by the component Base layout
     assert 'class="btn btn-danger"' in body
+    # response.context / response.templates work (test client instrumentation),
+    # so existing view tests that assert on them keep passing after conversion.
+    assert response.context["fighter"] == fighter
+    assert response.context["list"] == lst
+    assert "core/list_fighter_delete.html" in {t.name for t in response.templates}
 
 
 @pytest.mark.django_db

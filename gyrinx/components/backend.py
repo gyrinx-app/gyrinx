@@ -13,6 +13,7 @@ from typing import Any
 
 from django.template import TemplateDoesNotExist
 from django.template.backends.base import BaseEngine
+from django.test.signals import template_rendered
 from django.utils.module_loading import import_string
 
 from .layout import render_page
@@ -62,7 +63,8 @@ class ComponentTemplate:
     def __init__(self, component: Any, backend: Components) -> None:
         self.component = component
         self.backend = backend
-        self.origin = _Origin(getattr(component, "template_name", "<component>"))
+        self.name = getattr(component, "template_name", "<component>")
+        self.origin = _Origin(self.name)
 
     def render(self, context: dict[str, Any] | None = None, request: Any = None) -> str:
         ctx: dict[str, Any] = dict(context or {})
@@ -71,7 +73,12 @@ class ComponentTemplate:
             for processor in self.backend.context_processors:
                 ctx.update(processor(request))
         page = coerce_page(self.component(ctx), ctx)
-        return render_page(page, ctx)
+        html = render_page(page, ctx)
+        # Populate `response.context` / `response.templates` under the test client:
+        # Django's test instrumentation only sees templates that fire this signal.
+        # No receivers in production, so this is a cheap no-op there.
+        template_rendered.send(sender=self, template=self, context=ctx)
+        return html
 
 
 class _Origin:
