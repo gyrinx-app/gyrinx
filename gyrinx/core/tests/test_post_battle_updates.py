@@ -370,6 +370,158 @@ def test_post_battle_fatal_injury_links_death_action_to_battle(
 
 
 @pytest.mark.django_db
+def test_post_battle_dead_fighter_has_no_injury_or_state_fields(
+    client, user, list_with_campaign, make_list_fighter
+):
+    client.force_login(user)
+    dead = make_list_fighter(list_with_campaign, "Corpse")
+    dead.injury_state = ListFighter.DEAD
+    dead.save()
+    injury = ContentInjury.objects.create(
+        name="Sprain", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+
+    resp = client.get(reverse("core:list-post-battle", args=[list_with_campaign.id]))
+    form = resp.context["form"]
+    assert f"injury_{dead.pk}" not in form.fields
+    assert f"state_{dead.pk}" not in form.fields
+
+    # A POSTed injury for a dead fighter is ignored, not applied — otherwise
+    # a RECOVERY-outcome injury would pull the fighter out of DEAD without
+    # the resurrect flow (stuck cost_override=0), and a DEAD-outcome injury
+    # would re-run the kill handler.
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {f"injury_{dead.pk}": str(injury.pk)},
+    )
+    assert resp.status_code == 302
+    dead.refresh_from_db()
+    assert dead.injury_state == ListFighter.DEAD
+    assert ListFighterInjury.objects.filter(fighter=dead).count() == 0
+
+
+@pytest.mark.django_db
+def test_post_battle_vehicle_state_choices(
+    client,
+    user,
+    content_house,
+    list_with_campaign,
+    make_content_fighter,
+    make_list_fighter,
+):
+    from gyrinx.models import FighterCategoryChoices
+
+    client.force_login(user)
+    vehicle_cf = make_content_fighter(
+        type="Truck",
+        category=FighterCategoryChoices.VEHICLE,
+        house=content_house,
+        base_cost=100,
+    )
+    vehicle = make_list_fighter(list_with_campaign, "Truck", content_fighter=vehicle_cf)
+    human = make_list_fighter(list_with_campaign, "Human")
+
+    resp = client.get(reverse("core:list-post-battle", args=[list_with_campaign.id]))
+    form = resp.context["form"]
+
+    vehicle_states = [c[0] for c in form.fields[f"state_{vehicle.pk}"].choices]
+    human_states = [c[0] for c in form.fields[f"state_{human.pk}"].choices]
+    assert ListFighter.IN_REPAIR in vehicle_states
+    assert ListFighter.DEAD not in vehicle_states
+    assert ListFighter.IN_REPAIR not in human_states
+    assert ListFighter.DEAD in human_states
+
+
+@pytest.mark.django_db
+def test_post_battle_rerender_preserves_repeated_selections(
+    client, user, list_with_campaign, make_list_fighter
+):
+    from gyrinx.core.models.campaign import (
+        CampaignListResource,
+        CampaignResourceType,
+    )
+
+    client.force_login(user)
+    fighter = make_list_fighter(list_with_campaign, "HurtGuy")
+    sprain = ContentInjury.objects.create(
+        name="Sprain", phase=ContentInjuryDefaultOutcome.RECOVERY
+    )
+    scar = ContentInjury.objects.create(
+        name="Scar", phase=ContentInjuryDefaultOutcome.NO_CHANGE
+    )
+    rtype = CampaignResourceType.objects.create(
+        campaign=list_with_campaign.campaign, name="Meat", owner=user
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=list_with_campaign.campaign,
+        resource_type=rtype,
+        list=list_with_campaign,
+        amount=5,
+        owner=user,
+    )
+
+    # A validation error elsewhere re-renders the page: both submitted
+    # injuries must come back as two selects, not collapse into one.
+    resp = client.post(
+        reverse("core:list-post-battle", args=[list_with_campaign.id]),
+        {
+            f"injury_{fighter.pk}": [str(sprain.pk), str(scar.pk)],
+            f"resource_{resource.pk}": "-10",
+        },
+    )
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert content.count(f'name="injury_{fighter.pk}"') == 2
+    assert f'value="{sprain.pk}" selected' in content
+    assert f'value="{scar.pk}" selected' in content
+
+
+@pytest.mark.django_db
+def test_post_battle_resource_race_rolls_back_and_rerenders(
+    client, user, list_with_campaign, make_list_fighter
+):
+    from unittest import mock
+
+    from gyrinx.core.models.campaign import (
+        CampaignListResource,
+        CampaignResourceType,
+    )
+
+    client.force_login(user)
+    make_list_fighter(list_with_campaign, "F1")
+    rtype = CampaignResourceType.objects.create(
+        campaign=list_with_campaign.campaign, name="Meat", owner=user
+    )
+    resource = CampaignListResource.objects.create(
+        campaign=list_with_campaign.campaign,
+        resource_type=rtype,
+        list=list_with_campaign,
+        amount=5,
+        owner=user,
+    )
+
+    # Simulate a concurrent change that pushes the resource below zero after
+    # form validation: the submit must roll back entirely (credits included)
+    # and re-render with a field error, not 500.
+    with mock.patch.object(
+        CampaignListResource,
+        "modify_amount",
+        side_effect=ValueError("Cannot reduce Meat below zero."),
+    ):
+        resp = client.post(
+            reverse("core:list-post-battle", args=[list_with_campaign.id]),
+            {
+                "credits_gained": "10",
+                f"resource_{resource.pk}": "-2",
+            },
+        )
+    assert resp.status_code == 200
+    assert "Cannot reduce Meat below zero." in resp.content.decode()
+    list_with_campaign.refresh_from_db()
+    assert list_with_campaign.credits_current == 0
+
+
+@pytest.mark.django_db
 def test_post_battle_capture(
     client, user, list_with_campaign, make_list, make_list_fighter
 ):

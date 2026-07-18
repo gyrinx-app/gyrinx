@@ -8,23 +8,45 @@ a single ``request.POST`` carries the whole grid.
 """
 
 from django import forms
+from django.utils.html import format_html, format_html_join
 
 from gyrinx.core.forms.list import available_injuries_for_fighter
 from gyrinx.core.models.battle import Battle
 from gyrinx.core.models.campaign import CampaignAsset
 from gyrinx.core.models.list import List, ListFighter
 from gyrinx.forms import group_select
+from gyrinx.models import FighterCategoryChoices
 
 
 class RepeatedSelect(forms.SelectMultiple):
     """A ``<select>`` whose name may appear multiple times in the payload.
 
-    Renders as a plain single-value select (no ``multiple`` attribute); the
-    page's JS clones it so users can add several rows, and the values are
-    collected with ``getlist``. Without JS it degrades to one select.
+    Renders one single-value select (no ``multiple`` attribute) per submitted
+    value — each wrapped in a ``data-pb-repeat-item`` row so a bound re-render
+    (validation error) keeps every selection visible. The page's JS clones a
+    row so users can add more; values are collected with ``getlist``. Without
+    JS it degrades to one select.
     """
 
     allow_multiple_selected = False
+
+    def render(self, name, value, attrs=None, renderer=None):
+        values = [v for v in (value or []) if v not in (None, "")]
+        if not values:
+            values = [None]
+        parts = []
+        for i, v in enumerate(values):
+            item_attrs = None if attrs is None else dict(attrs)
+            if i and item_attrs:
+                # Only the first select keeps the id the label points at.
+                item_attrs.pop("id", None)
+            parts.append(
+                format_html(
+                    '<div class="d-flex gap-1 align-items-center" data-pb-repeat-item>{}</div>',
+                    super().render(name, v, item_attrs, renderer),
+                )
+            )
+        return format_html_join("", "{}", ((p,) for p in parts))
 
 
 class RepeatedModelChoiceField(forms.ModelMultipleChoiceField):
@@ -66,9 +88,10 @@ class PostBattleUpdatesForm(forms.Form):
     - ``xp_<pk>`` — XP to add (optional, positive).
     - ``counter_<pk>_<counter_pk>`` — one per applicable counter, a delta.
     - ``injury_<pk>`` — injuries to apply (repeated select), filtered per
-      fighter.
+      fighter (only present for fighters not already dead).
     - ``state_<pk>`` — explicit state to put the fighter into (recovery,
-      convalescence, dead, …; only present for fighters not already dead).
+      convalescence, dead; in repair for vehicles; only present for fighters
+      not already dead).
     - ``captured_by_<pk>`` — gang that captured the fighter (only present for
       fighters that can be captured).
     """
@@ -89,6 +112,7 @@ class PostBattleUpdatesForm(forms.Form):
         capture_lists = (
             capture_lists if capture_lists is not None else List.objects.none()
         )
+        has_capture_lists = capture_lists.exists()
         assets = assets if assets is not None else CampaignAsset.objects.none()
 
         self.fields["battle"] = forms.ModelChoiceField(
@@ -173,29 +197,44 @@ class PostBattleUpdatesForm(forms.Form):
                     ),
                 )
 
-            injury_field = f"injury_{pk}"
-            self.fields[injury_field] = RepeatedModelChoiceField(
-                required=False,
-                queryset=available_injuries_for_fighter(fighter),
-            )
-            self.fields[injury_field].widget.attrs.update(
-                {
-                    "class": "form-select form-select-sm",
-                    "aria-label": f"Injury for {fighter.name}",
-                }
-            )
-            group_select(
-                self,
-                injury_field,
-                key=lambda x: x.injury_group.name if x.injury_group else "Other",
-            )
-
             if not fighter.is_dead:
-                # Leaving DEAD must go through the resurrect flow (cost
-                # restoration), so already-dead fighters get no state field.
+                # Dead fighters get no injury or state fields: a further
+                # injury would re-run (or bypass) the kill flow, and leaving
+                # DEAD must go through the resurrect flow (cost restoration).
+                injury_field = f"injury_{pk}"
+                self.fields[injury_field] = RepeatedModelChoiceField(
+                    required=False,
+                    queryset=available_injuries_for_fighter(fighter),
+                )
+                self.fields[injury_field].widget.attrs.update(
+                    {
+                        "class": "form-select form-select-sm",
+                        "aria-label": f"Injury for {fighter.name}",
+                    }
+                )
+                group_select(
+                    self,
+                    injury_field,
+                    key=lambda x: x.injury_group.name if x.injury_group else "Other",
+                )
+
+                # Mirror EditFighterStateForm: vehicles repair, they don't
+                # recover, convalesce or die.
+                if fighter.content_fighter.category == FighterCategoryChoices.VEHICLE:
+                    state_choices = [
+                        (ListFighter.ACTIVE, "Active"),
+                        (ListFighter.IN_REPAIR, "In Repair"),
+                    ]
+                else:
+                    state_choices = [
+                        (ListFighter.ACTIVE, "Active"),
+                        (ListFighter.RECOVERY, "Recovery"),
+                        (ListFighter.CONVALESCENCE, "Convalescence"),
+                        (ListFighter.DEAD, "Dead"),
+                    ]
                 self.fields[f"state_{pk}"] = forms.ChoiceField(
                     required=False,
-                    choices=[("", "—")] + list(ListFighter.INJURY_STATE_CHOICES),
+                    choices=[("", "—")] + state_choices,
                     widget=forms.Select(
                         attrs={
                             "class": "form-select form-select-sm",
@@ -204,7 +243,7 @@ class PostBattleUpdatesForm(forms.Form):
                     ),
                 )
 
-            if can_be_captured(fighter) and capture_lists:
+            if can_be_captured(fighter) and has_capture_lists:
                 self.fields[f"captured_by_{pk}"] = forms.ModelChoiceField(
                     required=False,
                     queryset=capture_lists,
@@ -216,6 +255,13 @@ class PostBattleUpdatesForm(forms.Form):
                         }
                     ),
                 )
+
+        # A stronger border on every input, matching the steppers' outline
+        # buttons so the grid's controls read as one set.
+        for field in self.fields.values():
+            css = field.widget.attrs.get("class", "")
+            if "border-secondary" not in css:
+                field.widget.attrs["class"] = f"{css} border-secondary".strip()
 
     def clean(self):
         cleaned = super().clean()

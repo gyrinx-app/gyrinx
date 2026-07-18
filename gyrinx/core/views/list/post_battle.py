@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.content.models import ContentInjury
 from gyrinx.core.forms.post_battle import PostBattleUpdatesForm
 from gyrinx.core.handlers.fighter import (
     handle_fighter_add_injury,
@@ -87,14 +88,22 @@ class _ApplySummary:
             )
         if self.capture_skipped_names:
             names = ", ".join(self.capture_skipped_names)
-            summary += (
-                f" {names} died in the same update, so the capture was not applied."
-            )
+            summary += f" The capture of {names} was therefore not applied."
         return summary
 
 
 def _s(n):
     return "" if n == 1 else "s"
+
+
+class _ResourceApplyError(Exception):
+    """A resource delta failed at apply time (e.g. a concurrent change pushed
+    the resource below zero after the form validated). Carries the field name
+    so the view can surface it as a field error instead of a 500."""
+
+    def __init__(self, field, message):
+        super().__init__(message)
+        self.field = field
 
 
 def _post_battle_fighters(lst):
@@ -191,7 +200,14 @@ def _apply(request, lst, fighters, resources, form):
         for resource in resources:
             delta = cd.get(f"resource_{resource.pk}")
             if delta:
-                resource.modify_amount(delta, user=user, battle=battle)
+                try:
+                    resource.modify_amount(delta, user=user, battle=battle)
+                except ValueError as e:
+                    # The form validated against the amount loaded at bind
+                    # time; a concurrent change can still push the resource
+                    # below zero here. Roll the whole submit back and let the
+                    # view re-render with a field error.
+                    raise _ResourceApplyError(f"resource_{resource.pk}", str(e)) from e
                 log_event(
                     user=user,
                     noun=EventNoun.CAMPAIGN_RESOURCE,
@@ -417,12 +433,17 @@ def post_battle_updates(request, id):
     if request.method == "POST":
         form = PostBattleUpdatesForm(request.POST, **form_kwargs)
         if form.is_valid():
-            summary = _apply(request, lst, fighters, resources, form)
-            if summary.changed:
-                messages.success(request, summary.message)
+            try:
+                summary = _apply(request, lst, fighters, resources, form)
+            except _ResourceApplyError as e:
+                # Everything rolled back; fall through and re-render.
+                form.add_error(e.field, str(e))
             else:
-                messages.info(request, "No post-battle changes were entered.")
-            return HttpResponseRedirect(default_url)
+                if summary.changed:
+                    messages.success(request, summary.message)
+                else:
+                    messages.info(request, "No post-battle changes were entered.")
+                return HttpResponseRedirect(default_url)
     else:
         # A ?battle=<id> query param preselects that battle (only if the list
         # actually fought in it — otherwise it's ignored). Validate the UUID
@@ -443,6 +464,11 @@ def post_battle_updates(request, id):
         {"resource": resource, "field": form[f"resource_{resource.pk}"]}
         for resource in resources
     ]
+    # Injury id -> default outcome, for the JS that mirrors the single-fighter
+    # add-injury screen: picking an injury pre-fills the row's state select.
+    injury_phases = {
+        str(pk): phase for pk, phase in ContentInjury.objects.values_list("id", "phase")
+    }
     return render(
         request,
         "core/list_post_battle_updates.html",
@@ -453,6 +479,7 @@ def post_battle_updates(request, id):
             "has_battles": battles.exists(),
             "resource_fields": resource_fields,
             "has_assets": assets.exists(),
+            "injury_phases": injury_phases,
         },
     )
 
@@ -474,11 +501,12 @@ def _build_rows(fighters, form):
         ]
         captured_by_name = f"captured_by_{pk}"
         state_name = f"state_{pk}"
+        injury_name = f"injury_{pk}"
         rows.append(
             {
                 "fighter": fighter,
                 "xp": form[f"xp_{pk}"],
-                "injury": form[f"injury_{pk}"],
+                "injury": form[injury_name] if injury_name in form.fields else None,
                 "counters": counters,
                 "state": form[state_name] if state_name in form.fields else None,
                 "captured_by": (

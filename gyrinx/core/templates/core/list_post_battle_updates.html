@@ -68,7 +68,7 @@
                                         <span class="text-secondary fs-7">(Territories and other Assets won this battle)</span>
                                     </label>
                                     <div class="vstack gap-1" data-pb-repeat>
-                                        <div class="d-flex gap-1 align-items-center" data-pb-repeat-item>{{ form.assets_captured }}</div>
+                                        {{ form.assets_captured }}
                                         <div>
                                             <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another</a>
                                         </div>
@@ -110,7 +110,7 @@
                                     </button>
                                     {# djlint:off H021 #}
                                     <input type="number"
-                                           class="form-control form-control-sm text-center"
+                                           class="form-control form-control-sm text-center border-secondary"
                                            style="max-width: 3.5rem"
                                            min="1"
                                            value="1"
@@ -179,18 +179,20 @@
                                                 {% endfor %}
                                             </div>
                                         {% endfor %}
-                                        <div class="col-12 col-md">
-                                            <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injuries</label>
-                                            <div class="vstack gap-1" data-pb-repeat>
-                                                <div class="d-flex gap-1 align-items-center" data-pb-repeat-item>{{ row.injury }}</div>
-                                                <div>
-                                                    <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another injury</a>
+                                        {% if row.injury %}
+                                            <div class="col-12 col-md">
+                                                <label class="form-label fs-7 mb-1" for="{{ row.injury.id_for_label }}">Injuries</label>
+                                                <div class="vstack gap-1" data-pb-repeat>
+                                                    {{ row.injury }}
+                                                    <div>
+                                                        <a href="#" class="fs-7 icon-link linked" data-pb-repeat-add hidden><i class="bi-plus-lg"></i> Add another injury</a>
+                                                    </div>
                                                 </div>
+                                                {% for error in row.injury.errors %}
+                                                    <div class="text-danger fs-7">{{ error }}</div>
+                                                {% endfor %}
                                             </div>
-                                            {% for error in row.injury.errors %}
-                                                <div class="text-danger fs-7">{{ error }}</div>
-                                            {% endfor %}
-                                        </div>
+                                        {% endif %}
                                         {% if row.state %}
                                             <div class="col-6 col-md-2">
                                                 <label class="form-label fs-7 mb-1" for="{{ row.state.id_for_label }}">
@@ -230,11 +232,48 @@
         </form>
     </div>
     {% if rows %}
+        {{ injury_phases|json_script:"pb-injury-phases" }}
         <script>
          (function () {
              // Reveal JS-only affordances (row checkboxes, mass-XP toolbar).
              document.querySelectorAll("[data-pb-jsonly]").forEach(function (el) {
                  el.hidden = false;
+             });
+
+             // --- Injury -> state sync, mirroring the single add-injury
+             // screen: choosing an injury pre-fills the row's state select
+             // with the injury's default outcome. Only while the state is
+             // untouched (empty or previously auto-filled) — a manual state
+             // choice always wins.
+             var phasesEl = document.getElementById("pb-injury-phases");
+             var injuryPhases = phasesEl ? JSON.parse(phasesEl.textContent) : {};
+             document.addEventListener("change", function (e) {
+                 var target = e.target;
+                 if (target.matches("select[name^='state_']")) {
+                     // A user-driven change; auto-fills below don't dispatch.
+                     delete target.dataset.pbAuto;
+                     return;
+                 }
+                 if (!target.matches("select[name^='injury_']")) return;
+                 var row = target.closest("[data-pb-row]");
+                 var state = row && row.querySelector("select[name^='state_']");
+                 if (!state) return;
+                 var untouched = state.value === "" || state.dataset.pbAuto === "1";
+                 if (!untouched) return;
+                 var phase = injuryPhases[target.value] || "";
+                 var hasOption = Array.prototype.some.call(
+                     state.options,
+                     function (o) { return o.value === phase; }
+                 );
+                 if (phase && phase !== "no_change" && hasOption) {
+                     state.value = phase;
+                     state.dataset.pbAuto = "1";
+                 } else if (state.dataset.pbAuto === "1") {
+                     // The driving injury was cleared or has no outcome:
+                     // drop the auto-filled state rather than submit it.
+                     state.value = "";
+                     delete state.dataset.pbAuto;
+                 }
              });
 
              // --- Steppers: −/+ nudge buttons around number inputs. -------
