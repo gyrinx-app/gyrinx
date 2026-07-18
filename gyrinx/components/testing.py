@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Comment, Tag
 from django.template import engines
 from django.template.loader import render_to_string
 
@@ -37,6 +37,11 @@ def _normalise_tag(root: Tag) -> None:
     # Neutralise the {% cachebuster %} hidden input (random hex each render).
     for cb in root.find_all("input", attrs={"name": "cb"}):
         cb["value"] = "X"
+    # Drop HTML comments — inert dev notes that don't affect the rendered page.
+    # (A test that genuinely depends on a specific comment marker is caught by the
+    # full suite, not golden; components reproduce those comments explicitly.)
+    for comment in root.find_all(string=lambda t: isinstance(t, Comment)):
+        comment.extract()
     # Sort attributes for order-independent comparison.
     for node in root.find_all(True):
         if node.attrs:
