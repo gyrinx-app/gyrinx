@@ -112,11 +112,7 @@ class BattleDetailView(generic.DetailView):
         rating and its crew inlined as a sub-row (or an 'add crew' affordance).
         """
         # One crew summary per gang that has one, keyed by gang id.
-        crews = list(
-            battle.crews.select_related("list").prefetch_related(
-                "members", "chosen_fighters"
-            )
-        )
+        crews = list(battle.crews.select_related("list").prefetch_related("members"))
         crew_by_gang = {}
         for crew in crews:
             # Only the rating and pending-roll flag are needed here, so skip the

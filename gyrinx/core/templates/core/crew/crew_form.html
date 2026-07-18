@@ -17,14 +17,22 @@
                 Edit crew
             {% endif %}
         </h1>
-        <p class="text-secondary">
-            Choose this crew's fighters for {{ battle.name }}. Tick the ones you're
-            hand-picking; the dice draw <em>extra</em> fighters at random when the crew is
-            locked at battle start.
-        </p>
+        <p class="text-secondary mb-0">Choose this crew's fighters for {{ battle.name }}, the way the scenario says.</p>
+        <div>
+            <div class="form-label mb-1">Selection method</div>
+            <div class="btn-group" role="group" aria-label="Selection method">
+                {% for entry in method_picker %}
+                    <a href="{{ entry.url }}"
+                       class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                       {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
+                {% endfor %}
+            </div>
+            <div class="form-text">{{ form.method_intro }}</div>
+        </div>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {% if is_create %}<input type="hidden" name="list" value="{{ gang.id }}">{% endif %}
+            <input type="hidden" name="method" value="{{ method }}">
             {{ form.non_field_errors }}
             <div>
                 <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
@@ -32,45 +40,51 @@
                 {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
                 {{ form.name.errors }}
             </div>
-            <div>
-                <label class="form-label">Random draw</label>
-                <div class="d-flex flex-wrap gap-2 align-items-end">
-                    <div>
-                        <label class="form-text mb-1 d-block"
-                               for="{{ form.random_dice.id_for_label }}">{{ form.random_dice.label }}</label>
-                        {{ form.random_dice }}
-                    </div>
-                    <div class="pb-2">+</div>
-                    <div>
-                        <label class="form-text mb-1 d-block"
-                               for="{{ form.random_number.id_for_label }}">{{ form.random_number.label }}</label>
-                        {{ form.random_number }}
-                    </div>
+            {% if form.shows_count %}
+                <div>
+                    <label class="form-label" for="{{ form.custom_count.id_for_label }}">{{ form.custom_count.label }}</label>
+                    {{ form.custom_count }}
+                    <div class="form-text">{{ form.custom_count.help_text }}</div>
+                    {{ form.custom_count.errors }}
                 </div>
-                <div class="form-text">
-                    Extra fighters drawn at random when the crew is locked — you don't choose
-                    which ones. Pick a die (D3/D6), add a number, or use either alone (e.g. D3,
-                    D3+4, or 6); leave both blank for no random draw. If a scenario instead rolls
-                    for how many you may <em>hand-pick</em> (e.g. Custom Selection (D3+7)), roll it
-                    yourself and tick that many below.
+            {% endif %}
+            {% if form.shows_random %}
+                <div>
+                    <label class="form-label">{{ form.random_group_label }}</label>
+                    <div class="d-flex flex-wrap gap-2 align-items-end">
+                        <div>
+                            <label class="form-text mb-1 d-block"
+                                   for="{{ form.random_dice.id_for_label }}">{{ form.random_dice.label }}</label>
+                            {{ form.random_dice }}
+                        </div>
+                        <div class="pb-2">+</div>
+                        <div>
+                            <label class="form-text mb-1 d-block"
+                                   for="{{ form.random_number.id_for_label }}">{{ form.random_number.label }}</label>
+                            {{ form.random_number }}
+                        </div>
+                    </div>
+                    <div class="form-text">{{ form.random_group_help }} Use a die, a number, or both — e.g. D3, 6, or D3+4.</div>
+                    {{ form.random_dice.errors }}
+                    {{ form.random_number.errors }}
                 </div>
-                {{ form.random_dice.errors }}
-                {{ form.random_number.errors }}
-            </div>
-            <div>
-                <label class="form-label">{{ form.chosen_fighters.label }}</label>
-                {% if form.has_eligible_fighters %}
-                    {{ form.chosen_fighters }}
-                    <div class="form-text">{{ form.chosen_fighters.help_text }}</div>
-                {% else %}
-                    <p class="text-secondary fs-7 mb-0">
-                        <i class="bi-info-circle"></i>
-                        This gang has no active fighters available for a crew yet. Add fighters to
-                        the gang first, or set up a random draw and lock a whole-gang crew later.
-                    </p>
-                {% endif %}
-                {{ form.chosen_fighters.errors }}
-            </div>
+            {% endif %}
+            {% if form.shows_picks %}
+                <div>
+                    <label class="form-label">{{ form.chosen_fighters.label }}</label>
+                    {% if form.has_eligible_fighters %}
+                        {{ form.chosen_fighters }}
+                        <div class="form-text">{{ form.chosen_fighters.help_text }}</div>
+                    {% else %}
+                        <p class="text-secondary fs-7 mb-0">
+                            <i class="bi-info-circle"></i>
+                            This gang has no active fighters available for a crew yet. Add fighters to
+                            the gang first, or use a different selection method.
+                        </p>
+                    {% endif %}
+                    {{ form.chosen_fighters.errors }}
+                </div>
+            {% endif %}
             <div class="hstack gap-3 align-items-center">
                 <button type="submit" class="btn btn-success">Save crew</button>
                 <a href="{{ cancel_url }}" class="btn btn-link">Cancel</a>

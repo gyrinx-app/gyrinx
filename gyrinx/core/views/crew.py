@@ -1,13 +1,19 @@
 """Views for battle crews (#1346).
 
-A crew is a virtual sub-gang assigned to a battle: the recipe (chosen fighters
-+ a random-draw spec) while it is a draft, then the frozen attendees once it is
-locked at battle start. These views cover the whole lifecycle — create, edit,
-lock, per-member loadout, extras, delete — but never write to the gang's
-canonical cost, credits, or audit stream.
+A crew is a virtual sub-gang assigned to a battle: the recipe (the scenario's
+selection method and its numbers) while it is a draft, then the frozen
+attendees once it is locked at battle start. These views cover the whole
+lifecycle — create, edit, lock, per-member loadout, extras, delete — but never
+write to the gang's canonical cost, credits, or audit stream.
+
+The selection method is URL state (``?method=custom|random|hybrid``): the
+picker is a set of server-rendered links and the server returns the form
+variant for that method. No JavaScript decides which fields exist — see the
+"URL-Driven UI" convention.
 """
 
 import uuid
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -22,10 +28,38 @@ from gyrinx.core.forms.crew import (
     CrewLineItemForm,
     CrewMemberLoadoutForm,
 )
-from gyrinx.core.handlers.crew import handle_crew_lock
+from gyrinx.core.handlers.crew import handle_crew_lock, handle_crew_recipe_save
 from gyrinx.core.models import Battle
 from gyrinx.core.models.crew import Crew, CrewLineItem, CrewMember
 from gyrinx.core.models.list import List
+
+VALID_METHODS = {value for value, _ in Crew.SELECTION_METHOD_CHOICES}
+
+
+def _resolve_method(request, default):
+    """The selection method for this request, from the URL (or the re-posted
+    hidden field). A bad ``?method=`` is a navigation accident, not something to
+    error on, so anything unrecognised silently falls back to ``default``."""
+    method = request.GET.get("method") or request.POST.get("method")
+    return method if method in VALID_METHODS else default
+
+
+def _method_picker(*, base_url, current, extra=None):
+    """Entries for the selection-method picker: one link per method, pointing at
+    this same page with the method swapped. ``extra`` carries any query
+    parameters the page needs to keep (the gang, on create)."""
+    entries = []
+    for value, label in Crew.SELECTION_METHOD_CHOICES:
+        params = dict(extra or {}, method=value)
+        entries.append(
+            {
+                "method": value,
+                "label": label,
+                "url": f"{base_url}?{urlencode(params)}",
+                "is_current": value == current,
+            }
+        )
+    return entries
 
 
 def _get_battle(battle_id):
@@ -81,8 +115,10 @@ def crew_new(request, battle_id):
         messages.info(request, f"{gang.name} already has a crew for this battle.")
         return _redirect_crew(existing)
 
+    method = _resolve_method(request, Crew.CUSTOM)
+
     if request.method == "POST":
-        form = CrewForm(request.POST, gang=gang)
+        form = CrewForm(request.POST, gang=gang, method=method)
         if form.is_valid():
             crew = form.save(commit=False)
             crew.battle = battle
@@ -95,8 +131,14 @@ def crew_new(request, battle_id):
                 # constraint rolls back cleanly and leaves the outer
                 # transaction usable for the redirect lookup below.
                 with transaction.atomic():
-                    crew.save_with_user(user=request.user)
-                    crew.chosen_fighters.set(form.cleaned_data["chosen_fighters"])
+                    handle_crew_recipe_save(
+                        user=request.user,
+                        crew=crew,
+                        method=method,
+                        custom_count=form.cleaned_data.get("custom_count"),
+                        chosen_fighters=form.cleaned_data.get("chosen_fighters"),
+                        random_spec=form.cleaned_data.get("random_spec", ""),
+                    )
             except IntegrityError:
                 existing = Crew.objects.filter(battle=battle, list=gang).first()
                 if existing:
@@ -108,12 +150,23 @@ def crew_new(request, battle_id):
             messages.success(request, "Crew created.")
             return _redirect_crew(crew)
     else:
-        form = CrewForm(gang=gang)
+        form = CrewForm(gang=gang, method=method)
 
     return render(
         request,
         "core/crew/crew_form.html",
-        {"form": form, "battle": battle, "gang": gang, "is_create": True},
+        {
+            "form": form,
+            "battle": battle,
+            "gang": gang,
+            "is_create": True,
+            "method": method,
+            "method_picker": _method_picker(
+                base_url=reverse("core:crew-new", args=[battle.id]),
+                current=method,
+                extra={"list": str(gang.id)},
+            ),
+        },
     )
 
 
@@ -148,6 +201,10 @@ def crew_edit(request, battle_id, crew_id):
         messages.info(request, "This crew is locked and can no longer be re-drawn.")
         return _redirect_crew(crew)
 
+    # No ?method= (the plain "Edit" link) keeps the crew on the method it was
+    # saved with.
+    method = _resolve_method(request, crew.selection_method)
+
     if request.method == "POST":
         gang = crew.list
         # Re-fetch under a row lock so a crew being locked concurrently can't
@@ -159,20 +216,36 @@ def crew_edit(request, battle_id, crew_id):
                 request, "This crew was just locked and can no longer be re-drawn."
             )
             return _redirect_crew(crew)
-        form = CrewForm(request.POST, instance=crew, gang=gang)
+        form = CrewForm(request.POST, instance=crew, gang=gang, method=method)
         if form.is_valid():
             crew = form.save(commit=False)
-            crew.save_with_user(user=request.user)
-            crew.chosen_fighters.set(form.cleaned_data["chosen_fighters"])
+            handle_crew_recipe_save(
+                user=request.user,
+                crew=crew,
+                method=method,
+                custom_count=form.cleaned_data.get("custom_count"),
+                chosen_fighters=form.cleaned_data.get("chosen_fighters"),
+                random_spec=form.cleaned_data.get("random_spec", ""),
+            )
             messages.success(request, "Crew updated.")
             return _redirect_crew(crew)
     else:
-        form = CrewForm(instance=crew, gang=crew.list)
+        form = CrewForm(instance=crew, gang=crew.list, method=method)
 
     return render(
         request,
         "core/crew/crew_form.html",
-        {"form": form, "battle": crew.battle, "gang": crew.list, "crew": crew},
+        {
+            "form": form,
+            "battle": crew.battle,
+            "gang": crew.list,
+            "crew": crew,
+            "method": method,
+            "method_picker": _method_picker(
+                base_url=reverse("core:crew-edit", args=[crew.battle_id, crew.id]),
+                current=method,
+            ),
+        },
     )
 
 
@@ -224,16 +297,17 @@ def crew_lock(request, battle_id, crew_id):
             )
         return _redirect_crew(crew)
 
-    chosen_fighters = list(crew.chosen_fighters.all())
+    chosen_count = crew.members.count()
     return render(
         request,
         "core/crew/crew_lock.html",
         {
             "crew": crew,
             "battle": crew.battle,
-            "chosen_fighters": chosen_fighters,
-            # No picks and no random draw = the whole eligible roster attends.
-            "whole_gang": not chosen_fighters and not (crew.random_spec or "").strip(),
+            "chosen_count": chosen_count,
+            # Custom Selection with no number in brackets and nobody chosen =
+            # the whole eligible roster attends.
+            "whole_gang": crew.is_whole_gang and not chosen_count,
         },
     )
 

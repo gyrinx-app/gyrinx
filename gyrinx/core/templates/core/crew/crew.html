@@ -62,7 +62,7 @@
                             <td>
                                 <strong>{{ a.name }}</strong>
                                 <span class="text-secondary fs-7">· {{ a.category }}</span>
-                                {% if a.was_random %}
+                                {% if a.is_random %}
                                     <span class="badge text-bg-info ms-1"
                                           data-bs-toggle="tooltip"
                                           data-bs-title="Drawn at random">Random</span>
@@ -93,9 +93,9 @@
                                 {% if crew.is_locked %}
                                     No attendees.
                                 {% elif crew.pending_roll %}
-                                    No fighters hand-picked — all drawn from the roll.
+                                    No fighters chosen — the whole crew is drawn at random.
                                 {% else %}
-                                    No fighters chosen — the whole gang attends when the crew is rolled.
+                                    No fighters chosen — the whole gang attends when the crew is confirmed.
                                 {% endif %}
                             </td>
                         </tr>

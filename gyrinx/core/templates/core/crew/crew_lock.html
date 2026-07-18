@@ -14,7 +14,7 @@
                 {% if whole_gang %}
                     The whole eligible gang will attend.
                 {% else %}
-                    {{ chosen_fighters|length }} chosen fighter{{ chosen_fighters|length|pluralize }} will be included{% if crew.random_spec %}, and <strong>{{ crew.random_spec }}</strong> more will be drawn at random from the rest of the gang{% endif %}.
+                    {{ chosen_count }} chosen fighter{{ chosen_count|pluralize }} will be included{% if crew.random_spec %}, and <strong>{{ crew.random_spec }}</strong> more will be drawn at random from the rest of the gang{% endif %}.
                 {% endif %}
             </p>
             <div class="border rounded p-2 mt-3">

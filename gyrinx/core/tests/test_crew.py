@@ -2,11 +2,13 @@
 
 Covers the selection-spec parser, the Crew/CrewMember/CrewLineItem models
 (method label, live rating for draft vs locked, extras, deltas, permissions),
-the set-scoped fighter cost that feeds crew rating, the lock/draw handler, and
-the crew lifecycle views.
+the set-scoped fighter cost that feeds crew rating, the lock/draw handler, the
+URL-driven selection-method picker with its per-method validation, and the crew
+lifecycle views.
 """
 
 import pytest
+from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
@@ -97,6 +99,20 @@ def test_build_selection_spec(dice, number, spec):
 # --- Fixtures ---------------------------------------------------------------
 
 
+def add_chosen(crew, fighters):
+    """Add ``fighters`` to ``crew`` as chosen members — what saving a recipe
+    does. Members exist from selection time, so a draft crew has them too."""
+    return [
+        CrewMember.objects.create(
+            crew=crew,
+            list_fighter=fighter,
+            source=CrewMember.CHOSEN,
+            owner=crew.owner,
+        )
+        for fighter in fighters
+    ]
+
+
 @pytest.fixture
 def crew_setup(user, campaign, make_list, make_list_fighter):
     """A campaign battle with one participating gang of five active fighters."""
@@ -176,31 +192,58 @@ def test_cost_int_for_full_coverage_set_equals_full_kit(
 
 
 @pytest.mark.django_db
-def test_method_label(crew_setup):
+def test_method_label_uses_rulebook_notation(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
 
-    assert crew.method_label() == "Whole gang"
+    # Custom Selection with no number in brackets: the whole gang may take part.
+    assert crew.method_label() == "Custom Selection"
 
-    crew.random_spec = "D3"
-    crew.save()
-    assert crew.method_label() == "D3 random"
+    crew.custom_count = 4
+    assert crew.method_label() == "Custom Selection (4)"
 
-    crew.chosen_fighters.set(crew_setup["fighters"][:2])
-    assert crew.method_label() == "2 chosen + D3 random"
+    crew.selection_method = Crew.RANDOM
+    crew.custom_count = None
+    crew.random_spec = "D6+2"
+    assert crew.method_label() == "Random Selection (D6+2)"
 
-    crew.random_spec = ""
-    crew.save()
-    assert crew.method_label() == "2 chosen"
+    crew.selection_method = Crew.HYBRID
+    crew.custom_count = 2
+    assert crew.method_label() == "Hybrid Selection (2+D6+2)"
+
+
+@pytest.mark.django_db
+def test_pending_roll_by_method(crew_setup):
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+
+    # Custom has nothing to roll, whatever the recipe says.
+    assert crew.pending_roll is False
+    crew.custom_count = 3
+    assert crew.pending_roll is False
+
+    for method in (Crew.RANDOM, Crew.HYBRID):
+        crew.selection_method = method
+        crew.random_spec = "D3"
+        assert crew.pending_roll is True
+
+    # A locked crew has already been drawn.
+    crew.status = Crew.LOCKED
+    assert crew.pending_roll is False
 
 
 @pytest.mark.django_db
 def test_draft_rating_sums_chosen_full_cost(crew_setup):
+    """Rating neutrality: a draft crew's rating is the sum of its chosen members
+    at full kit — the same number the chosen-fighters M2M used to produce."""
     battle, gang = crew_setup["battle"], crew_setup["gang"]
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-    crew.chosen_fighters.set(crew_setup["fighters"][:3])
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], custom_count=3
+    )
+    add_chosen(crew, crew_setup["fighters"][:3])
 
-    # Three fighters at base 100 each.
+    # Three fighters at base 100 each, all with no equipment set (full kit).
+    assert all(m.equipment_set_id is None for m in crew.members.all())
     assert crew.rating() == 300
     assert crew.credits_value() == 300
 
@@ -325,9 +368,14 @@ def test_lock_freezes_chosen_and_draws_random(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     fighters = crew_setup["fighters"]
     crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], random_spec="2"
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=1,
+        random_spec="2",
     )
-    crew.chosen_fighters.set(fighters[:1])
+    add_chosen(crew, fighters[:1])
 
     result = handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(1))
 
@@ -338,8 +386,8 @@ def test_lock_freezes_chosen_and_draws_random(crew_setup):
 
     members = list(crew.members.all())
     assert len(members) == 3
-    chosen_members = [m for m in members if not m.was_random]
-    random_members = [m for m in members if m.was_random]
+    chosen_members = [m for m in members if m.source == CrewMember.CHOSEN]
+    random_members = [m for m in members if m.source == CrewMember.DRAWN]
     assert [m.list_fighter_id for m in chosen_members] == [fighters[0].id]
     assert len(random_members) == 2
     # Random draws never re-pick a chosen fighter.
@@ -347,12 +395,44 @@ def test_lock_freezes_chosen_and_draws_random(crew_setup):
 
 
 @pytest.mark.django_db
+def test_lock_does_not_duplicate_chosen_members(crew_setup):
+    """The chosen members already exist when the lock runs, so the draw must
+    exclude them: re-drawing one would trip unique(crew, list_fighter)."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    fighters = crew_setup["fighters"]
+    # Ask for more random fighters than the gang has left, so the pool would
+    # certainly include a chosen fighter if it weren't excluded.
+    crew = Crew.objects.create(
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=2,
+        random_spec="10",
+    )
+    add_chosen(crew, fighters[:2])
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(3))
+
+    member_fighter_ids = [m.list_fighter_id for m in crew.members.all()]
+    # Everyone attends, exactly once.
+    assert len(member_fighter_ids) == len(set(member_fighter_ids)) == 5
+    chosen = crew.members.filter(source=CrewMember.CHOSEN)
+    assert {m.list_fighter_id for m in chosen} == {fighters[0].id, fighters[1].id}
+
+
+@pytest.mark.django_db
 def test_lock_writes_campaign_action(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], random_spec="D3"
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=2,
+        random_spec="D3",
     )
-    crew.chosen_fighters.set(crew_setup["fighters"][:2])
+    add_chosen(crew, crew_setup["fighters"][:2])
 
     result = handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
 
@@ -365,9 +445,10 @@ def test_lock_writes_campaign_action(crew_setup):
 @pytest.mark.django_db
 def test_lock_whole_gang_enrols_all_eligible(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
-    # No chosen fighters and no random spec = "Whole gang".
+    # Custom Selection with no number in brackets and nobody chosen: the whole
+    # gang takes part.
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-    assert crew.method_label() == "Whole gang"
+    assert crew.method_label() == "Custom Selection"
 
     result = handle_crew_lock(user=crew_setup["user"], crew=crew)
 
@@ -376,7 +457,7 @@ def test_lock_whole_gang_enrols_all_eligible(crew_setup):
     # All five eligible fighters attend, none marked random.
     members = list(crew.members.all())
     assert len(members) == 5
-    assert all(not m.was_random for m in members)
+    assert all(m.source == CrewMember.CHOSEN for m in members)
     assert result.chosen_count == 5
     assert result.random_count == 0
     assert result.whole_gang is True
@@ -388,9 +469,11 @@ def test_lock_whole_gang_enrols_all_eligible(crew_setup):
 def test_lock_skips_chosen_now_ineligible(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     fighters = crew_setup["fighters"]
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-    crew.chosen_fighters.set(fighters[:2])
-    # A hand-picked fighter becomes ineligible between recipe and lock.
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], custom_count=2
+    )
+    add_chosen(crew, fighters[:2])
+    # A chosen fighter becomes ineligible between the recipe and the lock.
     fighters[1].archived = True
     fighters[1].save()
 
@@ -424,16 +507,46 @@ def test_lock_random_pool_excludes_ineligible(crew_setup):
         f.injury_state = ListFighter.DEAD
         f.save()
     crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], random_spec="10"
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=1,
+        random_spec="10",
     )
-    crew.chosen_fighters.set(fighters[:1])
+    add_chosen(crew, fighters[:1])
 
     result = handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
 
     # Asked for 10, only fighters[1] is eligible-and-not-chosen.
     assert result.random_count == 1
-    random_ids = {m.list_fighter_id for m in crew.members.filter(was_random=True)}
+    random_ids = {
+        m.list_fighter_id for m in crew.members.filter(source=CrewMember.DRAWN)
+    }
     assert random_ids == {fighters[1].id}
+
+
+@pytest.mark.django_db
+def test_locked_crew_preserves_member_source(crew_setup):
+    """Once locked, how each attendee joined is still on the record."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    crew = Crew.objects.create(
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=1,
+        random_spec="1",
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(2))
+
+    sources = sorted(m.source for m in crew.members.all())
+    assert sources == [CrewMember.CHOSEN, CrewMember.DRAWN]
+    # The receipt flags the drawn one for the "Random" badge.
+    flags = sorted(a["is_random"] for a in crew.receipt()["attendees"])
+    assert flags == [False, True]
 
 
 # --- Views ------------------------------------------------------------------
@@ -452,7 +565,9 @@ def test_crew_new_creates_crew(client, crew_setup):
         url,
         {
             "list": str(gang.id),
+            "method": Crew.HYBRID,
             "name": "A Team",
+            "custom_count": "1",
             "random_dice": "D3",
             "random_number": "",
             "chosen_fighters": [str(crew_setup["fighters"][0].id)],
@@ -461,8 +576,12 @@ def test_crew_new_creates_crew(client, crew_setup):
     assert resp.status_code == 302
     crew = Crew.objects.get(battle=battle, list=gang)
     assert crew.name == "A Team"
+    assert crew.selection_method == Crew.HYBRID
+    assert crew.custom_count == 1
     assert crew.random_spec == "D3"
-    assert list(crew.chosen_fighters.all()) == [crew_setup["fighters"][0]]
+    assert [m.list_fighter_id for m in crew.members.all()] == [
+        crew_setup["fighters"][0].id
+    ]
 
 
 @pytest.mark.django_db
@@ -473,7 +592,7 @@ def test_crew_new_permission_denied_for_stranger(client, crew_setup, make_user):
 
     resp = client.post(
         reverse("core:crew-new", args=[battle.id]),
-        {"list": str(gang.id), "name": "Nope", "random_dice": "", "random_number": ""},
+        {"list": str(gang.id), "method": Crew.CUSTOM, "name": "Nope"},
     )
     assert resp.status_code == 302
     assert not Crew.objects.filter(battle=battle).exists()
@@ -500,9 +619,8 @@ def test_crew_and_extra_owned_by_gang_owner(
         reverse("core:crew-new", args=[battle.id]),
         {
             "list": str(other_gang.id),
+            "method": Crew.CUSTOM,
             "name": "For player",
-            "random_dice": "",
-            "random_number": "",
         },
     )
     assert resp.status_code == 302
@@ -520,8 +638,10 @@ def test_crew_and_extra_owned_by_gang_owner(
 def test_crew_detail_and_edit(client, crew_setup):
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
-    crew.chosen_fighters.set(crew_setup["fighters"][:1])
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], custom_count=1
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
 
     assert (
         client.get(reverse("core:crew", args=[battle.id, crew.id])).status_code == 200
@@ -530,7 +650,9 @@ def test_crew_detail_and_edit(client, crew_setup):
     resp = client.post(
         reverse("core:crew-edit", args=[battle.id, crew.id]),
         {
+            "method": Crew.HYBRID,
             "name": "Renamed",
+            "custom_count": "3",
             "random_dice": "D6",
             "random_number": "2",
             "chosen_fighters": [str(f.id) for f in crew_setup["fighters"][:3]],
@@ -539,8 +661,9 @@ def test_crew_detail_and_edit(client, crew_setup):
     assert resp.status_code == 302
     crew.refresh_from_db()
     assert crew.name == "Renamed"
+    assert crew.selection_method == Crew.HYBRID
     assert crew.random_spec == "D6+2"
-    assert crew.chosen_fighters.count() == 3
+    assert crew.members.filter(source=CrewMember.CHOSEN).count() == 3
 
 
 @pytest.mark.django_db
@@ -560,9 +683,14 @@ def test_crew_lock_view(client, crew_setup):
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], random_spec="1"
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=1,
+        random_spec="1",
     )
-    crew.chosen_fighters.set(crew_setup["fighters"][:1])
+    add_chosen(crew, crew_setup["fighters"][:1])
 
     assert (
         client.get(reverse("core:crew-lock", args=[battle.id, crew.id])).status_code
@@ -673,7 +801,7 @@ def test_print_fighter_ids_by_state(crew_setup):
     assert crew.print_fighter_ids() is None
 
     # Draft with picks -> exactly the chosen fighters.
-    crew.chosen_fighters.set([fighters[0], fighters[2]])
+    add_chosen(crew, [fighters[0], fighters[2]])
     assert set(crew.print_fighter_ids()) == {fighters[0].id, fighters[2].id}
 
     # Locked -> the frozen members (here, the two chosen, no random draw).
@@ -691,9 +819,13 @@ def test_crew_print_link_filters_to_crew_fighters(client, crew_setup):
         crew_setup["battle"],
     )
     crew = Crew.objects.create(
-        battle=battle, list=gang, owner=crew_setup["user"], name="Alpha"
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        name="Alpha",
+        custom_count=2,
     )
-    crew.chosen_fighters.set([fighters[0], fighters[1]])
+    add_chosen(crew, [fighters[0], fighters[1]])
 
     resp = client.get(reverse("core:list-print", args=[gang.id]) + f"?crew={crew.id}")
     assert resp.status_code == 200
@@ -721,3 +853,425 @@ def test_crew_new_rejects_malformed_list_param(client, crew_setup):
     resp = client.get(reverse("core:crew-new", args=[battle.id]) + "?list=not-a-uuid")
     assert resp.status_code == 302
     assert reverse("core:battle", args=[battle.id]) in resp.url
+
+
+# --- Selection-method backfill (migration 0170) -----------------------------
+
+
+def _load_migration(name):
+    """Import a migration module by name — its filename isn't an identifier."""
+    import importlib
+
+    return importlib.import_module(f"gyrinx.core.migrations.{name}")
+
+
+@pytest.mark.django_db
+def test_migration_derives_selection_method(crew_setup):
+    """The 0170 backfill must leave every existing crew meaning what it meant
+    when the method was derived rather than stored. Exercises the migration's
+    own function against the four shapes historical data can take."""
+    battle, gang, fighters = (
+        crew_setup["battle"],
+        crew_setup["gang"],
+        crew_setup["fighters"],
+    )
+    user = crew_setup["user"]
+
+    def make(name, *, picks, spec):
+        other = List.objects.create(
+            name=name, content_house=gang.content_house, owner=user
+        )
+        battle.set_participants(list(battle.participants.all()) + [other])
+        crew = Crew.objects.create(
+            battle=battle, list=other, owner=user, random_spec=spec
+        )
+        crew.chosen_fighters.set(picks)
+        # Simulate pre-migration data: the columns hadn't been populated yet.
+        Crew.objects.filter(pk=crew.pk).update(
+            selection_method=Crew.CUSTOM, custom_count=None
+        )
+        return crew
+
+    hybrid = make("Hybrid gang", picks=fighters[:2], spec="D3")
+    random_only = make("Random gang", picks=[], spec="D6+1")
+    custom = make("Custom gang", picks=fighters[:3], spec="")
+    whole = make("Whole gang", picks=[], spec="")
+
+    derive = _load_migration("0170_crew_selection_method").derive_selection_method
+    derive(apps, None)
+
+    for crew in (hybrid, random_only, custom, whole):
+        crew.refresh_from_db()
+
+    assert (hybrid.selection_method, hybrid.custom_count) == (Crew.HYBRID, 2)
+    assert (random_only.selection_method, random_only.custom_count) == (
+        Crew.RANDOM,
+        None,
+    )
+    assert (custom.selection_method, custom.custom_count) == (Crew.CUSTOM, 3)
+    # Neither picks nor a spec: Custom Selection with no number = whole gang.
+    assert (whole.selection_method, whole.custom_count) == (Crew.CUSTOM, None)
+    # Labels still read as they did before the method was stored.
+    assert hybrid.method_label() == "Hybrid Selection (2+D3)"
+    assert random_only.method_label() == "Random Selection (D6+1)"
+    assert custom.method_label() == "Custom Selection (3)"
+    assert whole.method_label() == "Custom Selection"
+
+
+# --- URL-driven method picker ----------------------------------------------
+
+
+def _crew_new_url(crew_setup, method=None):
+    url = reverse("core:crew-new", args=[crew_setup["battle"].id])
+    query = f"?list={crew_setup['gang'].id}"
+    if method is not None:
+        query += f"&method={method}"
+    return url + query
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("method", [Crew.CUSTOM, Crew.RANDOM, Crew.HYBRID])
+def test_method_picker_links_to_the_other_methods(client, crew_setup, method):
+    client.force_login(crew_setup["user"])
+    resp = client.get(_crew_new_url(crew_setup, method))
+    assert resp.status_code == 200
+    content = resp.content.decode()
+
+    # Every method is offered, and each link carries the gang so switching
+    # method doesn't lose it.
+    for other, label in Crew.SELECTION_METHOD_CHOICES:
+        assert label in content
+        if other != method:
+            assert f"method={other}" in content
+    assert f"list={crew_setup['gang'].id}" in content
+
+
+@pytest.mark.django_db
+def test_random_form_has_no_fighter_checkboxes(client, crew_setup):
+    """The invalid state is unrepresentable: with no chosen_fighters field on
+    the Random form, a user cannot tick fighters for an all-random selection."""
+    client.force_login(crew_setup["user"])
+    resp = client.get(_crew_new_url(crew_setup, Crew.RANDOM))
+    form = resp.context["form"]
+
+    assert "chosen_fighters" not in form.fields
+    assert "custom_count" not in form.fields
+    assert "random_dice" in form.fields
+    assert 'name="chosen_fighters"' not in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_custom_form_has_no_random_fields(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    form = client.get(_crew_new_url(crew_setup, Crew.CUSTOM)).context["form"]
+
+    assert "random_dice" not in form.fields
+    assert "random_number" not in form.fields
+    assert "chosen_fighters" in form.fields
+
+
+@pytest.mark.django_db
+def test_nonsense_method_coerces_to_a_valid_variant(client, crew_setup):
+    client.force_login(crew_setup["user"])
+
+    # On create, an unrecognised ?method= falls back to Custom Selection.
+    resp = client.get(_crew_new_url(crew_setup, "nonsense"))
+    assert resp.status_code == 200
+    assert resp.context["method"] == Crew.CUSTOM
+
+    # On edit, it falls back to whatever the crew was saved with.
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="D3",
+    )
+    resp = client.get(
+        reverse("core:crew-edit", args=[crew_setup["battle"].id, crew.id])
+        + "?method=nonsense"
+    )
+    assert resp.status_code == 200
+    assert resp.context["method"] == Crew.RANDOM
+
+
+@pytest.mark.django_db
+def test_edit_without_method_keeps_the_stored_one(client, crew_setup):
+    """The plain "Edit" link carries no ?method=, so it must open the crew on
+    the method it was saved with."""
+    client.force_login(crew_setup["user"])
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=1,
+        random_spec="D6",
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    resp = client.get(
+        reverse("core:crew-edit", args=[crew_setup["battle"].id, crew.id])
+    )
+    assert resp.context["method"] == Crew.HYBRID
+    form = resp.context["form"]
+    assert form.fields["custom_count"].initial == 1
+    assert form.fields["chosen_fighters"].initial == [crew_setup["fighters"][0].id]
+
+
+# --- Per-method validation --------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_custom_requires_exactly_the_bracket_number(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    fighters = crew_setup["fighters"]
+
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "3",
+            "chosen_fighters": [str(fighters[0].id)],
+        },
+    )
+    # Re-rendered with the error, nothing saved.
+    assert resp.status_code == 200
+    assert resp.context["form"].errors["chosen_fighters"] == [
+        "Choose exactly 3 fighters — you've chosen 1."
+    ]
+    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
+
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "3",
+            "chosen_fighters": [str(f.id) for f in fighters[:3]],
+        },
+    )
+    assert resp.status_code == 302
+    crew = Crew.objects.get(battle=crew_setup["battle"])
+    assert crew.custom_count == 3
+    assert crew.members.count() == 3
+
+
+@pytest.mark.django_db
+def test_custom_blank_count_allows_any_number_of_picks(client, crew_setup):
+    """Custom Selection with no number in brackets is unbounded."""
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "",
+            "chosen_fighters": [str(f.id) for f in crew_setup["fighters"][:2]],
+        },
+    )
+    assert resp.status_code == 302
+    crew = Crew.objects.get(battle=crew_setup["battle"])
+    assert crew.custom_count is None
+    assert crew.members.count() == 2
+
+
+@pytest.mark.django_db
+def test_custom_blank_count_with_no_picks_is_the_whole_gang(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "",
+        },
+    )
+    assert resp.status_code == 302
+    crew = Crew.objects.get(battle=crew_setup["battle"])
+    assert crew.is_whole_gang is True
+    assert crew.members.count() == 0
+    assert crew.method_label() == "Custom Selection"
+
+    # And locking it enrols the whole eligible roster.
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+    assert result.whole_gang is True
+    assert crew.members.count() == 5
+
+
+@pytest.mark.django_db
+def test_count_over_roster_requires_every_eligible_fighter(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    fighters = crew_setup["fighters"]
+
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "8",
+            "chosen_fighters": [str(f.id) for f in fighters[:3]],
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.context["form"].errors["chosen_fighters"] == [
+        "Choose exactly 5 fighters — you've chosen 3. "
+        "This gang only has 5 fighters available."
+    ]
+
+    # Sending everyone is accepted, even though the scenario asked for more.
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "8",
+            "chosen_fighters": [str(f.id) for f in fighters],
+        },
+    )
+    assert resp.status_code == 302
+    assert Crew.objects.get(battle=crew_setup["battle"]).members.count() == 5
+
+
+@pytest.mark.django_db
+def test_random_requires_a_spec(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.RANDOM),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.RANDOM,
+            "name": "",
+            "random_dice": "",
+            "random_number": "",
+        },
+    )
+    assert resp.status_code == 200
+    assert "Random Selection always shows a number in brackets." in (
+        resp.content.decode()
+    )
+    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
+
+
+@pytest.mark.django_db
+def test_hybrid_requires_both_numbers(client, crew_setup):
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.HYBRID),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.HYBRID,
+            "name": "",
+            "custom_count": "",
+            "random_dice": "",
+            "random_number": "",
+        },
+    )
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert "the first number in brackets." in content
+    assert "the second number in brackets." in content
+    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
+
+
+@pytest.mark.django_db
+def test_method_round_trips_through_a_validation_error(client, crew_setup):
+    """A failed POST must re-render the same variant, not fall back to Custom."""
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.RANDOM,
+            "name": "",
+            "random_dice": "",
+            "random_number": "",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.context["method"] == Crew.RANDOM
+    assert "chosen_fighters" not in resp.context["form"].fields
+    assert 'value="random"' in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_switching_method_clears_the_other_methods_fields(client, crew_setup):
+    """Hybrid → Random must null the custom count and drop the chosen members;
+    → Custom must blank the random spec."""
+    client.force_login(crew_setup["user"])
+    battle, gang, fighters = (
+        crew_setup["battle"],
+        crew_setup["gang"],
+        crew_setup["fighters"],
+    )
+    crew = Crew.objects.create(
+        battle=battle,
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=2,
+        random_spec="D3",
+    )
+    add_chosen(crew, fighters[:2])
+
+    edit_url = reverse("core:crew-edit", args=[battle.id, crew.id])
+    resp = client.post(
+        edit_url + f"?method={Crew.RANDOM}",
+        {"method": Crew.RANDOM, "name": "", "random_dice": "D6", "random_number": "2"},
+    )
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    assert crew.selection_method == Crew.RANDOM
+    assert crew.custom_count is None
+    assert crew.random_spec == "D6+2"
+    assert crew.members.count() == 0
+
+    resp = client.post(
+        edit_url + f"?method={Crew.CUSTOM}",
+        {
+            "method": Crew.CUSTOM,
+            "name": "",
+            "custom_count": "1",
+            "chosen_fighters": [str(fighters[0].id)],
+        },
+    )
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    assert crew.selection_method == Crew.CUSTOM
+    assert crew.random_spec == ""
+    assert crew.custom_count == 1
+    assert [m.list_fighter_id for m in crew.members.all()] == [fighters[0].id]
+
+
+# --- Wording ----------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_crew_pages_use_rulebook_vocabulary(client, crew_setup):
+    """The rulebook never says "hand-pick" — it says Custom Selection."""
+    client.force_login(crew_setup["user"])
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], custom_count=1
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    pages = [
+        _crew_new_url(crew_setup, Crew.CUSTOM),
+        _crew_new_url(crew_setup, Crew.RANDOM),
+        _crew_new_url(crew_setup, Crew.HYBRID),
+        reverse("core:crew", args=[battle.id, crew.id]),
+        reverse("core:crew-edit", args=[battle.id, crew.id]),
+        reverse("core:crew-lock", args=[battle.id, crew.id]),
+    ]
+    for url in pages:
+        content = client.get(url).content.decode().lower()
+        assert "hand-pick" not in content, url
+        assert "hand pick" not in content, url

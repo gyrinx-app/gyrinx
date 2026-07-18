@@ -8,11 +8,13 @@ rating and credits value are computed on the fly.
 
 Two concepts live here:
 
-- The **recipe**: the player's explicit ``chosen_fighters`` plus a
-  ``random_spec`` describing the random draw ("D3+4"). Editable while the crew
-  is a DRAFT.
-- The **attendees**: the frozen :class:`CrewMember` rows created when the crew
-  is LOCKED at battle start (the random draw executes then, once, no re-rolls).
+- The **recipe**: the scenario's ``selection_method`` (the rulebook's Custom /
+  Random / Hybrid) plus the numbers it needs — ``custom_count`` for the
+  fighters the player chooses, ``random_spec`` for the ones drawn at random.
+  Editable while the crew is a DRAFT.
+- The **attendees**: :class:`CrewMember` rows. Chosen members exist from
+  selection time; the random ones are drawn when the crew is LOCKED at battle
+  start (once, no re-rolls).
 
 See ``.claude/notes/battle-crew-design.md`` for the full design.
 """
@@ -40,9 +42,10 @@ __all__ = [
 # --- Selection spec grammar: "" | N | DX | DX+N ---------------------------
 #
 # Necromunda scenarios choose a starting crew with one of three methods:
-# Custom (X), Random (X), Hybrid (A+B). We model the *random* component as a
-# small dice spec that is rolled once at battle start; the chosen component is
-# the ``chosen_fighters`` M2M. Every scenario's random count fits N / DX / DX+N.
+# Custom Selection (X), Random Selection (X), Hybrid Selection (X+Y). We model
+# the *random* component as a small dice spec that is rolled once at battle
+# start; the chosen component is a count plus the player's picks. Every
+# scenario's random count fits N / DX / DX+N.
 
 # Counts must be positive: a flat "0" (or a redundant "+0") would be a no-op
 # draw that still reads as a pending roll, so reject it — blank means "no draw".
@@ -133,6 +136,18 @@ class Crew(AppBase):
         (LOCKED, "Locked"),
     ]
 
+    # The rulebook's three crew selection methods. "Whole gang" is deliberately
+    # not a fourth: it is Custom Selection with no number in brackets, i.e.
+    # CUSTOM with a blank ``custom_count``.
+    CUSTOM = "custom"
+    RANDOM = "random"
+    HYBRID = "hybrid"
+    SELECTION_METHOD_CHOICES = [
+        (CUSTOM, "Custom Selection"),
+        (RANDOM, "Random Selection"),
+        (HYBRID, "Hybrid Selection"),
+    ]
+
     # Payment / provenance for extra credit-consuming things. Descriptive only:
     # crews never move real credits. Lives on CrewLineItem.
     # "Allowance" is the underdog's pre-battle balancing allowance — House
@@ -164,21 +179,40 @@ class Crew(AppBase):
         blank=True,
         help_text="Optional name for this crew.",
     )
+    selection_method = models.CharField(
+        max_length=10,
+        choices=SELECTION_METHOD_CHOICES,
+        default=CUSTOM,
+        help_text="The scenario's crew selection method.",
+    )
+    custom_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "How many fighters the player chooses — the number in brackets. "
+            "Blank on Custom Selection means no number is shown: the whole gang "
+            "may take part."
+        ),
+    )
     random_spec = models.CharField(
         max_length=20,
         blank=True,
         default="",
         validators=[validate_selection_spec],
         help_text=(
-            "How many random fighters to draw at battle start, in addition to "
-            "the chosen ones. A number (6), a die (D3), or die + number (D3+4)."
+            "How many fighters are drawn at random at battle start — the Y of "
+            "Random and Hybrid Selection. A number (6), a die (D3), or die + "
+            "number (D3+4)."
         ),
     )
+    # Superseded by CrewMember rows tagged ``source=CHOSEN``, which now exist
+    # from selection time rather than only after the lock. Kept (unread,
+    # unwritten) so this change can be rolled back without losing the picks.
     chosen_fighters = models.ManyToManyField(
         "core.ListFighter",
         blank=True,
         related_name="chosen_in_crews",
-        help_text="Fighters the player specifically picks for the crew.",
+        help_text="Deprecated: superseded by CrewMember rows.",
     )
     status = models.CharField(
         max_length=10,
@@ -212,7 +246,16 @@ class Crew(AppBase):
     def pending_roll(self):
         """A draft crew whose random draw hasn't happened yet. Until it's rolled,
         the random attendees — and therefore the crew's rating — are unknown."""
-        return self.status == self.DRAFT and bool((self.random_spec or "").strip())
+        return self.status == self.DRAFT and self.selection_method in (
+            self.RANDOM,
+            self.HYBRID,
+        )
+
+    @property
+    def is_whole_gang(self):
+        """Custom Selection with no number in brackets: the whole gang may take
+        part, so a crew with no picks means everyone attends."""
+        return self.selection_method == self.CUSTOM and self.custom_count is None
 
     def can_manage(self, user):
         """Who may create/edit/lock/delete this crew: the crew's own gang owner
@@ -249,108 +292,81 @@ class Crew(AppBase):
             or battle.campaign.is_admin(user)
         )
 
-    # --- selection method label (derived from recipe) --------------------
+    # --- selection method label ------------------------------------------
 
     def method_label(self):
-        """Plain-language summary of how the crew is selected: how many fighters
-        are hand-picked and how many are drawn at random. Covers the rulebook's
-        Custom / Random / Hybrid methods without the terse bracket notation
-        (e.g. "2 chosen + D6+2 random" rather than "Hybrid (2+D6+2)")."""
-        # Reuse a prefetched chosen_fighters cache (battle page) when present;
-        # otherwise a COUNT is cheaper than materialising every row.
-        prefetched = getattr(self, "_prefetched_objects_cache", {})
-        if "chosen_fighters" in prefetched:
-            chosen = len(self.chosen_fighters.all())
-        else:
-            chosen = self.chosen_fighters.count()
-        has_random = bool((self.random_spec or "").strip())
-        if chosen and has_random:
-            return f"{chosen} chosen + {self.random_spec} random"
-        if has_random:
-            return f"{self.random_spec} random"
-        if chosen:
-            return f"{chosen} chosen"
-        return "Whole gang"
+        """The scenario's selection method in the rulebook's own notation, e.g.
+        "Random Selection (D6+2)", "Hybrid Selection (2+D6+2)", "Custom
+        Selection (4)". Custom Selection with no number in brackets is shown
+        bare — that is the rulebook's way of saying the whole gang may take
+        part."""
+        label = self.get_selection_method_display()
+        spec = (self.random_spec or "").strip()
+        if self.selection_method == self.RANDOM:
+            return f"{label} ({spec})" if spec else label
+        if self.selection_method == self.HYBRID:
+            parts = [str(p) for p in (self.custom_count, spec) if p]
+            return f"{label} ({'+'.join(parts)})" if parts else label
+        if self.custom_count is not None:
+            return f"{label} ({self.custom_count})"
+        return label
 
     # --- rating & credits (computed live, never persisted) ---------------
 
     def _attendee_lines(self):
-        """Per-fighter ``(cost, line)`` for the crew, computed live.
+        """Per-member ``(cost, line)`` for the crew, computed live.
 
-        The fighters are loaded in one batch via ``with_related_data()`` so
-        their costs compute from the prefetch cache rather than N+1 per fighter.
-        For a locked crew each frozen member's equipment set is resolved against
-        its fighter's own prefetched sets (so the set's assignments also come
-        from the cache); for a draft crew the chosen fighters are costed at full
-        kit. ``line`` is a small display dict (name, loadout, random flag, ids).
+        Members are the single source of attendance at every stage: the chosen
+        ones exist from selection time, the drawn ones join at lock. The
+        fighters are loaded in one batch via ``with_related_data()`` so their
+        costs compute from the prefetch cache rather than N+1 per fighter. Each
+        member's equipment set is resolved against its fighter's own prefetched
+        sets (so the set's assignments also come from the cache); a member with
+        no set is costed at full kit. ``line`` is a small display dict (name,
+        loadout, random flag, ids).
         """
         from gyrinx.core.models.list import ListFighter
 
-        lines = []
-        if self.is_locked:
-            # self.members.all() (no select_related) so a caller's
-            # prefetch_related("members") cache is honoured; the fighter and its
-            # name come from the batched with_related_data() load below.
-            members = list(self.members.all())
-            loaded = ListFighter.objects.with_related_data().in_bulk(
-                [m.list_fighter_id for m in members]
-            )
-            for member in members:
-                fighter = loaded.get(member.list_fighter_id)
-                equipment_set = None
-                if fighter is not None and member.equipment_set_id is not None:
-                    equipment_set = next(
-                        (
-                            s
-                            for s in fighter.equipment_sets.all()
-                            if s.id == member.equipment_set_id
-                        ),
-                        None,
-                    )
-                cost = (
-                    fighter.cost_int_for_equipment_set(equipment_set)
-                    if fighter is not None
-                    else 0
-                )
-                lines.append(
-                    (
-                        cost,
-                        {
-                            "name": fighter.name if fighter is not None else "",
-                            "category": (
-                                fighter.content_fighter.get_category_display()
-                                if fighter is not None
-                                else ""
-                            ),
-                            "fighter_id": member.list_fighter_id,
-                            "loadout": equipment_set.name if equipment_set else None,
-                            "was_random": member.was_random,
-                            "member_id": member.id,
-                        },
-                    )
-                )
-            return lines
+        # self.members.all() (no select_related) so a caller's
+        # prefetch_related("members") cache is honoured; the fighter and its
+        # name come from the batched with_related_data() load below.
+        members = list(self.members.all())
+        loaded = ListFighter.objects.with_related_data().in_bulk(
+            [m.list_fighter_id for m in members]
+        )
 
-        # Draft: provisional lines from the chosen fighters at full kit.
-        chosen = list(self.chosen_fighters.all())
-        loaded = ListFighter.objects.with_related_data().in_bulk([f.pk for f in chosen])
-        for fighter in chosen:
-            resolved = loaded.get(fighter.pk)
-            cost = resolved.cost_int_cached if resolved is not None else 0
+        lines = []
+        for member in members:
+            fighter = loaded.get(member.list_fighter_id)
+            equipment_set = None
+            if fighter is not None and member.equipment_set_id is not None:
+                equipment_set = next(
+                    (
+                        s
+                        for s in fighter.equipment_sets.all()
+                        if s.id == member.equipment_set_id
+                    ),
+                    None,
+                )
+            cost = (
+                fighter.cost_int_for_equipment_set(equipment_set)
+                if fighter is not None
+                else 0
+            )
             lines.append(
                 (
                     cost,
                     {
-                        "name": fighter.name,
+                        "name": fighter.name if fighter is not None else "",
                         "category": (
-                            resolved.content_fighter.get_category_display()
-                            if resolved is not None
+                            fighter.content_fighter.get_category_display()
+                            if fighter is not None
                             else ""
                         ),
-                        "fighter_id": fighter.pk,
-                        "loadout": None,
-                        "was_random": False,
-                        "member_id": None,
+                        "fighter_id": member.list_fighter_id,
+                        "loadout": equipment_set.name if equipment_set else None,
+                        "is_random": member.source == CrewMember.DRAWN,
+                        "member_id": member.id,
                     },
                 )
             )
@@ -359,24 +375,25 @@ class Crew(AppBase):
     def rating(self):
         """The crew's fighter rating, computed live (never reads/writes caches).
 
-        Once locked, it's the sum of each frozen member's cost scoped to their
-        chosen battle equipment set. While still a draft (no members yet), it's
-        a provisional sum of the chosen fighters at full kit — the random
-        component is unknown until the draw at lock, so it isn't counted.
+        The sum of each member's cost scoped to their chosen battle equipment
+        set. While the crew is a draft that only means the chosen members (at
+        full kit) — the random component is unknown until the draw at lock, so
+        it isn't counted.
         """
         return sum(cost for cost, _ in self._attendee_lines())
 
     def print_fighter_ids(self):
         """ListFighter ids to print for this crew, or ``None`` for the whole gang.
 
-        Locked crews print their frozen attendees; draft crews print the
-        hand-picked fighters. A draft with no picks (a whole-gang crew, or one
-        that only has a pending random draw) has nothing specific to narrow to,
+        A locked crew prints its frozen attendees; a draft prints the fighters
+        chosen so far. A draft with no members (a whole-gang crew, or one whose
+        attendees are all still to be drawn) has nothing specific to narrow to,
         so returns ``None`` and the print falls back to the whole gang.
         """
+        ids = list(self.members.values_list("list_fighter_id", flat=True))
         if self.is_locked:
-            return list(self.members.values_list("list_fighter_id", flat=True))
-        return list(self.chosen_fighters.values_list("id", flat=True)) or None
+            return ids
+        return ids or None
 
     def extras_total(self):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
@@ -442,7 +459,18 @@ class Crew(AppBase):
 
 
 class CrewMember(AppBase):
-    """A frozen attendee of a locked crew: a fighter with a battle loadout."""
+    """An attendee of a crew: a fighter with a battle loadout.
+
+    Chosen members exist from selection time (a draft crew already has them);
+    drawn members are added by the random draw when the crew is locked.
+    """
+
+    CHOSEN = "chosen"
+    DRAWN = "random"
+    SOURCE_CHOICES = [
+        (CHOSEN, "Chosen"),
+        (DRAWN, "Drawn at random"),
+    ]
 
     crew = models.ForeignKey(
         Crew,
@@ -467,9 +495,11 @@ class CrewMember(AppBase):
             "Blank means their full kit."
         ),
     )
-    was_random = models.BooleanField(
-        default=False,
-        help_text="Whether this fighter was drawn randomly (audit of the draw).",
+    source = models.CharField(
+        max_length=10,
+        choices=SOURCE_CHOICES,
+        default=CHOSEN,
+        help_text="How this fighter joined the crew (audit of the draw).",
     )
 
     history = HistoricalRecords()
