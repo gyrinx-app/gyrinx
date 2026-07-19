@@ -80,7 +80,7 @@
                 {% for lst in post_battle_lists %}
                     <a href="{% url 'core:list-post-battle' lst.id %}?battle={{ battle.id }}"
                        class="btn btn-primary btn-sm">
-                        Post-battle updates{% if post_battle_lists|length > 1 %}: {{ lst.name }}{% endif %}
+                        Record updates{% if post_battle_lists|length > 1 %}: {{ lst.name }}{% endif %} →
                     </a>
                 {% endfor %}
             </div>

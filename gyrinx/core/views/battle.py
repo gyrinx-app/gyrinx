@@ -51,6 +51,7 @@ class BattleDetailView(generic.DetailView):
             Battle.objects.select_related("campaign", "owner").prefetch_related(
                 "winners",
                 "notes__owner",
+                "participants",
             ),
             id=self.kwargs["id"],
         )
@@ -87,7 +88,7 @@ class BattleDetailView(generic.DetailView):
         context["post_battle_lists"] = []
         if (
             user.is_authenticated
-            and context["state_current"] == "post_battle"
+            and context["state_current"] == Battle.POST_BATTLE
             and not battle.archived
             and not battle.campaign.archived
         ):
@@ -95,7 +96,10 @@ class BattleDetailView(generic.DetailView):
             context["post_battle_lists"] = [
                 lst
                 for lst in battle.participants.all()
-                if is_admin or lst.owner_id == user.id
+                # Only gangs the post-battle editor will actually accept.
+                if lst.is_campaign_mode
+                and not lst.archived
+                and (is_admin or lst.owner_id == user.id)
             ]
 
         # Get all notes ordered by creation date

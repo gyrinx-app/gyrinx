@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from gyrinx.content.models import ContentBattleRole, ContentBattleRoleOption
 from gyrinx.core.models import Battle, BattleParticipant
+from gyrinx.core.models.list import List
 from gyrinx.core.models.state_machine import InvalidStateTransition
 
 
@@ -394,8 +395,6 @@ def test_participant_cannot_archive(client, user, make_user, campaign, make_list
 
 @pytest.mark.django_db
 def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_list):
-    from gyrinx.core.models.list import List
-
     player = make_user("pb_prompt_player", "password")
     mine = make_list("My Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
     theirs = make_list(
@@ -430,3 +429,18 @@ def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_
     content = client.get(url).content.decode()
     assert prompt_theirs in content
     assert prompt_mine not in content
+
+    # An unrelated viewer gets no prompt at all.
+    outsider = make_user("pb_prompt_outsider", "password")
+    client.force_login(outsider)
+    content = client.get(url).content.decode()
+    assert prompt_mine not in content
+    assert prompt_theirs not in content
+
+    # A gang that has left campaign mode no longer gets a button.
+    theirs.status = List.LIST_BUILDING
+    theirs.save()
+    client.force_login(user)
+    content = client.get(url).content.decode()
+    assert prompt_mine in content
+    assert prompt_theirs not in content

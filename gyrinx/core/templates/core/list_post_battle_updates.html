@@ -268,18 +268,20 @@
                      var p = injuryPhases[sel.value];
                      if (p && p !== "no_change") phases.push(p);
                  });
+                 // Most severe outcome that this row's state select can
+                 // actually express — vehicles only offer Active/In Repair,
+                 // so an unavailable severity falls through to the next.
                  var best = "";
-                 for (var i = 0; i < STATE_SEVERITY.length; i++) {
-                     if (phases.indexOf(STATE_SEVERITY[i]) !== -1) {
-                         best = STATE_SEVERITY[i];
-                         break;
-                     }
+                 for (var i = 0; i < STATE_SEVERITY.length && !best; i++) {
+                     var candidate = STATE_SEVERITY[i];
+                     if (phases.indexOf(candidate) === -1) continue;
+                     var available = Array.prototype.some.call(
+                         state.options,
+                         function (o) { return o.value === candidate; }
+                     );
+                     if (available) best = candidate;
                  }
-                 var hasOption = best && Array.prototype.some.call(
-                     state.options,
-                     function (o) { return o.value === best; }
-                 );
-                 if (best && hasOption) {
+                 if (best) {
                      state.value = best;
                      state.dataset.pbAuto = "1";
                  } else if (state.dataset.pbAuto === "1") {
