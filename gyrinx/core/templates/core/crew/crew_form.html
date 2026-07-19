@@ -77,7 +77,8 @@
                     {% if form.has_eligible_fighters %}
                         <div class="vstack gap-2">
                             {% for row in form.fighter_rows %}
-                                <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                                <div class="js-crew-fighter-row d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center"
+                                     data-cost="{{ row.cost }}">
                                     <div class="form-check mb-0">
                                         {{ row.checkbox.tag }}
                                         <label class="form-check-label" for="{{ row.checkbox.id_for_label }}">{{ row.checkbox.choice_label }}</label>
@@ -88,6 +89,11 @@
                                 </div>
                             {% endfor %}
                         </div>
+                        {# Live running total of the ticked fighters. Hidden without JS
+                           (a static "0 fighters" would never update); the script below
+                           reveals it and keeps it current as boxes are ticked. #}
+                        <div class="js-crew-total fs-7 text-secondary mt-1 d-none"
+                             aria-live="polite"></div>
                         <div class="form-text">
                             {{ form.chosen_fighters.help_text }}
                             Fighters with equipment sets also choose which one they bring
@@ -109,4 +115,37 @@
             </div>
         </form>
     </div>
+    {% if form.shows_picks and form.has_eligible_fighters %}
+        <script>
+            // Progressive enhancement: show a running "N fighters selected · X¢"
+            // total as fighters are ticked. Server-rendered per-fighter costs
+            // come from each row's data-cost; the page works fine without this.
+            (function () {
+                const rows = document.querySelectorAll('.js-crew-fighter-row');
+                const out = document.querySelector('.js-crew-total');
+                if (!rows.length || !out) return;
+
+                function update() {
+                    let count = 0;
+                    let total = 0;
+                    rows.forEach(function (row) {
+                        const box = row.querySelector('input[type="checkbox"]');
+                        if (box && box.checked) {
+                            count += 1;
+                            total += parseInt(row.dataset.cost, 10) || 0;
+                        }
+                    });
+                    const noun = count === 1 ? 'fighter' : 'fighters';
+                    out.textContent = count + ' ' + noun + ' selected · ' + total + '¢';
+                }
+
+                rows.forEach(function (row) {
+                    const box = row.querySelector('input[type="checkbox"]');
+                    if (box) box.addEventListener('change', update);
+                });
+                out.classList.remove('d-none');
+                update();
+            }());
+        </script>
+    {% endif %}
 {% endblock content %}

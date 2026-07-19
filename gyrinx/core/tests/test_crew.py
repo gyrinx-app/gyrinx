@@ -1379,6 +1379,43 @@ def test_selection_form_issues_no_per_fighter_set_query(
 
 
 @pytest.mark.django_db
+def test_fighter_rows_carry_each_fighters_cost(crew_setup):
+    """Each fighter row exposes its ``cost_int_cached`` so the running-total
+    enhancement can sum the ticked fighters without a round-trip."""
+    form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
+    rows = form.fighter_rows()
+
+    assert len(rows) == len(crew_setup["fighters"])
+    # crew_setup fighters are base-cost 100 with no equipment.
+    assert all(row["cost"] == 100 for row in rows)
+
+
+@pytest.mark.django_db
+def test_crew_form_renders_cost_data_and_hidden_running_total(client, crew_setup):
+    """The per-fighter cost is a server-rendered data attribute and the running
+    total starts hidden — nothing shows a stale "0 fighters" without JS."""
+    client.force_login(crew_setup["user"])
+    content = client.get(_crew_new_url(crew_setup, Crew.CUSTOM)).content.decode()
+
+    assert 'data-cost="100"' in content
+    assert "js-crew-fighter-row" in content
+    # Hidden until the enhancement reveals it.
+    assert "js-crew-total" in content
+    assert "d-none" in content
+
+
+@pytest.mark.django_db
+def test_random_form_has_no_running_total(client, crew_setup):
+    """Random Selection has no fighter checkboxes, so there is nothing to total
+    and no total element is emitted."""
+    client.force_login(crew_setup["user"])
+    content = client.get(_crew_new_url(crew_setup, Crew.RANDOM)).content.decode()
+
+    assert "js-crew-total" not in content
+    assert "js-crew-fighter-row" not in content
+
+
+@pytest.mark.django_db
 def test_random_draw_also_draws_the_card(crew_setup, equipped_fighter):
     """Random Selection determines the card at random too — the deck holds one
     card per model, chosen at random for models with several."""
