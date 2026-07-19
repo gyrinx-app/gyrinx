@@ -99,7 +99,8 @@
                                 <span class="text-secondary fs-7">
                                     {% if a.loadout %}
                                         · {{ a.loadout }}
-                                    {% elif crew.is_locked %}
+                                    {% else %}
+                                        {# Say so on drafts too: the card is part of selection and changes the rating. #}
                                         · Default
                                     {% endif %}
                                 </span>

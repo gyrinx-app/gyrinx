@@ -13,6 +13,9 @@
                 {% if crew.pending_roll %}Rolling{% else %}Confirming{% endif %} freezes the crew's attendees for {{ battle.name }}.
                 {% if whole_gang %}
                     The whole eligible gang will attend.
+                {% elif not chosen_count %}
+                    {# Random Selection names nobody, so don't open with "0 chosen fighters". #}
+                    <strong>{{ crew.random_spec }}</strong> fighters will be drawn at random from the gang.
                 {% else %}
                     {{ chosen_count }} chosen fighter{{ chosen_count|pluralize }} will be included{% if crew.random_spec %}, and <strong>{{ crew.random_spec }}</strong> more will be drawn at random from the rest of the gang{% endif %}.
                 {% endif %}

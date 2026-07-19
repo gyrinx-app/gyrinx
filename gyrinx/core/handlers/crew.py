@@ -185,7 +185,7 @@ def handle_crew_recipe_save(
     }
     stale = [m.pk for fighter_id, m in chosen.items() if fighter_id not in wanted]
     if stale:
-        crew.members.filter(pk__in=stale).delete()
+        crew.members.filter(pk__in=stale).delete_with_user(user=user)
 
     # A fighter who stays on the crew may have been switched to a different card.
     for fighter_id, member in chosen.items():
@@ -309,7 +309,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     stale = [m.pk for m in members if m.list_fighter_id not in eligible_ids]
     skipped_ineligible = len(stale)
     if stale:
-        crew.members.filter(pk__in=stale).delete()
+        crew.members.filter(pk__in=stale).delete_with_user(user=user)
 
     if whole_gang or crew.loadout_overrides:
         # Loaded once, with each fighter's sets, so resolving the whole roster's
