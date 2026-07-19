@@ -81,6 +81,23 @@ class BattleDetailView(generic.DetailView):
         context["can_start"] = context["can_manage"] and battle.can_start()
         context["can_end"] = context["can_manage"] and battle.can_end()
 
+        # Once the battle reaches its post-battle phase, prompt the viewer to
+        # record post-battle updates for each participating gang they may edit
+        # (their own, or all of them for the arbitrator).
+        context["post_battle_lists"] = []
+        if (
+            user.is_authenticated
+            and context["state_current"] == "post_battle"
+            and not battle.archived
+            and not battle.campaign.archived
+        ):
+            is_admin = battle.campaign.is_admin(user)
+            context["post_battle_lists"] = [
+                lst
+                for lst in battle.participants.all()
+                if is_admin or lst.owner_id == user.id
+            ]
+
         # Get all notes ordered by creation date
         context["notes"] = battle.notes.select_related("owner").order_by("created")
 
