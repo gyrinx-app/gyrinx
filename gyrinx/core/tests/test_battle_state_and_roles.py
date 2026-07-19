@@ -421,7 +421,8 @@ def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_
     assert "Add crew" in content
 
     client.post(reverse("core:battle-start", args=[battle.id]))
-    client.post(reverse("core:battle-end", args=[battle.id]))
+    # Ending a battle now records how it finished, so the result is required.
+    client.post(reverse("core:battle-end", args=[battle.id]), {"result": "draw"})
 
     # The arbitrator (campaign owner) is prompted for every participating
     # gang; a finished battle no longer offers to add crews.
