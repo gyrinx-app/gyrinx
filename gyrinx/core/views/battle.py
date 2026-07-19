@@ -116,11 +116,26 @@ class BattleDetailView(generic.DetailView):
                 "pending_roll": pending,
             }
 
+        is_over = battle.states.current == Battle.POST_BATTLE
+
         # Whether this user may add a crew to a gang that hasn't got one yet.
-        # The outer guard is a fast-path so anon/archived skip the per-gang work.
-        can_add_any = user.is_authenticated and not (
-            battle.archived or battle.campaign.archived
+        # The outer guard is a fast-path so anon/archived skip the per-gang
+        # work; once the battle is over there is no crew left to pick.
+        can_add_any = (
+            user.is_authenticated
+            and not is_over
+            and not (battle.archived or battle.campaign.archived)
         )
+
+        # Whether this user may record post-battle results for a gang — an
+        # affordance under the gang's name once the battle is over.
+        can_record_any = (
+            user.is_authenticated
+            and is_over
+            and not (battle.archived or battle.campaign.archived)
+        )
+        is_admin = can_record_any and battle.campaign.is_admin(user)
+
         # winners is prefetched in get_object(); read the cache, not a new query.
         winner_ids = {w.id for w in battle.winners.all()}
 
@@ -140,6 +155,13 @@ class BattleDetailView(generic.DetailView):
                             crew is None
                             and can_add_any
                             and Crew.can_manage_new(user, battle, gang)
+                        ),
+                        "can_record_post_battle": (
+                            can_record_any
+                            # Only gangs the post-battle editor will accept.
+                            and gang.is_campaign_mode
+                            and not gang.archived
+                            and (is_admin or gang.owner_id == user.id)
                         ),
                     }
                 )

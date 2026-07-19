@@ -113,6 +113,12 @@
                                                                data-bs-toggle="tooltip"
                                                                data-bs-title="Winner"></i>
                                                         {% endif %}
+                                                        {% if p.can_record_post_battle %}
+                                                            <div>
+                                                                <a href="{% url 'core:list-post-battle' p.list.id %}?battle={{ battle.id }}"
+                                                                   class="linked fs-7">Record post-battle updates →</a>
+                                                            </div>
+                                                        {% endif %}
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>
                                                 </tr>

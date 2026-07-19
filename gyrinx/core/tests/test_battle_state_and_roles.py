@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from gyrinx.content.models import ContentBattleRole, ContentBattleRoleOption
 from gyrinx.core.models import Battle, BattleParticipant
+from gyrinx.core.models.list import List
 from gyrinx.core.models.state_machine import InvalidStateTransition
 
 
@@ -390,3 +391,61 @@ def test_participant_cannot_archive(client, user, make_user, campaign, make_list
     client.post(reverse("core:battle-archive", args=[battle.id]), {"archive": "1"})
     battle.refresh_from_db()
     assert battle.archived is False
+
+
+@pytest.mark.django_db
+def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_list):
+    player = make_user("pb_prompt_player", "password")
+    mine = make_list("My Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    theirs = make_list(
+        "Their Gang", owner=player, status=List.CAMPAIGN_MODE, campaign=campaign
+    )
+    campaign.lists.add(mine, theirs)
+    battle = Battle.objects.create(campaign=campaign, mission="M", owner=user)
+    battle.set_participants([mine, theirs])
+
+    url = reverse("core:battle", args=[battle.id])
+    prompt_mine = (
+        f"{reverse('core:list-post-battle', args=[mine.id])}?battle={battle.id}"
+    )
+    prompt_theirs = (
+        f"{reverse('core:list-post-battle', args=[theirs.id])}?battle={battle.id}"
+    )
+
+    # Before the battle ends there is nothing to record yet — but crews can
+    # still be added.
+    client.force_login(user)
+    content = client.get(url).content.decode()
+    assert prompt_mine not in content
+    assert "Add crew" in content
+
+    client.post(reverse("core:battle-start", args=[battle.id]))
+    client.post(reverse("core:battle-end", args=[battle.id]))
+
+    # The arbitrator (campaign owner) is prompted for every participating
+    # gang; a finished battle no longer offers to add crews.
+    content = client.get(url).content.decode()
+    assert prompt_mine in content
+    assert prompt_theirs in content
+    assert "Add crew" not in content
+
+    # A player is prompted only for their own gang.
+    client.force_login(player)
+    content = client.get(url).content.decode()
+    assert prompt_theirs in content
+    assert prompt_mine not in content
+
+    # An unrelated viewer gets no prompt at all.
+    outsider = make_user("pb_prompt_outsider", "password")
+    client.force_login(outsider)
+    content = client.get(url).content.decode()
+    assert prompt_mine not in content
+    assert prompt_theirs not in content
+
+    # A gang that has left campaign mode no longer gets a button.
+    theirs.status = List.LIST_BUILDING
+    theirs.save()
+    client.force_login(user)
+    content = client.get(url).content.decode()
+    assert prompt_mine in content
+    assert prompt_theirs not in content

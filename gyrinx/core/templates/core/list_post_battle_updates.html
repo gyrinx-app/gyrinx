@@ -241,12 +241,15 @@
              });
 
              // --- Injury -> state sync, mirroring the single add-injury
-             // screen: choosing an injury pre-fills the row's state select
-             // with the injury's default outcome. Only while the state is
-             // untouched (empty or previously auto-filled) — a manual state
-             // choice always wins.
+             // screen: the row's state select is pre-filled with the most
+             // severe default outcome across ALL of the row's selected
+             // injuries — adding a lighter injury after a worse one must not
+             // downgrade the state. Only while the state is untouched (empty
+             // or previously auto-filled) — a manual state choice always wins.
              var phasesEl = document.getElementById("pb-injury-phases");
              var injuryPhases = phasesEl ? JSON.parse(phasesEl.textContent) : {};
+             // Most severe first.
+             var STATE_SEVERITY = ["dead", "recovery", "convalescence", "in_repair", "active"];
              document.addEventListener("change", function (e) {
                  var target = e.target;
                  if (target.matches("select[name^='state_']")) {
@@ -260,16 +263,29 @@
                  if (!state) return;
                  var untouched = state.value === "" || state.dataset.pbAuto === "1";
                  if (!untouched) return;
-                 var phase = injuryPhases[target.value] || "";
-                 var hasOption = Array.prototype.some.call(
-                     state.options,
-                     function (o) { return o.value === phase; }
-                 );
-                 if (phase && phase !== "no_change" && hasOption) {
-                     state.value = phase;
+                 var phases = [];
+                 row.querySelectorAll("select[name^='injury_']").forEach(function (sel) {
+                     var p = injuryPhases[sel.value];
+                     if (p && p !== "no_change") phases.push(p);
+                 });
+                 // Most severe outcome that this row's state select can
+                 // actually express — vehicles only offer Active/In Repair,
+                 // so an unavailable severity falls through to the next.
+                 var best = "";
+                 for (var i = 0; i < STATE_SEVERITY.length && !best; i++) {
+                     var candidate = STATE_SEVERITY[i];
+                     if (phases.indexOf(candidate) === -1) continue;
+                     var available = Array.prototype.some.call(
+                         state.options,
+                         function (o) { return o.value === candidate; }
+                     );
+                     if (available) best = candidate;
+                 }
+                 if (best) {
+                     state.value = best;
                      state.dataset.pbAuto = "1";
                  } else if (state.dataset.pbAuto === "1") {
-                     // The driving injury was cleared or has no outcome:
+                     // No selected injury carries an outcome any more:
                      // drop the auto-filled state rather than submit it.
                      state.value = "";
                      delete state.dataset.pbAuto;
@@ -331,6 +347,12 @@
                      rm.appendChild(rmIcon);
                      rm.addEventListener("click", function () {
                          clone.remove();
+                         // Recompute anything derived from the remaining
+                         // selects (e.g. the injury -> state sync).
+                         var remaining = wrap.querySelector("select");
+                         if (remaining) {
+                             remaining.dispatchEvent(new Event("change", { bubbles: true }));
+                         }
                      });
                      clone.appendChild(rm);
                      wrap.insertBefore(clone, add.parentElement);
