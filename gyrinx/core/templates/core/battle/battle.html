@@ -70,21 +70,6 @@
                 <span><i class="bi-person"></i> <a class="linked" href="{% url 'core:user' battle.owner.username %}">{{ battle.owner }}</a></span>
             </div>
         </div>
-        <!-- Post-battle prompt: record results for gangs the viewer can edit -->
-        {% if post_battle_lists %}
-            <div class="border rounded p-2 d-flex flex-wrap align-items-center gap-2">
-                <span class="fs-7">
-                    <i class="bi-clipboard-check"></i>
-                    Record what happened to each Gang — XP, injuries, captures and winnings.
-                </span>
-                {% for lst in post_battle_lists %}
-                    <a href="{% url 'core:list-post-battle' lst.id %}?battle={{ battle.id }}"
-                       class="btn btn-primary btn-sm">
-                        Record updates{% if post_battle_lists|length > 1 %}: {{ lst.name }}{% endif %} →
-                    </a>
-                {% endfor %}
-            </div>
-        {% endif %}
         <!-- Two-column layout on wide screens -->
         <div class="row g-4 g-lg-5">
             <!-- Participants + Related Actions -->
@@ -127,6 +112,12 @@
                                                             <i class="bi-trophy-fill text-warning"
                                                                data-bs-toggle="tooltip"
                                                                data-bs-title="Winner"></i>
+                                                        {% endif %}
+                                                        {% if p.can_record_post_battle %}
+                                                            <div>
+                                                                <a href="{% url 'core:list-post-battle' p.list.id %}?battle={{ battle.id }}"
+                                                                   class="linked fs-7">Record updates →</a>
+                                                            </div>
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>

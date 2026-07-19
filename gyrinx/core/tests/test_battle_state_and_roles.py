@@ -412,17 +412,22 @@ def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_
         f"{reverse('core:list-post-battle', args=[theirs.id])}?battle={battle.id}"
     )
 
-    # Before the battle ends there is nothing to record yet.
+    # Before the battle ends there is nothing to record yet — but crews can
+    # still be added.
     client.force_login(user)
-    assert prompt_mine not in client.get(url).content.decode()
+    content = client.get(url).content.decode()
+    assert prompt_mine not in content
+    assert "Add crew" in content
 
     client.post(reverse("core:battle-start", args=[battle.id]))
     client.post(reverse("core:battle-end", args=[battle.id]))
 
-    # The arbitrator (campaign owner) is prompted for every participating gang.
+    # The arbitrator (campaign owner) is prompted for every participating
+    # gang; a finished battle no longer offers to add crews.
     content = client.get(url).content.decode()
     assert prompt_mine in content
     assert prompt_theirs in content
+    assert "Add crew" not in content
 
     # A player is prompted only for their own gang.
     client.force_login(player)
