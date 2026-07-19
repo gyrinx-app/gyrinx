@@ -57,6 +57,7 @@
 - [Gang Attributes](content-library/gang-attributes.md)
 - [Advancements](content-library/advancements.md)
 - [Content Packs](content-library/content-packs.md)
+- [Battle Roles](content-library/battle-roles.md)
 - [Reference Library](content-library/reference-library.md)
 
 ## Explanation

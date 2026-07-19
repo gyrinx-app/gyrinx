@@ -23,6 +23,7 @@ Each document covers a distinct area of the content library, including the model
 | [Advancements](advancements.md) | Equipment advancements fighters can purchase with XP during campaigns |
 | [Counters & Roll Tables](counters-and-roll-tables.md) | Fighter-level tallies (e.g. Kill Count), dice tables, and "spend and roll" flows like Spyrer Power Boost |
 | [Content Packs](content-packs.md) | User-created custom content collections and the pack filtering system |
+| [Battle Roles](battle-roles.md) | Named participant roles for battles, e.g. Attacker/Defender |
 | [Reference Library](reference-library.md) | Book and page references used for in-app tooltips |
 
 ## Key ideas
