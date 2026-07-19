@@ -1492,7 +1492,7 @@ def test_selection_form_issues_no_per_fighter_set_query(
 
 
 @pytest.mark.django_db
-def test_fighter_rows_carry_each_fighters_cost(crew_setup):
+def test_fighter_rows_carry_each_fighter_cost(crew_setup):
     """Each fighter row exposes its ``cost_int_cached`` so the running-total
     enhancement can sum the ticked fighters without a round-trip."""
     form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
