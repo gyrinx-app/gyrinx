@@ -3,9 +3,9 @@
 A crew is a virtual sub-gang assigned to a battle: the recipe (the scenario's
 selection method, its numbers, and the card each chosen fighter brings) while it
 is a draft, then the frozen attendees once it is locked at battle start. These
-views cover the whole lifecycle — create, edit, lock, extras, delete — but never
-write to the gang's canonical cost, credits, or audit stream. Once locked, a
-crew is a historical record and can no longer be edited.
+views cover the whole lifecycle — create, edit, lock, extras, archive — but
+never write to the gang's canonical cost, credits, or audit stream. Once locked,
+a crew is a historical record and can no longer be edited.
 
 The selection method is URL state (``?method=custom|random|hybrid``): the
 picker is a set of server-rendered links and the server returns the form
@@ -28,6 +28,7 @@ from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
 from gyrinx.core.handlers.crew import (
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
+    handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
     handle_crew_recipe_save,
@@ -113,7 +114,9 @@ def crew_new(request, battle_id):
         )
         return _redirect_battle(battle)
 
-    existing = Crew.objects.filter(battle=battle, list=gang).first()
+    # Only a live crew counts: an archived crew is a withdrawn record and must
+    # not stand in the way of picking a fresh one (nor be redirected to).
+    existing = Crew.objects.filter(battle=battle, list=gang, archived=False).first()
     if existing:
         messages.info(request, f"{gang.name} already has a crew for this battle.")
         return _redirect_crew(existing)
@@ -144,7 +147,9 @@ def crew_new(request, battle_id):
                         equipment_sets=form.cleaned_data.get("equipment_sets"),
                     )
             except IntegrityError:
-                existing = Crew.objects.filter(battle=battle, list=gang).first()
+                existing = Crew.objects.filter(
+                    battle=battle, list=gang, archived=False
+                ).first()
                 if existing:
                     messages.info(
                         request, f"{gang.name} already has a crew for this battle."
@@ -400,23 +405,31 @@ def crew_lock(request, battle_id, crew_id):
 
 @login_required
 @transaction.atomic
-def crew_delete(request, battle_id, crew_id):
-    """Delete a crew and its members/extras."""
+def crew_archive(request, battle_id, crew_id):
+    """Archive a crew: withdraw it from the battle but keep it as a record.
+
+    Not a delete — the crew's members and extras are kept and its detail page
+    still renders. Archiving frees the gang to pick a fresh crew for the same
+    battle (the unique constraint is conditional on ``archived=False``) and is
+    logged as a battle-linked CampaignAction (see ``handle_crew_archive``).
+    ``can_manage`` returns False once a crew is archived, so this also guards
+    against re-archiving one.
+    """
     crew = _get_crew(battle_id, crew_id)
     battle = crew.battle
 
     if not crew.can_manage(request.user):
-        messages.error(request, "You don't have permission to delete this crew.")
+        messages.error(request, "You don't have permission to archive this crew.")
         return _redirect_crew(crew)
 
     if request.method == "POST":
-        crew.delete()
-        messages.success(request, "Crew deleted.")
+        handle_crew_archive(user=request.user, crew=crew)
+        messages.success(request, "Crew archived.")
         return _redirect_battle(battle)
 
     return render(
         request,
-        "core/crew/crew_delete.html",
+        "core/crew/crew_archive.html",
         {"crew": crew, "battle": battle},
     )
 

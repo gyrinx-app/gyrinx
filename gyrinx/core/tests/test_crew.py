@@ -24,6 +24,7 @@ from gyrinx.core.handlers.crew import (
     crew_whole_gang_projection,
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
+    handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
 )
@@ -749,14 +750,126 @@ def test_crew_lock_view(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_crew_delete_view(client, crew_setup):
+def test_crew_archive_view(client, crew_setup):
+    """Archiving keeps the crew (it's the record), flags it archived, redirects
+    to the battle, and logs a battle-linked CampaignAction."""
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
 
-    resp = client.post(reverse("core:crew-delete", args=[battle.id, crew.id]))
+    resp = client.post(reverse("core:crew-archive", args=[battle.id, crew.id]))
     assert resp.status_code == 302
-    assert not Crew.objects.filter(id=crew.id).exists()
+    assert resp.url == reverse("core:battle", args=[battle.id])
+
+    crew.refresh_from_db()
+    assert crew.archived is True
+    assert crew.archived_at is not None
+
+    action = CampaignAction.objects.get(battle=battle, list=gang)
+    assert action.campaign_id == battle.campaign_id
+    assert "archived" in action.description.lower()
+
+
+@pytest.mark.django_db
+def test_archived_crew_frees_the_gang_for_a_new_crew(crew_setup):
+    """The unique constraint is conditional on archived=False: an archived crew
+    must not block a fresh crew for the same gang and battle."""
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+
+    first = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=first)
+
+    # Creating again for the same (battle, list) must succeed, not trip the
+    # unique constraint.
+    second = Crew.objects.create(battle=battle, list=gang, owner=user)
+    assert second.pk != first.pk
+    assert Crew.objects.filter(battle=battle, list=gang, archived=False).count() == 1
+
+
+@pytest.mark.django_db
+def test_archived_crew_hidden_from_battle_page(client, crew_setup):
+    """An archived crew drops off the battle page: the gang shows the add-crew
+    affordance again rather than a stale crew sub-row."""
+    client.force_login(crew_setup["user"])
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=crew)
+
+    content = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    # The add-crew affordance carries ?list=<gang>; it's back because the gang
+    # has no live crew.
+    assert f"?list={gang.id}" in content
+
+
+@pytest.mark.django_db
+def test_archived_crew_page_renders_with_note_and_no_actions(client, crew_setup):
+    """The archived crew's detail page still renders (it's the record), shows an
+    'archived' note, and offers no manage actions."""
+    client.force_login(crew_setup["user"])
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=crew)
+
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert resp.context["can_manage"] is False
+    assert "This crew is archived" in content
+    # No manage affordances: no archive/edit/lock links.
+    assert reverse("core:crew-archive", args=[battle.id, crew.id]) not in content
+    assert reverse("core:crew-edit", args=[battle.id, crew.id]) not in content
+
+
+@pytest.mark.django_db
+def test_archived_crew_cannot_be_archived_again(client, crew_setup):
+    """can_manage is False for an archived crew, so a repeat archive is refused
+    rather than writing a second log line."""
+    client.force_login(crew_setup["user"])
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=crew)
+    before = CampaignAction.objects.filter(battle=battle).count()
+
+    resp = client.post(reverse("core:crew-archive", args=[battle.id, crew.id]))
+    assert resp.status_code == 302
+    assert CampaignAction.objects.filter(battle=battle).count() == before
+
+
+@pytest.mark.django_db
+def test_non_manager_cannot_archive_crew(client, crew_setup, make_user):
+    """A user who is neither the gang owner nor the battle's arbitrator can't
+    archive the crew."""
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+
+    stranger = make_user("stranger", "password")
+    client.force_login(stranger)
+    resp = client.post(reverse("core:crew-archive", args=[battle.id, crew.id]))
+    assert resp.status_code == 302
+
+    crew.refresh_from_db()
+    assert crew.archived is False
+
+
+@pytest.mark.django_db
+def test_archived_crew_gets_no_played_rating_snapshot(crew_setup):
+    """A crew archived (withdrawn) before the battle ends must not get a played
+    snapshot — it fielded nothing."""
+    user = crew_setup["user"]
+    crew = _lock_one_fighter_crew(crew_setup)
+    handle_crew_archive(user=user, crew=crew)
+
+    _end_battle(crew_setup)
+
+    crew.refresh_from_db()
+    assert crew.rating_played is None
+
+
+@pytest.mark.django_db
+def test_crew_delete_url_is_gone():
+    """The delete route has been replaced by archive."""
+    with pytest.raises(NoReverseMatch):
+        reverse("core:crew-delete", args=[uuid4(), uuid4()])
 
 
 def test_post_lock_loadout_editing_is_gone():

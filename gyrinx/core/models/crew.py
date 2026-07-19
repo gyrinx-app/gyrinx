@@ -259,8 +259,14 @@ class Crew(AppBase):
         verbose_name = "Crew"
         verbose_name_plural = "Crews"
         constraints = [
+            # Conditional on archived=False so archiving a crew frees its gang to
+            # get a fresh crew for the same battle. An archived crew is kept only
+            # as a record; it must not block a replacement (matches the
+            # CustomContentPackItem unique constraint's archived=False pattern).
             models.UniqueConstraint(
-                fields=["battle", "list"], name="unique_crew_per_gang_per_battle"
+                fields=["battle", "list"],
+                condition=models.Q(archived=False),
+                name="unique_crew_per_gang_per_battle",
             )
         ]
 
@@ -296,10 +302,13 @@ class Crew(AppBase):
         return self.selection_method == self.CUSTOM and self.custom_count is None
 
     def can_manage(self, user):
-        """Who may create/edit/lock/delete this crew: the crew's own gang owner
+        """Who may create/edit/lock/archive this crew: the crew's own gang owner
         or the battle's arbitrator (battle owner or a campaign admin). Blocked
-        while the battle or its campaign is archived."""
+        while the battle or its campaign is archived, and once the crew itself is
+        archived — an archived crew is a frozen record with no manage actions."""
         if not user or not user.is_authenticated:
+            return False
+        if self.archived:
             return False
         battle = self.battle
         if battle.archived or battle.campaign.archived:

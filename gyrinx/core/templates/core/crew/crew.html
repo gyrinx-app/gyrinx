@@ -13,8 +13,15 @@
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ crew }}</h1>
                 <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
-                    <a href="{% url 'core:list-print' crew.list.id %}?crew={{ crew.id }}"
-                       class="btn btn-secondary btn-sm"><i class="bi-printer"></i> Print</a>
+                    {% comment %}
+                    An archived crew no longer narrows a print (its ?crew= filter
+                    is excluded), so the button would silently print the whole
+                    gang — hide it rather than mislead.
+                    {% endcomment %}
+                    {% if not crew.archived %}
+                        <a href="{% url 'core:list-print' crew.list.id %}?crew={{ crew.id }}"
+                           class="btn btn-secondary btn-sm"><i class="bi-printer"></i> Print</a>
+                    {% endif %}
                     {% if can_manage %}
                         {% if not crew.is_locked %}
                             <a href="{% url 'core:crew-lock' battle.id crew.id %}"
@@ -22,17 +29,26 @@
                             <a href="{% url 'core:crew-edit' battle.id crew.id %}"
                                class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
                         {% endif %}
-                        <a href="{% url 'core:crew-delete' battle.id crew.id %}"
-                           class="btn btn-danger btn-sm"><i class="bi-trash"></i> Delete</a>
+                        <a href="{% url 'core:crew-archive' battle.id crew.id %}"
+                           class="btn btn-danger btn-sm"><i class="bi-archive"></i> Archive</a>
                     {% endif %}
                 </div>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2 text-secondary fs-7">
                 <span class="badge {% if crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ crew.get_status_display }}</span>
+                {% if crew.archived %}<span class="badge text-bg-secondary">Archived</span>{% endif %}
                 <span><i class="bi-people"></i> <a class="linked" href="{% url 'core:list' crew.list.id %}">{{ crew.list.name }}</a></span>
                 <span><i class="bi-diagram-3"></i> {{ crew.method_label }}</span>
             </div>
         </div>
+        {% if crew.archived %}
+            <div class="border rounded p-2 fs-7">
+                <i class="bi-archive text-secondary"></i>
+                <strong>This crew is archived.</strong>
+                It has been removed from <a class="linked" href="{% url 'core:battle' battle.id %}">{{ battle.name }}</a>
+                and is kept only as a record — it can no longer be edited.
+            </div>
+        {% endif %}
         {% if show_rating_note %}
             {% comment %}
             The rating shown is what would be fielded now (or, after the battle,
