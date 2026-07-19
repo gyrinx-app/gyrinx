@@ -140,9 +140,15 @@
                                                                     <span class="text-secondary fs-7 me-1"
                                                                           bs-tooltip
                                                                           data-bs-toggle="tooltip"
-                                                                          title="{% if p.crew.rating_note.is_played %}This crew changed between selection and the battle — the rating shown is what it fought at{% else %}This crew has changed since it was picked — the rating shown is what the gang would field today{% endif %}">picked at {{ p.crew.rating_note.selected }}¢</span>
+                                                                          title="{% if p.crew.rating_note.is_played %}This crew changed between selection and the battle — the rating shown is what it fought at{% else %}This crew has changed since it was picked — the rating shown is what the gang would field today{% endif %}">picked at {% credits p.crew.rating_note.selected %}</span>
                                                                 {% endif %}
-                                                                {% credits p.crew.rating %}
+                                                                {% if p.crew.is_forecast %}
+                                                                    <span bs-tooltip
+                                                                          data-bs-toggle="tooltip"
+                                                                          title="The whole gang takes part, so this forecasts who would attend. It resolves when the crew is confirmed.">{% credits p.crew.rating %}<span class="text-secondary fs-7 ms-1">provisional</span></span>
+                                                                {% else %}
+                                                                    {% credits p.crew.rating %}
+                                                                {% endif %}
                                                             {% endif %}
                                                         </td>
                                                     </tr>

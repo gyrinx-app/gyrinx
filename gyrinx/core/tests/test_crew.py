@@ -2254,3 +2254,29 @@ def test_saving_loadouts_overwrites_the_fighters_the_form_did_offer(
 
     crew.refresh_from_db()
     assert crew.loadout_overrides == {str(fighter.pk): {"equipment_set": None}}
+
+
+@pytest.mark.django_db
+def test_battle_page_forecasts_a_whole_gang_draft(client, crew_setup):
+    """A whole-gang crew enrols nobody until it is confirmed, so its own rating
+    is 0 — which on the battle page would read as "no fighters" rather than "the
+    whole gang attends". The row must forecast instead."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], selection_method=Crew.CUSTOM
+    )
+    assert crew.is_whole_gang
+    assert crew.rating() == 0  # nobody enrolled yet
+
+    resp = client.get(reverse("core:battle", args=[battle.id]))
+    summary = next(
+        p["crew"]
+        for group in resp.context["participant_groups"]
+        for p in group["participants"]
+        if p["crew"]
+    )
+    assert summary["is_forecast"] is True
+    assert summary["rating"] == crew_whole_gang_projection(crew)["total"]
+    assert summary["rating"] > 0
+    assert "provisional" in resp.content.decode()
