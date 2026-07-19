@@ -465,10 +465,9 @@ def test_campaign_detail_shows_resources(content_house):
     assert response.status_code == 200
 
     content = response.content.decode()
-    # Resources section heading (simplified from "Campaign Resources")
-    assert ">Resources<" in content or "Resources\n" in content
-    assert "Meat" in content
-    assert "Credits" in content
+    # Resource types render as column headers in the Gangs table
+    assert '<th class="caps-label text-end">Meat</th>' in content
+    assert '<th class="caps-label text-end">Credits</th>' in content
     assert "Manage Resources" in content
 
 
@@ -547,6 +546,28 @@ def test_campaign_detail_creates_missing_resources_in_progress(
         campaign=campaign, resource_type=credits, list=cloned_lists[1]
     )
     assert credits_resource.amount == 100  # default_amount
+
+    # The amounts render as cells in the Gangs table, each with an edit link (the
+    # owner is the campaign admin, so every resource is editable). The two rows
+    # recreated by the defensive fix aren't in this render — the page's resource
+    # lookup was prefetched before the fix ran — so assert on the two survivors.
+    surviving_meat = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=meat, list=cloned_lists[1]
+    )
+    surviving_credits = CampaignListResource.objects.get(
+        campaign=campaign, resource_type=credits, list=cloned_lists[0]
+    )
+    content = response.content.decode()
+    assert (
+        reverse("core:campaign-resource-modify", args=[campaign.id, surviving_meat.id])
+        in content
+    )
+    assert (
+        reverse(
+            "core:campaign-resource-modify", args=[campaign.id, surviving_credits.id]
+        )
+        in content
+    )
 
 
 @pytest.mark.django_db

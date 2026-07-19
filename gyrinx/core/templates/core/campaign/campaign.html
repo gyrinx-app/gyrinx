@@ -262,6 +262,10 @@
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
                            class="linked fs-7">Manage Attributes →</a>
                     {% endif %}
+                    {% if resource_types or is_admin %}
+                        <a href="{% url 'core:campaign-resources' campaign.id %}"
+                           class="linked fs-7">Manage Resources →</a>
+                    {% endif %}
                     {% if is_admin and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="icon-link linked fs-7">
@@ -271,10 +275,10 @@
                 </div>
             </div>
             <div class="px-2">
-                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists %}
+                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists resource_types=resource_types resource_lookup=resource_lookup %}
             </div>
         </section>
-        <!-- Assets & Resources -->
+        <!-- Assets, Battles, Action Log & Captured Fighters -->
         <div class="row g-5">
             <!-- Assets -->
             <section class="col-xl-6">
@@ -372,81 +376,6 @@
                     {% endif %}
                 </div>
             </section>
-            <!-- Resources -->
-            <section class="col-xl-6">
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                    <h2 class="h5 mb-0">
-                        Resources
-                        <i class="bi-info-circle text-secondary fs-6 ms-1"
-                           data-bs-toggle="tooltip"
-                           data-bs-title="Resources are abstract commodities that gangs accumulate during the campaign."></i>
-                    </h2>
-                    <a href="{% url 'core:campaign-resources' campaign.id %}"
-                       class="linked fs-7">Manage Resources →</a>
-                </div>
-                <div class="px-2">
-                    {% if resource_types and campaign.has_lists %}
-                        <div class="table-responsive">
-                            <table class="table table-sm table-borderless mb-0 align-middle">
-                                <thead>
-                                    <tr>
-                                        <th class="caps-label">Gang</th>
-                                        {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% if grouped_lists %}
-                                        {% for group in grouped_lists %}
-                                            <tr>
-                                                <td colspan="100" class="{% if not forloop.first %}pt-3{% endif %} pb-1">
-                                                    <div class="d-flex align-items-center gap-2">
-                                                        {% if group.colour %}
-                                                            <span class="d-inline-block rounded-circle"
-                                                                  style="width: 10px;
-                                                                         height: 10px;
-                                                                         background-color: {{ group.colour }}"></span>
-                                                        {% endif %}
-                                                        <strong class="fs-7 text-uppercase text-secondary">{{ group.name }}</strong>
-                                                    </div>
-                                                    <hr class="mt-1 mb-0"
-                                                        {% if group.colour %}style="border-color: {{ group.colour }}; border-width: 2px; opacity: 0.5"{% endif %}>
-                                                </td>
-                                            </tr>
-                                            {% for list in group.lists %}
-                                                {% if not list.is_cloning %}
-                                                    {% include "core/campaign/includes/resource_row.html" %}
-                                                {% endif %}
-                                            {% endfor %}
-                                        {% endfor %}
-                                    {% else %}
-                                        {% for list in campaign.lists.all %}
-                                            {% if not list.is_cloning %}
-                                                {% include "core/campaign/includes/resource_row.html" %}
-                                            {% endif %}
-                                        {% endfor %}
-                                    {% endif %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% elif resource_types %}
-                        <p class="text-secondary fs-7 mb-0">Resource types are defined but no gangs have joined this campaign yet.</p>
-                    {% else %}
-                        <p class="text-secondary fs-7 mb-0">
-                            No resource types defined yet.
-                            {% if is_admin and not campaign.archived %}
-                                <a href="{% url 'core:campaign-copy-in' campaign.id %}" class="linked">Copy from another Campaign</a>
-                                or <a href="{% url 'core:campaign-resource-type-new' campaign.id %}"
-    class="linked">add a resource type →</a>
-                            {% elif is_admin %}
-                                <a href="{% url 'core:campaign-resources' campaign.id %}" class="linked">Manage Resources →</a>
-                            {% endif %}
-                        </p>
-                    {% endif %}
-                </div>
-            </section>
-        </div>
-        <!-- Battles & Action Log -->
-        <div class="row g-5">
             <!-- Battles -->
             <section class="col-xl-6">
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
@@ -512,20 +441,20 @@
                     {% endwith %}
                 </div>
             </section>
+            <!-- Captured Fighters -->
+            {% if campaign.is_in_progress %}
+                <section class="col-xl-6">
+                    <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                        <h2 class="h5 mb-0">Captured Fighters</h2>
+                        <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
+                           class="linked fs-7">View all →</a>
+                    </div>
+                    <div class="px-2">
+                        {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
+                    </div>
+                </section>
+            {% endif %}
         </div>
-        <!-- Captured Fighters -->
-        {% if campaign.is_in_progress %}
-            <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
-                    <h2 class="h5 mb-0">Captured Fighters</h2>
-                    <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                       class="linked fs-7">View all →</a>
-                </div>
-                <div class="px-2">
-                    {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
-                </div>
-            </section>
-        {% endif %}
     </div>
     {% if has_cloning_lists %}
         {# Gangs are still joining in the background (#1222). Poll the generic task-group #}

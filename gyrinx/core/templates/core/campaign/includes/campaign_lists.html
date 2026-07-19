@@ -10,6 +10,7 @@
                             <th class="caps-label">{{ attribute_type.name }}</th>
                         {% endif %}
                     {% endfor %}
+                    {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
                     <th class="ps-0"></th>
                 </tr>
             </thead>
@@ -63,6 +64,7 @@
                                         </td>
                                     {% endif %}
                                 {% endfor %}
+                                {% include "core/campaign/includes/resource_cells.html" with list=list %}
                                 {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
                             </tr>
                         {% endfor %}
@@ -97,6 +99,7 @@
                                     {% endwith %}
                                 </td>
                             {% endfor %}
+                            {% include "core/campaign/includes/resource_cells.html" with list=list %}
                             {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
                         </tr>
                     {% endfor %}
