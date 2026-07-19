@@ -136,11 +136,11 @@
                                                                       data-bs-toggle="tooltip"
                                                                       title="Unknown until the crew is rolled for selection">?</span>
                                                             {% else %}
-                                                                {% if p.crew.has_drifted %}
-                                                                    <i class="bi-exclamation-triangle text-warning"
-                                                                       bs-tooltip
-                                                                       data-bs-toggle="tooltip"
-                                                                       title="The fighters in this crew have changed since it was locked — they would be {{ p.crew.live_rating }}¢ today"></i>
+                                                                {% if p.crew.show_rating_note %}
+                                                                    <span class="text-secondary fs-7 me-1"
+                                                                          bs-tooltip
+                                                                          data-bs-toggle="tooltip"
+                                                                          title="{% if p.crew.rating_note.is_played %}This crew changed between selection and the battle — the rating shown is what it fought at{% else %}This crew has changed since it was picked — the rating shown is what the gang would field today{% endif %}">picked at {{ p.crew.rating_note.selected }}¢</span>
                                                                 {% endif %}
                                                                 {% credits p.crew.rating %}
                                                             {% endif %}

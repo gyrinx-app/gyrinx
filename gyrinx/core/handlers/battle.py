@@ -1,9 +1,9 @@
 """Handlers for battles.
 
 Ending a battle is the one part of the battle flow with real business logic:
-it records who won (or that it was a draw) *and* advances the state machine,
-and those two writes must not be able to come apart. Everything else in the
-battle flow is simple CRUD and stays in the views.
+it records who won (or that it was a draw), freezes what each crew fielded,
+*and* advances the state machine, and those writes must not be able to come
+apart. Everything else in the battle flow is simple CRUD and stays in the views.
 """
 
 import logging
@@ -13,6 +13,7 @@ from typing import Optional
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from gyrinx.core.handlers.crew import snapshot_played_crew_ratings
 from gyrinx.core.models.battle import Battle
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.tracing import traced
@@ -36,9 +37,10 @@ def handle_battle_end(*, user, battle: Battle, winners, is_draw) -> BattleEndRes
     """
     End a battle, recording its result.
 
-    Sets ``winners`` (empty for a draw), marks how the battle finished, moves
-    the battle to post-battle, and writes a battle-linked CampaignAction. A
-    battle that has already ended raises rather than recording a second result.
+    Sets ``winners`` (empty for a draw), marks how the battle finished, freezes
+    what each locked crew fielded, moves the battle to post-battle, and writes a
+    battle-linked CampaignAction. A battle that has already ended raises rather
+    than recording a second result.
     """
     # Lock the battle row for the duration so two concurrent end POSTs
     # serialise: the second one sees post_battle and fails the guard cleanly.
@@ -69,6 +71,11 @@ def handle_battle_end(*, user, battle: Battle, winners, is_draw) -> BattleEndRes
     # update_fields=["status", "modified"], which would silently drop an
     # unsaved `result` from this instance.
     battle.save_with_user(user=user, update_fields=["result", "modified"])
+    # Freeze what each crew fielded before the transition: from here on a crew
+    # reports what fought rather than what the gang looks like today, and the
+    # fighters must be read as they were at the end of the battle, not after
+    # any post-battle spending.
+    snapshot_played_crew_ratings(user=user, battle=battle)
     battle.states.transition_to(Battle.POST_BATTLE)
 
     if is_draw:

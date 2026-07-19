@@ -178,13 +178,15 @@ def crew_new(request, battle_id):
 def crew_detail(request, battle_id, crew_id):
     """Show a crew as an itemised receipt: attendees, extras, and the total.
 
-    A locked crew shows the rating it was locked at — that is what was played.
-    The gang keeps changing afterwards, so when the fighters no longer add up to
-    that number the page says so rather than quietly showing a different total.
+    The headline rating is live until the battle ends, then what was fielded
+    (see :meth:`Crew.rating`). Where that differs from what the crew was picked
+    at, the page says so — before the battle because the gang has changed since
+    selection, after it because the crew that fought wasn't quite the one
+    chosen.
     """
     crew = _get_crew(battle_id, crew_id)
     receipt = crew.receipt()
-    drift = receipt["drift"]
+    note = receipt["note"]
     can_manage = crew.can_manage(request.user)
 
     # A draft whole-gang crew has no members yet — the roster resolves at
@@ -207,8 +209,10 @@ def crew_detail(request, battle_id, crew_id):
             "battle": crew.battle,
             "can_manage": can_manage,
             "receipt": receipt,
-            "has_drifted": bool(drift and drift["has_drifted"]),
-            "drift": drift,
+            # Whether to show the note at all, and which of the two it is —
+            # decided here so the template only reads flags.
+            "show_rating_note": bool(note and note["differs"]),
+            "rating_note": note,
             "projection": projection,
             "provisional_total": provisional_total,
             "can_edit_loadouts": bool(projection and can_manage),

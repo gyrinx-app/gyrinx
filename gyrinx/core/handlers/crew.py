@@ -7,8 +7,12 @@ Two pieces of real business logic live here:
   :class:`CrewMember` rows with the player's picks.
 - **Locking a crew** — at battle start we roll the random-selection spec once,
   draw that many fighters (and a card each) from the eligible pool, add them as
-  members, freeze the rating, and record a battle-linked campaign action. There
-  are no re-rolls after this, and a locked crew is not editable.
+  members, record the rating they were picked at, and write a battle-linked
+  campaign action. There are no re-rolls after this, and a locked crew is not
+  editable.
+- **Freezing what fought** — when the battle ends, each locked crew's rating is
+  snapshotted again. Until then a crew reports its live rating, because that is
+  what the gang would actually field; afterwards the record must stop moving.
 
 Simple CRUD (extras) stays in the views.
 """
@@ -86,6 +90,17 @@ def crew_whole_gang_projection(crew: Crew):
     return {"rows": rows, "total": total}
 
 
+def crew_loadout_gang_fighters(lst):
+    """Every fighter in the gang, loaded with their equipment sets.
+
+    Deliberately wider than :func:`eligible_crew_fighters`: this is the roster a
+    *stored* loadout choice is validated against, and ineligibility is usually
+    temporary. A fighter in recovery today may well be back by battle start, so
+    their choice still means something even though no form would offer it.
+    """
+    return ListFighter.objects.filter(list=lst).with_related_data()
+
+
 @traced("handle_crew_loadouts_save")
 @transaction.atomic
 def handle_crew_loadouts_save(*, user, crew: Crew, choices) -> Crew:
@@ -95,18 +110,27 @@ def handle_crew_loadouts_save(*, user, crew: Crew, choices) -> Crew:
     meaning an explicit choice of the Default card — stored as such, so it
     sticks even if the fighter's own active set changes afterwards.
 
-    The map is rebuilt from the choices rather than merged into what was there,
-    which is what prunes it: only fighters the form offered (i.e. eligible
-    fighters that have named sets) survive.
+    Merged into what is already stored, not rebuilt from the choices. The form
+    only lists *currently eligible* fighters, so rebuilding would delete the
+    choice made for anyone who happens to be in recovery when someone else
+    re-saves the page — and if they recover before the lock they would then turn
+    up on their default kit, silently discarding a decision the player made.
+    Entries the form didn't ask about are kept as long as they still resolve;
+    only genuinely meaningless ones (a deleted set, a set belonging to someone
+    else, a fighter no longer in the gang) are pruned.
     """
-    crew.loadout_overrides = {
-        str(fighter_id): {
-            Crew.LOADOUT_SET_KEY: (
-                str(chosen_set.pk) if chosen_set is not None else None
-            )
+    merged = crew.pruned_loadout_overrides(crew_loadout_gang_fighters(crew.list))
+    merged.update(
+        {
+            str(fighter_id): {
+                Crew.LOADOUT_SET_KEY: (
+                    str(chosen_set.pk) if chosen_set is not None else None
+                )
+            }
+            for fighter_id, chosen_set in (choices or {}).items()
         }
-        for fighter_id, chosen_set in (choices or {}).items()
-    }
+    )
+    crew.loadout_overrides = merged
     crew.save_with_user(user=user)
     return crew
 
@@ -189,21 +213,44 @@ def handle_crew_recipe_save(
 
 
 @traced("snapshot_crew_rating")
-def snapshot_crew_rating(*, user, crew: Crew) -> int:
-    """Freeze the crew's rating, and each member's share of it, as it stands now.
+def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
+    """Freeze the crew's live rating, and each member's share of it, into
+    ``field`` (``"rating_selected"`` or ``"rating_played"``).
 
-    Called once, at lock. Sets ``crew.rating_locked`` on the instance (the
-    caller saves it alongside the status change) and persists each member's
-    ``rating_locked``. See :meth:`Crew.rating` for why a virtual overlay object
-    keeps a snapshot: the gang legitimately carries on changing after the
-    battle, and the played crew must not change with it.
+    Both snapshots are taken the same way, from the same live computation, at
+    two different moments — the lock records what was *picked*, the end of the
+    battle records what actually *fought*. One implementation so the two can
+    never be computed differently.
+
+    Sets the field on the ``crew`` instance (the caller saves it, alongside
+    whatever else it is changing) and persists it on each member.
     """
     ratings = crew.live_member_ratings()
     for member in crew.members.all():
-        member.rating_locked = ratings.get(member.id, 0)
+        setattr(member, field, ratings.get(member.id, 0))
         member.save_with_user(user=user)
-    crew.rating_locked = sum(ratings.values())
-    return crew.rating_locked
+    total = sum(ratings.values())
+    setattr(crew, field, total)
+    return total
+
+
+@traced("snapshot_played_crew_ratings")
+def snapshot_played_crew_ratings(*, user, battle) -> int:
+    """Freeze what each of ``battle``'s crews fielded, at the moment it ended.
+
+    Only locked crews are snapshotted: a crew that was never confirmed didn't
+    field anything, so there is no fact to freeze and inventing one would claim
+    a battle it never fought. Returns how many crews were frozen.
+    """
+    crews = list(battle.crews.prefetch_related("members"))
+    frozen = 0
+    for crew in crews:
+        if not crew.is_locked:
+            continue
+        snapshot_crew_rating(user=user, crew=crew, field="rating_played")
+        crew.save_with_user(user=user)
+        frozen += 1
+    return frozen
 
 
 @dataclass
@@ -324,8 +371,10 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                 )
 
     crew.status = Crew.LOCKED
-    # Freeze the rating as it stands at battle start (see Crew.rating).
-    snapshot_crew_rating(user=user, crew=crew)
+    # Record what was picked. The crew goes on reporting its live rating until
+    # the battle ends — this is the note-worthy "was X when you picked it"
+    # figure, not the headline one (see Crew.rating).
+    snapshot_crew_rating(user=user, crew=crew, field="rating_selected")
     crew.save_with_user(user=user)
 
     if whole_gang:

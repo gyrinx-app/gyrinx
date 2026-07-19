@@ -234,12 +234,21 @@ class Crew(AppBase):
         default=DRAFT,
         help_text="Draft while being set up; locked once drawn at battle start.",
     )
-    rating_locked = models.PositiveIntegerField(
+    rating_selected = models.PositiveIntegerField(
         null=True,
         blank=True,
         help_text=(
-            "The crew's rating at the moment it was locked. Blank on a draft, "
-            "and on crews locked before snapshotting existed."
+            "The crew's rating at the moment it was picked (locked). A record "
+            "of intent, not what was fielded. Blank on a draft, and on crews "
+            "locked before snapshotting existed."
+        ),
+    )
+    rating_played = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The crew's rating when the battle ended — what actually fought. "
+            "Blank until then, and on battles ended before snapshotting existed."
         ),
     )
 
@@ -381,15 +390,21 @@ class Crew(AppBase):
         return None
 
     def pruned_loadout_overrides(self, fighters):
-        """``loadout_overrides`` with the entries that no longer mean anything
-        removed, given the fighters currently eligible for this crew.
+        """``loadout_overrides`` reduced to the entries that still mean
+        something for ``fighters``.
 
-        Dropped: entries for fighters who are no longer eligible (left the gang,
-        archived, killed, in recovery), entries whose set has been deleted or
-        belongs to someone else, and malformed leftovers. Explicit ``null``
-        (Default) entries are kept. Called opportunistically whenever the
-        overrides are written and again at lock, so the blob self-heals instead
-        of accumulating junk.
+        Kept: an entry naming a set that still exists and still belongs to that
+        fighter, and an explicit ``null`` (Default). Dropped: everyone not in
+        ``fighters``, entries whose set has been deleted or belongs to someone
+        else, and malformed leftovers. Called whenever the overrides are
+        written, and again at lock, so the blob self-heals rather than
+        accumulating junk.
+
+        **Which roster you pass decides what survives.** Saving choices passes
+        the whole gang (``crew_loadout_gang_fighters``), because a fighter who
+        is only *temporarily* ineligible may be back by battle start and their
+        choice must not be thrown away. The lock passes the eligible roster,
+        because by then ineligibility is final for this battle.
         """
         pruned = {}
         for fighter in fighters:
@@ -427,7 +442,22 @@ class Crew(AppBase):
             return f"{label} ({self.custom_count})"
         return label
 
-    # --- rating & credits (computed live until the lock freezes them) ----
+    # --- rating & credits ------------------------------------------------
+    #
+    # Three values answer three different questions, and only the third is a
+    # record of what happened:
+    #
+    #   selected (``rating_selected``, frozen at lock) — what did I pick?
+    #   live     (computed)                            — what would I field now?
+    #   played   (``rating_played``, frozen at end)    — what actually fought?
+    #
+    # A crew that is locked but hasn't fought yet reports **live**, not the
+    # selection snapshot: when the battle is played the roster is printed and
+    # fielded as the gang stands *then*, so a fighter who bought a weapon since
+    # selection really does bring it. Underdog calculations are decided
+    # pre-battle from what each side actually fields, so they need the live
+    # figure too. Freezing exists to stop the record moving *after* the fight,
+    # which is why ``rating_played`` is the only snapshot ``rating()`` returns.
 
     def _attendee_lines(self):
         """Per-member ``(cost, line)`` for the crew.
@@ -440,10 +470,11 @@ class Crew(AppBase):
         sets (so the set's assignments also come from the cache); a member with
         no set is costed at their whole kit.
 
-        ``cost`` is the member's locked rating once they have one, falling back
-        to the live figure; ``line["live_rating"]`` always carries what the
-        fighter costs *now*, which is what drift is measured against. ``line``
-        is otherwise a small display dict (name, loadout, random flag, ids).
+        ``cost`` is the member's played rating once the battle has frozen one,
+        falling back to the live figure; ``line["live_rating"]`` always carries
+        what the fighter costs *now*, which is what the selection note is
+        measured against. ``line`` is otherwise a small display dict (name,
+        loadout, random flag, ids).
         """
         from gyrinx.core.models.list import ListFighter
 
@@ -474,7 +505,7 @@ class Crew(AppBase):
                 else 0
             )
             cost = (
-                member.rating_locked if member.rating_locked is not None else live_cost
+                member.rating_played if member.rating_played is not None else live_cost
             )
             lines.append(
                 (
@@ -497,65 +528,80 @@ class Crew(AppBase):
         return lines
 
     def rating(self):
-        """The crew's fighter rating: the snapshot taken at lock, or, before
-        there is one, the sum of each member's cost scoped to the equipment set
-        they bring. While the crew is a draft that only means the chosen members
-        — the random component is unknown until the draw at lock, so it isn't
-        counted.
+        """The crew's fighter rating.
 
-        ``rating_locked`` is a **read-model snapshot on a virtual overlay
-        object**, not a cost cache. A crew is a historical record of who fought
-        with what, and the gang it was drawn from legitimately keeps changing
-        afterwards (new weapons bought, equipment sets re-cut), which would
-        otherwise silently move the rating of a battle already fought. Nothing
-        here feeds gang rating, credits, the audit stream, or any cached cost:
-        it is written once, by the lock, and never reconciled — where the live
-        figure has since moved, that is reported as drift
-        (:meth:`rating_drift`), not absorbed. Crews locked before this existed
-        have no snapshot and compute live.
+        Once the battle has ended, ``rating_played``: that is what fought, and
+        it must never move again. Before that — draft or locked — the live sum
+        of each member's cost scoped to the equipment set they bring, because
+        that is what the gang would actually field right now. While the crew is
+        a draft this only counts the chosen members: the random component is
+        unknown until the draw at lock.
+
+        ``rating_played`` is a **read-model snapshot on a virtual overlay
+        object**, not a cost cache. The gang it was drawn from legitimately
+        keeps changing after the battle (new weapons bought, equipment sets
+        re-cut), which would otherwise silently move the rating of a battle
+        already fought. Nothing here feeds gang rating, credits, the audit
+        stream, or any cached cost: it is written once, when the battle ends,
+        and never reconciled. Battles ended before this existed have no
+        snapshot and go on computing live.
         """
-        if self.rating_locked is not None:
-            return self.rating_locked
+        if self.rating_played is not None:
+            return self.rating_played
         return self.live_rating()
 
     def live_rating(self):
         """The crew's rating recomputed from the fighters as they are *now* —
-        what :meth:`rating` would have said had the crew been locked today."""
+        what the gang would field if the battle were played today."""
         return sum(line["live_rating"] for _, line in self._attendee_lines())
 
     def live_member_ratings(self):
-        """Map of member id → that member's live cost. The input to the lock
-        snapshot (see ``handlers.crew.snapshot_crew_rating``)."""
+        """Map of member id → that member's live cost. The input to both
+        snapshots (see ``handlers.crew.snapshot_crew_rating``)."""
         return {
             line["member_id"]: line["live_rating"] for _, line in self._attendee_lines()
         }
 
-    def _drift(self, live):
-        """Snapshot vs ``live``, or ``None`` when there is no snapshot to
-        compare against (a draft, or a crew locked before snapshotting)."""
-        if self.rating_locked is None:
+    def _note(self, live):
+        """The selection note given a precomputed ``live`` rating (ignored once
+        the battle has frozen a played rating). ``None`` when there is nothing
+        to say."""
+        if not self.is_locked or self.rating_selected is None:
             return None
+        current = self.rating_played if self.rating_played is not None else live
         return {
-            "locked": self.rating_locked,
-            "live": live,
-            "has_drifted": live != self.rating_locked,
+            "selected": self.rating_selected,
+            "current": current,
+            "is_played": self.rating_played is not None,
+            "differs": current != self.rating_selected,
         }
 
-    def rating_drift(self):
-        """How far the crew's rating has moved since it was locked.
+    def rating_note(self):
+        """How the crew's headline rating relates to what was picked.
 
-        ``None`` when there is no snapshot to compare against; otherwise
-        ``{"locked", "live", "has_drifted"}``. Drift is expected and allowed —
-        the gang carries on changing after the battle — so it is surfaced rather
-        than corrected.
+        ``None`` for a draft (nothing has been committed to yet) and for crews
+        locked before selection was snapshotted. Otherwise ``{"selected",
+        "current", "is_played", "differs"}``:
+
+        - **locked, not yet played** — ``current`` is the live rating, and a
+          difference means the gang has changed since selection. The live
+          figure is the honest one (it is what would be fielded), so the note
+          records the selection rather than correcting it.
+        - **played** — ``current`` is what fought, and a difference preserves
+          the fact that the crew changed between being picked and playing. The
+          gang moving on *after* the battle is irrelevant here and deliberately
+          not reported: it is not a discrepancy.
         """
-        # Checked before computing the live rating, not inside _drift(): there is
-        # nothing to compare a draft against, and live_rating() batch-loads every
-        # attendee. The battle page asks each crew for its drift, so evaluating it
-        # first would cost that load per draft crew and then discard it.
-        if self.rating_locked is None:
+        # Both early exits are checked before touching live_rating(), which
+        # batch-loads every attendee: a draft has nothing to compare against,
+        # and a played crew compares against its own snapshot. The battle page
+        # asks every crew for its note, so computing live first would pay that
+        # load per crew and then discard it.
+        if not self.is_locked or self.rating_selected is None:
             return None
-        return self._drift(self.live_rating())
+        if self.rating_played is not None:
+            return self._note(None)
+        return self._note(self.live_rating())
 
     def print_fighter_ids(self):
         """ListFighter ids to print for this crew, or ``None`` for the whole gang.
@@ -585,18 +631,21 @@ class Crew(AppBase):
         each extra falls in the Credits, Allowance, or Free column by how it is
         paid for. Returns the grouped rows, the per-column totals (for the
         annotated subtotal rows), the grand total (the crew's credits value),
-        and any rating drift since the lock. One batch load; the extras are
-        computed live and only the locked rating is ever persisted."""
+        and the selection note. One batch load; the extras are computed live and
+        only the two rating snapshots are ever persisted."""
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
-        # The locked snapshot is the crew's rating once it has one; before that
-        # the per-member figures are live and sum to the same thing.
+        # The played snapshot is the crew's rating once the battle has frozen
+        # one; before that the per-member figures are live and sum to the same
+        # thing.
         fighters_total = (
-            self.rating_locked
-            if self.rating_locked is not None
+            self.rating_played
+            if self.rating_played is not None
             else sum(cost for cost, _ in lines)
         )
-        drift = self._drift(sum(line["live_rating"] for _, line in lines))
+        # The lines are already loaded, so the live figure is free here — no
+        # need for rating_note()'s guard against computing it.
+        note = self._note(sum(line["live_rating"] for _, line in lines))
 
         extras = []
         credits_total = allowance_total = free_total = 0
@@ -633,9 +682,9 @@ class Crew(AppBase):
             "free_total": free_total,
             "has_free": has_free,
             "total": total,
-            # None when there's no snapshot to compare against; otherwise the
-            # locked and live ratings plus whether they differ.
-            "drift": drift,
+            # None when there's nothing to say; otherwise what was picked, what
+            # the headline number is now, and whether they differ.
+            "note": note,
             # Draft crew with a draw still to roll: the random attendees aren't
             # known, so rating/total render as "?" and a "+spec from the roll"
             # row stands in for them.
@@ -687,12 +736,20 @@ class CrewMember(AppBase):
         default=CHOSEN,
         help_text="How this fighter joined the crew (audit of the draw).",
     )
-    rating_locked = models.PositiveIntegerField(
+    rating_selected = models.PositiveIntegerField(
         null=True,
         blank=True,
         help_text=(
             "This member's contribution to the crew's rating at the moment the "
-            "crew was locked. Blank until then."
+            "crew was picked (locked). Blank until then."
+        ),
+    )
+    rating_played = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "This member's contribution to what actually fought, frozen when "
+            "the battle ended. Blank until then."
         ),
     )
 
@@ -713,15 +770,17 @@ class CrewMember(AppBase):
 
     def rating(self):
         """This member's contribution to crew rating: the figure frozen when the
-        crew was locked, or, before that, the fighter's cost scoped to the
-        equipment set they bring (their whole kit when no set is chosen).
+        battle ended, or, before that, the fighter's cost scoped to the
+        equipment set they bring (their whole kit when no set is chosen) — what
+        they would field right now.
 
-        Like :attr:`Crew.rating_locked`, the snapshot is a read-model record of
-        what was fielded — it never feeds gang rating, credits, or any cost
+        Mirrors :meth:`Crew.rating`, including why the selection snapshot isn't
+        what's returned. Like it, ``rating_played`` is a read-model record of
+        what was fielded: it never feeds gang rating, credits, or any cost
         cache.
         """
-        if self.rating_locked is not None:
-            return self.rating_locked
+        if self.rating_played is not None:
+            return self.rating_played
         return self.list_fighter.cost_int_for_equipment_set(self.equipment_set)
 
 

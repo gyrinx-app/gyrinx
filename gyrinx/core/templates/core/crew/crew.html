@@ -33,14 +33,24 @@
                 <span><i class="bi-diagram-3"></i> {{ crew.method_label }}</span>
             </div>
         </div>
-        {% if has_drifted %}
-            <!-- The crew is frozen, but the gang it came from isn't: say so rather
-            than quietly showing a rating the crew never fought at. -->
+        {% if show_rating_note %}
+            {% comment %}
+            The rating shown is what would be fielded now (or, after the battle,
+            what was fielded). Either way it is no longer what the crew was
+            picked at, so record that rather than letting the two numbers
+            silently disagree.
+            {% endcomment %}
             <div class="border rounded p-2 fs-7">
-                <i class="bi-exclamation-triangle text-warning"></i>
-                <strong>The fighters in this crew have changed since it was locked.</strong>
-                The crew was locked at {{ drift.locked }}¢, which is the rating shown below;
-                the same fighters would be {{ drift.live }}¢ today.
+                <i class="bi-info-circle text-secondary"></i>
+                {% if rating_note.is_played %}
+                    <strong>This crew changed between selection and the battle.</strong>
+                    It was picked at {{ rating_note.selected }}¢; the rating shown is what
+                    it fought at.
+                {% else %}
+                    <strong>This crew has changed since you picked it.</strong>
+                    It was {{ rating_note.selected }}¢ when you picked it; the rating shown
+                    is what the gang would field today.
+                {% endif %}
             </div>
         {% endif %}
         <!-- Crew sheet -->
@@ -97,7 +107,9 @@
                             <td class="text-end">{{ a.rating }}¢</td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}<td></td>{% endif %}
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
                         </tr>
                     {% empty %}
                         {% if projection %}
@@ -172,7 +184,9 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}<td></td>{% endif %}
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
                         </tr>
                     {% endif %}
                     <tr>

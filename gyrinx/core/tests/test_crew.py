@@ -19,11 +19,13 @@ from random import Random
 from uuid import uuid4
 
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
+from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import (
     crew_whole_gang_projection,
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
     handle_crew_lock,
+    handle_crew_loadouts_save,
 )
 from gyrinx.core.models import Battle
 from gyrinx.core.models.campaign import CampaignAction
@@ -1402,7 +1404,12 @@ def test_random_draw_also_draws_the_card(crew_setup, equipped_fighter):
     assert f"{fighter.name} ({drawn_card})" in outcome
 
 
-# --- Locked rating snapshot and drift ---------------------------------------
+# --- Selected / live / played ratings ---------------------------------------
+#
+# Three values, three questions: what did I pick (selected, frozen at lock),
+# what would I field now (live, computed), what actually fought (played, frozen
+# when the battle ends). A locked crew reports *live* until the battle ends,
+# because that is what the gang would really put on the table.
 
 
 def _lock_one_fighter_crew(crew_setup):
@@ -1417,62 +1424,193 @@ def _lock_one_fighter_crew(crew_setup):
     return handle_crew_lock(user=crew_setup["user"], crew=crew).crew
 
 
-@pytest.mark.django_db
-def test_locked_rating_stable_when_fighter_gains_equipment(
-    crew_setup, make_equipment, make_weapon_profile
-):
-    """The crew is a historical record: the gang carrying on buying gear must
-    not move the rating of a battle already fought."""
-    crew = _lock_one_fighter_crew(crew_setup)
-    assert crew.rating() == 100
-    assert crew.rating_locked == 100
-    assert [m.rating_locked for m in crew.members.all()] == [100]
-
-    bolter = make_equipment(name="Bolter", cost=35, category="Basic Weapons")
+def _arm_first_fighter(crew_setup, make_equipment, make_weapon_profile, name):
+    """Give the crew's fighter a 35¢ bolter, moving them from 100¢ to 135¢."""
+    bolter = make_equipment(name=name, cost=35, category="Basic Weapons")
     make_weapon_profile(bolter)
     crew_setup["fighters"][0].assign(bolter)
 
-    crew.refresh_from_db()
-    assert crew.rating() == 100
-    assert crew.members.get().rating() == 100
-    assert crew.receipt()["fighters_total"] == 100
-    # The live figure has moved — the snapshot simply doesn't follow it.
-    assert crew.live_rating() == 135
+
+def _end_battle(crew_setup):
+    """Run the battle to its end, which is what freezes what each crew fought
+    at."""
+    battle = crew_setup["battle"]
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    handle_battle_end(user=crew_setup["user"], battle=battle, winners=[], is_draw=True)
+    return battle
 
 
 @pytest.mark.django_db
-def test_rating_drift_is_detected_and_surfaced(
+def test_locked_crew_reports_live_rating_until_the_battle_is_played(
+    crew_setup, make_equipment, make_weapon_profile
+):
+    """Locking records what was picked, but the crew goes on reporting what the
+    gang would field: come battle night you print the roster and field the
+    fighters as they are *then*, so a weapon bought since selection really is
+    on the table."""
+    crew = _lock_one_fighter_crew(crew_setup)
+    assert crew.rating() == 100
+    assert crew.rating_selected == 100
+    assert crew.rating_played is None
+    assert [m.rating_selected for m in crew.members.all()] == [100]
+
+    _arm_first_fighter(crew_setup, make_equipment, make_weapon_profile, "Bolter")
+
+    crew.refresh_from_db()
+    assert crew.rating() == 135
+    assert crew.members.get().rating() == 135
+    assert crew.receipt()["fighters_total"] == 135
+    # What was picked is remembered, it just isn't the headline number.
+    assert crew.rating_selected == 100
+
+
+@pytest.mark.django_db
+def test_locked_crew_notes_what_it_was_picked_at(
     client, crew_setup, make_equipment, make_weapon_profile
 ):
     crew = _lock_one_fighter_crew(crew_setup)
-    bolter = make_equipment(name="Bolter 2", cost=35, category="Basic Weapons")
-    make_weapon_profile(bolter)
-    crew_setup["fighters"][0].assign(bolter)
+    _arm_first_fighter(crew_setup, make_equipment, make_weapon_profile, "Bolter 2")
     crew.refresh_from_db()
 
-    drift = crew.rating_drift()
-    assert drift == {"locked": 100, "live": 135, "has_drifted": True}
+    assert crew.rating_note() == {
+        "selected": 100,
+        "current": 135,
+        "is_played": False,
+        "differs": True,
+    }
 
     client.force_login(crew_setup["user"])
     battle = crew_setup["battle"]
     resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
-    assert resp.context["has_drifted"] is True
-    assert "have changed since it was locked" in resp.content.decode()
+    assert resp.context["show_rating_note"] is True
+    assert "was 100¢ when you picked it" in resp.content.decode()
 
     # The arbitrator sees it on the battle page too.
     resp = client.get(reverse("core:battle", args=[battle.id]))
     crew_row = resp.context["participant_groups"][0]["participants"][0]["crew"]
-    assert crew_row["has_drifted"] is True
-    assert crew_row["rating"] == 100
-    assert crew_row["live_rating"] == 135
-    assert "changed since it was locked" in resp.content.decode()
+    assert crew_row["show_rating_note"] is True
+    assert crew_row["rating"] == 135
+    assert crew_row["rating_note"]["selected"] == 100
+    assert "picked at 100¢" in resp.content.decode()
 
 
 @pytest.mark.django_db
-def test_crew_locked_before_snapshots_computes_live_and_reports_no_drift(crew_setup):
-    """Crews locked before snapshotting shipped keep ``rating_locked`` NULL —
+def test_ending_the_battle_freezes_what_fought(
+    crew_setup, make_equipment, make_weapon_profile
+):
+    """Once the fight is over the record must stop moving: later purchases
+    can't rewrite what was fielded."""
+    crew = _lock_one_fighter_crew(crew_setup)
+    _arm_first_fighter(crew_setup, make_equipment, make_weapon_profile, "Bolter 3")
+    _end_battle(crew_setup)
+
+    crew.refresh_from_db()
+    assert crew.rating_played == 135
+    assert crew.rating() == 135
+    # Per-member too, so the receipt's rows stop moving with the crew's total.
+    assert [m.rating_played for m in crew.members.all()] == [135]
+    assert crew.members.get().rating() == 135
+
+    # The gang carries on spending; the crew that fought does not follow it.
+    chainsword = make_equipment(name="Chainsword", cost=25, category="Close Combat")
+    make_weapon_profile(chainsword)
+    crew_setup["fighters"][0].assign(chainsword)
+
+    crew.refresh_from_db()
+    assert crew.rating() == 135
+    assert crew.members.get().rating() == 135
+    assert crew.receipt()["fighters_total"] == 135
+    assert crew.live_rating() == 160
+
+
+@pytest.mark.django_db
+def test_played_crew_notes_what_it_was_picked_at(
+    client, crew_setup, make_equipment, make_weapon_profile
+):
+    """After the battle the note preserves the gap between selection and play —
+    and says nothing about the gang having moved on since."""
+    crew = _lock_one_fighter_crew(crew_setup)
+    _arm_first_fighter(crew_setup, make_equipment, make_weapon_profile, "Bolter 4")
+    battle = _end_battle(crew_setup)
+
+    # More spending after the battle: irrelevant, and must not show up as a
+    # discrepancy.
+    knife = make_equipment(name="Knife", cost=10, category="Close Combat")
+    make_weapon_profile(knife)
+    crew_setup["fighters"][0].assign(knife)
+    crew.refresh_from_db()
+
+    assert crew.rating_note() == {
+        "selected": 100,
+        "current": 135,
+        "is_played": True,
+        "differs": True,
+    }
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    content = resp.content.decode()
+    assert resp.context["show_rating_note"] is True
+    assert "picked at 100¢" in content
+    # The live figure (145¢ with the knife) is not part of the story any more.
+    assert "145" not in content
+
+
+@pytest.mark.django_db
+def test_unchanged_crew_says_nothing(crew_setup):
+    """A crew that hasn't moved between selection and play has no note — the
+    number speaks for itself."""
+    crew = _lock_one_fighter_crew(crew_setup)
+    assert crew.rating_note()["differs"] is False
+
+    _end_battle(crew_setup)
+    crew.refresh_from_db()
+    note = crew.rating_note()
+    assert note["differs"] is False
+    assert note["is_played"] is True
+    assert crew.receipt()["note"]["differs"] is False
+
+
+@pytest.mark.django_db
+def test_draft_crew_has_no_note(crew_setup):
+    """Nothing has been committed to yet, so there is nothing to compare."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=2,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    assert crew.rating() == 200
+    assert crew.rating_note() is None
+    assert crew.receipt()["note"] is None
+
+
+@pytest.mark.django_db
+def test_only_locked_crews_are_frozen_when_the_battle_ends(crew_setup):
+    """A crew that was never confirmed didn't field anything, so there is no
+    fact to freeze — inventing one would claim a battle it never fought."""
+    draft = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(draft, crew_setup["fighters"][:1])
+
+    _end_battle(crew_setup)
+
+    draft.refresh_from_db()
+    assert draft.rating_played is None
+    assert draft.rating() == 100
+
+
+@pytest.mark.django_db
+def test_crew_locked_before_snapshots_computes_live_and_says_nothing(crew_setup):
+    """Crews locked before snapshotting shipped keep ``rating_selected`` NULL —
     inventing one now would be inventing a moment. They compute live, and have
-    nothing to compare against, so they report no drift."""
+    nothing to compare against, so they carry no note."""
     crew = Crew.objects.create(
         battle=crew_setup["battle"],
         list=crew_setup["gang"],
@@ -1481,11 +1619,12 @@ def test_crew_locked_before_snapshots_computes_live_and_reports_no_drift(crew_se
     )
     add_chosen(crew, crew_setup["fighters"][:2])
 
-    assert crew.rating_locked is None
+    assert crew.rating_selected is None
+    assert crew.rating_played is None
     assert crew.rating() == 200
     assert crew.rating() == crew.live_rating()
-    assert crew.rating_drift() is None
-    assert crew.receipt()["drift"] is None
+    assert crew.rating_note() is None
+    assert crew.receipt()["note"] is None
 
 
 # --- Wording ----------------------------------------------------------------
@@ -1830,12 +1969,12 @@ def test_crew_page_forecast_costs_no_per_fighter_query(
 
 
 @pytest.mark.django_db
-def test_draft_crews_drift_costs_no_queries(crew_setup):
-    """A draft has no snapshot to compare against, so asking for its drift must
+def test_draft_crews_note_costs_no_queries(crew_setup):
+    """A draft has nothing to compare against, so asking for its note must
     answer ``None`` outright.
 
     Computing the live rating first would batch-load every attendee and then
-    throw the answer away — and the battle page asks each crew for its drift, so
+    throw the answer away — and the battle page asks each crew for its note, so
     that load would be paid per draft crew on the page.
     """
     crew = Crew.objects.create(
@@ -1854,10 +1993,44 @@ def test_draft_crews_drift_costs_no_queries(crew_setup):
             owner=crew_setup["user"],
             source=CrewMember.CHOSEN,
         )
-    assert crew.rating_locked is None
+    assert crew.rating_selected is None
 
     with CaptureQueriesContext(connection) as ctx:
-        assert crew.rating_drift() is None
+        assert crew.rating_note() is None
+    assert len(ctx) == 0
+
+
+@pytest.mark.django_db
+def test_played_crews_note_costs_no_queries(crew_setup):
+    """A crew whose battle is over compares its own two snapshots, so it must
+    not batch-load the roster to answer either — the same guard the draft case
+    has, extended to the state the battle page will mostly be showing."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+        rating_selected=300,
+        rating_played=320,
+    )
+    for fighter in crew_setup["fighters"][:3]:
+        CrewMember.objects.create(
+            crew=crew,
+            list_fighter=fighter,
+            owner=crew_setup["user"],
+            source=CrewMember.CHOSEN,
+            rating_selected=100,
+            rating_played=100,
+        )
+
+    with CaptureQueriesContext(connection) as ctx:
+        note = crew.rating_note()
+    assert note == {
+        "selected": 300,
+        "current": 320,
+        "is_played": True,
+        "differs": True,
+    }
     assert len(ctx) == 0
 
 
@@ -1986,3 +2159,94 @@ def test_pending_roll_needs_a_spec_that_actually_draws(crew_setup):
 
     crew.random_spec = "D3"
     assert crew.pending_roll is True
+
+
+# --- Saving loadouts keeps choices the form couldn't offer -------------------
+#
+# The form only lists currently *eligible* fighters, so rebuilding the stored
+# map from its answers would quietly delete the choice made for anyone who
+# happens to be in recovery on the day someone re-saves the page.
+
+
+@pytest.mark.django_db
+def test_saving_loadouts_keeps_a_recovering_fighters_choice(crew_setup, carded_fighter):
+    """A fighter in recovery isn't offered by the form, but may well be back by
+    battle start — their choice is a decision the player made and must survive
+    a re-save."""
+    gang = crew_setup["gang"]
+    recovering, recovering_card = carded_fighter(gang)
+    other, other_card = carded_fighter(gang)
+    crew = _loadout_crew(
+        crew_setup, loadout_overrides=_override(recovering, recovering_card)
+    )
+
+    recovering.injury_state = ListFighter.RECOVERY
+    recovering.save()
+    offered = list(eligible_crew_fighters_for_loadouts(gang))
+    assert recovering.id not in [f.id for f in offered]
+
+    handle_crew_loadouts_save(
+        user=crew_setup["user"], crew=crew, choices={other.pk: other_card}
+    )
+
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {
+        str(recovering.pk): {"equipment_set": str(recovering_card.pk)},
+        str(other.pk): {"equipment_set": str(other_card.pk)},
+    }
+
+    # And when they recover before the lock, they turn up on the chosen kit.
+    recovering.injury_state = ListFighter.ACTIVE
+    recovering.save()
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+    member = crew.members.get(list_fighter=recovering)
+    assert member.equipment_set_id == recovering_card.id
+
+
+@pytest.mark.django_db
+def test_saving_loadouts_prunes_entries_that_no_longer_mean_anything(
+    crew_setup, carded_fighter
+):
+    """Merging is not hoarding: an entry whose set has gone, or whose fighter
+    has left the gang, is dropped."""
+    gang = crew_setup["gang"]
+    gone_set, gone_card = carded_fighter(gang)
+    departed, departed_card = carded_fighter(gang)
+    keeper, keeper_card = carded_fighter(gang)
+
+    crew = _loadout_crew(
+        crew_setup,
+        loadout_overrides={
+            **_override(gone_set, gone_card),
+            **_override(departed, departed_card),
+            **_override(keeper, keeper_card),
+            "not-a-fighter": {"equipment_set": None},
+        },
+    )
+    gone_card.delete()
+    departed.delete()
+
+    handle_crew_loadouts_save(user=crew_setup["user"], crew=crew, choices={})
+
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {
+        str(keeper.pk): {"equipment_set": str(keeper_card.pk)}
+    }
+
+
+@pytest.mark.django_db
+def test_saving_loadouts_overwrites_the_fighters_the_form_did_offer(
+    crew_setup, carded_fighter
+):
+    """Merging must not make a choice sticky: an eligible fighter's answer
+    replaces whatever was stored, including a switch back to Default."""
+    gang = crew_setup["gang"]
+    fighter, card = carded_fighter(gang)
+    crew = _loadout_crew(crew_setup, loadout_overrides=_override(fighter, card))
+
+    handle_crew_loadouts_save(
+        user=crew_setup["user"], crew=crew, choices={fighter.pk: None}
+    )
+
+    crew.refresh_from_db()
+    assert crew.loadout_overrides == {str(fighter.pk): {"equipment_set": None}}
