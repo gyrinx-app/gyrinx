@@ -21,6 +21,7 @@ from uuid import uuid4
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
 from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import (
+    crew_spread_rating,
     crew_whole_gang_projection,
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
@@ -2486,3 +2487,84 @@ def test_archive_page_says_already_archived(client, crew_setup):
     content = resp.content.decode()
     assert "already been archived" in content
     assert "permission" not in content
+
+# --- crew_spread_rating: the shared comparison-rating cascade ---------------
+#
+# The single definition of what a crew is worth "right now" for spread/underdog
+# comparison, extracted so the battle page and the crew-page spread can't drift.
+# These pin the four cases; the battle-page render tests above exercise it in
+# situ.
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_pending_roll_is_unknown(crew_setup):
+    """A draft whose random draw hasn't happened has no comparable rating yet."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="D3",
+    )
+    assert crew.pending_roll is True
+    assert crew_spread_rating(crew) == (None, False)
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_whole_gang_draft_is_a_forecast(crew_setup):
+    """A whole-gang draft has enrolled nobody, so its comparison rating is the
+    forecast of the currently-eligible roster, flagged provisional."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    assert crew.is_whole_gang
+    assert not crew.members.all()
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is True
+    assert rating == crew_whole_gang_projection(crew)["total"]
+    assert rating > 0  # five gangers at 100 each
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_locked_unplayed_is_live(crew_setup):
+    """A locked crew that hasn't fought reports its live rating — what the gang
+    would field now — and is not provisional."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+        custom_count=2,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is False
+    assert rating == crew.live_rating()
+    assert rating == crew.rating()  # no played snapshot yet
+    assert rating == 200
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_played_is_the_frozen_figure(crew_setup):
+    """Once the battle has frozen what fought, that snapshot is the comparison
+    rating — the live gang moving on afterwards must not change it."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+        custom_count=2,
+        rating_selected=280,
+        rating_played=320,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is False
+    assert rating == 320  # the played snapshot, not the live 200
+    assert rating == crew.rating()

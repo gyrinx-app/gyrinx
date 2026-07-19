@@ -630,8 +630,14 @@ class Crew(AppBase):
         return sum(item.cost for item in self.line_items.all())
 
     def credits_value(self):
-        """The crew's Credits value (rating + extras) — the rulebook quantity
-        scenarios compare for underdog bonuses."""
+        """The crew's fighter rating plus its extra line items.
+
+        NOT the rulebook's underdog-comparison quantity, despite the tempting
+        name: scenarios compare the credits value of the *fighters* in each
+        starting crew (Core Rulebook p238), and extras — tactics cards, hired
+        help — never enter that comparison. The quantity to compare is
+        :meth:`rating`; this sum (rating + extras) is only a headline total.
+        """
         return self.rating() + self.extras_total()
 
     def receipt(self):

@@ -14,7 +14,7 @@ from gyrinx.core.forms.battle import (
     BattleRolesForm,
 )
 from gyrinx.core.handlers.battle import handle_battle_end
-from gyrinx.core.handlers.crew import crew_whole_gang_projection
+from gyrinx.core.handlers.crew import crew_spread_rating
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
@@ -122,34 +122,25 @@ class BattleDetailView(generic.DetailView):
         )
         crew_by_gang = {}
         for crew in crews:
-            # Only the rating and pending-roll flag are needed here, so skip the
-            # full receipt() (which also builds the extras breakdown). A pending
-            # draw leaves the rating unknown, so don't compute it at all.
+            # The one definition of what a crew is worth right now (pending draw
+            # → unknown; whole-gang draft → forecast; else its live/played
+            # rating), shared with the crew-page spread so the two can't drift.
+            # A forecast is flagged provisional; a pending draw returns no rating.
+            rating, is_forecast = crew_spread_rating(crew)
             pending = crew.pending_roll
-            # A whole-gang crew enrols nobody until it is confirmed, so its own
-            # rating would read 0¢ here — "no fighters" rather than "the whole
-            # gang attends". Forecast it the same way the crew page does.
-            forecast = (
-                not crew.is_locked and crew.is_whole_gang and not crew.members.all()
-            )
-            if pending:
-                rating = None
-            elif forecast:
-                rating = crew_whole_gang_projection(crew)["total"]
-            else:
-                rating = crew.rating()
             # The rating shown is what the gang would field now, or, once the
             # battle has ended, what it did field. Either way, flag when that
             # isn't the number the crew was picked at — the arbitrator needs to
-            # see the crew has changed since selection. A forecast has nothing
-            # to compare against: the crew hasn't been picked yet.
-            note = None if (pending or forecast) else crew.rating_note()
+            # see the crew has changed since selection. A forecast or a pending
+            # draw has nothing to compare against: the crew hasn't been picked,
+            # or its draw hasn't resolved.
+            note = None if (pending or is_forecast) else crew.rating_note()
             crew_by_gang[crew.list_id] = {
                 "crew": crew,
                 "method_label": crew.method_label(),
                 "rating": rating,
                 "pending_roll": pending,
-                "is_forecast": forecast,
+                "is_forecast": is_forecast,
                 "show_rating_note": bool(note and note["differs"]),
                 "rating_note": note,
             }

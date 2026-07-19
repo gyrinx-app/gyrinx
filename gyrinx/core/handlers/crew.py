@@ -91,6 +91,35 @@ def crew_whole_gang_projection(crew: Crew):
     return {"rows": rows, "total": total}
 
 
+def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
+    """What a crew is worth *right now* for spread/underdog comparison, and
+    whether that figure is provisional. Returns ``(rating, is_provisional)``.
+
+    The single definition of a crew's comparison rating, so the battle page and
+    the (future) crew-page spread can never drift — two copies of this cascade
+    is how they would. Three cases:
+
+    - a **pending random draw** has no known rating yet — ``(None, False)``; the
+      side drops out of the comparison until it is drawn;
+    - a **whole-gang draft** that has enrolled nobody would otherwise read 0¢
+      ("no fighters") rather than "the whole gang attends", so it is forecast
+      from the currently-eligible roster — ``(forecast total, True)``,
+      provisional because the roster only resolves at battle start;
+    - **otherwise** the crew's own :meth:`Crew.rating` — live until the battle
+      freezes ``rating_played``, the played snapshot after — ``(rating, False)``.
+
+    Reads ``crew.members`` from a caller's ``prefetch_related("members")`` cache
+    when present, so it adds no query in the whole-gang / locked cases; the
+    forecast branch runs one batched roster load via
+    :func:`crew_whole_gang_projection`.
+    """
+    if crew.pending_roll:
+        return None, False
+    if not crew.is_locked and crew.is_whole_gang and not crew.members.all():
+        return crew_whole_gang_projection(crew)["total"], True
+    return crew.rating(), False
+
+
 def crew_loadout_gang_fighters(lst):
     """Every fighter in the gang, loaded with their equipment sets.
 
