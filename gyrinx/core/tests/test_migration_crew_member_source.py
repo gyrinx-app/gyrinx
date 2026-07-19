@@ -3,7 +3,7 @@
 0173 drops ``was_random`` from ``historicalcrewmember`` as well as the live
 table, so 0172 is the only chance to carry the value across. Miss it and every
 historical row keeps the ``source`` field default — the change history then says
-for ever that fighters drawn at random were hand-picked.
+forever that fighters drawn at random were hand-picked.
 
 The real migration can't be exercised against the current schema (``was_random``
 is long gone from both models), so the backfill function is driven against a
