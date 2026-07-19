@@ -23,6 +23,18 @@ class Battle(AppBase):
     IN_PROGRESS = "in_progress"
     POST_BATTLE = "post_battle"
 
+    # How the battle finished. Blank is a distinct third state from "draw":
+    # it means nobody recorded a result, which is what every battle ended
+    # before this field existed looks like. Without it, an empty ``winners``
+    # would be indistinguishable from a genuine draw.
+    RESULT_UNRECORDED = ""
+    RESULT_WINNERS = "winners"
+    RESULT_DRAW = "draw"
+    RESULT_CHOICES = [
+        (RESULT_WINNERS, "Win"),
+        (RESULT_DRAW, "Draw"),
+    ]
+
     states = StateMachine(
         states=[
             (PRE_BATTLE, "Pre-battle"),
@@ -66,6 +78,13 @@ class Battle(AppBase):
         blank=True,
         help_text="Gangs that won the battle (leave empty for a draw)",
     )
+    result = models.CharField(
+        max_length=20,
+        blank=True,
+        default=RESULT_UNRECORDED,
+        choices=RESULT_CHOICES,
+        help_text="How the battle finished. Blank means no result was recorded.",
+    )
 
     history = HistoricalRecords()
 
@@ -101,6 +120,16 @@ class Battle(AppBase):
             + 1
         )
         return f"{self.mission} #{battle_number}"
+
+    @property
+    def result_recorded(self):
+        """Whether anyone has said how this battle finished."""
+        return self.result != self.RESULT_UNRECORDED
+
+    @property
+    def is_draw(self):
+        """Whether the battle was explicitly recorded as a draw."""
+        return self.result == self.RESULT_DRAW
 
     def can_edit(self, user):
         """

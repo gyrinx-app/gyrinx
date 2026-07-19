@@ -321,6 +321,11 @@ patterns = [
         name="crew-edit",
     ),
     path(
+        "battle/<battle_id>/crew/<uuid:crew_id>/loadouts",
+        crew_views.crew_loadouts,
+        name="crew-loadouts",
+    ),
+    path(
         "battle/<battle_id>/crew/<uuid:crew_id>/lock",
         crew_views.crew_lock,
         name="crew-lock",
@@ -329,11 +334,6 @@ patterns = [
         "battle/<battle_id>/crew/<uuid:crew_id>/delete",
         crew_views.crew_delete,
         name="crew-delete",
-    ),
-    path(
-        "battle/<battle_id>/crew/<uuid:crew_id>/member/<uuid:member_id>/loadout",
-        crew_views.crew_member_loadout,
-        name="crew-member-loadout",
     ),
     path(
         "battle/<battle_id>/crew/<uuid:crew_id>/extra/new",

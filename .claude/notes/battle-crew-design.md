@@ -93,6 +93,33 @@ CrewLineItem (AppBase)                 # generic credit-consuming line item
   fly, no caches. Line-item costs are shown as a separate "extras" total, not
   folded into fighter rating. Deltas view: crew rating vs gang rating, extras
   total, later vs opposing crews.
+- **As built — three values, three questions.** A crew carries two snapshots
+  either side of one live computation:
+
+  | Value | Frozen when | Answers |
+  |---|---|---|
+  | `rating_selected` | crew is locked | what did I pick? |
+  | live (computed) | — | what would I field right now? |
+  | `rating_played` | battle ends | what actually fought? |
+
+  `crew.rating()` returns `rating_played` once there is one, and the **live**
+  figure before that — including for a locked-but-unplayed crew. That is
+  deliberate: when the battle is played you print the roster and field the
+  fighters as the gang stands *then*, so a weapon bought since selection really
+  is on the table, and underdog calculations (decided pre-battle from what each
+  side fields) need the live number too. Freezing exists to stop the record
+  moving *after* the fight, which is why only the played snapshot is returned.
+  `rating_selected` is a record of intent: where it differs from the headline
+  number, `crew.rating_note()` says so — "was X when you picked it" before the
+  battle, "picked at X" after it. Live-vs-played is deliberately *not* reported
+  after the battle; the gang moving on afterwards is not a discrepancy.
+
+  Both snapshots are read-model records on a virtual overlay object, not cost
+  caches: they never feed gang rating, credits, audit, or pins, and are never
+  reconciled. Crews locked before this shipped keep `rating_selected = NULL`
+  and carry no note; battles ended before it keep `rating_played = NULL` and go
+  on computing live (deliberately not backfilled — there is no way to recover
+  what those fighters cost at the moment they fought).
 - Implementation note: a set-scoped fighter cost does not exist yet (#1853
   made sets display-only). Build it as a pure virtual computation from the
   set's assignments; do NOT touch `cost_int()`/caches.
@@ -106,10 +133,17 @@ CrewLineItem (AppBase)                 # generic credit-consuming line item
 2. **Edit** freely while pre-battle.
 3. **Lock at battle start** (explicit action, and/or hooked to the
    pre_battle → in_progress transition): roll `random_spec`, draw that many
-   at random from eligible-not-chosen, create `CrewMember` rows
-   (`was_random=True` for draws), set status LOCKED, write a CampaignAction
-   ("Crew drawn: rolled D3 = 2 → X, Y") linked to the battle.
-4. Locked crews may be manually edited (swap members) but never re-drawn.
+   at random from eligible-not-chosen (drawing each of their cards at random
+   too, per the rulebook's one-card-per-model deck), create `CrewMember` rows
+   (`source=random` for draws), snapshot `rating_selected`, set status LOCKED,
+   write a CampaignAction ("Crew drawn: rolled D3 = 2 → X, Y") linked to the
+   battle.
+4. Locked crews are frozen: no re-draw, no member swaps, no loadout edits. The
+   equipment set each model brings is part of *selection*, not something edited
+   afterwards. Their rating is not frozen yet, though — see above.
+5. **Battle end** snapshots `rating_played` for every locked crew on the
+   battle, from the same live computation the lock uses. A crew that was never
+   confirmed is left alone: it fielded nothing, so there is no fact to freeze.
 
 ## Crew-only fighters (line of sight, NOT in v1)
 

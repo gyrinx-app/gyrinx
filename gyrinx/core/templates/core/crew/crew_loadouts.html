@@ -1,0 +1,56 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Edit loadouts - {{ crew }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:crew' battle.id crew.id as cancel_url %}
+    {% include "core/includes/back.html" with url=cancel_url text="Back to crew" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3 mb-0">Edit loadouts</h1>
+        <p class="text-secondary mb-0">
+            The whole gang takes part in this battle, so choose the equipment set each
+            fighter brings. Fighters are enrolled when the crew is confirmed — whoever is
+            available then takes part, with the set chosen here.
+        </p>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% if form.has_fighters %}
+                <div class="vstack gap-2">
+                    {% for row in form.fighter_rows %}
+                        <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                            <div>
+                                <strong>{{ row.fighter.name }}</strong>
+                                <span class="text-secondary fs-7">· {{ row.category }}</span>
+                            </div>
+                            <div class="ms-sm-auto">
+                                {% if row.set_field %}
+                                    {{ row.set_field }}
+                                    {{ row.set_field.errors }}
+                                {% else %}
+                                    <span class="text-secondary fs-7">{{ row.loadout }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% if not form.has_choices %}
+                    <div class="border rounded p-2 fs-7 text-secondary">
+                        <i class="bi-info-circle"></i>
+                        No fighter in this gang has a named equipment set, so there is
+                        nothing to choose — each one brings their full kit.
+                    </div>
+                {% endif %}
+            {% else %}
+                <p class="text-secondary fs-7 mb-0">
+                    <i class="bi-info-circle"></i>
+                    This gang has no fighters available for a crew yet.
+                </p>
+            {% endif %}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-success">Save loadouts</button>
+                <a href="{{ cancel_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

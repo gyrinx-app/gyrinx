@@ -136,7 +136,19 @@
                                                                       data-bs-toggle="tooltip"
                                                                       title="Unknown until the crew is rolled for selection">?</span>
                                                             {% else %}
-                                                                {% credits p.crew.rating %}
+                                                                {% if p.crew.show_rating_note %}
+                                                                    <span class="text-secondary fs-7 me-1"
+                                                                          bs-tooltip
+                                                                          data-bs-toggle="tooltip"
+                                                                          title="{% if p.crew.rating_note.is_played %}This crew changed between selection and the battle — the rating shown is what it fought at{% else %}This crew has changed since it was picked — the rating shown is what the gang would field today{% endif %}">picked at {% credits p.crew.rating_note.selected %}</span>
+                                                                {% endif %}
+                                                                {% if p.crew.is_forecast %}
+                                                                    <span bs-tooltip
+                                                                          data-bs-toggle="tooltip"
+                                                                          title="The whole gang takes part, so this forecasts who would attend. It resolves when the crew is confirmed.">{% credits p.crew.rating %}<span class="text-secondary fs-7 ms-1">provisional</span></span>
+                                                                {% else %}
+                                                                    {% credits p.crew.rating %}
+                                                                {% endif %}
                                                             {% endif %}
                                                         </td>
                                                     </tr>
@@ -158,9 +170,16 @@
                         {% else %}
                             <p class="text-secondary fs-7 mb-0">No gangs added yet.</p>
                         {% endif %}
-                        {% if state_current == 'post_battle' and not battle.winners.exists %}
+                        {% if show_draw_note %}
                             <p class="text-secondary fs-7 mt-2 mb-0">
                                 <i class="bi-info-circle"></i> This battle ended in a draw.
+                            </p>
+                        {% elif show_no_result_note %}
+                            <p class="text-secondary fs-7 mt-2 mb-0">
+                                <i class="bi-info-circle"></i> No result was recorded for this battle.
+                                {% if can_edit %}
+                                    <a href="{% url 'core:battle-edit' battle.id %}" class="linked">Record it</a>.
+                                {% endif %}
                             </p>
                         {% endif %}
                     </div>

@@ -74,11 +74,12 @@ def test_start_and_end_battle_views(client, user, campaign, make_list):
     battle.refresh_from_db()
     assert battle.status == "in_progress"
 
-    # End: in-progress -> post-battle.
-    resp = client.post(reverse("core:battle-end", args=[battle.id]))
+    # End: in-progress -> post-battle. Ending requires a recorded result.
+    resp = client.post(reverse("core:battle-end", args=[battle.id]), {"result": "draw"})
     assert resp.status_code == 302
     battle.refresh_from_db()
     assert battle.status == "post_battle"
+    assert battle.result == Battle.RESULT_DRAW
 
     # A post-battle battle can no longer be started or ended.
     assert battle.can_start() is False
@@ -420,7 +421,8 @@ def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_
     assert "Add crew" in content
 
     client.post(reverse("core:battle-start", args=[battle.id]))
-    client.post(reverse("core:battle-end", args=[battle.id]))
+    # Ending a battle now records how it finished, so the result is required.
+    client.post(reverse("core:battle-end", args=[battle.id]), {"result": "draw"})
 
     # The arbitrator (campaign owner) is prompted for every participating
     # gang; a finished battle no longer offers to add crews.
