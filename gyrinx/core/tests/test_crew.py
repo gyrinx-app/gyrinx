@@ -2450,3 +2450,39 @@ def test_no_template_comment_leaks_into_crew_pages(client, crew_setup):
         content = client.get(url).content.decode()
         assert "{#" not in content, url
         assert "#}" not in content, url
+
+
+@pytest.mark.django_db
+def test_double_archive_raises_and_logs_once(crew_setup):
+    """The handler owns the guard: the loser of a concurrent double-archive
+    raises rather than writing a second withdrawal to the campaign log."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+
+    handle_crew_archive(user=crew_setup["user"], crew=crew)
+    with pytest.raises(ValidationError, match="already been archived"):
+        handle_crew_archive(user=crew_setup["user"], crew=crew)
+
+    assert (
+        CampaignAction.objects.filter(
+            battle=battle, description__startswith="Crew archived"
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_archive_page_says_already_archived(client, crew_setup):
+    """An archived crew's archive URL explains itself rather than claiming the
+    owner lacks permission (can_manage is False once archived)."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    handle_crew_archive(user=crew_setup["user"], crew=crew)
+
+    resp = client.get(
+        reverse("core:crew-archive", args=[battle.id, crew.id]), follow=True
+    )
+    content = resp.content.decode()
+    assert "already been archived" in content
+    assert "permission" not in content

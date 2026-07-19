@@ -229,6 +229,16 @@ def handle_crew_archive(*, user, crew: Crew) -> CampaignAction:
     unique constraint is conditional on ``archived=False``, so archiving the crew
     is all it takes to free the gang for a fresh crew on the same battle.
     """
+    # Lock the crew row so two concurrent archive POSTs serialise: the loser
+    # sees archived=True and raises instead of logging a duplicate withdrawal.
+    # Same pattern as handle_crew_lock / handle_battle_end.
+    crew = (
+        Crew.objects.select_for_update()
+        .select_related("battle", "list")
+        .get(pk=crew.pk)
+    )
+    if crew.archived:
+        raise ValidationError("This crew has already been archived.")
     gang = crew.list
     crew.archived = True
     crew.archived_at = timezone.now()

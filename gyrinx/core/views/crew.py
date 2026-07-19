@@ -418,12 +418,23 @@ def crew_archive(request, battle_id, crew_id):
     crew = _get_crew(battle_id, crew_id)
     battle = crew.battle
 
+    # Checked before can_manage: an archived crew fails that too, and "no
+    # permission" would be the wrong message for its owner trying again.
+    if crew.archived:
+        messages.info(request, "This crew has already been archived.")
+        return _redirect_crew(crew)
+
     if not crew.can_manage(request.user):
         messages.error(request, "You don't have permission to archive this crew.")
         return _redirect_crew(crew)
 
     if request.method == "POST":
-        handle_crew_archive(user=request.user, crew=crew)
+        try:
+            handle_crew_archive(user=request.user, crew=crew)
+        except ValidationError as exc:
+            # The loser of a concurrent double-archive.
+            messages.info(request, exc.messages[0])
+            return _redirect_crew(crew)
         messages.success(request, "Crew archived.")
         return _redirect_battle(battle)
 
