@@ -17,7 +17,9 @@
                 Edit crew
             {% endif %}
         </h1>
-        <p class="text-secondary mb-0">Choose this crew's fighters for {{ battle.name }}, the way the scenario says.</p>
+        <p class="text-secondary mb-0">
+            Choose this crew's fighters for <a href="{% url 'core:battle' battle.id %}" class="linked">{{ battle.name }}</a>.
+        </p>
         <div>
             <div class="form-label mb-1">Selection method</div>
             <div class="btn-group" role="group" aria-label="Selection method">

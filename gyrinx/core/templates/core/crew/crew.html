@@ -58,17 +58,20 @@
                 <tbody>
                     <tr>
                         <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}">
-                            <div class="d-flex justify-content-between align-items-center">
+                            {% comment %}
+                            Actions sit beside the section title, not pushed to the
+                            right, where they would line up under the rating columns
+                            and read as belonging to them.
+                            {% endcomment %}
+                            <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Fighters</span>
                                 {% if can_manage and not crew.is_locked %}
-                                    <span class="d-flex gap-3">
-                                        {% if can_edit_loadouts %}
-                                            <a href="{% url 'core:crew-loadouts' battle.id crew.id %}"
-                                               class="icon-link linked fs-7"><i class="bi-bag"></i> Edit loadouts</a>
-                                        {% endif %}
-                                        <a href="{% url 'core:crew-edit' battle.id crew.id %}"
-                                           class="icon-link linked fs-7"><i class="bi-pencil"></i> Edit choices</a>
-                                    </span>
+                                    {% if can_edit_loadouts %}
+                                        <a href="{% url 'core:crew-loadouts' battle.id crew.id %}"
+                                           class="icon-link linked fs-7"><i class="bi-bag"></i> Edit loadouts</a>
+                                    {% endif %}
+                                    <a href="{% url 'core:crew-edit' battle.id crew.id %}"
+                                       class="icon-link linked fs-7"><i class="bi-pencil"></i> Edit choices</a>
                                 {% endif %}
                             </div>
                         </td>
@@ -175,7 +178,7 @@
                     <tr>
                         <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
                             class="pt-3">
-                            <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Extras</span>
                                 {% if can_manage %}
                                     <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
