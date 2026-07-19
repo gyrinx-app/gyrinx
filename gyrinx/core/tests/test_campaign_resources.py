@@ -465,8 +465,7 @@ def test_campaign_detail_shows_resources(content_house):
     assert response.status_code == 200
 
     content = response.content.decode()
-    # Resources section heading (simplified from "Campaign Resources")
-    assert ">Resources<" in content or "Resources\n" in content
+    # Resource types render as columns in the Gangs table
     assert "Meat" in content
     assert "Credits" in content
     assert "Manage Resources" in content
