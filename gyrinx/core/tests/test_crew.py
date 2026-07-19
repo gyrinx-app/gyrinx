@@ -1552,8 +1552,12 @@ def test_played_crew_notes_what_it_was_picked_at(
     content = resp.content.decode()
     assert resp.context["show_rating_note"] is True
     assert "picked at 100¢" in content
-    # The live figure (145¢ with the knife) is not part of the story any more.
-    assert "145" not in content
+    # What it fought at is the headline; the live figure (145¢ with the knife)
+    # is not part of the story any more. Match the rendered figure rather than
+    # the bare digits: the page is full of random UUIDs, and "145" turns up
+    # inside one often enough to make a looser assertion flaky.
+    assert "135¢" in content
+    assert "145¢" not in content
 
 
 @pytest.mark.django_db
