@@ -1,20 +1,24 @@
 {% load custom_tags %}
 {% for resource_type in resource_types %}
     <td class="text-end">
-        {% with list_resources=resource_lookup|lookup:list.id %}
-            {% with res=list_resources|lookup:resource_type.id %}
-                {% if res %}
-                    {{ res.amount }}
-                    {% if is_admin or res.list.owner == user %}
-                        {% if not campaign.archived %}
-                            <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
-                               class="link-secondary fs-7 ms-1"><i class="bi-pencil"></i></a>
+        {# A cloning stub has no resources yet (#1222): leave the cell blank rather #}
+        {# than showing "-", which would read as a real missing/zero value. #}
+        {% if not list.is_cloning %}
+            {% with list_resources=resource_lookup|lookup:list.id %}
+                {% with res=list_resources|lookup:resource_type.id %}
+                    {% if res %}
+                        {{ res.amount }}
+                        {% if is_admin or list.owner == user %}
+                            {% if not campaign.archived %}
+                                <a href="{% url 'core:campaign-resource-modify' campaign.id res.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="link-secondary fs-7 ms-1"><i class="bi-pencil"></i></a>
+                            {% endif %}
                         {% endif %}
+                    {% else %}
+                        -
                     {% endif %}
-                {% else %}
-                    -
-                {% endif %}
+                {% endwith %}
             {% endwith %}
-        {% endwith %}
+        {% endif %}
     </td>
 {% endfor %}

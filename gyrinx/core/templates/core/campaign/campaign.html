@@ -262,8 +262,10 @@
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
                            class="linked fs-7">Manage Attributes →</a>
                     {% endif %}
-                    <a href="{% url 'core:campaign-resources' campaign.id %}"
-                       class="linked fs-7">Manage Resources →</a>
+                    {% if resource_types or is_admin %}
+                        <a href="{% url 'core:campaign-resources' campaign.id %}"
+                           class="linked fs-7">Manage Resources →</a>
+                    {% endif %}
                     {% if is_admin and not campaign.is_post_campaign and not campaign.archived %}
                         <a href="{% url 'core:campaign-add-lists' campaign.id %}"
                            class="icon-link linked fs-7">
@@ -273,7 +275,7 @@
                 </div>
             </div>
             <div class="px-2">
-                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists %}
+                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists resource_types=resource_types resource_lookup=resource_lookup %}
             </div>
         </section>
         <!-- Assets, Battles, Action Log & Captured Fighters -->
