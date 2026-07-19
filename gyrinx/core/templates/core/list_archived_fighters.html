@@ -19,7 +19,7 @@
                     {% for fighter in list.archived_fighters %}
                         <tr class="align-middle">
                             <td>{{ fighter.fully_qualified_name }}</td>
-                            {% if not fighter.source_assignment.exists %}
+                            {% if not fighter.parent_list_fighter %}
                                 <td>
                                     <a href="{% url 'core:list-fighter-restore' list.id fighter.id %}"
                                        class="btn btn-link">Restore</a>
@@ -30,7 +30,7 @@
                                           disabled
                                           bs-tooltip
                                           data-bs-toggle="tooltip"
-                                          title="This fighter is assigned to {{ fighter.source_assignment.get.list_fighter.name }} and cannot be restored directly">
+                                          title="This fighter is assigned to {{ fighter.parent_list_fighter.name }} and cannot be restored directly">
                                         Restore
                                     </span>
                                 </td>
@@ -38,7 +38,7 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="3" class="text-center">No archived fighters</td>
+                            <td colspan="2" class="text-center">No archived fighters</td>
                         </tr>
                     {% endfor %}
                 </tbody>

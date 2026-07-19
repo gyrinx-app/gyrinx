@@ -875,3 +875,26 @@ def test_advancement_confirm_warns_on_different_fighter(
         fighter=fighter_with_xp, campaign_action=campaign_action
     )
     assert original_advancements.count() == 1
+
+
+@pytest.mark.django_db
+def test_advancement_add_button_owner_gated(client, user, make_user, fighter_with_xp):
+    """The Add Advancement button only appears for the list owner."""
+    url = reverse(
+        "core:list-fighter-advancements",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+    add_url = reverse(
+        "core:list-fighter-advancement-start",
+        args=[fighter_with_xp.list.id, fighter_with_xp.id],
+    )
+
+    client.force_login(user)
+    response = client.get(url)
+    assert response.status_code == 200
+    assert add_url in response.content.decode()
+
+    client.force_login(make_user("visitor", "password"))
+    response = client.get(url)
+    assert response.status_code == 200
+    assert add_url not in response.content.decode()

@@ -4,7 +4,8 @@
     Delete Print Configuration - {{ print_config.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url="core:print-config-index" url_arg=list.id text="Print Configurations" %}
+    {% url 'core:print-config-index' list.id as back_url %}
+    {% include "core/includes/back.html" with url=back_url text="Print Configurations" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Delete Print Configuration</h1>
         <form action="{% url 'core:print-config-delete' list.id print_config.id %}"

@@ -70,10 +70,12 @@
                 <p class="text-secondary">No advancements yet.</p>
             {% endif %}
             <div class="d-flex align-items-center">
-                <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
-                   class="btn btn-primary">
-                    <i class="bi-plus-lg"></i> Add Advancement
-                </a>
+                {% if list.owner_cached == user %}
+                    <a href="{% url 'core:list-fighter-advancement-start' list.id fighter.id %}"
+                       class="btn btn-primary">
+                        <i class="bi-plus-lg"></i> Add Advancement
+                    </a>
+                {% endif %}
                 <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
                    class="btn btn-link">Cancel</a>
             </div>
