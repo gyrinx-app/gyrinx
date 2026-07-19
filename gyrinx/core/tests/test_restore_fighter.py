@@ -3,7 +3,11 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 
 from gyrinx.content.models import ContentFighter
-from gyrinx.core.models.list import List, ListFighter
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+)
 
 User = get_user_model()
 
@@ -312,3 +316,51 @@ def test_archived_fighters_page_links_to_restore(client, user, content_house):
     restore_url = reverse("core:list-fighter-restore", args=[lst.id, fighter.id])
     assert restore_url in content
     assert "Restore" in content
+
+
+@pytest.mark.django_db
+def test_archived_fighters_page_disables_restore_for_child_fighters(
+    client, user, content_house, make_equipment
+):
+    """Child fighters (linked via an equipment assignment) get a disabled
+    control naming the parent instead of a restore link."""
+    lst = List.objects.create(
+        name="Test List",
+        owner=user,
+        content_house=content_house,
+    )
+
+    content_fighter = ContentFighter.objects.create(
+        house=content_house,
+        type="Ganger",
+        category="GANGER",
+        base_cost=50,
+    )
+
+    parent = ListFighter.objects.create(
+        name="Parent Fighter",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+    )
+    child = ListFighter.objects.create(
+        name="Beast",
+        content_fighter=content_fighter,
+        list=lst,
+        owner=user,
+        archived=True,
+    )
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=parent,
+        content_equipment=make_equipment("Beast Handler Kit", cost="10"),
+        child_fighter=child,
+    )
+
+    client.force_login(user)
+    response = client.get(reverse("core:list-archived-fighters", args=[lst.id]))
+
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "assigned to Parent Fighter" in content
+    restore_url = reverse("core:list-fighter-restore", args=[lst.id, child.id])
+    assert restore_url not in content

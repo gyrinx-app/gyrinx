@@ -439,3 +439,45 @@ def test_fighter_narrative_save_touches_list_modified(make_list, make_list_fight
 
     lst.refresh_from_db()
     assert lst.modified > old_time
+
+
+@pytest.mark.django_db
+def test_fighter_notes_edit_shows_validation_errors(
+    client, user, make_list, make_list_fighter
+):
+    """An invalid submission re-renders the form with field errors visible."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:list-fighter-notes-edit", args=[lst.id, fighter.id]),
+        {"save_roll": "x" * 11},
+    )
+    assert response.status_code == 200
+    assert "Ensure this value has at most 10 characters" in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_fighter_notes_edit_rejects_unsafe_return_url(
+    client, user, make_list, make_list_fighter
+):
+    """An unsafe return_url is never rendered into the page or redirected to."""
+    lst = make_list("Test Gang")
+    fighter = make_list_fighter(lst, "Test Fighter")
+    client.force_login(user)
+    url = reverse("core:list-fighter-notes-edit", args=[lst.id, fighter.id])
+    default_url = reverse("core:list-notes", args=[lst.id]) + f"#notes-{fighter.id}"
+
+    response = client.get(f"{url}?return_url=https://evil.example.com/")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "evil.example.com" not in content
+    assert default_url in content
+
+    response = client.post(
+        url,
+        {"notes": "<p>Safe.</p>", "return_url": "https://evil.example.com/"},
+    )
+    assert response.status_code == 302
+    assert response.url == default_url

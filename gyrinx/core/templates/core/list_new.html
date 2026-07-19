@@ -17,8 +17,7 @@
                 </div>
                 <div>
                     {% for pack in selected_packs %}
-                        {{ pack.name }}
-                        {% if not forloop.last %},{% endif %}
+                        {{ pack.name }}{% if not forloop.last %},{% endif %}
                     {% endfor %}
                 </div>
             </div>
