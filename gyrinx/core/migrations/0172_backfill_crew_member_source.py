@@ -10,6 +10,11 @@ member rows built from their picks. Locked crews already have their rows —
 creating more would duplicate them and trip ``unique(crew, list_fighter)`` — so
 they are left alone. The ``chosen_fighters`` M2M is deliberately left in place
 (unread, unwritten) so this is reversible without losing the picks.
+
+The historical rows are copied across too. 0173 drops ``was_random`` from the
+historical table as well as the live one, so this is the only chance to carry
+the value over: miss it and every past member keeps the ``source`` default and
+the history claims for ever that fighters drawn at random were hand-picked.
 """
 
 from django.db import migrations
@@ -17,10 +22,12 @@ from django.db import migrations
 
 def backfill_member_source(apps, schema_editor):
     CrewMember = apps.get_model("core", "CrewMember")
+    HistoricalCrewMember = apps.get_model("core", "HistoricalCrewMember")
     Crew = apps.get_model("core", "Crew")
 
-    CrewMember.objects.filter(was_random=True).update(source="random")
-    CrewMember.objects.filter(was_random=False).update(source="chosen")
+    for model in (CrewMember, HistoricalCrewMember):
+        model.objects.filter(was_random=True).update(source="random")
+        model.objects.filter(was_random=False).update(source="chosen")
 
     for crew in Crew.objects.filter(status="draft").iterator():
         present = set(crew.members.values_list("list_fighter_id", flat=True))
@@ -45,9 +52,11 @@ def unbackfill_member_source(apps, schema_editor):
     the state the old code expects, where a draft's attendance is read from
     ``chosen_fighters`` (still populated) and the lock creates the rows."""
     CrewMember = apps.get_model("core", "CrewMember")
+    HistoricalCrewMember = apps.get_model("core", "HistoricalCrewMember")
 
-    CrewMember.objects.filter(source="random").update(was_random=True)
-    CrewMember.objects.filter(source="chosen").update(was_random=False)
+    for model in (CrewMember, HistoricalCrewMember):
+        model.objects.filter(source="random").update(was_random=True)
+        model.objects.filter(source="chosen").update(was_random=False)
     CrewMember.objects.filter(crew__status="draft").delete()
 
 
