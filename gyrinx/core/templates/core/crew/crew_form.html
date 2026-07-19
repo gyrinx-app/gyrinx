@@ -89,9 +89,11 @@
                                 </div>
                             {% endfor %}
                         </div>
-                        {# Live running total of the ticked fighters. Hidden without JS
-                           (a static "0 fighters" would never update); the script below
-                           reveals it and keeps it current as boxes are ticked. #}
+                        {% comment %}
+                        Live running total of the ticked fighters. Hidden without JS
+                        (a static "0 fighters" would never update); the script below
+                        reveals it and keeps it current as boxes are ticked.
+                        {% endcomment %}
                         <div class="js-crew-total fs-7 text-secondary mt-1 d-none"
                              aria-live="polite"></div>
                         <div class="form-text">

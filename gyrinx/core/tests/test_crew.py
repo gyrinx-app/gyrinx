@@ -2430,3 +2430,23 @@ def test_battle_page_forecasts_a_whole_gang_draft(client, crew_setup):
     assert summary["rating"] == crew_whole_gang_projection(crew)["total"]
     assert summary["rating"] > 0
     assert "provisional" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_no_template_comment_leaks_into_crew_pages(client, crew_setup):
+    """Django's ``{# #}`` comment is single-line only: spread it over multiple
+    lines and it renders as visible page text. That has now happened twice on
+    crew templates, so pin it for the pages a player actually sees."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+
+    urls = [
+        reverse("core:battle", args=[battle.id]),
+        reverse("core:crew", args=[battle.id, crew.id]),
+        reverse("core:crew-new", args=[battle.id]) + f"?list={gang.id}",
+    ]
+    for url in urls:
+        content = client.get(url).content.decode()
+        assert "{#" not in content, url
+        assert "#}" not in content, url
