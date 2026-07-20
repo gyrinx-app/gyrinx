@@ -42,32 +42,40 @@ from gyrinx.models import FighterCategoryChoices
 VALID_METHODS = {value for value, _ in Crew.SELECTION_METHOD_CHOICES}
 
 # Categories a player can toggle back into their crew (excluded by default):
-# hangers-on (non-combat) and vehicle crew (an Ash-Wastes thing). Display order.
+# hangers-on (non-combat) and vehicle crew (an Ash-Wastes thing). Each carries a
+# short URL slug so the querystring reads ``?include=hangers-on`` rather than
+# exposing the SCREAMING_CASE category value. Tuple = (category, slug, label);
+# display order.
 TOGGLEABLE_CREW_CATEGORIES = [
-    (FighterCategoryChoices.HANGER_ON.value, "hangers-on"),
-    (FighterCategoryChoices.CREW.value, "vehicle crew"),
+    (FighterCategoryChoices.HANGER_ON.value, "hangers-on", "hangers-on"),
+    (FighterCategoryChoices.CREW.value, "crew", "vehicle crew"),
 ]
-_TOGGLEABLE = {value for value, _ in TOGGLEABLE_CREW_CATEGORIES}
 
 
 def _resolve_included(request, default=()):
     """The opted-in categories for this request, from the ``?include=`` toggles
-    (a comma-separated list) or the re-posted hidden field. Absent entirely →
-    ``default`` (the crew's stored opt-ins on edit, nothing on create). Only the
-    two toggleable categories are honoured; anything else is a navigation
-    accident and dropped."""
+    (comma-separated slugs) or the re-posted hidden field. Absent entirely →
+    ``default`` (the crew's stored opt-ins on edit, nothing on create).
+
+    Returns the canonical category values in display order, deduped; unknown
+    slugs (a hand-edited URL or stale field) are dropped, so what gets persisted
+    is always clean regardless of the raw string's order or repeats."""
     raw = request.GET.get("include")
     if raw is None:
         raw = request.POST.get("include")
     if raw is None:
         return list(default)
-    return [c for c in raw.split(",") if c in _TOGGLEABLE]
+    slugs = set(raw.split(","))
+    return [cat for cat, slug, _ in TOGGLEABLE_CREW_CATEGORIES if slug in slugs]
 
 
 def _include_csv(included):
-    """The include set as a canonical comma-separated string (display order)."""
+    """The include set as a canonical comma-separated slug string (display
+    order) — what the ``?include=`` querystring and hidden field carry."""
     included = set(included)
-    return ",".join(v for v, _ in TOGGLEABLE_CREW_CATEGORIES if v in included)
+    return ",".join(
+        slug for cat, slug, _ in TOGGLEABLE_CREW_CATEGORIES if cat in included
+    )
 
 
 def _include_picker(*, base_url, included, extra=None):
@@ -76,8 +84,8 @@ def _include_picker(*, base_url, included, extra=None):
     and any ``extra`` params, preserved)."""
     current = set(included)
     entries = []
-    for value, label in TOGGLEABLE_CREW_CATEGORIES:
-        flipped = current - {value} if value in current else current | {value}
+    for cat, slug, label in TOGGLEABLE_CREW_CATEGORIES:
+        flipped = current - {cat} if cat in current else current | {cat}
         params = dict(extra or {})
         # Always carry an explicit include= (even empty) so toggling the last
         # category off is a real empty value on edit, not an absent one — which
@@ -85,10 +93,10 @@ def _include_picker(*, base_url, included, extra=None):
         params["include"] = _include_csv(flipped)
         entries.append(
             {
-                "value": value,
+                "value": cat,
                 "label": label,
                 "url": f"{base_url}?{urlencode(params)}",
-                "is_on": value in current,
+                "is_on": cat in current,
             }
         )
     return entries

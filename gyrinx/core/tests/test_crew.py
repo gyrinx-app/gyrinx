@@ -825,8 +825,21 @@ def test_include_picker_toggles_categories():
     # Turning the on one off leaves nothing → an explicit *empty* include (not
     # an absent one, which on edit would fall back to the stored opt-ins).
     assert by_value["HANGER_ON"]["url"].endswith("include=")
-    # Turning the off one on adds it alongside the current one.
-    assert "include=HANGER_ON%2CCREW" in by_value["CREW"]["url"]
+    # Turning the off one on adds it alongside — as slugs, not the enum values.
+    assert "include=hangers-on%2Ccrew" in by_value["CREW"]["url"]
+
+
+def test_resolve_included_maps_slugs_and_normalises(rf):
+    """The ?include= querystring uses slugs; resolving maps them to the canonical
+    category values in display order, deduped, dropping anything unknown."""
+    from gyrinx.core.views.crew import _resolve_included
+
+    req = rf.get("/x", {"include": "crew,hangers-on,crew,bogus"})
+    assert _resolve_included(req) == ["HANGER_ON", "CREW"]
+    # Absent → the given default (e.g. a crew's stored opt-ins on edit).
+    assert _resolve_included(rf.get("/x"), default=["CREW"]) == ["CREW"]
+    # Explicit empty → empty, not the default.
+    assert _resolve_included(rf.get("/x", {"include": ""}), default=["CREW"]) == []
 
 
 @pytest.mark.django_db
@@ -847,7 +860,7 @@ def test_crew_form_offers_hangers_on_only_when_toggled(
     off = client.get(url, params)
     assert hanger.id not in {f.id for f in off.context["form"].eligible_fighters}
 
-    on = client.get(url, {**params, "include": "HANGER_ON"})
+    on = client.get(url, {**params, "include": "hangers-on"})
     assert hanger.id in {f.id for f in on.context["form"].eligible_fighters}
     assert 'aria-pressed="true"' in on.content.decode()  # the toggle reads "on"
 
@@ -869,7 +882,7 @@ def test_creating_a_crew_persists_included_categories(
         {
             "list": str(crew_setup["gang"].id),
             "method": Crew.CUSTOM,
-            "include": "HANGER_ON",
+            "include": "hangers-on",
             "custom_count": "1",
             "chosen_fighters": [str(hanger.id)],
         },
