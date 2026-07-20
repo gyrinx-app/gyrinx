@@ -138,6 +138,13 @@ def _underdog_block(
 
     provisional_names = forecast_names if not on_gang_basis else []
 
+    # A crew still to be drawn isn't in the crew-basis comparison, so with three
+    # or more gangs the headline can name an underdog while a participant's crew
+    # is undrawn — and its rating could change the answer. Surface those names so
+    # the template can flag it rather than presenting a settled result. Only on
+    # the crew basis: on the gang fallback the undrawn crews are irrelevant.
+    pending_shown = pending_names if not on_gang_basis else []
+
     return {
         "state": state,
         "on_gang_basis": on_gang_basis,
@@ -149,6 +156,8 @@ def _underdog_block(
         "provisional": spread.is_provisional,
         "provisional_names": provisional_names,
         "provisional_names_joined": _join_names(provisional_names),
+        "pending_names": pending_shown,
+        "pending_names_joined": _join_names(pending_shown),
         "alt_disagrees": alt_disagrees,
         "alt_underdog_name": alt_underdog_name,
         "subject_possessive": subject_possessive,

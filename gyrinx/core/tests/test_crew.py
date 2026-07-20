@@ -29,6 +29,7 @@ from gyrinx.core.handlers.crew import (
     handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
+    handle_crew_recipe_save,
 )
 from gyrinx.core.models import Battle
 from gyrinx.core.models.campaign import CampaignAction
@@ -41,7 +42,13 @@ from gyrinx.core.models.crew import (
     split_selection_spec,
     validate_selection_spec,
 )
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentSet
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+    ListFighterEquipmentSet,
+)
+from gyrinx.models import FighterCategoryChoices
 
 
 # --- Selection-spec parser --------------------------------------------------
@@ -373,6 +380,191 @@ def test_eligible_crew_fighters_excludes_non_active(crew_setup, make_list_fighte
     assert fighters[0] not in eligible
     assert fighters[1] not in eligible
     assert fighters[2] in eligible
+
+
+# --- Vehicles and exotic beasts (linked child fighters) ---------------------
+#
+# A vehicle or exotic beast is bought as wargear and deploys alongside the
+# fighter that owns it (rulebook p86). It is never selected in its own right,
+# but it must still join the crew when its owner does — enrolled by
+# handlers.crew.sync_linked_crew_members.
+
+
+def _give_beast(
+    crew_setup,
+    owner,
+    make_content_fighter,
+    make_equipment,
+    name="War Hound",
+    beast_gear_cost=0,
+):
+    """Give ``owner`` a linked exotic beast (a child fighter), bought as 90¢ of
+    wargear. Optionally arm the beast with its own ``beast_gear_cost``¢ of gear
+    so it has a non-zero rating of its own."""
+    beast_type = make_content_fighter(
+        type=name,
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=owner.content_fighter.house,
+        base_cost=0,
+    )
+    beast = ListFighter.objects.create(
+        name=name,
+        content_fighter=beast_type,
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+    )
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=owner,
+        content_equipment=make_equipment(name=f"{name} (wargear)", cost=90),
+        child_fighter=beast,
+    )
+    if beast_gear_cost:
+        beast.assign(make_equipment(name=f"{name} claws", cost=beast_gear_cost))
+    return beast
+
+
+def _beast_line(crew, beast):
+    return next(
+        (line for _, line in crew._attendee_lines() if line["fighter_id"] == beast.id),
+        None,
+    )
+
+
+@pytest.mark.django_db
+def test_exotic_beast_is_not_selectable(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """A beast is wargear on its owner, so it never appears in the eligible pool
+    — which is both the selection checkboxes and the random-draw pool."""
+    owner = crew_setup["fighters"][0]
+    beast = _give_beast(crew_setup, owner, make_content_fighter, make_equipment)
+    assert beast.is_child_fighter is True
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert owner in eligible
+    assert beast not in eligible
+
+    # Absent from the selection form's fighter checkboxes too.
+    form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
+    offered = {f.pk for f in form.fields["chosen_fighters"].queryset}
+    assert beast.id not in offered
+    assert owner.id in offered
+
+
+@pytest.mark.django_db
+def test_selecting_an_owner_brings_in_their_beast(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """Choosing the owner enrols its beast as a LINKED member, so the beast
+    counts towards the rating and prints — without being chosen."""
+    owner = crew_setup["fighters"][0]
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, beast_gear_cost=30
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        chosen_fighters=[owner],
+    )
+
+    assert list(
+        crew.members.filter(source=CrewMember.LINKED).values_list(
+            "list_fighter_id", flat=True
+        )
+    ) == [beast.id]
+    assert crew.members.filter(source=CrewMember.CHOSEN, list_fighter=owner).exists()
+
+    # The beast rides in with its own 30¢ of gear counted, and prints.
+    line = _beast_line(crew, beast)
+    assert line is not None
+    assert line["is_random"] is False
+    assert line["live_rating"] == 30
+    assert beast.id in crew.print_fighter_ids()
+
+
+@pytest.mark.django_db
+def test_whole_gang_lock_enrols_owned_beasts(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The whole-gang draw enrols every eligible fighter; their beasts come with
+    them as linked members, but don't count towards the 'chosen' tally."""
+    owner = crew_setup["fighters"][0]
+    beast = _give_beast(crew_setup, owner, make_content_fighter, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert result.whole_gang is True
+    assert result.chosen_count == 5  # the beast is extra, not a chosen fighter
+    assert crew.members.filter(source=CrewMember.LINKED, list_fighter=beast).exists()
+    assert crew.members.filter(source=CrewMember.LINKED).count() == 1
+    assert beast.id in crew.print_fighter_ids()
+
+
+@pytest.mark.django_db
+def test_removing_the_owner_drops_the_beast(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The beast follows its owner: cut the owner from the recipe and its beast
+    leaves the crew too."""
+    owner, other = crew_setup["fighters"][0], crew_setup["fighters"][1]
+    beast = _give_beast(crew_setup, owner, make_content_fighter, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=2,
+    )
+
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=2,
+        chosen_fighters=[owner, other],
+    )
+    assert crew.members.filter(source=CrewMember.LINKED, list_fighter=beast).exists()
+
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        chosen_fighters=[other],
+    )
+    assert not crew.members.filter(list_fighter=beast).exists()
+    assert not crew.members.filter(list_fighter=owner).exists()
+
+
+@pytest.mark.django_db
+def test_whole_gang_forecast_includes_beasts(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The pre-lock whole-gang forecast counts owned beasts, so it matches what
+    the lock will actually enrol."""
+    owner = crew_setup["fighters"][0]
+    _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, beast_gear_cost=40
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    projection = crew_whole_gang_projection(crew)
+    # Five gangers plus the one beast row.
+    assert len(projection["rows"]) == 6
+    beast_rows = [r for r in projection["rows"] if r["rating"] == 40]
+    assert len(beast_rows) == 1
 
 
 # --- Lock / draw handler ----------------------------------------------------
@@ -2814,6 +3006,33 @@ def test_battle_spread_pending_crew_has_nothing_to_compare(
     # No gap arithmetic while a crew is unresolved.
     assert "extra gang tactic" not in content
     assert "is the underdog" not in content
+
+
+@pytest.mark.django_db
+def test_battle_spread_flags_a_still_drawing_crew_alongside_the_comparison(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Three gangs, two crews known and one still to be drawn: the comparison
+    of the known crews still shows, but flags that the undrawn crew could yet
+    change the answer rather than presenting it as settled."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    orlock, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Orlock", 2)
+    crew_setup["battle"].set_participants([riot, iron, orlock])
+
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100 → underdog
+    _pending_crew(crew_setup, orlock)  # still to be drawn
+
+    client.force_login(crew_setup["user"])
+    content = _battle_response(client, crew_setup).content.decode()
+
+    # The known comparison still leads.
+    assert "Riot Gang is the underdog." in content
+    # ...but the undrawn crew is flagged.
+    assert "Orlock's crew is still to be drawn, so this could change." in content
 
 
 @pytest.mark.django_db

@@ -206,6 +206,15 @@
                                             {% endif %}
                                         </div>
                                     {% endif %}
+                                    {% if underdog.pending_names_joined %}
+                                        <div class="text-secondary mt-1">
+                                            {% if underdog.pending_names|length == 1 %}
+                                                {{ underdog.pending_names_joined }}'s crew is still to be drawn, so this could change.
+                                            {% else %}
+                                                {{ underdog.pending_names_joined }}'s crews are still to be drawn, so this could change.
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
                                     {% if underdog.alt_disagrees %}
                                         <div class="text-secondary mt-1">
                                             On gang ratings rather than crew ratings, {{ underdog.alt_underdog_name }} would be the underdog. Check which your scenario compares.

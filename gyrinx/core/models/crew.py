@@ -712,14 +712,19 @@ class CrewMember(AppBase):
     """An attendee of a crew: a fighter with a battle loadout.
 
     Chosen members exist from selection time (a draft crew already has them);
-    drawn members are added by the random draw when the crew is locked.
+    drawn members are added by the random draw when the crew is locked; linked
+    members are the vehicles and exotic beasts that ride in with their owner —
+    never selected in their own right, enrolled by
+    ``handlers.crew.sync_linked_crew_members`` whenever their owner is a member.
     """
 
     CHOSEN = "chosen"
     DRAWN = "random"
+    LINKED = "linked"
     SOURCE_CHOICES = [
         (CHOSEN, "Chosen"),
         (DRAWN, "Drawn at random"),
+        (LINKED, "Linked to owner"),
     ]
 
     crew = models.ForeignKey(

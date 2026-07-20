@@ -42,12 +42,20 @@ def eligible_crew_fighters(lst):
     add-injury eligibility and the original crew-template work (#1360).
     Scenario-specific restrictions (no Leader, one Champion, …) are surfaced
     as warnings later, not enforced here.
+
+    Vehicles and exotic beasts are excluded: they are bought as wargear and
+    deploy alongside the fighter that owns them (rulebook p86), so they are
+    never selected in their own right. ``source_assignment__isnull=True`` drops
+    them — a child fighter is one spawned by an owner's equipment assignment.
+    They still join the crew, enrolled against their owner by
+    :func:`sync_linked_crew_members`.
     """
     return ListFighter.objects.filter(
         list=lst,
         archived=False,
         content_fighter__is_stash=False,
         injury_state=ListFighter.ACTIVE,
+        source_assignment__isnull=True,
     )
 
 
@@ -73,10 +81,14 @@ def crew_whole_gang_projection(crew: Crew):
     so a fighter recruited or lost in the meantime legitimately changes it. The
     total is display-only and is deliberately not ``Crew.rating()``, which stays
     live-for-drafts / snapshot-once-locked.
+
+    Each fighter's vehicles and exotic beasts are forecast alongside them (they
+    deploy with their owner), so the total matches what the lock will enrol.
     """
     rows = []
     total = 0
-    for fighter in eligible_crew_fighters_for_loadouts(crew.list):
+    roster = list(eligible_crew_fighters_for_loadouts(crew.list))
+    for fighter in roster:
         equipment_set = crew.resolve_loadout(fighter)
         rating = fighter.cost_int_for_equipment_set(equipment_set)
         total += rating
@@ -86,6 +98,31 @@ def crew_whole_gang_projection(crew: Crew):
                 "name": fighter.name,
                 "category": fighter.content_fighter.get_category_display(),
                 "loadout": equipment_set.name if equipment_set else None,
+                "rating": rating,
+            }
+        )
+
+    # Vehicles/exotic beasts owned by the roster ride in too (see
+    # sync_linked_crew_members); they are not in the eligible pool, so add them
+    # here or the forecast would understate the crew by their cost.
+    children = (
+        ListFighter.objects.filter(
+            source_assignment__list_fighter__in=roster,
+            archived=False,
+            injury_state=ListFighter.ACTIVE,
+        )
+        .with_related_data()
+        .distinct()
+    )
+    for child in children:
+        rating = child.cost_int_for_equipment_set(None)
+        total += rating
+        rows.append(
+            {
+                "fighter_id": child.pk,
+                "name": child.name,
+                "category": child.content_fighter.get_category_display(),
+                "loadout": None,
                 "rating": rating,
             }
         )
@@ -210,6 +247,55 @@ def handle_crew_loadouts_save(*, user, crew: Crew, choices) -> Crew:
     return crew
 
 
+@traced("sync_linked_crew_members")
+def sync_linked_crew_members(*, user, crew: Crew) -> None:
+    """Enrol every crew member's vehicles and exotic beasts, and drop any whose
+    owner is no longer on the crew.
+
+    A vehicle or exotic beast is bought as wargear and deploys alongside the
+    fighter that owns it (rulebook p86) — it is never selected in its own right,
+    so it is kept out of the selection form and the random pool (see
+    :func:`eligible_crew_fighters`). Instead it rides in here as a ``LINKED``
+    member whenever its owner is a member, which is what makes it count towards
+    the crew's rating, show on the sheet, and print.
+
+    Idempotent: reconciles the ``LINKED`` rows against the children of the
+    crew's own (non-linked) members each time, so it is safe to call after any
+    change to who is in the crew.
+    """
+    owner_ids = list(
+        crew.members.exclude(source=CrewMember.LINKED).values_list(
+            "list_fighter_id", flat=True
+        )
+    )
+    # A downed or archived beast doesn't deploy — mirror the fighter eligibility
+    # rules rather than dragging a dead beast onto the table.
+    wanted = set(
+        ListFighter.objects.filter(
+            source_assignment__list_fighter_id__in=owner_ids,
+            archived=False,
+            injury_state=ListFighter.ACTIVE,
+        ).values_list("id", flat=True)
+    )
+    linked = {
+        m.list_fighter_id: m for m in crew.members.filter(source=CrewMember.LINKED)
+    }
+    stale = [m.pk for fighter_id, m in linked.items() if fighter_id not in wanted]
+    if stale:
+        crew.members.filter(pk__in=stale).delete_with_user(user=user)
+
+    # Never add a fighter already on the crew a second time (unique(crew, list_fighter)).
+    present = set(crew.members.values_list("list_fighter_id", flat=True))
+    for child_id in wanted - present:
+        CrewMember.objects.create_with_user(
+            user=user,
+            owner_id=crew.list.owner_id,
+            crew=crew,
+            list_fighter_id=child_id,
+            source=CrewMember.LINKED,
+        )
+
+
 @traced("handle_crew_recipe_save")
 @transaction.atomic
 def handle_crew_recipe_save(
@@ -283,6 +369,10 @@ def handle_crew_recipe_save(
             source=CrewMember.CHOSEN,
             equipment_set_id=set_id_for(fighter_id),
         )
+
+    # Any chosen fighter that owns a vehicle/beast brings it along; drop the
+    # linked rows of anyone just removed.
+    sync_linked_crew_members(user=user, crew=crew)
 
     return crew
 
@@ -437,8 +527,14 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     # Re-check eligibility at lock time: a fighter chosen while the recipe was
     # being built may since have been archived, stashed, killed, or put in
     # recovery. The rulebook excludes fighters who can't take part from every
-    # selection method, so drop them here rather than enrolling them.
-    stale = [m.pk for m in members if m.list_fighter_id not in eligible_ids]
+    # selection method, so drop them here rather than enrolling them. Linked
+    # vehicles/beasts are exempt — they aren't in the eligible pool by design,
+    # and sync_linked_crew_members below drops any whose owner was just cut.
+    stale = [
+        m.pk
+        for m in members
+        if m.source != CrewMember.LINKED and m.list_fighter_id not in eligible_ids
+    ]
     skipped_ineligible = len(stale)
     if stale:
         crew.members.filter(pk__in=stale).delete_with_user(user=user)
@@ -468,7 +564,9 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                     equipment_set_id=equipment_set.pk if equipment_set else None,
                 )
 
-    chosen_count = crew.members.count()
+    # Linked vehicles/beasts aren't "chosen" — they ride in with their owner, so
+    # they don't count towards the selected-fighter tally in the campaign log.
+    chosen_count = crew.members.exclude(source=CrewMember.LINKED).count()
 
     random_count, roll_detail = (0, "")
     drawn = []
@@ -501,6 +599,10 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                 drawn_cards.append(
                     f"{fighter.name} ({equipment_set.name if equipment_set else 'Default'})"
                 )
+
+    # Bring in each attending fighter's vehicles/exotic beasts before the
+    # snapshot, so what they contribute is frozen into the crew's rating too.
+    sync_linked_crew_members(user=user, crew=crew)
 
     crew.status = Crew.LOCKED
     # Record what was picked. The crew goes on reporting its live rating until
