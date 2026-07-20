@@ -38,9 +38,10 @@
                  aria-label="Include categories">
                 {% for t in include_picker %}
                     <a href="{{ t.url }}"
+                       role="button"
                        class="btn btn-sm {% if t.is_on %}btn-primary{% else %}btn-outline-secondary{% endif %}"
                        aria-pressed="{% if t.is_on %}true{% else %}false{% endif %}">
-                        {% if t.is_on %}<i class="bi-check-lg"></i>{% endif %}{{ t.label|capfirst }}
+                        {% if t.is_on %}<i class="bi-check-lg" aria-hidden="true"></i>{% endif %}{{ t.label|capfirst }}
                     </a>
                 {% endfor %}
             </div>

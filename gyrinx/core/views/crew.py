@@ -79,9 +79,10 @@ def _include_picker(*, base_url, included, extra=None):
     for value, label in TOGGLEABLE_CREW_CATEGORIES:
         flipped = current - {value} if value in current else current | {value}
         params = dict(extra or {})
-        csv = _include_csv(flipped)
-        if csv:
-            params["include"] = csv
+        # Always carry an explicit include= (even empty) so toggling the last
+        # category off is a real empty value on edit, not an absent one — which
+        # would otherwise fall back to the crew's stored opt-ins (CodeRabbit).
+        params["include"] = _include_csv(flipped)
         entries.append(
             {
                 "value": value,
@@ -217,9 +218,7 @@ def crew_new(request, battle_id):
         form = CrewForm(gang=gang, method=method, included=included)
 
     base_url = reverse("core:crew-new", args=[battle.id])
-    method_extra = {"list": str(gang.id)}
-    if included:
-        method_extra["include"] = _include_csv(included)
+    method_extra = {"list": str(gang.id), "include": _include_csv(included)}
     return render(
         request,
         "core/crew/crew_form.html",
@@ -348,9 +347,7 @@ def crew_edit(request, battle_id, crew_id):
         form = CrewForm(instance=crew, gang=crew.list, method=method, included=included)
 
     base_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
-    method_extra = {}
-    if included:
-        method_extra["include"] = _include_csv(included)
+    method_extra = {"include": _include_csv(included)}
     return render(
         request,
         "core/crew/crew_form.html",

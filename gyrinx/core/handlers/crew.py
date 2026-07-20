@@ -74,12 +74,12 @@ def eligible_crew_fighters(lst, *, included=()):
         source_assignment__isnull=True,
     )
     if excluded:
+        # "No override" is a NULL *or* empty ``category_override`` — this codebase
+        # uses both — in which case the content fighter's own category decides.
+        no_override = Q(category_override__isnull=True) | Q(category_override="")
         qs = qs.exclude(
             Q(category_override__in=excluded)
-            | Q(
-                category_override__isnull=True,
-                content_fighter__category__in=excluded,
-            )
+            | (no_override & Q(content_fighter__category__in=excluded))
         )
     return qs
 

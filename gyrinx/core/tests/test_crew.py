@@ -691,31 +691,34 @@ def test_eligible_crew_fighters_opt_in_by_category(
 def test_eligible_crew_fighters_uses_effective_category(
     crew_setup, make_content_fighter, make_list_fighter
 ):
-    """A category_override wins over the content fighter's own category."""
-    # Content GANGER, promoted-relabelled to HANGER_ON → excluded.
-    promoted_out = _fighter_of_category(
-        crew_setup,
-        make_content_fighter,
-        make_list_fighter,
-        FighterCategoryChoices.GANGER,
-        "Sidelined",
-    )
-    promoted_out.category_override = FighterCategoryChoices.HANGER_ON
-    promoted_out.save()
-    # Content HANGER_ON, relabelled to GANGER → included.
-    promoted_in = _fighter_of_category(
+    """The check is on the effective category. A valid category_override wins
+    over the content fighter's category; an empty override counts as none."""
+    # A content-Hanger-on relabelled to Ganger (a valid override) fields
+    # normally — the override wins.
+    promoted = _fighter_of_category(
         crew_setup,
         make_content_fighter,
         make_list_fighter,
         FighterCategoryChoices.HANGER_ON,
         "Promoted",
     )
-    promoted_in.category_override = FighterCategoryChoices.GANGER
-    promoted_in.save()
+    promoted.category_override = FighterCategoryChoices.GANGER
+    promoted.save()
+    # An empty override is "no override", so the content category (hanger-on)
+    # still excludes it.
+    empty = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Empty Override",
+    )
+    empty.category_override = ""
+    empty.save()
 
     eligible = set(eligible_crew_fighters(crew_setup["gang"]))
-    assert promoted_out not in eligible
-    assert promoted_in in eligible
+    assert promoted in eligible
+    assert empty not in eligible
 
 
 @pytest.mark.django_db
@@ -819,8 +822,9 @@ def test_include_picker_toggles_categories():
     by_value = {e["value"]: e for e in entries}
     assert by_value["HANGER_ON"]["is_on"] is True
     assert by_value["CREW"]["is_on"] is False
-    # Turning the on one off leaves nothing → no include param.
-    assert "include=" not in by_value["HANGER_ON"]["url"]
+    # Turning the on one off leaves nothing → an explicit *empty* include (not
+    # an absent one, which on edit would fall back to the stored opt-ins).
+    assert by_value["HANGER_ON"]["url"].endswith("include=")
     # Turning the off one on adds it alongside the current one.
     assert "include=HANGER_ON%2CCREW" in by_value["CREW"]["url"]
 
@@ -904,6 +908,37 @@ def test_editing_a_crew_keeps_its_included_categories(
     form = resp.context["form"]
     assert form.included_categories == ["HANGER_ON"]
     assert hanger.id in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_editing_a_crew_can_clear_included_categories(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """Toggling the last category off is an explicit empty ``?include=``, which
+    clears the crew's opt-ins rather than falling back to the stored value."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+        included_categories=["HANGER_ON"],
+    )
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(
+        reverse("core:crew-edit", args=[crew.battle_id, crew.id]), {"include": ""}
+    )
+
+    form = resp.context["form"]
+    assert form.included_categories == []  # not the stored ["HANGER_ON"]
+    assert hanger.id not in {f.id for f in form.eligible_fighters}
 
 
 # --- Lock / draw handler ----------------------------------------------------
