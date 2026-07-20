@@ -26,6 +26,7 @@ from django.urls import reverse
 
 from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
 from gyrinx.core.handlers.crew import (
+    crew_battle_spread,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
     handle_crew_archive,
@@ -206,6 +207,12 @@ def crew_detail(request, battle_id, crew_id):
         # The receipt's own total is extras-only while there are no attendees.
         provisional_total = projection["total"] + receipt["total"]
 
+    # Informational only: how far this crew sits below the highest crew in the
+    # battle, in credits. Just the number — the humans decide what, if anything,
+    # it entitles them to. None when the gap can't be worked out (no opponent
+    # crew, or one still pending its draw) or this crew is the top.
+    rating_gap = crew_battle_spread(crew)
+
     return render(
         request,
         "core/crew/crew.html",
@@ -221,6 +228,7 @@ def crew_detail(request, battle_id, crew_id):
             "projection": projection,
             "provisional_total": provisional_total,
             "can_edit_loadouts": bool(projection and can_manage),
+            "rating_gap": rating_gap,
         },
     )
 

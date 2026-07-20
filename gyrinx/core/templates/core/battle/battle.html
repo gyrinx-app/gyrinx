@@ -93,16 +93,19 @@
                                         <tr class="border-bottom">
                                             <th class="caps-label">Gang</th>
                                             <th class="caps-label text-end">Rating</th>
+                                            <th class="caps-label ps-3">vs top</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for group in participant_groups %}
-                                            <tr>
-                                                <td colspan="2"
-                                                    class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
-                                                    {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
-                                                </td>
-                                            </tr>
+                                            {% if roles_in_use %}
+                                                <tr>
+                                                    <td colspan="3"
+                                                        class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
+                                                        {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endif %}
                                             {% for p in group.participants %}
                                                 <tr>
                                                     <td>
@@ -121,6 +124,7 @@
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>
+                                                    <td class="text-secondary ps-3">{% if p.rating_delta %}−{% credits p.rating_delta %}{% endif %}</td>
                                                 </tr>
                                                 {% if p.crew %}
                                                     <tr>
@@ -151,10 +155,11 @@
                                                                 {% endif %}
                                                             {% endif %}
                                                         </td>
+                                                        <td class="text-secondary ps-3">{% if p.crew.rating_delta %}−{% credits p.crew.rating_delta %}{% endif %}</td>
                                                     </tr>
                                                 {% elif p.can_add_crew %}
                                                     <tr>
-                                                        <td colspan="2" class="ps-4">
+                                                        <td colspan="3" class="ps-4">
                                                             <a href="{% url 'core:crew-new' battle.id %}?list={{ p.list.id }}"
                                                                class="icon-link linked fs-7">
                                                                 <i class="bi-plus-lg"></i> Add crew

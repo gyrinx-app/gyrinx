@@ -41,12 +41,20 @@ def eligible_crew_fighters(lst):
     add-injury eligibility and the original crew-template work (#1360).
     Scenario-specific restrictions (no Leader, one Champion, …) are surfaced
     as warnings later, not enforced here.
+
+    Vehicles and exotic beasts are excluded: they are bought as wargear and
+    deploy alongside the fighter that owns them (rulebook p86), so they are
+    never selected in their own right. ``source_assignment__isnull=True`` drops
+    them — a child fighter is one spawned by an owner's equipment assignment.
+    They still join the crew, enrolled against their owner by
+    :func:`sync_linked_crew_members`.
     """
     return ListFighter.objects.filter(
         list=lst,
         archived=False,
         content_fighter__is_stash=False,
         injury_state=ListFighter.ACTIVE,
+        source_assignment__isnull=True,
     )
 
 
@@ -72,10 +80,14 @@ def crew_whole_gang_projection(crew: Crew):
     so a fighter recruited or lost in the meantime legitimately changes it. The
     total is display-only and is deliberately not ``Crew.rating()``, which stays
     live-for-drafts / snapshot-once-locked.
+
+    Each fighter's vehicles and exotic beasts are forecast alongside them (they
+    deploy with their owner), so the total matches what the lock will enrol.
     """
     rows = []
     total = 0
-    for fighter in eligible_crew_fighters_for_loadouts(crew.list):
+    roster = list(eligible_crew_fighters_for_loadouts(crew.list))
+    for fighter in roster:
         equipment_set = crew.resolve_loadout(fighter)
         rating = fighter.cost_int_for_equipment_set(equipment_set)
         total += rating
@@ -88,7 +100,90 @@ def crew_whole_gang_projection(crew: Crew):
                 "rating": rating,
             }
         )
+
+    # Vehicles/exotic beasts owned by the roster ride in too (see
+    # sync_linked_crew_members); they are not in the eligible pool, so add them
+    # here or the forecast would understate the crew by their cost.
+    children = (
+        ListFighter.objects.filter(
+            source_assignment__list_fighter__in=roster,
+            archived=False,
+            injury_state=ListFighter.ACTIVE,
+        )
+        .with_related_data()
+        .distinct()
+    )
+    for child in children:
+        rating = child.cost_int_for_equipment_set(None)
+        total += rating
+        rows.append(
+            {
+                "fighter_id": child.pk,
+                "name": child.name,
+                "category": child.content_fighter.get_category_display(),
+                "loadout": None,
+                "rating": rating,
+            }
+        )
     return {"rows": rows, "total": total}
+
+
+def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
+    """What a crew is worth *right now* for spread/underdog comparison, and
+    whether that figure is provisional. Returns ``(rating, is_provisional)``.
+
+    The single definition of a crew's comparison rating, so the battle page and
+    the (future) crew-page spread can never drift — two copies of this cascade
+    is how they would. Three cases:
+
+    - a **pending random draw** has no known rating yet — ``(None, False)``; the
+      side drops out of the comparison until it is drawn;
+    - a **whole-gang draft** that has enrolled nobody would otherwise read 0¢
+      ("no fighters") rather than "the whole gang attends", so it is forecast
+      from the currently-eligible roster — ``(forecast total, True)``,
+      provisional because the roster only resolves at battle start;
+    - **otherwise** the crew's own :meth:`Crew.rating` — live until the battle
+      freezes ``rating_played``, the played snapshot after — ``(rating, False)``.
+
+    Reads ``crew.members`` from a caller's ``prefetch_related("members")`` cache
+    when present, so it adds no query in the whole-gang / locked cases; the
+    forecast branch runs one batched roster load via
+    :func:`crew_whole_gang_projection`.
+    """
+    if crew.pending_roll:
+        return None, False
+    if not crew.is_locked and crew.is_whole_gang and not crew.members.exists():
+        return crew_whole_gang_projection(crew)["total"], True
+    return crew.rating(), False
+
+
+def crew_battle_spread(crew: Crew) -> Optional[int]:
+    """How far ``crew``'s rating sits below the highest crew in its battle, in
+    credits — or ``None`` when there's nothing to say.
+
+    The crew page needs the *other* crews' ratings, which the page itself
+    doesn't load. This loads the battle's live (non-archived) crews once — with
+    members prefetched — and asks each for its comparison rating via
+    :func:`crew_spread_rating`. Every per-crew rating goes through the batched
+    :meth:`ListFighter.with_related_data` load, so the opponent cost is constant
+    in the number of fighters, not a query per opposing fighter.
+
+    Returns the positive gap below the top crew, or ``None`` when it can't be
+    computed (fewer than two crews have a known rating), this crew has no rating
+    yet (its draw is pending), or this crew *is* the top (nothing below).
+    """
+    crews = list(
+        crew.battle.crews.filter(archived=False)
+        .select_related("list")
+        .prefetch_related("members")
+    )
+    ratings = {other.id: crew_spread_rating(other)[0] for other in crews}
+    known = [r for r in ratings.values() if r is not None]
+    this = ratings.get(crew.id)
+    if len(known) < 2 or this is None:
+        return None
+    gap = max(known) - this
+    return gap or None
 
 
 def crew_loadout_gang_fighters(lst):
@@ -134,6 +229,55 @@ def handle_crew_loadouts_save(*, user, crew: Crew, choices) -> Crew:
     crew.loadout_overrides = merged
     crew.save_with_user(user=user)
     return crew
+
+
+@traced("sync_linked_crew_members")
+def sync_linked_crew_members(*, user, crew: Crew) -> None:
+    """Enrol every crew member's vehicles and exotic beasts, and drop any whose
+    owner is no longer on the crew.
+
+    A vehicle or exotic beast is bought as wargear and deploys alongside the
+    fighter that owns it (rulebook p86) — it is never selected in its own right,
+    so it is kept out of the selection form and the random pool (see
+    :func:`eligible_crew_fighters`). Instead it rides in here as a ``LINKED``
+    member whenever its owner is a member, which is what makes it count towards
+    the crew's rating, show on the sheet, and print.
+
+    Idempotent: reconciles the ``LINKED`` rows against the children of the
+    crew's own (non-linked) members each time, so it is safe to call after any
+    change to who is in the crew.
+    """
+    owner_ids = list(
+        crew.members.exclude(source=CrewMember.LINKED).values_list(
+            "list_fighter_id", flat=True
+        )
+    )
+    # A downed or archived beast doesn't deploy — mirror the fighter eligibility
+    # rules rather than dragging a dead beast onto the table.
+    wanted = set(
+        ListFighter.objects.filter(
+            source_assignment__list_fighter_id__in=owner_ids,
+            archived=False,
+            injury_state=ListFighter.ACTIVE,
+        ).values_list("id", flat=True)
+    )
+    linked = {
+        m.list_fighter_id: m for m in crew.members.filter(source=CrewMember.LINKED)
+    }
+    stale = [m.pk for fighter_id, m in linked.items() if fighter_id not in wanted]
+    if stale:
+        crew.members.filter(pk__in=stale).delete_with_user(user=user)
+
+    # Never add a fighter already on the crew a second time (unique(crew, list_fighter)).
+    present = set(crew.members.values_list("list_fighter_id", flat=True))
+    for child_id in wanted - present:
+        CrewMember.objects.create_with_user(
+            user=user,
+            owner_id=crew.list.owner_id,
+            crew=crew,
+            list_fighter_id=child_id,
+            source=CrewMember.LINKED,
+        )
 
 
 @traced("handle_crew_recipe_save")
@@ -210,6 +354,10 @@ def handle_crew_recipe_save(
             equipment_set_id=set_id_for(fighter_id),
         )
 
+    # Any chosen fighter that owns a vehicle/beast brings it along; drop the
+    # linked rows of anyone just removed.
+    sync_linked_crew_members(user=user, crew=crew)
+
     return crew
 
 
@@ -258,7 +406,9 @@ def handle_crew_archive(*, user, crew: Crew) -> CampaignAction:
 
 
 @traced("snapshot_crew_rating")
-def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
+def snapshot_crew_rating(
+    *, user, crew: Crew, field: str, also_field: str = None
+) -> int:
     """Freeze the crew's live rating, and each member's share of it, into
     ``field`` (``"rating_selected"`` or ``"rating_played"``).
 
@@ -267,15 +417,25 @@ def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
     battle records what actually *fought*. One implementation so the two can
     never be computed differently.
 
-    Sets the field on the ``crew`` instance (the caller saves it, alongside
-    whatever else it is changing) and persists it on each member.
+    ``also_field`` writes the *same* frozen figure to a second field in the same
+    pass. It exists for the record-after-the-fact case: a crew confirmed on an
+    already-ended battle freezes ``rating_selected`` and ``rating_played`` at
+    once (there was no gap between picking and fielding), and doing it in one
+    pass keeps it to a single member write rather than two history rows.
+
+    Sets the field(s) on the ``crew`` instance (the caller saves it, alongside
+    whatever else it is changing) and persists them on each member.
     """
+    fields = [field] + ([also_field] if also_field else [])
     ratings = crew.live_member_ratings()
     for member in crew.members.all():
-        setattr(member, field, ratings.get(member.id, 0))
+        share = ratings.get(member.id, 0)
+        for f in fields:
+            setattr(member, f, share)
         member.save_with_user(user=user)
     total = sum(ratings.values())
-    setattr(crew, field, total)
+    for f in fields:
+        setattr(crew, f, total)
     return total
 
 
@@ -351,8 +511,14 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     # Re-check eligibility at lock time: a fighter chosen while the recipe was
     # being built may since have been archived, stashed, killed, or put in
     # recovery. The rulebook excludes fighters who can't take part from every
-    # selection method, so drop them here rather than enrolling them.
-    stale = [m.pk for m in members if m.list_fighter_id not in eligible_ids]
+    # selection method, so drop them here rather than enrolling them. Linked
+    # vehicles/beasts are exempt — they aren't in the eligible pool by design,
+    # and sync_linked_crew_members below drops any whose owner was just cut.
+    stale = [
+        m.pk
+        for m in members
+        if m.source != CrewMember.LINKED and m.list_fighter_id not in eligible_ids
+    ]
     skipped_ineligible = len(stale)
     if stale:
         crew.members.filter(pk__in=stale).delete_with_user(user=user)
@@ -382,7 +548,9 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                     equipment_set_id=equipment_set.pk if equipment_set else None,
                 )
 
-    chosen_count = crew.members.count()
+    # Linked vehicles/beasts aren't "chosen" — they ride in with their owner, so
+    # they don't count towards the selected-fighter tally in the campaign log.
+    chosen_count = crew.members.exclude(source=CrewMember.LINKED).count()
 
     random_count, roll_detail = (0, "")
     drawn = []
@@ -416,11 +584,25 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                     f"{fighter.name} ({equipment_set.name if equipment_set else 'Default'})"
                 )
 
+    # Bring in each attending fighter's vehicles/exotic beasts before the
+    # snapshot, so what they contribute is frozen into the crew's rating too.
+    sync_linked_crew_members(user=user, crew=crew)
+
     crew.status = Crew.LOCKED
     # Record what was picked. The crew goes on reporting its live rating until
     # the battle ends — this is the note-worthy "was X when you picked it"
     # figure, not the headline one (see Crew.rating).
-    snapshot_crew_rating(user=user, crew=crew, field="rating_selected")
+    if crew.battle.has_ended():
+        # Recorded after the fact: players settled the crew at the table, the
+        # battle is already over, and they are only now logging it. There is no
+        # future battle-end to freeze what fought, so the lock is that moment —
+        # freeze rating_played here too, equal to rating_selected (nothing
+        # happened between picking and fielding to move them apart).
+        snapshot_crew_rating(
+            user=user, crew=crew, field="rating_selected", also_field="rating_played"
+        )
+    else:
+        snapshot_crew_rating(user=user, crew=crew, field="rating_selected")
     crew.save_with_user(user=user)
 
     if whole_gang:

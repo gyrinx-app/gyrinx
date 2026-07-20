@@ -14,12 +14,27 @@ from gyrinx.core.forms.battle import (
     BattleRolesForm,
 )
 from gyrinx.core.handlers.battle import handle_battle_end
-from gyrinx.core.handlers.crew import crew_whole_gang_projection
+from gyrinx.core.handlers.crew import crew_spread_rating
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
+
+
+def _top_rating(values):
+    """The highest rating in ``values`` when at least two are known, else None —
+    a gap only means something when there is something to compare against."""
+    known = [v for v in values if v is not None]
+    return max(known) if len(known) >= 2 else None
+
+
+def _delta(top, rating):
+    """How far ``rating`` sits below ``top``, or None when there is nothing to
+    say (no top to compare against, no rating, or this side *is* the top)."""
+    if top is None or rating is None or rating >= top:
+        return None
+    return top - rating
 
 
 class BattleDetailView(generic.DetailView):
@@ -122,34 +137,25 @@ class BattleDetailView(generic.DetailView):
         )
         crew_by_gang = {}
         for crew in crews:
-            # Only the rating and pending-roll flag are needed here, so skip the
-            # full receipt() (which also builds the extras breakdown). A pending
-            # draw leaves the rating unknown, so don't compute it at all.
+            # The one definition of what a crew is worth right now (pending draw
+            # → unknown; whole-gang draft → forecast; else its live/played
+            # rating), shared with the crew-page spread so the two can't drift.
+            # A forecast is flagged provisional; a pending draw returns no rating.
+            rating, is_forecast = crew_spread_rating(crew)
             pending = crew.pending_roll
-            # A whole-gang crew enrols nobody until it is confirmed, so its own
-            # rating would read 0¢ here — "no fighters" rather than "the whole
-            # gang attends". Forecast it the same way the crew page does.
-            forecast = (
-                not crew.is_locked and crew.is_whole_gang and not crew.members.all()
-            )
-            if pending:
-                rating = None
-            elif forecast:
-                rating = crew_whole_gang_projection(crew)["total"]
-            else:
-                rating = crew.rating()
             # The rating shown is what the gang would field now, or, once the
             # battle has ended, what it did field. Either way, flag when that
             # isn't the number the crew was picked at — the arbitrator needs to
-            # see the crew has changed since selection. A forecast has nothing
-            # to compare against: the crew hasn't been picked yet.
-            note = None if (pending or forecast) else crew.rating_note()
+            # see the crew has changed since selection. A forecast or a pending
+            # draw has nothing to compare against: the crew hasn't been picked,
+            # or its draw hasn't resolved.
+            note = None if (pending or is_forecast) else crew.rating_note()
             crew_by_gang[crew.list_id] = {
                 "crew": crew,
                 "method_label": crew.method_label(),
                 "rating": rating,
                 "pending_roll": pending,
-                "is_forecast": forecast,
+                "is_forecast": is_forecast,
                 "show_rating_note": bool(note and note["differs"]),
                 "rating_note": note,
             }
@@ -177,12 +183,20 @@ class BattleDetailView(generic.DetailView):
         # winners is prefetched in get_object(); read the cache, not a new query.
         winner_ids = {w.id for w in battle.winners.all()}
 
+        # Every gang's rating, and every crew's (None for a gang with no crew or
+        # a crew still mid-draw), collected as the loop runs so the top of each
+        # can be found for the inline deltas below — no extra query.
+        gang_ratings = []
+        crew_ratings = []
+
         groups = []
         for group in battle.participants_grouped_by_role():
             rows = []
             for entry in group["participants"]:
                 gang = entry.list
                 crew = crew_by_gang.get(gang.id)
+                gang_ratings.append(gang.rating_current)
+                crew_ratings.append(crew["rating"] if crew is not None else None)
                 rows.append(
                     {
                         "list": gang,
@@ -205,6 +219,25 @@ class BattleDetailView(generic.DetailView):
                 )
             groups.append({"role_option": group["role_option"], "participants": rows})
         context["participant_groups"] = groups
+        # Hide the "No role" group header when nobody has a role assigned — with
+        # no roles in play it is just noise above a single list of gangs.
+        context["roles_in_use"] = any(g["role_option"] for g in groups)
+
+        # Rating deltas shown inline next to each rating: how far each gang (and
+        # each crew) sits below the highest. Numbers only — the players decide
+        # what a gap means for their scenario. Built from figures already in
+        # hand, so no extra query. A delta needs at least two known ratings to
+        # mean anything; the top side (and any side with no known rating) shows
+        # none.
+        top_gang = _top_rating(gang_ratings)
+        top_crew = _top_rating(crew_ratings)
+        for group in groups:
+            for row in group["participants"]:
+                row["rating_delta"] = _delta(top_gang, row["rating"])
+                if row["crew"] is not None:
+                    row["crew"]["rating_delta"] = _delta(
+                        top_crew, row["crew"]["rating"]
+                    )
 
 
 @login_required

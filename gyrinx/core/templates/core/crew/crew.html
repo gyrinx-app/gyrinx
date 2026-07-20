@@ -88,6 +88,16 @@
                 {% endif %}
             </div>
         {% endif %}
+        {% comment %}
+        Numbers only: how far this crew sits below the highest in the battle.
+        No rules read for the player — they decide what the gap entitles them to.
+        {% endcomment %}
+        {% if rating_gap %}
+            <div class="border rounded p-2 fs-7">
+                <i class="bi-bar-chart text-secondary"></i>
+                This crew's rating is <strong>{{ rating_gap }}¢ below</strong> the highest in the battle.
+            </div>
+        {% endif %}
         <!-- Crew sheet -->
         <div class="table-responsive">
             <table class="table table-sm table-borderless align-middle mb-0">
@@ -143,9 +153,7 @@
                             <td class="text-end">{{ a.rating }}¢</td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                     {% empty %}
                         {% if projection %}
@@ -220,9 +228,7 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                     {% endif %}
                     <tr>

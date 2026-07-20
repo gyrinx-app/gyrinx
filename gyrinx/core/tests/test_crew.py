@@ -21,12 +21,15 @@ from uuid import uuid4
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
 from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import (
+    crew_battle_spread,
+    crew_spread_rating,
     crew_whole_gang_projection,
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
     handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
+    handle_crew_recipe_save,
 )
 from gyrinx.core.models import Battle
 from gyrinx.core.models.campaign import CampaignAction
@@ -39,7 +42,13 @@ from gyrinx.core.models.crew import (
     split_selection_spec,
     validate_selection_spec,
 )
-from gyrinx.core.models.list import List, ListFighter, ListFighterEquipmentSet
+from gyrinx.core.models.list import (
+    List,
+    ListFighter,
+    ListFighterEquipmentAssignment,
+    ListFighterEquipmentSet,
+)
+from gyrinx.models import FighterCategoryChoices
 
 
 # --- Selection-spec parser --------------------------------------------------
@@ -371,6 +380,203 @@ def test_eligible_crew_fighters_excludes_non_active(crew_setup, make_list_fighte
     assert fighters[0] not in eligible
     assert fighters[1] not in eligible
     assert fighters[2] in eligible
+
+
+# --- Vehicles and exotic beasts (linked child fighters) ---------------------
+#
+# A vehicle or exotic beast is bought as wargear and deploys alongside the
+# fighter that owns it (rulebook p86). It is never selected in its own right,
+# but it must still join the crew when its owner does — enrolled by
+# handlers.crew.sync_linked_crew_members.
+
+
+def _give_beast(
+    crew_setup,
+    owner,
+    make_content_fighter,
+    make_equipment,
+    make_list_fighter,
+    name="War Hound",
+    beast_gear_cost=0,
+):
+    """Give ``owner`` a linked exotic beast (a child fighter), bought as 90¢ of
+    wargear. Optionally arm the beast with its own ``beast_gear_cost``¢ of gear
+    so it has a non-zero rating of its own."""
+    beast_type = make_content_fighter(
+        type=name,
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=owner.content_fighter.house,
+        base_cost=0,
+    )
+    beast = make_list_fighter(crew_setup["gang"], name, content_fighter=beast_type)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=owner,
+        content_equipment=make_equipment(name=f"{name} (wargear)", cost=90),
+        child_fighter=beast,
+    )
+    if beast_gear_cost:
+        beast.assign(make_equipment(name=f"{name} claws", cost=beast_gear_cost))
+    return beast
+
+
+def _beast_line(crew, beast):
+    return next(
+        (line for _, line in crew._attendee_lines() if line["fighter_id"] == beast.id),
+        None,
+    )
+
+
+@pytest.mark.django_db
+def test_exotic_beast_is_not_selectable(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """A beast is wargear on its owner, so it never appears in the eligible pool
+    — which is both the selection checkboxes and the random-draw pool."""
+    owner = crew_setup["fighters"][0]
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, make_list_fighter
+    )
+    assert beast.is_child_fighter is True
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert owner in eligible
+    assert beast not in eligible
+
+    # Absent from the selection form's fighter checkboxes too.
+    form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
+    offered = {f.pk for f in form.fields["chosen_fighters"].queryset}
+    assert beast.id not in offered
+    assert owner.id in offered
+
+
+@pytest.mark.django_db
+def test_selecting_an_owner_brings_in_their_beast(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """Choosing the owner enrols its beast as a LINKED member, so the beast
+    counts towards the rating and prints — without being chosen."""
+    owner = crew_setup["fighters"][0]
+    beast = _give_beast(
+        crew_setup,
+        owner,
+        make_content_fighter,
+        make_equipment,
+        make_list_fighter,
+        beast_gear_cost=30,
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        chosen_fighters=[owner],
+    )
+
+    assert list(
+        crew.members.filter(source=CrewMember.LINKED).values_list(
+            "list_fighter_id", flat=True
+        )
+    ) == [beast.id]
+    assert crew.members.filter(source=CrewMember.CHOSEN, list_fighter=owner).exists()
+
+    # The beast rides in with its own 30¢ of gear counted, and prints.
+    line = _beast_line(crew, beast)
+    assert line is not None
+    assert line["is_random"] is False
+    assert line["live_rating"] == 30
+    assert beast.id in crew.print_fighter_ids()
+
+
+@pytest.mark.django_db
+def test_whole_gang_lock_enrols_owned_beasts(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """The whole-gang draw enrols every eligible fighter; their beasts come with
+    them as linked members, but don't count towards the 'chosen' tally."""
+    owner = crew_setup["fighters"][0]
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, make_list_fighter
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert result.whole_gang is True
+    assert result.chosen_count == 5  # the beast is extra, not a chosen fighter
+    assert crew.members.filter(source=CrewMember.LINKED, list_fighter=beast).exists()
+    assert crew.members.filter(source=CrewMember.LINKED).count() == 1
+    assert beast.id in crew.print_fighter_ids()
+
+
+@pytest.mark.django_db
+def test_removing_the_owner_drops_the_beast(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """The beast follows its owner: cut the owner from the recipe and its beast
+    leaves the crew too."""
+    owner, other = crew_setup["fighters"][0], crew_setup["fighters"][1]
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, make_list_fighter
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=2,
+    )
+
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=2,
+        chosen_fighters=[owner, other],
+    )
+    assert crew.members.filter(source=CrewMember.LINKED, list_fighter=beast).exists()
+
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        chosen_fighters=[other],
+    )
+    assert not crew.members.filter(list_fighter=beast).exists()
+    assert not crew.members.filter(list_fighter=owner).exists()
+
+
+@pytest.mark.django_db
+def test_whole_gang_forecast_includes_beasts(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """The pre-lock whole-gang forecast counts owned beasts, so it matches what
+    the lock will actually enrol."""
+    owner = crew_setup["fighters"][0]
+    _give_beast(
+        crew_setup,
+        owner,
+        make_content_fighter,
+        make_equipment,
+        make_list_fighter,
+        beast_gear_cost=40,
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    projection = crew_whole_gang_projection(crew)
+    # Five gangers plus the one beast row.
+    assert len(projection["rows"]) == 6
+    beast_rows = [r for r in projection["rows"] if r["rating"] == 40]
+    assert len(beast_rows) == 1
 
 
 # --- Lock / draw handler ----------------------------------------------------
@@ -1674,6 +1880,49 @@ def test_ending_the_battle_freezes_what_fought(
 
 
 @pytest.mark.django_db
+def test_crew_recorded_after_the_battle_ends_freezes_what_fought_at_lock(
+    crew_setup, make_equipment, make_weapon_profile
+):
+    """Recorded after the fact: players settled the crew at the table and only
+    log it once the result is already in. There is no future battle-end to
+    freeze what fought, so the lock has to be that moment — otherwise the record
+    would drift with the gang's later spending."""
+    battle = crew_setup["battle"]
+
+    # Draft the crew but end the battle before it is confirmed — the normal
+    # battle-end freeze finds nothing to snapshot (a draft never fielded).
+    crew = Crew.objects.create(
+        battle=battle,
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    _end_battle(crew_setup)
+    # handle_battle_end transitions a re-fetched instance, so reload ours.
+    battle.refresh_from_db()
+    assert battle.has_ended()
+
+    # Now confirm the crew. Because the battle is over, the lock freezes played.
+    crew = handle_crew_lock(user=crew_setup["user"], crew=crew).crew
+    assert crew.rating_selected == 100
+    assert crew.rating_played == 100
+    assert crew.rating() == 100
+    assert [m.rating_played for m in crew.members.all()] == [100]
+    # One write per member, not two: selected and played were frozen together.
+    assert crew.rating_note()["differs"] is False
+
+    # The gang spends on: the crew that fought must not follow it.
+    bolter = make_equipment(name="Late Bolter", cost=35, category="Basic Weapons")
+    make_weapon_profile(bolter)
+    crew_setup["fighters"][0].assign(bolter)
+
+    crew.refresh_from_db()
+    assert crew.rating() == 100
+    assert crew.members.get().rating() == 100
+
+
+@pytest.mark.django_db
 def test_played_crew_notes_what_it_was_picked_at(
     client, crew_setup, make_equipment, make_weapon_profile
 ):
@@ -2486,3 +2735,530 @@ def test_archive_page_says_already_archived(client, crew_setup):
     content = resp.content.decode()
     assert "already been archived" in content
     assert "permission" not in content
+
+
+# --- crew_spread_rating: the shared comparison-rating cascade ---------------
+#
+# The single definition of what a crew is worth "right now" for spread/underdog
+# comparison, extracted so the battle page and the crew-page spread can't drift.
+# These pin the four cases; the battle-page render tests above exercise it in
+# situ.
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_pending_roll_is_unknown(crew_setup):
+    """A draft whose random draw hasn't happened has no comparable rating yet."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="D3",
+    )
+    assert crew.pending_roll is True
+    assert crew_spread_rating(crew) == (None, False)
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_whole_gang_draft_is_a_forecast(crew_setup):
+    """A whole-gang draft has enrolled nobody, so its comparison rating is the
+    forecast of the currently-eligible roster, flagged provisional."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    assert crew.is_whole_gang
+    assert not crew.members.all()
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is True
+    assert rating == crew_whole_gang_projection(crew)["total"]
+    assert rating > 0  # five gangers at 100 each
+
+
+@pytest.mark.django_db
+def test_whole_gang_emptiness_check_reads_the_members_prefetch_cache(crew_setup):
+    """The whole-gang draft's ``not crew.members.exists()`` check must read a
+    caller's ``prefetch_related("members")`` cache, not the DB — otherwise the
+    battle page, which prefetches members for every crew, would pay a query per
+    crew. (Django's related-manager ``.exists()`` uses the prefetched cache.)"""
+    Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,  # whole-gang draft, no members
+    )
+    crew = (
+        Crew.objects.filter(battle=crew_setup["battle"])
+        .prefetch_related("members")
+        .get()
+    )
+    with CaptureQueriesContext(connection) as ctx:
+        empty = not crew.members.exists()
+    assert empty is True
+    assert len(ctx) == 0
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_locked_unplayed_is_live(crew_setup):
+    """A locked crew that hasn't fought reports its live rating — what the gang
+    would field now — and is not provisional."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+        custom_count=2,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is False
+    assert rating == crew.live_rating()
+    assert rating == crew.rating()  # no played snapshot yet
+    assert rating == 200
+
+
+@pytest.mark.django_db
+def test_crew_spread_rating_played_is_the_frozen_figure(crew_setup):
+    """Once the battle has frozen what fought, that snapshot is the comparison
+    rating — the live gang moving on afterwards must not change it."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+        custom_count=2,
+        rating_selected=280,
+        rating_played=320,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is False
+    assert rating == 320  # the played snapshot, not the live 200
+    assert rating == crew.rating()
+
+
+# --- Battle-page underdog / spread block ------------------------------------
+#
+# The informational block under the participants table: it states the gap, the
+# extra tactics it earns, and the conditional House-Patronage allowance, and
+# points at the rules. It never asserts an entitlement. crew_setup's gang is
+# "Riot Gang" with five 100¢ gangers; these add a second/third gang to the same
+# battle and give crews controlled ratings (chosen members are 100¢ each).
+
+
+def _spread_gang(crew_setup, make_list, make_list_fighter, name, n_fighters):
+    """A further gang in crew_setup's campaign, with n_fighters 100¢ gangers."""
+    gang = make_list(name, status=List.CAMPAIGN_MODE, campaign=crew_setup["campaign"])
+    crew_setup["campaign"].lists.add(gang)
+    fighters = [make_list_fighter(gang, f"{name} {i}") for i in range(n_fighters)]
+    return gang, fighters
+
+
+def _locked_crew(crew_setup, gang, members):
+    """A LOCKED crew for gang with the given chosen members (100¢ each), so its
+    comparison rating is 100 × len(members)."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=gang,
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+        custom_count=len(members) or None,
+    )
+    add_chosen(crew, members)
+    return crew
+
+
+def _pending_crew(crew_setup, gang):
+    """A draft Random crew with an unrolled spec — pending, so no known rating."""
+    return Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="D3",
+    )
+
+
+def _set_gang_rating(gang, value):
+    """Force a gang's cached rating_current without recomputation."""
+    List.objects.filter(pk=gang.pk).update(rating_current=value)
+
+
+@pytest.mark.django_db
+def test_crew_battle_spread_none_when_subject_pending(
+    crew_setup, make_list, make_list_fighter
+):
+    """The subject crew has no rating yet (its draw is pending), so there is
+    nothing to say about how far below the top it sits."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    orlock, orlock_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Orlock", 2
+    )
+    crew_setup["battle"].set_participants([riot, iron, orlock])
+
+    subject = _pending_crew(crew_setup, riot)  # no known rating
+    _locked_crew(crew_setup, iron, iron_fighters[:1])
+    _locked_crew(crew_setup, orlock, orlock_fighters[:1])
+
+    assert crew_battle_spread(subject) is None
+
+
+@pytest.mark.django_db
+def test_crew_battle_spread_is_the_gap_below_the_top(
+    crew_setup, make_list, make_list_fighter
+):
+    """A below-top crew reports its gap; the top crew has nothing below it."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
+    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
+
+    assert crew_battle_spread(riot_crew) == 500
+    assert crew_battle_spread(iron_crew) is None  # it is the top
+
+
+def _battle_response(client, crew_setup):
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    assert resp.status_code == 200
+    return resp
+
+
+def _participant_row(resp, gang_name):
+    """The participant row for ``gang_name`` in the battle-page context."""
+    for group in resp.context["participant_groups"]:
+        for row in group["participants"]:
+            if row["list"].name == gang_name:
+                return row
+    return None
+
+
+@pytest.mark.django_db
+def test_battle_table_shows_crew_and_gang_deltas(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """The participants table shows, beside each rating, how far it is below the
+    top — for the crew (crew row) and the gang (gang row). Numbers only."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600 (top)
+    _set_gang_rating(riot, 200)
+    _set_gang_rating(iron, 600)  # top gang
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+    content = resp.content.decode()
+
+    riot_row = _participant_row(resp, "Riot Gang")
+    iron_row = _participant_row(resp, "Iron Skulls")
+    # Gang deltas: Riot is 400¢ below the top gang; Iron is the top.
+    assert riot_row["rating_delta"] == 400
+    assert iron_row["rating_delta"] is None
+    # Crew deltas: Riot's crew is 500¢ below the top crew; Iron's is the top.
+    assert riot_row["crew"]["rating_delta"] == 500
+    assert iron_row["crew"]["rating_delta"] is None
+
+    assert "vs top" in content  # the column header
+    assert "500¢" in content  # crew delta (only 500¢ on the page)
+    assert "400¢" in content  # gang delta (only 400¢ on the page)
+    # No rules read for the player.
+    for word in ("underdog", "gang tactic", "House Patronage"):
+        assert word not in content
+
+
+@pytest.mark.django_db
+def test_battle_table_no_crew_delta_with_fewer_than_two_crews(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """A crew delta needs two crews to compare; with one crew there is none,
+    though the gang deltas still show."""
+    riot = crew_setup["gang"]
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
+    crew_setup["battle"].set_participants([riot, iron])
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # the only crew
+    _set_gang_rating(riot, 200)
+    _set_gang_rating(iron, 600)
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+
+    riot_row = _participant_row(resp, "Riot Gang")
+    assert riot_row["crew"]["rating_delta"] is None  # only one crew
+    assert riot_row["rating_delta"] == 400  # gang delta still shown
+
+
+@pytest.mark.django_db
+def test_battle_table_pending_crew_has_no_delta(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """A crew still to be drawn has no rating, so no delta."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    _pending_crew(crew_setup, riot)
+    _locked_crew(crew_setup, iron, iron_fighters[:6])
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+
+    assert _participant_row(resp, "Riot Gang")["crew"]["rating_delta"] is None
+
+
+@pytest.mark.django_db
+def test_battle_table_every_crew_in_a_multi_gang_battle_has_a_delta(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Three gangs: each trailing crew shows its own gap below the top — none is
+    hidden."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    orlock, orlock_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Orlock", 5
+    )
+    crew_setup["battle"].set_participants([riot, iron, orlock])
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
+    _locked_crew(crew_setup, orlock, orlock_fighters[:5])  # 500 — 100¢ below
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:4])  # 400 — 200¢ below
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+
+    assert _participant_row(resp, "Iron Skulls")["crew"]["rating_delta"] is None
+    assert _participant_row(resp, "Orlock")["crew"]["rating_delta"] == 100
+    assert _participant_row(resp, "Riot Gang")["crew"]["rating_delta"] == 200
+
+
+@pytest.mark.django_db
+def test_battle_table_archived_crew_drops_out_of_the_deltas(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Archiving (withdrawing) a crew removes it from the delta comparison."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
+    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600 (top)
+
+    client.force_login(crew_setup["user"])
+    before = _battle_response(client, crew_setup)
+    assert _participant_row(before, "Riot Gang")["crew"]["rating_delta"] == 500
+
+    # Withdraw Iron Skulls' crew — Riot's is now the only crew, so no delta.
+    Crew.objects.filter(pk=iron_crew.pk).update(archived=True)
+
+    after = _battle_response(client, crew_setup)
+    riot_row = _participant_row(after, "Riot Gang")
+    assert riot_row["crew"] is not None  # Riot still has its crew
+    assert riot_row["crew"]["rating_delta"] is None  # nothing to compare now
+
+
+@pytest.mark.django_db
+def test_battle_table_hides_no_role_header_when_no_roles(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """With nobody assigned a role, the 'No role' group header is just noise, so
+    it isn't shown."""
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 2)
+    crew_setup["battle"].set_participants([crew_setup["gang"], iron])
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+
+    assert resp.context["roles_in_use"] is False
+    assert "No role" not in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_battle_table_shows_role_headers_when_roles_assigned(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Once any gang has a role, the role headers (including 'No role' for the
+    rest) are shown to group the table."""
+    from gyrinx.content.models import ContentBattleRole, ContentBattleRoleOption
+    from gyrinx.core.models import BattleParticipant
+
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 2)
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"], iron])
+
+    role = ContentBattleRole.objects.create(name="Attacker/Defender")
+    attacker = ContentBattleRoleOption.objects.create(role=role, name="Attacker")
+    bp = BattleParticipant.objects.get(battle=battle, list=crew_setup["gang"])
+    bp.role_option = attacker
+    bp.save()
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+    content = resp.content.decode()
+
+    assert resp.context["roles_in_use"] is True
+    assert "Attacker" in content
+    assert "No role" in content  # shown for the gang without a role
+
+
+@pytest.mark.django_db
+def test_battle_spread_third_gang_with_crew_adds_no_queries(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """The rating maps and spread are built from figures already in hand: a
+    further participating gang with a crew must not add a query to the page.
+
+    Uses pending crews so no per-crew fighter load is triggered (that batched
+    cost is pre-existing crew-page behaviour, not the spread block's), and an
+    anonymous viewer so no per-gang permission checks run — isolating the
+    participants + maps + spread path this stage touches."""
+    riot = crew_setup["gang"]
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 1)
+    crew_setup["battle"].set_participants([riot, iron])
+    _pending_crew(crew_setup, riot)
+    _pending_crew(crew_setup, iron)
+
+    url = reverse("core:battle", args=[crew_setup["battle"].id])
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            assert client.get(url).status_code == 200
+        return len(ctx)
+
+    render_query_count()  # warm per-process caches
+    two_gangs = render_query_count()
+
+    third, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Third Gang", 1)
+    crew_setup["battle"].set_participants([riot, iron, third])
+    _pending_crew(crew_setup, third)
+
+    assert render_query_count() == two_gangs
+
+
+# --- Crew-page rating-gap note ----------------------------------------------
+#
+# The crew sheet shows how far this crew sits below the highest crew in the
+# battle — a plain number, no rules interpretation.
+
+
+def _crew_response(client, crew):
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+    assert resp.status_code == 200
+    return resp
+
+
+@pytest.mark.django_db
+def test_crew_page_shows_the_rating_gap_below_the_top(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """A crew below the top shows how far below, in credits — numbers only."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
+
+    client.force_login(crew_setup["user"])
+    resp = _crew_response(client, riot_crew)
+    content = resp.content.decode()
+
+    assert resp.context["rating_gap"] == 500
+    assert "500¢ below" in content
+    assert "the highest in the battle" in content
+    # No rules interpretation.
+    assert "House Patronage" not in content
+    assert "This crew is the underdog" not in content
+
+
+@pytest.mark.django_db
+def test_crew_page_no_gap_note_for_the_top_crew(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """The top crew has nothing below it, so no gap note."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
+    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
+
+    client.force_login(crew_setup["user"])
+    resp = _crew_response(client, iron_crew)
+
+    assert resp.context["rating_gap"] is None
+    assert "the highest in the battle" not in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_crew_page_no_gap_note_when_opponent_pending(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """When the opponent's crew is still to be drawn, the gap can't be worked
+    out, so no note."""
+    riot = crew_setup["gang"]
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
+    crew_setup["battle"].set_participants([riot, iron])
+    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])
+    _pending_crew(crew_setup, iron)  # opponent unresolved
+
+    client.force_login(crew_setup["user"])
+    resp = _crew_response(client, riot_crew)
+
+    assert resp.context["rating_gap"] is None
+    assert "the highest in the battle" not in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_crew_page_opponent_fighter_count_does_not_raise_query_count(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """The opponent crews load in a batch, so more fighters in an opposing crew
+    must not add queries to the crew page — no N+1 per opposing fighter."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 8
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])
+    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:2])
+    CrewLineItem.objects.create(
+        crew=riot_crew,
+        owner=crew_setup["user"],
+        label="Tactics card",
+        cost=100,
+        payment=Crew.PAY_ALLOWANCE,
+    )
+
+    client.force_login(crew_setup["user"])
+    url = reverse("core:crew", args=[riot_crew.battle_id, riot_crew.id])
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            assert client.get(url).status_code == 200
+        return len(ctx)
+
+    render_query_count()  # warm per-process caches
+    few = render_query_count()
+
+    # Grow the opponent's crew; the batched opponent load must stay flat.
+    add_chosen(iron_crew, iron_fighters[2:8])
+
+    assert render_query_count() == few

@@ -630,8 +630,14 @@ class Crew(AppBase):
         return sum(item.cost for item in self.line_items.all())
 
     def credits_value(self):
-        """The crew's Credits value (rating + extras) — the rulebook quantity
-        scenarios compare for underdog bonuses."""
+        """The crew's fighter rating plus its extra line items.
+
+        NOT the rulebook's underdog-comparison quantity, despite the tempting
+        name: scenarios compare the credits value of the *fighters* in each
+        starting crew (Core Rulebook p238), and extras — tactics cards, hired
+        help — never enter that comparison. The quantity to compare is
+        :meth:`rating`; this sum (rating + extras) is only a headline total.
+        """
         return self.rating() + self.extras_total()
 
     def receipt(self):
@@ -706,14 +712,19 @@ class CrewMember(AppBase):
     """An attendee of a crew: a fighter with a battle loadout.
 
     Chosen members exist from selection time (a draft crew already has them);
-    drawn members are added by the random draw when the crew is locked.
+    drawn members are added by the random draw when the crew is locked; linked
+    members are the vehicles and exotic beasts that ride in with their owner —
+    never selected in their own right, enrolled by
+    ``handlers.crew.sync_linked_crew_members`` whenever their owner is a member.
     """
 
     CHOSEN = "chosen"
     DRAWN = "random"
+    LINKED = "linked"
     SOURCE_CHOICES = [
         (CHOSEN, "Chosen"),
         (DRAWN, "Drawn at random"),
+        (LINKED, "Linked to owner"),
     ]
 
     crew = models.ForeignKey(
