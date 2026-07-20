@@ -26,6 +26,7 @@ from django.urls import reverse
 
 from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
 from gyrinx.core.handlers.crew import (
+    TOGGLEABLE_CREW_CATEGORIES,
     crew_battle_spread,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
@@ -39,6 +40,56 @@ from gyrinx.core.models.crew import Crew, CrewLineItem
 from gyrinx.core.models.list import List
 
 VALID_METHODS = {value for value, _ in Crew.SELECTION_METHOD_CHOICES}
+
+
+def _resolve_included(request, default=()):
+    """The opted-in categories for this request, from the ``?include=`` toggles
+    (comma-separated slugs) or the re-posted hidden field. Absent entirely →
+    ``default`` (the crew's stored opt-ins on edit, nothing on create).
+
+    Returns the canonical category values in display order, deduped; unknown
+    slugs (a hand-edited URL or stale field) are dropped, so what gets persisted
+    is always clean regardless of the raw string's order or repeats."""
+    raw = request.GET.get("include")
+    if raw is None:
+        raw = request.POST.get("include")
+    if raw is None:
+        return list(default)
+    slugs = set(raw.split(","))
+    return [cat for cat, slug, _ in TOGGLEABLE_CREW_CATEGORIES if slug in slugs]
+
+
+def _include_csv(included):
+    """The include set as a canonical comma-separated slug string (display
+    order) — what the ``?include=`` querystring and hidden field carry."""
+    included = set(included)
+    return ",".join(
+        slug for cat, slug, _ in TOGGLEABLE_CREW_CATEGORIES if cat in included
+    )
+
+
+def _include_picker(*, base_url, included, extra=None):
+    """Entries for the category-include toggles: one per toggleable category,
+    each a link to this same page with that category flipped on/off (the rest,
+    and any ``extra`` params, preserved)."""
+    current = set(included)
+    entries = []
+    for cat, slug, label in TOGGLEABLE_CREW_CATEGORIES:
+        flipped = current - {cat} if cat in current else current | {cat}
+        params = dict(extra or {})
+        # Always carry an explicit include= (even empty) so toggling the last
+        # category off is a real empty value on edit, not an absent one — which
+        # would otherwise fall back to the crew's stored opt-ins (CodeRabbit).
+        params["include"] = _include_csv(flipped)
+        entries.append(
+            {
+                "value": cat,
+                "label": label,
+                "url": f"{base_url}?{urlencode(params)}",
+                "is_on": cat in current,
+            }
+        )
+    return entries
 
 
 def _resolve_method(request, default):
@@ -123,9 +174,15 @@ def crew_new(request, battle_id):
         return _redirect_crew(existing)
 
     method = _resolve_method(request, Crew.CUSTOM)
+    # A new crew's toggles start from the campaign's default (e.g. an Ash-Wastes
+    # campaign that opts vehicle crew in for everyone); the player can still
+    # change them per crew, and once toggled the ?include= drives it.
+    included = _resolve_included(
+        request, default=battle.campaign.default_included_crew_categories
+    )
 
     if request.method == "POST":
-        form = CrewForm(request.POST, gang=gang, method=method)
+        form = CrewForm(request.POST, gang=gang, method=method, included=included)
         if form.is_valid():
             crew = form.save(commit=False)
             crew.battle = battle
@@ -146,6 +203,7 @@ def crew_new(request, battle_id):
                         chosen_fighters=form.cleaned_data.get("chosen_fighters"),
                         random_spec=form.cleaned_data.get("random_spec", ""),
                         equipment_sets=form.cleaned_data.get("equipment_sets"),
+                        included_categories=included,
                     )
             except IntegrityError:
                 existing = Crew.objects.filter(
@@ -160,8 +218,10 @@ def crew_new(request, battle_id):
             messages.success(request, "Crew created.")
             return _redirect_crew(crew)
     else:
-        form = CrewForm(gang=gang, method=method)
+        form = CrewForm(gang=gang, method=method, included=included)
 
+    base_url = reverse("core:crew-new", args=[battle.id])
+    method_extra = {"list": str(gang.id), "include": _include_csv(included)}
     return render(
         request,
         "core/crew/crew_form.html",
@@ -171,10 +231,16 @@ def crew_new(request, battle_id):
             "gang": gang,
             "is_create": True,
             "method": method,
+            "included_csv": _include_csv(included),
             "method_picker": _method_picker(
-                base_url=reverse("core:crew-new", args=[battle.id]),
+                base_url=base_url,
                 current=method,
-                extra={"list": str(gang.id)},
+                extra=method_extra,
+            ),
+            "include_picker": _include_picker(
+                base_url=base_url,
+                included=included,
+                extra={"list": str(gang.id), "method": method},
             ),
         },
     )
@@ -248,8 +314,9 @@ def crew_edit(request, battle_id, crew_id):
         return _redirect_crew(crew)
 
     # No ?method= (the plain "Edit" link) keeps the crew on the method it was
-    # saved with.
+    # saved with. Likewise no ?include= keeps the crew's stored opt-ins.
     method = _resolve_method(request, crew.selection_method)
+    included = _resolve_included(request, default=crew.included_categories)
 
     if request.method == "POST":
         gang = crew.list
@@ -262,7 +329,9 @@ def crew_edit(request, battle_id, crew_id):
                 request, "This crew was just locked and can no longer be re-drawn."
             )
             return _redirect_crew(crew)
-        form = CrewForm(request.POST, instance=crew, gang=gang, method=method)
+        form = CrewForm(
+            request.POST, instance=crew, gang=gang, method=method, included=included
+        )
         if form.is_valid():
             crew = form.save(commit=False)
             handle_crew_recipe_save(
@@ -273,12 +342,15 @@ def crew_edit(request, battle_id, crew_id):
                 chosen_fighters=form.cleaned_data.get("chosen_fighters"),
                 random_spec=form.cleaned_data.get("random_spec", ""),
                 equipment_sets=form.cleaned_data.get("equipment_sets"),
+                included_categories=included,
             )
             messages.success(request, "Crew updated.")
             return _redirect_crew(crew)
     else:
-        form = CrewForm(instance=crew, gang=crew.list, method=method)
+        form = CrewForm(instance=crew, gang=crew.list, method=method, included=included)
 
+    base_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
+    method_extra = {"include": _include_csv(included)}
     return render(
         request,
         "core/crew/crew_form.html",
@@ -288,9 +360,16 @@ def crew_edit(request, battle_id, crew_id):
             "gang": crew.list,
             "crew": crew,
             "method": method,
+            "included_csv": _include_csv(included),
             "method_picker": _method_picker(
-                base_url=reverse("core:crew-edit", args=[crew.battle_id, crew.id]),
+                base_url=base_url,
                 current=method,
+                extra=method_extra,
+            ),
+            "include_picker": _include_picker(
+                base_url=base_url,
+                included=included,
+                extra={"method": method},
             ),
         },
     )
@@ -328,7 +407,11 @@ def crew_loadouts(request, battle_id, crew_id):
         )
         return _redirect_crew(crew)
 
-    fighters = list(eligible_crew_fighters_for_loadouts(crew.list))
+    fighters = list(
+        eligible_crew_fighters_for_loadouts(
+            crew.list, included=crew.included_categories
+        )
+    )
 
     if request.method == "POST":
         form = CrewLoadoutsForm(request.POST, crew=crew, fighters=fighters)

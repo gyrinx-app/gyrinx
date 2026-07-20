@@ -4,6 +4,8 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 
+from gyrinx.core.forms import BsCheckboxSelectMultiple
+from gyrinx.core.handlers.crew import TOGGLEABLE_CREW_CATEGORIES
 from gyrinx.core.models.campaign import (
     Campaign,
     CampaignAction,
@@ -133,6 +135,21 @@ class CampaignActionOutcomeForm(forms.ModelForm):
 
 
 class EditCampaignForm(forms.ModelForm):
+    default_included_crew_categories = forms.MultipleChoiceField(
+        required=False,
+        choices=[
+            (cat, label.capitalize())
+            for cat, _slug, label in TOGGLEABLE_CREW_CATEGORIES
+        ],
+        widget=BsCheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        label="Crew types allowed by default",
+        help_text=(
+            "Hangers-on and vehicle crew are hidden when picking a crew. Tick any "
+            "that should start on for this campaign's crews — e.g. Vehicle crew "
+            "for an Ash Wastes campaign. Players can still change it per crew."
+        ),
+    )
+
     class Meta:
         model = Campaign
         fields = [
@@ -143,6 +160,7 @@ class EditCampaignForm(forms.ModelForm):
             "budget",
             "phase",
             "phase_notes",
+            "default_included_crew_categories",
         ]
         labels = {
             "name": "Name",

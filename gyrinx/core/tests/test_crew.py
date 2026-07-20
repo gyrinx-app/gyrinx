@@ -579,6 +579,467 @@ def test_whole_gang_forecast_includes_beasts(
     assert len(beast_rows) == 1
 
 
+# --- Category eligibility (hangers-on, vehicle crew) ------------------------
+#
+# Hangers-on don't normally take part in a battle and vehicle crew are an
+# Ash-Wastes thing, so both are excluded from selection by default. A crew opts
+# a category back in per-crew (the player's choice). Brutes are NOT special —
+# they field like any other fighter. The check is on the effective category, so
+# a promotion's category_override wins.
+
+
+def _fighter_of_category(
+    crew_setup, make_content_fighter, make_list_fighter, category, name, base_cost=50
+):
+    """A standalone gang fighter of a given category."""
+    cf = make_content_fighter(
+        type=name,
+        category=category,
+        house=crew_setup["fighters"][0].content_fighter.house,
+        base_cost=base_cost,
+    )
+    return make_list_fighter(crew_setup["gang"], name, content_fighter=cf)
+
+
+def _give_vehicle(
+    crew_setup,
+    owner,
+    make_content_fighter,
+    make_equipment,
+    make_list_fighter,
+    name="Rig",
+):
+    """Give ``owner`` (a Crew fighter) a linked VEHICLE child."""
+    vtype = make_content_fighter(
+        type=name,
+        category=FighterCategoryChoices.VEHICLE,
+        house=owner.content_fighter.house,
+        base_cost=0,
+    )
+    vehicle = make_list_fighter(crew_setup["gang"], name, content_fighter=vtype)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=owner,
+        content_equipment=make_equipment(name=f"{name} (vehicle)", cost=200),
+        child_fighter=vehicle,
+    )
+    return vehicle
+
+
+@pytest.mark.django_db
+def test_eligible_crew_fighters_excludes_hangers_on_and_crew_by_default(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    brute = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.BRUTE,
+        "Ogryn",
+    )
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert hanger not in eligible
+    assert driver not in eligible
+    assert brute in eligible  # brutes field like anyone else
+    assert crew_setup["fighters"][0] in eligible  # a normal ganger
+
+
+@pytest.mark.django_db
+def test_eligible_crew_fighters_opt_in_by_category(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    gang = crew_setup["gang"]
+
+    only_hangers = set(eligible_crew_fighters(gang, included=["HANGER_ON"]))
+    assert hanger in only_hangers
+    assert driver not in only_hangers  # opted hangers-on in, not crew
+
+    both = set(eligible_crew_fighters(gang, included=["HANGER_ON", "CREW"]))
+    assert hanger in both
+    assert driver in both
+
+
+@pytest.mark.django_db
+def test_eligible_crew_fighters_uses_effective_category(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """The check is on the effective category. A valid category_override wins
+    over the content fighter's category; an empty override counts as none."""
+    # A content-Hanger-on relabelled to Ganger (a valid override) fields
+    # normally — the override wins.
+    promoted = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Promoted",
+    )
+    promoted.category_override = FighterCategoryChoices.GANGER
+    promoted.save()
+    # An empty override is "no override", so the content category (hanger-on)
+    # still excludes it.
+    empty = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Empty Override",
+    )
+    empty.category_override = ""
+    empty.save()
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert promoted in eligible
+    assert empty not in eligible
+
+
+@pytest.mark.django_db
+def test_whole_gang_lock_excludes_hangers_on(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A whole-gang crew enrols the fieldable roster; a hanger-on stays out and
+    isn't counted."""
+    _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert result.chosen_count == 5  # the five gangers, not the hanger-on
+    categories = {m.list_fighter.content_fighter.category for m in crew.members.all()}
+    assert FighterCategoryChoices.HANGER_ON not in categories
+
+
+@pytest.mark.django_db
+def test_whole_gang_lock_includes_opted_in_hangers_on(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A whole-gang crew that opts hangers-on in sweeps them up too."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        included_categories=["HANGER_ON"],
+    )
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert result.chosen_count == 6  # five gangers + the hanger-on
+    assert crew.members.filter(list_fighter=hanger).exists()
+
+
+@pytest.mark.django_db
+def test_included_crew_category_brings_in_the_vehicle_child(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """Ash-Wastes payoff: opt CREW in, pick the crew fighter, and its vehicle
+    (a child) deploys with it via the linked-member enrolment."""
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    vehicle = _give_vehicle(
+        crew_setup, driver, make_content_fighter, make_equipment, make_list_fighter
+    )
+
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+        included_categories=["CREW"],
+    )
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        chosen_fighters=[driver],
+    )
+
+    assert crew.members.filter(source=CrewMember.CHOSEN, list_fighter=driver).exists()
+    assert crew.members.filter(source=CrewMember.LINKED, list_fighter=vehicle).exists()
+
+
+# --- Category-include toggles (selection UI) --------------------------------
+#
+# The selection form hides hangers-on and vehicle crew by default; a URL-driven
+# toggle (like the ?method= picker) opts a category back in for this crew, and
+# the choice persists to Crew.included_categories.
+
+
+def test_include_picker_toggles_categories():
+    from gyrinx.core.views.crew import _include_picker
+
+    entries = _include_picker(
+        base_url="/x", included=["HANGER_ON"], extra={"method": "custom"}
+    )
+    by_value = {e["value"]: e for e in entries}
+    assert by_value["HANGER_ON"]["is_on"] is True
+    assert by_value["CREW"]["is_on"] is False
+    # Turning the on one off leaves nothing → an explicit *empty* include (not
+    # an absent one, which on edit would fall back to the stored opt-ins).
+    assert by_value["HANGER_ON"]["url"].endswith("include=")
+    # Turning the off one on adds it alongside — as slugs, not the enum values.
+    assert "include=hangers-on%2Ccrew" in by_value["CREW"]["url"]
+
+
+def test_resolve_included_maps_slugs_and_normalises(rf):
+    """The ?include= querystring uses slugs; resolving maps them to the canonical
+    category values in display order, deduped, dropping anything unknown."""
+    from gyrinx.core.views.crew import _resolve_included
+
+    req = rf.get("/x", {"include": "crew,hangers-on,crew,bogus"})
+    assert _resolve_included(req) == ["HANGER_ON", "CREW"]
+    # Absent → the given default (e.g. a crew's stored opt-ins on edit).
+    assert _resolve_included(rf.get("/x"), default=["CREW"]) == ["CREW"]
+    # Explicit empty → empty, not the default.
+    assert _resolve_included(rf.get("/x", {"include": ""}), default=["CREW"]) == []
+
+
+@pytest.mark.django_db
+def test_crew_form_offers_hangers_on_only_when_toggled(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    client.force_login(crew_setup["user"])
+    url = reverse("core:crew-new", args=[crew_setup["battle"].id])
+    params = {"list": str(crew_setup["gang"].id), "method": Crew.CUSTOM}
+
+    off = client.get(url, params)
+    assert hanger.id not in {f.id for f in off.context["form"].eligible_fighters}
+
+    on = client.get(url, {**params, "include": "hangers-on"})
+    assert hanger.id in {f.id for f in on.context["form"].eligible_fighters}
+    assert 'aria-pressed="true"' in on.content.decode()  # the toggle reads "on"
+
+
+@pytest.mark.django_db
+def test_creating_a_crew_persists_included_categories(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "include": "hangers-on",
+            "custom_count": "1",
+            "chosen_fighters": [str(hanger.id)],
+        },
+    )
+    assert resp.status_code == 302
+
+    crew = Crew.objects.get(battle=crew_setup["battle"], list=crew_setup["gang"])
+    assert crew.included_categories == ["HANGER_ON"]
+    assert crew.members.filter(list_fighter=hanger).exists()
+
+
+@pytest.mark.django_db
+def test_editing_a_crew_keeps_its_included_categories(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """Opening the edit form with no ?include= keeps the crew's stored opt-ins,
+    so the toggled-in fighters stay offered."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+        included_categories=["HANGER_ON"],
+    )
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:crew-edit", args=[crew.battle_id, crew.id]))
+
+    form = resp.context["form"]
+    assert form.included_categories == ["HANGER_ON"]
+    assert hanger.id in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_editing_a_crew_can_clear_included_categories(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """Toggling the last category off is an explicit empty ``?include=``, which
+    clears the crew's opt-ins rather than falling back to the stored value."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+        included_categories=["HANGER_ON"],
+    )
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(
+        reverse("core:crew-edit", args=[crew.battle_id, crew.id]), {"include": ""}
+    )
+
+    form = resp.context["form"]
+    assert form.included_categories == []  # not the stored ["HANGER_ON"]
+    assert hanger.id not in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_campaign_default_seeds_the_crew_toggles(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """A new crew's toggles start from the campaign default (e.g. an Ash-Wastes
+    campaign opting vehicle crew in for everyone)."""
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    crew_setup["campaign"].default_included_crew_categories = ["CREW"]
+    crew_setup["campaign"].save()
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {"list": str(crew_setup["gang"].id), "method": Crew.CUSTOM},
+    )
+
+    form = resp.context["form"]
+    assert form.included_categories == ["CREW"]  # seeded from the campaign
+    assert driver.id in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_crew_toggle_overrides_the_campaign_default(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """The per-crew toggle wins: an explicit ?include= overrides the campaign
+    default rather than being merged with it."""
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew_setup["campaign"].default_included_crew_categories = ["CREW"]
+    crew_setup["campaign"].save()
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "include": "hangers-on",
+        },
+    )
+
+    form = resp.context["form"]
+    assert form.included_categories == ["HANGER_ON"]  # the toggle, not the default
+    assert hanger.id in {f.id for f in form.eligible_fighters}
+    assert driver.id not in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_edit_campaign_form_saves_default_crew_categories(campaign, user):
+    """The campaign settings form persists the default opt-in categories."""
+    from gyrinx.core.forms.campaign import EditCampaignForm
+
+    form = EditCampaignForm(
+        {
+            "name": campaign.name,
+            "budget": str(campaign.budget),
+            "default_included_crew_categories": ["CREW"],
+        },
+        instance=campaign,
+    )
+    assert form.is_valid(), form.errors
+    form.save(user=user)
+
+    campaign.refresh_from_db()
+    assert campaign.default_included_crew_categories == ["CREW"]
+
+
 # --- Lock / draw handler ----------------------------------------------------
 
 

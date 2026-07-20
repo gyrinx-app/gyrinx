@@ -70,6 +70,16 @@ class Campaign(AppBase):
         default=1500,
         help_text="Starting budget for each gang in credits.",
     )
+    default_included_crew_categories = models.JSONField(
+        default=pylist,
+        blank=True,
+        help_text=(
+            "Fighter categories that start opted in when picking a crew in this "
+            "campaign — hangers-on and vehicle crew, which are hidden by default. "
+            "Players can still change it per crew. A list of FighterCategoryChoices "
+            'values (e.g. ["CREW"] for an Ash-Wastes campaign).'
+        ),
+    )
     phase = models.CharField(
         max_length=100,
         blank=True,

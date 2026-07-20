@@ -31,10 +31,29 @@
             </div>
             <div class="form-text">{{ form.method_intro }}</div>
         </div>
+        <div>
+            <div class="form-label mb-1">Include normally-excluded types</div>
+            <div class="d-flex flex-wrap gap-2"
+                 role="group"
+                 aria-label="Include categories">
+                {% for t in include_picker %}
+                    <a href="{{ t.url }}"
+                       role="button"
+                       class="btn btn-sm {% if t.is_on %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                       aria-pressed="{% if t.is_on %}true{% else %}false{% endif %}">
+                        {% if t.is_on %}<i class="bi-check-lg me-1" aria-hidden="true"></i>{% endif %}{{ t.label|capfirst }}
+                    </a>
+                {% endfor %}
+            </div>
+            <div class="form-text">
+                Hangers-on and vehicle crew aren't offered by default — turn them on to pick them for this crew.
+            </div>
+        </div>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {% if is_create %}<input type="hidden" name="list" value="{{ gang.id }}">{% endif %}
             <input type="hidden" name="method" value="{{ method }}">
+            <input type="hidden" name="include" value="{{ included_csv }}">
             {{ form.non_field_errors }}
             <div>
                 <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
