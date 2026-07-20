@@ -189,10 +189,10 @@
                                         {% endif %}
                                     {% elif underdog.state == "gap" %}
                                         {% with u=underdog.behind.0 %}
-                                            <strong>{{ u.name }} has the lower {{ underdog.lower_thing }}</strong> — {{ u.gap }}¢ below {{ underdog.top_possessive }}. That's {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}. Underdog status, and any allowance, starts at a 400¢ gap.
+                                            <strong>{{ u.name }} has the lower {{ underdog.lower_thing }}</strong> — {{ u.gap }}¢ below {{ underdog.top_possessive }}. That's {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}.
                                         {% endwith %}
                                     {% elif underdog.state == "within" %}
-                                        These {{ underdog.within_plural }} are within 100¢ of each other, so neither side gets extra gang tactics.
+                                        These {{ underdog.within_plural }} are within 100¢ of each other.
                                     {% endif %}
                                     {% if underdog.on_gang_basis %}
                                         <div class="text-secondary mt-1">Not enough crews to compare, so this uses gang ratings.</div>

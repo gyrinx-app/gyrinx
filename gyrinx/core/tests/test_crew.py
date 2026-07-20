@@ -2681,15 +2681,16 @@ def test_battle_spread_gap_under_400_states_tactics_not_underdog(
     assert "Riot Gang has the lower crew rating" in content
     assert "200¢ below Iron Skulls" in content
     assert "2 extra gang tactics" in content
-    assert "starts at a 400¢ gap" in content
+    # The 400¢-threshold explainer was dropped — players already know it.
+    assert "starts at a 400¢ gap" not in content
     assert "is the underdog" not in content
 
 
 @pytest.mark.django_db
-def test_battle_spread_within_100_says_neither_side_gets_tactics(
+def test_battle_spread_within_100_just_says_within_100(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """Crews within 100¢ of each other: nobody gets extra tactics."""
+    """Crews within 100¢ of each other: state the fact, nothing about tactics."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 2
@@ -2704,7 +2705,7 @@ def test_battle_spread_within_100_says_neither_side_gets_tactics(
     content = _battle_response(client, crew_setup).content.decode()
 
     assert "These crews are within 100¢ of each other" in content
-    assert "neither side gets extra gang tactics" in content
+    assert "extra gang tactics" not in content
     assert "is the underdog" not in content
     assert "has the lower" not in content
 
