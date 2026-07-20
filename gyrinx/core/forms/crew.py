@@ -260,19 +260,30 @@ class CrewForm(forms.ModelForm):
                 self.fields["random_number"].initial = number
 
     def fighter_rows(self):
-        """One row per eligible fighter for the template: the checkbox, and the
+        """One row per eligible fighter for the template: the checkbox, the
         equipment-set select for fighters that have named sets (``None``
-        otherwise). Pairing the two here keeps the template free of dynamic
-        field-name lookups."""
+        otherwise), and the fighter's current cost. Pairing these here keeps the
+        template free of dynamic field-name lookups.
+
+        ``cost`` is the same ``cost_int_cached`` shown in the checkbox label,
+        read from the fighters already loaded via ``with_related_data()`` — no
+        query per fighter — and surfaced as a data attribute so a small progressive
+        enhancement can total the ticked fighters. It is the fighter's whole-kit
+        cost, not scoped to the equipment set they bring; the label shows the same
+        number, so the running total matches what the player reads off each row.
+        """
         if not self.shows_picks:
             return []
+        cost_by_id = {str(f.pk): f.cost_int_cached for f in self.eligible_fighters}
         rows = []
         for checkbox in self["chosen_fighters"]:
-            name = equipment_set_field_name(checkbox.data["value"])
+            value = checkbox.data["value"]
+            name = equipment_set_field_name(value)
             rows.append(
                 {
                     "checkbox": checkbox,
                     "set_field": self[name] if name in self.fields else None,
+                    "cost": cost_by_id.get(str(value), 0),
                 }
             )
         return rows

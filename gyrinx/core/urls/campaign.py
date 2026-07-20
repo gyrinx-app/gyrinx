@@ -331,9 +331,9 @@ patterns = [
         name="crew-lock",
     ),
     path(
-        "battle/<battle_id>/crew/<uuid:crew_id>/delete",
-        crew_views.crew_delete,
-        name="crew-delete",
+        "battle/<battle_id>/crew/<uuid:crew_id>/archive",
+        crew_views.crew_archive,
+        name="crew-archive",
     ),
     path(
         "battle/<battle_id>/crew/<uuid:crew_id>/extra/new",

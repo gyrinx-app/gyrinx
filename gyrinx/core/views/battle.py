@@ -112,8 +112,14 @@ class BattleDetailView(generic.DetailView):
         """Build the participants table: gangs grouped by role, each carrying its
         rating and its crew inlined as a sub-row (or an 'add crew' affordance).
         """
-        # One crew summary per gang that has one, keyed by gang id.
-        crews = list(battle.crews.select_related("list").prefetch_related("members"))
+        # One crew summary per gang that has a live one, keyed by gang id.
+        # Archived crews are withdrawn records — excluded here so the gang shows
+        # the "add crew" affordance again rather than a stale crew sub-row.
+        crews = list(
+            battle.crews.filter(archived=False)
+            .select_related("list")
+            .prefetch_related("members")
+        )
         crew_by_gang = {}
         for crew in crews:
             # Only the rating and pending-roll flag are needed here, so skip the

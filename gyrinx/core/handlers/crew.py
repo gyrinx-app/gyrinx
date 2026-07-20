@@ -24,6 +24,7 @@ from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.crew import Crew, CrewMember, roll_selection_spec
@@ -212,6 +213,50 @@ def handle_crew_recipe_save(
     return crew
 
 
+@traced("handle_crew_archive")
+@transaction.atomic
+def handle_crew_archive(*, user, crew: Crew) -> CampaignAction:
+    """Archive a crew and log it.
+
+    Archiving withdraws the crew from the battle — it drops out of the
+    participants table, the crew print filter, and the played-rating snapshot at
+    battle end — but is kept as a record (its detail page still renders). Like
+    everything else here it never touches the gang's canonical cost, credits, or
+    audit stream; the one thing written beyond the crew is a battle-linked
+    CampaignAction so the campaign log shows the withdrawal happened.
+
+    Only the crew row is archived, not its members or extras: the (battle, list)
+    unique constraint is conditional on ``archived=False``, so archiving the crew
+    is all it takes to free the gang for a fresh crew on the same battle.
+    """
+    # Lock the crew row so two concurrent archive POSTs serialise: the loser
+    # sees archived=True and raises instead of logging a duplicate withdrawal.
+    # Same pattern as handle_crew_lock / handle_battle_end.
+    crew = (
+        Crew.objects.select_for_update()
+        .select_related("battle", "list")
+        .get(pk=crew.pk)
+    )
+    if crew.archived:
+        raise ValidationError("This crew has already been archived.")
+    gang = crew.list
+    crew.archived = True
+    crew.archived_at = timezone.now()
+    crew.save_with_user(user=user)
+
+    # Battle.campaign is a non-nullable FK, so there is always a campaign to log.
+    # A neutral headline with no outcome, matching handle_crew_lock: there is
+    # nothing for the description to contradict.
+    return CampaignAction.objects.create(
+        user=user,
+        owner=user,
+        campaign=crew.battle.campaign,
+        list=gang,
+        battle=crew.battle,
+        description=f"Crew archived for {gang.name}",
+    )
+
+
 @traced("snapshot_crew_rating")
 def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
     """Freeze the crew's live rating, and each member's share of it, into
@@ -238,11 +283,12 @@ def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
 def snapshot_played_crew_ratings(*, user, battle) -> int:
     """Freeze what each of ``battle``'s crews fielded, at the moment it ended.
 
-    Only locked crews are snapshotted: a crew that was never confirmed didn't
-    field anything, so there is no fact to freeze and inventing one would claim
-    a battle it never fought. Returns how many crews were frozen.
+    Only locked, non-archived crews are snapshotted: a crew that was never
+    confirmed didn't field anything, and an archived crew was withdrawn before
+    the battle, so neither has a fact to freeze and inventing one would claim a
+    battle it never fought. Returns how many crews were frozen.
     """
-    crews = list(battle.crews.prefetch_related("members"))
+    crews = list(battle.crews.filter(archived=False).prefetch_related("members"))
     frozen = 0
     for crew in crews:
         if not crew.is_locked:

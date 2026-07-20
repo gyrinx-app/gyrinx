@@ -578,9 +578,11 @@ class ListPrintView(generic.DetailView):
             else:
                 from gyrinx.core.models.crew import Crew
 
+                # An archived crew was withdrawn from the battle, so it no longer
+                # narrows a print — fall back to the whole gang.
                 print_crew = (
                     Crew.objects.select_related("battle")
-                    .filter(id=crew_id, list=list_obj)
+                    .filter(id=crew_id, list=list_obj, archived=False)
                     .first()
                 )
         context["print_crew"] = print_crew

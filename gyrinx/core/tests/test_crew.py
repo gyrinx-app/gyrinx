@@ -24,6 +24,7 @@ from gyrinx.core.handlers.crew import (
     crew_whole_gang_projection,
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
+    handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
 )
@@ -749,14 +750,126 @@ def test_crew_lock_view(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_crew_delete_view(client, crew_setup):
+def test_crew_archive_view(client, crew_setup):
+    """Archiving keeps the crew (it's the record), flags it archived, redirects
+    to the battle, and logs a battle-linked CampaignAction."""
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
 
-    resp = client.post(reverse("core:crew-delete", args=[battle.id, crew.id]))
+    resp = client.post(reverse("core:crew-archive", args=[battle.id, crew.id]))
     assert resp.status_code == 302
-    assert not Crew.objects.filter(id=crew.id).exists()
+    assert resp.url == reverse("core:battle", args=[battle.id])
+
+    crew.refresh_from_db()
+    assert crew.archived is True
+    assert crew.archived_at is not None
+
+    action = CampaignAction.objects.get(battle=battle, list=gang)
+    assert action.campaign_id == battle.campaign_id
+    assert "archived" in action.description.lower()
+
+
+@pytest.mark.django_db
+def test_archived_crew_frees_the_gang_for_a_new_crew(crew_setup):
+    """The unique constraint is conditional on archived=False: an archived crew
+    must not block a fresh crew for the same gang and battle."""
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+
+    first = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=first)
+
+    # Creating again for the same (battle, list) must succeed, not trip the
+    # unique constraint.
+    second = Crew.objects.create(battle=battle, list=gang, owner=user)
+    assert second.pk != first.pk
+    assert Crew.objects.filter(battle=battle, list=gang, archived=False).count() == 1
+
+
+@pytest.mark.django_db
+def test_archived_crew_hidden_from_battle_page(client, crew_setup):
+    """An archived crew drops off the battle page: the gang shows the add-crew
+    affordance again rather than a stale crew sub-row."""
+    client.force_login(crew_setup["user"])
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=crew)
+
+    content = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    # The add-crew affordance carries ?list=<gang>; it's back because the gang
+    # has no live crew.
+    assert f"?list={gang.id}" in content
+
+
+@pytest.mark.django_db
+def test_archived_crew_page_renders_with_note_and_no_actions(client, crew_setup):
+    """The archived crew's detail page still renders (it's the record), shows an
+    'archived' note, and offers no manage actions."""
+    client.force_login(crew_setup["user"])
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=crew)
+
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    assert resp.context["can_manage"] is False
+    assert "This crew is archived" in content
+    # No manage affordances: no archive/edit/lock links.
+    assert reverse("core:crew-archive", args=[battle.id, crew.id]) not in content
+    assert reverse("core:crew-edit", args=[battle.id, crew.id]) not in content
+
+
+@pytest.mark.django_db
+def test_archived_crew_cannot_be_archived_again(client, crew_setup):
+    """can_manage is False for an archived crew, so a repeat archive is refused
+    rather than writing a second log line."""
+    client.force_login(crew_setup["user"])
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+    handle_crew_archive(user=user, crew=crew)
+    before = CampaignAction.objects.filter(battle=battle).count()
+
+    resp = client.post(reverse("core:crew-archive", args=[battle.id, crew.id]))
+    assert resp.status_code == 302
+    assert CampaignAction.objects.filter(battle=battle).count() == before
+
+
+@pytest.mark.django_db
+def test_non_manager_cannot_archive_crew(client, crew_setup, make_user):
+    """A user who is neither the gang owner nor the battle's arbitrator can't
+    archive the crew."""
+    battle, gang, user = crew_setup["battle"], crew_setup["gang"], crew_setup["user"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=user)
+
+    stranger = make_user("stranger", "password")
+    client.force_login(stranger)
+    resp = client.post(reverse("core:crew-archive", args=[battle.id, crew.id]))
+    assert resp.status_code == 302
+
+    crew.refresh_from_db()
+    assert crew.archived is False
+
+
+@pytest.mark.django_db
+def test_archived_crew_gets_no_played_rating_snapshot(crew_setup):
+    """A crew archived (withdrawn) before the battle ends must not get a played
+    snapshot — it fielded nothing."""
+    user = crew_setup["user"]
+    crew = _lock_one_fighter_crew(crew_setup)
+    handle_crew_archive(user=user, crew=crew)
+
+    _end_battle(crew_setup)
+
+    crew.refresh_from_db()
+    assert crew.rating_played is None
+
+
+@pytest.mark.django_db
+def test_crew_delete_url_is_gone():
+    """The delete route has been replaced by archive."""
+    with pytest.raises(NoReverseMatch):
+        reverse("core:crew-delete", args=[uuid4(), uuid4()])
 
 
 def test_post_lock_loadout_editing_is_gone():
@@ -1376,6 +1489,43 @@ def test_selection_form_issues_no_per_fighter_set_query(
             list_fighter=fighter, name=f"Kit {i}", owner=fighter.owner
         )
     assert render_query_count() == one_fighter_with_sets
+
+
+@pytest.mark.django_db
+def test_fighter_rows_carry_each_fighter_cost(crew_setup):
+    """Each fighter row exposes its ``cost_int_cached`` so the running-total
+    enhancement can sum the ticked fighters without a round-trip."""
+    form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
+    rows = form.fighter_rows()
+
+    assert len(rows) == len(crew_setup["fighters"])
+    # crew_setup fighters are base-cost 100 with no equipment.
+    assert all(row["cost"] == 100 for row in rows)
+
+
+@pytest.mark.django_db
+def test_crew_form_renders_cost_data_and_hidden_running_total(client, crew_setup):
+    """The per-fighter cost is a server-rendered data attribute and the running
+    total starts hidden — nothing shows a stale "0 fighters" without JS."""
+    client.force_login(crew_setup["user"])
+    content = client.get(_crew_new_url(crew_setup, Crew.CUSTOM)).content.decode()
+
+    assert 'data-cost="100"' in content
+    assert "js-crew-fighter-row" in content
+    # Hidden until the enhancement reveals it.
+    assert "js-crew-total" in content
+    assert "d-none" in content
+
+
+@pytest.mark.django_db
+def test_random_form_has_no_running_total(client, crew_setup):
+    """Random Selection has no fighter checkboxes, so there is nothing to total
+    and no total element is emitted."""
+    client.force_login(crew_setup["user"])
+    content = client.get(_crew_new_url(crew_setup, Crew.RANDOM)).content.decode()
+
+    assert "js-crew-total" not in content
+    assert "js-crew-fighter-row" not in content
 
 
 @pytest.mark.django_db
@@ -2280,3 +2430,59 @@ def test_battle_page_forecasts_a_whole_gang_draft(client, crew_setup):
     assert summary["rating"] == crew_whole_gang_projection(crew)["total"]
     assert summary["rating"] > 0
     assert "provisional" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_no_template_comment_leaks_into_crew_pages(client, crew_setup):
+    """Django's ``{# #}`` comment is single-line only: spread it over multiple
+    lines and it renders as visible page text. That has now happened twice on
+    crew templates, so pin it for the pages a player actually sees."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+
+    urls = [
+        reverse("core:battle", args=[battle.id]),
+        reverse("core:crew", args=[battle.id, crew.id]),
+        reverse("core:crew-new", args=[battle.id]) + f"?list={gang.id}",
+    ]
+    for url in urls:
+        content = client.get(url).content.decode()
+        assert "{#" not in content, url
+        assert "#}" not in content, url
+
+
+@pytest.mark.django_db
+def test_double_archive_raises_and_logs_once(crew_setup):
+    """The handler owns the guard: the loser of a concurrent double-archive
+    raises rather than writing a second withdrawal to the campaign log."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+
+    handle_crew_archive(user=crew_setup["user"], crew=crew)
+    with pytest.raises(ValidationError, match="already been archived"):
+        handle_crew_archive(user=crew_setup["user"], crew=crew)
+
+    assert (
+        CampaignAction.objects.filter(
+            battle=battle, description__startswith="Crew archived"
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_archive_page_says_already_archived(client, crew_setup):
+    """An archived crew's archive URL explains itself rather than claiming the
+    owner lacks permission (can_manage is False once archived)."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    client.force_login(crew_setup["user"])
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    handle_crew_archive(user=crew_setup["user"], crew=crew)
+
+    resp = client.get(
+        reverse("core:crew-archive", args=[battle.id, crew.id]), follow=True
+    )
+    content = resp.content.decode()
+    assert "already been archived" in content
+    assert "permission" not in content
