@@ -2767,6 +2767,29 @@ def test_crew_spread_rating_whole_gang_draft_is_a_forecast(crew_setup):
 
 
 @pytest.mark.django_db
+def test_whole_gang_emptiness_check_reads_the_members_prefetch_cache(crew_setup):
+    """The whole-gang draft's ``not crew.members.exists()`` check must read a
+    caller's ``prefetch_related("members")`` cache, not the DB — otherwise the
+    battle page, which prefetches members for every crew, would pay a query per
+    crew. (Django's related-manager ``.exists()`` uses the prefetched cache.)"""
+    Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,  # whole-gang draft, no members
+    )
+    crew = (
+        Crew.objects.filter(battle=crew_setup["battle"])
+        .prefetch_related("members")
+        .get()
+    )
+    with CaptureQueriesContext(connection) as ctx:
+        empty = not crew.members.exists()
+    assert empty is True
+    assert len(ctx) == 0
+
+
+@pytest.mark.django_db
 def test_crew_spread_rating_locked_unplayed_is_live(crew_setup):
     """A locked crew that hasn't fought reports its live rating — what the gang
     would field now — and is not provisional."""
