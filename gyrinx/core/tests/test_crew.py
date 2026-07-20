@@ -21,6 +21,7 @@ from uuid import uuid4
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
 from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import (
+    always_included_crew_fighters,
     crew_battle_spread,
     crew_spread_rating,
     crew_whole_gang_projection,
@@ -804,6 +805,121 @@ def test_included_crew_category_brings_in_the_vehicle_child(
 
     assert crew.members.filter(source=CrewMember.CHOSEN, list_fighter=driver).exists()
     assert crew.members.filter(source=CrewMember.LINKED, list_fighter=vehicle).exists()
+
+
+# --- Always-included fighters (hired guns, bounty hunters, …) ----------------
+#
+# "You Get What You Pay For": hired guns aren't counted during the choose step —
+# they join the crew regardless of the selection method. So they're kept out of
+# the pick/draw pool and auto-enrolled on top as INCLUDED members.
+
+
+@pytest.mark.django_db
+def test_hired_guns_are_excluded_from_the_pool_but_flagged_always_included(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    bounty = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.BOUNTY_HUNTER,
+        "Kal Jerico",
+    )
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    always = set(always_included_crew_fighters(crew_setup["gang"]))
+    # Never in the pick/draw pool...
+    assert hired not in eligible
+    assert bounty not in eligible
+    assert crew_setup["fighters"][0] in eligible  # a normal ganger still is
+    # ...but they are the always-included set.
+    assert always == {hired, bounty}
+
+
+@pytest.mark.django_db
+def test_locking_enrols_always_included_fighters(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A hired gun joins the crew regardless of the pick, and doesn't count as a
+    chosen fighter."""
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert crew.members.filter(source=CrewMember.INCLUDED, list_fighter=hired).exists()
+    assert result.chosen_count == 1  # the ganger, not the hired gun
+
+
+@pytest.mark.django_db
+def test_random_draw_never_picks_a_hired_gun(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """The random pool excludes hired guns, so a draw can't land on one — but it
+    still joins the crew as always-included."""
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="6",  # more than the 5 gangers, to drain the pool
+    )
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
+
+    # The hired gun was never drawn (it's not in the pool)...
+    assert not crew.members.filter(source=CrewMember.DRAWN, list_fighter=hired).exists()
+    # ...but it is on the crew as always-included; only the 5 gangers were drawn.
+    assert crew.members.filter(source=CrewMember.INCLUDED, list_fighter=hired).exists()
+    assert crew.members.filter(source=CrewMember.DRAWN).count() == 5
+
+
+@pytest.mark.django_db
+def test_whole_gang_forecast_includes_hired_guns(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+        base_cost=120,
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    projection = crew_whole_gang_projection(crew)
+    # Five gangers plus the one hired gun.
+    assert len(projection["rows"]) == 6
+    assert any(r["rating"] == 120 for r in projection["rows"])
 
 
 # --- Category-include toggles (selection UI) --------------------------------

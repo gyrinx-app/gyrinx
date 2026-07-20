@@ -737,15 +737,21 @@ class CrewMember(AppBase):
     members are the vehicles and exotic beasts that ride in with their owner —
     never selected in their own right, enrolled by
     ``handlers.crew.sync_linked_crew_members`` whenever their owner is a member.
+    Included members are hired guns / bounty hunters / house agents / dramatis
+    personae / hive scum — they join the crew regardless of the selection method
+    ("You Get What You Pay For": not counted during the choose step, added on
+    top), enrolled by ``handlers.crew.sync_included_crew_members``.
     """
 
     CHOSEN = "chosen"
     DRAWN = "random"
     LINKED = "linked"
+    INCLUDED = "included"
     SOURCE_CHOICES = [
         (CHOSEN, "Chosen"),
         (DRAWN, "Drawn at random"),
         (LINKED, "Linked to owner"),
+        (INCLUDED, "Always included"),
     ]
 
     crew = models.ForeignKey(

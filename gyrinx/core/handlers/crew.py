@@ -52,6 +52,30 @@ TOGGLEABLE_CREW_CATEGORIES = [
     (FighterCategoryChoices.CREW.value, "crew", "vehicle crew"),
 ]
 
+# Hired guns and the like are "always included": the rulebook's "You Get What
+# You Pay For" says they aren't counted during the choose step of the pre-battle
+# sequence — instead they may be added to the crew regardless of the selection
+# method. So they never enter the pick/draw pool; they are auto-enrolled on top.
+ALWAYS_INCLUDED_CREW_CATEGORIES = frozenset(
+    {
+        FighterCategoryChoices.HIRED_GUN.value,
+        FighterCategoryChoices.BOUNTY_HUNTER.value,
+        FighterCategoryChoices.HOUSE_AGENT.value,
+        FighterCategoryChoices.HIVE_SCUM.value,
+        FighterCategoryChoices.DRAMATIS_PERSONAE.value,
+    }
+)
+
+
+def _effective_category_in(categories):
+    """Q filter matching fighters whose *effective* category is in ``categories``
+    — the ``category_override`` (a promotion) if set, else the content fighter's
+    own category. An empty-string override counts as no override."""
+    no_override = Q(category_override__isnull=True) | Q(category_override="")
+    return Q(category_override__in=categories) | (
+        no_override & Q(content_fighter__category__in=categories)
+    )
+
 
 def eligible_crew_fighters(lst, *, included=()):
     """Fighters in ``lst`` eligible to be picked or drawn for a crew.
@@ -71,26 +95,35 @@ def eligible_crew_fighters(lst, *, included=()):
     Hangers-on and vehicle crew are excluded too, unless their category is in
     ``included`` (a per-crew opt-in — the player's choice, e.g. an Ash-Wastes
     game where crew field, or a home-turf scenario that drags hangers-on in).
-    The check is on the fighter's *effective* category, so a promotion's
-    ``category_override`` wins over the content fighter's own category.
+    Hired guns and the like are always excluded from the *pool*: they join the
+    crew regardless of the selection method, so they are never picked or drawn —
+    :func:`sync_included_crew_members` enrols them on top. The check is on the
+    fighter's *effective* category, so a promotion's ``category_override`` wins.
     """
-    excluded = DEFAULT_EXCLUDED_CREW_CATEGORIES - set(included)
-    qs = ListFighter.objects.filter(
+    excluded = (
+        DEFAULT_EXCLUDED_CREW_CATEGORIES - set(included)
+    ) | ALWAYS_INCLUDED_CREW_CATEGORIES
+    return ListFighter.objects.filter(
         list=lst,
         archived=False,
         content_fighter__is_stash=False,
         injury_state=ListFighter.ACTIVE,
         source_assignment__isnull=True,
-    )
-    if excluded:
-        # "No override" is a NULL *or* empty ``category_override`` — this codebase
-        # uses both — in which case the content fighter's own category decides.
-        no_override = Q(category_override__isnull=True) | Q(category_override="")
-        qs = qs.exclude(
-            Q(category_override__in=excluded)
-            | (no_override & Q(content_fighter__category__in=excluded))
-        )
-    return qs
+    ).exclude(_effective_category_in(excluded))
+
+
+def always_included_crew_fighters(lst):
+    """The gang's fighters that join a crew regardless of the selection method —
+    hired guns, bounty hunters, house agents, hive scum, dramatis personae. Same
+    active / non-stash / non-archived / non-child filter as the eligible pool,
+    matched on the fighter's effective category."""
+    return ListFighter.objects.filter(
+        list=lst,
+        archived=False,
+        content_fighter__is_stash=False,
+        injury_state=ListFighter.ACTIVE,
+        source_assignment__isnull=True,
+    ).filter(_effective_category_in(ALWAYS_INCLUDED_CREW_CATEGORIES))
 
 
 def eligible_crew_fighters_for_loadouts(lst, *, included=()):
@@ -160,6 +193,22 @@ def crew_whole_gang_projection(crew: Crew):
                 "fighter_id": child.pk,
                 "name": child.name,
                 "category": child.content_fighter.get_category_display(),
+                "loadout": None,
+                "rating": rating,
+            }
+        )
+
+    # Always-included hired guns join every crew regardless of method, so they
+    # are part of the whole-gang forecast too (they aren't in the roster above —
+    # eligible_crew_fighters keeps them out of the pool).
+    for fighter in always_included_crew_fighters(crew.list).with_related_data():
+        rating = fighter.cost_int_for_equipment_set(None)
+        total += rating
+        rows.append(
+            {
+                "fighter_id": fighter.pk,
+                "name": fighter.name,
+                "category": fighter.content_fighter.get_category_display(),
                 "loadout": None,
                 "rating": rating,
             }
@@ -316,6 +365,37 @@ def sync_linked_crew_members(*, user, crew: Crew) -> None:
             crew=crew,
             list_fighter_id=child_id,
             source=CrewMember.LINKED,
+        )
+
+
+@traced("sync_included_crew_members")
+def sync_included_crew_members(*, user, crew: Crew) -> None:
+    """Enrol the gang's always-included fighters (hired guns, bounty hunters,
+    house agents, hive scum, dramatis personae) into the crew, and drop any no
+    longer eligible.
+
+    They join regardless of the selection method (rulebook "You Get What You Pay
+    For": not counted during the choose step, added on top), so they are never
+    in the pick/draw pool — they ride in here as ``INCLUDED`` members, which is
+    what makes them count towards the crew's rating, show on the sheet, and
+    print. Idempotent.
+    """
+    wanted = set(always_included_crew_fighters(crew.list).values_list("id", flat=True))
+    included = {
+        m.list_fighter_id: m for m in crew.members.filter(source=CrewMember.INCLUDED)
+    }
+    stale = [m.pk for fighter_id, m in included.items() if fighter_id not in wanted]
+    if stale:
+        crew.members.filter(pk__in=stale).delete_with_user(user=user)
+
+    present = set(crew.members.values_list("list_fighter_id", flat=True))
+    for fighter_id in wanted - present:
+        CrewMember.objects.create_with_user(
+            user=user,
+            owner_id=crew.list.owner_id,
+            crew=crew,
+            list_fighter_id=fighter_id,
+            source=CrewMember.INCLUDED,
         )
 
 
@@ -564,7 +644,8 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     stale = [
         m.pk
         for m in members
-        if m.source != CrewMember.LINKED and m.list_fighter_id not in eligible_ids
+        if m.source not in (CrewMember.LINKED, CrewMember.INCLUDED)
+        and m.list_fighter_id not in eligible_ids
     ]
     skipped_ineligible = len(stale)
     if stale:
@@ -597,9 +678,12 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                     equipment_set_id=equipment_set.pk if equipment_set else None,
                 )
 
-    # Linked vehicles/beasts aren't "chosen" — they ride in with their owner, so
-    # they don't count towards the selected-fighter tally in the campaign log.
-    chosen_count = crew.members.exclude(source=CrewMember.LINKED).count()
+    # Linked vehicles/beasts and always-included hired guns aren't "chosen" —
+    # they ride in regardless of the pick — so they don't count towards the
+    # selected-fighter tally in the campaign log.
+    chosen_count = crew.members.exclude(
+        source__in=[CrewMember.LINKED, CrewMember.INCLUDED]
+    ).count()
 
     random_count, roll_detail = (0, "")
     drawn = []
@@ -633,8 +717,10 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
                     f"{fighter.name} ({equipment_set.name if equipment_set else 'Default'})"
                 )
 
-    # Bring in each attending fighter's vehicles/exotic beasts before the
-    # snapshot, so what they contribute is frozen into the crew's rating too.
+    # Bring in the always-included hired guns and each attending fighter's
+    # vehicles/exotic beasts before the snapshot, so what they contribute is
+    # frozen into the crew's rating too.
+    sync_included_crew_members(user=user, crew=crew)
     sync_linked_crew_members(user=user, crew=crew)
 
     crew.status = Crew.LOCKED
