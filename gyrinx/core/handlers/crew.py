@@ -321,6 +321,7 @@ def handle_crew_recipe_save(
     chosen_fighters=None,
     random_spec: str = "",
     equipment_sets=None,
+    included_categories=None,
 ) -> Crew:
     """Save a crew's selection recipe under ``method``.
 
@@ -336,10 +337,17 @@ def handle_crew_recipe_save(
     they bring (``None`` = the Default card) — Custom Selection lets the player
     choose that, so it is part of the recipe. Drawn members are never touched
     here — only a draft crew is editable, and a draft has none.
+
+    ``included_categories`` records the normally-excluded categories (hangers-on
+    / vehicle crew) this crew opts in — persisted so the random draw, whole-gang
+    enrolment, and lock re-check at battle start all match what was offered.
+    ``None`` leaves it unchanged.
     """
     crew.selection_method = method
     crew.custom_count = custom_count if method in (Crew.CUSTOM, Crew.HYBRID) else None
     crew.random_spec = random_spec if method in (Crew.RANDOM, Crew.HYBRID) else ""
+    if included_categories is not None:
+        crew.included_categories = list(included_categories)
     crew.save_with_user(user=user)
 
     # Random Selection names nobody, so any previous picks go.

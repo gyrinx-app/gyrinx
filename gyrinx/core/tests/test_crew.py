@@ -803,6 +803,109 @@ def test_included_crew_category_brings_in_the_vehicle_child(
     assert crew.members.filter(source=CrewMember.LINKED, list_fighter=vehicle).exists()
 
 
+# --- Category-include toggles (selection UI) --------------------------------
+#
+# The selection form hides hangers-on and vehicle crew by default; a URL-driven
+# toggle (like the ?method= picker) opts a category back in for this crew, and
+# the choice persists to Crew.included_categories.
+
+
+def test_include_picker_toggles_categories():
+    from gyrinx.core.views.crew import _include_picker
+
+    entries = _include_picker(
+        base_url="/x", included=["HANGER_ON"], extra={"method": "custom"}
+    )
+    by_value = {e["value"]: e for e in entries}
+    assert by_value["HANGER_ON"]["is_on"] is True
+    assert by_value["CREW"]["is_on"] is False
+    # Turning the on one off leaves nothing → no include param.
+    assert "include=" not in by_value["HANGER_ON"]["url"]
+    # Turning the off one on adds it alongside the current one.
+    assert "include=HANGER_ON%2CCREW" in by_value["CREW"]["url"]
+
+
+@pytest.mark.django_db
+def test_crew_form_offers_hangers_on_only_when_toggled(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    client.force_login(crew_setup["user"])
+    url = reverse("core:crew-new", args=[crew_setup["battle"].id])
+    params = {"list": str(crew_setup["gang"].id), "method": Crew.CUSTOM}
+
+    off = client.get(url, params)
+    assert hanger.id not in {f.id for f in off.context["form"].eligible_fighters}
+
+    on = client.get(url, {**params, "include": "HANGER_ON"})
+    assert hanger.id in {f.id for f in on.context["form"].eligible_fighters}
+    assert 'aria-pressed="true"' in on.content.decode()  # the toggle reads "on"
+
+
+@pytest.mark.django_db
+def test_creating_a_crew_persists_included_categories(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "include": "HANGER_ON",
+            "custom_count": "1",
+            "chosen_fighters": [str(hanger.id)],
+        },
+    )
+    assert resp.status_code == 302
+
+    crew = Crew.objects.get(battle=crew_setup["battle"], list=crew_setup["gang"])
+    assert crew.included_categories == ["HANGER_ON"]
+    assert crew.members.filter(list_fighter=hanger).exists()
+
+
+@pytest.mark.django_db
+def test_editing_a_crew_keeps_its_included_categories(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """Opening the edit form with no ?include= keeps the crew's stored opt-ins,
+    so the toggled-in fighters stay offered."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+        included_categories=["HANGER_ON"],
+    )
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:crew-edit", args=[crew.battle_id, crew.id]))
+
+    form = resp.context["form"]
+    assert form.included_categories == ["HANGER_ON"]
+    assert hanger.id in {f.id for f in form.eligible_fighters}
+
+
 # --- Lock / draw handler ----------------------------------------------------
 
 

@@ -174,7 +174,7 @@ class CrewForm(forms.ModelForm):
         help_texts = {"name": "Optional — a label for this crew."}
         widgets = {"name": forms.TextInput(attrs={"class": "form-control"})}
 
-    def __init__(self, *args, gang=None, method=None, **kwargs):
+    def __init__(self, *args, gang=None, method=None, included=None, **kwargs):
         super().__init__(*args, **kwargs)
         # Gang comes from the view on create, or the instance on edit.
         self.gang = gang or getattr(self.instance, "list", None)
@@ -183,10 +183,12 @@ class CrewForm(forms.ModelForm):
         )
 
         # Categories this crew has opted into (hangers-on / vehicle crew, which
-        # are otherwise excluded). Empty until the selection UI lets a player add
-        # them; read off the instance so editing a crew keeps its opt-ins.
+        # are otherwise excluded). The view resolves them from the URL toggles;
+        # falling back to the instance keeps an edited crew's existing opt-ins.
         self.included_categories = (
-            getattr(self.instance, "included_categories", None) or []
+            list(included)
+            if included is not None
+            else (getattr(self.instance, "included_categories", None) or [])
         )
 
         # with_related_data() so the checkbox labels (category + cached cost)
