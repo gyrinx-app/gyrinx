@@ -75,8 +75,14 @@ def _underdog_block(
     elif pending_names:
         # The comparison the scenario would use isn't ready: a crew is still to
         # be drawn. Say so rather than comparing gang ratings behind the player's
-        # back — the crew rating is what will matter, and it's coming.
-        return {"state": "pending", "pending_name": pending_names[0]}
+        # back — the crew rating is what will matter, and it's coming. Name every
+        # gang still to draw, not just the first, so a 3+ gang battle is honest
+        # about how many crews are outstanding.
+        return {
+            "state": "pending",
+            "pending_names": pending_names,
+            "pending_names_joined": _join_names(pending_names),
+        }
     elif gang_spread is not None:
         # No two crews to compare (a gang fields none), so the best available
         # signal is the gang ratings.
@@ -153,6 +159,7 @@ def _underdog_block(
         "underdog_names_joined": _join_names([u["name"] for u in underdogs]),
         "behind": behind,
         "multi_underdog": len(underdogs) > 1,
+        "multi_behind": len(behind) > 1,
         "provisional": spread.is_provisional,
         "provisional_names": provisional_names,
         "provisional_names_joined": _join_names(provisional_names),

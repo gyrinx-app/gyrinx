@@ -170,7 +170,11 @@
                             {% if underdog %}
                                 <div class="border rounded p-2 fs-7 mt-2">
                                     {% if underdog.state == "pending" %}
-                                        Nothing to compare yet — {{ underdog.pending_name }} still has a draw to roll.
+                                        {% if underdog.pending_names|length == 1 %}
+                                            Nothing to compare yet — {{ underdog.pending_names_joined }} still has a draw to roll.
+                                        {% else %}
+                                            Nothing to compare yet — {{ underdog.pending_names_joined }} still have draws to roll.
+                                        {% endif %}
                                     {% elif underdog.state == "underdog" %}
                                         {% if underdog.multi_underdog %}
                                             <strong>{{ underdog.underdog_names_joined }} are the underdogs.</strong>
@@ -188,9 +192,19 @@
                                             {% endwith %}
                                         {% endif %}
                                     {% elif underdog.state == "gap" %}
-                                        {% with u=underdog.behind.0 %}
-                                            <strong>{{ u.name }} has the lower {{ underdog.lower_thing }}</strong> — {{ u.gap }}¢ below {{ underdog.top_possessive }}. That's {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}.
-                                        {% endwith %}
+                                        {% if underdog.multi_behind %}
+                                            <strong>{{ underdog.behind|length }} gangs have a lower {{ underdog.lower_thing }} than {{ underdog.top_possessive }}</strong>
+                                            {% for u in underdog.behind %}
+                                                <div>{{ u.name }} is {{ u.gap }}¢ below — {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}.</div>
+                                            {% endfor %}
+                                            <div class="text-secondary mt-1">
+                                                The rules cover two sides, so each gang is compared against the highest rating on the table.
+                                            </div>
+                                        {% else %}
+                                            {% with u=underdog.behind.0 %}
+                                                <strong>{{ u.name }} has the lower {{ underdog.lower_thing }}</strong> — {{ u.gap }}¢ below {{ underdog.top_possessive }}. That's {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}.
+                                            {% endwith %}
+                                        {% endif %}
                                     {% elif underdog.state == "within" %}
                                         These {{ underdog.within_plural }} are within 100¢ of each other.
                                     {% endif %}

@@ -3071,6 +3071,63 @@ def test_battle_spread_flags_a_still_drawing_crew_alongside_the_comparison(
 
 
 @pytest.mark.django_db
+def test_battle_spread_pending_names_every_undrawn_crew(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """When nothing can be compared yet and several crews are still to be drawn,
+    every one is named — not just the first."""
+    riot = crew_setup["gang"]
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
+    crew_setup["battle"].set_participants([riot, iron])
+    _pending_crew(crew_setup, riot)
+    _pending_crew(crew_setup, iron)
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+    content = resp.content.decode()
+
+    assert resp.context["underdog"]["state"] == "pending"
+    assert "still have draws to roll" in content  # plural
+    assert "Riot Gang" in content
+    assert "Iron Skulls" in content
+
+
+@pytest.mark.django_db
+def test_battle_spread_gap_state_lists_every_trailing_gang(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Sub-400 gaps with three gangs: nobody is the underdog, but each gang that
+    trails the top earns tactics, so each is listed — not just the biggest gap."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    orlock, orlock_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Orlock", 5
+    )
+    crew_setup["battle"].set_participants([riot, iron, orlock])
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
+    _locked_crew(crew_setup, orlock, orlock_fighters[:5])  # 500 — 100¢ below, 1 step
+    _locked_crew(
+        crew_setup, riot, crew_setup["fighters"][:4]
+    )  # 400 — 200¢ below, 2 steps
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+    content = resp.content.decode()
+
+    assert resp.context["underdog"]["state"] == "gap"
+    assert resp.context["underdog"]["multi_behind"] is True
+    assert "is the underdog" not in content  # no 400¢ gap
+    # Both trailing gangs are listed with their own tactics.
+    assert "2 gangs have a lower crew rating" in content
+    assert "Riot Gang is 200¢ below" in content
+    assert "2 extra gang tactics" in content
+    assert "Orlock is 100¢ below" in content
+    assert "1 extra gang tactic" in content
+
+
+@pytest.mark.django_db
 def test_battle_spread_falls_back_to_gang_basis_when_a_gang_has_no_crew(
     client, crew_setup, make_list, make_list_fighter
 ):
