@@ -187,11 +187,14 @@ class Battle(AppBase):
         return self.states.current == self.IN_PROGRESS
 
     def has_ended(self):
-        """Whether the battle has already finished (its result is recorded).
+        """Whether the battle has reached its post-battle state.
 
-        The played-rating freeze happens at the end of the battle, so a crew
-        confirmed *after* this point — recorded after the fact — has to freeze
-        what it fielded at lock time instead (see ``handle_crew_lock``).
+        This is the state check, not ``result_recorded``: it says the battle is
+        over, not that a winner was chosen — a draw, or a legacy battle with no
+        recorded result, is still "ended". The played-rating freeze happens at
+        the end of the battle, so a crew confirmed *after* this point — recorded
+        after the fact — has to freeze what it fielded at lock time instead (see
+        ``handle_crew_lock``).
         """
         return self.states.current == self.POST_BATTLE
 

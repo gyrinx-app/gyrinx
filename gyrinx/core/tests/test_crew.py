@@ -395,6 +395,7 @@ def _give_beast(
     owner,
     make_content_fighter,
     make_equipment,
+    make_list_fighter,
     name="War Hound",
     beast_gear_cost=0,
 ):
@@ -407,12 +408,7 @@ def _give_beast(
         house=owner.content_fighter.house,
         base_cost=0,
     )
-    beast = ListFighter.objects.create(
-        name=name,
-        content_fighter=beast_type,
-        list=crew_setup["gang"],
-        owner=crew_setup["user"],
-    )
+    beast = make_list_fighter(crew_setup["gang"], name, content_fighter=beast_type)
     ListFighterEquipmentAssignment.objects.create(
         list_fighter=owner,
         content_equipment=make_equipment(name=f"{name} (wargear)", cost=90),
@@ -432,12 +428,14 @@ def _beast_line(crew, beast):
 
 @pytest.mark.django_db
 def test_exotic_beast_is_not_selectable(
-    crew_setup, make_content_fighter, make_equipment
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
 ):
     """A beast is wargear on its owner, so it never appears in the eligible pool
     — which is both the selection checkboxes and the random-draw pool."""
     owner = crew_setup["fighters"][0]
-    beast = _give_beast(crew_setup, owner, make_content_fighter, make_equipment)
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, make_list_fighter
+    )
     assert beast.is_child_fighter is True
 
     eligible = set(eligible_crew_fighters(crew_setup["gang"]))
@@ -453,13 +451,18 @@ def test_exotic_beast_is_not_selectable(
 
 @pytest.mark.django_db
 def test_selecting_an_owner_brings_in_their_beast(
-    crew_setup, make_content_fighter, make_equipment
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
 ):
     """Choosing the owner enrols its beast as a LINKED member, so the beast
     counts towards the rating and prints — without being chosen."""
     owner = crew_setup["fighters"][0]
     beast = _give_beast(
-        crew_setup, owner, make_content_fighter, make_equipment, beast_gear_cost=30
+        crew_setup,
+        owner,
+        make_content_fighter,
+        make_equipment,
+        make_list_fighter,
+        beast_gear_cost=30,
     )
     crew = Crew.objects.create(
         battle=crew_setup["battle"],
@@ -492,12 +495,14 @@ def test_selecting_an_owner_brings_in_their_beast(
 
 @pytest.mark.django_db
 def test_whole_gang_lock_enrols_owned_beasts(
-    crew_setup, make_content_fighter, make_equipment
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
 ):
     """The whole-gang draw enrols every eligible fighter; their beasts come with
     them as linked members, but don't count towards the 'chosen' tally."""
     owner = crew_setup["fighters"][0]
-    beast = _give_beast(crew_setup, owner, make_content_fighter, make_equipment)
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, make_list_fighter
+    )
     crew = Crew.objects.create(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
@@ -513,12 +518,14 @@ def test_whole_gang_lock_enrols_owned_beasts(
 
 @pytest.mark.django_db
 def test_removing_the_owner_drops_the_beast(
-    crew_setup, make_content_fighter, make_equipment
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
 ):
     """The beast follows its owner: cut the owner from the recipe and its beast
     leaves the crew too."""
     owner, other = crew_setup["fighters"][0], crew_setup["fighters"][1]
-    beast = _give_beast(crew_setup, owner, make_content_fighter, make_equipment)
+    beast = _give_beast(
+        crew_setup, owner, make_content_fighter, make_equipment, make_list_fighter
+    )
     crew = Crew.objects.create(
         battle=crew_setup["battle"],
         list=crew_setup["gang"],
@@ -548,13 +555,18 @@ def test_removing_the_owner_drops_the_beast(
 
 @pytest.mark.django_db
 def test_whole_gang_forecast_includes_beasts(
-    crew_setup, make_content_fighter, make_equipment
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
 ):
     """The pre-lock whole-gang forecast counts owned beasts, so it matches what
     the lock will actually enrol."""
     owner = crew_setup["fighters"][0]
     _give_beast(
-        crew_setup, owner, make_content_fighter, make_equipment, beast_gear_cost=40
+        crew_setup,
+        owner,
+        make_content_fighter,
+        make_equipment,
+        make_list_fighter,
+        beast_gear_cost=40,
     )
     crew = Crew.objects.create(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
