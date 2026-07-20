@@ -116,7 +116,7 @@ def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
     """
     if crew.pending_roll:
         return None, False
-    if not crew.is_locked and crew.is_whole_gang and not crew.members.all():
+    if not crew.is_locked and crew.is_whole_gang and not crew.members.exists():
         return crew_whole_gang_projection(crew)["total"], True
     return crew.rating(), False
 
