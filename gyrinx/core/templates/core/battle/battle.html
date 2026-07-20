@@ -167,6 +167,52 @@
                                     </tbody>
                                 </table>
                             </div>
+                            {% if underdog %}
+                                <div class="border rounded p-2 fs-7 mt-2">
+                                    {% if underdog.state == "pending" %}
+                                        Nothing to compare yet — {{ underdog.pending_name }} still has a draw to roll.
+                                    {% elif underdog.state == "underdog" %}
+                                        {% if underdog.multi_underdog %}
+                                            <strong>{{ underdog.underdog_names_joined }} are the underdogs.</strong>
+                                            {% for u in underdog.underdogs %}
+                                                <div>
+                                                    {{ u.name }} is {{ u.gap }}¢ below {{ underdog.top_possessive }}, which is {{ u.steps }} full 100¢ — so {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}, or a {{ u.allowance }}¢ allowance if your campaign uses House Patronage.
+                                                </div>
+                                            {% endfor %}
+                                            <div class="text-secondary mt-1">
+                                                The rules cover two sides, so each gang is compared against the highest rating on the table.
+                                            </div>
+                                        {% else %}
+                                            {% with u=underdog.underdogs.0 %}
+                                                <strong>{{ u.name }} is the underdog.</strong> Their {{ underdog.subject_possessive }} is {{ u.gap }}¢ below {{ underdog.top_possessive }}, which is {{ u.steps }} full 100¢ — so {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}, or a {{ u.allowance }}¢ allowance if your campaign uses House Patronage.
+                                            {% endwith %}
+                                        {% endif %}
+                                    {% elif underdog.state == "gap" %}
+                                        {% with u=underdog.behind.0 %}
+                                            <strong>{{ u.name }} has the lower {{ underdog.lower_thing }}</strong> — {{ u.gap }}¢ below {{ underdog.top_possessive }}. That's {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}. Underdog status, and any allowance, starts at a 400¢ gap.
+                                        {% endwith %}
+                                    {% elif underdog.state == "within" %}
+                                        These {{ underdog.within_plural }} are within 100¢ of each other, so neither side gets extra gang tactics.
+                                    {% endif %}
+                                    {% if underdog.on_gang_basis %}
+                                        <div class="text-secondary mt-1">Not enough crews to compare, so this uses gang ratings.</div>
+                                    {% endif %}
+                                    {% if underdog.provisional %}
+                                        <div class="text-secondary mt-1">
+                                            {% if underdog.provisional_names|length == 1 %}
+                                                This is provisional: {{ underdog.provisional_names_joined }}'s crew resolves when it's confirmed.
+                                            {% else %}
+                                                This is provisional: {{ underdog.provisional_names_joined }}'s crews resolve when they're confirmed.
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                    {% if underdog.alt_disagrees %}
+                                        <div class="text-secondary mt-1">
+                                            On gang ratings rather than crew ratings, {{ underdog.alt_underdog_name }} would be the underdog instead. Check which your scenario compares.
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
                         {% else %}
                             <p class="text-secondary fs-7 mb-0">No gangs added yet.</p>
                         {% endif %}

@@ -26,6 +26,7 @@ from django.urls import reverse
 
 from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
 from gyrinx.core.handlers.crew import (
+    crew_battle_spread,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
     handle_crew_archive,
@@ -206,6 +207,17 @@ def crew_detail(request, battle_id, crew_id):
         # The receipt's own total is extras-only while there are no attendees.
         provisional_total = projection["total"] + receipt["total"]
 
+    # Informational only: the allowance this crew could draw if it is the
+    # underdog and the campaign runs the House Patronage variant. It never
+    # asserts an entitlement or changes the recorded allowance — the humans
+    # adjudicate. None (the row is left as-is) when the spread can't be worked
+    # out (no opponent crew, or one still pending its draw) or this crew isn't
+    # the underdog.
+    _, standing = crew_battle_spread(crew)
+    allowance_available = (
+        standing.allowance if standing is not None and standing.is_underdog else None
+    )
+
     return render(
         request,
         "core/crew/crew.html",
@@ -221,6 +233,7 @@ def crew_detail(request, battle_id, crew_id):
             "projection": projection,
             "provisional_total": provisional_total,
             "can_edit_loadouts": bool(projection and can_manage),
+            "allowance_available": allowance_available,
         },
     )
 

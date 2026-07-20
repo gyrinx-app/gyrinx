@@ -15,11 +15,146 @@ from gyrinx.core.forms.battle import (
 )
 from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import crew_spread_rating
+from gyrinx.core.handlers.underdog import compute_spread
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.models.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
+
+
+def _join_names(names):
+    """Human-readable list join: "A", "A and B", "A, B and C"."""
+    names = list(names)
+    if not names:
+        return ""
+    if len(names) == 1:
+        return names[0]
+    return ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _possessive(name):
+    """Possessive form of a gang name: "Riot Gang's", "Iron Skulls'"."""
+    if not name:
+        return ""
+    return name + "'" if name.endswith("s") else name + "'s"
+
+
+def _underdog_block(
+    *, crew_ratings, gang_ratings, gang_names, pending_names, forecast_names
+):
+    """The battle page's informational rating-spread block, or ``None``.
+
+    Headlines the **crew** basis (what the scenario usually compares) and only
+    falls back to the **gang** basis when there aren't two crews to compare and
+    no crew is mid-draw. All the display decisions are made here so the template
+    just reads flags and figures; the arithmetic itself is ``compute_spread``.
+
+    ``crew_ratings`` / ``gang_ratings`` map gang id → rating (``None`` = not
+    comparable). ``gang_names`` maps gang id → display name. ``pending_names``
+    and ``forecast_names`` are the gangs whose crew is mid-draw or forecast, for
+    the "nothing to compare yet" and "provisional" copy.
+
+    Nothing here asserts an entitlement: it states the gap, the extra tactics it
+    earns, and the allowance a House-Patronage campaign could grant instead —
+    always conditionally — and points at the rules.
+    """
+    # Nothing to compare with fewer than two participating gangs.
+    if len(gang_ratings) < 2:
+        return None
+
+    crew_spread = compute_spread(
+        crew_ratings, basis="crew", provisional=bool(forecast_names)
+    )
+
+    gang_spread = compute_spread(gang_ratings, basis="gang")
+
+    if crew_spread is not None:
+        spread = crew_spread
+        on_gang_basis = False
+    elif pending_names:
+        # The comparison the scenario would use isn't ready: a crew is still to
+        # be drawn. Say so rather than comparing gang ratings behind the player's
+        # back — the crew rating is what will matter, and it's coming.
+        return {"state": "pending", "pending_name": pending_names[0]}
+    elif gang_spread is not None:
+        # No two crews to compare (a gang fields none), so the best available
+        # signal is the gang ratings.
+        spread = gang_spread
+        on_gang_basis = True
+    else:
+        return None
+
+    def row(standing):
+        return {
+            "name": gang_names.get(standing.key, ""),
+            "gap": standing.gap,
+            "steps": standing.steps,
+            "allowance": standing.allowance,
+            "is_underdog": standing.is_underdog,
+        }
+
+    # Biggest gap first, so the most-behind side leads the copy and the single
+    # two-side case reads naturally.
+    underdogs = sorted(
+        (row(s) for s in spread.standings if s.is_underdog),
+        key=lambda r: -r["gap"],
+    )
+    behind = sorted(
+        (row(s) for s in spread.standings if s.steps >= 1),
+        key=lambda r: -r["gap"],
+    )
+
+    if underdogs:
+        state = "underdog"
+    elif behind:
+        state = "gap"
+    else:
+        state = "within"
+
+    # Basis-aware nouns, so the same copy reads correctly whether it's comparing
+    # crew ratings or (on the fallback) gang ratings.
+    if on_gang_basis:
+        subject_possessive = "gang rating"
+        lower_thing = "gang rating"
+        within_plural = "gangs"
+    else:
+        subject_possessive = "crew"
+        lower_thing = "crew rating"
+        within_plural = "crews"
+
+    # Does the gang basis name a different underdog than the crew basis? Only
+    # meaningful when the headline is the crew basis — a signal that the answer
+    # turns on which quantity the scenario actually compares.
+    alt_disagrees = False
+    alt_underdog_name = None
+    if not on_gang_basis and gang_spread is not None:
+        crew_underdog_ids = {s.key for s in spread.underdogs}
+        gang_underdog_ids = {s.key for s in gang_spread.underdogs}
+        if gang_spread.underdogs and crew_underdog_ids != gang_underdog_ids:
+            alt_disagrees = True
+            biggest = max(gang_spread.underdogs, key=lambda s: s.steps)
+            alt_underdog_name = gang_names.get(biggest.key, "")
+
+    provisional_names = forecast_names if not on_gang_basis else []
+
+    return {
+        "state": state,
+        "on_gang_basis": on_gang_basis,
+        "top_possessive": _possessive(gang_names.get(spread.standings[0].key, "")),
+        "underdogs": underdogs,
+        "underdog_names_joined": _join_names([u["name"] for u in underdogs]),
+        "behind": behind,
+        "multi_underdog": len(underdogs) > 1,
+        "provisional": spread.is_provisional,
+        "provisional_names": provisional_names,
+        "provisional_names_joined": _join_names(provisional_names),
+        "alt_disagrees": alt_disagrees,
+        "alt_underdog_name": alt_underdog_name,
+        "subject_possessive": subject_possessive,
+        "lower_thing": lower_thing,
+        "within_plural": within_plural,
+    }
 
 
 class BattleDetailView(generic.DetailView):
@@ -168,12 +303,32 @@ class BattleDetailView(generic.DetailView):
         # winners is prefetched in get_object(); read the cache, not a new query.
         winner_ids = {w.id for w in battle.winners.all()}
 
+        # Rating maps for the underdog/allowance block, built from figures the
+        # loop already has in hand — no extra query. crew_ratings drops to None
+        # for a gang with no crew or a crew whose draw is pending (both excluded
+        # from the crew-basis comparison); gang_ratings is always known.
+        gang_names = {}
+        crew_ratings = {}
+        gang_ratings = {}
+        pending_names = []
+        forecast_names = []
+
         groups = []
         for group in battle.participants_grouped_by_role():
             rows = []
             for entry in group["participants"]:
                 gang = entry.list
                 crew = crew_by_gang.get(gang.id)
+                gang_names[gang.id] = gang.name
+                gang_ratings[gang.id] = gang.rating_current
+                if crew is None:
+                    crew_ratings[gang.id] = None
+                else:
+                    crew_ratings[gang.id] = crew["rating"]
+                    if crew["pending_roll"]:
+                        pending_names.append(gang.name)
+                    if crew["is_forecast"]:
+                        forecast_names.append(gang.name)
                 rows.append(
                     {
                         "list": gang,
@@ -196,6 +351,17 @@ class BattleDetailView(generic.DetailView):
                 )
             groups.append({"role_option": group["role_option"], "participants": rows})
         context["participant_groups"] = groups
+
+        # The informational spread block: states the arithmetic (gap, extra
+        # tactics, conditional allowance) and points at the rules; it asserts no
+        # entitlement and enforces nothing.
+        context["underdog"] = _underdog_block(
+            crew_ratings=crew_ratings,
+            gang_ratings=gang_ratings,
+            gang_names=gang_names,
+            pending_names=pending_names,
+            forecast_names=forecast_names,
+        )
 
 
 @login_required

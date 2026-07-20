@@ -26,6 +26,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from gyrinx.core.handlers.underdog import Spread, Standing, compute_spread
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.crew import Crew, CrewMember, roll_selection_spec
 from gyrinx.core.models.list import ListFighter
@@ -118,6 +119,40 @@ def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
     if not crew.is_locked and crew.is_whole_gang and not crew.members.all():
         return crew_whole_gang_projection(crew)["total"], True
     return crew.rating(), False
+
+
+def crew_battle_spread(
+    crew: Crew,
+) -> tuple[Optional[Spread], Optional[Standing]]:
+    """The rating spread across ``crew``'s battle, and this crew's standing in it.
+
+    The crew page needs the *other* crews' ratings, which the page itself
+    doesn't load. This loads the battle's live (non-archived) crews once — with
+    members prefetched — and asks each for its comparison rating via
+    :func:`crew_spread_rating`. Every per-crew rating goes through the batched
+    :meth:`ListFighter.with_related_data` load, so the opponent cost is constant
+    in the number of fighters, not a query per opposing fighter.
+
+    Returns ``(spread, standing)``. ``standing`` is this crew's
+    :class:`~gyrinx.core.handlers.underdog.Standing`; both are ``None`` when the
+    spread can't be computed (fewer than two crews have a known rating) or this
+    crew has no rating of its own yet (its draw is pending), so the caller has a
+    single "nothing to say" signal.
+    """
+    crews = list(crew.battle.crews.filter(archived=False).prefetch_related("members"))
+    ratings = {}
+    provisional = False
+    for other in crews:
+        rating, is_forecast = crew_spread_rating(other)
+        ratings[other.id] = rating
+        provisional = provisional or is_forecast
+
+    spread = compute_spread(ratings, basis="crew", provisional=provisional)
+    if spread is None:
+        return None, None
+
+    standing = next((s for s in spread.standings if s.key == crew.id), None)
+    return spread, standing
 
 
 def crew_loadout_gang_fighters(lst):

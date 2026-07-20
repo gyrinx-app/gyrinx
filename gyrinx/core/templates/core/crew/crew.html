@@ -308,9 +308,19 @@
                             <td class="text-secondary">Allowance</td>
                             <td></td>
                             <td></td>
-                            <td class="text-end">{{ receipt.allowance_total }}¢</td>
+                            <td class="text-end">
+                                {{ receipt.allowance_total }}¢{% if allowance_available %} <span class="text-secondary fs-7">recorded</span>{% endif %}
+                            </td>
                             {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
+                        {% if allowance_available %}
+                            <tr>
+                                <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                    class="text-secondary fs-7">
+                                    Up to {{ allowance_available }}¢ available from the rating gap, if your campaign uses House Patronage.
+                                </td>
+                            </tr>
+                        {% endif %}
                         {% if receipt.has_free %}
                             <tr>
                                 <td class="text-secondary">Free</td>
