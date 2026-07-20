@@ -2912,9 +2912,31 @@ def test_crew_page_shows_available_allowance_for_the_underdog(
     content = resp.content.decode()
 
     assert resp.context["allowance_available"] == 500
-    assert "Up to 500¢ available from the rating gap" in content
+    assert "Up to 500¢ is available from the rating gap" in content
     assert "if your campaign uses House Patronage" in content
     assert "recorded" in content  # the recorded 300¢ is relabelled
+
+
+@pytest.mark.django_db
+def test_crew_page_shows_available_note_for_underdog_with_no_extras(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """The available-allowance note is most useful *before* anything is spent,
+    so it must show for an underdog crew that has recorded no allowance at all —
+    not only when the extras subtotal happens to render."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 → Riot underdog by 500
+    assert not riot_crew.line_items.exists()
+
+    client.force_login(crew_setup["user"])
+    content = _crew_response(client, riot_crew).content.decode()
+    assert "This crew is the underdog." in content
+    assert "Up to 500¢ is available from the rating gap" in content
 
 
 @pytest.mark.django_db
