@@ -26,6 +26,7 @@ from django.urls import reverse
 
 from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
 from gyrinx.core.handlers.crew import (
+    TOGGLEABLE_CREW_CATEGORIES,
     crew_battle_spread,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
@@ -37,19 +38,8 @@ from gyrinx.core.handlers.crew import (
 from gyrinx.core.models import Battle
 from gyrinx.core.models.crew import Crew, CrewLineItem
 from gyrinx.core.models.list import List
-from gyrinx.models import FighterCategoryChoices
 
 VALID_METHODS = {value for value, _ in Crew.SELECTION_METHOD_CHOICES}
-
-# Categories a player can toggle back into their crew (excluded by default):
-# hangers-on (non-combat) and vehicle crew (an Ash-Wastes thing). Each carries a
-# short URL slug so the querystring reads ``?include=hangers-on`` rather than
-# exposing the SCREAMING_CASE category value. Tuple = (category, slug, label);
-# display order.
-TOGGLEABLE_CREW_CATEGORIES = [
-    (FighterCategoryChoices.HANGER_ON.value, "hangers-on", "hangers-on"),
-    (FighterCategoryChoices.CREW.value, "crew", "vehicle crew"),
-]
 
 
 def _resolve_included(request, default=()):
@@ -184,7 +174,12 @@ def crew_new(request, battle_id):
         return _redirect_crew(existing)
 
     method = _resolve_method(request, Crew.CUSTOM)
-    included = _resolve_included(request)
+    # A new crew's toggles start from the campaign's default (e.g. an Ash-Wastes
+    # campaign that opts vehicle crew in for everyone); the player can still
+    # change them per crew, and once toggled the ?include= drives it.
+    included = _resolve_included(
+        request, default=battle.campaign.default_included_crew_categories
+    )
 
     if request.method == "POST":
         form = CrewForm(request.POST, gang=gang, method=method, included=included)

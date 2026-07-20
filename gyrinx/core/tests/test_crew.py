@@ -954,6 +954,92 @@ def test_editing_a_crew_can_clear_included_categories(
     assert hanger.id not in {f.id for f in form.eligible_fighters}
 
 
+@pytest.mark.django_db
+def test_campaign_default_seeds_the_crew_toggles(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """A new crew's toggles start from the campaign default (e.g. an Ash-Wastes
+    campaign opting vehicle crew in for everyone)."""
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    crew_setup["campaign"].default_included_crew_categories = ["CREW"]
+    crew_setup["campaign"].save()
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {"list": str(crew_setup["gang"].id), "method": Crew.CUSTOM},
+    )
+
+    form = resp.context["form"]
+    assert form.included_categories == ["CREW"]  # seeded from the campaign
+    assert driver.id in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_crew_toggle_overrides_the_campaign_default(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """The per-crew toggle wins: an explicit ?include= overrides the campaign
+    default rather than being merged with it."""
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew_setup["campaign"].default_included_crew_categories = ["CREW"]
+    crew_setup["campaign"].save()
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(
+        reverse("core:crew-new", args=[crew_setup["battle"].id]),
+        {
+            "list": str(crew_setup["gang"].id),
+            "method": Crew.CUSTOM,
+            "include": "hangers-on",
+        },
+    )
+
+    form = resp.context["form"]
+    assert form.included_categories == ["HANGER_ON"]  # the toggle, not the default
+    assert hanger.id in {f.id for f in form.eligible_fighters}
+    assert driver.id not in {f.id for f in form.eligible_fighters}
+
+
+@pytest.mark.django_db
+def test_edit_campaign_form_saves_default_crew_categories(campaign, user):
+    """The campaign settings form persists the default opt-in categories."""
+    from gyrinx.core.forms.campaign import EditCampaignForm
+
+    form = EditCampaignForm(
+        {
+            "name": campaign.name,
+            "budget": str(campaign.budget),
+            "default_included_crew_categories": ["CREW"],
+        },
+        instance=campaign,
+    )
+    assert form.is_valid(), form.errors
+    form.save(user=user)
+
+    campaign.refresh_from_db()
+    assert campaign.default_included_crew_categories == ["CREW"]
+
+
 # --- Lock / draw handler ----------------------------------------------------
 
 

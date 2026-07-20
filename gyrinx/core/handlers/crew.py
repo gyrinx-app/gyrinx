@@ -43,6 +43,15 @@ DEFAULT_EXCLUDED_CREW_CATEGORIES = frozenset(
     {FighterCategoryChoices.HANGER_ON.value, FighterCategoryChoices.CREW.value}
 )
 
+# The categories a player (or a campaign default) can opt back in. Each carries a
+# short URL slug for the crew-form toggles and a display label. Single source of
+# truth for both the crew view and the campaign settings form. Display order.
+# Tuple = (category value, url slug, label).
+TOGGLEABLE_CREW_CATEGORIES = [
+    (FighterCategoryChoices.HANGER_ON.value, "hangers-on", "hangers-on"),
+    (FighterCategoryChoices.CREW.value, "crew", "vehicle crew"),
+]
+
 
 def eligible_crew_fighters(lst, *, included=()):
     """Fighters in ``lst`` eligible to be picked or drawn for a crew.
