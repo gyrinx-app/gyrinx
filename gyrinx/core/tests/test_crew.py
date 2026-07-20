@@ -1340,6 +1340,8 @@ def test_crew_and_extra_owned_by_gang_owner(
     crew = Crew.objects.get(battle=battle, list=other_gang)
     assert crew.owner == player
 
+    # Extras can only be added once the crew is locked.
+    Crew.objects.filter(pk=crew.pk).update(status=Crew.LOCKED)
     client.post(
         reverse("core:crew-extra-new", args=[battle.id, crew.id]),
         {"label": "Card", "cost": "10", "payment": Crew.PAY_CREDITS, "reason": ""},
@@ -1550,7 +1552,10 @@ def test_post_lock_loadout_editing_is_gone():
 def test_crew_extra_add_edit_delete(client, crew_setup):
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
-    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    # Extras are added once the crew is set, so it must be locked first.
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], status=Crew.LOCKED
+    )
 
     # Add.
     resp = client.post(
@@ -1582,6 +1587,31 @@ def test_crew_extra_add_edit_delete(client, crew_setup):
     # Delete.
     client.post(reverse("core:crew-extra-delete", args=[battle.id, crew.id, item.id]))
     assert not CrewLineItem.objects.filter(id=item.id).exists()
+
+
+@pytest.mark.django_db
+def test_extras_only_added_after_the_crew_is_locked(client, crew_setup):
+    """Extras — hired guns, balancing credits — are worked out once the crew is
+    set (the allowance is calculated after crew selection, and a random crew
+    isn't even known until the draw), so a new extra can't be added to a draft."""
+    client.force_login(crew_setup["user"])
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
+    payload = {
+        "label": "Hive Scum",
+        "cost": "50",
+        "payment": Crew.PAY_CREDITS,
+        "reason": "",
+    }
+
+    # Draft: blocked, nothing created.
+    client.post(reverse("core:crew-extra-new", args=[battle.id, crew.id]), payload)
+    assert not crew.line_items.exists()
+
+    # Locked: the extra is added.
+    Crew.objects.filter(pk=crew.pk).update(status=Crew.LOCKED)
+    client.post(reverse("core:crew-extra-new", args=[battle.id, crew.id]), payload)
+    assert crew.line_items.count() == 1
 
 
 @pytest.mark.django_db

@@ -550,6 +550,16 @@ def crew_extra(request, battle_id, crew_id, item_id=None):
     if item_id is not None:
         item = get_object_or_404(CrewLineItem, id=item_id, crew=crew)
 
+    # Extras — hired guns, balancing credits — are worked out once the crew is
+    # set: the underdog allowance is calculated after crews are chosen, and a
+    # random/hybrid crew isn't even known until the draw. So a *new* extra can
+    # only be added to a locked crew (editing an existing one is always fine).
+    if item is None and not crew.is_locked:
+        messages.info(
+            request, "Confirm the crew first — extras are added once it's set."
+        )
+        return _redirect_crew(crew)
+
     if request.method == "POST":
         form = CrewLineItemForm(request.POST, instance=item)
         if form.is_valid():
