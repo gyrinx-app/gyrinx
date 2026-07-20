@@ -318,9 +318,7 @@
                             <td class="text-secondary">Allowance</td>
                             <td></td>
                             <td></td>
-                            <td class="text-end">
-                                {{ receipt.allowance_total }}¢{% if allowance_available %} <span class="text-secondary fs-7">recorded</span>{% endif %}
-                            </td>
+                            <td class="text-end">{{ receipt.allowance_total }}¢</td>
                             {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                         {% if receipt.has_free %}

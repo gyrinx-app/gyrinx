@@ -2657,7 +2657,7 @@ def test_battle_spread_underdog_names_the_gang_and_shows_tactics_and_allowance(
     assert "which is 5 full 100¢" in content
     assert "5 extra gang tactics" in content
     assert "500¢ allowance if your campaign uses House Patronage" in content
-    assert "would be the underdog instead" not in content
+    assert "On gang ratings rather than crew ratings" not in content
 
 
 @pytest.mark.django_db
@@ -2782,7 +2782,7 @@ def test_battle_spread_notes_when_gang_basis_disagrees(
 
     assert "Riot Gang is the underdog." in content  # headline stays crew basis
     assert (
-        "On gang ratings rather than crew ratings, Iron Skulls would be the underdog instead"
+        "On gang ratings rather than crew ratings, Iron Skulls would be the underdog"
         in content
     )
 
@@ -2806,7 +2806,7 @@ def test_battle_spread_no_disagreement_line_when_bases_agree(
     content = _battle_response(client, crew_setup).content.decode()
 
     assert "Riot Gang is the underdog." in content
-    assert "would be the underdog instead" not in content
+    assert "On gang ratings rather than crew ratings" not in content
 
 
 @pytest.mark.django_db
@@ -2915,7 +2915,12 @@ def test_crew_page_shows_available_allowance_for_the_underdog(
     assert resp.context["allowance_available"] == 500
     assert "Up to 500¢ is available from the rating gap" in content
     assert "if your campaign uses House Patronage" in content
-    assert "recorded" in content  # the recorded 300¢ is relabelled
+    # The Allowance subtotal is a plain total (300¢), no "recorded" qualifier —
+    # available vs recorded is drawn by the standalone note, not the subtotal.
+    # (The old "recorded" label was gated on the *potential* allowance, so an
+    # underdog with nothing recorded showed a misleading "0¢ recorded".)
+    assert "300¢" in content
+    assert "recorded" not in content
 
 
 @pytest.mark.django_db
