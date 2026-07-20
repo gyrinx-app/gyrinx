@@ -141,7 +141,7 @@ class EditCampaignForm(forms.ModelForm):
             (cat, label.capitalize())
             for cat, _slug, label in TOGGLEABLE_CREW_CATEGORIES
         ],
-        widget=BsCheckboxSelectMultiple(),
+        widget=BsCheckboxSelectMultiple(attrs={"class": "form-check-input"}),
         label="Crew types allowed by default",
         help_text=(
             "Hangers-on and vehicle crew are hidden when picking a crew. Tick any "
