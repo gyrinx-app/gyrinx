@@ -93,16 +93,19 @@
                                         <tr class="border-bottom">
                                             <th class="caps-label">Gang</th>
                                             <th class="caps-label text-end">Rating</th>
+                                            <th class="caps-label ps-3">vs top</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for group in participant_groups %}
-                                            <tr>
-                                                <td colspan="2"
-                                                    class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
-                                                    {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
-                                                </td>
-                                            </tr>
+                                            {% if roles_in_use %}
+                                                <tr>
+                                                    <td colspan="3"
+                                                        class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
+                                                        {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
+                                                    </td>
+                                                </tr>
+                                            {% endif %}
                                             {% for p in group.participants %}
                                                 <tr>
                                                     <td>
@@ -121,6 +124,7 @@
                                                         {% endif %}
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>
+                                                    <td class="text-secondary ps-3">{% if p.rating_delta %}−{% credits p.rating_delta %}{% endif %}</td>
                                                 </tr>
                                                 {% if p.crew %}
                                                     <tr>
@@ -151,10 +155,11 @@
                                                                 {% endif %}
                                                             {% endif %}
                                                         </td>
+                                                        <td class="text-secondary ps-3">{% if p.crew.rating_delta %}−{% credits p.crew.rating_delta %}{% endif %}</td>
                                                     </tr>
                                                 {% elif p.can_add_crew %}
                                                     <tr>
-                                                        <td colspan="2" class="ps-4">
+                                                        <td colspan="3" class="ps-4">
                                                             <a href="{% url 'core:crew-new' battle.id %}?list={{ p.list.id }}"
                                                                class="icon-link linked fs-7">
                                                                 <i class="bi-plus-lg"></i> Add crew
@@ -167,75 +172,6 @@
                                     </tbody>
                                 </table>
                             </div>
-                            {% if underdog %}
-                                <div class="border rounded p-2 fs-7 mt-2">
-                                    {% if underdog.state == "pending" %}
-                                        {% if underdog.pending_names|length == 1 %}
-                                            Nothing to compare yet — {{ underdog.pending_names_joined }} still has a draw to roll.
-                                        {% else %}
-                                            Nothing to compare yet — {{ underdog.pending_names_joined }} still have draws to roll.
-                                        {% endif %}
-                                    {% elif underdog.state == "underdog" %}
-                                        {% if underdog.multi_underdog %}
-                                            <strong>{{ underdog.underdog_names_joined }} are the underdogs.</strong>
-                                            {% for u in underdog.underdogs %}
-                                                <div>
-                                                    {{ u.name }} is {{ u.gap }}¢ below {{ underdog.top_possessive }}, which is {{ u.steps }} full 100¢ — so {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}, or a {{ u.allowance }}¢ allowance if your campaign uses House Patronage.
-                                                </div>
-                                            {% endfor %}
-                                            <div class="text-secondary mt-1">
-                                                The rules cover two sides, so each gang is compared against the highest rating on the table.
-                                            </div>
-                                        {% else %}
-                                            {% with u=underdog.underdogs.0 %}
-                                                <strong>{{ u.name }} is the underdog.</strong> Their {{ underdog.subject_possessive }} is {{ u.gap }}¢ below {{ underdog.top_possessive }}, which is {{ u.steps }} full 100¢ — so {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}, or a {{ u.allowance }}¢ allowance if your campaign uses House Patronage.
-                                            {% endwith %}
-                                        {% endif %}
-                                    {% elif underdog.state == "gap" %}
-                                        {% if underdog.multi_behind %}
-                                            <strong>{{ underdog.behind|length }} gangs have a lower {{ underdog.lower_thing }} than {{ underdog.top_possessive }}</strong>
-                                            {% for u in underdog.behind %}
-                                                <div>{{ u.name }} is {{ u.gap }}¢ below — {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}.</div>
-                                            {% endfor %}
-                                            <div class="text-secondary mt-1">
-                                                The rules cover two sides, so each gang is compared against the highest rating on the table.
-                                            </div>
-                                        {% else %}
-                                            {% with u=underdog.behind.0 %}
-                                                <strong>{{ u.name }} has the lower {{ underdog.lower_thing }}</strong> — {{ u.gap }}¢ below {{ underdog.top_possessive }}. That's {{ u.steps }} extra gang tactic{{ u.steps|pluralize }}.
-                                            {% endwith %}
-                                        {% endif %}
-                                    {% elif underdog.state == "within" %}
-                                        These {{ underdog.within_plural }} are within 100¢ of each other.
-                                    {% endif %}
-                                    {% if underdog.on_gang_basis %}
-                                        <div class="text-secondary mt-1">Not enough crews to compare, so this uses gang ratings.</div>
-                                    {% endif %}
-                                    {% if underdog.provisional %}
-                                        <div class="text-secondary mt-1">
-                                            {% if underdog.provisional_names|length == 1 %}
-                                                This is provisional: {{ underdog.provisional_names_joined }}'s crew resolves when it's confirmed.
-                                            {% else %}
-                                                This is provisional: {{ underdog.provisional_names_joined }}'s crews resolve when they're confirmed.
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                    {% if underdog.pending_names_joined %}
-                                        <div class="text-secondary mt-1">
-                                            {% if underdog.pending_names|length == 1 %}
-                                                {{ underdog.pending_names_joined }}'s crew is still to be drawn, so this could change.
-                                            {% else %}
-                                                {{ underdog.pending_names_joined }}'s crews are still to be drawn, so this could change.
-                                            {% endif %}
-                                        </div>
-                                    {% endif %}
-                                    {% if underdog.alt_disagrees %}
-                                        <div class="text-secondary mt-1">
-                                            On gang ratings rather than crew ratings, {{ underdog.alt_underdog_name }} would be the underdog. Check which your scenario compares.
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            {% endif %}
                         {% else %}
                             <p class="text-secondary fs-7 mb-0">No gangs added yet.</p>
                         {% endif %}

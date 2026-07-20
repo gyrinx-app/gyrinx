@@ -26,7 +26,6 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from gyrinx.core.handlers.underdog import Spread, Standing, compute_spread
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.crew import Crew, CrewMember, roll_selection_spec
 from gyrinx.core.models.list import ListFighter
@@ -158,10 +157,9 @@ def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
     return crew.rating(), False
 
 
-def crew_battle_spread(
-    crew: Crew,
-) -> tuple[Optional[Spread], Optional[Standing]]:
-    """The rating spread across ``crew``'s battle, and this crew's standing in it.
+def crew_battle_spread(crew: Crew) -> Optional[int]:
+    """How far ``crew``'s rating sits below the highest crew in its battle, in
+    credits — or ``None`` when there's nothing to say.
 
     The crew page needs the *other* crews' ratings, which the page itself
     doesn't load. This loads the battle's live (non-archived) crews once — with
@@ -170,36 +168,22 @@ def crew_battle_spread(
     :meth:`ListFighter.with_related_data` load, so the opponent cost is constant
     in the number of fighters, not a query per opposing fighter.
 
-    Returns ``(spread, standing)``. ``standing`` is this crew's
-    :class:`~gyrinx.core.handlers.underdog.Standing`; both are ``None`` when the
-    spread can't be computed (fewer than two crews have a known rating) or this
-    crew has no rating of its own yet (its draw is pending), so the caller has a
-    single "nothing to say" signal.
+    Returns the positive gap below the top crew, or ``None`` when it can't be
+    computed (fewer than two crews have a known rating), this crew has no rating
+    yet (its draw is pending), or this crew *is* the top (nothing below).
     """
     crews = list(
         crew.battle.crews.filter(archived=False)
         .select_related("list")
         .prefetch_related("members")
     )
-    ratings = {}
-    provisional = False
-    for other in crews:
-        rating, is_forecast = crew_spread_rating(other)
-        ratings[other.id] = rating
-        provisional = provisional or is_forecast
-
-    spread = compute_spread(ratings, basis="crew", provisional=provisional)
-    if spread is None:
-        return None, None
-
-    standing = next((s for s in spread.standings if s.key == crew.id), None)
-    if standing is None:
-        # This crew has no rating of its own yet (its draw is pending), so it is
-        # not in the spread — there is nothing to say about *its* standing even
-        # if the other crews form one. Collapse to the single "nothing to say"
-        # signal the docstring promises, rather than a spread with no standing.
-        return None, None
-    return spread, standing
+    ratings = {other.id: crew_spread_rating(other)[0] for other in crews}
+    known = [r for r in ratings.values() if r is not None]
+    this = ratings.get(crew.id)
+    if len(known) < 2 or this is None:
+        return None
+    gap = max(known) - this
+    return gap or None
 
 
 def crew_loadout_gang_fighters(lst):

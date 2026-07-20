@@ -89,17 +89,13 @@
             </div>
         {% endif %}
         {% comment %}
-        Shown for an underdog crew whether or not it has recorded any allowance —
-        the point is to tell the player what the rating gap makes available, and
-        that's most useful before they've spent anything. Framed conditionally:
-        the allowance is an arbitrator opt-in that replaces extra gang tactics.
+        Numbers only: how far this crew sits below the highest in the battle.
+        No rules read for the player — they decide what the gap entitles them to.
         {% endcomment %}
-        {% if allowance_available %}
+        {% if rating_gap %}
             <div class="border rounded p-2 fs-7">
-                <i class="bi-piggy-bank text-secondary"></i>
-                <strong>This crew is the underdog.</strong>
-                <span>Up to {{ allowance_available }}¢ is available from the rating gap,</span>
-                <span>if your campaign uses House Patronage.</span>
+                <i class="bi-bar-chart text-secondary"></i>
+                This crew's rating is <strong>{{ rating_gap }}¢ below</strong> the highest in the battle.
             </div>
         {% endif %}
         <!-- Crew sheet -->

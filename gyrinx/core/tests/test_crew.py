@@ -2890,12 +2890,11 @@ def _set_gang_rating(gang, value):
 
 
 @pytest.mark.django_db
-def test_battle_spread_returns_both_none_when_subject_crew_is_pending(
+def test_crew_battle_spread_none_when_subject_pending(
     crew_setup, make_list, make_list_fighter
 ):
-    """The subject crew has no rating yet (its draw is pending), so it is not in
-    the spread — even though the other two crews form one. There is nothing to
-    say about *its* standing, so both come back None, per the docstring."""
+    """The subject crew has no rating yet (its draw is pending), so there is
+    nothing to say about how far below the top it sits."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
@@ -2909,20 +2908,24 @@ def test_battle_spread_returns_both_none_when_subject_crew_is_pending(
     _locked_crew(crew_setup, iron, iron_fighters[:1])
     _locked_crew(crew_setup, orlock, orlock_fighters[:1])
 
-    spread, standing = crew_battle_spread(subject)
-    assert spread is None
-    assert standing is None
+    assert crew_battle_spread(subject) is None
 
 
-def test_possessive_handles_a_trailing_s_in_either_case():
-    """A name ending in "s" takes a bare apostrophe — regardless of its case,
-    so an all-caps name doesn't come out as "...S's"."""
-    from gyrinx.core.views.battle import _possessive
+@pytest.mark.django_db
+def test_crew_battle_spread_is_the_gap_below_the_top(
+    crew_setup, make_list, make_list_fighter
+):
+    """A below-top crew reports its gap; the top crew has nothing below it."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
+    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
 
-    assert _possessive("Riot Gang") == "Riot Gang's"
-    assert _possessive("Iron Skulls") == "Iron Skulls'"
-    assert _possessive("THE FANGS") == "THE FANGS'"
-    assert _possessive("") == ""
+    assert crew_battle_spread(riot_crew) == 500
+    assert crew_battle_spread(iron_crew) is None  # it is the top
 
 
 def _battle_response(client, crew_setup):
@@ -2931,173 +2934,98 @@ def _battle_response(client, crew_setup):
     return resp
 
 
+def _participant_row(resp, gang_name):
+    """The participant row for ``gang_name`` in the battle-page context."""
+    for group in resp.context["participant_groups"]:
+        for row in group["participants"]:
+            if row["list"].name == gang_name:
+                return row
+    return None
+
+
 @pytest.mark.django_db
-def test_battle_spread_underdog_names_the_gang_and_shows_tactics_and_allowance(
+def test_battle_table_shows_crew_and_gang_deltas(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """A 500¢ crew gap: the lower gang is named the underdog, with 5 extra
-    tactics and a conditional 500¢ allowance."""
+    """The participants table shows, beside each rating, how far it is below the
+    top — for the crew (crew row) and the gang (gang row). Numbers only."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
     )
     crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
-    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600
-    # Gang ratings agree with the crew basis, so no "gang basis disagrees" line.
-    _set_gang_rating(riot, 100)
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600 (top)
+    _set_gang_rating(riot, 200)
+    _set_gang_rating(iron, 600)  # top gang
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+    content = resp.content.decode()
+
+    riot_row = _participant_row(resp, "Riot Gang")
+    iron_row = _participant_row(resp, "Iron Skulls")
+    # Gang deltas: Riot is 400¢ below the top gang; Iron is the top.
+    assert riot_row["rating_delta"] == 400
+    assert iron_row["rating_delta"] is None
+    # Crew deltas: Riot's crew is 500¢ below the top crew; Iron's is the top.
+    assert riot_row["crew"]["rating_delta"] == 500
+    assert iron_row["crew"]["rating_delta"] is None
+
+    assert "vs top" in content  # the column header
+    assert "500¢" in content  # crew delta (only 500¢ on the page)
+    assert "400¢" in content  # gang delta (only 400¢ on the page)
+    # No rules read for the player.
+    for word in ("underdog", "gang tactic", "House Patronage"):
+        assert word not in content
+
+
+@pytest.mark.django_db
+def test_battle_table_no_crew_delta_with_fewer_than_two_crews(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """A crew delta needs two crews to compare; with one crew there is none,
+    though the gang deltas still show."""
+    riot = crew_setup["gang"]
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
+    crew_setup["battle"].set_participants([riot, iron])
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # the only crew
+    _set_gang_rating(riot, 200)
     _set_gang_rating(iron, 600)
 
     client.force_login(crew_setup["user"])
     resp = _battle_response(client, crew_setup)
-    content = resp.content.decode()
 
-    block = resp.context["underdog"]
-    assert block["state"] == "underdog"
-    assert block["on_gang_basis"] is False
-    assert block["underdogs"][0]["name"] == "Riot Gang"
-    assert block["underdogs"][0]["steps"] == 5
-    assert block["underdogs"][0]["allowance"] == 500
-
-    assert "Riot Gang is the underdog." in content
-    assert "Their crew is 500¢ below Iron Skulls" in content
-    assert "which is 5 full 100¢" in content
-    assert "5 extra gang tactics" in content
-    assert "500¢ allowance if your campaign uses House Patronage" in content
-    assert "On gang ratings rather than crew ratings" not in content
+    riot_row = _participant_row(resp, "Riot Gang")
+    assert riot_row["crew"]["rating_delta"] is None  # only one crew
+    assert riot_row["rating_delta"] == 400  # gang delta still shown
 
 
 @pytest.mark.django_db
-def test_battle_spread_gap_under_400_states_tactics_not_underdog(
+def test_battle_table_pending_crew_has_no_delta(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """A 200¢ gap earns extra tactics but no underdog status or allowance."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 4
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:2])  # 200
-    _locked_crew(crew_setup, iron, iron_fighters[:4])  # 400
-    _set_gang_rating(riot, 200)
-    _set_gang_rating(iron, 400)
-
-    client.force_login(crew_setup["user"])
-    content = _battle_response(client, crew_setup).content.decode()
-
-    assert "Riot Gang has the lower crew rating" in content
-    assert "200¢ below Iron Skulls" in content
-    assert "2 extra gang tactics" in content
-    # The 400¢-threshold explainer was dropped — players already know it.
-    assert "starts at a 400¢ gap" not in content
-    assert "is the underdog" not in content
-
-
-@pytest.mark.django_db
-def test_battle_spread_within_100_just_says_within_100(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """Crews within 100¢ of each other: state the fact, nothing about tactics."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 2
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:2])  # 200
-    _locked_crew(crew_setup, iron, iron_fighters[:2])  # 200
-    _set_gang_rating(riot, 200)
-    _set_gang_rating(iron, 200)
-
-    client.force_login(crew_setup["user"])
-    content = _battle_response(client, crew_setup).content.decode()
-
-    assert "These crews are within 100¢ of each other" in content
-    assert "extra gang tactics" not in content
-    assert "is the underdog" not in content
-    assert "has the lower" not in content
-
-
-@pytest.mark.django_db
-def test_battle_spread_pending_crew_has_nothing_to_compare(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """A crew still to be drawn has no rating, so there is nothing to compare
-    yet — and crucially no gap figure is invented."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 3
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    _pending_crew(crew_setup, riot)
-    _locked_crew(crew_setup, iron, iron_fighters[:3])  # 300
-
-    client.force_login(crew_setup["user"])
-    resp = _battle_response(client, crew_setup)
-    content = resp.content.decode()
-
-    assert resp.context["underdog"]["state"] == "pending"
-    assert "Nothing to compare yet" in content
-    assert "Riot Gang still has a draw to roll" in content
-    # No gap arithmetic while a crew is unresolved.
-    assert "extra gang tactic" not in content
-    assert "is the underdog" not in content
-
-
-@pytest.mark.django_db
-def test_battle_spread_flags_a_still_drawing_crew_alongside_the_comparison(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """Three gangs, two crews known and one still to be drawn: the comparison
-    of the known crews still shows, but flags that the undrawn crew could yet
-    change the answer rather than presenting it as settled."""
+    """A crew still to be drawn has no rating, so no delta."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
     )
-    orlock, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Orlock", 2)
-    crew_setup["battle"].set_participants([riot, iron, orlock])
-
-    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100 → underdog
-    _pending_crew(crew_setup, orlock)  # still to be drawn
-
-    client.force_login(crew_setup["user"])
-    content = _battle_response(client, crew_setup).content.decode()
-
-    # The known comparison still leads.
-    assert "Riot Gang is the underdog." in content
-    # ...but the undrawn crew is flagged.
-    assert "Orlock's crew is still to be drawn, so this could change." in content
-
-
-@pytest.mark.django_db
-def test_battle_spread_pending_names_every_undrawn_crew(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """When nothing can be compared yet and several crews are still to be drawn,
-    every one is named — not just the first."""
-    riot = crew_setup["gang"]
-    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
     crew_setup["battle"].set_participants([riot, iron])
     _pending_crew(crew_setup, riot)
-    _pending_crew(crew_setup, iron)
+    _locked_crew(crew_setup, iron, iron_fighters[:6])
 
     client.force_login(crew_setup["user"])
     resp = _battle_response(client, crew_setup)
-    content = resp.content.decode()
 
-    assert resp.context["underdog"]["state"] == "pending"
-    assert "still have draws to roll" in content  # plural
-    assert "Riot Gang" in content
-    assert "Iron Skulls" in content
+    assert _participant_row(resp, "Riot Gang")["crew"]["rating_delta"] is None
 
 
 @pytest.mark.django_db
-def test_battle_spread_gap_state_lists_every_trailing_gang(
+def test_battle_table_every_crew_in_a_multi_gang_battle_has_a_delta(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """Sub-400 gaps with three gangs: nobody is the underdog, but each gang that
-    trails the top earns tactics, so each is listed — not just the biggest gap."""
+    """Three gangs: each trailing crew shows its own gap below the top — none is
+    hidden."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
@@ -3107,127 +3035,85 @@ def test_battle_spread_gap_state_lists_every_trailing_gang(
     )
     crew_setup["battle"].set_participants([riot, iron, orlock])
     _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
-    _locked_crew(crew_setup, orlock, orlock_fighters[:5])  # 500 — 100¢ below, 1 step
-    _locked_crew(
-        crew_setup, riot, crew_setup["fighters"][:4]
-    )  # 400 — 200¢ below, 2 steps
+    _locked_crew(crew_setup, orlock, orlock_fighters[:5])  # 500 — 100¢ below
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:4])  # 400 — 200¢ below
 
     client.force_login(crew_setup["user"])
     resp = _battle_response(client, crew_setup)
-    content = resp.content.decode()
 
-    assert resp.context["underdog"]["state"] == "gap"
-    assert resp.context["underdog"]["multi_behind"] is True
-    assert "is the underdog" not in content  # no 400¢ gap
-    # Both trailing gangs are listed with their own tactics.
-    assert "2 gangs have a lower crew rating" in content
-    assert "Riot Gang is 200¢ below" in content
-    assert "2 extra gang tactics" in content
-    assert "Orlock is 100¢ below" in content
-    assert "1 extra gang tactic" in content
+    assert _participant_row(resp, "Iron Skulls")["crew"]["rating_delta"] is None
+    assert _participant_row(resp, "Orlock")["crew"]["rating_delta"] == 100
+    assert _participant_row(resp, "Riot Gang")["crew"]["rating_delta"] == 200
 
 
 @pytest.mark.django_db
-def test_battle_spread_falls_back_to_gang_basis_when_a_gang_has_no_crew(
+def test_battle_table_archived_crew_drops_out_of_the_deltas(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """With only one crew there is nothing to compare on the crew basis, so the
-    block uses gang ratings and says so."""
-    riot = crew_setup["gang"]
-    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
-    crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:3])  # riot has a crew
-    # iron fields no crew; gang ratings become the only comparison.
-    _set_gang_rating(riot, 200)
-    _set_gang_rating(iron, 600)
-
-    client.force_login(crew_setup["user"])
-    resp = _battle_response(client, crew_setup)
-    content = resp.content.decode()
-
-    assert resp.context["underdog"]["on_gang_basis"] is True
-    assert "Not enough crews to compare, so this uses gang ratings." in content
-    # The gang-basis copy uses the gang-rating noun, not "crew".
-    assert "Their gang rating is" in content
-
-
-@pytest.mark.django_db
-def test_battle_spread_notes_when_gang_basis_disagrees(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """When gang ratings would name a different underdog than crew ratings, the
-    block flags the disagreement and points at which the scenario compares."""
+    """Archiving (withdrawing) a crew removes it from the delta comparison."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
     )
     crew_setup["battle"].set_participants([riot, iron])
     _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
-    _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600 → Riot underdog
-    # Gang ratings invert it: Iron Skulls is the gang-basis underdog.
-    _set_gang_rating(riot, 600)
-    _set_gang_rating(iron, 100)
-
-    client.force_login(crew_setup["user"])
-    content = _battle_response(client, crew_setup).content.decode()
-
-    assert "Riot Gang is the underdog." in content  # headline stays crew basis
-    assert (
-        "On gang ratings rather than crew ratings, Iron Skulls would be the underdog"
-        in content
-    )
-
-
-@pytest.mark.django_db
-def test_battle_spread_no_disagreement_line_when_bases_agree(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """Same underdog on both bases: no disagreement line."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
-    _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600
-    _set_gang_rating(riot, 100)
-    _set_gang_rating(iron, 600)  # gang basis agrees: Riot underdog
-
-    client.force_login(crew_setup["user"])
-    content = _battle_response(client, crew_setup).content.decode()
-
-    assert "Riot Gang is the underdog." in content
-    assert "On gang ratings rather than crew ratings" not in content
-
-
-@pytest.mark.django_db
-def test_battle_spread_excludes_archived_crews(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """An archived (withdrawn) crew stops counting in the spread."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # crew 100
-    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600
-    # A small gang-rating gap, so once the crew basis drops out the fallback is
-    # a plain "lower rating" note, not an underdog claim.
-    _set_gang_rating(riot, 500)
-    _set_gang_rating(iron, 600)
+    iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # crew 600 (top)
 
     client.force_login(crew_setup["user"])
     before = _battle_response(client, crew_setup)
-    assert before.context["underdog"]["on_gang_basis"] is False
-    assert "Riot Gang is the underdog." in before.content.decode()
+    assert _participant_row(before, "Riot Gang")["crew"]["rating_delta"] == 500
 
-    # Withdraw Iron Skulls' crew — it should stop counting.
+    # Withdraw Iron Skulls' crew — Riot's is now the only crew, so no delta.
     Crew.objects.filter(pk=iron_crew.pk).update(archived=True)
 
     after = _battle_response(client, crew_setup)
-    assert after.context["underdog"]["on_gang_basis"] is True
-    assert "is the underdog" not in after.content.decode()
+    riot_row = _participant_row(after, "Riot Gang")
+    assert riot_row["crew"] is not None  # Riot still has its crew
+    assert riot_row["crew"]["rating_delta"] is None  # nothing to compare now
+
+
+@pytest.mark.django_db
+def test_battle_table_hides_no_role_header_when_no_roles(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """With nobody assigned a role, the 'No role' group header is just noise, so
+    it isn't shown."""
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 2)
+    crew_setup["battle"].set_participants([crew_setup["gang"], iron])
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+
+    assert resp.context["roles_in_use"] is False
+    assert "No role" not in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_battle_table_shows_role_headers_when_roles_assigned(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Once any gang has a role, the role headers (including 'No role' for the
+    rest) are shown to group the table."""
+    from gyrinx.content.models import ContentBattleRole, ContentBattleRoleOption
+    from gyrinx.core.models import BattleParticipant
+
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 2)
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"], iron])
+
+    role = ContentBattleRole.objects.create(name="Attacker/Defender")
+    attacker = ContentBattleRoleOption.objects.create(role=role, name="Attacker")
+    bp = BattleParticipant.objects.get(battle=battle, list=crew_setup["gang"])
+    bp.role_option = attacker
+    bp.save()
+
+    client.force_login(crew_setup["user"])
+    resp = _battle_response(client, crew_setup)
+    content = resp.content.decode()
+
+    assert resp.context["roles_in_use"] is True
+    assert "Attacker" in content
+    assert "No role" in content  # shown for the gang without a role
 
 
 @pytest.mark.django_db
@@ -3264,11 +3150,10 @@ def test_battle_spread_third_gang_with_crew_adds_no_queries(
     assert render_query_count() == two_gangs
 
 
-# --- Crew-page allowance-available context ----------------------------------
+# --- Crew-page rating-gap note ----------------------------------------------
 #
-# The crew sheet's Allowance subtotal row gains an informational, conditional
-# note: the allowance this crew could draw from the rating gap if it is the
-# underdog and the campaign runs House Patronage. Never an entitlement.
+# The crew sheet shows how far this crew sits below the highest crew in the
+# battle — a plain number, no rules interpretation.
 
 
 def _crew_response(client, crew):
@@ -3278,69 +3163,35 @@ def _crew_response(client, crew):
 
 
 @pytest.mark.django_db
-def test_crew_page_shows_available_allowance_for_the_underdog(
+def test_crew_page_shows_the_rating_gap_below_the_top(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """The underdog crew's Allowance row gains a conditional 'up to X¢
-    available' note keyed off the rating gap."""
+    """A crew below the top shows how far below, in credits — numbers only."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
     )
     crew_setup["battle"].set_participants([riot, iron])
     riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
-    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 → Riot underdog by 500
-    # An extra so the Allowance subtotal row renders.
-    CrewLineItem.objects.create(
-        crew=riot_crew,
-        owner=crew_setup["user"],
-        label="Tactics card",
-        cost=300,
-        payment=Crew.PAY_ALLOWANCE,
-    )
+    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
 
     client.force_login(crew_setup["user"])
     resp = _crew_response(client, riot_crew)
     content = resp.content.decode()
 
-    assert resp.context["allowance_available"] == 500
-    assert "Up to 500¢ is available from the rating gap" in content
-    assert "if your campaign uses House Patronage" in content
-    # The Allowance subtotal is a plain total (300¢), no "recorded" qualifier —
-    # available vs recorded is drawn by the standalone note, not the subtotal.
-    # (The old "recorded" label was gated on the *potential* allowance, so an
-    # underdog with nothing recorded showed a misleading "0¢ recorded".)
-    assert "300¢" in content
-    assert "recorded" not in content
+    assert resp.context["rating_gap"] == 500
+    assert "500¢ below" in content
+    assert "the highest in the battle" in content
+    # No rules interpretation.
+    assert "House Patronage" not in content
+    assert "This crew is the underdog" not in content
 
 
 @pytest.mark.django_db
-def test_crew_page_shows_available_note_for_underdog_with_no_extras(
+def test_crew_page_no_gap_note_for_the_top_crew(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """The available-allowance note is most useful *before* anything is spent,
-    so it must show for an underdog crew that has recorded no allowance at all —
-    not only when the extras subtotal happens to render."""
-    riot = crew_setup["gang"]
-    iron, iron_fighters = _spread_gang(
-        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
-    )
-    crew_setup["battle"].set_participants([riot, iron])
-    riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
-    _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 → Riot underdog by 500
-    assert not riot_crew.line_items.exists()
-
-    client.force_login(crew_setup["user"])
-    content = _crew_response(client, riot_crew).content.decode()
-    assert "This crew is the underdog." in content
-    assert "Up to 500¢ is available from the rating gap" in content
-
-
-@pytest.mark.django_db
-def test_crew_page_no_available_note_for_non_underdog(
-    client, crew_setup, make_list, make_list_fighter
-):
-    """The stronger crew is not the underdog, so no allowance-available note."""
+    """The top crew has nothing below it, so no gap note."""
     riot = crew_setup["gang"]
     iron, iron_fighters = _spread_gang(
         crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
@@ -3348,47 +3199,31 @@ def test_crew_page_no_available_note_for_non_underdog(
     crew_setup["battle"].set_participants([riot, iron])
     _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100
     iron_crew = _locked_crew(crew_setup, iron, iron_fighters[:6])  # 600 (top)
-    CrewLineItem.objects.create(
-        crew=iron_crew,
-        owner=crew_setup["user"],
-        label="Tactics card",
-        cost=100,
-        payment=Crew.PAY_ALLOWANCE,
-    )
 
     client.force_login(crew_setup["user"])
     resp = _crew_response(client, iron_crew)
 
-    assert resp.context["allowance_available"] is None
-    assert "available from the rating gap" not in resp.content.decode()
+    assert resp.context["rating_gap"] is None
+    assert "the highest in the battle" not in resp.content.decode()
 
 
 @pytest.mark.django_db
-def test_crew_page_allowance_row_unchanged_when_spread_unknowable(
+def test_crew_page_no_gap_note_when_opponent_pending(
     client, crew_setup, make_list, make_list_fighter
 ):
-    """When the opponent's crew is still pending, the spread can't be worked out,
-    so the Allowance row is left exactly as it was."""
+    """When the opponent's crew is still to be drawn, the gap can't be worked
+    out, so no note."""
     riot = crew_setup["gang"]
     iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 3)
     crew_setup["battle"].set_participants([riot, iron])
     riot_crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])
     _pending_crew(crew_setup, iron)  # opponent unresolved
-    CrewLineItem.objects.create(
-        crew=riot_crew,
-        owner=crew_setup["user"],
-        label="Tactics card",
-        cost=300,
-        payment=Crew.PAY_ALLOWANCE,
-    )
 
     client.force_login(crew_setup["user"])
     resp = _crew_response(client, riot_crew)
-    content = resp.content.decode()
 
-    assert resp.context["allowance_available"] is None
-    assert "available from the rating gap" not in content
-    assert "recorded" not in content
+    assert resp.context["rating_gap"] is None
+    assert "the highest in the battle" not in resp.content.decode()
 
 
 @pytest.mark.django_db

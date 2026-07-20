@@ -207,16 +207,11 @@ def crew_detail(request, battle_id, crew_id):
         # The receipt's own total is extras-only while there are no attendees.
         provisional_total = projection["total"] + receipt["total"]
 
-    # Informational only: the allowance this crew could draw if it is the
-    # underdog and the campaign runs the House Patronage variant. It never
-    # asserts an entitlement or changes the recorded allowance — the humans
-    # adjudicate. None (the row is left as-is) when the spread can't be worked
-    # out (no opponent crew, or one still pending its draw) or this crew isn't
-    # the underdog.
-    _, standing = crew_battle_spread(crew)
-    allowance_available = (
-        standing.allowance if standing is not None and standing.is_underdog else None
-    )
+    # Informational only: how far this crew sits below the highest crew in the
+    # battle, in credits. Just the number — the humans decide what, if anything,
+    # it entitles them to. None when the gap can't be worked out (no opponent
+    # crew, or one still pending its draw) or this crew is the top.
+    rating_gap = crew_battle_spread(crew)
 
     return render(
         request,
@@ -233,7 +228,7 @@ def crew_detail(request, battle_id, crew_id):
             "projection": projection,
             "provisional_total": provisional_total,
             "can_edit_loadouts": bool(projection and can_manage),
-            "allowance_available": allowance_available,
+            "rating_gap": rating_gap,
         },
     )
 
