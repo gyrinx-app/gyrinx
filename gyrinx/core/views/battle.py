@@ -37,7 +37,7 @@ def _possessive(name):
     """Possessive form of a gang name: "Riot Gang's", "Iron Skulls'"."""
     if not name:
         return ""
-    return name + "'" if name.endswith("s") else name + "'s"
+    return name + "'" if name.endswith(("s", "S")) else name + "'s"
 
 
 def _underdog_block(

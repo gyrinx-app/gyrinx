@@ -21,6 +21,7 @@ from uuid import uuid4
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
 from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import (
+    crew_battle_spread,
     crew_spread_rating,
     crew_whole_gang_projection,
     eligible_crew_fighters,
@@ -1675,6 +1676,49 @@ def test_ending_the_battle_freezes_what_fought(
 
 
 @pytest.mark.django_db
+def test_crew_recorded_after_the_battle_ends_freezes_what_fought_at_lock(
+    crew_setup, make_equipment, make_weapon_profile
+):
+    """Recorded after the fact: players settled the crew at the table and only
+    log it once the result is already in. There is no future battle-end to
+    freeze what fought, so the lock has to be that moment — otherwise the record
+    would drift with the gang's later spending."""
+    battle = crew_setup["battle"]
+
+    # Draft the crew but end the battle before it is confirmed — the normal
+    # battle-end freeze finds nothing to snapshot (a draft never fielded).
+    crew = Crew.objects.create(
+        battle=battle,
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    _end_battle(crew_setup)
+    # handle_battle_end transitions a re-fetched instance, so reload ours.
+    battle.refresh_from_db()
+    assert battle.has_ended()
+
+    # Now confirm the crew. Because the battle is over, the lock freezes played.
+    crew = handle_crew_lock(user=crew_setup["user"], crew=crew).crew
+    assert crew.rating_selected == 100
+    assert crew.rating_played == 100
+    assert crew.rating() == 100
+    assert [m.rating_played for m in crew.members.all()] == [100]
+    # One write per member, not two: selected and played were frozen together.
+    assert crew.rating_note()["differs"] is False
+
+    # The gang spends on: the crew that fought must not follow it.
+    bolter = make_equipment(name="Late Bolter", cost=35, category="Basic Weapons")
+    make_weapon_profile(bolter)
+    crew_setup["fighters"][0].assign(bolter)
+
+    crew.refresh_from_db()
+    assert crew.rating() == 100
+    assert crew.members.get().rating() == 100
+
+
+@pytest.mark.django_db
 def test_played_crew_notes_what_it_was_picked_at(
     client, crew_setup, make_equipment, make_weapon_profile
 ):
@@ -2616,6 +2660,42 @@ def _pending_crew(crew_setup, gang):
 def _set_gang_rating(gang, value):
     """Force a gang's cached rating_current without recomputation."""
     List.objects.filter(pk=gang.pk).update(rating_current=value)
+
+
+@pytest.mark.django_db
+def test_battle_spread_returns_both_none_when_subject_crew_is_pending(
+    crew_setup, make_list, make_list_fighter
+):
+    """The subject crew has no rating yet (its draw is pending), so it is not in
+    the spread — even though the other two crews form one. There is nothing to
+    say about *its* standing, so both come back None, per the docstring."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 6
+    )
+    orlock, orlock_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Orlock", 2
+    )
+    crew_setup["battle"].set_participants([riot, iron, orlock])
+
+    subject = _pending_crew(crew_setup, riot)  # no known rating
+    _locked_crew(crew_setup, iron, iron_fighters[:1])
+    _locked_crew(crew_setup, orlock, orlock_fighters[:1])
+
+    spread, standing = crew_battle_spread(subject)
+    assert spread is None
+    assert standing is None
+
+
+def test_possessive_handles_a_trailing_s_in_either_case():
+    """A name ending in "s" takes a bare apostrophe — regardless of its case,
+    so an all-caps name doesn't come out as "...S's"."""
+    from gyrinx.core.views.battle import _possessive
+
+    assert _possessive("Riot Gang") == "Riot Gang's"
+    assert _possessive("Iron Skulls") == "Iron Skulls'"
+    assert _possessive("THE FANGS") == "THE FANGS'"
+    assert _possessive("") == ""
 
 
 def _battle_response(client, crew_setup):

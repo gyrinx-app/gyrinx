@@ -139,7 +139,11 @@ def crew_battle_spread(
     crew has no rating of its own yet (its draw is pending), so the caller has a
     single "nothing to say" signal.
     """
-    crews = list(crew.battle.crews.filter(archived=False).prefetch_related("members"))
+    crews = list(
+        crew.battle.crews.filter(archived=False)
+        .select_related("list")
+        .prefetch_related("members")
+    )
     ratings = {}
     provisional = False
     for other in crews:
@@ -152,6 +156,12 @@ def crew_battle_spread(
         return None, None
 
     standing = next((s for s in spread.standings if s.key == crew.id), None)
+    if standing is None:
+        # This crew has no rating of its own yet (its draw is pending), so it is
+        # not in the spread — there is nothing to say about *its* standing even
+        # if the other crews form one. Collapse to the single "nothing to say"
+        # signal the docstring promises, rather than a spread with no standing.
+        return None, None
     return spread, standing
 
 
@@ -322,7 +332,9 @@ def handle_crew_archive(*, user, crew: Crew) -> CampaignAction:
 
 
 @traced("snapshot_crew_rating")
-def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
+def snapshot_crew_rating(
+    *, user, crew: Crew, field: str, also_field: str = None
+) -> int:
     """Freeze the crew's live rating, and each member's share of it, into
     ``field`` (``"rating_selected"`` or ``"rating_played"``).
 
@@ -331,15 +343,25 @@ def snapshot_crew_rating(*, user, crew: Crew, field: str) -> int:
     battle records what actually *fought*. One implementation so the two can
     never be computed differently.
 
-    Sets the field on the ``crew`` instance (the caller saves it, alongside
-    whatever else it is changing) and persists it on each member.
+    ``also_field`` writes the *same* frozen figure to a second field in the same
+    pass. It exists for the record-after-the-fact case: a crew confirmed on an
+    already-ended battle freezes ``rating_selected`` and ``rating_played`` at
+    once (there was no gap between picking and fielding), and doing it in one
+    pass keeps it to a single member write rather than two history rows.
+
+    Sets the field(s) on the ``crew`` instance (the caller saves it, alongside
+    whatever else it is changing) and persists them on each member.
     """
+    fields = [field] + ([also_field] if also_field else [])
     ratings = crew.live_member_ratings()
     for member in crew.members.all():
-        setattr(member, field, ratings.get(member.id, 0))
+        share = ratings.get(member.id, 0)
+        for f in fields:
+            setattr(member, f, share)
         member.save_with_user(user=user)
     total = sum(ratings.values())
-    setattr(crew, field, total)
+    for f in fields:
+        setattr(crew, f, total)
     return total
 
 
@@ -484,7 +506,17 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     # Record what was picked. The crew goes on reporting its live rating until
     # the battle ends — this is the note-worthy "was X when you picked it"
     # figure, not the headline one (see Crew.rating).
-    snapshot_crew_rating(user=user, crew=crew, field="rating_selected")
+    if crew.battle.has_ended():
+        # Recorded after the fact: players settled the crew at the table, the
+        # battle is already over, and they are only now logging it. There is no
+        # future battle-end to freeze what fought, so the lock is that moment —
+        # freeze rating_played here too, equal to rating_selected (nothing
+        # happened between picking and fielding to move them apart).
+        snapshot_crew_rating(
+            user=user, crew=crew, field="rating_selected", also_field="rating_played"
+        )
+    else:
+        snapshot_crew_rating(user=user, crew=crew, field="rating_selected")
     crew.save_with_user(user=user)
 
     if whole_gang:
