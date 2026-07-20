@@ -24,17 +24,27 @@ from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.crew import Crew, CrewMember, roll_selection_spec
 from gyrinx.core.models.list import ListFighter
+from gyrinx.models import FighterCategoryChoices
 from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
+# Categories a fighter must be opted into to appear in a crew: hangers-on don't
+# normally take part in a battle (rulebook — only forced in on home turf), and
+# vehicle crew are an Ash-Wastes thing. Everything else (including Brutes, which
+# "are treated like any other fighter when selecting a crew") is eligible.
+DEFAULT_EXCLUDED_CREW_CATEGORIES = frozenset(
+    {FighterCategoryChoices.HANGER_ON.value, FighterCategoryChoices.CREW.value}
+)
 
-def eligible_crew_fighters(lst):
+
+def eligible_crew_fighters(lst, *, included=()):
     """Fighters in ``lst`` eligible to be picked or drawn for a crew.
 
     Active state, not the stash, not archived — mirrors the single-fighter
@@ -48,24 +58,40 @@ def eligible_crew_fighters(lst):
     them — a child fighter is one spawned by an owner's equipment assignment.
     They still join the crew, enrolled against their owner by
     :func:`sync_linked_crew_members`.
+
+    Hangers-on and vehicle crew are excluded too, unless their category is in
+    ``included`` (a per-crew opt-in — the player's choice, e.g. an Ash-Wastes
+    game where crew field, or a home-turf scenario that drags hangers-on in).
+    The check is on the fighter's *effective* category, so a promotion's
+    ``category_override`` wins over the content fighter's own category.
     """
-    return ListFighter.objects.filter(
+    excluded = DEFAULT_EXCLUDED_CREW_CATEGORIES - set(included)
+    qs = ListFighter.objects.filter(
         list=lst,
         archived=False,
         content_fighter__is_stash=False,
         injury_state=ListFighter.ACTIVE,
         source_assignment__isnull=True,
     )
+    if excluded:
+        qs = qs.exclude(
+            Q(category_override__in=excluded)
+            | Q(
+                category_override__isnull=True,
+                content_fighter__category__in=excluded,
+            )
+        )
+    return qs
 
 
-def eligible_crew_fighters_for_loadouts(lst):
+def eligible_crew_fighters_for_loadouts(lst, *, included=()):
     """The eligible fighters, loaded for loadout work.
 
     ``with_related_data()`` brings each fighter's equipment sets *and* their
     assignments in with the batch, which is what lets the resolver and the
     set-scoped cost run without a query per fighter.
     """
-    return eligible_crew_fighters(lst).with_related_data()
+    return eligible_crew_fighters(lst, included=included).with_related_data()
 
 
 @traced("crew_whole_gang_projection")
@@ -86,7 +112,11 @@ def crew_whole_gang_projection(crew: Crew):
     """
     rows = []
     total = 0
-    roster = list(eligible_crew_fighters_for_loadouts(crew.list))
+    roster = list(
+        eligible_crew_fighters_for_loadouts(
+            crew.list, included=crew.included_categories
+        )
+    )
     for fighter in roster:
         equipment_set = crew.resolve_loadout(fighter)
         rating = fighter.cost_int_for_equipment_set(equipment_set)
@@ -499,7 +529,7 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     lst = crew.list
     rng = rng or Random()  # nosec B311 - game dice, not crypto
 
-    eligible = eligible_crew_fighters(lst)
+    eligible = eligible_crew_fighters(lst, included=crew.included_categories)
     eligible_ids = set(eligible.values_list("pk", flat=True))
     members = list(crew.members.all())
 
@@ -526,7 +556,9 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     if whole_gang or crew.loadout_overrides:
         # Loaded once, with each fighter's sets, so resolving the whole roster's
         # loadouts costs no query per fighter.
-        roster = list(eligible_crew_fighters_for_loadouts(lst))
+        roster = list(
+            eligible_crew_fighters_for_loadouts(lst, included=crew.included_categories)
+        )
         # Self-heal the advisory map while we have the roster in hand: entries
         # for fighters who are no longer eligible, or for sets that have since
         # been deleted, are dropped. Persisted by the save below.

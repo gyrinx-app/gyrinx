@@ -182,10 +182,19 @@ class CrewForm(forms.ModelForm):
             method or getattr(self.instance, "selection_method", None) or (Crew.CUSTOM)
         )
 
+        # Categories this crew has opted into (hangers-on / vehicle crew, which
+        # are otherwise excluded). Empty until the selection UI lets a player add
+        # them; read off the instance so editing a crew keeps its opt-ins.
+        self.included_categories = (
+            getattr(self.instance, "included_categories", None) or []
+        )
+
         # with_related_data() so the checkbox labels (category + cached cost)
         # and each fighter's equipment sets render without a query per fighter.
         self.eligible = (
-            eligible_crew_fighters(self.gang).with_related_data()
+            eligible_crew_fighters(
+                self.gang, included=self.included_categories
+            ).with_related_data()
             if self.gang is not None
             else ListFighter.objects.none()
         )

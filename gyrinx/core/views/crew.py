@@ -328,7 +328,11 @@ def crew_loadouts(request, battle_id, crew_id):
         )
         return _redirect_crew(crew)
 
-    fighters = list(eligible_crew_fighters_for_loadouts(crew.list))
+    fighters = list(
+        eligible_crew_fighters_for_loadouts(
+            crew.list, included=crew.included_categories
+        )
+    )
 
     if request.method == "POST":
         form = CrewLoadoutsForm(request.POST, crew=crew, fighters=fighters)

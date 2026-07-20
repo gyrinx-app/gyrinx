@@ -579,6 +579,230 @@ def test_whole_gang_forecast_includes_beasts(
     assert len(beast_rows) == 1
 
 
+# --- Category eligibility (hangers-on, vehicle crew) ------------------------
+#
+# Hangers-on don't normally take part in a battle and vehicle crew are an
+# Ash-Wastes thing, so both are excluded from selection by default. A crew opts
+# a category back in per-crew (the player's choice). Brutes are NOT special —
+# they field like any other fighter. The check is on the effective category, so
+# a promotion's category_override wins.
+
+
+def _fighter_of_category(
+    crew_setup, make_content_fighter, make_list_fighter, category, name, base_cost=50
+):
+    """A standalone gang fighter of a given category."""
+    cf = make_content_fighter(
+        type=name,
+        category=category,
+        house=crew_setup["fighters"][0].content_fighter.house,
+        base_cost=base_cost,
+    )
+    return make_list_fighter(crew_setup["gang"], name, content_fighter=cf)
+
+
+def _give_vehicle(
+    crew_setup,
+    owner,
+    make_content_fighter,
+    make_equipment,
+    make_list_fighter,
+    name="Rig",
+):
+    """Give ``owner`` (a Crew fighter) a linked VEHICLE child."""
+    vtype = make_content_fighter(
+        type=name,
+        category=FighterCategoryChoices.VEHICLE,
+        house=owner.content_fighter.house,
+        base_cost=0,
+    )
+    vehicle = make_list_fighter(crew_setup["gang"], name, content_fighter=vtype)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=owner,
+        content_equipment=make_equipment(name=f"{name} (vehicle)", cost=200),
+        child_fighter=vehicle,
+    )
+    return vehicle
+
+
+@pytest.mark.django_db
+def test_eligible_crew_fighters_excludes_hangers_on_and_crew_by_default(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    brute = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.BRUTE,
+        "Ogryn",
+    )
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert hanger not in eligible
+    assert driver not in eligible
+    assert brute in eligible  # brutes field like anyone else
+    assert crew_setup["fighters"][0] in eligible  # a normal ganger
+
+
+@pytest.mark.django_db
+def test_eligible_crew_fighters_opt_in_by_category(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    gang = crew_setup["gang"]
+
+    only_hangers = set(eligible_crew_fighters(gang, included=["HANGER_ON"]))
+    assert hanger in only_hangers
+    assert driver not in only_hangers  # opted hangers-on in, not crew
+
+    both = set(eligible_crew_fighters(gang, included=["HANGER_ON", "CREW"]))
+    assert hanger in both
+    assert driver in both
+
+
+@pytest.mark.django_db
+def test_eligible_crew_fighters_uses_effective_category(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A category_override wins over the content fighter's own category."""
+    # Content GANGER, promoted-relabelled to HANGER_ON → excluded.
+    promoted_out = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.GANGER,
+        "Sidelined",
+    )
+    promoted_out.category_override = FighterCategoryChoices.HANGER_ON
+    promoted_out.save()
+    # Content HANGER_ON, relabelled to GANGER → included.
+    promoted_in = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Promoted",
+    )
+    promoted_in.category_override = FighterCategoryChoices.GANGER
+    promoted_in.save()
+
+    eligible = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert promoted_out not in eligible
+    assert promoted_in in eligible
+
+
+@pytest.mark.django_db
+def test_whole_gang_lock_excludes_hangers_on(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A whole-gang crew enrols the fieldable roster; a hanger-on stays out and
+    isn't counted."""
+    _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert result.chosen_count == 5  # the five gangers, not the hanger-on
+    categories = {m.list_fighter.content_fighter.category for m in crew.members.all()}
+    assert FighterCategoryChoices.HANGER_ON not in categories
+
+
+@pytest.mark.django_db
+def test_whole_gang_lock_includes_opted_in_hangers_on(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A whole-gang crew that opts hangers-on in sweeps them up too."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        included_categories=["HANGER_ON"],
+    )
+
+    result = handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    assert result.chosen_count == 6  # five gangers + the hanger-on
+    assert crew.members.filter(list_fighter=hanger).exists()
+
+
+@pytest.mark.django_db
+def test_included_crew_category_brings_in_the_vehicle_child(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """Ash-Wastes payoff: opt CREW in, pick the crew fighter, and its vehicle
+    (a child) deploys with it via the linked-member enrolment."""
+    driver = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.CREW,
+        "Driver",
+    )
+    vehicle = _give_vehicle(
+        crew_setup, driver, make_content_fighter, make_equipment, make_list_fighter
+    )
+
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+        included_categories=["CREW"],
+    )
+    handle_crew_recipe_save(
+        user=crew_setup["user"],
+        crew=crew,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        chosen_fighters=[driver],
+    )
+
+    assert crew.members.filter(source=CrewMember.CHOSEN, list_fighter=driver).exists()
+    assert crew.members.filter(source=CrewMember.LINKED, list_fighter=vehicle).exists()
+
+
 # --- Lock / draw handler ----------------------------------------------------
 
 

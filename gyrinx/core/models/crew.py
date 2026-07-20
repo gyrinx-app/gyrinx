@@ -126,6 +126,16 @@ def build_selection_spec(dice, number):
     return ""
 
 
+def default_included_categories():
+    """Empty opt-in list default for ``Crew.included_categories``.
+
+    A named function, not the ``list`` builtin: inside the ``Crew`` class body
+    the name ``list`` is the gang ForeignKey, so ``default=list`` would bind to
+    that field.
+    """
+    return []
+
+
 class Crew(AppBase):
     """A gang's crew for one battle: the recipe, then the frozen attendees."""
 
@@ -226,6 +236,17 @@ class Crew(AppBase):
             '{"<list_fighter_id>": {"equipment_set": "<set_id>"}}, where a '
             "stored null means the Default card. Never authoritative — see "
             "Crew.resolve_loadout."
+        ),
+    )
+    included_categories = models.JSONField(
+        default=default_included_categories,
+        blank=True,
+        help_text=(
+            "Fighter categories this crew opts into beyond the always-eligible "
+            "set. Hangers-on and vehicle crew are excluded from selection by "
+            "default — hangers-on don't normally fight, and crew are an Ash "
+            "Wastes thing — and a player adds them here per crew. A list of "
+            'FighterCategoryChoices values (e.g. ["HANGER_ON", "CREW"]).'
         ),
     )
     status = models.CharField(
