@@ -129,6 +129,26 @@ def test_build_selection_spec(dice, number, spec):
 # --- Fixtures ---------------------------------------------------------------
 
 
+def _stable_query_count(render):
+    """Render until two consecutive renders issue the same query count.
+
+    The relative query-count tests guard against per-row N+1s by comparing a
+    baseline render against one with more data. A single-sample baseline is
+    flaky: one-shot lazy work — per-process content caches, cost-cache
+    recalculations — can land in any one render depending on what ran earlier
+    in the process (CI ordering), skewing it by a query. Stabilising both
+    measurements absorbs the one-shots, while a real N+1 stays a stable,
+    *different* count and still fails.
+    """
+    prev = render()
+    for _ in range(3):
+        cur = render()
+        if cur == prev:
+            return cur
+        prev = cur
+    return prev
+
+
 def add_chosen(crew, fighters):
     """Add ``fighters`` to ``crew`` as chosen members — what saving a recipe
     does. Members exist from selection time, so a draft crew has them too."""
@@ -2982,15 +3002,14 @@ def test_selection_form_issues_no_per_fighter_set_query(
         return len(ctx)
 
     equipped_fighter(gang)
-    render_query_count()  # warm anything cached per process
-    one_fighter_with_sets = render_query_count()
+    one_fighter_with_sets = _stable_query_count(render_query_count)
 
     for i in range(2):
         fighter = make_list_fighter(gang, f"Carrier {i}")
         ListFighterEquipmentSet.objects.create(
             list_fighter=fighter, name=f"Kit {i}", owner=fighter.owner
         )
-    assert render_query_count() == one_fighter_with_sets
+    assert _stable_query_count(render_query_count) == one_fighter_with_sets
 
 
 @pytest.mark.django_db
@@ -3659,15 +3678,14 @@ def test_crew_page_forecast_costs_no_per_fighter_query(
         return len(ctx)
 
     equipped_fighter(gang)
-    render_query_count()  # warm anything cached per process
-    baseline = render_query_count()
+    baseline = _stable_query_count(render_query_count)
 
     for i in range(2):
         extra = make_list_fighter(gang, f"Carrier {i}")
         ListFighterEquipmentSet.objects.create(
             list_fighter=extra, name=f"Kit {i}", owner=extra.owner
         )
-    assert render_query_count() == baseline
+    assert _stable_query_count(render_query_count) == baseline
 
 
 @pytest.mark.django_db
@@ -4439,14 +4457,13 @@ def test_battle_spread_third_gang_with_crew_adds_no_queries(
             assert client.get(url).status_code == 200
         return len(ctx)
 
-    render_query_count()  # warm per-process caches
-    two_gangs = render_query_count()
+    two_gangs = _stable_query_count(render_query_count)
 
     third, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Third Gang", 1)
     crew_setup["battle"].set_participants([riot, iron, third])
     _pending_crew(crew_setup, third)
 
-    assert render_query_count() == two_gangs
+    assert _stable_query_count(render_query_count) == two_gangs
 
 
 # --- Crew-page rating-gap note ----------------------------------------------
@@ -4554,13 +4571,12 @@ def test_crew_page_opponent_fighter_count_does_not_raise_query_count(
             assert client.get(url).status_code == 200
         return len(ctx)
 
-    render_query_count()  # warm per-process caches
-    few = render_query_count()
+    few = _stable_query_count(render_query_count)
 
     # Grow the opponent's crew; the batched opponent load must stay flat.
     add_chosen(iron_crew, iron_fighters[2:8])
 
-    assert render_query_count() == few
+    assert _stable_query_count(render_query_count) == few
 
 
 # --- Stash items -------------------------------------------------------------
