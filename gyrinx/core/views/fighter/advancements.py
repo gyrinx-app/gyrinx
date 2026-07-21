@@ -1027,7 +1027,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
             if params.is_skill_advancement()
             else None
         )
-    except ValidationError as e:
+    except (ValidationError, ValueError) as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
             reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
