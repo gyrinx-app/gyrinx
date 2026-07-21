@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0181_campaign_default_crew_categories"),
+        ("core", "0183_promotion_pointer_and_target"),
     ]
 
     operations = [
