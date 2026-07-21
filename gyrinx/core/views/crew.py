@@ -280,7 +280,8 @@ def crew_detail(request, battle_id, crew_id):
     provisional_total = None
     if not crew.is_locked and crew.is_whole_gang and not receipt["attendees"]:
         projection = crew_whole_gang_projection(crew)
-        # The receipt's own total is extras-only while there are no attendees.
+        # With no attendees the receipt's own total is just extras + brought
+        # stash, so adding the projection counts nothing twice.
         provisional_total = projection["total"] + receipt["total"]
 
     # Always-included fighters (hired guns, anyone marked Included) are only

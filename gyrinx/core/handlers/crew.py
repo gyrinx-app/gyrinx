@@ -45,7 +45,15 @@ logger = logging.getLogger(__name__)
 # vehicle crew are an Ash-Wastes thing. Everything else (including Brutes, which
 # "are treated like any other fighter when selecting a crew") is eligible.
 DEFAULT_EXCLUDED_CREW_CATEGORIES = frozenset(
-    {FighterCategoryChoices.HANGER_ON.value, FighterCategoryChoices.CREW.value}
+    {
+        FighterCategoryChoices.HANGER_ON.value,
+        FighterCategoryChoices.CREW.value,
+        # Gang terrain normally arrives via the stash (a gun emplacement is
+        # stash equipment with a linked card), but some gangs hold terrain as a
+        # top-level fighter — those show here defaulting to Excluded, and a
+        # player can flip one to Always included for a battle.
+        FighterCategoryChoices.GANG_TERRAIN.value,
+    }
 )
 
 # The categories a player (or a campaign default) can opt back in. Each carries a
@@ -83,9 +91,6 @@ EQUIPMENT_CREW_CATEGORIES = frozenset(
     {
         FighterCategoryChoices.VEHICLE.value,
         FighterCategoryChoices.EXOTIC_BEAST.value,
-        # Gang terrain (gun emplacements etc.) is bought as stash equipment and
-        # brought via the crew's stash selection, never picked as a fighter.
-        FighterCategoryChoices.GANG_TERRAIN.value,
     }
 )
 
@@ -1065,6 +1070,10 @@ def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
     ignored either way — they're computed, never stored. No lock gating: gang
     terrain and the like are chosen after the draw.
     """
+    # Serialise concurrent saves on the crew row so a double-submit can't race
+    # the read-then-create reconcile into the unique(crew, assignment)
+    # constraint (mirrors handle_crew_lock).
+    crew = Crew.objects.select_for_update().get(pk=crew.pk)
     stash = crew.list.stash_fighter
     valid_ids = (
         set(

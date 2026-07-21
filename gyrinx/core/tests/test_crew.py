@@ -4717,11 +4717,13 @@ def test_stash_child_fighter_surfaces_on_the_row(
 
 
 @pytest.mark.django_db
-def test_top_level_gang_terrain_is_not_crew_selectable(
+def test_top_level_gang_terrain_defaults_excluded_but_can_be_included(
     crew_setup, make_content_fighter, make_list_fighter
 ):
-    """Gang terrain is brought via the stash, never picked as a fighter — even a
-    top-level (non-child) terrain fighter stays off the eligibility list."""
+    """Terrain normally arrives via the stash, but some gangs hold it as a
+    top-level fighter (prod has a handful): those show on the eligibility list
+    defaulting to Excluded, and a player can flip one to Always included — so
+    they're never stranded with no way to be fielded."""
     terrain = _fighter_of_category(
         crew_setup,
         make_content_fighter,
@@ -4733,8 +4735,15 @@ def test_top_level_gang_terrain_is_not_crew_selectable(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
 
-    ids = {r["fighter"].id for r in crew_eligibility(crew)}
-    assert terrain.id not in ids
+    states = {r["fighter"].id: r["effective"] for r in crew_eligibility(crew)}
+    assert states[terrain.id] == CREW_NOT_ELIGIBLE  # shown, defaulting out
+    assert terrain not in set(eligible_crew_fighters(crew_setup["gang"]))
+
+    # Flipped to Included on the setup screen, it joins on top.
+    overrides = {str(terrain.id): CREW_ALWAYS_INCLUDED}
+    assert terrain in set(
+        always_included_crew_fighters(crew_setup["gang"], overrides=overrides)
+    )
 
 
 @pytest.mark.django_db
@@ -4923,3 +4932,24 @@ def test_always_brought_with_child_fighter_appears_untouched(
     assert receipt["stash_total"] == 200
     # And its card prints with the crew.
     assert assignment.child_fighter_id in crew.print_fighter_ids()
+
+
+@pytest.mark.django_db
+def test_stash_tab_post_drops_malformed_ids(client, crew_setup, make_equipment):
+    """A hand-edited POST with junk ids saves cleanly — malformed values are
+    dropped, valid ones stick."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.post(
+        reverse("core:crew-stash", args=[crew.battle_id, crew.id]),
+        {"stash_items": ["not-a-uuid", str(gear["Ammo Cache"].id), ""]},
+    )
+
+    assert resp.status_code == 302
+    assert set(crew.stash_items.values_list("assignment_id", flat=True)) == {
+        gear["Ammo Cache"].id
+    }
