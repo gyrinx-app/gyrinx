@@ -334,6 +334,37 @@ def crew_whole_gang_projection(crew: Crew):
     return {"rows": rows, "total": total}
 
 
+@traced("crew_included_forecast")
+def crew_included_forecast(crew: Crew):
+    """The always-included fighters that will join ``crew`` when it's confirmed
+    but aren't members yet — a draft only enrols them (as ``INCLUDED``) at lock.
+
+    Lets the crew overview forecast them alongside the chosen picks / the draw,
+    so a hired gun (or anyone marked *Included*) is visible before the crew is
+    locked. Each is costed at its whole kit (Default), which is what the lock
+    enrols them with, matching :func:`crew_whole_gang_projection`. The whole-gang
+    forecast already includes them, so callers use this only when *not* showing
+    that; once locked they are real attendees and this isn't used.
+    """
+    rows = []
+    total = 0
+    for fighter in always_included_crew_fighters(
+        crew.list,
+        included=crew.included_categories,
+        overrides=crew.eligibility_overrides,
+    ).with_related_data():
+        rating = fighter.cost_int_for_equipment_set(None)
+        total += rating
+        rows.append(
+            {
+                "name": fighter.name,
+                "category": fighter.content_fighter.get_category_display(),
+                "rating": rating,
+            }
+        )
+    return {"rows": rows, "total": total}
+
+
 def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
     """What a crew is worth *right now* for spread/underdog comparison, and
     whether that figure is provisional. Returns ``(rating, is_provisional)``.

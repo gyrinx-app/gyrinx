@@ -963,6 +963,104 @@ def test_selection_screen_shows_always_included_fighters(
     assert "Merc" in content
 
 
+@pytest.mark.django_db
+def test_crew_overview_forecasts_always_included_on_a_draft(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """A hired gun (always-included) is only enrolled at lock, so it must be
+    forecast on a draft crew's overview — the reported bug was it going missing
+    on a hybrid draft with picks."""
+    _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+        base_cost=120,
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=1,
+        random_spec="D3",
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+
+    forecast = resp.context["included_forecast"]
+    assert forecast is not None
+    assert [r["name"] for r in forecast["rows"]] == ["Merc"]
+    assert forecast["total"] == 120
+    content = resp.content.decode()
+    assert "Merc" in content
+    assert "Always included" in content
+
+
+@pytest.mark.django_db
+def test_crew_overview_no_included_forecast_once_locked(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """Once locked, always-included fighters are real attendees, so there's no
+    separate forecast (it would double them up)."""
+    _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+
+    assert resp.context["included_forecast"] is None
+    # The hired gun is now a real attendee instead.
+    assert crew.members.filter(source=CrewMember.INCLUDED).exists()
+    assert "Merc" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_crew_overview_whole_gang_draft_has_no_separate_included_forecast(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """The whole-gang projection already lists always-included fighters, so the
+    separate forecast isn't used (no double-listing)."""
+    _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,  # no count + no picks = whole gang
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+
+    assert resp.context["included_forecast"] is None
+    assert resp.context["projection"] is not None
+    # Still shown, via the whole-gang projection.
+    assert "Merc" in resp.content.decode()
+
+
 # --- Eligibility screen (per-fighter defaults + overrides) ------------------
 #
 # The eligibility step computes a default state per fighter (eligible /
