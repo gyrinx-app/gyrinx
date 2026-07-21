@@ -38,19 +38,12 @@ def promotion_choice_label(path) -> str:
 
 
 def available_promotion_paths(fighter):
-    """Promotion paths this fighter can currently be offered.
-
-    Multi-target paths are excluded until the target-selection step exists (Phase 4 of
-    the promotions epic) — offering them without a chooser would silently drop the
-    player's "which type?" decision.
-    """
+    """Promotion paths this fighter can currently be offered."""
     paths = []
     for path in ContentPromotionPath.objects.prefetch_related(
         "restricted_to_houses", "targets"
     ):
         if not path.is_available_to_fighter(fighter):
-            continue
-        if path.targets.count() > 1:
             continue
         paths.append(path)
     return paths
@@ -722,6 +715,30 @@ class OtherAdvancementForm(forms.Form):
         if not description:
             raise ValidationError("Please enter a description for the advancement.")
         return description
+
+
+class PromotionTargetSelectionForm(forms.Form):
+    """Form for choosing which type a multi-target promotion turns the fighter into.
+
+    The rulebook's "either a Forge Boss or a Stimmer as the controlling player wishes"
+    choice — the heart of the Prospect promotion paths.
+    """
+
+    target = forms.ModelChoiceField(
+        queryset=None,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Choose which type this fighter will be promoted to.",
+        label="Promotion type",
+    )
+
+    def __init__(self, *args, path=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = path
+        from gyrinx.content.models import ContentFighter
+
+        self.fields["target"].queryset = (
+            path.targets.all() if path else ContentFighter.objects.none()
+        )
 
 
 class EquipmentAssignmentSelectionForm(forms.Form):

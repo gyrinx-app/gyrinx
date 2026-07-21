@@ -10,6 +10,7 @@ from django.db import transaction
 
 from gyrinx.content.models import (
     ContentAdvancementAssignment,
+    ContentFighter,
     ContentPromotionPath,
     ContentSkill,
 )
@@ -60,6 +61,7 @@ def handle_fighter_advancement(
     skill: Optional[ContentSkill] = None,
     equipment_assignment: Optional[ContentAdvancementAssignment] = None,
     promotion_path: Optional[ContentPromotionPath] = None,
+    promotion_target: Optional[ContentFighter] = None,
     description: Optional[str] = None,
     # Campaign action linking
     campaign_action_id: Optional[UUID] = None,
@@ -153,6 +155,7 @@ def handle_fighter_advancement(
         skill=skill,
         equipment_assignment=equipment_assignment,
         promotion_path=promotion_path,
+        promotion_target=promotion_target,
         description=description,
     )
 
@@ -164,6 +167,7 @@ def handle_fighter_advancement(
         skill=skill,
         equipment_assignment=equipment_assignment,
         promotion_path=promotion_path,
+        promotion_target=promotion_target,
         description=description,
     )
 
@@ -274,6 +278,7 @@ def _generate_outcome_description(
     skill: Optional[ContentSkill],
     equipment_assignment: Optional[ContentAdvancementAssignment],
     promotion_path: Optional[ContentPromotionPath] = None,
+    promotion_target: Optional[ContentFighter] = None,
     description: Optional[str],
 ) -> str:
     """Generate a human-readable outcome description for the advancement."""
@@ -295,6 +300,8 @@ def _generate_outcome_description(
 
     elif advancement_type == ListFighterAdvancement.ADVANCEMENT_PROMOTION:
         outcome = promotion_path.name if promotion_path else "Promoted"
+        if promotion_target:
+            outcome += f" — now counts as {promotion_target.type}"
         if skill:
             outcome += f", gaining {skill.name} skill"
         return outcome
@@ -568,12 +575,12 @@ def _recalculate_category_override(
     advancement_being_deleted: ListFighterAdvancement,
 ) -> None:
     """
-    Recalculate the fighter's category_override after a promotion advancement is deleted.
+    Recalculate the fighter's promotion state after a promotion advancement is deleted.
 
     Rank-driven: every remaining non-archived advancement that resolves as a promotion
     (data-driven rows via their ContentPromotionPath rank; legacy skill_promote_* rows via
-    the static map) competes, and the highest rank wins. No promotions remaining clears
-    the override.
+    the static map) competes, and the highest rank wins — for both the category override
+    and the type-change access pointer. No promotions remaining clears both.
 
     Args:
         fighter: The fighter to recalculate
@@ -597,4 +604,5 @@ def _recalculate_category_override(
             best = resolved
 
     fighter.category_override = best.to_category if best else None
+    fighter.promoted_content_fighter = best.target if best else None
     fighter.save()

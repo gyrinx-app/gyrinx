@@ -15,6 +15,8 @@
                             Choose
                         {% endif %}
                         {{ advancement_name }}
+                    {% elif advancement_type == "promotion_target" %}
+                        Choose promotion type
                     {% else %}
                         Choose {{ skill_type|title }} Skill
                         {% if is_random %}Set{% endif %}
@@ -28,6 +30,13 @@
             {% csrf_token %}
             {% if advancement_type == "equipment" %}
                 {% include "core/includes/advancement_equipment_form.html" %}
+            {% elif advancement_type == "promotion_target" %}
+                <div class="vstack gap-2">
+                    {% if advancement_name %}<p class="mb-0 text-secondary">{{ advancement_name }}</p>{% endif %}
+                    {{ form.target.errors }}
+                    {{ form.target }}
+                    <div class="form-text">{{ form.target.help_text }}</div>
+                </div>
             {% else %}
                 {% include "core/includes/advancement_skill_form.html" %}
             {% endif %}

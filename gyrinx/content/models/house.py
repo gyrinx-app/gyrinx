@@ -140,7 +140,9 @@ class ContentFighterHouseOverride(Content):
         from gyrinx.core.models.list import ListFighter, bulk_mark_fighters_dirty
 
         list_fighters = ListFighter.objects.filter(
-            Q(content_fighter=self.fighter) | Q(legacy_content_fighter=self.fighter),
+            Q(content_fighter=self.fighter)
+            | Q(legacy_content_fighter=self.fighter)
+            | Q(promoted_content_fighter=self.fighter),
             list__content_house=self.house,
             archived=False,
         )

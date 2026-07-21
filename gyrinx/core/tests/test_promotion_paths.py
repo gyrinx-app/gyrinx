@@ -222,13 +222,18 @@ def test_reversal_mixed_eras(user, ganger_with_xp, default_promotions, combat_sk
     assert ganger_with_xp.category_override == FighterCategoryChoices.SPECIALIST
 
 
-# --- Phase 4 gate: multi-target paths are not yet offered -------------------------------
+# --- D group: multi-target type-change promotions (#1467) -------------------------------
 
 
-@pytest.mark.django_db
-def test_multi_target_paths_gated_until_selection_exists(
-    juve_fighter, make_content_fighter, content_house
-):
+@pytest.fixture
+def prospect_setup(make_content_fighter, make_list, make_list_fighter, content_house):
+    """A Prospect with a two-target promotion path (the Forge-born case)."""
+    prospect_cf = make_content_fighter(
+        type="Forge-born",
+        category=FighterCategoryChoices.PROSPECT,
+        house=content_house,
+        base_cost=50,
+    )
     forge_boss = make_content_fighter(
         type="Forge Boss",
         category=FighterCategoryChoices.CHAMPION,
@@ -244,13 +249,267 @@ def test_multi_target_paths_gated_until_selection_exists(
     path = ContentPromotionPath.objects.create(
         name="Promotion (Forge Boss or Stimmer)",
         kind=ContentPromotionPath.Kind.TYPE_CHANGE,
-        from_category=FighterCategoryChoices.JUVE,
+        from_category=FighterCategoryChoices.PROSPECT,
+        source_fighter=prospect_cf,
         xp_cost=0,
+        cost_increase=0,
+        grants_skill="none",
+        advancements_threshold=5,
+        timing=ContentPromotionPath.Timing.DOWNTIME,
+        rank=2,
     )
     path.targets.set([forge_boss, stimmer])
+    lst = make_list("Type-change Test Gang")
+    fighter = make_list_fighter(lst, "Krag", content_fighter=prospect_cf, xp_current=10)
+    return {
+        "fighter": fighter,
+        "list": lst,
+        "path": path,
+        "prospect_cf": prospect_cf,
+        "forge_boss": forge_boss,
+        "stimmer": stimmer,
+    }
 
-    form = AdvancementTypeForm(fighter=juve_fighter)
+
+@pytest.mark.django_db
+def test_multi_target_path_now_offered(prospect_setup):
+    """Phase 4 lifts the multi-target gate: the two-target path appears in choices."""
+    form = AdvancementTypeForm(fighter=prospect_setup["fighter"])
     choices = dict(form.fields["advancement_choice"].choices)
-    # Catches: offering a two-target promotion with no way to pick the target — the
-    # player's "which type?" decision (the heart of #1467) would be silently dropped.
-    assert f"promotion_{path.id}" not in choices
+    # Catches: the #1467 symptom — dual-Champion prospects offered nothing.
+    assert f"promotion_{prospect_setup['path'].id}" in choices
+
+
+@pytest.mark.django_db
+def test_type_change_wizard_flow_end_to_end(client, user, prospect_setup):
+    """Full wizard: type → target choice (both offered) → confirm → applied per RAW."""
+    fighter = prospect_setup["fighter"]
+    lst = prospect_setup["list"]
+    path = prospect_setup["path"]
+    stimmer = prospect_setup["stimmer"]
+    base_cost_before = fighter._base_cost_int
+    key = f"promotion_{path.id}"
+
+    client.force_login(user)
+    type_url = reverse("core:list-fighter-advancement-type", args=[lst.id, fighter.id])
+    response = client.post(
+        type_url,
+        {"advancement_choice": key, "xp_cost": 0, "cost_increase": 0},
+        follow=True,
+    )
+    # Multi-target promotion routes to the select step for the target choice.
+    assert response.status_code == 200
+    assert "advancements/new/select" in response.request["PATH_INFO"]
+    target_field = response.context["form"].fields["target"]
+    # Catches: the choice collapsing — BOTH champion types must be offered.
+    assert set(target_field.queryset.values_list("type", flat=True)) == {
+        "Forge Boss",
+        "Stimmer",
+    }
+
+    select_url = f"{response.request['PATH_INFO']}?{response.request['QUERY_STRING']}"
+    response = client.post(select_url, {"target": str(stimmer.id)}, follow=True)
+    assert response.status_code == 200
+    assert "advancements/new/confirm" in response.request["PATH_INFO"]
+
+    confirm_url = f"{response.request['PATH_INFO']}?{response.request['QUERY_STRING']}"
+    response = client.post(confirm_url, follow=True)
+    assert response.status_code == 200
+
+    fighter = type(fighter).objects.get(id=fighter.id)
+    # The fighter now counts as the CHOSEN type...
+    assert fighter.promoted_content_fighter == stimmer
+    assert fighter.get_category() == FighterCategoryChoices.CHAMPION
+    # ...RAW-faithful: statline/base cost stay with the original type.
+    assert fighter.content_fighter == prospect_setup["prospect_cf"]
+    assert fighter._base_cost_int == base_cost_before
+    advancement = fighter.advancements.get()
+    assert advancement.promotion_target == stimmer
+    assert advancement.promotion_path == path
+
+
+@pytest.mark.django_db
+def test_type_change_reversal_clears_pointer(user, prospect_setup):
+    """D4: deleting the promotion clears the pointer and category symmetrically."""
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+    forge_boss = prospect_setup["forge_boss"]
+
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=forge_boss,
+    )
+    fighter.refresh_from_db()
+    assert fighter.promoted_content_fighter == forge_boss
+    assert fighter.category_override == FighterCategoryChoices.CHAMPION
+
+    handle_fighter_advancement_deletion(
+        user=user, fighter=fighter, advancement=result.advancement
+    )
+    fighter.refresh_from_db()
+    # Catches: asymmetric reversal — the pointer or label surviving deletion.
+    assert fighter.promoted_content_fighter is None
+    assert fighter.category_override is None
+
+
+@pytest.mark.django_db
+def test_promotion_target_cannot_be_stash(
+    user, prospect_setup, make_content_fighter, content_house
+):
+    """F3: a promotion must never turn a fighter into the stash."""
+    from django.core.exceptions import ValidationError
+
+    stash_cf = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    path = prospect_setup["path"]
+    with pytest.raises(ValidationError):
+        handle_fighter_advancement(
+            user=user,
+            fighter=prospect_setup["fighter"],
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+            xp_cost=0,
+            cost_increase=0,
+            advancement_choice=f"promotion_{path.id}",
+            promotion_path=path,
+            promotion_target=stash_cf,
+        )
+
+
+# --- F group: access follows the promoted type; statline/cost never do ------------------
+
+
+@pytest.mark.django_db
+def test_access_follows_promoted_type(user, prospect_setup, make_content_skill):
+    """Skill access and special rules come from the promoted type; equipment-list
+    pricing prefers the promoted type's row over base."""
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentFighterEquipmentListItem,
+        ContentRule,
+        ContentSkillCategory,
+    )
+    from gyrinx.core.models import ListFighterEquipmentAssignment
+
+    fighter = prospect_setup["fighter"]
+    prospect_cf = prospect_setup["prospect_cf"]
+    stimmer = prospect_setup["stimmer"]
+    path = prospect_setup["path"]
+
+    # Distinct skill trees and special rules per type.
+    ferocity, _ = ContentSkillCategory.objects.get_or_create(name="Ferocity")
+    cunning, _ = ContentSkillCategory.objects.get_or_create(name="Cunning")
+    prospect_cf.primary_skill_categories.set([cunning])
+    stimmer.primary_skill_categories.set([ferocity])
+    rule_old = ContentRule.objects.create(name="Fast Learner")
+    rule_new = ContentRule.objects.create(name="Combat Chems Stash")
+    prospect_cf.rules.set([rule_old])
+    stimmer.rules.set([rule_new])
+
+    # An equipment-list price only the Stimmer gets.
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Test Gear", defaults={"group": "Gear"}
+    )
+    equipment = ContentEquipment.objects.create(
+        name="Chem Rig", category=category, cost="100"
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=stimmer, equipment=equipment, cost=40
+    )
+
+    # Promote to Stimmer.
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=stimmer,
+    )
+    fighter = type(fighter).objects.get(id=fighter.id)
+
+    # Skill access follows the promoted type (replaced, not merged).
+    assert fighter.get_primary_skill_categories() == {ferocity}
+    # Special rules swap wholesale to the promoted type's set.
+    rule_names = [r.value for r in fighter.ruleline]
+    assert "Combat Chems Stash" in rule_names
+    assert "Fast Learner" not in rule_names
+    # New purchases price against the promoted type's equipment list.
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=equipment
+    )
+    assert assignment.base_cost_int() == 40
+    # Statline identity and base cost NEVER follow the pointer.
+    assert fighter.content_fighter_cached == prospect_cf
+    assert fighter._base_cost_int == 50
+
+
+@pytest.mark.django_db
+def test_legacy_beats_promotion_for_equipment_pricing(
+    user, prospect_setup, make_content_fighter, content_house
+):
+    """F1: when legacy, promoted, and base all price the same item, legacy wins."""
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentFighterEquipmentListItem,
+    )
+    from gyrinx.core.models import ListFighterEquipmentAssignment
+
+    fighter = prospect_setup["fighter"]
+    stimmer = prospect_setup["stimmer"]
+    path = prospect_setup["path"]
+
+    legacy_cf = make_content_fighter(
+        type="Old Mentor",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=60,
+        can_be_legacy=True,
+    )
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Test Gear", defaults={"group": "Gear"}
+    )
+    equipment = ContentEquipment.objects.create(
+        name="Shiv", category=category, cost="100"
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=legacy_cf, equipment=equipment, cost=30
+    )
+    ContentFighterEquipmentListItem.objects.create(
+        fighter=stimmer, equipment=equipment, cost=50
+    )
+
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=stimmer,
+    )
+    fighter = type(fighter).objects.get(id=fighter.id)
+    fighter.legacy_content_fighter = legacy_cf
+    fighter.save()
+    fighter = type(fighter).objects.get(id=fighter.id)
+
+    assignment = ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=equipment
+    )
+    # Catches: the three-way tie-break ordering regressing (legacy > promoted > base).
+    assert assignment.base_cost_int() == 30

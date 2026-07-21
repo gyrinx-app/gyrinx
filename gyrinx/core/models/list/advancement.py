@@ -7,6 +7,7 @@ from django.db import models
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import (
+    ContentFighter,
     ContentModStatApplyMixin,
     ContentPromotionPath,
     ContentSkill,
@@ -32,11 +33,14 @@ class ResolvedPromotion:
     New-era choices ("promotion_{uuid}") resolve from a ContentPromotionPath row; the two
     legacy hardcoded strings resolve from a static map so historical rows keep applying and
     reversing correctly even if the seeded content rows are edited or removed.
+    ``target`` is the fighter type the fighter counts as after a type-change promotion
+    (the chosen target, or the path's sole target) — None for pure relabels and legacy rows.
     """
 
     to_category: str
     rank: int
     path: Optional[ContentPromotionPath] = None
+    target: Optional[ContentFighter] = None
 
 
 # The two promotion choices that were hardcoded before promotions became content-driven.
@@ -174,6 +178,18 @@ class ListFighterAdvancement(AppBase):
         help_text="For promotion advancements, which promotion path was taken.",
     )
 
+    promotion_target = models.ForeignKey(
+        "content.ContentFighter",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="promotion_advancements",
+        help_text=(
+            "For type-change promotions with a choice of targets, which fighter type "
+            "was chosen (e.g. Forge Boss vs Stimmer)."
+        ),
+    )
+
     # For other advancements
     description = models.CharField(
         max_length=100,
@@ -234,12 +250,21 @@ class ListFighterAdvancement(AppBase):
         return f"{self.fighter.name} - Advancement"
 
     def resolved_promotion(self) -> Optional[ResolvedPromotion]:
-        """Resolve this advancement's promotion meaning, if it is one (either era)."""
+        """Resolve this advancement's promotion meaning, if it is one (either era).
+
+        The type-change target is the stored chosen target, or the path's sole target
+        for single-target type changes; None for pure relabels and legacy rows.
+        """
         if self.promotion_path is not None:
+            path = self.promotion_path
+            target = self.promotion_target
+            if target is None and path.kind == ContentPromotionPath.Kind.TYPE_CHANGE:
+                target = path.targets.first()
             return ResolvedPromotion(
-                to_category=self.promotion_path.effective_to_category(),
-                rank=self.promotion_path.rank,
-                path=self.promotion_path,
+                to_category=path.effective_to_category(target),
+                rank=path.rank,
+                path=path,
+                target=target,
             )
         return resolve_promotion_choice(self.advancement_choice)
 
@@ -248,6 +273,8 @@ class ListFighterAdvancement(AppBase):
         """Human-readable label for a promotion advancement."""
         if self.promotion_path:
             base = self.promotion_path.name
+            if self.promotion_target:
+                base = f"{base}: {self.promotion_target.type}"
         else:
             resolved = resolve_promotion_choice(self.advancement_choice)
             base = (
@@ -365,13 +392,24 @@ class ListFighterAdvancement(AppBase):
             pass
 
         # If this is a promotion (either era: promotion_path row, "promotion_{id}" choice,
-        # or a legacy hardcoded string), relabel the fighter's category. Per the rules,
-        # promotion never changes statline or base cost — cost impact is only the flat
-        # cost_increase summed with all other advancements.
+        # or a legacy hardcoded string), relabel the fighter's category and — for type
+        # changes — point the fighter at the type it now counts as for equipment, skill,
+        # and special-rule access. Per the rules, promotion never changes statline or
+        # base cost — cost impact is only the flat cost_increase summed with all other
+        # advancements.
         resolved = self.resolved_promotion()
-        if resolved and resolved.to_category:
-            self.fighter.category_override = resolved.to_category
-            self.fighter.save()
+        if resolved:
+            changed = False
+            if resolved.target is not None:
+                # Guardrail: a promotion must never turn a fighter into a stash/vehicle.
+                ContentPromotionPath.clean_target(resolved.target)
+                self.fighter.promoted_content_fighter = resolved.target
+                changed = True
+            if resolved.to_category:
+                self.fighter.category_override = resolved.to_category
+                changed = True
+            if changed:
+                self.fighter.save()
 
         # Deduct XP cost from fighter
         self.fighter.xp_current -= self.xp_cost

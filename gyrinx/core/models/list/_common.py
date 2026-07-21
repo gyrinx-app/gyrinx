@@ -33,9 +33,10 @@ def preferred_equipment_list_override(overrides, list_fighter):
     """Pick the preferred equipment-list override row for a fighter.
 
     A fighter can source equipment-list rows from more than one ContentFighter (its own
-    type and a legacy fighter). When several rows match the same item, precedence is:
-    the legacy fighter's row, then any (base) row. Returns None when ``overrides`` is
-    empty. ``overrides`` may be a queryset or a sequence; rows must have ``fighter_id``.
+    type, a legacy fighter, and a promoted type). When several rows match the same item,
+    precedence is: the legacy fighter's row, then the promoted type's row, then any
+    (base) row. Returns None when ``overrides`` is empty. ``overrides`` may be a
+    queryset or a sequence; rows must have ``fighter_id``.
 
     This is THE tie-break for equipment-list cost resolution — used by the live cost
     resolvers and cost pinning alike. Change precedence here, and only here.
@@ -44,7 +45,10 @@ def preferred_equipment_list_override(overrides, list_fighter):
     if not rows:
         return None
     if len(rows) > 1:
-        for pointer_id in (list_fighter.legacy_content_fighter_id,):
+        for pointer_id in (
+            list_fighter.legacy_content_fighter_id,
+            list_fighter.promoted_content_fighter_id,
+        ):
             if pointer_id is None:
                 continue
             for row in rows:
