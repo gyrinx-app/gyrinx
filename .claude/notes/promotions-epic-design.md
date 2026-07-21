@@ -191,10 +191,13 @@ alongside `content_fighter`/`legacy_content_fighter` (`fighter.py:313-321`). Wat
   only) + third-arm `Q()` filters + extend Phase 0 helper. Tests only, no UI.
 - [ ] **Phase 4** — target-selection wizard step + `ADVANCEMENT_PROMOTION` row + apply/reverse.
   **Closes #1467.**
-- [ ] **Phase 5** — clone / hire-transfer propagation of the pointer (`clone()`,
-  `copy_attributes_to()`, `FighterCloneParams`/`hire_clone.py`, opt-out checkbox in
-  `forms/list.py`). No single seam — budget real time (same gap already exists for
-  `category_override`).
+- [x] **Phase 5** — promotion state survives fighter copies (folded into the Phase 3+4 PR).
+  `clone()` (the seam under campaign entry AND the duplicate handler) now carries
+  `category_override` + `promoted_content_fighter` — fixing the pre-existing bug where a
+  promoted fighter lost their badge on campaign entry; `copy_attributes_to()` copies both;
+  `FighterCloneParams` gains the pointer, governed by the duplicate form's existing
+  "Clone as {category}" checkbox (label and pointer travel together). Note: capture/sell
+  does NOT copy fighters (sold fighters stay with the original gang), so no seam there.
 - [ ] **Phase 6** — special-rules display polish + campaign-log wording; per-house content
   authoring pass (family-C paths + Champion target sets, from the rules-spec table).
 

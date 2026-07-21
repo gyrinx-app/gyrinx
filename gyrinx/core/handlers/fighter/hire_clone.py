@@ -33,6 +33,10 @@ class FighterCloneParams:
     content_fighter: ContentFighter
     target_list: List
     category_override: Optional[FighterCategoryChoices] = None
+    # Type-change promotion pointer; None clears it on the clone (the caller decides
+    # whether the promotion travels — the duplicate form's checkbox governs both this
+    # and category_override together).
+    promoted_content_fighter: Optional[ContentFighter] = None
 
 
 @dataclass
@@ -176,6 +180,7 @@ def handle_fighter_clone(
         content_fighter=clone_params.content_fighter,
         list=clone_params.target_list,
         category_override=clone_params.category_override,
+        promoted_content_fighter=clone_params.promoted_content_fighter,
     )
 
     # Calculate cost after creation

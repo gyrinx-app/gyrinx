@@ -513,3 +513,90 @@ def test_legacy_beats_promotion_for_equipment_pricing(
     )
     # Catches: the three-way tie-break ordering regressing (legacy > promoted > base).
     assert assignment.base_cost_int() == 30
+
+
+# --- Phase 5: promotion state survives fighter copies -----------------------------------
+
+
+@pytest.mark.django_db
+def test_clone_carries_promotion_state(user, prospect_setup):
+    """Cloning (the mechanism behind campaign entry) keeps the label AND the pointer.
+
+    Also covers the pre-existing category_override gap: before this, a promoted
+    fighter lost their badge when their list was cloned into a campaign.
+    """
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+    stimmer = prospect_setup["stimmer"]
+
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=stimmer,
+    )
+    fighter.refresh_from_db()
+
+    clone = fighter.clone(name="Krag's Twin")
+    # Catches: the hand-maintained clone field list dropping promotion state — the
+    # clone would arrive in the campaign as an unpromoted Prospect.
+    assert clone.category_override == FighterCategoryChoices.CHAMPION
+    assert clone.promoted_content_fighter == stimmer
+
+
+@pytest.mark.django_db
+def test_duplicate_handler_promotion_follows_caller_choice(user, prospect_setup):
+    """The duplicate-fighter handler carries promotion state only when asked —
+    mirroring the form's "Clone as {promoted category}" checkbox semantics."""
+    from gyrinx.core.handlers.fighter.hire_clone import (
+        FighterCloneParams,
+        handle_fighter_clone,
+    )
+
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+    forge_boss = prospect_setup["forge_boss"]
+
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=forge_boss,
+    )
+    fighter.refresh_from_db()
+
+    # Checkbox unticked: promotion cleared on the copy.
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=fighter,
+        clone_params=FighterCloneParams(
+            name="Fresh Copy",
+            content_fighter=fighter.content_fighter,
+            target_list=prospect_setup["list"],
+        ),
+    )
+    assert result.fighter.category_override is None
+    assert result.fighter.promoted_content_fighter is None
+
+    # Checkbox ticked: label and pointer travel together.
+    result = handle_fighter_clone(
+        user=user,
+        source_fighter=fighter,
+        clone_params=FighterCloneParams(
+            name="Promoted Copy",
+            content_fighter=fighter.content_fighter,
+            target_list=prospect_setup["list"],
+            category_override=fighter.category_override,
+            promoted_content_fighter=fighter.promoted_content_fighter,
+        ),
+    )
+    assert result.fighter.category_override == FighterCategoryChoices.CHAMPION
+    assert result.fighter.promoted_content_fighter == forge_boss

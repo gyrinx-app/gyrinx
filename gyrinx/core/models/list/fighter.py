@@ -2579,6 +2579,10 @@ class ListFighter(AppBase):
         target_fighter.willpower_override = self.willpower_override
         target_fighter.intelligence_override = self.intelligence_override
 
+        # Copy promotion state (category label + type-change access pointer)
+        target_fighter.category_override = self.category_override
+        target_fighter.promoted_content_fighter = self.promoted_content_fighter
+
         # Copy XP
         target_fighter.xp_current = self.xp_current
         target_fighter.xp_total = self.xp_total
@@ -2690,6 +2694,11 @@ class ListFighter(AppBase):
             "name": self.name,
             "content_fighter": self.content_fighter,
             "legacy_content_fighter": self.legacy_content_fighter,
+            # Promotion state: the category label and the type-change access pointer
+            # both survive cloning (campaign entry clones the whole list; losing a
+            # promotion at the campaign door would be silent data loss).
+            "category_override": self.category_override,
+            "promoted_content_fighter": self.promoted_content_fighter,
             "narrative": self.narrative,
             "notes": self.notes,
             "private_notes": self.private_notes,
