@@ -925,8 +925,35 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     get_restrictions.short_description = "Restrictions"
 
 
+class ContentPromotionPathAdminForm(forms.ModelForm):
+    # The model stores rolls as a JSON list of 2d6 totals; hand-typing a JSON array is
+    # error-prone, so render one checkbox per possible total instead (same pattern as
+    # ContentAdvancementEquipmentAdminForm's restricted_to_fighter_categories).
+    rolls = forms.TypedMultipleChoiceField(
+        coerce=int,
+        choices=[(total, str(total)) for total in range(2, 13)],
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="2d6 totals that offer this promotion in the roll-driven flow.",
+    )
+
+    class Meta:
+        model = ContentPromotionPath
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields["rolls"].initial = self.instance.rolls or []
+
+    def clean_rolls(self):
+        # Store sorted for stable equality/display; checkboxes make dupes impossible.
+        return sorted(self.cleaned_data.get("rolls") or [])
+
+
 @admin.register(ContentPromotionPath)
 class ContentPromotionPathAdmin(ContentAdmin, admin.ModelAdmin):
+    form = ContentPromotionPathAdminForm
     search_fields = ["name"]
     list_filter = [
         "kind",

@@ -310,6 +310,55 @@ def test_is_available_respects_house_restriction(
     assert path.is_available_to_fighter(ganger) is True
 
 
+# --- admin form: rolls as checkboxes, not raw JSON --------------------------------------
+
+
+def _admin_form_data(**overrides):
+    data = {
+        "name": "Promote to Specialist",
+        "kind": "RELABEL",
+        "from_category": "GANGER",
+        "to_category": "SPECIALIST",
+        "rank": 1,
+        "xp_cost": 6,
+        "cost_increase": 20,
+        "grants_skill": "primary_random",
+        "timing": "POST_BATTLE",
+    }
+    data.update(overrides)
+    return data
+
+
+@pytest.mark.django_db
+def test_admin_form_rolls_checkboxes_round_trip():
+    from django import forms as django_forms
+
+    from gyrinx.content.admin import ContentPromotionPathAdminForm
+
+    # Browsers post checkbox values as strings, in DOM order.
+    form = ContentPromotionPathAdminForm(data=_admin_form_data(rolls=["12", "2"]))
+    assert form.is_valid(), form.errors
+    obj = form.save()
+    # Catches: regression to a raw JSON text input — that would store the literal
+    # strings (which the model's _clean_rolls rejects) or require hand-typed "[2, 12]".
+    assert obj.rolls == [2, 12]  # coerced to ints, stored sorted
+
+    # Editing an existing row pre-ticks the saved totals, via a checkbox widget.
+    form2 = ContentPromotionPathAdminForm(instance=obj)
+    assert form2.fields["rolls"].initial == [2, 12]
+    assert isinstance(form2.fields["rolls"].widget, django_forms.CheckboxSelectMultiple)
+
+
+@pytest.mark.django_db
+def test_admin_form_rolls_rejects_out_of_range_value():
+    from gyrinx.content.admin import ContentPromotionPathAdminForm
+
+    form = ContentPromotionPathAdminForm(data=_admin_form_data(rolls=["13"]))
+    # Catches: the field losing its 2..12 choice bound (13 is not a 2d6 total).
+    assert not form.is_valid()
+    assert "rolls" in form.errors
+
+
 # --- admin lookups: catalog fighters only -----------------------------------------------
 
 
