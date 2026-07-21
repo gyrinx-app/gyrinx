@@ -41,6 +41,27 @@ PROMOTION_TARGET_CATEGORIES = [
 ]
 
 
+def _exclude_pack_fighters():
+    """``limit_choices_to`` for promotion-path fighter lookups: catalog fighters only.
+
+    Promotion paths authored in the admin are catalog content; offering fighters from
+    user content packs would leak one user's pack rows into globally-visible paths. The
+    admin autocomplete endpoint applies this via ``complex_filter``, and model forms apply
+    it to field querysets. (If packs ever author their own promotion paths, that happens
+    in the pack editor with its own pack-scoped querysets — not here.)
+    """
+    from django.db.models import Q
+
+    from gyrinx.core.models.pack import CustomContentPackItem
+
+    return ~Q(
+        pk__in=CustomContentPackItem.objects.filter(
+            content_type__app_label="content",
+            content_type__model="contentfighter",
+        ).values("object_id")
+    )
+
+
 class ContentPromotionPath(Content):
     """A content-authored promotion path (e.g. "Promote to Specialist").
 
@@ -91,6 +112,7 @@ class ContentPromotionPath(Content):
         null=True,
         blank=True,
         related_name="promotion_paths_from",
+        limit_choices_to=_exclude_pack_fighters,
         help_text=(
             "If set, this path is offered only to fighters of this specific type "
             "(house-specific paths, e.g. Orlock Wrecker). Leave blank for generic "
@@ -110,6 +132,7 @@ class ContentPromotionPath(Content):
         "ContentFighter",
         blank=True,
         related_name="promotion_paths_to",
+        limit_choices_to=_exclude_pack_fighters,
         help_text=(
             "Target types the player may choose between on a type change (e.g. Forge Boss "
             "or Stimmer). Leave empty if the target is resolved later."

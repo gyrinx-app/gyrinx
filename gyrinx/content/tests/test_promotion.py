@@ -310,6 +310,40 @@ def test_is_available_respects_house_restriction(
     assert path.is_available_to_fighter(ganger) is True
 
 
+# --- admin lookups: catalog fighters only -----------------------------------------------
+
+
+@pytest.mark.django_db
+def test_admin_fighter_lookups_exclude_pack_fighters(
+    admin_client, make_pack_fighter, make_content_fighter, content_house
+):
+    make_content_fighter(
+        type="Catalog Gunner",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    make_pack_fighter(house=content_house, type="Packed Gunner")
+
+    # Catches: user content-pack fighters leaking into the source/targets lookups of
+    # globally-visible catalog promotion paths (ContentFighterAdmin serves the
+    # autocomplete from all_content(); limit_choices_to must filter it back down).
+    for field_name in ("source_fighter", "targets"):
+        response = admin_client.get(
+            "/admin/autocomplete/",
+            {
+                "app_label": "content",
+                "model_name": "contentpromotionpath",
+                "field_name": field_name,
+                "term": "Gunner",
+            },
+        )
+        assert response.status_code == 200, field_name
+        texts = [r["text"] for r in response.json()["results"]]
+        assert any("Catalog Gunner" in t for t in texts), (field_name, texts)
+        assert not any("Packed Gunner" in t for t in texts), (field_name, texts)
+
+
 # --- G6 / seed: the default data --------------------------------------------------------
 
 
