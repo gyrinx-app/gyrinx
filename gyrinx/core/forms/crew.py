@@ -216,12 +216,6 @@ class CrewForm(forms.ModelForm):
             else ListFighter.objects.none()
         )
 
-        # When the crew has an explicit crew size (set on the setup screen) it
-        # drives the draw, so the dice inputs are neither shown nor required —
-        # the size is the source of truth and this avoids two conflicting numbers.
-        self.crew_size = getattr(self.instance, "crew_size", None)
-        self.crew_size_drives = self.crew_size is not None
-
         # Prune to the current method's fields. A Random Selection form has no
         # fighter checkboxes at all, so "all random, but also these three" is
         # not a state a user can get into.
@@ -231,9 +225,6 @@ class CrewForm(forms.ModelForm):
         elif self.method == Crew.CUSTOM:
             del self.fields["random_dice"]
             del self.fields["random_number"]
-        if self.crew_size_drives:
-            self.fields.pop("random_dice", None)
-            self.fields.pop("random_number", None)
 
         self.shows_picks = "chosen_fighters" in self.fields
         self.shows_count = "custom_count" in self.fields
@@ -347,9 +338,7 @@ class CrewForm(forms.ModelForm):
         }
 
         if self.method == Crew.RANDOM:
-            # When crew size drives the draw the dice inputs are gone, so the
-            # spec requirement doesn't apply — the size is the draw count.
-            if not spec and not self.crew_size_drives:
+            if not spec:
                 self.add_error(
                     "random_number",
                     "Enter how many fighters are drawn at random — Random "
@@ -364,7 +353,7 @@ class CrewForm(forms.ModelForm):
                     "Enter how many fighters you choose — the first number in "
                     "brackets.",
                 )
-            if not spec and not self.crew_size_drives:
+            if not spec:
                 self.add_error(
                     "random_number",
                     "Enter how many fighters are drawn at random — the second "
@@ -420,39 +409,11 @@ class CrewEligibilityForm(forms.Form):
     :func:`gyrinx.core.handlers.crew.default_crew_eligibility_state`); the player
     overrides only the ones they want to change, and only those are stored. This
     picks no fighters — it sets the pool the selection method then works from.
-
-    For random and hybrid crews it also carries ``crew_size`` — the scenario's
-    total selected count, which drives how many are drawn (dice notation is the
-    fallback when it's left blank). Custom crews keep their own pick count, so
-    the field is not shown for them.
     """
-
-    crew_size = forms.IntegerField(
-        min_value=0,
-        max_value=99,
-        required=False,
-        label="Crew size",
-        help_text=(
-            "How many fighters are selected for this crew — always-included "
-            "fighters (hired guns etc.) come on top and don't count. Drives how "
-            "many are drawn; leave blank to use the dice notation instead."
-        ),
-        widget=forms.NumberInput(
-            attrs={"class": "form-control", "style": "width:6rem"}
-        ),
-    )
 
     def __init__(self, *args, crew=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.crew = crew
-        # Crew size only bears on the random draw, so it is offered for random /
-        # hybrid crews and dropped for custom (which keeps its own pick count).
-        method = getattr(crew, "selection_method", None)
-        self.shows_crew_size = method in (Crew.RANDOM, Crew.HYBRID)
-        if self.shows_crew_size:
-            self.fields["crew_size"].initial = getattr(crew, "crew_size", None)
-        else:
-            del self.fields["crew_size"]
         # One row per independently-selectable fighter, each carrying its
         # computed default and current effective state.
         self.rows = crew_eligibility(crew) if crew is not None else []
@@ -501,11 +462,8 @@ class CrewEligibilityForm(forms.Form):
         return cleaned
 
     def save(self):
-        """Write the overrides (and crew size, when shown) onto the crew
-        instance; the view persists it."""
+        """Write the overrides onto the crew instance; the view persists it."""
         self.crew.eligibility_overrides = self.cleaned_overrides
-        if self.shows_crew_size:
-            self.crew.crew_size = self.cleaned_data.get("crew_size")
         return self.crew
 
 

@@ -12,29 +12,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name="crew",
-            name="crew_size",
-            field=models.PositiveIntegerField(
-                blank=True,
-                help_text="The scenario's crew size — how many fighters are *selected* (picked and/or drawn). Always-included fighters (hired guns etc.) come on top of this and don't count towards it. Blank = not set.",
-                null=True,
-            ),
-        ),
-        migrations.AddField(
-            model_name="crew",
             name="eligibility_overrides",
             field=models.JSONField(
                 blank=True,
                 default=dict,
                 help_text='Per-fighter eligibility set on the eligibility screen, overriding the category default. Shape: {"<list_fighter_id>": "<state>"} where state is one of eligible / included / excluded. Only fighters the player changed from their default are stored; everyone else uses the computed default (see handlers.crew.crew_eligibility).',
-            ),
-        ),
-        migrations.AddField(
-            model_name="historicalcrew",
-            name="crew_size",
-            field=models.PositiveIntegerField(
-                blank=True,
-                help_text="The scenario's crew size — how many fighters are *selected* (picked and/or drawn). Always-included fighters (hired guns etc.) come on top of this and don't count towards it. Blank = not set.",
-                null=True,
             ),
         ),
         migrations.AddField(

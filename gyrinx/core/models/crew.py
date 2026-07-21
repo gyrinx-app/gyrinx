@@ -250,15 +250,6 @@ class Crew(AppBase):
             "the eligibility screen's per-category defaults."
         ),
     )
-    crew_size = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text=(
-            "The scenario's crew size — how many fighters are *selected* (picked "
-            "and/or drawn). Always-included fighters (hired guns etc.) come on "
-            "top of this and don't count towards it. Blank = not set."
-        ),
-    )
     eligibility_overrides = models.JSONField(
         default=dict,
         blank=True,
