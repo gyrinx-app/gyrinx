@@ -42,6 +42,15 @@ class ContentRule(Content):
 
     name = models.CharField(max_length=255, unique=True)
     description = models.TextField(blank=True)
+    shed_on_promotion = models.BooleanField(
+        default=False,
+        help_text=(
+            "If checked, a fighter loses this rule when they take a type-change promotion "
+            "(the promotion-scaffolding rules — Gang Fighter (Juve), the Promotion rule "
+            "itself, Fast Learner, and so on). By default a fighter keeps all their rules "
+            "on promotion and gains the new type's rules on top."
+        ),
+    )
 
     history = HistoricalRecords()
 

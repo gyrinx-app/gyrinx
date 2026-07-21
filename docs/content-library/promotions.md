@@ -80,9 +80,15 @@ If the selected path has two or more targets, the flow adds a step asking the pl
 ### What changes when a promotion is applied
 
 - The fighter's **category** is relabelled (to `to_category`, or the chosen target's own category).
-- For type changes, the fighter **counts as the target type** from then on: future equipment purchases price against the target's equipment list, skill access comes from the target's skill trees, and the fighter's special rules are the target's (swapped wholesale, per the rules).
+- For type changes, the fighter **counts as the target type** from then on: future equipment purchases price against the target's equipment list, and skill access comes from the target's skill trees. For special rules, the fighter **keeps their own rules and gains the target type's on top** — except any rule marked `shed_on_promotion`, which is dropped (see below).
 - The path's `xp_cost` is deducted and its `cost_increase` added to the fighter's rating.
 - Any bundled skill is added.
+
+### Special rules on promotion (`shed_on_promotion`)
+
+By default a promoted fighter **keeps all of their own special rules** and gains the target type's on top — matching the rulebook, where a fighter loses only a specifically-listed set of rules and keeps the rest. The rules that *should* be lost are the promotion scaffolding: `Gang Fighter (Juve)` / `Gang Fighter (Prospect)`, the `Promotion (X)` rule itself, `Fast Learner`, `Hot-headed`, and similar.
+
+To make one of those drop on promotion, tick **`shed_on_promotion`** on the `ContentRule` (Rules section of the admin). It is a property of the rule, so it applies wherever that rule appears; it has no effect on fighters who haven't been promoted. Rules gained from equipment or added by the user are unaffected — only a fighter's *type* rules are subject to shedding.
 
 ### What never changes
 
