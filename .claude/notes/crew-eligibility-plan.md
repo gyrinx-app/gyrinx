@@ -86,7 +86,33 @@ Two-halved selection screen:
    `included_categories` remains the category-level default. The pool already
    honours overrides (increment 2), so setting states here immediately changes
    who's picked/drawn. **Not yet on this screen: `crew_size` (next increment).**
-4. **Two-half selection UI** — split the form into pool (top) + always-included
+4. **[NEXT] crew_size + the full setup step.** Maintainer chose (2026-07-21) to
+   make the eligibility screen the crew's **setup step**: it owns the method
+   picker *and* the crew-size input *and* the eligibility table; the selection
+   form (crew_edit) then does only the picks. Decisions locked:
+   - **crew_size drives draws only** (dice notation kept as fallback). At lock,
+     for Random/Hybrid: `drawn = max(0, crew_size - chosen_count)` when
+     `crew_size` is set, else roll `random_spec`. Custom keeps its own pick
+     count; crew_size doesn't apply to it.
+   - **Method moves onto the setup screen.** Keep it URL-driven (a picker of
+     links, `?method=`), because it server-renders which crew-size / count copy
+     shows — not a client-reactive radio.
+   - **Flow:** create becomes setup-first. `crew_new` GET renders the setup
+     screen (method + crew_size + eligibility, computed from the gang with empty
+     overrides = defaults); POST creates the crew with all of it and redirects
+     to `crew_edit` (selection/picks). `crew_eligibility_edit` becomes the
+     setup-edit screen for an existing crew (rename to `crew_setup` / route
+     `crew-setup`). `crew_edit` drops its method picker and reads the stored
+     `crew.selection_method`.
+   - **Selection form:** hide the random dice inputs when `crew_size` is set
+     (crew_size drives the draw); keep them as the fallback when it isn't.
+   - **Blast radius:** many `crew_new` / `crew_edit` tests POST picks straight to
+     `crew_new` — they move to the two-step flow (create via setup, then pick via
+     crew_edit). Rework these alongside the change. This is atomic (no green
+     midpoint once the method picker moves), so build + rework tests together and
+     only commit green.
+
+5. **Two-half selection UI** — split the form into pool (top) + always-included
    (bottom).
 5. **"Part of the crew" rule** — look up the content special rule; a fighter
    with it defaults to eligible even if its category would exclude it. (Needs
