@@ -1045,6 +1045,77 @@ def test_crew_eligibility_excludes_child_fighters(
     assert crew_setup["fighters"][0].id in ids  # its owner is still selectable
 
 
+@pytest.mark.django_db
+def test_override_drops_a_ganger_from_the_pool(crew_setup):
+    """An 'excluded' override removes an otherwise-eligible fighter from the
+    pick/draw pool."""
+    dropped = crew_setup["fighters"][0]
+    overrides = {str(dropped.id): CREW_NOT_ELIGIBLE}
+
+    pool = set(eligible_crew_fighters(crew_setup["gang"], overrides=overrides))
+    assert dropped not in pool
+    assert crew_setup["fighters"][1] in pool  # an un-overridden ganger stays
+
+
+@pytest.mark.django_db
+def test_override_promotes_a_hanger_into_always_included(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """An 'included' override on a hanger-on (excluded by default) makes it join
+    the crew on top, out of the pool."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    overrides = {str(hanger.id): CREW_ALWAYS_INCLUDED}
+
+    pool = set(eligible_crew_fighters(crew_setup["gang"], overrides=overrides))
+    always = set(always_included_crew_fighters(crew_setup["gang"], overrides=overrides))
+    assert hanger not in pool
+    assert hanger in always
+
+
+@pytest.mark.django_db
+def test_override_lets_a_hired_gun_into_the_pool(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """An 'eligible' override on a hired gun (always-included by default) moves it
+    into the pick/draw pool and out of the always-included set."""
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    overrides = {str(hired.id): CREW_ELIGIBLE}
+
+    pool = set(eligible_crew_fighters(crew_setup["gang"], overrides=overrides))
+    always = set(always_included_crew_fighters(crew_setup["gang"], overrides=overrides))
+    assert hired in pool
+    assert hired not in always
+
+
+@pytest.mark.django_db
+def test_captured_fighter_is_not_in_the_pool(crew_setup, make_list):
+    """A captured fighter can't take part, so it's out of the pool even though its
+    injury_state is still active."""
+    from gyrinx.core.models.list import CapturedFighter
+
+    captured = crew_setup["fighters"][0]
+    rivals = make_list(
+        "Rivals", status=List.CAMPAIGN_MODE, campaign=crew_setup["campaign"]
+    )
+    CapturedFighter.objects.create(fighter=captured, capturing_list=rivals)
+
+    assert ListFighter.objects.get(pk=captured.pk).is_captured
+    pool = set(eligible_crew_fighters(crew_setup["gang"]))
+    assert captured not in pool
+
+
 # --- Category-include toggles (selection UI) --------------------------------
 #
 # The selection form hides hangers-on and vehicle crew by default; a URL-driven

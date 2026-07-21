@@ -191,11 +191,19 @@ class CrewForm(forms.ModelForm):
             else (getattr(self.instance, "included_categories", None) or [])
         )
 
+        # Per-fighter eligibility overrides the crew already carries (set on the
+        # eligibility screen), so the pool reflects them; empty on create.
+        self.eligibility_overrides = (
+            getattr(self.instance, "eligibility_overrides", None) or {}
+        )
+
         # with_related_data() so the checkbox labels (category + cached cost)
         # and each fighter's equipment sets render without a query per fighter.
         self.eligible = (
             eligible_crew_fighters(
-                self.gang, included=self.included_categories
+                self.gang,
+                included=self.included_categories,
+                overrides=self.eligibility_overrides,
             ).with_related_data()
             if self.gang is not None
             else ListFighter.objects.none()
