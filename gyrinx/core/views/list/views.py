@@ -651,21 +651,25 @@ class ListPrintView(generic.DetailView):
 
         context["fighters_with_groups"] = fighters_qs
 
-        # Add attributes if configured to be included
-        if not print_config or print_config.include_attributes:
-            context["attributes"] = get_list_attributes(list_obj)
+        # Attributes / assets / actions only exist on the web sheet — the classic
+        # template renders classic_cards alone, so skip their DB work entirely
+        # when the classic style is selected.
+        if not use_classic:
+            # Add attributes if configured to be included
+            if not print_config or print_config.include_attributes:
+                context["attributes"] = get_list_attributes(list_obj)
 
-        # Add assets and campaign resources if configured to be included
-        if not print_config or print_config.include_assets:
-            # Get campaign resources
-            context["campaign_resources"] = get_list_campaign_resources(list_obj)
+            # Add assets and campaign resources if configured to be included
+            if not print_config or print_config.include_assets:
+                # Get campaign resources
+                context["campaign_resources"] = get_list_campaign_resources(list_obj)
 
-            # Get assets held by this list
-            context["held_assets"] = get_list_held_assets(list_obj)
+                # Get assets held by this list
+                context["held_assets"] = get_list_held_assets(list_obj)
 
-        # Add recent campaign actions if configured to be included
-        if not print_config or print_config.include_actions:
-            context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
+            # Add recent campaign actions if configured to be included
+            if not print_config or print_config.include_actions:
+                context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
         # Add blank card ranges if print_config exists
         if print_config:
