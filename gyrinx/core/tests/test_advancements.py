@@ -475,7 +475,9 @@ def test_advancement_choice_field_saved(fighter_with_xp):
 
 
 @pytest.mark.django_db
-def test_ganger_can_see_promotion_option(client, user, fighter_with_xp):
+def test_ganger_can_see_promotion_option(
+    client, user, fighter_with_xp, default_promotions
+):
     """Test that GANGERs can see the promotion option in advancement choices."""
     client.login(username="testuser", password="password")
 
@@ -488,13 +490,16 @@ def test_ganger_can_see_promotion_option(client, user, fighter_with_xp):
     assert response.status_code == 200
     content = response.content.decode()
 
-    # Check that promotion option is available
+    # Check that the (data-driven) promotion option is available
+    specialist_path = default_promotions[("GANGER", "SPECIALIST")]
     assert "Promote to Specialist" in content
-    assert "skill_promote_specialist" in content
+    assert f"promotion_{specialist_path.id}" in content
 
 
 @pytest.mark.django_db
-def test_specialist_cannot_see_ganger_promotion(client, user, specialist_fighter):
+def test_specialist_cannot_see_ganger_promotion(
+    client, user, specialist_fighter, default_promotions
+):
     """Test that SPECIALISTs cannot see the GANGER promotion option."""
     client.login(username="testuser", password="password")
 
@@ -507,16 +512,18 @@ def test_specialist_cannot_see_ganger_promotion(client, user, specialist_fighter
     assert response.status_code == 200
     response.content.decode()
 
-    # The form filters options based on fighter category
+    # The form filters options based on the fighter's effective category
     from gyrinx.core.forms.advancement import AdvancementTypeForm
 
     form = AdvancementTypeForm(fighter=specialist_fighter)
     choices_dict = dict(form.fields["advancement_choice"].choices)
 
+    specialist_path = default_promotions[("GANGER", "SPECIALIST")]
+    champion_path = default_promotions[("SPECIALIST", "CHAMPION")]
     # Check that GANGER promotion is not available
-    assert "skill_promote_specialist" not in choices_dict
+    assert f"promotion_{specialist_path.id}" not in choices_dict
     # But Champion promotion should be available
-    assert "skill_promote_champion" in choices_dict
+    assert f"promotion_{champion_path.id}" in choices_dict
 
 
 @pytest.mark.django_db

@@ -10,10 +10,14 @@ Advancements are improvements that fighters can purchase using XP earned during 
 2. **Advancement Selection** - Pick a specific advancement based on dice roll or manual choice
 3. **Confirmation** - Review and confirm the advancement purchase
 
-There are two main types of advancements:
+There are four main types of advancements, plus a free-text "other" type for anything the
+structured options don't cover:
 
 - **Characteristic Increases** - Improve fighter stats like Movement, Weapon Skill, etc.
 - **New Skills** - Learn skills from Primary, Secondary, or other skill categories
+- **Equipment** - Gain equipment configured through `ContentAdvancementEquipment`
+- **Promotions** - Rise in rank (Ganger → Specialist, Prospect → Champion), driven by `ContentPromotionPath` content rows
+- **Other** - A free-text description with user-entered XP and rating costs
 
 ## Model Structure
 
@@ -24,9 +28,12 @@ The `ListFighterAdvancement` model tracks all advancements purchased by a fighte
 ```python
 class ListFighterAdvancement(AppBase):
     fighter = models.ForeignKey(ListFighter, ...)
-    advancement_type = models.CharField(...)  # "stat" or "skill"
+    advancement_type = models.CharField(...)  # "stat", "skill", "equipment", "promotion", "other"
     stat_increased = models.CharField(...)    # For stat advancements
-    skill = models.ForeignKey(ContentSkill, ...)  # For skill advancements
+    skill = models.ForeignKey(ContentSkill, ...)  # For skill advancements (and skill-bundling promotions)
+    equipment_assignment = models.ForeignKey("content.ContentAdvancementAssignment", ...)
+    promotion_path = models.ForeignKey("content.ContentPromotionPath", ...)  # For promotions
+    promotion_target = models.ForeignKey("content.ContentFighter", ...)  # Chosen type for multi-target promotions
     xp_cost = models.PositiveIntegerField(...)
     cost_increase = models.IntegerField(...)
     campaign_action = models.OneToOneField("CampaignAction", ...)
@@ -35,11 +42,41 @@ class ListFighterAdvancement(AppBase):
 Key features:
 
 - Tracks which fighter purchased the advancement
-- Records the type of advancement (stat or skill)
+- Records the type of advancement (stat, skill, equipment, promotion, or other)
 - For stat advances: which characteristic was improved
 - For skill advances: which skill was gained
+- For promotions: which `ContentPromotionPath` was taken and, where the path offers a choice of target types, which was chosen
 - Tracks XP cost and any increase to the fighter's credit value
 - Links to campaign action if dice were rolled
+
+### Promotions
+
+Promotions are data-driven from `ContentPromotionPath` rows (see the
+[content library guide](../content-library/promotions.md) for authoring). The moving parts:
+
+- **Choice keys**: promotion options use the dynamic key `promotion_{path.id}` in the
+  wizard. The two pre-content-driven keys (`skill_promote_specialist`,
+  `skill_promote_champion`) remain valid forever — stored advancement rows are never
+  rewritten. `resolve_promotion_choice()` in `core/models/list/advancement.py` resolves
+  both eras; the legacy strings map through a static table so they keep applying and
+  reversing even with no content rows present.
+- **Applying** (`apply_advancement`): sets the fighter's `category_override` and, for
+  type changes, `ListFighter.promoted_content_fighter` — the "counts as" pointer. Per
+  the rules, statline and base cost never change; the only cost effect is the flat
+  `cost_increase`, summed with all other advancements.
+- **The counts-as pointer** (`ListFighter.promoted_content_fighter`, PROTECT): access-only.
+  Equipment-list pricing resolves `legacy > promoted > base` (one shared tie-break helper,
+  `preferred_equipment_list_override` in `core/models/list/_common.py`); skill-set access
+  and special rules resolve `promoted > base` (replaced, not merged); statline and base
+  cost always read `content_fighter`. The pointer is written only by the advancement flow —
+  it is never a user-editable form field, and stash/vehicle targets are rejected.
+- **Roll-driven prefill**: a Ganger's 2d6 total is matched against each path's `rolls`
+  list (`get_initial_for_action`), so both 2 and 12 offer the Specialist promotion.
+- **Reversal**: deleting a promotion recomputes both `category_override` and the pointer
+  from the highest-`rank` promotion the fighter still holds (either era).
+- **Copies**: `clone()`, `copy_attributes_to()`, and `FighterCloneParams` all carry
+  `category_override` + `promoted_content_fighter`, so promotions survive campaign entry
+  and fighter duplication (the duplicate form's checkbox governs both together).
 
 ### XP Tracking
 

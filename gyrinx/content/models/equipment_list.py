@@ -86,7 +86,8 @@ class ContentFighterEquipmentListItem(CostMixin, Content):
         assignments = ListFighterEquipmentAssignment.objects.filter(
             Q(
                 Q(list_fighter__content_fighter=self.fighter)
-                | Q(list_fighter__legacy_content_fighter=self.fighter),
+                | Q(list_fighter__legacy_content_fighter=self.fighter)
+                | Q(list_fighter__promoted_content_fighter=self.fighter),
                 content_equipment=self.equipment,
             )
             | Q(pinned_equipment_list_item=self)
@@ -152,7 +153,8 @@ class ContentFighterEquipmentListWeaponAccessory(CostMixin, Content):
         assignments = ListFighterEquipmentAssignment.objects.filter(
             Q(
                 Q(list_fighter__content_fighter=self.fighter)
-                | Q(list_fighter__legacy_content_fighter=self.fighter),
+                | Q(list_fighter__legacy_content_fighter=self.fighter)
+                | Q(list_fighter__promoted_content_fighter=self.fighter),
                 weapon_accessories_field=self.weapon_accessory,
             )
             | Q(accessory_rows__pinned_equipment_list_accessory=self),
@@ -221,7 +223,8 @@ class ContentFighterEquipmentListUpgrade(CostMixin, Content):
         assignments = ListFighterEquipmentAssignment.objects.filter(
             Q(
                 Q(list_fighter__content_fighter=self.fighter)
-                | Q(list_fighter__legacy_content_fighter=self.fighter),
+                | Q(list_fighter__legacy_content_fighter=self.fighter)
+                | Q(list_fighter__promoted_content_fighter=self.fighter),
                 upgrades_field__in=self.upgrade.same_stack_from_position(),
             )
             | Q(upgrade_rows__pinned_equipment_list_upgrade=self),

@@ -324,6 +324,8 @@ class ListFighterQuerySet(models.QuerySet):
                 "content_fighter__custom_statline",
                 "legacy_content_fighter",
                 "legacy_content_fighter__house",
+                "promoted_content_fighter",
+                "promoted_content_fighter__house",
                 "capture_info",
                 "capture_info__capturing_list",
             )
@@ -394,6 +396,7 @@ class ListFighterQuerySet(models.QuerySet):
                 # Prefetch equipment list items for cost override lookups
                 "content_fighter__contentfighterequipmentlistitem_set",
                 "legacy_content_fighter__contentfighterequipmentlistitem_set",
+                "promoted_content_fighter__contentfighterequipmentlistitem_set",
                 "source_assignment",
                 "source_assignment__list_fighter",
                 # Equipment sets (#1853): the fighter's cards and each card's
@@ -571,6 +574,23 @@ class ListFighter(AppBase):
         db_index=True,
         related_name="list_fighter_legacy",
         help_text="This supports a ListFighter having a Content Fighter legacy which provides access to (and costs from) the legacy fighter's equipment list.",
+    )
+
+    # Type-change promotion pointer (#1467). ACCESS-ONLY per the rules ("count as [type]
+    # for the purposes of determining which equipment and skill sets they can access;
+    # their existing characteristics do not change"): consulted for equipment lists,
+    # skill-set access, and special rules — NEVER for statline or base cost, which always
+    # read from content_fighter. PROTECT (unlike the base FK's CASCADE): deleting a
+    # Champion content row must not delete every fighter promoted into it. Written only
+    # by the promotion advancement flow — never a user-editable form field.
+    promoted_content_fighter = models.ForeignKey(
+        ContentFighter,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_index=True,
+        related_name="list_fighter_promoted",
+        help_text="The fighter type this fighter counts as (for equipment, skill and special-rule access) after a type-change promotion.",
     )
     list = models.ForeignKey(
         List, on_delete=models.CASCADE, null=False, blank=False, db_index=True
@@ -779,19 +799,41 @@ class ListFighter(AppBase):
         return self.content_fighter.can_take_legacy
 
     @cached_property
+    def access_content_fighter(self):
+        """The type this fighter counts as for ACCESS purposes (skills, special rules).
+
+        A type-change promotion makes the fighter count as the promoted type for
+        determining skill-set access and special rules; statline and base cost always
+        stay with ``content_fighter`` (the rules: "their existing characteristics do
+        not change").
+        """
+        return self.promoted_content_fighter or self.content_fighter
+
+    @cached_property
     def equipment_list_fighter(self):
-        return self.legacy_content_fighter or self.content_fighter
+        return (
+            self.legacy_content_fighter
+            or self.promoted_content_fighter
+            or self.content_fighter
+        )
 
     @cached_property
     def equipment_list_fighters(self):
         """
         Return a list of fighters whose equipment lists should be considered.
-        When a legacy fighter exists, returns both legacy and base fighters
-        to allow combining their equipment lists.
+        Legacy and promoted types combine with the base fighter's list; on cost
+        tie-breaks the precedence is legacy > promoted > base (see
+        preferred_equipment_list_override).
         """
-        if self.legacy_content_fighter:
-            return [self.legacy_content_fighter, self.content_fighter]
-        return [self.content_fighter]
+        return [
+            f
+            for f in (
+                self.legacy_content_fighter,
+                self.promoted_content_fighter,
+                self.content_fighter,
+            )
+            if f
+        ]
 
     @cached_property
     def equipment_list_items_lookup(self) -> dict | None:
@@ -824,7 +866,26 @@ class ListFighter(AppBase):
             key = (item.equipment_id, item.weapon_profile_id)
             lookup[key] = item
 
-        # Process legacy fighter's equipment list (overrides base)
+        # Process promoted type's equipment list (overrides base; loses to legacy).
+        # If the promoted fighter's items weren't prefetched, bail to the DB path so
+        # the fast path can't silently miss the promoted list.
+        if self.promoted_content_fighter:
+            promoted_has_prefetch = (
+                hasattr(self.promoted_content_fighter, "_prefetched_objects_cache")
+                and "contentfighterequipmentlistitem_set"
+                in self.promoted_content_fighter._prefetched_objects_cache
+            )
+            if not promoted_has_prefetch:
+                return None
+            items = (
+                self.promoted_content_fighter.contentfighterequipmentlistitem_set.all()
+            )
+            for item in items:
+                key = (item.equipment_id, item.weapon_profile_id)
+                # Promoted overrides base
+                lookup[key] = item
+
+        # Process legacy fighter's equipment list (overrides base and promoted)
         if self.legacy_content_fighter:
             legacy_has_prefetch = (
                 hasattr(self.legacy_content_fighter, "_prefetched_objects_cache")
@@ -1328,7 +1389,9 @@ class ListFighter(AppBase):
             )
             return {slot_map[slot] for slot in slots if slot in slot_map}
 
-        # Default: base categories from the content fighter template.
+        # Default: base categories from the content fighter template — or, after a
+        # type-change promotion, the promoted type's template ("count as [type] for
+        # determining which ... skill sets they can access").
         # Use with_packs() to include pack skill categories — the default
         # manager on ContentSkillCategory excludes pack content.
         filter_kwarg = "primary_fighters" if role == "primary" else "secondary_fighters"
@@ -1336,7 +1399,7 @@ class ListFighter(AppBase):
         return set(
             ContentSkillCategory.objects.with_packs(
                 packs, include_archived_items=True
-            ).filter(**{filter_kwarg: self.content_fighter})
+            ).filter(**{filter_kwarg: self.access_content_fighter})
         )
 
     @traced("listfighter_get_primary_skill_categories")
@@ -1581,7 +1644,10 @@ class ListFighter(AppBase):
         set up by with_related_data(packs=...)). Falls back to with_packs()
         queries when prefetch data was not pack-aware.
         """
-        if self._has_pack_aware_prefetch:
+        # A type-change promotion swaps special rules wholesale to the promoted type
+        # ("gain all the special rules associated with [the type]"), so promoted
+        # fighters take the query path — their rules aren't in the base prefetch.
+        if self._has_pack_aware_prefetch and self.promoted_content_fighter_id is None:
             # Fast path: read from pack-aware prefetch cache (0 queries)
             rules = list(self.content_fighter_cached.rules.all())
             disabled_rules_set = set(self.disabled_rules.all())
@@ -1592,7 +1658,7 @@ class ListFighter(AppBase):
             rules_qs = ContentRule.objects.with_packs(
                 packs, include_archived_items=True
             )
-            rules = list(rules_qs.filter(contentfighter=self.content_fighter_cached))
+            rules = list(rules_qs.filter(contentfighter=self.access_content_fighter))
             disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
             custom_rules = list(rules_qs.filter(custom_for_fighters=self))
 
@@ -2513,6 +2579,10 @@ class ListFighter(AppBase):
         target_fighter.willpower_override = self.willpower_override
         target_fighter.intelligence_override = self.intelligence_override
 
+        # Copy promotion state (category label + type-change access pointer)
+        target_fighter.category_override = self.category_override
+        target_fighter.promoted_content_fighter = self.promoted_content_fighter
+
         # Copy XP
         target_fighter.xp_current = self.xp_current
         target_fighter.xp_total = self.xp_total
@@ -2587,13 +2657,19 @@ class ListFighter(AppBase):
 
         # Copy advancements
         for advancement in self.advancements.all():
-            # Create a new advancement for the target fighter
+            # Create a new advancement for the target fighter. advancement_choice and
+            # the promotion FKs must travel too: without them a copied promotion row is
+            # unresolvable, and a later deletion's recalc would silently erase the
+            # copied fighter's promotion.
             ListFighterAdvancement.objects.create(
                 fighter=target_fighter,
                 advancement_type=advancement.advancement_type,
+                advancement_choice=advancement.advancement_choice,
                 stat_increased=advancement.stat_increased,
                 skill=advancement.skill,
                 equipment_assignment=advancement.equipment_assignment,
+                promotion_path=advancement.promotion_path,
+                promotion_target=advancement.promotion_target,
                 description=advancement.description,
                 xp_cost=advancement.xp_cost,
                 cost_increase=advancement.cost_increase,
@@ -2624,6 +2700,11 @@ class ListFighter(AppBase):
             "name": self.name,
             "content_fighter": self.content_fighter,
             "legacy_content_fighter": self.legacy_content_fighter,
+            # Promotion state: the category label and the type-change access pointer
+            # both survive cloning (campaign entry clones the whole list; losing a
+            # promotion at the campaign door would be silent data loss).
+            "category_override": self.category_override,
+            "promoted_content_fighter": self.promoted_content_fighter,
             "narrative": self.narrative,
             "notes": self.notes,
             "private_notes": self.private_notes,

@@ -11,7 +11,7 @@ from django.db import transaction
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator
 
 from gyrinx import messages
 from gyrinx.content.models import ContentAdvancementEquipment, ContentSkill
@@ -20,6 +20,7 @@ from gyrinx.core.forms.advancement import (
     AdvancementTypeForm,
     EquipmentAssignmentSelectionForm,
     OtherAdvancementForm,
+    PromotionTargetSelectionForm,
     SkillCategorySelectionForm,
     SkillSelectionForm,
 )
@@ -348,6 +349,11 @@ class AdvancementFlowParams(AdvancementBaseParams):
     cost_increase: int = 0
     # Free text description for "other" advancement types
     description: Optional[str] = None
+    # For multi-target promotions: the chosen target fighter type
+    promotion_target_id: Optional[uuid.UUID] = None
+    # Request-scoped cache for the resolved path (False = not yet fetched) — the flow
+    # predicates each call promotion_path(), which would otherwise re-query per call.
+    _promotion_path_cache: object = PrivateAttr(default=False)
 
     @field_validator("advancement_choice")
     @classmethod
@@ -362,10 +368,71 @@ class AdvancementFlowParams(AdvancementBaseParams):
         """
         return self.advancement_choice.startswith("stat_")
 
+    def is_promotion_path_advancement(self) -> bool:
+        """
+        Check if this is a data-driven promotion (a ContentPromotionPath choice).
+        """
+        return self.advancement_choice.startswith("promotion_")
+
+    def promotion_path(self):
+        """
+        Fetch the ContentPromotionPath for a data-driven promotion choice, or None.
+        Cached per params instance; targets are prefetched for the flow predicates.
+        """
+        from gyrinx.content.models import ContentPromotionPath
+
+        if not self.is_promotion_path_advancement():
+            return None
+        if self._promotion_path_cache is False:
+            self._promotion_path_cache = (
+                ContentPromotionPath.objects.filter(
+                    id=self.advancement_choice.removeprefix("promotion_")
+                )
+                .prefetch_related("targets")
+                .first()
+            )
+        return self._promotion_path_cache
+
+    def promotion_grants_skill(self) -> str:
+        """
+        Which skill (if any) a data-driven promotion bundles.
+        """
+        path = self.promotion_path()
+        return path.grants_skill if path else "none"
+
+    def promotion_needs_target(self) -> bool:
+        """
+        True when this promotion offers a choice of target types and no VALID choice has
+        been made yet — a tampered/stale promotion_target_id that isn't one of the path's
+        targets counts as no choice, so the flow routes back to the chooser rather than
+        applying an ambiguous promotion.
+        """
+        if not self.is_promotion_path_advancement():
+            return False
+        path = self.promotion_path()
+        if not path or path.targets.count() <= 1:
+            return False
+        return self.promotion_target() is None
+
+    def promotion_target(self):
+        """
+        The chosen target fighter for a multi-target promotion, validated against the
+        path's target set. Returns None when no (valid) choice has been made.
+        """
+        if not self.is_promotion_path_advancement() or self.promotion_target_id is None:
+            return None
+        path = self.promotion_path()
+        if path is None:
+            return None
+        return path.targets.filter(id=self.promotion_target_id).first()
+
     def is_skill_advancement(self) -> bool:
         """
-        Check if this is a skill advancement.
+        Check if this advancement involves selecting a skill (including promotions that
+        bundle one).
         """
+        if self.is_promotion_path_advancement():
+            return self.promotion_grants_skill() != "none"
         return self.advancement_choice in [
             "skill_primary_chosen",
             "skill_secondary_chosen",
@@ -415,6 +482,11 @@ class AdvancementFlowParams(AdvancementBaseParams):
         """
         Check if this is a chosen skill advancement.
         """
+        if self.is_promotion_path_advancement():
+            return self.promotion_grants_skill() in [
+                "primary_chosen",
+                "secondary_chosen",
+            ]
         return self.advancement_choice in [
             "skill_primary_chosen",
             "skill_secondary_chosen",
@@ -424,6 +496,12 @@ class AdvancementFlowParams(AdvancementBaseParams):
         """
         Check if this is a random skill advancement.
         """
+        if self.is_promotion_path_advancement():
+            return self.promotion_grants_skill() in [
+                "primary_random",
+                "secondary_random",
+                "any_random",
+            ]
         return self.advancement_choice in [
             "skill_primary_random",
             "skill_secondary_random",
@@ -434,9 +512,9 @@ class AdvancementFlowParams(AdvancementBaseParams):
 
     def is_promote_advancement(self) -> bool:
         """
-        Check if this is a specialist or champion promotion advancement.
+        Check if this is a promotion advancement (either era).
         """
-        return self.advancement_choice in [
+        return self.is_promotion_path_advancement() or self.advancement_choice in [
             "skill_promote_specialist",
             "skill_promote_champion",
         ]
@@ -445,6 +523,15 @@ class AdvancementFlowParams(AdvancementBaseParams):
         """
         Extract the skill category from the advancement choice.
         """
+        if self.is_promotion_path_advancement():
+            grants = self.promotion_grants_skill()
+            if grants.startswith("primary_"):
+                return "primary"
+            elif grants.startswith("secondary_"):
+                return "secondary"
+            elif grants.startswith("any_"):
+                return "any"
+            raise ValueError("Promotion does not grant a skill.")
         if self.is_skill_advancement():
             if self.advancement_choice in [
                 "skill_primary_chosen",
@@ -560,6 +647,20 @@ def list_fighter_advancement_type(request, id, fighter_id):
                 return HttpResponseRedirect(
                     f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
                 )
+            elif (
+                next_params.is_promotion_path_advancement()
+                and not next_params.is_skill_advancement()
+                and not next_params.promotion_needs_target()
+            ):
+                # Skill-less, target-resolved promotions (e.g. house Juve paths) have
+                # nothing to select — go straight to confirm. Promotions needing a
+                # target choice (Forge Boss or Stimmer) fall through to the select step.
+                url = reverse(
+                    "core:list-fighter-advancement-confirm", args=(lst.id, fighter.id)
+                )
+                return HttpResponseRedirect(
+                    f"{url}?{urlencode(next_params.model_dump(mode='json', exclude_none=True))}"
+                )
             else:
                 # For skills and chosen equipment, still need selection step
                 url = reverse(
@@ -571,7 +672,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
     else:
         initial = {
             **params.model_dump(mode="json", exclude_none=True),
-            **AdvancementTypeForm.get_initial_for_action(campaign_action),
+            **AdvancementTypeForm.get_initial_for_action(campaign_action, fighter),
         }
         form = AdvancementTypeForm(initial=initial, fighter=fighter)
 
@@ -620,19 +721,26 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
     # Get and sanitize parameters from query string
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
-        # Allow stat, other, and random equipment advancements at confirm stage
+        # Allow stat, other, random equipment, and skill-less promotion advancements at
+        # the confirm stage (promotions that bundle a skill complete at the select stage)
         is_random_equipment = (
             params.is_equipment_advancement()
             and "_random_" in params.advancement_choice
+        )
+        is_skill_less_promotion = (
+            params.is_promotion_path_advancement() and not params.is_skill_advancement()
         )
         if not (
             params.is_stat_advancement()
             or params.is_other_advancement()
             or is_random_equipment
+            or is_skill_less_promotion
         ):
             raise ValueError(
-                "Only stat, other, or random equipment advancements allowed at the confirm stage"
+                "Only stat, other, random equipment, or promotion advancements allowed at the confirm stage"
             )
+        if is_skill_less_promotion and params.promotion_needs_target():
+            raise ValueError("This promotion needs a target type to be chosen first")
 
         if params.is_stat_advancement():
             stat = params.stat_from_choice()
@@ -640,8 +748,8 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
         elif params.is_other_advancement():
             stat = None
             stat_desc = params.description
-        elif is_random_equipment:
-            # For random equipment, prepare the details
+        elif is_random_equipment or is_skill_less_promotion:
+            # For random equipment and promotions, prepare the details
             stat = None
             stat_desc = params.description_from_choice()
     except ValueError as e:
@@ -720,6 +828,18 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     advancement_choice=params.advancement_choice,
                     equipment_assignment=selected_assignment,
                     description=equipment_description,
+                    campaign_action_id=params.campaign_action_id,
+                )
+            elif is_skill_less_promotion:
+                result = handle_fighter_advancement(
+                    user=request.user,
+                    fighter=fighter,
+                    advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+                    xp_cost=params.xp_cost,
+                    cost_increase=params.cost_increase,
+                    advancement_choice=params.advancement_choice,
+                    promotion_path=params.promotion_path(),
+                    promotion_target=params.promotion_target(),
                     campaign_action_id=params.campaign_action_id,
                 )
         except DjangoValidationError as e:
@@ -804,20 +924,33 @@ def apply_skill_advancement(
     params: AdvancementFlowParams,
 ) -> ListFighterAdvancement | None:
     """
-    Apply a skill advancement to a fighter using the handler.
+    Apply a skill (or skill-bundling promotion) advancement to a fighter using the handler.
 
     Returns the advancement if created, or None if already applied (idempotent)
     or if a validation error occurred.
     """
     try:
+        # A promotion that bundles a skill (e.g. Ganger → Specialist grants a random
+        # Primary skill) rides the same selection flow but is stored as a promotion.
+        if params.is_promotion_path_advancement():
+            advancement_type = ListFighterAdvancement.ADVANCEMENT_PROMOTION
+            promotion_path = params.promotion_path()
+            promotion_target = params.promotion_target()
+        else:
+            advancement_type = ListFighterAdvancement.ADVANCEMENT_SKILL
+            promotion_path = None
+            promotion_target = None
+
         result = handle_fighter_advancement(
             user=request.user,
             fighter=fighter,
-            advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+            advancement_type=advancement_type,
             xp_cost=params.xp_cost,
             cost_increase=params.cost_increase,
             advancement_choice=params.advancement_choice,
             skill=skill,
+            promotion_path=promotion_path,
+            promotion_target=promotion_target,
             campaign_action_id=params.campaign_action_id,
         )
     except DjangoValidationError as e:
@@ -880,9 +1013,13 @@ def list_fighter_advancement_select(request, id, fighter_id):
     # reach this stage. Then build the details object.
     try:
         params = AdvancementFlowParams.model_validate(request.GET.dict())
-        if not (params.is_skill_advancement() or params.is_equipment_advancement()):
+        if not (
+            params.is_skill_advancement()
+            or params.is_equipment_advancement()
+            or params.promotion_needs_target()
+        ):
             raise ValueError(
-                "Only skill or equipment advancements allowed at the target stage"
+                "Only skill, equipment, or promotion-target advancements allowed at the target stage"
             )
 
         skill_type = (
@@ -890,13 +1027,37 @@ def list_fighter_advancement_select(request, id, fighter_id):
             if params.is_skill_advancement()
             else None
         )
-    except ValidationError as e:
+    except (ValidationError, ValueError) as e:
         messages.error(request, f"Invalid advancement: {e}.")
         return HttpResponseRedirect(
             reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         )
 
-    if params.is_equipment_advancement():
+    if params.is_promotion_path_advancement() and params.promotion_needs_target():
+        # Multi-target promotion: the player chooses which type the fighter becomes
+        # ("either a Forge Boss or a Stimmer as the controlling player wishes"). The
+        # choice then travels in the URL like all other wizard state.
+        path = params.promotion_path()
+        if request.method == "POST":
+            form = PromotionTargetSelectionForm(request.POST, path=path)
+            if form.is_valid():
+                target = form.cleaned_data["target"]
+                params.promotion_target_id = target.id
+                # Skill-bundling promotions continue to skill selection; skill-less
+                # ones go straight to confirm.
+                next_view = (
+                    "core:list-fighter-advancement-select"
+                    if params.is_skill_advancement()
+                    else "core:list-fighter-advancement-confirm"
+                )
+                url = reverse(next_view, args=(lst.id, fighter.id))
+                return HttpResponseRedirect(
+                    f"{url}?{urlencode(params.model_dump(mode='json', exclude_none=True))}"
+                )
+        else:
+            form = PromotionTargetSelectionForm(path=path)
+
+    elif params.is_equipment_advancement():
         # Handle chosen equipment advancement
         # Note: Random equipment advancements are redirected to confirm view from type view
 
@@ -1078,7 +1239,15 @@ def list_fighter_advancement_select(request, id, fighter_id):
         "current_step": 3 if is_campaign_mode else 2,
     }
 
-    if params.is_equipment_advancement():
+    if params.is_promotion_path_advancement() and params.promotion_needs_target():
+        promotion_path = params.promotion_path()
+        context.update(
+            {
+                "advancement_type": "promotion_target",
+                "advancement_name": promotion_path.name if promotion_path else None,
+            }
+        )
+    elif params.is_equipment_advancement():
         context.update(
             {
                 "advancement_type": "equipment",

@@ -1,11 +1,15 @@
 import logging
+from dataclasses import dataclass
+from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
 from gyrinx.content.models import (
+    ContentFighter,
     ContentModStatApplyMixin,
+    ContentPromotionPath,
     ContentSkill,
 )
 from gyrinx.core.models.base import AppBase
@@ -17,6 +21,62 @@ from gyrinx.models import (
 
 logger = logging.getLogger(__name__)
 pylist = list
+
+# Choice-key prefix for data-driven promotions: "promotion_{ContentPromotionPath.id}".
+PROMOTION_CHOICE_PREFIX = "promotion_"
+
+
+@dataclass(frozen=True)
+class ResolvedPromotion:
+    """What a promotion advancement_choice means, independent of its era.
+
+    New-era choices ("promotion_{uuid}") resolve from a ContentPromotionPath row; the two
+    legacy hardcoded strings resolve from a static map so historical rows keep applying and
+    reversing correctly even if the seeded content rows are edited or removed.
+    ``target`` is the fighter type the fighter counts as after a type-change promotion
+    (the chosen target, or the path's sole target) — None for pure relabels and legacy rows.
+    """
+
+    to_category: str
+    rank: int
+    path: Optional[ContentPromotionPath] = None
+    target: Optional[ContentFighter] = None
+
+
+# The two promotion choices that were hardcoded before promotions became content-driven.
+# Stored ListFighterAdvancement rows keep these strings forever (never rewritten); the map
+# preserves their outcome (target category) and seniority (Champion outranks Specialist).
+LEGACY_PROMOTION_CHOICES = {
+    "skill_promote_specialist": ResolvedPromotion(
+        to_category=FighterCategoryChoices.SPECIALIST, rank=1
+    ),
+    "skill_promote_champion": ResolvedPromotion(
+        to_category=FighterCategoryChoices.CHAMPION, rank=2
+    ),
+}
+
+
+def resolve_promotion_choice(choice: Optional[str]) -> Optional[ResolvedPromotion]:
+    """Resolve an advancement_choice string to its promotion meaning, if it is one.
+
+    Returns None for non-promotion choices, and for new-era choices whose path row no
+    longer exists (deletion is blocked by PROTECT while advancements reference it, so
+    that only happens for never-applied choices).
+    """
+    if not choice:
+        return None
+    if choice in LEGACY_PROMOTION_CHOICES:
+        return LEGACY_PROMOTION_CHOICES[choice]
+    if choice.startswith(PROMOTION_CHOICE_PREFIX):
+        path = ContentPromotionPath.objects.filter(
+            id=choice.removeprefix(PROMOTION_CHOICE_PREFIX)
+        ).first()
+        if path is None:
+            return None
+        return ResolvedPromotion(
+            to_category=path.effective_to_category(), rank=path.rank, path=path
+        )
+    return None
 
 
 class AdvancementStatMod(ContentModStatApplyMixin):
@@ -48,12 +108,14 @@ class ListFighterAdvancement(AppBase):
     ADVANCEMENT_STAT = "stat"
     ADVANCEMENT_SKILL = "skill"
     ADVANCEMENT_EQUIPMENT = "equipment"
+    ADVANCEMENT_PROMOTION = "promotion"
     ADVANCEMENT_OTHER = "other"
 
     ADVANCEMENT_TYPE_CHOICES = [
         (ADVANCEMENT_STAT, "Characteristic Increase"),
         (ADVANCEMENT_SKILL, "New Skill"),
         (ADVANCEMENT_EQUIPMENT, "New Equipment"),
+        (ADVANCEMENT_PROMOTION, "Promotion"),
         (ADVANCEMENT_OTHER, "Other"),
     ]
 
@@ -102,6 +164,30 @@ class ListFighterAdvancement(AppBase):
         null=True,
         blank=True,
         help_text="For equipment advancements, which assignment configuration was selected.",
+    )
+
+    # For promotion advancements (data-driven era; legacy rows carry only the
+    # advancement_choice string). PROTECT: a path row can't be deleted from under the
+    # advancements that were purchased through it.
+    promotion_path = models.ForeignKey(
+        "content.ContentPromotionPath",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="advancements",
+        help_text="For promotion advancements, which promotion path was taken.",
+    )
+
+    promotion_target = models.ForeignKey(
+        "content.ContentFighter",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="promotion_advancements",
+        help_text=(
+            "For type-change promotions with a choice of targets, which fighter type "
+            "was chosen (e.g. Forge Boss vs Stimmer)."
+        ),
     )
 
     # For other advancements
@@ -157,9 +243,53 @@ class ListFighterAdvancement(AppBase):
         elif self.advancement_type == self.ADVANCEMENT_EQUIPMENT:
             if self.equipment_assignment:
                 return f"{self.fighter.name} - {str(self.equipment_assignment)}"
+        elif self.advancement_type == self.ADVANCEMENT_PROMOTION:
+            return f"{self.fighter.name} - {self.promotion_display}"
         elif self.advancement_type == self.ADVANCEMENT_OTHER and self.description:
             return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"
+
+    def resolved_promotion(self) -> Optional[ResolvedPromotion]:
+        """Resolve this advancement's promotion meaning, if it is one (either era).
+
+        The type-change target is the stored chosen target, or the path's sole target
+        for single-target type changes; None for pure relabels and legacy rows.
+        """
+        if self.promotion_path is not None:
+            path = self.promotion_path
+            target = self.promotion_target
+            if target is None and path.kind == ContentPromotionPath.Kind.TYPE_CHANGE:
+                # Only infer the target when the path has exactly one — a multi-target
+                # path with no stored choice must not resolve to an arbitrary pick.
+                # (The wizard always stores the choice; this guards programmatic writes.)
+                targets = pylist(path.targets.all())
+                if len(targets) == 1:
+                    target = targets[0]
+            return ResolvedPromotion(
+                to_category=path.effective_to_category(target),
+                rank=path.rank,
+                path=path,
+                target=target,
+            )
+        return resolve_promotion_choice(self.advancement_choice)
+
+    @property
+    def promotion_display(self) -> str:
+        """Human-readable label for a promotion advancement."""
+        if self.promotion_path:
+            base = self.promotion_path.name
+            if self.promotion_target:
+                base = f"{base}: {self.promotion_target.type}"
+        else:
+            resolved = resolve_promotion_choice(self.advancement_choice)
+            base = (
+                f"Promote to {FighterCategoryChoices[resolved.to_category].label}"
+                if resolved and resolved.to_category
+                else "Promotion"
+            )
+        if self.skill:
+            return f"{base} ({self.skill.name})"
+        return base
 
     def get_stat_increased_display(self):
         # Import here to avoid circular imports
@@ -176,6 +306,8 @@ class ListFighterAdvancement(AppBase):
             return self.get_stat_increased_display()
         elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             return self.skill.name
+        elif self.advancement_type == self.ADVANCEMENT_PROMOTION:
+            return self.promotion_display
         elif self.advancement_type in (
             self.ADVANCEMENT_OTHER,
             self.ADVANCEMENT_EQUIPMENT,
@@ -254,25 +386,42 @@ class ListFighterAdvancement(AppBase):
                 pin_assignment(assignment)
                 # Recalculate cached values now that upgrades are added
                 assignment.facts_from_db(update=True)
+        elif self.advancement_type == self.ADVANCEMENT_PROMOTION:
+            # Promotions may bundle a skill (e.g. the core Ganger→Specialist path grants a
+            # random Primary skill); house Juve/Prospect promotions typically grant none.
+            if self.skill:
+                self.fighter.skills.add(self.skill)
         elif self.advancement_type == self.ADVANCEMENT_OTHER:
             # For "other" advancements, nothing specific to apply
             # The description is just stored for display purposes
             pass
 
-        # If this is a promotion, use the category override to set the fighter's category
-        if (
-            self.advancement_choice
-            and self.advancement_choice == "skill_promote_specialist"
-        ):
-            self.fighter.category_override = FighterCategoryChoices.SPECIALIST
-            self.fighter.save()
-
-        if (
-            self.advancement_choice
-            and self.advancement_choice == "skill_promote_champion"
-        ):
-            self.fighter.category_override = FighterCategoryChoices.CHAMPION
-            self.fighter.save()
+        # If this is a promotion (either era: promotion_path row, "promotion_{id}" choice,
+        # or a legacy hardcoded string), relabel the fighter's category and — for type
+        # changes — point the fighter at the type it now counts as for equipment, skill,
+        # and special-rule access. Per the rules, promotion never changes statline or
+        # base cost — cost impact is only the flat cost_increase summed with all other
+        # advancements.
+        resolved = self.resolved_promotion()
+        if resolved:
+            changed = False
+            if resolved.target is not None:
+                # Guardrail: a promotion must never turn a fighter into a stash/vehicle.
+                ContentPromotionPath.clean_target(resolved.target)
+                self.fighter.promoted_content_fighter = resolved.target
+                changed = True
+                # Persist the resolved target on the row (single-target paths skip the
+                # chooser, so nothing stored it yet). Pins what this fighter counts as
+                # to what was true at purchase — an admin later adding a second target
+                # to the path must not rewrite existing fighters' history.
+                if self.promotion_target_id is None:
+                    self.promotion_target = resolved.target
+                    self.save()
+            if resolved.to_category:
+                self.fighter.category_override = resolved.to_category
+                changed = True
+            if changed:
+                self.fighter.save()
 
         # Deduct XP cost from fighter
         self.fighter.xp_current -= self.xp_cost
@@ -312,6 +461,14 @@ class ListFighterAdvancement(AppBase):
         ):
             raise ValidationError(
                 "Equipment advancement should not have stat or skill selected."
+            )
+        if self.advancement_type == self.ADVANCEMENT_PROMOTION and (
+            self.stat_increased or self.equipment_assignment
+        ):
+            # A promotion may carry a skill (bundled random Primary) but never a stat or
+            # equipment selection.
+            raise ValidationError(
+                "Promotion advancement should not have stat or equipment selected."
             )
         if self.advancement_type == self.ADVANCEMENT_OTHER and (
             self.stat_increased or self.skill or self.equipment_assignment

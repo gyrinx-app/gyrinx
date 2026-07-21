@@ -178,14 +178,13 @@ def test_advancement_type_form_skill_choices():
     """Test that skill advancement choices are always present."""
     form = AdvancementTypeForm()
 
-    # Expected skill choices
+    # Expected skill choices. Promotions are no longer hardcoded here — they are
+    # data-driven from ContentPromotionPath (see test_promotion_paths.py).
     expected_skill_choices = [
         ("skill_primary_chosen", "Chosen Primary Skill"),
         ("skill_secondary_chosen", "Chosen Secondary Skill"),
         ("skill_primary_random", "Random Primary Skill"),
         ("skill_secondary_random", "Random Secondary Skill"),
-        ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
-        ("skill_promote_champion", "Promote to Champion (Random Primary Skill)"),
         ("skill_any_random", "Random Skill (Any Set)"),
         ("other", "Other"),
     ]

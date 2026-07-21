@@ -247,10 +247,7 @@ def _equipment_list_item(assignment, weapon_profile):
 
 def _preferred_override(qs, list_fighter):
     """First override, preferring the legacy fighter's row when both exist —
-    the same tie-break live resolution applies."""
-    rows = list(qs)
-    if len(rows) > 1 and list_fighter.legacy_content_fighter:
-        for row in rows:
-            if row.fighter_id == list_fighter.legacy_content_fighter_id:
-                return row
-    return rows[0] if rows else None
+    the same tie-break live resolution applies (shared helper)."""
+    from gyrinx.core.models.list._common import preferred_equipment_list_override
+
+    return preferred_equipment_list_override(qs, list_fighter)

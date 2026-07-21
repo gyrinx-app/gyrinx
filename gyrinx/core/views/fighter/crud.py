@@ -218,16 +218,21 @@ def clone_list_fighter(request: HttpRequest, id, fighter_id):
                 # If fighter has an override and checkbox is checked, preserve it
                 # Otherwise, clear it
                 category_override = None
+                promoted_content_fighter = None
                 if fighter.category_override and form.cleaned_data.get(
                     "clone_category_override", False
                 ):
                     category_override = fighter.category_override
+                    # The type-change pointer travels with the category label — a
+                    # clone that keeps the promotion keeps what it counts as.
+                    promoted_content_fighter = fighter.promoted_content_fighter
 
                 clone_params = FighterCloneParams(
                     name=form.cleaned_data["name"],
                     content_fighter=form.cleaned_data["content_fighter"],
                     target_list=form.cleaned_data["list"],
                     category_override=category_override,
+                    promoted_content_fighter=promoted_content_fighter,
                 )
 
                 # Handle the clone operation (clones fighter, creates ListAction, handles credits)

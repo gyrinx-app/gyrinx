@@ -23,6 +23,7 @@ from gyrinx.content.models import (
 )
 from gyrinx.core.models.facts import AssignmentFacts
 from gyrinx.core.models.history_mixin import HistoryMixin
+from gyrinx.core.models.list._common import preferred_equipment_list_override
 from gyrinx.models import (
     Archived,
     Base,
@@ -653,26 +654,17 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             # None here is very important: it means we're looking for the base equipment cost.
             weapon_profile=None,
         )
-        if not overrides.exists():
+        override_rows = list(overrides)
+        if not override_rows:
             return self.content_equipment.cost_int()
 
-        # If there are multiple overrides (from legacy and base), prefer legacy
-        if overrides.count() > 1:
-            # Log warning if there are multiple overrides but only one fighter (shouldn't happen normally)
-            if len(fighters) == 1:
-                logger.warning(
-                    f"Multiple overrides for {self.content_equipment} on {self.list_fighter}"
-                )
+        # Log warning if there are multiple overrides but only one fighter (shouldn't happen normally)
+        if len(override_rows) > 1 and len(fighters) == 1:
+            logger.warning(
+                f"Multiple overrides for {self.content_equipment} on {self.list_fighter}"
+            )
 
-            # If we have a legacy fighter, try to get the legacy override first
-            if self.list_fighter.legacy_content_fighter:
-                legacy_override = overrides.filter(
-                    fighter=self.list_fighter.legacy_content_fighter
-                ).first()
-                if legacy_override:
-                    return legacy_override.cost_int()
-
-        override = overrides.first()
+        override = preferred_equipment_list_override(override_rows, self.list_fighter)
         return override.cost_int()
 
     @cached_property
@@ -769,20 +761,8 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             weapon_profile=profile.profile,
         )
 
-        if overrides.exists():
-            # If there are multiple overrides (from legacy and base), prefer legacy
-            if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
-                legacy_override = overrides.filter(
-                    fighter=self.list_fighter.legacy_content_fighter
-                ).first()
-                if legacy_override:
-                    cost = legacy_override.cost_int()
-                else:
-                    cost = overrides.first().cost_int()
-            else:
-                cost = overrides.first().cost_int()
-        else:
-            cost = profile.cost_int()
+        override = preferred_equipment_list_override(overrides, self.list_fighter)
+        cost = override.cost_int() if override else profile.cost_int()
 
         self._profile_cost_with_override_for_profile_cache[profile.profile.id] = cost
         return cost
@@ -836,17 +816,8 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             weapon_accessory=accessory,
         )
 
-        if overrides.exists():
-            # If there are multiple overrides (from legacy and base), prefer legacy
-            if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
-                legacy_override = overrides.filter(
-                    fighter=self.list_fighter.legacy_content_fighter
-                ).first()
-                if legacy_override:
-                    return legacy_override.cost_int()
-            return overrides.first().cost_int()
-        else:
-            return accessory.cost_int()
+        override = preferred_equipment_list_override(overrides, self.list_fighter)
+        return override.cost_int() if override else accessory.cost_int()
 
     def accessory_cost_int(self, accessory):
         return self._accessory_cost_with_override(accessory)
@@ -877,17 +848,8 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                 upgrade=upgrade,
             )
 
-            if overrides.exists():
-                # If there are multiple overrides (from legacy and base), prefer legacy
-                if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
-                    legacy_override = overrides.filter(
-                        fighter=self.list_fighter.legacy_content_fighter
-                    ).first()
-                    if legacy_override:
-                        return legacy_override.cost_int()
-                return overrides.first().cost_int()
-            else:
-                return upgrade.cost
+            override = preferred_equipment_list_override(overrides, self.list_fighter)
+            return override.cost_int() if override else upgrade.cost
 
         # For SINGLE mode, calculate cumulative cost with overrides.
         # Get all upgrades up to this position via all_content() so
@@ -909,20 +871,8 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
                 upgrade=u,
             )
 
-            if overrides.exists():
-                # If there are multiple overrides (from legacy and base), prefer legacy
-                if overrides.count() > 1 and self.list_fighter.legacy_content_fighter:
-                    legacy_override = overrides.filter(
-                        fighter=self.list_fighter.legacy_content_fighter
-                    ).first()
-                    if legacy_override:
-                        cumulative_cost += legacy_override.cost_int()
-                    else:
-                        cumulative_cost += overrides.first().cost_int()
-                else:
-                    cumulative_cost += overrides.first().cost_int()
-            else:
-                cumulative_cost += u.cost
+            override = preferred_equipment_list_override(overrides, self.list_fighter)
+            cumulative_cost += override.cost_int() if override else u.cost
 
         return cumulative_cost
 

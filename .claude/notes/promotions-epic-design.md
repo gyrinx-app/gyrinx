@@ -179,18 +179,25 @@ alongside `content_fighter`/`legacy_content_fighter` (`fighter.py:313-321`). Wat
   change, ships alone, de-risks Phase 3).
 - [x] **Phase 1** — `ContentPromotionPath` model (unified: kind/source/targets/threshold/timing)
   + frozen seed migration + admin. PR #1952.
-- [ ] **Phase 2** — wire the advancement flow through `ContentPromotionPath` (forms/handler/
+- [x] **Phase 2** — wire the advancement flow through `ContentPromotionPath` (forms/handler/
   views); generalise `_recalculate_category_override` to `rank`; `rolls`-driven 2d6 prefill.
   **Closes #1596** (admin adds a Juve→Specialist path, no code change). Cost-neutral, low risk.
+  Notes as built: `ADVANCEMENT_PROMOTION` type + `promotion_path` FK came forward from Phase 3
+  (RAW paths grant no skill; the SKILL type requires one); multi-target paths are gated out of
+  the choices until Phase 4's target-selection step; legacy `skill_promote_*` strings resolve
+  via a static map so historical rows apply/reverse without DB rows.
 - [ ] **Phase 3** — promotion access pointer on `ListFighter` (access-only: equipment
   `legacy > promotion > base`; skills/special rules `promotion > base`; statline/cost base
   only) + third-arm `Q()` filters + extend Phase 0 helper. Tests only, no UI.
 - [ ] **Phase 4** — target-selection wizard step + `ADVANCEMENT_PROMOTION` row + apply/reverse.
   **Closes #1467.**
-- [ ] **Phase 5** — clone / hire-transfer propagation of the pointer (`clone()`,
-  `copy_attributes_to()`, `FighterCloneParams`/`hire_clone.py`, opt-out checkbox in
-  `forms/list.py`). No single seam — budget real time (same gap already exists for
-  `category_override`).
+- [x] **Phase 5** — promotion state survives fighter copies (folded into the Phase 3+4 PR).
+  `clone()` (the seam under campaign entry AND the duplicate handler) now carries
+  `category_override` + `promoted_content_fighter` — fixing the pre-existing bug where a
+  promoted fighter lost their badge on campaign entry; `copy_attributes_to()` copies both;
+  `FighterCloneParams` gains the pointer, governed by the duplicate form's existing
+  "Clone as {category}" checkbox (label and pointer travel together). Note: capture/sell
+  does NOT copy fighters (sold fighters stay with the original gang), so no seam there.
 - [ ] **Phase 6** — special-rules display polish + campaign-log wording; per-house content
   authoring pass (family-C paths + Champion target sets, from the rules-spec table).
 

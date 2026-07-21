@@ -9,13 +9,48 @@ from django.core.exceptions import ValidationError
 from gyrinx.content.models import (
     ContentAdvancementAssignment,
     ContentAdvancementEquipment,
+    ContentPromotionPath,
     ContentSkill,
     ContentSkillCategory,
     ContentStat,
 )
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.forms import group_select
-from gyrinx.models import FighterCategoryChoices
+
+# Human-readable suffix for what a promotion bundles, mirroring the old hardcoded labels
+# ("Promote to Specialist (Random Primary Skill)").
+GRANTS_SKILL_LABELS = {
+    "primary_random": "Random Primary Skill",
+    "primary_chosen": "Chosen Primary Skill",
+    "secondary_random": "Random Secondary Skill",
+    "secondary_chosen": "Chosen Secondary Skill",
+    "any_random": "Random Skill (Any Set)",
+}
+
+
+def promotion_choice_key(path) -> str:
+    return f"promotion_{path.id}"
+
+
+def promotion_choice_label(path) -> str:
+    suffix = GRANTS_SKILL_LABELS.get(path.grants_skill)
+    return f"{path.name} ({suffix})" if suffix else path.name
+
+
+def available_promotion_paths(fighter):
+    """Promotion paths this fighter can currently be offered.
+
+    The category gate applies in both source modes (see is_available_to_fighter), so it
+    is pushed into SQL; the source-fighter and house checks run on the narrowed set.
+    """
+    paths = []
+    for path in ContentPromotionPath.objects.filter(
+        from_category=fighter.get_category()
+    ).prefetch_related("restricted_to_houses", "targets"):
+        if not path.is_available_to_fighter(fighter):
+            continue
+        paths.append(path)
+    return paths
 
 
 @dataclass
@@ -182,21 +217,6 @@ class AdvancementTypeForm(forms.Form):
             xp_cost=9,
             cost_increase=35,
         ),
-        "skill_promote_specialist": AdvancementConfig(
-            name="skill_promote_specialist",
-            display_name="Promote to Specialist (Random Primary Skill)",
-            xp_cost=6,
-            cost_increase=20,
-            roll=2,  # Also roll 12
-            restricted_to_fighter_categories=[FighterCategoryChoices.GANGER],
-        ),
-        "skill_promote_champion": AdvancementConfig(
-            name="skill_promote_champion",
-            display_name="Promote to Champion (Random Primary Skill)",
-            xp_cost=12,
-            cost_increase=40,
-            restricted_to_fighter_categories=[FighterCategoryChoices.SPECIALIST],
-        ),
         "skill_secondary_chosen": AdvancementConfig(
             name="skill_secondary_chosen",
             display_name="Chosen Secondary Skill",
@@ -225,8 +245,6 @@ class AdvancementTypeForm(forms.Form):
         ("skill_primary_chosen", "Chosen Primary Skill"),
         ("skill_secondary_random", "Random Secondary Skill"),
         ("skill_secondary_chosen", "Chosen Secondary Skill"),
-        ("skill_promote_specialist", "Promote to Specialist (Random Primary Skill)"),
-        ("skill_promote_champion", "Promote to Champion (Random Primary Skill)"),
         ("skill_any_random", "Random Skill (Any Set)"),
         # Other
         ("other", "Other"),
@@ -298,6 +316,21 @@ class AdvancementTypeForm(forms.Form):
                 (opt_val, full_name) for opt_val, full_name in all_stat_choices.items()
             ]
 
+        # Generate promotion choices from content (data-driven; replaces the formerly
+        # hardcoded skill_promote_specialist / skill_promote_champion entries).
+        promotion_choices = []
+        if fighter:
+            for path in available_promotion_paths(fighter):
+                key = promotion_choice_key(path)
+                label = promotion_choice_label(path)
+                promotion_choices.append((key, label))
+                self.advancement_configs[key] = AdvancementConfig(
+                    name=key,
+                    display_name=label,
+                    xp_cost=path.xp_cost,
+                    cost_increase=path.cost_increase,
+                )
+
         # Generate equipment advancement choices
         equipment_choices = []
         if fighter:
@@ -352,6 +385,7 @@ class AdvancementTypeForm(forms.Form):
         self.fields["advancement_choice"].choices = (
             additional_advancement_choices
             + equipment_choices
+            + promotion_choices
             + initial_advancement_choices
         )
 
@@ -409,6 +443,24 @@ class AdvancementTypeForm(forms.Form):
         return equipment_choices
 
     @classmethod
+    def all_promotion_choices(cls) -> dict[str, str]:
+        """
+        Get a dictionary mapping promotion choice keys to their full names.
+
+        Includes the two legacy hardcoded keys: stored advancement rows and old mid-flow
+        URLs keep those strings forever, so they must remain valid/displayable.
+        """
+        choices = {
+            promotion_choice_key(path): promotion_choice_label(path)
+            for path in ContentPromotionPath.objects.all()
+        }
+        choices["skill_promote_specialist"] = (
+            "Promote to Specialist (Random Primary Skill)"
+        )
+        choices["skill_promote_champion"] = "Promote to Champion (Random Primary Skill)"
+        return choices
+
+    @classmethod
     def all_advancement_choices(cls) -> dict[str, str]:
         """
         Get a dictionary mapping advancement choice keys to their full names.
@@ -416,6 +468,7 @@ class AdvancementTypeForm(forms.Form):
         return (
             cls.all_stat_choices()
             | cls.all_equipment_choices()
+            | cls.all_promotion_choices()
             | dict(cls.ADVANCEMENT_CHOICES)
         )
 
@@ -433,7 +486,7 @@ class AdvancementTypeForm(forms.Form):
 
     @classmethod
     def get_initial_for_action(
-        cls, campaign_action: Optional[CampaignAction] = None
+        cls, campaign_action: Optional[CampaignAction] = None, fighter=None
     ) -> dict:
         """
         Extract initial parameters from a CampaignAction.
@@ -449,11 +502,27 @@ class AdvancementTypeForm(forms.Form):
         advancement_choice = "stat_willpower"  # default
         cost_increase = 5  # default
 
-        for key, config in cls.ADVANCEMENT_CONFIGS.items():
-            if config.roll == campaign_action.dice_total:
-                advancement_choice = key
-                cost_increase = config.cost_increase
-                break
+        # Promotion rolls come from content: any path whose `rolls` list contains the 2d6
+        # total (the rulebook's Ganger table promotes on a 2 AND a 12). Checked before the
+        # stat configs, whose rolls (3–11) never overlap with promotion totals.
+        for path in ContentPromotionPath.objects.filter(
+            rolls__contains=campaign_action.dice_total
+        ).prefetch_related("targets", "restricted_to_houses"):
+            if fighter and not path.is_available_to_fighter(fighter):
+                continue
+            # Prefetched, so len() avoids a COUNT(*) per path. Multi-target paths can't
+            # be prefilled — the roll flow has no target-selection step.
+            if len(path.targets.all()) > 1:
+                continue
+            advancement_choice = promotion_choice_key(path)
+            cost_increase = path.cost_increase
+            break
+        else:
+            for key, config in cls.ADVANCEMENT_CONFIGS.items():
+                if config.roll == campaign_action.dice_total:
+                    advancement_choice = key
+                    cost_increase = config.cost_increase
+                    break
 
         # For GANGER dice rolls, always use 6 XP
         return {
@@ -652,6 +721,30 @@ class OtherAdvancementForm(forms.Form):
         if not description:
             raise ValidationError("Please enter a description for the advancement.")
         return description
+
+
+class PromotionTargetSelectionForm(forms.Form):
+    """Form for choosing which type a multi-target promotion turns the fighter into.
+
+    The rulebook's "either a Forge Boss or a Stimmer as the controlling player wishes"
+    choice — the heart of the Prospect promotion paths.
+    """
+
+    target = forms.ModelChoiceField(
+        queryset=None,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Choose which type this fighter will be promoted to.",
+        label="Promotion type",
+    )
+
+    def __init__(self, *args, path=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.path = path
+        from gyrinx.content.models import ContentFighter
+
+        self.fields["target"].queryset = (
+            path.targets.all() if path else ContentFighter.objects.none()
+        )
 
 
 class EquipmentAssignmentSelectionForm(forms.Form):
