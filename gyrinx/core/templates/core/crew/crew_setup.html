@@ -87,7 +87,12 @@
                         {% for row in form.fighter_rows %}
                             <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-3 align-items-start align-items-sm-center">
                                 <div class="me-sm-auto">
-                                    <div class="fw-semibold">{{ row.fighter.name }}</div>
+                                    <div class="fw-semibold">
+                                        {{ row.fighter.name }}
+                                        {% if row.status %}
+                                            <span class="badge text-bg-secondary fw-normal ms-1">{{ row.status }}</span>
+                                        {% endif %}
+                                    </div>
                                     <div class="fs-7 text-secondary">{{ row.category }} · {{ row.cost }}¢</div>
                                 </div>
                                 <div class="hstack gap-3 flex-wrap">

@@ -1230,6 +1230,114 @@ def test_ally_defaults_to_always_included(
     assert ally not in set(eligible_crew_fighters(crew_setup["gang"]))
 
 
+def _hanger_with_rule(
+    crew_setup, make_content_fighter, make_list_fighter, name, rule_name
+):
+    """A hanger-on whose content fighter carries ``rule_name``."""
+    from gyrinx.content.models import ContentRule
+
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        name,
+    )
+    rule, _ = ContentRule.objects.get_or_create(name=rule_name)
+    hanger.content_fighter.rules.add(rule)
+    return hanger
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("rule_name", ["Part of the Crew", "Gang Fighter"])
+def test_part_of_the_crew_hanger_defaults_to_eligible(
+    crew_setup, make_content_fighter, make_list_fighter, rule_name
+):
+    """A hanger-on with the 'Part of the Crew' rule (or Ragnir's 'Gang Fighter'
+    variant) fights like a Ganger: it defaults to *eligible* — in the pick/draw
+    pool — not excluded, and NOT always-included on top."""
+    hanger = _hanger_with_rule(
+        crew_setup, make_content_fighter, make_list_fighter, "Ragnir", rule_name
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[hanger.id] == CREW_ELIGIBLE
+    assert hanger in set(eligible_crew_fighters(crew_setup["gang"]))
+    assert hanger not in set(always_included_crew_fighters(crew_setup["gang"]))
+
+
+@pytest.mark.django_db
+def test_plain_hanger_without_the_rule_is_still_excluded(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A normal hanger-on (no 'Part of the Crew' rule) still defaults to excluded,
+    and an unrelated rule doesn't trigger it."""
+    hanger = _hanger_with_rule(
+        crew_setup, make_content_fighter, make_list_fighter, "Rogue Doc", "Medicae"
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[hanger.id] == CREW_NOT_ELIGIBLE
+
+
+@pytest.mark.django_db
+def test_part_of_the_crew_still_benched_when_in_recovery(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """Condition wins over the rule: a Part-of-the-Crew hanger in recovery is
+    still not eligible (normal availability rules apply)."""
+    hanger = _hanger_with_rule(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        "Ragnir",
+        "Part of the Crew",
+    )
+    hanger.injury_state = ListFighter.RECOVERY
+    hanger.save()
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[hanger.id] == CREW_NOT_ELIGIBLE
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_shows_fighter_status(client, crew_setup, make_list):
+    """Captured / in-recovery fighters show their status on the setup screen so a
+    player can see why they default to not-eligible."""
+    from gyrinx.core.models.list import CapturedFighter
+
+    fighters = crew_setup["fighters"]
+    fighters[0].injury_state = ListFighter.RECOVERY
+    fighters[0].save()
+    rivals = make_list(
+        "Rivals", status=List.CAMPAIGN_MODE, campaign=crew_setup["campaign"]
+    )
+    CapturedFighter.objects.create(fighter=fighters[1], capturing_list=rivals)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew-setup", args=[crew.battle_id, crew.id]))
+
+    rows = {r["fighter"].id: r["status"] for r in resp.context["form"].fighter_rows()}
+    assert rows[fighters[0].id] == "In recovery"
+    assert rows[fighters[1].id] == "Captured"
+    assert rows[fighters[2].id] is None  # active, no status
+    content = resp.content.decode()
+    assert "In recovery" in content
+    assert "Captured" in content
+
+
 @pytest.mark.django_db
 def test_override_drops_a_ganger_from_the_pool(crew_setup):
     """An 'excluded' override removes an otherwise-eligible fighter from the
