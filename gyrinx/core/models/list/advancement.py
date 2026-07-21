@@ -259,7 +259,12 @@ class ListFighterAdvancement(AppBase):
             path = self.promotion_path
             target = self.promotion_target
             if target is None and path.kind == ContentPromotionPath.Kind.TYPE_CHANGE:
-                target = path.targets.first()
+                # Only infer the target when the path has exactly one — a multi-target
+                # path with no stored choice must not resolve to an arbitrary pick.
+                # (The wizard always stores the choice; this guards programmatic writes.)
+                targets = pylist(path.targets.all())
+                if len(targets) == 1:
+                    target = targets[0]
             return ResolvedPromotion(
                 to_category=path.effective_to_category(target),
                 rank=path.rank,

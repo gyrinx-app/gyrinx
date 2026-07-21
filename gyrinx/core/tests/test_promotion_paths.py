@@ -600,3 +600,30 @@ def test_duplicate_handler_promotion_follows_caller_choice(user, prospect_setup)
     )
     assert result.fighter.category_override == FighterCategoryChoices.CHAMPION
     assert result.fighter.promoted_content_fighter == forge_boss
+
+
+@pytest.mark.django_db
+def test_multi_target_promotion_without_stored_choice_resolves_no_target(
+    user, prospect_setup
+):
+    """A programmatically-created multi-target promotion row with no stored target must
+    NOT resolve to an arbitrary pick — it applies only what is unambiguous."""
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+
+    advancement = ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        owner=user,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        xp_cost=0,
+        cost_increase=0,
+    )
+    resolved = advancement.resolved_promotion()
+    # Catches: resolved_promotion falling back to targets.first() and silently picking
+    # Forge Boss vs Stimmer on the player's behalf.
+    assert resolved.target is None
+    advancement.apply_advancement()
+    fighter.refresh_from_db()
+    assert fighter.promoted_content_fighter is None

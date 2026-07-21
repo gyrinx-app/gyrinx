@@ -10,12 +10,14 @@ Advancements are improvements that fighters can purchase using XP earned during 
 2. **Advancement Selection** - Pick a specific advancement based on dice roll or manual choice
 3. **Confirmation** - Review and confirm the advancement purchase
 
-There are four main types of advancements:
+There are four main types of advancements, plus a free-text "other" type for anything the
+structured options don't cover:
 
 - **Characteristic Increases** - Improve fighter stats like Movement, Weapon Skill, etc.
 - **New Skills** - Learn skills from Primary, Secondary, or other skill categories
 - **Equipment** - Gain equipment configured through `ContentAdvancementEquipment`
 - **Promotions** - Rise in rank (Ganger → Specialist, Prospect → Champion), driven by `ContentPromotionPath` content rows
+- **Other** - A free-text description with user-entered XP and rating costs
 
 ## Model Structure
 
