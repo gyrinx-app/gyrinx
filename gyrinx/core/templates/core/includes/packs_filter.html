@@ -25,7 +25,9 @@
                        aria-label="Search packs"
                        name="q"
                        value="{{ request.GET.q }}">
-                <button class="btn btn-primary" type="submit">Search</button>
+                <c-btn type="submit" variant="primary">
+                    Search
+                </c-btn>
             </div>
         </div>
     </div>
@@ -39,15 +41,21 @@
             <label class="form-check-label fs-7 mb-0" for="my-packs">Your Packs Only</label>
         </div>
         <div class="btn-group align-items-center">
-            <button class="btn btn-link icon-link btn-sm"
-                    type="submit"
-                    id="update-filters">
+            <c-btn type="submit"
+                   variant="link"
+                   size="sm"
+                   class="icon-link"
+                   id="update-filters">
                 <i class="bi-arrow-clockwise"></i>
                 Update
-            </button>
+            </c-btn>
             •
-            <a class="btn btn-link linked-secondary icon-link btn-sm"
-               href="{{ action }}">Reset</a>
+            <c-btn variant="link"
+                   size="sm"
+                   class="linked-secondary icon-link"
+                   href="{{ action }}">
+                Reset
+            </c-btn>
         </div>
     </div>
 </form>

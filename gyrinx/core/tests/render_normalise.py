@@ -141,7 +141,17 @@ def compare(name, expected, actual):
         return None
 
     if name not in ACCEPTED:
-        return unified(name, expected, actual, "byte mismatch (TIER 1)")
+        # Say WHAT KIND of change this is, up front. A migration that only
+        # reindents produces hundreds of blank-line diffs, and a reviewer who
+        # has to skim those to find the one real change stops reading the diff
+        # at all -- which is the failure mode this harness exists to prevent.
+        same_dom = structural(expected) == structural(actual)
+        kind = (
+            "DOM IDENTICAL, whitespace only -- safe to re-capture"
+            if same_dom
+            else "DOM CHANGED -- read every hunk"
+        )
+        return unified(name, expected, actual, f"byte mismatch (TIER 1). {kind}")
 
     # TIER 3 first: whitespace is the failure Tier 2 cannot see.
     if inline_gaps(expected) != inline_gaps(actual):

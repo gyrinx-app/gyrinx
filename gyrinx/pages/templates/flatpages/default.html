@@ -27,10 +27,13 @@
                 </div>
                 {% if flatpages|length > 1 %}
                     <div class="dropdown d-md-none mb-3 order-1">
-                        <button class="btn btn-outline-secondary dropdown-toggle"
-                                type="button"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false">Help &amp; Documentation</button>
+                        <c-btn variant="outline-secondary"
+                               class="dropdown-toggle"
+                               type="button"
+                               data-bs-toggle="dropdown"
+                               aria-expanded="false">
+                            Help &amp; Documentation
+                        </c-btn>
                         <ul class="dropdown-menu">
                             {% for page in all_flatpages %}
                                 <li>
@@ -81,11 +84,13 @@
                 </div>
             {% endif %}
             {% comment %}Back to top button{% endcomment %}
-            <button id="back-to-top"
-                    class="btn btn-sm btn-secondary position-fixed bottom-0 start-0 ms-3 mb-3 z-1 d-none"
-                    aria-label="Back to top">
+            <c-btn id="back-to-top"
+                   variant="secondary"
+                   size="sm"
+                   class="position-fixed bottom-0 start-0 ms-3 mb-3 z-1 d-none"
+                   aria-label="Back to top">
                 <i class="bi-arrow-up"></i> Back to top
-            </button>
+            </c-btn>
         </div>
     </div>
 {% endblock content %}

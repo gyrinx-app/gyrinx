@@ -7,10 +7,9 @@
     {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign current=battle.name %}
     <div class="col-lg-12 px-0 vstack gap-4">
         {% if battle.archived %}
-            <div class="border border-warning rounded p-2 d-flex align-items-center gap-2">
-                <i class="bi-archive text-warning"></i>
+            <c-note icon="archive" variant="warning" align="center">
                 <span class="fs-7">This battle is archived.{% if can_unarchive %} <a href="{% url 'core:battle-archive' battle.id %}" class="linked">Unarchive it</a> to make changes.{% endif %}</span>
-            </div>
+            </c-note>
         {% endif %}
         <!-- Header -->
         <div class="vstack gap-0">
@@ -20,26 +19,31 @@
                 {% if can_start or can_end or can_edit or can_unarchive %}
                     <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
                         {% if can_start %}
-                            <a href="{% url 'core:battle-start' battle.id %}"
-                               class="btn btn-primary btn-sm"><i class="bi-play-circle"></i> Start</a>
+                            <c-btn href="{% url 'core:battle-start' battle.id %}"
+                                   variant="primary"
+                                   size="sm"><i class="bi-play-circle"></i> Start</c-btn>
                         {% elif can_end %}
-                            <a href="{% url 'core:battle-end' battle.id %}"
-                               class="btn btn-danger btn-sm"><i class="bi-stop-circle"></i> End</a>
+                            <c-btn href="{% url 'core:battle-end' battle.id %}"
+                                   variant="danger"
+                                   size="sm"><i class="bi-stop-circle"></i> End</c-btn>
                         {% endif %}
                         {% if can_edit or can_unarchive %}
                             <nav class="btn-group flex-nowrap">
                                 {% if can_edit %}
-                                    <a href="{% url 'core:battle-edit' battle.id %}"
-                                       class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
+                                    <c-btn href="{% url 'core:battle-edit' battle.id %}"
+                                           variant="secondary"
+                                           size="sm"><i class="bi-pencil"></i> Edit</c-btn>
                                 {% endif %}
                                 <div class="btn-group" role="group">
-                                    <button type="button"
-                                            class="btn btn-secondary btn-sm dropdown-toggle"
-                                            data-bs-toggle="dropdown"
-                                            aria-expanded="false"
-                                            aria-label="More options">
+                                    <c-btn type="button"
+                                           variant="secondary"
+                                           size="sm"
+                                           class="dropdown-toggle"
+                                           data-bs-toggle="dropdown"
+                                           aria-expanded="false"
+                                           aria-label="More options">
                                         <i class="bi-three-dots"></i>
-                                    </button>
+                                    </c-btn>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li>
                                             <a class="dropdown-item"
@@ -60,7 +64,9 @@
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2 text-secondary fs-7">
-                <span class="badge {% if state_current == 'in_progress' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ state_display }}</span>
+                <c-badge state="{{ state_current }}">
+                    {{ state_display }}
+                </c-badge>
                 {% if battle.date %}
                     <span><i class="bi-calendar"></i> {{ battle.date|date:"M d, Y" }}</span>
                 {% else %}
@@ -131,7 +137,9 @@
                                                         <td class="ps-4">
                                                             <i class="bi-arrow-return-right text-secondary"></i>
                                                             <a href="{% url 'core:crew' battle.id p.crew.crew.id %}" class="linked">{{ p.crew.crew }}</a>
-                                                            <span class="badge {% if p.crew.crew.is_locked %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ p.crew.crew.get_status_display }}</span>
+                                                            <c-badge state="{{ p.crew.crew.status }}">
+                                                                {{ p.crew.crew.get_status_display }}
+                                                            </c-badge>
                                                             <span class="text-secondary fs-7 ms-1">{{ p.crew.method_label }}</span>
                                                         </td>
                                                         <td class="text-end">

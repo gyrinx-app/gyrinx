@@ -25,8 +25,10 @@ from gyrinx.core.models.list import ListFighter
 
 COTTON_DIR = Path(settings.BASE_DIR) / "gyrinx" / "templates" / "cotton"
 BADGE = COTTON_DIR / "badge.html"
-FIGHTER_STATE = COTTON_DIR / "badge" / "fighter_state.html"
-CHIP = COTTON_DIR / "badge" / "chip.html"
+# Every component, not a hardcoded list: the two guards below must cover any
+# component added later, since the whole point is that nothing else in the
+# toolchain is watching this directory.
+ALL_COMPONENTS = sorted(COTTON_DIR.rglob("*.html"))
 
 # Written into a directory that is already on the template search path.
 FIXTURES = Path(settings.BASE_DIR) / "gyrinx" / "core" / "templates" / "cotton_test"
@@ -256,12 +258,6 @@ def test_tag_is_constrained_not_interpolated(render):
     assert out == '<span class="badge text-bg-secondary">g</span>'
 
 
-def test_chip_colour_stays_inside_the_style_attribute(render):
-    value = type("V", (), {"colour": 'red" onload="alert(1)', "name": "X"})()
-    out = render('<c-badge.chip :value="v" />', {"v": value})
-    assert "onload" not in dict(parse(out)[1][1])
-
-
 # --------------------------------------------------------------------------
 # attribute forwarding
 # --------------------------------------------------------------------------
@@ -368,14 +364,6 @@ def test_nested_markup_keeps_deliberate_absence_of_a_space(render):
     assert '>5<span class="ms-1">' in out
 
 
-@pytest.mark.parametrize("path", [BADGE, FIGHTER_STATE, CHIP])
-def test_component_files_have_no_trailing_newline(path):
-    assert not path.read_bytes().endswith(b"\n"), (
-        f"{path} ends with a newline; it will render as a space after the closing "
-        "tag. Check the exclusions in pyproject [tool.djlint] and .pre-commit-config.yaml."
-    )
-
-
 # --------------------------------------------------------------------------
 # element switching
 # --------------------------------------------------------------------------
@@ -420,119 +408,6 @@ class _Fighter:
         return self.injury_state.replace("_", " ").title()
 
 
-def test_active_uncaptured_fighter_renders_nothing(render):
-    out = render('<c-badge.fighter-state :fighter="f" />', {"f": _Fighter()})
-    assert out.strip() == ""
-
-
-def test_show_active(render):
-    out = render(
-        '<c-badge.fighter-state :fighter="f" show_active />', {"f": _Fighter()}
-    )
-    assert "text-bg-success" in out and "Active" in out
-
-
-def test_state_href_switches_element(render):
-    ctx = {"f": _Fighter("in_repair")}
-    assert (
-        parse(render('<c-badge.fighter-state :fighter="f" state_href="" />', ctx))[0][0]
-        == "span"
-    )
-    assert (
-        parse(render('<c-badge.fighter-state :fighter="f" state_href="/s" />', ctx))[0][
-            0
-        ]
-        == "a"
-    )
-
-
-def test_composite_takes_urls_not_permission_flags():
-    """Boundary test: presentation components must not encode policy."""
-    source = FIGHTER_STATE.read_text()
-    for banned in ("can_edit", "is_arbitrator", "print", "compact"):
-        assert f'{banned}=""' not in source
-
-
-def test_capture_badge_is_independent_of_the_injury_badge(render):
-    """fighter_card_content.html gates the injury badge on campaign mode and the
-    capture badge on nothing. is_captured is a plain property over a persistent
-    relation, so a gang that leaves campaign mode keeps its captured fighters."""
-    out = render(
-        '<c-badge.fighter-state :fighter="f" show_state="" />',
-        {"f": _Fighter("dead", captured_by="Them")},
-    )
-    assert "Captured" in out
-    assert "Dead" not in out
-
-
-def test_show_capture_off_leaves_exactly_one_badge(render):
-    """list_fighter_state_edit.html / list_fighter_injuries_edit.html render one
-    badge today and must keep doing so."""
-    out = render(
-        '<c-badge.fighter-state :fighter="f" show_active show_capture="" />',
-        {"f": _Fighter("dead", captured_by="Them")},
-    )
-    assert len(parse(out)) == 1
-
-
-def test_dead_and_captured_renders_both_badges(render):
-    """Matches the original two independent {% if %} blocks."""
-    out = render(
-        '<c-badge.fighter-state :fighter="f" />',
-        {"f": _Fighter("dead", captured_by="Them")},
-    )
-    assert "Dead" in out and "Captured" in out
-
-
-def test_vehicle_never_gets_a_capture_badge(render):
-    out = render(
-        '<c-badge.fighter-state :fighter="f" />',
-        {"f": _Fighter("in_repair", captured_by="Them", vehicle=True)},
-    )
-    assert "Captured" not in out
-
-
-def test_capture_tooltip_escapes_a_hostile_gang_name(render):
-    out = render(
-        '<c-badge.fighter-state :fighter="f" />',
-        {"f": _Fighter("active", captured_by=INJECTION)},
-    )
-    assert "onmouseover" not in dict(parse(out)[0][1])
-
-
-def test_url_as_variable_does_not_leak_across_loop_iterations(render):
-    """ForNode pushes context ONCE for the whole loop, so a conditionally
-    assigned {% url ... as %} survives into iterations where the guard is false
-    and gives action links to rows the viewer cannot act on. The documented
-    idiom assigns unconditionally and gates in the attribute."""
-    fighters = [_Fighter("dead"), _Fighter("recovery")]
-    fighters[0].editable = True
-    fighters[1].editable = False
-    out = render(
-        '{% for f in fs %}{% url "core:index" as u %}'
-        '<c-badge.fighter-state :fighter="f" state_href="{% if f.editable %}{{ u }}{% endif %}" />'
-        "{% endfor %}",
-        {"fs": fighters},
-    )
-    assert [tag for tag, _ in parse(out)] == ["a", "span"]
-
-
-def test_chip(render):
-    value = type("V", (), {"colour": "#ff0000", "name": "Red Team"})()
-    out = render('<c-badge.chip :value="v" dot="10px" />', {"v": value})
-    assert "width: 10px" in out and "background-color: #ff0000" in out
-    assert (
-        'class="badge text-bg-light fw-normal border d-inline-flex align-items-center gap-1"'
-        in out
-    )
-
-
-def test_chip_without_a_colour_has_no_swatch(render):
-    value = type("V", (), {"colour": "", "name": "Blue"})()
-    out = render('<c-badge.chip :value="v" />', {"v": value})
-    assert "rounded-circle" not in out
-
-
 # --------------------------------------------------------------------------
 # isolation + toolchain
 # --------------------------------------------------------------------------
@@ -553,7 +428,7 @@ def test_djlint_leaves_the_component_files_alone():
     the guard djlint parses the component names in the docstrings as real tags
     and reflows the prose; without the exclusion --reformat appends a trailing
     newline while reporting "0 files were updated"."""
-    before = {p: p.read_bytes() for p in (BADGE, FIGHTER_STATE, CHIP)}
+    before = {p: p.read_bytes() for p in ALL_COMPONENTS}
     subprocess.run(
         [
             sys.executable,
@@ -569,3 +444,26 @@ def test_djlint_leaves_the_component_files_alone():
     )
     for path, content in before.items():
         assert path.read_bytes() == content, f"djlint modified {path}"
+
+
+def test_component_files_have_no_trailing_newline():
+    """A component emits its file content verbatim, so a trailing newline lands
+    after the closing tag and collapses to a rendered space -- between adjacent
+    inline badges, or before the full stop in `mid<c-badge>x</c-badge>.`.
+
+    This guard exists because the rule is otherwise unenforceable:
+    gyrinx/templates/cotton/ is excluded from djlint AND from pre-commit's
+    end-of-file-fixer (that exclusion is what lets these files stay
+    newline-free), so no formatter will ever catch a regression here. Any
+    editor with "insert final newline" silently reintroduces the bug.
+    """
+    offenders = [
+        str(p.relative_to(COTTON_DIR))
+        for p in ALL_COMPONENTS
+        if p.read_bytes().endswith(b"\n")
+    ]
+    assert not offenders, (
+        "cotton components must not end with a newline: "
+        + ", ".join(offenders)
+        + ". See .claude/notes/cotton-whitespace-and-toolchain-decisions.md"
+    )

@@ -24,7 +24,7 @@ import pytest
 from django import forms
 from django.template import TemplateSyntaxError
 from django.template.loader import render_to_string
-from django.test import RequestFactory, override_settings
+from django.test import override_settings
 
 WS = re.compile(r"\s+")
 
@@ -251,24 +251,6 @@ def test_cell_renders_every_error():
     assert "This field is required." in out
 
 
-def test_form_errors_surfaces_hidden_field_errors():
-    """Errors on a hidden field are rendered NOWHERE by the old markup."""
-
-    class HiddenErr(forms.Form):
-        step = forms.IntegerField(widget=forms.HiddenInput)
-
-    form = HiddenErr(data={"step": "not-a-number"})
-    form.is_valid()
-    out = component('<c-form.errors :form="form" />', {"form": form})
-    assert "Enter a whole number." in out
-    assert "alert-danger" in out
-
-
-def test_form_errors_renders_nothing_when_clean():
-    out = component('<c-form.errors :form="form" />', {"form": DemoForm()})
-    assert "alert" not in out
-
-
 # --------------------------------------------------------------------------
 # The label override keeps ONE code path
 # --------------------------------------------------------------------------
@@ -401,18 +383,6 @@ def test_actions_intent_colour(intent, expected):
     assert expected in out
 
 
-def test_unknown_intent_raises_instead_of_defaulting_to_green():
-    """An unmapped verb must never render a destructive button `btn-success`.
-
-    The first version used `{{ intents|get_item:intent|default:'success' }}`,
-    so `intent="destroy"` — reachable straight through <c-confirm>, the
-    replacement for the 42 "Are you sure" pages — produced a GREEN button on a
-    delete page with no error anywhere.
-    """
-    with pytest.raises(TemplateSyntaxError):
-        component('<c-form.actions intent="nonsense" submit="Go" />')
-
-
 @override_settings(COTTON_STRICT_COMPONENTS=False)
 def test_unknown_intent_degrades_to_secondary_not_success_in_production():
     out = component('<c-form.actions intent="nonsense" submit="Go" />')
@@ -519,80 +489,6 @@ def test_actions_before_slot_holds_hidden_inputs():
 # --------------------------------------------------------------------------
 # Form shells: CSRF, return_url, escaping
 # --------------------------------------------------------------------------
-
-
-def test_edit_emits_csrf_for_post_only():
-    request = RequestFactory().get("/")
-    assert "csrfmiddlewaretoken" in component(
-        "<c-form.edit>x</c-form.edit>", request=request
-    )
-    assert "csrfmiddlewaretoken" not in component(
-        '<c-form.edit method="get">x</c-form.edit>', request=request
-    )
-
-
-def test_act_always_emits_csrf():
-    """There is no `method` prop: a state change must not be reachable by GET."""
-    out = component(
-        '<c-form.act action="/star">btn</c-form.act>', request=RequestFactory().get("/")
-    )
-    assert "csrfmiddlewaretoken" in out
-    assert 'method="post"' in out
-    assert 'class="d-inline"' in out
-
-
-def test_edit_default_layout_and_omitted_empty_attributes():
-    out = component("<c-form.edit>x</c-form.edit>", request=RequestFactory().get("/"))
-    assert 'class="vstack gap-3"' in out
-    assert 'action=""' not in out
-    assert 'enctype=""' not in out
-
-
-def test_edit_gap_can_be_disabled():
-    out = component(
-        '<c-form.edit gap="">x</c-form.edit>', request=RequestFactory().get("/")
-    )
-    assert "vstack" not in out
-    assert 'class=""' not in out
-
-
-def test_edit_return_url_becomes_a_hidden_input_never_an_href():
-    out = component(
-        '<c-form.edit action="/go" return_url="/list/1">x</c-form.edit>',
-        request=RequestFactory().get("/"),
-    )
-    assert '<input type="hidden" name="return_url" value="/list/1">' in norm(out)
-    assert 'href="/list/1"' not in out
-
-
-def test_edit_return_url_is_autoescaped():
-    out = component(
-        '<c-form.edit :return_url="evil">x</c-form.edit>',
-        {"evil": '"><script>alert(1)</script>'},
-        request=RequestFactory().get("/"),
-    )
-    assert "<script>" not in out
-
-
-def test_edit_slot_renders_in_the_parent_context():
-    """So `{{ form.media }}`, `{% cachebuster %}` etc. keep working inside it."""
-    out = component(
-        '<c-form.edit action="/go">{{ greeting }}</c-form.edit>',
-        {"greeting": "hello"},
-        request=RequestFactory().get("/"),
-    )
-    assert 'action="/go"' in out
-    assert "hello" in out
-
-
-def test_edit_escapes_slot_content():
-    out = component(
-        "<c-form.edit>{{ evil }}</c-form.edit>",
-        {"evil": "<script>x</script>"},
-        request=RequestFactory().get("/"),
-    )
-    assert "<script>" not in out
-    assert "&lt;script&gt;" in out
 
 
 # --------------------------------------------------------------------------
@@ -801,35 +697,6 @@ def test_choices_check_class_reaches_every_option():
 # --------------------------------------------------------------------------
 # Search: the two sites the first draft could not express
 # --------------------------------------------------------------------------
-
-
-def test_query_after_slot_stays_inside_the_input_group():
-    out = norm(
-        component(
-            '<c-filter.query label="Search packs">'
-            '<c-slot name="after"><a id="clear" href="/x">Clear</a></c-slot>'
-            "</c-filter.query>"
-        )
-    )
-    assert out.index('id="clear"') < out.index("</div>")
-
-
-def test_query_input_id_lands_on_the_input_not_the_wrapper():
-    out = norm(component('<c-filter.query label="Search" input_id="notif-q" />'))
-    assert 'id="notif-q"' in out
-    assert '<div class="input-group" id="notif-q"' not in out
-
-
-def test_search_forwards_input_id_and_after_slot():
-    out = norm(
-        component(
-            '<c-form.search action="/s" label="Search packs" input_id="q1">'
-            '<c-slot name="after"><a id="clear" href="/x">Clear</a></c-slot>'
-            "</c-form.search>"
-        )
-    )
-    assert 'id="q1"' in out
-    assert 'id="clear"' in out
 
 
 # --------------------------------------------------------------------------

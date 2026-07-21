@@ -93,8 +93,11 @@ repos:
         # file content is emitted verbatim, so a trailing newline lands after
         # the closing tag and collapses to a rendered space between adjacent
         # inline elements -- e.g. the dice-result badges butted together in
-        # core/campaign/campaign_action_outcome.html:22.
-        exclude: ^gyrinx/templates/cotton/
+        # core/campaign/campaign_action_outcome.html:22. The render-equivalence
+        # goldens are byte-exact snapshots of real Django output, which contains
+        # trailing whitespace and a final newline; "fixing" them makes them
+        # unmatchable.
+        exclude: ^(gyrinx/templates/cotton/|gyrinx/core/tests/goldens/)
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
       - id: forbid-submodules
@@ -109,6 +112,10 @@ repos:
       - id: requirements-txt-fixer
       - id: sort-simple-yaml
       - id: trailing-whitespace
+        # The render-equivalence goldens are byte-exact snapshots of real
+        # rendered pages; Django template output legitimately carries trailing
+        # whitespace, so stripping it here makes the golden unmatchable.
+        exclude: ^gyrinx/core/tests/goldens/
 
   - repo: local
     hooks:

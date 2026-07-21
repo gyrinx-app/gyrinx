@@ -6,7 +6,7 @@
 {% block content %}
     {% url 'core:list' list.id as list_url %}
     {% url 'core:list-attributes-manage' list.id as manage_url %}
-    {% include "core/includes/back.html" with url=list_url text="Back to list" %}
+    <c-back url="{{ list_url }}" text="Back to list" />
     <div class="row g-3 mb-3">
         <div class="col-lg-8">
             <h1 class="h3">Attributes</h1>

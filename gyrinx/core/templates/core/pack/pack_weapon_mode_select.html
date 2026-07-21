@@ -3,7 +3,7 @@
     Add weapon to {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <c-back url="{{ back_url }}" text="{{ pack.name }}" />
     <div class="col-12 px-0 vstack gap-3">
         <h1 class="h3">
             <i class="bi-crosshair"></i> Add weapon
@@ -12,7 +12,7 @@
         <p class="text-secondary">You can add further free or costed profiles or special ammo later.</p>
         <div class="row g-3">
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="border rounded p-3 vstack gap-2 h-100">
+                <c-box class="vstack gap-2 h-100">
                     <strong>Single profile</strong>
                     <p class="text-secondary mb-0 fs-7">One standard statline with no profile name.</p>
                     <div class="table-responsive">
@@ -35,12 +35,15 @@
                             </tbody>
                         </table>
                     </div>
-                    <a href="{{ add_weapon_url }}?profile_mode=single"
-                       class="btn btn-primary mt-auto">Single profile <i class="bi-arrow-right"></i></a>
-                </div>
+                    <c-btn variant="primary"
+                           class="mt-auto"
+                           href="{{ add_weapon_url }}?profile_mode=single">
+                        Single profile <i class="bi-arrow-right"></i>
+                    </c-btn>
+                </c-box>
             </div>
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="border rounded p-3 vstack gap-2 h-100">
+                <c-box class="vstack gap-2 h-100">
                     <strong>Multiple profiles</strong>
                     <p class="text-secondary mb-0 fs-7">Two or more named profiles (e.g. ranged and melee).</p>
                     <div class="table-responsive">
@@ -72,9 +75,12 @@
                             </tbody>
                         </table>
                     </div>
-                    <a href="{{ add_weapon_url }}?profile_mode=multi"
-                       class="btn btn-primary mt-auto">Multiple profiles <i class="bi-arrow-right"></i></a>
-                </div>
+                    <c-btn variant="primary"
+                           class="mt-auto"
+                           href="{{ add_weapon_url }}?profile_mode=multi">
+                        Multiple profiles <i class="bi-arrow-right"></i>
+                    </c-btn>
+                </c-box>
             </div>
         </div>
     </div>

@@ -4,7 +4,7 @@
     Edit {{ content_fighter.type }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <c-back url="{{ back_url }}" text="{{ pack.name }}" />
     <div class="vstack gap-3">
         <h1 class="h3">
             <i class="bi-person"></i> Edit {{ content_fighter.type }}

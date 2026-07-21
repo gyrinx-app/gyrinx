@@ -9,7 +9,11 @@
         <p class="text-muted small">
             {{ campaign.name }} uses the following Content Packs.
             Select the ones you'd like to add to <strong>{{ list.name }}</strong>.
-            Packs marked <span class="badge text-bg-warning">Required</span> must be added to join this Campaign.
+            Packs marked
+            <c-badge variant="warning">
+                Required
+            </c-badge>
+            must be added to join this Campaign.
         </p>
         <form method="post"
               action="{% url 'core:invitation-pack-setup' list.id campaign.id %}"
@@ -29,7 +33,7 @@
                         <div class="flex-grow-1">
                             <div class="fw-medium small">
                                 {{ pack.name }}
-                                {% if pack.is_required %}<span class="badge text-bg-warning ms-1">Required</span>{% endif %}
+                                {% if pack.is_required %}<c-badge variant="warning" class="ms-1">Required</c-badge>{% endif %}
                             </div>
                             <div class="text-muted small">by {{ pack.owner }}</div>
                             {% if pack.summary %}<div class="text-muted small mt-1">{{ pack.summary|striptags|truncatewords:20 }}</div>{% endif %}
@@ -40,8 +44,10 @@
                 {% endfor %}
             </div>
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Add selected</button>
-                <a href="{% url 'core:list' list.id %}" class="btn btn-link">Skip</a>
+                <c-btn variant="primary" type="submit">
+                    Add selected
+                </c-btn>
+                <c-cancel url="{% url 'core:list' list.id %}" text="Skip" />
             </div>
         </form>
     </div>

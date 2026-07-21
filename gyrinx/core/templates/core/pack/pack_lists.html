@@ -4,7 +4,7 @@
     Add {{ pack.name }} to Lists & Gangs
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=pack.get_absolute_url text=pack.name %}
+    <c-back url="{{ pack.get_absolute_url }}" text="{{ pack.name }}" />
     <div class="col-12 col-xl-8 px-0 vstack gap-4">
         <div>
             <h1 class="h3 mb-1">Add {{ pack.name }} to Lists & Gangs</h1>
@@ -25,11 +25,13 @@
                                 <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                                     <div>{{ list.content_house }}{% house_icon list.content_house_cached %}</div>
                                     {% if list.status == list.CAMPAIGN_MODE %}
-                                        <div class="badge text-bg-success">Campaign: {{ list.campaign.name }}</div>
+                                        <c-badge tag="div" variant="success">
+                                            Campaign: {{ list.campaign.name }}
+                                        </c-badge>
                                     {% else %}
-                                        <div class="badge text-bg-secondary">
+                                        <c-badge tag="div" variant="secondary">
                                             <i class="bi-list-ul"></i> List
-                                        </div>
+                                        </c-badge>
                                     {% endif %}
                                 </div>
                                 <div class="hstack column-gap-2 row-gap-1 flex-wrap">
@@ -43,7 +45,9 @@
                                     {% csrf_token %}
                                     <input type="hidden" name="list_id" value="{{ list.id }}">
                                     <input type="hidden" name="return_url" value="pack-lists">
-                                    <button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+                                    <c-btn variant="outline-danger" size="sm" type="submit">
+                                        Remove
+                                    </c-btn>
                                 </form>
                             </div>
                         </div>
@@ -86,11 +90,13 @@
                             <div class="hstack column-gap-2 row-gap-1 flex-wrap">
                                 <div>{{ list.content_house }}{% house_icon list.content_house_cached %}</div>
                                 {% if list.status == list.CAMPAIGN_MODE %}
-                                    <div class="badge text-bg-success">Campaign: {{ list.campaign.name }}</div>
+                                    <c-badge tag="div" variant="success">
+                                        Campaign: {{ list.campaign.name }}
+                                    </c-badge>
                                 {% else %}
-                                    <div class="badge text-bg-secondary">
+                                    <c-badge tag="div" variant="secondary">
                                         <i class="bi-list-ul"></i> List
-                                    </div>
+                                    </c-badge>
                                 {% endif %}
                             </div>
                             <div class="hstack column-gap-2 row-gap-1 flex-wrap">
@@ -104,7 +110,9 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="list_id" value="{{ list.id }}">
                                 <input type="hidden" name="return_url" value="pack-lists">
-                                <button type="submit" class="btn btn-success btn-sm">Add</button>
+                                <c-btn variant="success" size="sm" type="submit">
+                                    Add
+                                </c-btn>
                             </form>
                         </div>
                     </div>

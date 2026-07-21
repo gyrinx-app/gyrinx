@@ -4,7 +4,7 @@
     Customise existing weapon - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <c-back url="{{ back_url }}" text="{{ pack.name }}" />
     <div class="col-12 col-lg-8 col-xl-6 px-0 vstack gap-3">
         <div>
             <h1 class="h3 mb-1">

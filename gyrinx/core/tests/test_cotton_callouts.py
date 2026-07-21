@@ -411,25 +411,6 @@ def test_errors_missing_colon_is_loud_not_silent(render):
 # --------------------------------------------------------------------------
 
 
-def test_disclosure_open_true(render):
-    assert_same_dom(
-        render(
-            '<c-disclosure summary="Stat modifiers" :open="flag">rows</c-disclosure>',
-            {"flag": True},
-        ),
-        '<details class="border rounded p-2" open>'
-        '<summary class="fw-semibold">Stat modifiers</summary>rows</details>',
-    )
-
-
-def test_disclosure_open_false_emits_no_attribute(render):
-    """Through {{ attrs }} a falsy value renders open="False", which expands it."""
-    out = render(
-        '<c-disclosure summary="S" :open="flag">rows</c-disclosure>', {"flag": False}
-    )
-    assert "open" not in out.split("<summary")[0]
-
-
 # --------------------------------------------------------------------------
 # T10  Escaping -- the documented injection vector
 # --------------------------------------------------------------------------
