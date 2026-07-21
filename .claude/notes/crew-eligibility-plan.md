@@ -63,11 +63,22 @@ Two-halved selection screen:
    excluded from the random/hybrid draw pool. This is the core "random gives
    wrong results" fix, decoupled from the screen UX. Default behaviour only; the
    screen (to override per-fighter) is a follow-up.
-2. **`Crew.crew_size`** field + wire the Random/Hybrid draw count to it (pending
-   the crew_size↔random_spec decision).
-3. **Eligibility screen** — a step before selection: per-category defaults with
-   per-fighter overrides + the crew-size input. Persist as a per-crew eligibility
-   map (JSON: fighter_id → state, plus category defaults).
+2. **[BUILT this session] Eligibility model + computation.** `Crew.crew_size`
+   (nullable int — the *selected* count; always-included come on top) and
+   `Crew.eligibility_overrides` (JSON `{fighter_id: state}`, only fighters the
+   player moved off their default). `handlers/crew.py` gains the three state
+   constants (`CREW_ELIGIBLE` / `CREW_ALWAYS_INCLUDED` / `CREW_NOT_ELIGIBLE`),
+   `default_crew_eligibility_state(fighter, *, included_categories)` (captured /
+   sold / dead / recovering → not-eligible; always-included cats → included;
+   hangers-on & vehicle crew → not-eligible unless the category is opted in via
+   `included_categories`; else eligible), and `crew_eligibility(crew)` → one
+   `{fighter, default, effective}` row per independently-selectable gang fighter
+   (children/stash excluded), applying stored overrides. `crew_size` has no
+   consumer yet — the screen (step 3) sets it and wires the draw count.
+3. **Eligibility screen** — a step before selection rendering `crew_eligibility`
+   as a table: per-fighter default with a per-fighter override control + the
+   crew-size input + the method picker. Sensible defaults make it a
+   one-click-through in the common case. Persists overrides + crew_size on POST.
 4. **Two-half selection UI** — split the form into pool (top) + always-included
    (bottom).
 5. **"Part of the crew" rule** — look up the content special rule; a fighter

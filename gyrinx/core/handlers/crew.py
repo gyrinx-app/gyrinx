@@ -126,6 +126,66 @@ def always_included_crew_fighters(lst):
     ).filter(_effective_category_in(ALWAYS_INCLUDED_CREW_CATEGORIES))
 
 
+# The eligibility screen's three per-fighter states. Stored in
+# ``Crew.eligibility_overrides`` only when a player changes a fighter from its
+# computed default (see :func:`crew_eligibility`).
+CREW_ELIGIBLE = "eligible"  # in the pool that Custom picks / Random+Hybrid draw
+CREW_ALWAYS_INCLUDED = "included"  # joins regardless of method, on top
+CREW_NOT_ELIGIBLE = "excluded"  # not in the crew
+CREW_ELIGIBILITY_STATES = (CREW_ELIGIBLE, CREW_ALWAYS_INCLUDED, CREW_NOT_ELIGIBLE)
+
+
+def default_crew_eligibility_state(fighter, *, included_categories):
+    """The default eligibility state for ``fighter`` before per-crew overrides.
+
+    Captured / sold / dead / recovering fighters can't take part; hired guns and
+    the like are always included; hangers-on and vehicle crew are not eligible
+    unless their category is opted in (``included_categories`` — the campaign
+    default seeds this); everyone else is eligible. Keyed on the fighter's
+    *effective* category (``category_override`` wins).
+    """
+    if (
+        fighter.is_captured
+        or fighter.is_sold_to_guilders
+        or fighter.injury_state != ListFighter.ACTIVE
+    ):
+        return CREW_NOT_ELIGIBLE
+    category = fighter.category_override or fighter.content_fighter.category
+    if category in ALWAYS_INCLUDED_CREW_CATEGORIES:
+        return CREW_ALWAYS_INCLUDED
+    if category in DEFAULT_EXCLUDED_CREW_CATEGORIES and category not in set(
+        included_categories
+    ):
+        return CREW_NOT_ELIGIBLE
+    return CREW_ELIGIBLE
+
+
+def crew_eligibility(crew: Crew):
+    """Per-fighter eligibility for ``crew``'s gang, for the eligibility screen.
+
+    Returns ``[{"fighter", "default", "effective"}]`` — one row per gang fighter
+    that is independently selectable (child vehicles/beasts and the stash are
+    excluded). ``effective`` is the crew's stored override for that fighter, or
+    its computed ``default``. This is the single source the screen renders, and
+    (once wired) the pick/draw pool and the always-included set derive from.
+    """
+    overrides = crew.eligibility_overrides or {}
+    included = crew.included_categories
+    fighters = ListFighter.objects.filter(
+        list=crew.list,
+        archived=False,
+        content_fighter__is_stash=False,
+        source_assignment__isnull=True,
+    ).select_related("content_fighter")
+    rows = []
+    for fighter in fighters:
+        default = default_crew_eligibility_state(fighter, included_categories=included)
+        override = overrides.get(str(fighter.id))
+        effective = override if override in CREW_ELIGIBILITY_STATES else default
+        rows.append({"fighter": fighter, "default": default, "effective": effective})
+    return rows
+
+
 def eligible_crew_fighters_for_loadouts(lst, *, included=()):
     """The eligible fighters, loaded for loadout work.
 

@@ -246,7 +246,28 @@ class Crew(AppBase):
             "set. Hangers-on and vehicle crew are excluded from selection by "
             "default — hangers-on don't normally fight, and crew are an Ash "
             "Wastes thing — and a player adds them here per crew. A list of "
-            'FighterCategoryChoices values (e.g. ["HANGER_ON", "CREW"]).'
+            'FighterCategoryChoices values (e.g. ["HANGER_ON", "CREW"]). Seeds '
+            "the eligibility screen's per-category defaults."
+        ),
+    )
+    crew_size = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "The scenario's crew size — how many fighters are *selected* (picked "
+            "and/or drawn). Always-included fighters (hired guns etc.) come on "
+            "top of this and don't count towards it. Blank = not set."
+        ),
+    )
+    eligibility_overrides = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Per-fighter eligibility set on the eligibility screen, overriding "
+            'the category default. Shape: {"<list_fighter_id>": "<state>"} where '
+            "state is one of eligible / included / excluded. Only fighters the "
+            "player changed from their default are stored; everyone else uses the "
+            "computed default (see handlers.crew.crew_eligibility)."
         ),
     )
     status = models.CharField(

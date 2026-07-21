@@ -21,8 +21,12 @@ from uuid import uuid4
 from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
 from gyrinx.core.handlers.battle import handle_battle_end
 from gyrinx.core.handlers.crew import (
+    CREW_ALWAYS_INCLUDED,
+    CREW_ELIGIBLE,
+    CREW_NOT_ELIGIBLE,
     always_included_crew_fighters,
     crew_battle_spread,
+    crew_eligibility,
     crew_spread_rating,
     crew_whole_gang_projection,
     eligible_crew_fighters,
@@ -920,6 +924,125 @@ def test_whole_gang_forecast_includes_hired_guns(
     # Five gangers plus the one hired gun.
     assert len(projection["rows"]) == 6
     assert any(r["rating"] == 120 for r in projection["rows"])
+
+
+# --- Eligibility screen (per-fighter defaults + overrides) ------------------
+#
+# The eligibility step computes a default state per fighter (eligible /
+# always-included / not-eligible) from its category and condition, which the
+# screen then lets the player override per fighter.
+
+
+@pytest.mark.django_db
+def test_crew_eligibility_defaults_by_category(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[crew_setup["fighters"][0].id] == CREW_ELIGIBLE  # a normal ganger
+    assert states[hired.id] == CREW_ALWAYS_INCLUDED
+    assert states[hanger.id] == CREW_NOT_ELIGIBLE
+
+
+@pytest.mark.django_db
+def test_crew_eligibility_marks_injured_fighters_not_eligible(crew_setup):
+    hurt = crew_setup["fighters"][0]
+    hurt.injury_state = ListFighter.RECOVERY
+    hurt.save()
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[hurt.id] == CREW_NOT_ELIGIBLE
+    assert states[crew_setup["fighters"][1].id] == CREW_ELIGIBLE
+
+
+@pytest.mark.django_db
+def test_crew_eligibility_included_category_seeds_eligible(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A hanger-on's category, opted in on the crew, flips its default to eligible."""
+    hanger = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HANGER_ON,
+        "Rogue Doc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        included_categories=[FighterCategoryChoices.HANGER_ON.value],
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[hanger.id] == CREW_ELIGIBLE
+
+
+@pytest.mark.django_db
+def test_crew_eligibility_override_supersedes_default(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A per-fighter override on the crew wins over the category default, and the
+    row still reports the underlying default."""
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        eligibility_overrides={str(hired.id): CREW_NOT_ELIGIBLE},
+    )
+
+    row = next(r for r in crew_eligibility(crew) if r["fighter"].id == hired.id)
+    assert row["default"] == CREW_ALWAYS_INCLUDED  # unchanged underlying default
+    assert row["effective"] == CREW_NOT_ELIGIBLE  # the override wins
+
+
+@pytest.mark.django_db
+def test_crew_eligibility_excludes_child_fighters(
+    crew_setup, make_content_fighter, make_equipment, make_list_fighter
+):
+    """Vehicles and beasts that ride in as equipment aren't independently
+    selectable, so they don't get an eligibility row."""
+    vehicle = _give_vehicle(
+        crew_setup,
+        crew_setup["fighters"][0],
+        make_content_fighter,
+        make_equipment,
+        make_list_fighter,
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    ids = {row["fighter"].id for row in crew_eligibility(crew)}
+    assert vehicle.id not in ids
+    assert crew_setup["fighters"][0].id in ids  # its owner is still selectable
 
 
 # --- Category-include toggles (selection UI) --------------------------------
