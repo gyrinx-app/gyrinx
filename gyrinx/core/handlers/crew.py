@@ -1014,51 +1014,17 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
 
 
 def crew_stash_rows(crew: Crew):
-    """The gang's stash equipment as crew-stash rows, for the Stash tab and the
-    crew sheet.
-
-    One row per (non-archived) assignment on the gang's stash fighter:
-    ``{assignment, name, cost, child_fighter, always_brought, brought}``.
-    ``always_brought`` items (content flagged ``crew_always_brought``, e.g. the
-    Iron Automaton) are brought on every crew and can't be unticked; the rest
-    are ``brought`` when the crew has a :class:`CrewStashItem` for them.
-    ``child_fighter`` is the linked fighter card some equipment spawns (a gun
-    emplacement) — displayed like a fighter, rated at the equipment's cost.
-    """
-    stash = crew.list.stash_fighter
-    if stash is None:
-        return []
-    brought_ids = set(crew.stash_items.values_list("assignment_id", flat=True))
-    rows = []
-    assignments = (
-        ListFighterEquipmentAssignment.objects.filter(
-            list_fighter=stash, archived=False
-        )
-        .with_related_data()
-        .select_related("child_fighter__content_fighter")
-        .order_by("content_equipment__name")
-    )
-    for assignment in assignments:
-        always = assignment.content_equipment.crew_always_brought
-        rows.append(
-            {
-                "assignment": assignment,
-                "name": assignment.content_equipment.name,
-                "cost": assignment.cost_int_cached,
-                "child_fighter": assignment.child_fighter,
-                "always_brought": always,
-                "brought": always or assignment.id in brought_ids,
-            }
-        )
-    return rows
+    """The gang's stash equipment as crew-stash rows — see
+    :meth:`Crew.stash_rows`. Kept here as the handler-layer entry point the
+    views use; the computation lives on the model so model methods (receipt,
+    printing) never import handler code."""
+    return crew.stash_rows()
 
 
 def crew_stash_lines(crew: Crew):
-    """Just the *brought* stash rows plus their total — the crew sheet's Stash
-    section. Computed live (the selection is editable even on a locked crew), so
-    it counts in the live totals but never in the frozen rating snapshots."""
-    rows = [row for row in crew_stash_rows(crew) if row["brought"]]
-    return {"rows": rows, "total": sum(row["cost"] for row in rows)}
+    """The *brought* stash rows plus their total — see
+    :meth:`Crew.stash_lines`."""
+    return crew.stash_lines()
 
 
 @traced("handle_crew_stash_save")

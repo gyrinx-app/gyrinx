@@ -32,6 +32,7 @@ __all__ = [
     "Crew",
     "CrewMember",
     "CrewLineItem",
+    "CrewStashItem",
     "validate_selection_spec",
     "roll_selection_spec",
     "split_selection_spec",
@@ -660,13 +661,61 @@ class Crew(AppBase):
             return None
         return ids + self._stash_child_fighter_ids()
 
+    def stash_rows(self):
+        """The gang's stash equipment as crew-stash rows, for the Stash tab and
+        the crew sheet.
+
+        One row per (non-archived) assignment on the gang's stash fighter:
+        ``{assignment, name, cost, child_fighter, always_brought, brought}``.
+        ``always_brought`` items (content flagged ``crew_always_brought``, e.g.
+        the Iron Automaton) are brought on every crew and can't be unticked; the
+        rest are ``brought`` when the crew has a :class:`CrewStashItem` for
+        them. ``child_fighter`` is the linked fighter card some equipment spawns
+        (a gun emplacement) — displayed like a fighter, rated at the equipment's
+        cost.
+        """
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        stash = self.list.stash_fighter
+        if stash is None:
+            return []
+        brought_ids = set(self.stash_items.values_list("assignment_id", flat=True))
+        rows = []
+        assignments = (
+            ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=stash, archived=False
+            )
+            .with_related_data()
+            .select_related("child_fighter__content_fighter")
+            .order_by("content_equipment__name")
+        )
+        for assignment in assignments:
+            always = assignment.content_equipment.crew_always_brought
+            rows.append(
+                {
+                    "assignment": assignment,
+                    "name": assignment.content_equipment.name,
+                    "cost": assignment.cost_int_cached,
+                    "child_fighter": assignment.child_fighter,
+                    "always_brought": always,
+                    "brought": always or assignment.id in brought_ids,
+                }
+            )
+        return rows
+
+    def stash_lines(self):
+        """Just the *brought* stash rows plus their total — the crew sheet's
+        Stash section. Computed live (the selection is editable even on a locked
+        crew), so it counts in the live totals but never in the frozen rating
+        snapshots."""
+        rows = [row for row in self.stash_rows() if row["brought"]]
+        return {"rows": rows, "total": sum(row["cost"] for row in rows)}
+
     def _stash_child_fighter_ids(self):
         """Ids of the fighter cards linked to the stash items this crew brings."""
-        from gyrinx.core.handlers.crew import crew_stash_lines
-
         return [
             row["child_fighter"].id
-            for row in crew_stash_lines(self)["rows"]
+            for row in self.stash_lines()["rows"]
             if row["child_fighter"] is not None
         ]
 
@@ -684,9 +733,7 @@ class Crew(AppBase):
         help, stash gear — never enter that comparison. The quantity to compare
         is :meth:`rating`; this sum is only a headline total.
         """
-        from gyrinx.core.handlers.crew import crew_stash_lines
-
-        return self.rating() + self.extras_total() + crew_stash_lines(self)["total"]
+        return self.rating() + self.extras_total() + self.stash_lines()["total"]
 
     def receipt(self):
         """Columnar receipt for the crew page, grouped into Fighters, Stash, and
@@ -698,8 +745,6 @@ class Crew(AppBase):
         batch load; the extras and stash are computed live — the stash selection
         is editable even after the lock — and only the two rating snapshots are
         ever persisted."""
-        from gyrinx.core.handlers.crew import crew_stash_lines
-
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
         # The played snapshot is the crew's rating once the battle has frozen
@@ -738,7 +783,7 @@ class Crew(AppBase):
                 }
             )
 
-        stash = crew_stash_lines(self)
+        stash = self.stash_lines()
         total = (
             fighters_total
             + credits_total
