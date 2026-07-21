@@ -383,10 +383,11 @@ promotion. Ingest per-house rows keyed `source_fighter=(Specialist) row` with
 Leader paths (family D / Death of a Leader — needs the conditional-target story);
 Cawdor Fanatical/Pious and GSC-generation conditional targets (player-resolved).
 
-**Delivery vehicle (Tom to confirm):** ~55–60 rows total. Options: pure admin authoring
-(slow, matches content-team culture) vs. a management command that derives the mechanical
-majority by name-pattern ("X" → "X (Specialist)" sibling in the same house) with an admin
-pass for the oddballs (Cawdor choice rows, Badzone Juve→Ganger, Venator profiles).
+**Delivery vehicle (decided 2026-07-21): manual admin authoring.** No command execution in
+prod, so the ~55–60 rows are entered via Django admin, working from the tables above. The
+"(Specialist)" sibling rows exist deliberately — they were added to let people represent
+specialists — so the name-pattern mapping should hold throughout; the tables above are the
+authoring checklist.
 
 ## Decisions (resolved with Tom, 2026-07-05; revised 2026-07-21)
 
