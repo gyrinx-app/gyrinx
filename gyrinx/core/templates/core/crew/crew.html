@@ -41,6 +41,14 @@
                                     <i class="bi-three-dots"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
+                                    {% if not crew.is_locked %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:crew-setup' battle.id crew.id %}">
+                                                <i class="bi-sliders"></i> Set up crew
+                                            </a>
+                                        </li>
+                                    {% endif %}
                                     <li>
                                         <a class="dropdown-item text-danger"
                                            href="{% url 'core:crew-archive' battle.id crew.id %}">
@@ -237,8 +245,12 @@
                             <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Extras</span>
                                 {% if can_manage %}
-                                    <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
-                                       class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
+                                    {% if crew.is_locked %}
+                                        <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
+                                           class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
+                                    {% else %}
+                                        <span class="text-secondary fs-7">Hired guns and balancing are added once the crew is confirmed</span>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         </td>

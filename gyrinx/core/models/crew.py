@@ -246,7 +246,19 @@ class Crew(AppBase):
             "set. Hangers-on and vehicle crew are excluded from selection by "
             "default — hangers-on don't normally fight, and crew are an Ash "
             "Wastes thing — and a player adds them here per crew. A list of "
-            'FighterCategoryChoices values (e.g. ["HANGER_ON", "CREW"]).'
+            'FighterCategoryChoices values (e.g. ["HANGER_ON", "CREW"]). Seeds '
+            "the eligibility screen's per-category defaults."
+        ),
+    )
+    eligibility_overrides = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Per-fighter eligibility set on the eligibility screen, overriding "
+            'the category default. Shape: {"<list_fighter_id>": "<state>"} where '
+            "state is one of eligible / included / excluded. Only fighters the "
+            "player changed from their default are stored; everyone else uses the "
+            "computed default (see handlers.crew.crew_eligibility)."
         ),
     )
     status = models.CharField(
@@ -737,15 +749,21 @@ class CrewMember(AppBase):
     members are the vehicles and exotic beasts that ride in with their owner —
     never selected in their own right, enrolled by
     ``handlers.crew.sync_linked_crew_members`` whenever their owner is a member.
+    Included members are hired guns / bounty hunters / house agents / dramatis
+    personae / hive scum — they join the crew regardless of the selection method
+    ("You Get What You Pay For": not counted during the choose step, added on
+    top), enrolled by ``handlers.crew.sync_included_crew_members``.
     """
 
     CHOSEN = "chosen"
     DRAWN = "random"
     LINKED = "linked"
+    INCLUDED = "included"
     SOURCE_CHOICES = [
         (CHOSEN, "Chosen"),
         (DRAWN, "Drawn at random"),
         (LINKED, "Linked to owner"),
+        (INCLUDED, "Always included"),
     ]
 
     crew = models.ForeignKey(

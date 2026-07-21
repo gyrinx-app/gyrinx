@@ -1,18 +1,28 @@
 """Forms for battle crews (#1346).
 
-The recipe form (:class:`CrewForm`) captures a crew's selection method and the
-numbers it needs while the crew is a draft. The method is URL-driven (see
-``views/crew.py``) and the form prunes itself to the fields that method
-actually uses — that is what makes a contradictory recipe, such as an entirely
-random selection that also names fighters, impossible to express. The extras
-form adds credit-consuming line items. None of these touch the gang's canonical
-cost, credits, or audit — a crew is a virtual overlay.
+Building a crew is two steps. :class:`CrewSetupForm` is the setup screen — the
+selection method's configuration (pick count / draw dice) and the per-fighter
+eligibility table; the method itself is URL-driven (see ``views/crew.py``) and
+the form prunes itself to the fields that method uses. :class:`CrewForm` is the
+selection screen — just the fighters chosen from the pool setup defined. Keeping
+config and picks on separate steps is what makes a contradictory recipe, such as
+an entirely random selection that also names fighters, impossible to express.
+The extras form adds credit-consuming line items. None of these touch the gang's
+canonical cost, credits, or audit — a crew is a virtual overlay.
 """
 
 from django import forms
 from django.utils.html import format_html
 
-from gyrinx.core.handlers.crew import eligible_crew_fighters
+from gyrinx.core.handlers.crew import (
+    CREW_ALWAYS_INCLUDED,
+    CREW_ELIGIBILITY_STATES,
+    CREW_ELIGIBLE,
+    CREW_NOT_ELIGIBLE,
+    always_included_crew_fighters,
+    compute_crew_eligibility,
+    eligible_crew_fighters,
+)
 from gyrinx.core.models.crew import (
     Crew,
     CrewLineItem,
@@ -116,23 +126,16 @@ class CrewEquipmentSetField(forms.ModelChoiceField):
         self.choices = [("", self.empty_label)] + [(s.pk, s.name) for s in sets]
 
 
-class CrewForm(forms.ModelForm):
-    """Create or edit a crew's selection recipe for one selection method.
+class CrewForm(forms.Form):
+    """The crew **selection** screen — choosing the fighters, after setup.
 
-    The gang is fixed by the view (from the URL), and so is the ``method`` —
-    changing method is a navigation, not a client-side toggle. The form keeps
-    only the fields that method uses:
-
-    ==========  ==========================================
-    Custom      how many you choose + which fighters
-    Random      how many are drawn at random
-    Hybrid      both
-    ==========  ==========================================
-
-    The random draw is entered as a structured (dice, number) pair rather than
-    free text and recombined into ``Crew.random_spec``. Nothing here is written
-    to the crew: the view hands the cleaned recipe to
-    ``handle_crew_recipe_save``, which also clears the other methods' fields.
+    Setup (method, config, eligibility) is already done and stored on the crew;
+    this step just picks the fighters for Custom and Hybrid crews from the
+    eligible pool that setup defined. Random crews name nobody here — they are
+    drawn when the crew is confirmed — so no checkboxes are shown for them. Each
+    chosen fighter with named equipment sets also picks which one they bring. The
+    view hands the cleaned picks to ``handle_crew_recipe_save`` alongside the
+    crew's stored method and config.
     """
 
     chosen_fighters = CrewFighterChoiceField(
@@ -142,81 +145,52 @@ class CrewForm(forms.ModelForm):
         label="Fighters",
         help_text="Choose the fighters for this crew.",
     )
-    custom_count = forms.IntegerField(
-        min_value=1,
-        max_value=99,
-        required=False,
-        label="How many fighters you choose",
-        widget=forms.NumberInput(
-            attrs={"class": "form-control", "style": "width:6rem"}
-        ),
-    )
-    random_dice = forms.ChoiceField(
-        choices=DICE_CHOICES,
-        required=False,
-        label="Dice",
-        widget=forms.Select(attrs={"class": "form-select", "style": "width:auto"}),
-    )
-    random_number = forms.IntegerField(
-        min_value=0,
-        max_value=99,
-        required=False,
-        label="Number",
-        widget=forms.NumberInput(
-            attrs={"class": "form-control", "style": "width:6rem", "placeholder": "0"}
-        ),
-    )
 
-    class Meta:
-        model = Crew
-        fields = ["name"]
-        labels = {"name": "Crew name"}
-        help_texts = {"name": "Optional — a label for this crew."}
-        widgets = {"name": forms.TextInput(attrs={"class": "form-control"})}
-
-    def __init__(self, *args, gang=None, method=None, included=None, **kwargs):
+    def __init__(self, *args, crew=None, gang=None, **kwargs):
         super().__init__(*args, **kwargs)
-        # Gang comes from the view on create, or the instance on edit.
-        self.gang = gang or getattr(self.instance, "list", None)
-        self.method = (
-            method or getattr(self.instance, "selection_method", None) or (Crew.CUSTOM)
-        )
+        self.crew = crew
+        # Gang and the whole recipe come from the stored crew — setup wrote them.
+        self.gang = gang or (crew.list if crew is not None else None)
+        self.method = getattr(crew, "selection_method", None) or Crew.CUSTOM
+        self.custom_count = getattr(crew, "custom_count", None)
+        self.included_categories = getattr(crew, "included_categories", None) or []
+        self.eligibility_overrides = getattr(crew, "eligibility_overrides", None) or {}
+        self.method_intro = METHOD_INTRO[self.method]
 
-        # Categories this crew has opted into (hangers-on / vehicle crew, which
-        # are otherwise excluded). The view resolves them from the URL toggles;
-        # falling back to the instance keeps an edited crew's existing opt-ins.
-        self.included_categories = (
-            list(included)
-            if included is not None
-            else (getattr(self.instance, "included_categories", None) or [])
-        )
-
-        # with_related_data() so the checkbox labels (category + cached cost)
-        # and each fighter's equipment sets render without a query per fighter.
+        # with_related_data() so the checkbox labels (category + cached cost) and
+        # each fighter's equipment sets render without a query per fighter.
         self.eligible = (
             eligible_crew_fighters(
-                self.gang, included=self.included_categories
+                self.gang,
+                included=self.included_categories,
+                overrides=self.eligibility_overrides,
             ).with_related_data()
             if self.gang is not None
             else ListFighter.objects.none()
         )
 
-        # Prune to the current method's fields. A Random Selection form has no
-        # fighter checkboxes at all, so "all random, but also these three" is
-        # not a state a user can get into.
-        if self.method == Crew.RANDOM:
-            del self.fields["custom_count"]
+        # Fighters that join regardless of the method (hired guns et al., or any
+        # marked "included" on setup). Shown read-only on the selection screen so
+        # the player can see who's coming on top of their picks / the draw.
+        self.always_included_fighters = (
+            list(
+                always_included_crew_fighters(
+                    self.gang,
+                    included=self.included_categories,
+                    overrides=self.eligibility_overrides,
+                ).with_related_data()
+            )
+            if self.gang is not None
+            else []
+        )
+
+        # Random names nobody here; Custom and Hybrid pick from the pool.
+        self.shows_picks = self.method in (Crew.CUSTOM, Crew.HYBRID)
+        if not self.shows_picks:
             del self.fields["chosen_fighters"]
-        elif self.method == Crew.CUSTOM:
-            del self.fields["random_dice"]
-            del self.fields["random_number"]
-
-        self.shows_picks = "chosen_fighters" in self.fields
-        self.shows_count = "custom_count" in self.fields
-        self.shows_random = "random_dice" in self.fields
-        self.method_intro = METHOD_INTRO[self.method]
-
-        if self.shows_picks:
+            self.eligible_fighters = []
+            self.eligible_count = self.eligible.count()
+        else:
             picks_field = self.fields["chosen_fighters"]
             picks_field.queryset = self.eligible
             # Evaluate the eligible fighters once, through the field's own
@@ -230,10 +204,8 @@ class CrewForm(forms.ModelForm):
                 sets = list(fighter.equipment_sets.all())
                 if not sets:
                     continue
-                # Start from the set the fighter is already using rather than
-                # Default, so leaving the select alone brings what the player
-                # has set up on the fighter. An existing member's own choice
-                # overrides this below.
+                # Start from the set the fighter is already using; an existing
+                # member's own choice overrides this below.
                 self.fields[equipment_set_field_name(fighter.pk)] = (
                     CrewEquipmentSetField(
                         fighter=fighter,
@@ -241,34 +213,18 @@ class CrewForm(forms.ModelForm):
                         initial=fighter.active_equipment_set_id,
                     )
                 )
-        else:
-            self.eligible_fighters = []
-            self.eligible_count = self.eligible.count()
         self.has_eligible_fighters = self.eligible_count > 0
 
-        if self.shows_count:
-            self.fields["custom_count"].help_text = CUSTOM_COUNT_HELP[self.method]
-        if self.shows_random:
-            self.random_group_label, self.random_group_help = RANDOM_GROUP[self.method]
-
-        if self.instance and self.instance.pk:
-            if self.shows_picks:
-                chosen = list(self.instance.members.filter(source=CrewMember.CHOSEN))
-                self.fields["chosen_fighters"].initial = [
-                    m.list_fighter_id for m in chosen
-                ]
-                for member in chosen:
-                    field = self.fields.get(
-                        equipment_set_field_name(member.list_fighter_id)
-                    )
-                    if field is not None:
-                        field.initial = member.equipment_set_id
-            if self.shows_count:
-                self.fields["custom_count"].initial = self.instance.custom_count
-            if self.shows_random:
-                dice, number = split_selection_spec(self.instance.random_spec)
-                self.fields["random_dice"].initial = dice
-                self.fields["random_number"].initial = number
+        # Initials from the existing chosen members.
+        if crew is not None and crew.pk and self.shows_picks:
+            chosen = list(crew.members.filter(source=CrewMember.CHOSEN))
+            self.fields["chosen_fighters"].initial = [m.list_fighter_id for m in chosen]
+            for member in chosen:
+                field = self.fields.get(
+                    equipment_set_field_name(member.list_fighter_id)
+                )
+                if field is not None:
+                    field.initial = member.equipment_set_id
 
     def fighter_rows(self):
         """One row per eligible fighter for the template: the checkbox, the
@@ -301,19 +257,7 @@ class CrewForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        # Recombine the structured widgets into the stored spec string. Blank
-        # for Custom, which has no random component at all.
-        spec = (
-            build_selection_spec(
-                cleaned.get("random_dice"), cleaned.get("random_number")
-            )
-            if self.shows_random
-            else ""
-        )
-        cleaned["random_spec"] = spec
-
         picks = list(cleaned.get("chosen_fighters") or [])
-        count = cleaned.get("custom_count")
 
         # Which card each chosen fighter brings. Only the ticked fighters count:
         # a select left set on a fighter the player then unticked is ignored.
@@ -322,31 +266,10 @@ class CrewForm(forms.ModelForm):
             for fighter in picks
         }
 
-        if self.method == Crew.RANDOM:
-            if not spec:
-                self.add_error(
-                    "random_number",
-                    "Enter how many fighters are drawn at random — Random "
-                    "Selection always shows a number in brackets.",
-                )
-            return cleaned
-
-        if self.method == Crew.HYBRID:
-            if not count:
-                self.add_error(
-                    "custom_count",
-                    "Enter how many fighters you choose — the first number in "
-                    "brackets.",
-                )
-            if not spec:
-                self.add_error(
-                    "random_number",
-                    "Enter how many fighters are drawn at random — the second "
-                    "number in brackets.",
-                )
-
-        # Custom Selection with no number in brackets is unbounded: any number
-        # of picks is fine, and none at all means the whole gang takes part.
+        # The pick count is validated against the crew's stored count (set on
+        # setup): Custom picks exactly that many, Hybrid picks that many and the
+        # rest are drawn. Custom with no count is whole-gang — any number is fine.
+        count = self.custom_count
         if count is None:
             return cleaned
 
@@ -363,6 +286,204 @@ class CrewForm(forms.ModelForm):
                 )
             self.add_error("chosen_fighters", message)
 
+        return cleaned
+
+
+# The eligibility screen's per-fighter control. Order runs definitely-in →
+# maybe → out. Values are the states from handlers.crew.
+ELIGIBILITY_CHOICES = [
+    (CREW_ALWAYS_INCLUDED, "Included"),
+    (CREW_ELIGIBLE, "Eligible"),
+    (CREW_NOT_ELIGIBLE, "Excluded"),
+]
+
+ELIGIBILITY_HELP = {
+    CREW_ALWAYS_INCLUDED: "Joins the crew regardless of the selection method.",
+    CREW_ELIGIBLE: "May be picked or drawn using the selection method.",
+    CREW_NOT_ELIGIBLE: "Not part of this crew.",
+}
+
+
+def eligibility_field_name(fighter_id):
+    """The form field name carrying one fighter's eligibility choice."""
+    return f"elig_{fighter_id}"
+
+
+class CrewSetupForm(forms.Form):
+    """The crew **setup** screen — the first step of building a crew.
+
+    It carries everything about a crew *except which fighters are picked*: the
+    optional name, the selection method's configuration (how many you choose for
+    Custom, the draw dice for Random, both for Hybrid), and the per-fighter
+    eligibility table (Included / Eligible / Excluded). The method itself is
+    URL-driven (the view resolves ``?method=``); this form renders the numbers it
+    needs. Choosing the actual fighters happens afterwards on the selection
+    screen, from the pool this step defines.
+
+    Eligibility defaults come from each fighter's category and condition (see
+    :func:`gyrinx.core.handlers.crew.default_crew_eligibility_state`); only the
+    fighters a player moves off their default are stored.
+    """
+
+    name = forms.CharField(
+        required=False,
+        label="Crew name",
+        help_text="Optional — a label for this crew.",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    custom_count = forms.IntegerField(
+        min_value=1,
+        max_value=99,
+        required=False,
+        label="How many fighters you choose",
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "style": "width:6rem"}
+        ),
+    )
+    random_dice = forms.ChoiceField(
+        choices=DICE_CHOICES,
+        required=False,
+        label="Dice",
+        widget=forms.Select(attrs={"class": "form-select", "style": "width:auto"}),
+    )
+    random_number = forms.IntegerField(
+        min_value=0,
+        max_value=99,
+        required=False,
+        label="Number",
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "style": "width:6rem", "placeholder": "0"}
+        ),
+    )
+
+    def __init__(
+        self, *args, crew=None, gang=None, method=None, included=None, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
+        self.crew = crew
+        # Gang comes from the view on create, or the crew on edit.
+        self.gang = gang or (crew.list if crew is not None else None)
+        self.method = method or getattr(crew, "selection_method", None) or Crew.CUSTOM
+        # Categories opted in (hangers-on / vehicle crew); view-resolved, else the
+        # crew's stored value.
+        self.included_categories = (
+            list(included)
+            if included is not None
+            else (getattr(crew, "included_categories", None) or [])
+        )
+        overrides = getattr(crew, "eligibility_overrides", None) or {}
+
+        # Prune the config to the fields this method actually uses.
+        if self.method == Crew.RANDOM:
+            del self.fields["custom_count"]
+        elif self.method == Crew.CUSTOM:
+            del self.fields["random_dice"]
+            del self.fields["random_number"]
+        self.shows_count = "custom_count" in self.fields
+        self.shows_random = "random_dice" in self.fields
+        self.method_intro = METHOD_INTRO[self.method]
+        if self.shows_count:
+            self.fields["custom_count"].help_text = CUSTOM_COUNT_HELP[self.method]
+        if self.shows_random:
+            self.random_group_label, self.random_group_help = RANDOM_GROUP[self.method]
+
+        # Config + name initials from the crew on edit.
+        if crew is not None and crew.pk:
+            self.fields["name"].initial = crew.name
+            if self.shows_count:
+                self.fields["custom_count"].initial = crew.custom_count
+            if self.shows_random:
+                dice, number = split_selection_spec(crew.random_spec)
+                self.fields["random_dice"].initial = dice
+                self.fields["random_number"].initial = number
+
+        # Eligibility rows — computed from the gang so create (no crew yet) works
+        # the same as edit. with_data so each row's cost_int_cached (a computed
+        # property) reads from the prefetch rather than an N+1.
+        self.rows = (
+            compute_crew_eligibility(
+                lst=self.gang,
+                overrides=overrides,
+                included_categories=self.included_categories,
+                with_data=True,
+            )
+            if self.gang is not None
+            else []
+        )
+        for row in self.rows:
+            fighter = row["fighter"]
+            self.fields[eligibility_field_name(fighter.id)] = forms.ChoiceField(
+                choices=ELIGIBILITY_CHOICES,
+                initial=row["effective"],
+                required=True,
+                label=fighter.name,
+                widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+            )
+
+    def fighter_rows(self):
+        """One row per fighter for the template: the fighter, its bound radio
+        field, the computed default, its current effective state, category, and
+        cached cost. Pairing these here keeps the template free of dynamic
+        field-name lookups."""
+        out = []
+        for row in self.rows:
+            fighter = row["fighter"]
+            out.append(
+                {
+                    "fighter": fighter,
+                    "field": self[eligibility_field_name(fighter.id)],
+                    "default": row["default"],
+                    "effective": row["effective"],
+                    "category": fighter.content_fighter.get_category_display(),
+                    "cost": fighter.cost_int_cached,
+                }
+            )
+        return out
+
+    def clean(self):
+        cleaned = super().clean()
+        # Recombine the structured dice widgets into the stored spec (blank for
+        # Custom, which has no random component).
+        spec = (
+            build_selection_spec(
+                cleaned.get("random_dice"), cleaned.get("random_number")
+            )
+            if self.shows_random
+            else ""
+        )
+        cleaned["random_spec"] = spec
+        count = cleaned.get("custom_count")
+
+        # The draw always needs a number; Hybrid also needs the pick count.
+        if self.method == Crew.RANDOM and not spec:
+            self.add_error(
+                "random_number",
+                "Enter how many fighters are drawn at random — Random Selection "
+                "always shows a number in brackets.",
+            )
+        if self.method == Crew.HYBRID:
+            if not count:
+                self.add_error(
+                    "custom_count",
+                    "Enter how many fighters you choose — the first number in "
+                    "brackets.",
+                )
+            if not spec:
+                self.add_error(
+                    "random_number",
+                    "Enter how many fighters are drawn at random — the second "
+                    "number in brackets.",
+                )
+
+        # Store only the fighters the player moved off their computed default — a
+        # clean map that self-heals as defaults change.
+        overrides = {}
+        for row in self.rows:
+            fighter = row["fighter"]
+            state = cleaned.get(eligibility_field_name(fighter.id))
+            if state in CREW_ELIGIBILITY_STATES and state != row["default"]:
+                overrides[str(fighter.id)] = state
+        self.cleaned_overrides = overrides
         return cleaned
 
 

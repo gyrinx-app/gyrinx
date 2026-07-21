@@ -1,96 +1,21 @@
 {% extends "core/layouts/base.html" %}
 {% block head_title %}
-    {% if is_create %}Add crew{% else %}Edit crew{% endif %} - {{ battle.name }}
+    Choose crew - {{ battle.name }}
 {% endblock head_title %}
 {% block content %}
-    {% if crew %}
-        {% url 'core:crew' battle.id crew.id as cancel_url %}
-    {% else %}
-        {% url 'core:battle' battle.id as cancel_url %}
-    {% endif %}
-    {% include "core/includes/back.html" with url=cancel_url text="Back" %}
+    {% url 'core:crew' battle.id crew.id as parent_url %}
+    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url current="Choose" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
-        <h1 class="h3">
-            {% if is_create %}
-                Add a crew for {{ gang.name }}
-            {% else %}
-                Edit crew
-            {% endif %}
-        </h1>
-        <p class="text-secondary mb-0">
-            Choose this crew's fighters for <a href="{% url 'core:battle' battle.id %}" class="linked">{{ battle.name }}</a>.
-        </p>
-        <div>
-            <div class="form-label mb-1">Selection method</div>
-            <div class="btn-group" role="group" aria-label="Selection method">
-                {% for entry in method_picker %}
-                    <a href="{{ entry.url }}"
-                       class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-                       {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
-                {% endfor %}
-            </div>
-            <div class="form-text">{{ form.method_intro }}</div>
+        <div class="vstack gap-0">
+            <div class="caps-label">Crew</div>
+            <h1 class="h3 mb-0">{{ crew }}</h1>
         </div>
-        <div>
-            <div class="form-label mb-1">Include normally-excluded types</div>
-            <div class="d-flex flex-wrap gap-2"
-                 role="group"
-                 aria-label="Include categories">
-                {% for t in include_picker %}
-                    <a href="{{ t.url }}"
-                       role="button"
-                       class="btn btn-sm {% if t.is_on %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-                       aria-pressed="{% if t.is_on %}true{% else %}false{% endif %}">
-                        {% if t.is_on %}<i class="bi-check-lg me-1" aria-hidden="true"></i>{% endif %}{{ t.label|capfirst }}
-                    </a>
-                {% endfor %}
-            </div>
-            <div class="form-text">
-                Hangers-on and vehicle crew aren't offered by default — turn them on to pick them for this crew.
-            </div>
-        </div>
-        <form method="post" class="vstack gap-3">
-            {% csrf_token %}
-            {% if is_create %}<input type="hidden" name="list" value="{{ gang.id }}">{% endif %}
-            <input type="hidden" name="method" value="{{ method }}">
-            <input type="hidden" name="include" value="{{ included_csv }}">
-            {{ form.non_field_errors }}
-            <div>
-                <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
-                {{ form.name }}
-                {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
-                {{ form.name.errors }}
-            </div>
-            {% if form.shows_count %}
-                <div>
-                    <label class="form-label" for="{{ form.custom_count.id_for_label }}">{{ form.custom_count.label }}</label>
-                    {{ form.custom_count }}
-                    <div class="form-text">{{ form.custom_count.help_text }}</div>
-                    {{ form.custom_count.errors }}
-                </div>
-            {% endif %}
-            {% if form.shows_random %}
-                <div>
-                    <label class="form-label">{{ form.random_group_label }}</label>
-                    <div class="d-flex flex-wrap gap-2 align-items-end">
-                        <div>
-                            <label class="form-text mb-1 d-block"
-                                   for="{{ form.random_dice.id_for_label }}">{{ form.random_dice.label }}</label>
-                            {{ form.random_dice }}
-                        </div>
-                        <div class="pb-2">+</div>
-                        <div>
-                            <label class="form-text mb-1 d-block"
-                                   for="{{ form.random_number.id_for_label }}">{{ form.random_number.label }}</label>
-                            {{ form.random_number }}
-                        </div>
-                    </div>
-                    <div class="form-text">{{ form.random_group_help }} Use a die, a number, or both — e.g. D3, 6, or D3+4.</div>
-                    {{ form.random_dice.errors }}
-                    {{ form.random_number.errors }}
-                </div>
-            {% endif %}
-            {% if form.shows_picks %}
+        {% include "core/crew/includes/crew_tabs.html" %}
+        <p class="text-secondary mb-0">{{ form.method_intro }}</p>
+        {% if form.shows_picks %}
+            <form method="post" class="vstack gap-3">
+                {% csrf_token %}
+                {{ form.non_field_errors }}
                 <div>
                     <label class="form-label">{{ form.chosen_fighters.label }}</label>
                     {% if form.has_eligible_fighters %}
@@ -102,9 +27,7 @@
                                         {{ row.checkbox.tag }}
                                         <label class="form-check-label" for="{{ row.checkbox.id_for_label }}">{{ row.checkbox.choice_label }}</label>
                                     </div>
-                                    {% if row.set_field %}
-                                        <div class="ms-sm-auto">{{ row.set_field }}</div>
-                                    {% endif %}
+                                    {% if row.set_field %}<div class="ms-sm-auto">{{ row.set_field }}</div>{% endif %}
                                 </div>
                             {% endfor %}
                         </div>
@@ -118,24 +41,56 @@
                              aria-live="polite"></div>
                         <div class="form-text">
                             {{ form.chosen_fighters.help_text }}
-                            Fighters with equipment sets also choose which one they bring
-                            to the battle.
+                            Fighters with equipment sets also choose which one they bring to the battle.
+                            Change who's eligible on the
+                            <a href="{% url 'core:crew-setup' battle.id crew.id %}" class="linked">Set up</a> tab.
                         </div>
                     {% else %}
                         <p class="text-secondary fs-7 mb-0">
                             <i class="bi-info-circle"></i>
-                            This gang has no active fighters available for a crew yet. Add fighters to
-                            the gang first, or use a different selection method.
+                            No fighters are eligible for this crew yet. Add fighters to the gang, or adjust
+                            eligibility on the <a href="{% url 'core:crew-setup' battle.id crew.id %}" class="linked">Set up</a> tab.
                         </p>
                     {% endif %}
                     {{ form.chosen_fighters.errors }}
                 </div>
-            {% endif %}
-            <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">Save crew</button>
-                <a href="{{ cancel_url }}" class="btn btn-link">Cancel</a>
+                <div class="hstack gap-3 align-items-center">
+                    <button type="submit" class="btn btn-success">Save crew</button>
+                    <a href="{{ parent_url }}" class="btn btn-link">Cancel</a>
+                </div>
+            </form>
+        {% else %}
+            <div class="border rounded p-2 fs-7">
+                <i class="bi-dice-5 text-secondary"></i>
+                This crew's fighters are drawn at random when you confirm it — there's nothing to choose here.
+                Check the <a href="{% url 'core:crew-setup' battle.id crew.id %}" class="linked">Set up</a> tab if the
+                numbers look off.
             </div>
-        </form>
+            <div>
+                <a href="{{ parent_url }}" class="btn btn-secondary btn-sm">Back to crew</a>
+            </div>
+        {% endif %}
+        {% if form.always_included_fighters %}
+            <div>
+                <div class="form-label mb-1">Always included</div>
+                <div class="fs-7 text-secondary mb-2">
+                    These fighters join regardless of the method — hired guns and anyone marked
+                    <span class="fw-semibold">Included</span> on the
+                    <a href="{% url 'core:crew-setup' battle.id crew.id %}" class="linked">Set up</a> tab. They come on
+                    top of your picks and the draw, and don't count towards the number.
+                </div>
+                <div class="vstack gap-2">
+                    {% for fighter in form.always_included_fighters %}
+                        <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                            <div class="fw-semibold">{{ fighter.name }}</div>
+                            <div class="fs-7 text-secondary ms-sm-auto">
+                                {{ fighter.content_fighter.get_category_display }} · {{ fighter.cost_int_cached }}¢
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
     </div>
     {% if form.shows_picks and form.has_eligible_fighters %}
         <script>

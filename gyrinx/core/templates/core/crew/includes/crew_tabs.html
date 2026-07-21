@@ -1,0 +1,16 @@
+{# Set up / Choose tabs for a draft crew. Params: battle, crew, active_tab. #}
+{# Only a draft crew is editable, so the tabs are hidden once it's locked. #}
+{% if crew and not crew.is_locked %}
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if active_tab == 'setup' %}active{% endif %}"
+               href="{% url 'core:crew-setup' battle.id crew.id %}"
+               {% if active_tab == 'setup' %}aria-current="page"{% endif %}>1. Set up</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link {% if active_tab == 'choose' %}active{% endif %}"
+               href="{% url 'core:crew-edit' battle.id crew.id %}"
+               {% if active_tab == 'choose' %}aria-current="page"{% endif %}>2. Choose</a>
+        </li>
+    </ul>
+{% endif %}
