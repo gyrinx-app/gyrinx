@@ -97,9 +97,16 @@ Two-halved selection screen:
      (crew_eligibility_edit) now shows a `crew_size` input for random/hybrid
      crews; the selection form drops the dice inputs when crew_size is set. Done
      without moving the method picker (see 4b) — low blast radius, all green.
-   - **Method moves onto the setup screen.** Keep it URL-driven (a picker of
-     links, `?method=`), because it server-renders which crew-size / count copy
-     shows — not a client-reactive radio.
+   - **[BUILT] Full setup step (2026-07-21).** crew_size was reverted (the
+     maintainer's call — it duplicated custom_count/random_spec). The setup
+     screen (`crew_setup` view / `CrewSetupForm` / `crew_setup.html`) now owns
+     the method picker (URL-driven) + the *existing* selection config
+     (custom_count / dice, per method) + the eligibility table. Create is
+     setup-first: `crew_new` renders setup and, on save, redirects to the picks
+     screen. `crew_edit` / `CrewForm` are picks-only, reading the stored method
+     + config. Setup ↔ Choose are URL-linked tabs (`crew_tabs.html`); both
+     screens carry the campaign breadcrumb header + back-to-crew link. All 3045
+     core tests green; flow browser-verified.
    - **Flow:** create becomes setup-first. `crew_new` GET renders the setup
      screen (method + crew_size + eligibility, computed from the gang with empty
      overrides = defaults); POST creates the crew with all of it and redirects

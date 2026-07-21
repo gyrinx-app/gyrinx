@@ -448,7 +448,13 @@ def test_exotic_beast_is_not_selectable(
     assert beast not in eligible
 
     # Absent from the selection form's fighter checkboxes too.
-    form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    form = CrewForm(crew=crew)
     offered = {f.pk for f in form.fields["chosen_fighters"].queryset}
     assert beast.id not in offered
     assert owner.id in offered
@@ -1137,7 +1143,7 @@ def test_eligibility_screen_renders(client, crew_setup):
     )
     client.force_login(crew_setup["user"])
 
-    resp = client.get(reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]))
+    resp = client.get(reverse("core:crew-setup", args=[crew.battle_id, crew.id]))
 
     assert resp.status_code == 200
     # A row per selectable fighter (the five gangers), all at their default.
@@ -1155,7 +1161,7 @@ def test_eligibility_screen_stores_only_changed_fighters(client, crew_setup):
     client.force_login(crew_setup["user"])
 
     resp = client.post(
-        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]),
+        reverse("core:crew-setup", args=[crew.battle_id, crew.id]),
         _eligibility_post_data(crew, {excluded.id: CREW_NOT_ELIGIBLE}),
     )
 
@@ -1173,7 +1179,7 @@ def test_eligibility_screen_stores_nothing_when_all_default(client, crew_setup):
     client.force_login(crew_setup["user"])
 
     client.post(
-        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]),
+        reverse("core:crew-setup", args=[crew.battle_id, crew.id]),
         _eligibility_post_data(crew),
     )
 
@@ -1191,7 +1197,7 @@ def test_eligibility_screen_change_drops_fighter_from_the_pool(client, crew_setu
     client.force_login(crew_setup["user"])
 
     client.post(
-        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]),
+        reverse("core:crew-setup", args=[crew.battle_id, crew.id]),
         _eligibility_post_data(crew, {excluded.id: CREW_NOT_ELIGIBLE}),
     )
 
@@ -1213,9 +1219,7 @@ def test_eligibility_screen_blocked_on_locked_crew(client, crew_setup):
     )
     client.force_login(crew_setup["user"])
 
-    resp = client.post(
-        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]), data
-    )
+    resp = client.post(reverse("core:crew-setup", args=[crew.battle_id, crew.id]), data)
 
     assert resp.status_code == 302
     crew.refresh_from_db()
@@ -1230,7 +1234,7 @@ def test_eligibility_screen_requires_manage_permission(client, crew_setup, make_
     stranger = make_user("stranger", "pw")
     client.force_login(stranger)
 
-    resp = client.get(reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]))
+    resp = client.get(reverse("core:crew-setup", args=[crew.battle_id, crew.id]))
 
     assert resp.status_code == 302  # redirected, not shown
 
@@ -1240,7 +1244,7 @@ def test_eligibility_form_diffs_hired_gun_override(
     crew_setup, make_content_fighter, make_list_fighter
 ):
     """The form stores only the changed fighter: a hired gun moved to eligible."""
-    from gyrinx.core.forms.crew import CrewEligibilityForm
+    from gyrinx.core.forms.crew import CrewSetupForm
 
     hired = _fighter_of_category(
         crew_setup,
@@ -1254,11 +1258,10 @@ def test_eligibility_form_diffs_hired_gun_override(
     )
     data = _eligibility_post_data(crew, {hired.id: CREW_ELIGIBLE})
 
-    form = CrewEligibilityForm(data, crew=crew)
+    form = CrewSetupForm(data, crew=crew)
     assert form.is_valid(), form.errors
-    form.save()
 
-    assert crew.eligibility_overrides == {str(hired.id): CREW_ELIGIBLE}
+    assert form.cleaned_overrides == {str(hired.id): CREW_ELIGIBLE}
 
 
 # --- Category include set (seeded, carried through the selection form) ------
@@ -1283,9 +1286,12 @@ def test_resolve_included_maps_slugs_and_normalises(rf):
 
 
 @pytest.mark.django_db
-def test_crew_form_offers_hangers_on_only_when_toggled(
+def test_setup_hanger_default_flips_with_the_include_opt_in(
     client, crew_setup, make_content_fighter, make_list_fighter
 ):
+    """On the setup screen a hanger-on defaults to Excluded; opting its category
+    in (?include=hangers-on, the campaign-seeded default) flips its default to
+    Eligible so it can be picked."""
     hanger = _fighter_of_category(
         crew_setup,
         make_content_fighter,
@@ -1298,11 +1304,16 @@ def test_crew_form_offers_hangers_on_only_when_toggled(
     params = {"list": str(crew_setup["gang"].id), "method": Crew.CUSTOM}
 
     off = client.get(url, params)
-    assert hanger.id not in {f.id for f in off.context["form"].eligible_fighters}
+    off_rows = {
+        r["fighter"].id: r["effective"] for r in off.context["form"].fighter_rows()
+    }
+    assert off_rows[hanger.id] == CREW_NOT_ELIGIBLE
 
     on = client.get(url, {**params, "include": "hangers-on"})
-    assert hanger.id in {f.id for f in on.context["form"].eligible_fighters}
-    assert 'aria-pressed="true"' in on.content.decode()  # the toggle reads "on"
+    on_rows = {
+        r["fighter"].id: r["effective"] for r in on.context["form"].fighter_rows()
+    }
+    assert on_rows[hanger.id] == CREW_ELIGIBLE
 
 
 @pytest.mark.django_db
@@ -1317,19 +1328,15 @@ def test_creating_a_crew_persists_included_categories(
         "Rogue Doc",
     )
     client.force_login(crew_setup["user"])
-    resp = client.post(
-        reverse("core:crew-new", args=[crew_setup["battle"].id]),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "include": "hangers-on",
-            "custom_count": "1",
-            "chosen_fighters": [str(hanger.id)],
-        },
+    crew = _create_crew(
+        client,
+        crew_setup,
+        method=Crew.CUSTOM,
+        custom_count=1,
+        included=[FighterCategoryChoices.HANGER_ON.value],
+        picks=[hanger],
     )
-    assert resp.status_code == 302
 
-    crew = Crew.objects.get(battle=crew_setup["battle"], list=crew_setup["gang"])
     assert crew.included_categories == ["HANGER_ON"]
     assert crew.members.filter(list_fighter=hanger).exists()
 
@@ -1386,12 +1393,13 @@ def test_editing_a_crew_can_clear_included_categories(
 
     client.force_login(crew_setup["user"])
     resp = client.get(
-        reverse("core:crew-edit", args=[crew.battle_id, crew.id]), {"include": ""}
+        reverse("core:crew-setup", args=[crew.battle_id, crew.id]), {"include": ""}
     )
 
     form = resp.context["form"]
     assert form.included_categories == []  # not the stored ["HANGER_ON"]
-    assert hanger.id not in {f.id for f in form.eligible_fighters}
+    rows = {r["fighter"].id: r["effective"] for r in form.fighter_rows()}
+    assert rows[hanger.id] == CREW_NOT_ELIGIBLE
 
 
 @pytest.mark.django_db
@@ -1418,7 +1426,8 @@ def test_campaign_default_seeds_the_crew_toggles(
 
     form = resp.context["form"]
     assert form.included_categories == ["CREW"]  # seeded from the campaign
-    assert driver.id in {f.id for f in form.eligible_fighters}
+    rows = {r["fighter"].id: r["effective"] for r in form.fighter_rows()}
+    assert rows[driver.id] == CREW_ELIGIBLE  # opted in → eligible default
 
 
 @pytest.mark.django_db
@@ -1456,8 +1465,9 @@ def test_crew_toggle_overrides_the_campaign_default(
 
     form = resp.context["form"]
     assert form.included_categories == ["HANGER_ON"]  # the toggle, not the default
-    assert hanger.id in {f.id for f in form.eligible_fighters}
-    assert driver.id not in {f.id for f in form.eligible_fighters}
+    rows = {r["fighter"].id: r["effective"] for r in form.fighter_rows()}
+    assert rows[hanger.id] == CREW_ELIGIBLE  # opted in
+    assert rows[driver.id] == CREW_NOT_ELIGIBLE  # campaign default overridden off
 
 
 @pytest.mark.django_db
@@ -1613,7 +1623,13 @@ def test_crew_form_preselects_the_fighters_active_set(crew_setup, equipped_fight
     fighter.active_equipment_set = card
     fighter.save()
 
-    form = CrewForm(gang=gang, method=Crew.CUSTOM)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=gang,
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    form = CrewForm(crew=crew)
     field = form.fields[equipment_set_field_name(fighter.pk)]
     assert field.initial == card.id
 
@@ -1711,23 +1727,20 @@ def test_crew_new_creates_crew(client, crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     url = reverse("core:crew-new", args=[battle.id])
 
-    # The form renders with the gang chosen via query string.
+    # The setup screen renders with the gang chosen via query string.
     assert client.get(url, {"list": str(gang.id)}).status_code == 200
 
-    resp = client.post(
-        url,
-        {
-            "list": str(gang.id),
-            "method": Crew.HYBRID,
-            "name": "A Team",
-            "custom_count": "1",
-            "random_dice": "D3",
-            "random_number": "",
-            "chosen_fighters": [str(crew_setup["fighters"][0].id)],
-        },
+    # Two steps: set up, then choose.
+    crew = _create_crew(
+        client,
+        crew_setup,
+        method=Crew.HYBRID,
+        name="A Team",
+        custom_count="1",
+        dice="D3",
+        number="",
+        picks=[crew_setup["fighters"][0]],
     )
-    assert resp.status_code == 302
-    crew = Crew.objects.get(battle=battle, list=gang)
     assert crew.name == "A Team"
     assert crew.selection_method == Crew.HYBRID
     assert crew.custom_count == 1
@@ -1769,12 +1782,8 @@ def test_crew_and_extra_owned_by_gang_owner(
 
     client.force_login(arbiter)
     resp = client.post(
-        reverse("core:crew-new", args=[battle.id]),
-        {
-            "list": str(other_gang.id),
-            "method": Crew.CUSTOM,
-            "name": "For player",
-        },
+        reverse("core:crew-new", args=[battle.id]) + f"?list={other_gang.id}",
+        _setup_data(other_gang, method=Crew.CUSTOM, name="For player"),
     )
     assert resp.status_code == 302
     crew = Crew.objects.get(battle=battle, list=other_gang)
@@ -1802,22 +1811,32 @@ def test_crew_detail_and_edit(client, crew_setup):
         client.get(reverse("core:crew", args=[battle.id, crew.id])).status_code == 200
     )
 
+    # Set up: change method, config, and name.
     resp = client.post(
-        reverse("core:crew-edit", args=[battle.id, crew.id]),
-        {
-            "method": Crew.HYBRID,
-            "name": "Renamed",
-            "custom_count": "3",
-            "random_dice": "D6",
-            "random_number": "2",
-            "chosen_fighters": [str(f.id) for f in crew_setup["fighters"][:3]],
-        },
+        reverse("core:crew-setup", args=[battle.id, crew.id])
+        + f"?method={Crew.HYBRID}",
+        _setup_data(
+            gang,
+            method=Crew.HYBRID,
+            name="Renamed",
+            custom_count="3",
+            dice="D6",
+            number="2",
+        ),
     )
     assert resp.status_code == 302
     crew.refresh_from_db()
     assert crew.name == "Renamed"
     assert crew.selection_method == Crew.HYBRID
     assert crew.random_spec == "D6+2"
+
+    # Choose: pick the fighters.
+    resp = client.post(
+        reverse("core:crew-edit", args=[battle.id, crew.id]),
+        {"chosen_fighters": [str(f.id) for f in crew_setup["fighters"][:3]]},
+    )
+    assert resp.status_code == 302
+    crew.refresh_from_db()
     assert crew.members.filter(source=CrewMember.CHOSEN).count() == 3
 
 
@@ -2210,6 +2229,86 @@ def _crew_new_url(crew_setup, method=None):
     return url + query
 
 
+def _setup_data(
+    gang,
+    *,
+    method=Crew.CUSTOM,
+    custom_count=None,
+    dice=None,
+    number=None,
+    name="",
+    included=None,
+    elig=None,
+):
+    """POST body for the crew setup screen: each selectable fighter at its
+    *default* eligibility (given ``included``), plus the method's config. ``elig``
+    (fighter_id -> state) overrides individual fighters; ``included`` (category
+    values) is the category opt-in carried in the hidden ``include`` field."""
+    from gyrinx.core.handlers.crew import (
+        TOGGLEABLE_CREW_CATEGORIES,
+        compute_crew_eligibility,
+    )
+
+    included = included or []
+    elig = elig or {}
+    include_csv = ",".join(
+        slug for cat, slug, _ in TOGGLEABLE_CREW_CATEGORIES if cat in included
+    )
+    data = {"method": method, "name": name, "include": include_csv}
+    for row in compute_crew_eligibility(
+        lst=gang, overrides={}, included_categories=included
+    ):
+        fid = row["fighter"].id
+        data[f"elig_{fid}"] = elig.get(fid, row["effective"])
+    if custom_count is not None:
+        data["custom_count"] = custom_count
+    if dice is not None:
+        data["random_dice"] = dice
+    if number is not None:
+        data["random_number"] = number
+    return data
+
+
+def _create_crew(
+    client,
+    crew_setup,
+    *,
+    method=Crew.CUSTOM,
+    custom_count=None,
+    dice=None,
+    number=None,
+    name="",
+    picks=None,
+    included=None,
+    elig=None,
+):
+    """Drive the two-step flow in a test: set the crew up, then (for Custom /
+    Hybrid) choose the fighters. Returns the created crew."""
+    gang = crew_setup["gang"]
+    client.post(
+        _crew_new_url(crew_setup, method),
+        _setup_data(
+            gang,
+            method=method,
+            custom_count=custom_count,
+            dice=dice,
+            number=number,
+            name=name,
+            included=included,
+            elig=elig,
+        ),
+    )
+    crew = Crew.objects.filter(
+        battle=crew_setup["battle"], list=gang, archived=False
+    ).first()
+    if crew is not None and picks is not None:
+        client.post(
+            reverse("core:crew-edit", args=[crew.battle_id, crew.id]),
+            {"chosen_fighters": [str(f.id) for f in picks]},
+        )
+    return crew
+
+
 @pytest.mark.django_db
 @pytest.mark.parametrize("method", [Crew.CUSTOM, Crew.RANDOM, Crew.HYBRID])
 def test_method_picker_links_to_the_other_methods(client, crew_setup, method):
@@ -2248,7 +2347,7 @@ def test_custom_form_has_no_random_fields(client, crew_setup):
 
     assert "random_dice" not in form.fields
     assert "random_number" not in form.fields
-    assert "chosen_fighters" in form.fields
+    assert "custom_count" in form.fields
 
 
 @pytest.mark.django_db
@@ -2291,13 +2390,19 @@ def test_edit_without_method_keeps_the_stored_one(client, crew_setup):
     )
     add_chosen(crew, crew_setup["fighters"][:1])
 
+    # The Choose tab opens on the stored method with the picks preselected.
     resp = client.get(
         reverse("core:crew-edit", args=[crew_setup["battle"].id, crew.id])
     )
     assert resp.context["method"] == Crew.HYBRID
-    form = resp.context["form"]
-    assert form.fields["custom_count"].initial == 1
-    assert form.fields["chosen_fighters"].initial == [crew_setup["fighters"][0].id]
+    assert resp.context["form"].fields["chosen_fighters"].initial == [
+        crew_setup["fighters"][0].id
+    ]
+    # The Set up tab shows the stored config.
+    setup = client.get(
+        reverse("core:crew-setup", args=[crew_setup["battle"].id, crew.id])
+    )
+    assert setup.context["form"].fields["custom_count"].initial == 1
 
 
 # --- Per-method validation --------------------------------------------------
@@ -2307,37 +2412,23 @@ def test_edit_without_method_keeps_the_stored_one(client, crew_setup):
 def test_custom_requires_exactly_the_bracket_number(client, crew_setup):
     client.force_login(crew_setup["user"])
     fighters = crew_setup["fighters"]
+    # Set up a Custom crew that must pick exactly 3.
+    crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="3")
+    assert crew.custom_count == 3
+    edit_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
 
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "3",
-            "chosen_fighters": [str(fighters[0].id)],
-        },
-    )
-    # Re-rendered with the error, nothing saved.
+    # Picking too few is rejected on the selection screen; nothing saved.
+    resp = client.post(edit_url, {"chosen_fighters": [str(fighters[0].id)]})
     assert resp.status_code == 200
     assert resp.context["form"].errors["chosen_fighters"] == [
         "Choose exactly 3 fighters — you've chosen 1."
     ]
-    assert not Crew.objects.filter(battle=crew_setup["battle"]).exists()
+    assert crew.members.count() == 0
 
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "3",
-            "chosen_fighters": [str(f.id) for f in fighters[:3]],
-        },
-    )
+    # Picking exactly 3 succeeds.
+    resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters[:3]]})
     assert resp.status_code == 302
-    crew = Crew.objects.get(battle=crew_setup["battle"])
-    assert crew.custom_count == 3
+    crew.refresh_from_db()
     assert crew.members.count() == 3
 
 
@@ -2345,18 +2436,13 @@ def test_custom_requires_exactly_the_bracket_number(client, crew_setup):
 def test_custom_blank_count_allows_any_number_of_picks(client, crew_setup):
     """Custom Selection with no number in brackets is unbounded."""
     client.force_login(crew_setup["user"])
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "",
-            "chosen_fighters": [str(f.id) for f in crew_setup["fighters"][:2]],
-        },
+    crew = _create_crew(
+        client,
+        crew_setup,
+        method=Crew.CUSTOM,
+        custom_count="",
+        picks=crew_setup["fighters"][:2],
     )
-    assert resp.status_code == 302
-    crew = Crew.objects.get(battle=crew_setup["battle"])
     assert crew.custom_count is None
     assert crew.members.count() == 2
 
@@ -2364,17 +2450,7 @@ def test_custom_blank_count_allows_any_number_of_picks(client, crew_setup):
 @pytest.mark.django_db
 def test_custom_blank_count_with_no_picks_is_the_whole_gang(client, crew_setup):
     client.force_login(crew_setup["user"])
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "",
-        },
-    )
-    assert resp.status_code == 302
-    crew = Crew.objects.get(battle=crew_setup["battle"])
+    crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="")
     assert crew.is_whole_gang is True
     assert crew.members.count() == 0
     assert crew.method_label() == "Custom Selection"
@@ -2389,17 +2465,10 @@ def test_custom_blank_count_with_no_picks_is_the_whole_gang(client, crew_setup):
 def test_count_over_roster_requires_every_eligible_fighter(client, crew_setup):
     client.force_login(crew_setup["user"])
     fighters = crew_setup["fighters"]
+    crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="8")
+    edit_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
 
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "8",
-            "chosen_fighters": [str(f.id) for f in fighters[:3]],
-        },
-    )
+    resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters[:3]]})
     assert resp.status_code == 200
     assert resp.context["form"].errors["chosen_fighters"] == [
         "Choose exactly 5 fighters — you've chosen 3. "
@@ -2407,18 +2476,10 @@ def test_count_over_roster_requires_every_eligible_fighter(client, crew_setup):
     ]
 
     # Sending everyone is accepted, even though the scenario asked for more.
-    resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
-        {
-            "list": str(crew_setup["gang"].id),
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "8",
-            "chosen_fighters": [str(f.id) for f in fighters],
-        },
-    )
+    resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters]})
     assert resp.status_code == 302
-    assert Crew.objects.get(battle=crew_setup["battle"]).members.count() == 5
+    crew.refresh_from_db()
+    assert crew.members.count() == 5
 
 
 @pytest.mark.django_db
@@ -2502,10 +2563,13 @@ def test_switching_method_clears_the_other_methods_fields(client, crew_setup):
     )
     add_chosen(crew, fighters[:2])
 
-    edit_url = reverse("core:crew-edit", args=[battle.id, crew.id])
+    setup_url = reverse("core:crew-setup", args=[battle.id, crew.id])
+
+    # Hybrid → Random on the setup screen: null the count, keep a spec, and drop
+    # the chosen members (Random names nobody).
     resp = client.post(
-        edit_url + f"?method={Crew.RANDOM}",
-        {"method": Crew.RANDOM, "name": "", "random_dice": "D6", "random_number": "2"},
+        setup_url + f"?method={Crew.RANDOM}",
+        _setup_data(gang, method=Crew.RANDOM, dice="D6", number="2"),
     )
     assert resp.status_code == 302
     crew.refresh_from_db()
@@ -2514,16 +2578,16 @@ def test_switching_method_clears_the_other_methods_fields(client, crew_setup):
     assert crew.random_spec == "D6+2"
     assert crew.members.count() == 0
 
+    # Random → Custom: blank the spec, set a count; then choose the fighter.
     resp = client.post(
-        edit_url + f"?method={Crew.CUSTOM}",
-        {
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "1",
-            "chosen_fighters": [str(fighters[0].id)],
-        },
+        setup_url + f"?method={Crew.CUSTOM}",
+        _setup_data(gang, method=Crew.CUSTOM, custom_count="1"),
     )
     assert resp.status_code == 302
+    client.post(
+        reverse("core:crew-edit", args=[battle.id, crew.id]),
+        {"chosen_fighters": [str(fighters[0].id)]},
+    )
     crew.refresh_from_db()
     assert crew.selection_method == Crew.CUSTOM
     assert crew.random_spec == ""
@@ -2544,20 +2608,17 @@ def test_chosen_fighter_brings_the_selected_equipment_set(
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     fighter, card = equipped_fighter(gang)
 
+    crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="1")
     resp = client.post(
-        _crew_new_url(crew_setup, Crew.CUSTOM),
+        reverse("core:crew-edit", args=[battle.id, crew.id]),
         {
-            "method": Crew.CUSTOM,
-            "list": str(gang.id),
-            "name": "",
-            "custom_count": "1",
             "chosen_fighters": [str(fighter.id)],
             f"equipment_set_{fighter.id}": str(card.id),
         },
     )
     assert resp.status_code == 302
 
-    crew = Crew.objects.get(battle=battle, list=gang)
+    crew.refresh_from_db()
     assert crew.members.get().equipment_set_id == card.id
     # The light kit (145), not the 195 full kit — see the set-scoped cost test.
     assert crew.rating() == 145
@@ -2570,9 +2631,6 @@ def test_chosen_fighter_brings_the_selected_equipment_set(
     resp = client.post(
         reverse("core:crew-edit", args=[battle.id, crew.id]),
         {
-            "method": Crew.CUSTOM,
-            "name": "",
-            "custom_count": "1",
             "chosen_fighters": [str(fighter.id)],
             f"equipment_set_{fighter.id}": "",
         },
@@ -2582,6 +2640,16 @@ def test_chosen_fighter_brings_the_selected_equipment_set(
     assert crew.rating() == 195
 
 
+def _custom_crew(crew_setup):
+    """A draft Custom crew — its selection screen shows the fighter picks."""
+    return Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+
+
 @pytest.mark.django_db
 def test_set_select_rendered_only_for_fighters_with_sets(
     client, crew_setup, equipped_fighter
@@ -2589,8 +2657,9 @@ def test_set_select_rendered_only_for_fighters_with_sets(
     """A fighter with one card has nothing to choose, so gets no select."""
     client.force_login(crew_setup["user"])
     fighter, card = equipped_fighter(crew_setup["gang"])
+    crew = _custom_crew(crew_setup)
 
-    resp = client.get(_crew_new_url(crew_setup, Crew.CUSTOM))
+    resp = client.get(reverse("core:crew-edit", args=[crew.battle_id, crew.id]))
     form = resp.context["form"]
     content = resp.content.decode()
 
@@ -2609,7 +2678,8 @@ def test_selection_form_issues_no_per_fighter_set_query(
     sets must not mean more queries."""
     gang = crew_setup["gang"]
     client.force_login(crew_setup["user"])
-    url = _crew_new_url(crew_setup, Crew.CUSTOM)
+    crew = _custom_crew(crew_setup)
+    url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
 
     def render_query_count():
         with CaptureQueriesContext(connection) as ctx:
@@ -2632,7 +2702,7 @@ def test_selection_form_issues_no_per_fighter_set_query(
 def test_fighter_rows_carry_each_fighter_cost(crew_setup):
     """Each fighter row exposes its ``cost_int_cached`` so the running-total
     enhancement can sum the ticked fighters without a round-trip."""
-    form = CrewForm(gang=crew_setup["gang"], method=Crew.CUSTOM)
+    form = CrewForm(crew=_custom_crew(crew_setup))
     rows = form.fighter_rows()
 
     assert len(rows) == len(crew_setup["fighters"])
@@ -2645,7 +2715,10 @@ def test_crew_form_renders_cost_data_and_hidden_running_total(client, crew_setup
     """The per-fighter cost is a server-rendered data attribute and the running
     total starts hidden — nothing shows a stale "0 fighters" without JS."""
     client.force_login(crew_setup["user"])
-    content = client.get(_crew_new_url(crew_setup, Crew.CUSTOM)).content.decode()
+    crew = _custom_crew(crew_setup)
+    content = client.get(
+        reverse("core:crew-edit", args=[crew.battle_id, crew.id])
+    ).content.decode()
 
     assert 'data-cost="100"' in content
     assert "js-crew-fighter-row" in content

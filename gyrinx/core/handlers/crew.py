@@ -129,7 +129,7 @@ def _selectable_gang_fighters(lst):
 
 
 def compute_crew_eligibility(
-    *, lst, overrides=None, included_categories=(), fighters=None
+    *, lst, overrides=None, included_categories=(), fighters=None, with_data=False
 ):
     """Per-fighter crew eligibility for a gang: one ``{fighter, default,
     effective}`` row per independently-selectable fighter. ``default`` is the
@@ -140,10 +140,15 @@ def compute_crew_eligibility(
     ``fighters`` may be a pre-built queryset (e.g. the form's
     ``with_related_data()`` load) to skip a second fetch; when passed it must
     carry ``capture_info`` so the captured / sold checks stay off the N+1 path.
+    ``with_data=True`` loads the roster via ``with_related_data()`` — needed when
+    the caller reads each fighter's ``cost_int_cached`` (a computed property), as
+    the setup screen does; the lean pool helpers leave it off.
     """
     overrides = overrides or {}
     if fighters is None:
         fighters = _selectable_gang_fighters(lst)
+        if with_data:
+            fighters = fighters.with_related_data()
     rows = []
     for fighter in fighters:
         default = default_crew_eligibility_state(

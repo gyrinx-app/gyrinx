@@ -25,10 +25,10 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx.core.forms.crew import (
-    CrewEligibilityForm,
     CrewForm,
     CrewLineItemForm,
     CrewLoadoutsForm,
+    CrewSetupForm,
 )
 from gyrinx.core.handlers.crew import (
     TOGGLEABLE_CREW_CATEGORIES,
@@ -41,7 +41,7 @@ from gyrinx.core.handlers.crew import (
     handle_crew_recipe_save,
 )
 from gyrinx.core.models import Battle
-from gyrinx.core.models.crew import Crew, CrewLineItem
+from gyrinx.core.models.crew import Crew, CrewLineItem, CrewMember
 from gyrinx.core.models.list import List
 
 VALID_METHODS = {value for value, _ in Crew.SELECTION_METHOD_CHOICES}
@@ -121,6 +121,42 @@ def _redirect_battle(battle):
     return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
 
+def _redirect_after_setup(crew):
+    """After setup, Custom and Hybrid crews still need fighters chosen, so land
+    on the selection screen; Random crews name nobody (drawn on confirm), so go
+    straight to the crew page."""
+    if crew.selection_method in (Crew.CUSTOM, Crew.HYBRID):
+        return HttpResponseRedirect(
+            reverse("core:crew-edit", args=[crew.battle_id, crew.id])
+        )
+    return _redirect_crew(crew)
+
+
+def _apply_crew_setup(*, request, crew, form, method, included):
+    """Persist a :class:`CrewSetupForm` onto ``crew``: name, method, the method's
+    configuration, opted-in categories, and per-fighter eligibility. Clears any
+    chosen picks when the method becomes Random (which names nobody)."""
+    crew.name = form.cleaned_data.get("name") or ""
+    crew.selection_method = method
+    crew.custom_count = (
+        form.cleaned_data.get("custom_count")
+        if method in (Crew.CUSTOM, Crew.HYBRID)
+        else None
+    )
+    crew.random_spec = (
+        form.cleaned_data.get("random_spec", "")
+        if method in (Crew.RANDOM, Crew.HYBRID)
+        else ""
+    )
+    crew.included_categories = list(included)
+    crew.eligibility_overrides = form.cleaned_overrides
+    crew.save_with_user(user=request.user)
+    if method == Crew.RANDOM:
+        crew.members.filter(source=CrewMember.CHOSEN).delete_with_user(
+            user=request.user
+        )
+
+
 @login_required
 @transaction.atomic
 def crew_new(request, battle_id):
@@ -163,28 +199,22 @@ def crew_new(request, battle_id):
     )
 
     if request.method == "POST":
-        form = CrewForm(request.POST, gang=gang, method=method, included=included)
+        form = CrewSetupForm(request.POST, gang=gang, method=method, included=included)
         if form.is_valid():
-            crew = form.save(commit=False)
-            crew.battle = battle
-            crew.list = gang
             # Owned by the gang's player (list-scoped convention), even when an
             # arbitrator creates it; save_with_user records who acted.
-            crew.owner_id = gang.owner_id
+            crew = Crew(battle=battle, list=gang, owner_id=gang.owner_id)
             try:
                 # Savepoint so a lost race on the (battle, list) unique
                 # constraint rolls back cleanly and leaves the outer
                 # transaction usable for the redirect lookup below.
                 with transaction.atomic():
-                    handle_crew_recipe_save(
-                        user=request.user,
+                    _apply_crew_setup(
+                        request=request,
                         crew=crew,
+                        form=form,
                         method=method,
-                        custom_count=form.cleaned_data.get("custom_count"),
-                        chosen_fighters=form.cleaned_data.get("chosen_fighters"),
-                        random_spec=form.cleaned_data.get("random_spec", ""),
-                        equipment_sets=form.cleaned_data.get("equipment_sets"),
-                        included_categories=included,
+                        included=included,
                     )
             except IntegrityError:
                 existing = Crew.objects.filter(
@@ -196,16 +226,16 @@ def crew_new(request, battle_id):
                     )
                     return _redirect_crew(existing)
                 raise
-            messages.success(request, "Crew created.")
-            return _redirect_crew(crew)
+            messages.success(request, "Crew set up.")
+            return _redirect_after_setup(crew)
     else:
-        form = CrewForm(gang=gang, method=method, included=included)
+        form = CrewSetupForm(gang=gang, method=method, included=included)
 
     base_url = reverse("core:crew-new", args=[battle.id])
     method_extra = {"list": str(gang.id), "include": _include_csv(included)}
     return render(
         request,
-        "core/crew/crew_form.html",
+        "core/crew/crew_setup.html",
         {
             "form": form,
             "battle": battle,
@@ -218,6 +248,7 @@ def crew_new(request, battle_id):
                 current=method,
                 extra=method_extra,
             ),
+            "active_tab": "setup",
         },
     )
 
@@ -289,13 +320,7 @@ def crew_edit(request, battle_id, crew_id):
         messages.info(request, "This crew is locked and can no longer be re-drawn.")
         return _redirect_crew(crew)
 
-    # No ?method= (the plain "Edit" link) keeps the crew on the method it was
-    # saved with. Likewise no ?include= keeps the crew's stored opt-ins.
-    method = _resolve_method(request, crew.selection_method)
-    included = _resolve_included(request, default=crew.included_categories)
-
     if request.method == "POST":
-        gang = crew.list
         # Re-fetch under a row lock so a crew being locked concurrently can't
         # slip a recipe edit past the is_locked guard above — locked crews can
         # no longer be re-drawn (mirrors handle_crew_lock's own lock).
@@ -305,28 +330,25 @@ def crew_edit(request, battle_id, crew_id):
                 request, "This crew was just locked and can no longer be re-drawn."
             )
             return _redirect_crew(crew)
-        form = CrewForm(
-            request.POST, instance=crew, gang=gang, method=method, included=included
-        )
+        form = CrewForm(request.POST, crew=crew)
         if form.is_valid():
-            crew = form.save(commit=False)
+            # Method and config are set on the setup screen; the picks form only
+            # carries the chosen fighters, so hand the stored recipe alongside.
             handle_crew_recipe_save(
                 user=request.user,
                 crew=crew,
-                method=method,
-                custom_count=form.cleaned_data.get("custom_count"),
+                method=crew.selection_method,
+                custom_count=crew.custom_count,
                 chosen_fighters=form.cleaned_data.get("chosen_fighters"),
-                random_spec=form.cleaned_data.get("random_spec", ""),
+                random_spec=crew.random_spec,
                 equipment_sets=form.cleaned_data.get("equipment_sets"),
-                included_categories=included,
+                included_categories=crew.included_categories,
             )
             messages.success(request, "Crew updated.")
             return _redirect_crew(crew)
     else:
-        form = CrewForm(instance=crew, gang=crew.list, method=method, included=included)
+        form = CrewForm(crew=crew)
 
-    base_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
-    method_extra = {"include": _include_csv(included)}
     return render(
         request,
         "core/crew/crew_form.html",
@@ -335,6 +357,77 @@ def crew_edit(request, battle_id, crew_id):
             "battle": crew.battle,
             "gang": crew.list,
             "crew": crew,
+            "method": crew.selection_method,
+            "active_tab": "choose",
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def crew_setup(request, battle_id, crew_id):
+    """Set up a crew: its selection method, that method's configuration (pick
+    count / draw dice), and per-fighter eligibility — Included (always join),
+    Eligible (may be picked or drawn), or Excluded. The first step of building a
+    crew; the fighters themselves are chosen afterwards. Locked crews can't be
+    changed.
+    """
+    crew = _get_crew(battle_id, crew_id)
+
+    if not crew.can_manage(request.user):
+        messages.error(request, "You don't have permission to set up this crew.")
+        return _redirect_crew(crew)
+
+    if crew.is_locked:
+        messages.info(
+            request, "This crew is locked, so its setup can no longer change."
+        )
+        return _redirect_crew(crew)
+
+    # No ?method= keeps the crew on the method it was saved with; no ?include=
+    # keeps its stored opt-ins.
+    method = _resolve_method(request, crew.selection_method)
+    included = _resolve_included(request, default=crew.included_categories)
+
+    if request.method == "POST":
+        # Re-fetch under a row lock so a crew being locked concurrently can't
+        # slip a setup change past the guard above (mirrors crew_edit).
+        crew = Crew.objects.select_for_update().get(pk=crew.pk)
+        if crew.is_locked:
+            messages.info(
+                request,
+                "This crew was just locked, so its setup can no longer change.",
+            )
+            return _redirect_crew(crew)
+        form = CrewSetupForm(
+            request.POST, crew=crew, gang=crew.list, method=method, included=included
+        )
+        if form.is_valid():
+            _apply_crew_setup(
+                request=request,
+                crew=crew,
+                form=form,
+                method=method,
+                included=included,
+            )
+            messages.success(request, "Crew setup saved.")
+            return _redirect_after_setup(crew)
+    else:
+        form = CrewSetupForm(
+            crew=crew, gang=crew.list, method=method, included=included
+        )
+
+    base_url = reverse("core:crew-setup", args=[crew.battle_id, crew.id])
+    method_extra = {"include": _include_csv(included)}
+    return render(
+        request,
+        "core/crew/crew_setup.html",
+        {
+            "form": form,
+            "crew": crew,
+            "battle": crew.battle,
+            "gang": crew.list,
+            "is_create": False,
             "method": method,
             "included_csv": _include_csv(included),
             "method_picker": _method_picker(
@@ -342,61 +435,7 @@ def crew_edit(request, battle_id, crew_id):
                 current=method,
                 extra=method_extra,
             ),
-        },
-    )
-
-
-@login_required
-@transaction.atomic
-def crew_eligibility_edit(request, battle_id, crew_id):
-    """Set which of the gang's fighters are eligible for this crew — Included
-    (always join), Eligible (may be picked or drawn), or Excluded — before the
-    selection method picks from the pool. Sensible defaults per fighter, so most
-    of the time it's a confirm; locked crews can't be changed.
-    """
-    crew = _get_crew(battle_id, crew_id)
-
-    if not crew.can_manage(request.user):
-        messages.error(
-            request, "You don't have permission to edit this crew's eligibility."
-        )
-        return _redirect_crew(crew)
-
-    if crew.is_locked:
-        messages.info(
-            request, "This crew is locked, so its eligibility can no longer change."
-        )
-        return _redirect_crew(crew)
-
-    if request.method == "POST":
-        # Re-fetch under a row lock so a crew being locked concurrently can't
-        # slip an eligibility change past the guard above (mirrors crew_edit).
-        crew = Crew.objects.select_for_update().get(pk=crew.pk)
-        if crew.is_locked:
-            messages.info(
-                request,
-                "This crew was just locked, so its eligibility can no longer change.",
-            )
-            return _redirect_crew(crew)
-        form = CrewEligibilityForm(request.POST, crew=crew)
-        if form.is_valid():
-            form.save()
-            crew.save_with_user(user=request.user)
-            messages.success(request, "Crew eligibility updated.")
-            return HttpResponseRedirect(
-                reverse("core:crew-edit", args=[crew.battle_id, crew.id])
-            )
-    else:
-        form = CrewEligibilityForm(crew=crew)
-
-    return render(
-        request,
-        "core/crew/crew_eligibility.html",
-        {
-            "form": form,
-            "crew": crew,
-            "battle": crew.battle,
-            "gang": crew.list,
+            "active_tab": "setup",
         },
     )
 

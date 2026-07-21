@@ -321,9 +321,9 @@ patterns = [
         name="crew-edit",
     ),
     path(
-        "battle/<battle_id>/crew/<uuid:crew_id>/eligibility",
-        crew_views.crew_eligibility_edit,
-        name="crew-eligibility",
+        "battle/<battle_id>/crew/<uuid:crew_id>/setup",
+        crew_views.crew_setup,
+        name="crew-setup",
     ),
     path(
         "battle/<battle_id>/crew/<uuid:crew_id>/loadouts",

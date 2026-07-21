@@ -44,8 +44,8 @@
                                     {% if not crew.is_locked %}
                                         <li>
                                             <a class="dropdown-item"
-                                               href="{% url 'core:crew-eligibility' battle.id crew.id %}">
-                                                <i class="bi-people"></i> Set eligibility
+                                               href="{% url 'core:crew-setup' battle.id crew.id %}">
+                                                <i class="bi-sliders"></i> Set up crew
                                             </a>
                                         </li>
                                     {% endif %}

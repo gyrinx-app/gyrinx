@@ -1,0 +1,115 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    {% if is_create %}Add crew{% else %}Set up crew{% endif %} - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% if crew %}
+        {% url 'core:crew' battle.id crew.id as parent_url %}
+        {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url current="Set up" %}
+    {% else %}
+        {% url 'core:battle' battle.id as parent_url %}
+        {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=parent_url current="Add crew" %}
+    {% endif %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <div class="vstack gap-0">
+            <div class="caps-label">Crew</div>
+            <h1 class="h3 mb-0">{% if is_create %}Add a crew for {{ gang.name }}{% else %}{{ crew }}{% endif %}</h1>
+        </div>
+        {% include "core/crew/includes/crew_tabs.html" %}
+        <p class="text-secondary mb-0">
+            Set up how this crew is put together — the selection method, its numbers, and who's eligible.
+            You'll choose the actual fighters next.
+        </p>
+        <div>
+            <div class="form-label mb-1">Selection method</div>
+            <div class="btn-group" role="group" aria-label="Selection method">
+                {% for entry in method_picker %}
+                    <a href="{{ entry.url }}"
+                       class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                       {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
+                {% endfor %}
+            </div>
+            <div class="form-text">{{ form.method_intro }}</div>
+        </div>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {% if is_create %}<input type="hidden" name="list" value="{{ gang.id }}">{% endif %}
+            <input type="hidden" name="method" value="{{ method }}">
+            <input type="hidden" name="include" value="{{ included_csv }}">
+            {{ form.non_field_errors }}
+            <div>
+                <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
+                {{ form.name.errors }}
+            </div>
+            {% if form.shows_count %}
+                <div>
+                    <label class="form-label" for="{{ form.custom_count.id_for_label }}">{{ form.custom_count.label }}</label>
+                    {{ form.custom_count }}
+                    <div class="form-text">{{ form.custom_count.help_text }}</div>
+                    {{ form.custom_count.errors }}
+                </div>
+            {% endif %}
+            {% if form.shows_random %}
+                <div>
+                    <label class="form-label">{{ form.random_group_label }}</label>
+                    <div class="d-flex flex-wrap gap-2 align-items-end">
+                        <div>
+                            <label class="form-text mb-1 d-block"
+                                   for="{{ form.random_dice.id_for_label }}">{{ form.random_dice.label }}</label>
+                            {{ form.random_dice }}
+                        </div>
+                        <div class="pb-2">+</div>
+                        <div>
+                            <label class="form-text mb-1 d-block"
+                                   for="{{ form.random_number.id_for_label }}">{{ form.random_number.label }}</label>
+                            {{ form.random_number }}
+                        </div>
+                    </div>
+                    <div class="form-text">{{ form.random_group_help }} Use a die, a number, or both — e.g. D3, 6, or D3+4.</div>
+                    {{ form.random_dice.errors }}
+                    {{ form.random_number.errors }}
+                </div>
+            {% endif %}
+            <div>
+                <div class="form-label mb-1">Eligibility</div>
+                <div class="fs-7 text-secondary mb-2">
+                    <span class="fw-semibold">Included</span> fighters always join ·
+                    <span class="fw-semibold">Eligible</span> fighters may be picked or drawn ·
+                    <span class="fw-semibold">Excluded</span> fighters sit this one out.
+                </div>
+                {% if form.fighter_rows %}
+                    <div class="vstack gap-2">
+                        {% for row in form.fighter_rows %}
+                            <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-3 align-items-start align-items-sm-center">
+                                <div class="me-sm-auto">
+                                    <div class="fw-semibold">{{ row.fighter.name }}</div>
+                                    <div class="fs-7 text-secondary">{{ row.category }} · {{ row.cost }}¢</div>
+                                </div>
+                                <div class="hstack gap-3 flex-wrap">
+                                    {% for radio in row.field %}
+                                        <div class="form-check form-check-inline mb-0 me-0">
+                                            {{ radio.tag }}
+                                            <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                {{ row.field.errors }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-secondary fs-7 mb-0">
+                        <i class="bi-info-circle"></i>
+                        This gang has no fighters to set eligibility for yet.
+                    </p>
+                {% endif %}
+            </div>
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-success">{% if is_create %}Create crew{% else %}Save setup{% endif %}</button>
+                <a href="{{ parent_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
