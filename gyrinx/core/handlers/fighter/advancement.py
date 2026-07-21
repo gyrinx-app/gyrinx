@@ -8,7 +8,11 @@ from uuid import UUID
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from gyrinx.content.models import ContentAdvancementAssignment, ContentSkill
+from gyrinx.content.models import (
+    ContentAdvancementAssignment,
+    ContentPromotionPath,
+    ContentSkill,
+)
 from gyrinx.core.cost.propagation import Delta, propagate_from_fighter
 from gyrinx.core.models.action import ListAction, ListActionType
 from gyrinx.core.models.campaign import CampaignAction
@@ -55,6 +59,7 @@ def handle_fighter_advancement(
     stat_increased: Optional[str] = None,
     skill: Optional[ContentSkill] = None,
     equipment_assignment: Optional[ContentAdvancementAssignment] = None,
+    promotion_path: Optional[ContentPromotionPath] = None,
     description: Optional[str] = None,
     # Campaign action linking
     campaign_action_id: Optional[UUID] = None,
@@ -76,8 +81,9 @@ def handle_fighter_advancement(
         cost_increase: Credits added to fighter cost
         advancement_choice: The choice identifier from the advancement flow
         stat_increased: For stat advancements, which stat (e.g., "weapon_skill")
-        skill: For skill advancements, the ContentSkill
+        skill: For skill advancements (and skill-bundling promotions), the ContentSkill
         equipment_assignment: For equipment advancements, the ContentAdvancementAssignment
+        promotion_path: For promotion advancements, the ContentPromotionPath taken
         description: For "other" advancements, free text description
         campaign_action_id: Optional existing CampaignAction to link
 
@@ -146,6 +152,7 @@ def handle_fighter_advancement(
         stat_increased=stat_increased,
         skill=skill,
         equipment_assignment=equipment_assignment,
+        promotion_path=promotion_path,
         description=description,
     )
 
@@ -156,6 +163,7 @@ def handle_fighter_advancement(
         stat_increased=stat_increased,
         skill=skill,
         equipment_assignment=equipment_assignment,
+        promotion_path=promotion_path,
         description=description,
     )
 
@@ -265,6 +273,7 @@ def _generate_outcome_description(
     stat_increased: Optional[str],
     skill: Optional[ContentSkill],
     equipment_assignment: Optional[ContentAdvancementAssignment],
+    promotion_path: Optional[ContentPromotionPath] = None,
     description: Optional[str],
 ) -> str:
     """Generate a human-readable outcome description for the advancement."""
@@ -282,6 +291,12 @@ def _generate_outcome_description(
         # Check for promotion
         if advancement_choice in ["skill_promote_specialist", "skill_promote_champion"]:
             outcome += " and was promoted"
+        return outcome
+
+    elif advancement_type == ListFighterAdvancement.ADVANCEMENT_PROMOTION:
+        outcome = promotion_path.name if promotion_path else "Promoted"
+        if skill:
+            outcome += f", gaining {skill.name} skill"
         return outcome
 
     elif advancement_type == ListFighterAdvancement.ADVANCEMENT_EQUIPMENT:
@@ -377,6 +392,8 @@ def handle_fighter_advancement_deletion(
         _reverse_stat_advancement(advancement, fighter, warnings)
     elif advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_SKILL:
         _reverse_skill_advancement(advancement, fighter, warnings)
+    elif advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_PROMOTION:
+        _reverse_promotion_advancement(advancement, fighter, warnings)
     elif advancement.advancement_type == ListFighterAdvancement.ADVANCEMENT_EQUIPMENT:
         # Equipment advancements require manual removal
         warnings.append(
@@ -519,19 +536,30 @@ def _reverse_skill_advancement(
     """
     Reverse a skill advancement.
 
-    Removes the skill from the fighter and recalculates category_override
-    if this was a promotion advancement.
+    Removes the skill from the fighter and recalculates category_override if this was a
+    legacy-era promotion (stored as a skill advancement with a skill_promote_* choice).
     """
     # Remove the skill
     if advancement.skill:
         fighter.skills.remove(advancement.skill)
 
-    # Handle promotion reversals
-    if advancement.advancement_choice in [
-        "skill_promote_specialist",
-        "skill_promote_champion",
-    ]:
+    # Handle promotion reversals (legacy rows resolve via the static choice map)
+    if advancement.resolved_promotion():
         _recalculate_category_override(fighter, advancement)
+
+
+@traced("_reverse_promotion_advancement")
+def _reverse_promotion_advancement(
+    advancement: ListFighterAdvancement,
+    fighter: ListFighter,
+    warnings: list[str],
+) -> None:
+    """
+    Reverse a promotion advancement: remove any bundled skill, recalculate the category.
+    """
+    if advancement.skill:
+        fighter.skills.remove(advancement.skill)
+    _recalculate_category_override(fighter, advancement)
 
 
 @traced("_recalculate_category_override")
@@ -542,44 +570,31 @@ def _recalculate_category_override(
     """
     Recalculate the fighter's category_override after a promotion advancement is deleted.
 
-    Looks at all remaining non-archived skill advancements with promotion choices
-    and sets category_override to the highest remaining promotion level.
-
-    Promotion hierarchy:
-    - Champion > Specialist > None
+    Rank-driven: every remaining non-archived advancement that resolves as a promotion
+    (data-driven rows via their ContentPromotionPath rank; legacy skill_promote_* rows via
+    the static map) competes, and the highest rank wins. No promotions remaining clears
+    the override.
 
     Args:
         fighter: The fighter to recalculate
         advancement_being_deleted: The advancement being deleted (excluded from calculation)
     """
-    # Import here to avoid circular imports
-    from gyrinx.models import FighterCategoryChoices
-
-    # Find remaining promotion advancements (excluding the one being deleted)
-    remaining_promotions = ListFighterAdvancement.objects.filter(
+    remaining = ListFighterAdvancement.objects.filter(
         fighter=fighter,
         archived=False,
-        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
-        advancement_choice__in=["skill_promote_specialist", "skill_promote_champion"],
+        advancement_type__in=[
+            ListFighterAdvancement.ADVANCEMENT_SKILL,
+            ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        ],
     ).exclude(id=advancement_being_deleted.id)
 
-    # Check for Champion promotions first (highest)
-    has_champion = remaining_promotions.filter(
-        advancement_choice="skill_promote_champion"
-    ).exists()
+    best = None
+    for adv in remaining:
+        resolved = adv.resolved_promotion()
+        if not resolved or not resolved.to_category:
+            continue
+        if best is None or resolved.rank > best.rank:
+            best = resolved
 
-    if has_champion:
-        fighter.category_override = FighterCategoryChoices.CHAMPION
-    else:
-        # Check for Specialist promotions
-        has_specialist = remaining_promotions.filter(
-            advancement_choice="skill_promote_specialist"
-        ).exists()
-
-        if has_specialist:
-            fighter.category_override = FighterCategoryChoices.SPECIALIST
-        else:
-            # No promotions remaining, clear the override
-            fighter.category_override = None
-
+    fighter.category_override = best.to_category if best else None
     fighter.save()

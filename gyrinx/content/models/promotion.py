@@ -237,6 +237,17 @@ class ContentPromotionPath(Content):
         if fighter.is_vehicle:
             raise ValidationError("A promotion target cannot be a vehicle type.")
 
+    def effective_to_category(self, target=None) -> str:
+        """The category the promoted fighter ends up with.
+
+        Explicit ``to_category`` wins; otherwise the chosen (or sole) target type's
+        category applies; empty string if neither is known (multi-target with no choice).
+        """
+        if self.to_category:
+            return self.to_category
+        target = target or self.targets.first()
+        return target.category if target else ""
+
     def is_available_to_fighter(self, list_fighter) -> bool:
         """Content-level availability gate: source match + house restriction.
 

@@ -9,6 +9,7 @@ from gyrinx.models import FighterCategoryChoices
 def test_fighter_advancement_flow_promote_specialist_to_champion(
     client,
     user,
+    default_promotions,
     make_content_house,
     make_content_fighter,
     make_content_skills_in_category,
@@ -44,6 +45,9 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
     # Log in the user
     client.force_login(user)
 
+    # The champion promotion is data-driven (seeded by the default_promotions fixture)
+    champion_key = f"promotion_{default_promotions[('SPECIALIST', 'CHAMPION')].id}"
+
     # 1: Get the URL for adding a champion promotion advancement
     url = reverse(
         "core:list-fighter-advancement-type",
@@ -54,7 +58,7 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
 
     # 2: Post data to create the champion promotion advancement
     post_data = {
-        "advancement_choice": "skill_promote_champion",
+        "advancement_choice": champion_key,
         "xp_cost": 12,
         "cost_increase": 40,
     }
@@ -74,7 +78,7 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
 
     # 3: Post the skill category choice to the correct URL (skill selection), including advancement params as query string
     advancement_params = {
-        "advancement_choice": "skill_promote_champion",
+        "advancement_choice": champion_key,
         "xp_cost": 12,
         "cost_increase": 40,
     }
@@ -90,7 +94,7 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
     # Directly test advancement creation and fighter promotion
     specialist_fighter.refresh_from_db()
     advancement_created = specialist_fighter.advancements.filter(
-        advancement_choice="skill_promote_champion"
+        advancement_choice=champion_key
     ).exists()
     assert advancement_created, "Champion promotion advancement was not created."
     assert specialist_fighter.get_category() == FighterCategoryChoices.CHAMPION, (
@@ -102,6 +106,7 @@ def test_fighter_advancement_flow_promote_specialist_to_champion(
 def test_fighter_advancement_flow_promote_ganger_specialist_to_champion(
     client,
     user,
+    default_promotions,
     make_content_house,
     make_content_fighter,
     make_content_skills_in_category,
@@ -153,6 +158,9 @@ def test_fighter_advancement_flow_promote_ganger_specialist_to_champion(
     # Log in the user
     client.force_login(user)
 
+    # The champion promotion is data-driven (seeded by the default_promotions fixture)
+    champion_key = f"promotion_{default_promotions[('SPECIALIST', 'CHAMPION')].id}"
+
     # 1: Get the URL for adding a champion promotion advancement
     url = reverse(
         "core:list-fighter-advancement-type",
@@ -163,7 +171,7 @@ def test_fighter_advancement_flow_promote_ganger_specialist_to_champion(
 
     # 2: Post data to create the champion promotion advancement
     post_data = {
-        "advancement_choice": "skill_promote_champion",
+        "advancement_choice": champion_key,
         "xp_cost": 12,
         "cost_increase": 40,
     }
@@ -183,7 +191,7 @@ def test_fighter_advancement_flow_promote_ganger_specialist_to_champion(
 
     # 3: Post the skill category choice to the correct URL (skill selection), including advancement params as query string
     advancement_params = {
-        "advancement_choice": "skill_promote_champion",
+        "advancement_choice": champion_key,
         "xp_cost": 12,
         "cost_increase": 40,
     }
@@ -199,7 +207,7 @@ def test_fighter_advancement_flow_promote_ganger_specialist_to_champion(
     # Directly test advancement creation and fighter promotion
     ganger_fighter.refresh_from_db()
     advancement_created = ganger_fighter.advancements.filter(
-        advancement_choice="skill_promote_champion"
+        advancement_choice=champion_key
     ).exists()
     assert advancement_created, "Champion promotion advancement was not created."
     assert ganger_fighter.get_category() == FighterCategoryChoices.CHAMPION, (

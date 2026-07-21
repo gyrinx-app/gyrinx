@@ -691,3 +691,20 @@ def pack_rule(pack, cc_user):
         owner=cc_user,
     )
     return rule
+
+
+@pytest.fixture
+def default_promotions(db):
+    """Seed the default promotion paths (Ganger→Specialist, Specialist→Champion).
+
+    The test DB is built with --nomigrations, so the data migration that seeds these in
+    real deployments never runs; tests that exercise the data-driven promotion flow seed
+    them explicitly with this fixture. Returns paths keyed by (from_category, to_category).
+    """
+    from gyrinx.content.models import ContentPromotionPath
+    from gyrinx.content.models.promotion import seed_default_promotions
+
+    seed_default_promotions(ContentPromotionPath)
+    return {
+        (p.from_category, p.to_category): p for p in ContentPromotionPath.objects.all()
+    }

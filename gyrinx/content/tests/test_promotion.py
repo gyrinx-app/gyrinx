@@ -427,32 +427,29 @@ def test_seed_creates_the_two_default_paths_with_exact_values():
     assert ContentPromotionPath.objects.count() == 2
 
 
-# --- A4 (linchpin): seed must reproduce today's hardcoded configs ----------------------
+# --- A4 (linchpin): seed must preserve the original hardcoded promotion values ----------
 
 
-def test_seed_matches_hardcoded_advancement_configs():
-    """The seed's cost/XP/rolls must equal the current hardcoded promotion configs.
+def test_seed_preserves_original_hardcoded_values():
+    """The seed must keep the exact values of the promotions it replaced.
 
-    This is what makes the Phase 2 refactor cost-NEUTRAL: if anyone edits an
-    ``ADVANCEMENT_CONFIGS`` number without the seed (or vice-versa), this fails. No DB needed.
-    The rolls check is membership by design — the seed's list is a superset that adds the
-    missing 12 (see the rules spec).
+    Until Phase 2, this invariant compared the seed against the (since-deleted) hardcoded
+    ``ADVANCEMENT_CONFIGS`` entries; now the expectations are frozen literals here —
+    Ganger→Specialist 6 XP +20¢ on 2 or 12, Specialist→Champion 12 XP +40¢, per the
+    rulebook's Gaining Experience tables. Editing a seed number breaks cost-neutrality
+    for existing gangs and must fail loudly.
     """
-    from gyrinx.core.forms.advancement import AdvancementTypeForm
-
-    configs = AdvancementTypeForm.ADVANCEMENT_CONFIGS
     by_legacy = {e["_legacy_choice"]: e for e in DEFAULT_PROMOTIONS}
-
-    # Both hardcoded promotion keys must be represented by a seed row.
     assert set(by_legacy) == {"skill_promote_specialist", "skill_promote_champion"}
 
-    for choice, entry in by_legacy.items():
-        config = configs[choice]
-        assert entry["xp_cost"] == config.xp_cost, choice
-        assert entry["cost_increase"] == config.cost_increase, choice
-        if config.roll is not None:
-            # The scalar hardcoded roll must be among the seed's roll list.
-            assert config.roll in entry["rolls"], choice
+    specialist = by_legacy["skill_promote_specialist"]
+    assert specialist["xp_cost"] == 6
+    assert specialist["cost_increase"] == 20
+    assert specialist["rolls"] == [2, 12]
+
+    champion = by_legacy["skill_promote_champion"]
+    assert champion["xp_cost"] == 12
+    assert champion["cost_increase"] == 40
 
 
 # --- seed ↔ migration snapshot: the frozen inline SEED must match today's constant ------

@@ -179,9 +179,13 @@ alongside `content_fighter`/`legacy_content_fighter` (`fighter.py:313-321`). Wat
   change, ships alone, de-risks Phase 3).
 - [x] **Phase 1** — `ContentPromotionPath` model (unified: kind/source/targets/threshold/timing)
   + frozen seed migration + admin. PR #1952.
-- [ ] **Phase 2** — wire the advancement flow through `ContentPromotionPath` (forms/handler/
+- [x] **Phase 2** — wire the advancement flow through `ContentPromotionPath` (forms/handler/
   views); generalise `_recalculate_category_override` to `rank`; `rolls`-driven 2d6 prefill.
   **Closes #1596** (admin adds a Juve→Specialist path, no code change). Cost-neutral, low risk.
+  Notes as built: `ADVANCEMENT_PROMOTION` type + `promotion_path` FK came forward from Phase 3
+  (RAW paths grant no skill; the SKILL type requires one); multi-target paths are gated out of
+  the choices until Phase 4's target-selection step; legacy `skill_promote_*` strings resolve
+  via a static map so historical rows apply/reverse without DB rows.
 - [ ] **Phase 3** — promotion access pointer on `ListFighter` (access-only: equipment
   `legacy > promotion > base`; skills/special rules `promotion > base`; statline/cost base
   only) + third-arm `Q()` filters + extend Phase 0 helper. Tests only, no UI.
