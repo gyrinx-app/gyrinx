@@ -23,7 +23,7 @@
                 <div class="form-label mb-1">Brought every battle</div>
                 <div class="vstack gap-2">
                     {% for row in always_rows %}
-                        <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                        <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
                             <div>
                                 <span class="fw-semibold">{{ row.name }}</span>
                                 {% if row.child_fighter %}<span class="text-secondary fs-7">· adds a fighter card</span>{% endif %}
@@ -42,7 +42,7 @@
                 {% if optional_rows %}
                     <div class="vstack gap-2">
                         {% for row in optional_rows %}
-                            <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                            <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
                                 <div class="form-check mb-0">
                                     <input class="form-check-input"
                                            type="checkbox"
