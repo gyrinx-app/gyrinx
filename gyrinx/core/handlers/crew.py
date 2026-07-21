@@ -94,11 +94,15 @@ def default_crew_eligibility_state(fighter, *, included_categories):
     unless their category is opted in (``included_categories`` — the campaign
     default seeds this); everyone else is eligible. Keyed on the fighter's
     *effective* category (``category_override`` wins).
+
+    Recovery keeps a fighter out of the next battle, but Convalescence does not
+    (it only bars post-battle actions — Core Rulebook), so a convalescing fighter
+    defaults to eligible.
     """
     if (
         fighter.is_captured
         or fighter.is_sold_to_guilders
-        or fighter.injury_state != ListFighter.ACTIVE
+        or fighter.injury_state in (ListFighter.RECOVERY, ListFighter.DEAD)
     ):
         return CREW_NOT_ELIGIBLE
     category = fighter.category_override or fighter.content_fighter.category

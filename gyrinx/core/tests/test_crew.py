@@ -969,16 +969,21 @@ def test_crew_eligibility_defaults_by_category(
 
 @pytest.mark.django_db
 def test_crew_eligibility_marks_injured_fighters_not_eligible(crew_setup):
-    hurt = crew_setup["fighters"][0]
-    hurt.injury_state = ListFighter.RECOVERY
-    hurt.save()
+    """Recovery and dead default to not-eligible; convalescence stays eligible —
+    convalescing fighters can take part in the next battle (Core Rulebook)."""
+    fighters = crew_setup["fighters"]
+    fighters[0].injury_state = ListFighter.RECOVERY
+    fighters[0].save()
+    fighters[1].injury_state = ListFighter.CONVALESCENCE
+    fighters[1].save()
     crew = Crew.objects.create(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
 
     states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
-    assert states[hurt.id] == CREW_NOT_ELIGIBLE
-    assert states[crew_setup["fighters"][1].id] == CREW_ELIGIBLE
+    assert states[fighters[0].id] == CREW_NOT_ELIGIBLE  # in recovery
+    assert states[fighters[1].id] == CREW_ELIGIBLE  # convalescing, still available
+    assert states[fighters[2].id] == CREW_ELIGIBLE  # active
 
 
 @pytest.mark.django_db
