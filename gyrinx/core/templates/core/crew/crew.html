@@ -239,6 +239,42 @@
                             {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                     {% endif %}
+                    {% if included_forecast %}
+                        {% comment %}
+                        Always-included fighters (hired guns, anyone marked
+                        Included) are only enrolled at lock, so forecast them on
+                        the draft overview — otherwise they're invisible until the
+                        crew is confirmed.
+                        {% endcomment %}
+                        {% for f in included_forecast.rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ f.name }}</strong>
+                                    <span class="text-secondary fs-7">· {{ f.category }}</span>
+                                    <span class="badge text-bg-secondary ms-1"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Joins regardless of the selection method">Always included</span>
+                                    <span class="text-secondary fs-7">· Default</span>
+                                </td>
+                                <td class="text-end text-secondary">{{ f.rating }}¢</td>
+                                <td></td>
+                                <td></td>
+                                {% if receipt.has_free %}
+                                    <td></td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                        <tr>
+                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}">
+                                <div class="border rounded p-2 fs-7 text-secondary">
+                                    <i class="bi-info-circle"></i>
+                                    <strong>Always included.</strong>
+                                    These fighters join regardless of the selection method — they're
+                                    enrolled when the crew is confirmed.
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
                     <tr>
                         <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
                             class="pt-3">
@@ -313,7 +349,9 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}<td></td>{% endif %}
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
                         </tr>
                         <tr>
                             <td class="text-secondary">Credits</td>
@@ -327,7 +365,9 @@
                             <td></td>
                             <td></td>
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
-                            {% if receipt.has_free %}<td></td>{% endif %}
+                            {% if receipt.has_free %}
+                                <td></td>
+                            {% endif %}
                         </tr>
                         {% if receipt.has_free %}
                             <tr>
@@ -350,6 +390,9 @@
                                 <span bs-tooltip
                                       data-bs-toggle="tooltip"
                                       title="Unknown until you roll for selection">?</span>
+                            {% elif included_forecast %}
+                                {{ provisional_total }}¢
+                                <span class="fs-7 fw-normal text-secondary">provisional</span>
                             {% else %}
                                 {{ receipt.total }}¢
                             {% endif %}

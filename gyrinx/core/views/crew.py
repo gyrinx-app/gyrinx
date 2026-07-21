@@ -33,6 +33,7 @@ from gyrinx.core.forms.crew import (
 from gyrinx.core.handlers.crew import (
     TOGGLEABLE_CREW_CATEGORIES,
     crew_battle_spread,
+    crew_included_forecast,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
     handle_crew_archive,
@@ -280,6 +281,20 @@ def crew_detail(request, battle_id, crew_id):
         # The receipt's own total is extras-only while there are no attendees.
         provisional_total = projection["total"] + receipt["total"]
 
+    # Always-included fighters (hired guns, anyone marked Included) are only
+    # enrolled at lock, so a draft's receipt misses them — forecast them here so
+    # they show on the overview alongside the picks / the draw. The whole-gang
+    # projection already covers them, so only when it isn't shown.
+    included_forecast = None
+    if not crew.is_locked and projection is None:
+        forecast = crew_included_forecast(crew)
+        if forecast["rows"]:
+            included_forecast = forecast
+            # A random/hybrid draw is still unknown, so the total stays "?" (the
+            # template keeps that); a custom draft can show a provisional total.
+            if not crew.pending_roll:
+                provisional_total = receipt["total"] + forecast["total"]
+
     # Informational only: how far this crew sits below the highest crew in the
     # battle, in credits. Just the number — the humans decide what, if anything,
     # it entitles them to. None when the gap can't be worked out (no opponent
@@ -299,6 +314,7 @@ def crew_detail(request, battle_id, crew_id):
             "show_rating_note": bool(note and note["differs"]),
             "rating_note": note,
             "projection": projection,
+            "included_forecast": included_forecast,
             "provisional_total": provisional_total,
             "can_edit_loadouts": bool(projection and can_manage),
             "rating_gap": rating_gap,
