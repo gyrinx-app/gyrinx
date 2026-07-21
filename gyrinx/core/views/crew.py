@@ -34,12 +34,14 @@ from gyrinx.core.handlers.crew import (
     TOGGLEABLE_CREW_CATEGORIES,
     crew_battle_spread,
     crew_included_forecast,
+    crew_stash_rows,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
     handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
     handle_crew_recipe_save,
+    handle_crew_stash_save,
 )
 from gyrinx.core.models import Battle
 from gyrinx.core.models.crew import Crew, CrewLineItem, CrewMember
@@ -452,6 +454,50 @@ def crew_setup(request, battle_id, crew_id):
                 extra=method_extra,
             ),
             "active_tab": "setup",
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def crew_stash(request, battle_id, crew_id):
+    """Choose which of the gang's stash equipment comes to the battle.
+
+    Deliberately NOT lock-gated: gang terrain and the like are picked after the
+    crew is drawn, so the selection stays editable on a locked crew.
+    Always-brought items (content flagged, e.g. the Iron Automaton) are shown but
+    can't be unticked — they come to every battle.
+    """
+    crew = _get_crew(battle_id, crew_id)
+
+    if not crew.can_manage(request.user):
+        messages.error(request, "You don't have permission to edit this crew.")
+        return _redirect_crew(crew)
+
+    if request.method == "POST":
+        # Malformed ids are navigation accidents; drop them — the handler also
+        # validates everything against the gang's stash.
+        ids = set()
+        for raw in request.POST.getlist("stash_items"):
+            try:
+                ids.add(uuid.UUID(str(raw)))
+            except ValueError:
+                continue
+        handle_crew_stash_save(user=request.user, crew=crew, assignment_ids=ids)
+        messages.success(request, "Crew stash updated.")
+        return _redirect_crew(crew)
+
+    rows = crew_stash_rows(crew)
+    return render(
+        request,
+        "core/crew/crew_stash.html",
+        {
+            "crew": crew,
+            "battle": crew.battle,
+            "gang": crew.list,
+            "always_rows": [r for r in rows if r["always_brought"]],
+            "optional_rows": [r for r in rows if not r["always_brought"]],
+            "active_tab": "stash",
         },
     )
 

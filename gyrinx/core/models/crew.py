@@ -649,38 +649,57 @@ class Crew(AppBase):
         """ListFighter ids to print for this crew, or ``None`` for the whole gang.
 
         A locked crew prints its frozen attendees; a draft prints the fighters
-        chosen so far. A draft with no members (a whole-gang crew, or one whose
-        attendees are all still to be drawn) has nothing specific to narrow to,
-        so returns ``None`` and the print falls back to the whole gang.
+        chosen so far. Either way the linked fighter cards of the stash items the
+        crew brings (a gun emplacement) print alongside the crew's own cards. A
+        draft with no members (a whole-gang crew, or one whose attendees are all
+        still to be drawn) has nothing specific to narrow to, so returns ``None``
+        and the print falls back to the whole gang.
         """
         ids = list(self.members.values_list("list_fighter_id", flat=True))
-        if self.is_locked:
-            return ids
-        return ids or None
+        if not self.is_locked and not ids:
+            return None
+        return ids + self._stash_child_fighter_ids()
+
+    def _stash_child_fighter_ids(self):
+        """Ids of the fighter cards linked to the stash items this crew brings."""
+        from gyrinx.core.handlers.crew import crew_stash_lines
+
+        return [
+            row["child_fighter"].id
+            for row in crew_stash_lines(self)["rows"]
+            if row["child_fighter"] is not None
+        ]
 
     def extras_total(self):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
         return sum(item.cost for item in self.line_items.all())
 
     def credits_value(self):
-        """The crew's fighter rating plus its extra line items.
+        """The crew's fighter rating plus its extra line items and the stash
+        equipment it brings.
 
         NOT the rulebook's underdog-comparison quantity, despite the tempting
         name: scenarios compare the credits value of the *fighters* in each
         starting crew (Core Rulebook p238), and extras — tactics cards, hired
-        help — never enter that comparison. The quantity to compare is
-        :meth:`rating`; this sum (rating + extras) is only a headline total.
+        help, stash gear — never enter that comparison. The quantity to compare
+        is :meth:`rating`; this sum is only a headline total.
         """
-        return self.rating() + self.extras_total()
+        from gyrinx.core.handlers.crew import crew_stash_lines
+
+        return self.rating() + self.extras_total() + crew_stash_lines(self)["total"]
 
     def receipt(self):
-        """Columnar receipt for the crew page, grouped into a Fighters section
-        and an Extras section. Each fighter contributes to the Rating column;
-        each extra falls in the Credits, Allowance, or Free column by how it is
-        paid for. Returns the grouped rows, the per-column totals (for the
-        annotated subtotal rows), the grand total (the crew's credits value),
-        and the selection note. One batch load; the extras are computed live and
-        only the two rating snapshots are ever persisted."""
+        """Columnar receipt for the crew page, grouped into Fighters, Stash, and
+        Extras sections. Each fighter contributes to the Rating column; each
+        extra falls in the Credits, Allowance, or Free column by how it is paid
+        for; brought stash items rate at their equipment cost. Returns the
+        grouped rows, the per-column totals (for the annotated subtotal rows),
+        the grand total (the crew's credits value), and the selection note. One
+        batch load; the extras and stash are computed live — the stash selection
+        is editable even after the lock — and only the two rating snapshots are
+        ever persisted."""
+        from gyrinx.core.handlers.crew import crew_stash_lines
+
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
         # The played snapshot is the crew's rating once the battle has frozen
@@ -719,11 +738,24 @@ class Crew(AppBase):
                 }
             )
 
-        total = fighters_total + credits_total + allowance_total + free_total
+        stash = crew_stash_lines(self)
+        total = (
+            fighters_total
+            + credits_total
+            + allowance_total
+            + free_total
+            + stash["total"]
+        )
         return {
             "attendees": attendees,
             "extras": extras,
             "has_extras": bool(extras),
+            # The stash items this crew brings — live, like the extras: the
+            # selection can change even after the lock, so it never enters the
+            # frozen rating snapshots.
+            "stash": stash["rows"],
+            "has_stash": bool(stash["rows"]),
+            "stash_total": stash["total"],
             "fighters_total": fighters_total,
             "credits_total": credits_total,
             "allowance_total": allowance_total,

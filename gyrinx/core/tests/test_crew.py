@@ -4735,3 +4735,145 @@ def test_top_level_gang_terrain_is_not_crew_selectable(
 
     ids = {r["fighter"].id for r in crew_eligibility(crew)}
     assert terrain.id not in ids
+
+
+@pytest.mark.django_db
+def test_stash_tab_renders_and_saves(client, crew_setup, make_equipment):
+    """The Stash tab lists always-brought and optional items, and a POST of the
+    ticked ids saves the selection — including on a locked crew."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+    )
+    client.force_login(crew_setup["user"])
+    url = reverse("core:crew-stash", args=[crew.battle_id, crew.id])
+
+    resp = client.get(url)
+    assert resp.status_code == 200
+    assert [r["name"] for r in resp.context["always_rows"]] == ["Iron Automaton"]
+    assert {r["name"] for r in resp.context["optional_rows"]} == {
+        "Ammo Cache",
+        "Boarding Ram",
+    }
+
+    resp = client.post(url, {"stash_items": [str(gear["Ammo Cache"].id)]})
+    assert resp.status_code == 302
+    assert set(crew.stash_items.values_list("assignment_id", flat=True)) == {
+        gear["Ammo Cache"].id
+    }
+
+
+@pytest.mark.django_db
+def test_stash_tab_requires_manage_permission(
+    client, crew_setup, make_equipment, make_user
+):
+    _stash_with_gear(crew_setup, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    client.force_login(make_user("stranger", "pw"))
+
+    resp = client.get(reverse("core:crew-stash", args=[crew.battle_id, crew.id]))
+
+    assert resp.status_code == 302  # redirected away
+
+
+@pytest.mark.django_db
+def test_receipt_includes_brought_stash(crew_setup, make_equipment):
+    """Brought stash items get their own receipt section and count in the total —
+    the automaton automatically, ticked items by row."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    handle_crew_stash_save(
+        user=crew_setup["user"], crew=crew, assignment_ids={gear["Ammo Cache"].id}
+    )
+
+    receipt = crew.receipt()
+
+    assert receipt["has_stash"] is True
+    assert {r["name"] for r in receipt["stash"]} == {"Ammo Cache", "Iron Automaton"}
+    assert receipt["stash_total"] == 20 + 200
+    # Fighter (100) + stash (220): stash counts in the total...
+    assert receipt["total"] == 100 + 220
+    # ...but never in the fighters' own subtotal.
+    assert receipt["fighters_total"] == 100
+
+
+@pytest.mark.django_db
+def test_stash_stays_out_of_frozen_rating_snapshots(crew_setup, make_equipment):
+    """Locking snapshots the fighters only — the stash stays live because its
+    selection can change after the lock."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    handle_crew_stash_save(
+        user=crew_setup["user"], crew=crew, assignment_ids={gear["Boarding Ram"].id}
+    )
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew)
+
+    crew.refresh_from_db()
+    # One 100¢ ganger; the 35¢ ram and 200¢ automaton aren't frozen in.
+    assert crew.rating_selected == 100
+
+
+@pytest.mark.django_db
+def test_print_includes_stash_child_fighter_cards(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The linked fighter cards of brought stash items (a gun emplacement) print
+    alongside the crew's own cards."""
+    from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    gang = crew_setup["gang"]
+    gang.ensure_stash(owner=crew_setup["user"])
+    stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
+    emplacement = make_equipment(name="Gun Emplacement", cost=150)
+    terrain_type = make_content_fighter(
+        type="Gun Emplacement",
+        category=FighterCategoryChoices.GANG_TERRAIN,
+        house=crew_setup["fighters"][0].content_fighter.house,
+        base_cost=0,
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=emplacement, content_fighter=terrain_type
+    )
+    assignment = stash.assign(emplacement)
+
+    # A whole-gang draft prints everything — no narrowing, children included.
+    whole = Crew.objects.create(
+        battle=crew_setup["battle"], list=gang, owner=crew_setup["user"]
+    )
+    assert whole.print_fighter_ids() is None
+    whole.delete()
+
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=gang,
+        owner=crew_setup["user"],
+        custom_count=1,
+        status=Crew.LOCKED,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    handle_crew_stash_save(
+        user=crew_setup["user"], crew=crew, assignment_ids={assignment.id}
+    )
+
+    ids = crew.print_fighter_ids()
+
+    assert crew_setup["fighters"][0].id in ids
+    assert assignment.child_fighter_id in ids

@@ -1,16 +1,26 @@
-{# Set up / Choose tabs for a draft crew. Params: battle, crew, active_tab. #}
-{# Only a draft crew is editable, so the tabs are hidden once it's locked. #}
-{% if crew and not crew.is_locked %}
+{# Set up / Choose / Stash tabs for a crew. Params: battle, crew, active_tab. #}
+{# Set up and Choose only apply to a draft; the stash selection stays editable #}
+{# after the lock (gang terrain is picked post-draw), so Stash always shows. #}
+{% if crew %}
     <ul class="nav nav-tabs" role="tablist">
+        {% if not crew.is_locked %}
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if active_tab == 'setup' %}active{% endif %}"
+                   href="{% url 'core:crew-setup' battle.id crew.id %}"
+                   {% if active_tab == 'setup' %}aria-current="page"{% endif %}>1. Set up</a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link {% if active_tab == 'choose' %}active{% endif %}"
+                   href="{% url 'core:crew-edit' battle.id crew.id %}"
+                   {% if active_tab == 'choose' %}aria-current="page"{% endif %}>2. Choose</a>
+            </li>
+        {% endif %}
         <li class="nav-item" role="presentation">
-            <a class="nav-link {% if active_tab == 'setup' %}active{% endif %}"
-               href="{% url 'core:crew-setup' battle.id crew.id %}"
-               {% if active_tab == 'setup' %}aria-current="page"{% endif %}>1. Set up</a>
-        </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link {% if active_tab == 'choose' %}active{% endif %}"
-               href="{% url 'core:crew-edit' battle.id crew.id %}"
-               {% if active_tab == 'choose' %}aria-current="page"{% endif %}>2. Choose</a>
+            <a class="nav-link {% if active_tab == 'stash' %}active{% endif %}"
+               href="{% url 'core:crew-stash' battle.id crew.id %}"
+               {% if active_tab == 'stash' %}aria-current="page"{% endif %}>
+                {% if not crew.is_locked %}3.{% endif %} Stash
+            </a>
         </li>
     </ul>
 {% endif %}
