@@ -503,10 +503,12 @@ class AdvancementTypeForm(forms.Form):
         # stat configs, whose rolls (3–11) never overlap with promotion totals.
         for path in ContentPromotionPath.objects.filter(
             rolls__contains=campaign_action.dice_total
-        ):
+        ).prefetch_related("targets", "restricted_to_houses"):
             if fighter and not path.is_available_to_fighter(fighter):
                 continue
-            if path.targets.count() > 1:
+            # Prefetched, so len() avoids a COUNT(*) per path. Multi-target paths can't
+            # be prefilled — the roll flow has no target-selection step.
+            if len(path.targets.all()) > 1:
                 continue
             advancement_choice = promotion_choice_key(path)
             cost_increase = path.cost_increase
