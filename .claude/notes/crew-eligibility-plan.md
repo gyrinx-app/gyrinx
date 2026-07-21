@@ -90,10 +90,13 @@ Two-halved selection screen:
    make the eligibility screen the crew's **setup step**: it owns the method
    picker *and* the crew-size input *and* the eligibility table; the selection
    form (crew_edit) then does only the picks. Decisions locked:
-   - **crew_size drives draws only** (dice notation kept as fallback). At lock,
-     for Random/Hybrid: `drawn = max(0, crew_size - chosen_count)` when
-     `crew_size` is set, else roll `random_spec`. Custom keeps its own pick
-     count; crew_size doesn't apply to it.
+   - **[BUILT — 4a] crew_size drives draws only** (dice notation kept as
+     fallback). At lock, for Random/Hybrid: `drawn = max(0, crew_size -
+     chosen_count)` when `crew_size` is set, else roll `random_spec`. Custom
+     keeps its own pick count; crew_size doesn't apply to it. The setup screen
+     (crew_eligibility_edit) now shows a `crew_size` input for random/hybrid
+     crews; the selection form drops the dice inputs when crew_size is set. Done
+     without moving the method picker (see 4b) — low blast radius, all green.
    - **Method moves onto the setup screen.** Keep it URL-driven (a picker of
      links, `?method=`), because it server-renders which crew-size / count copy
      shows — not a client-reactive radio.

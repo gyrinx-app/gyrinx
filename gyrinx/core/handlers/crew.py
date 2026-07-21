@@ -788,7 +788,16 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
     drawn = []
     drawn_cards = []
     if crew.selection_method in (Crew.RANDOM, Crew.HYBRID):
-        random_count, roll_detail = roll_selection_spec(crew.random_spec, rng=rng)
+        if crew.crew_size is not None:
+            # crew_size is the scenario's total selected count: draw enough to
+            # bring the crew up to it, on top of whatever was chosen. Random has
+            # no chosen fighters, so it draws the full crew_size; Hybrid draws
+            # the remainder after the picks. Dice notation (random_spec) is the
+            # fallback when no explicit size is set.
+            random_count = max(0, crew.crew_size - chosen_count)
+            roll_detail = f"crew size {crew.crew_size}"
+        else:
+            random_count, roll_detail = roll_selection_spec(crew.random_spec, rng=rng)
         if random_count > 0:
             # Exclude everyone already on the crew, not just the chosen ones:
             # re-drawing a present fighter would trip unique(crew, list_fighter).

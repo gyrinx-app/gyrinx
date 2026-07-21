@@ -88,6 +88,13 @@
                     {{ form.random_dice.errors }}
                     {{ form.random_number.errors }}
                 </div>
+            {% elif form.crew_size_drives and crew %}
+                <div class="form-text mt-0">
+                    <i class="bi-dice-5 me-1" aria-hidden="true"></i>
+                    This crew draws up to its crew size of {{ form.crew_size }} at random when confirmed — set on the
+                    <a href="{% url 'core:crew-eligibility' battle.id crew.id %}"
+                       class="linked">eligibility screen</a>.
+                </div>
             {% endif %}
             {% if form.shows_picks %}
                 <div>

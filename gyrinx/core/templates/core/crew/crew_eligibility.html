@@ -20,6 +20,14 @@
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {{ form.non_field_errors }}
+            {% if form.shows_crew_size %}
+                <div>
+                    <label class="form-label" for="{{ form.crew_size.id_for_label }}">{{ form.crew_size.label }}</label>
+                    {{ form.crew_size }}
+                    <div class="form-text">{{ form.crew_size.help_text }}</div>
+                    {{ form.crew_size.errors }}
+                </div>
+            {% endif %}
             {% if form.fighter_rows %}
                 <div class="vstack gap-2">
                     {% for row in form.fighter_rows %}

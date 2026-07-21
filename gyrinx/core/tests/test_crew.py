@@ -1261,6 +1261,121 @@ def test_eligibility_form_diffs_hired_gun_override(
     assert crew.eligibility_overrides == {str(hired.id): CREW_ELIGIBLE}
 
 
+# --- Crew size (setup screen) drives the random draw ------------------------
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_shows_crew_size_only_for_random_and_hybrid(
+    client, crew_setup
+):
+    client.force_login(crew_setup["user"])
+    shown = {}
+    for method in (Crew.CUSTOM, Crew.RANDOM, Crew.HYBRID):
+        crew = Crew.objects.create(
+            battle=crew_setup["battle"],
+            list=crew_setup["gang"],
+            owner=crew_setup["user"],
+            selection_method=method,
+        )
+        resp = client.get(
+            reverse("core:crew-eligibility", args=[crew.battle_id, crew.id])
+        )
+        shown[method] = resp.context["form"].shows_crew_size
+        crew.delete()
+    assert shown == {Crew.CUSTOM: False, Crew.RANDOM: True, Crew.HYBRID: True}
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_saves_crew_size(client, crew_setup):
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+    )
+    client.force_login(crew_setup["user"])
+    data = _eligibility_post_data(crew)
+    data["crew_size"] = "4"
+
+    client.post(reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]), data)
+
+    crew.refresh_from_db()
+    assert crew.crew_size == 4
+
+
+@pytest.mark.django_db
+def test_crew_size_drives_random_draw(crew_setup):
+    """A random crew with a crew size draws exactly that many, ignoring the spec."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        crew_size=3,
+    )
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
+
+    assert crew.members.filter(source=CrewMember.DRAWN).count() == 3
+
+
+@pytest.mark.django_db
+def test_crew_size_drives_hybrid_remainder(crew_setup):
+    """A hybrid crew draws up to its crew size, on top of the chosen fighters."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.HYBRID,
+        custom_count=2,
+        crew_size=4,
+    )
+    add_chosen(crew, crew_setup["fighters"][:2])
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
+
+    assert crew.members.filter(source=CrewMember.CHOSEN).count() == 2
+    # 4 total wanted, 2 chosen, so 2 drawn.
+    assert crew.members.filter(source=CrewMember.DRAWN).count() == 2
+
+
+@pytest.mark.django_db
+def test_draw_falls_back_to_random_spec_without_crew_size(crew_setup):
+    """With no crew size, the draw still rolls the dice-notation spec."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        random_spec="2",
+    )
+
+    handle_crew_lock(user=crew_setup["user"], crew=crew, rng=Random(0))
+
+    assert crew.members.filter(source=CrewMember.DRAWN).count() == 2
+
+
+@pytest.mark.django_db
+def test_selection_form_drops_dice_inputs_when_crew_size_set(crew_setup):
+    """When crew size drives the draw, the selection form neither shows nor
+    requires the dice inputs."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.RANDOM,
+        crew_size=3,
+    )
+
+    form = CrewForm(
+        data={"name": ""}, instance=crew, gang=crew_setup["gang"], method=Crew.RANDOM
+    )
+
+    assert form.shows_random is False
+    assert form.crew_size_drives is True
+    assert form.is_valid(), form.errors  # no dice number required
+
+
 # --- Category include set (seeded, carried through the selection form) ------
 #
 # Hangers-on and vehicle crew are hidden from the pool by default. The category
