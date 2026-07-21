@@ -4877,3 +4877,49 @@ def test_print_includes_stash_child_fighter_cards(
 
     assert crew_setup["fighters"][0].id in ids
     assert assignment.child_fighter_id in ids
+
+
+@pytest.mark.django_db
+def test_always_brought_with_child_fighter_appears_untouched(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The Iron Automaton case end to end: fighter-linked equipment flagged
+    always-brought appears on a brand-new crew — stash never touched — with its
+    child fighter card, and prints, without any CrewStashItem stored."""
+    from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    gang = crew_setup["gang"]
+    gang.ensure_stash(owner=crew_setup["user"])
+    stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
+    auto = make_equipment(name="Iron Automaton", cost=200)
+    auto.crew_always_brought = True
+    auto.save()
+    auto_type = make_content_fighter(
+        type="Iron Automaton",
+        category=FighterCategoryChoices.BRUTE,
+        house=crew_setup["fighters"][0].content_fighter.house,
+        base_cost=0,
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=auto, content_fighter=auto_type
+    )
+    assignment = stash.assign(auto)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=gang,
+        owner=crew_setup["user"],
+        custom_count=1,
+        status=Crew.LOCKED,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    receipt = crew.receipt()
+
+    # On the sheet automatically, with its fighter card, nothing stored.
+    assert crew.stash_items.count() == 0
+    row = next(r for r in receipt["stash"] if r["name"] == "Iron Automaton")
+    assert row["always_brought"] is True
+    assert row["child_fighter"].id == assignment.child_fighter_id
+    assert receipt["stash_total"] == 200
+    # And its card prints with the crew.
+    assert assignment.child_fighter_id in crew.print_fighter_ids()

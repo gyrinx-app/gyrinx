@@ -605,3 +605,24 @@ def test_contentmod_changelist_renders_mod_string(client, admin_user):
     assert "Worsen fighter" in html
     # ...and the un-downcast base description is not.
     assert "Base Modification" not in html
+
+
+@pytest.mark.django_db
+def test_fighter_display_tolerates_dangling_house(make_content_fighter, content_house):
+    """A dangling house FK (local template-data drift) must not make a fighter
+    unprintable — that used to 500 every admin page listing fighters."""
+    import uuid
+
+    from gyrinx.content.admin import fighter_house_name
+    from gyrinx.models import FighterCategoryChoices
+
+    fighter = make_content_fighter(
+        type="Drifter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=10,
+    )
+    fighter.house_id = uuid.uuid4()  # dangling, in memory only
+
+    assert "Drifter" in str(fighter)
+    assert fighter_house_name(fighter) == "No House"

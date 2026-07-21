@@ -261,7 +261,12 @@ class ContentFighter(Content):
         """
         Returns a string representation, including house and fighter category.
         """
-        house = f"{self.house}" if self.house else ""
+        try:
+            house = f"{self.house}" if self.house else ""
+        except models.ObjectDoesNotExist:
+            # A dangling house FK (local template-data drift) must not make the
+            # fighter unprintable — that 500s any admin page listing fighters.
+            house = ""
         return f"{house} {self.type} ({FighterCategoryChoices[self.category].label})".strip()
 
     def cat(self):
