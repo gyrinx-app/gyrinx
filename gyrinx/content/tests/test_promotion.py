@@ -1,8 +1,9 @@
 """Phase 1 tests for content-driven promotions (#1596 / #1467 epic).
 
-Covers the ``ContentPromotionCategoryPath`` model and its default seed. See the test matrix
+Covers the ``ContentPromotionPath`` model and its default seed. See the test matrix
 (Group G, plus linchpins A4 and the core/content drift guard) in
-``.claude/notes/promotions-epic-design.md``.
+``.claude/notes/promotions-epic-design.md`` and the rules research in
+``.claude/notes/promotions-rules-spec.md``.
 
 These tests are deliberately non-vacuous: each asserts a concrete value/state and names the
 regression it guards against.
@@ -11,11 +12,11 @@ regression it guards against.
 import pytest
 from django.core.exceptions import ValidationError
 
-from gyrinx.content.models import ContentHouse, ContentPromotionCategoryPath
+from gyrinx.content.models import ContentHouse, ContentPromotionPath
 from gyrinx.content.models.promotion import (
-    DEFAULT_CATEGORY_PROMOTIONS,
+    DEFAULT_PROMOTIONS,
     PROMOTION_TARGET_CATEGORIES,
-    seed_category_promotions,
+    seed_default_promotions,
 )
 from gyrinx.models import FighterCategoryChoices
 
@@ -23,12 +24,13 @@ from gyrinx.models import FighterCategoryChoices
 def _make_path(**kwargs):
     defaults = dict(
         name="Promote to Specialist",
+        kind=ContentPromotionPath.Kind.RELABEL,
         from_category=FighterCategoryChoices.GANGER,
         to_category=FighterCategoryChoices.SPECIALIST,
         xp_cost=6,
     )
     defaults.update(kwargs)
-    return ContentPromotionCategoryPath(**defaults)
+    return ContentPromotionPath(**defaults)
 
 
 # --- G1: readable __str__ -------------------------------------------------------------
@@ -38,6 +40,17 @@ def test_str_renders_name_and_transition():
     path = _make_path(name="Promote to Specialist")
     # Catches: admin changelist rendering by object id/ctype instead of a readable label (cf #1942).
     assert str(path) == "Promote to Specialist (GANGER → SPECIALIST)"
+
+
+def test_str_renders_chosen_type_for_target_driven_paths():
+    path = _make_path(
+        name="Promotion",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.PROSPECT,
+        to_category="",
+    )
+    # Catches: blank to_category (target decides the category) rendering as "... → )".
+    assert str(path) == "Promotion (PROSPECT → chosen type)"
 
 
 # --- G2/G3: clean() validation --------------------------------------------------------
@@ -70,9 +83,73 @@ def test_clean_rejects_target_outside_allowed_overrides():
 
 
 @pytest.mark.django_db
+def test_clean_relabel_requires_to_category():
+    path = _make_path(kind=ContentPromotionPath.Kind.RELABEL, to_category="")
+    # Catches: a relabel with no destination — nothing for category_override to apply.
+    with pytest.raises(ValidationError) as exc:
+        path.full_clean()
+    assert "to_category" in exc.value.message_dict
+
+
+@pytest.mark.django_db
+def test_clean_type_change_allows_blank_to_category():
+    # Family C paths can promote to targets of differing categories (e.g. Badzone Hive Scum
+    # → a Ganger type); the chosen target's category decides, so to_category may be blank.
+    path = _make_path(
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.PROSPECT,
+        to_category="",
+    )
+    path.full_clean()  # must not raise
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "bad_rolls",
+    [[1], [13], [2, "2"], [2, 2], [True]],
+    ids=["below-range", "above-range", "non-int", "duplicate", "bool"],
+)
+def test_clean_rejects_invalid_rolls(bad_rolls):
+    path = _make_path(rolls=bad_rolls)
+    # Catches: admin-authored rolls JSON that Phase 2's 2d6 prefill would mis-handle.
+    with pytest.raises(ValidationError) as exc:
+        path.full_clean()
+    assert "rolls" in exc.value.message_dict
+
+
+@pytest.mark.django_db
 def test_clean_allows_valid_promotion():
-    # A sanity anchor so the two reject-tests above can't pass by clean() always raising.
-    _make_path().full_clean()  # must not raise
+    # A sanity anchor so the reject-tests above can't pass by clean() always raising.
+    _make_path(rolls=[2, 12]).full_clean()  # must not raise
+
+
+@pytest.mark.django_db
+def test_clean_target_rejects_stash_and_vehicle(make_content_fighter, content_house):
+    stash_cf = make_content_fighter(
+        type="Stash",
+        category=FighterCategoryChoices.STASH,
+        house=content_house,
+        base_cost=0,
+        is_stash=True,
+    )
+    vehicle_cf = make_content_fighter(
+        type="Ridgehauler",
+        category=FighterCategoryChoices.VEHICLE,
+        house=content_house,
+        base_cost=100,
+    )
+    ok_cf = make_content_fighter(
+        type="Forge Boss",
+        category=FighterCategoryChoices.CHAMPION,
+        house=content_house,
+        base_cost=125,
+    )
+    # Catches: a promotion turning a fighter into the stash or a vehicle (identity guardrail).
+    with pytest.raises(ValidationError):
+        ContentPromotionPath.clean_target(stash_cf)
+    with pytest.raises(ValidationError):
+        ContentPromotionPath.clean_target(vehicle_cf)
+    ContentPromotionPath.clean_target(ok_cf)  # must not raise
 
 
 # --- G4: rank ordering (data source for the reversal hierarchy) -----------------------
@@ -80,14 +157,15 @@ def test_clean_allows_valid_promotion():
 
 @pytest.mark.django_db
 def test_default_ordering_is_by_rank():
-    champion = ContentPromotionCategoryPath.objects.create(
+    champion = ContentPromotionPath.objects.create(
         name="Promote to Champion",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
         from_category=FighterCategoryChoices.SPECIALIST,
         to_category=FighterCategoryChoices.CHAMPION,
         rank=2,
         xp_cost=12,
     )
-    specialist = ContentPromotionCategoryPath.objects.create(
+    specialist = ContentPromotionPath.objects.create(
         name="Promote to Specialist",
         from_category=FighterCategoryChoices.GANGER,
         to_category=FighterCategoryChoices.SPECIALIST,
@@ -95,7 +173,44 @@ def test_default_ordering_is_by_rank():
         xp_cost=6,
     )
     # Catches: the reversal hierarchy (Champion > Specialist) losing its data ordering.
-    assert list(ContentPromotionCategoryPath.objects.all()) == [specialist, champion]
+    assert list(ContentPromotionPath.objects.all()) == [specialist, champion]
+
+
+# --- targets: the "pick Forge Boss or Stimmer" case -----------------------------------
+
+
+@pytest.mark.django_db
+def test_type_change_holds_multiple_targets(make_content_fighter, content_house):
+    prospect_cf = make_content_fighter(
+        type="Forge-born",
+        category=FighterCategoryChoices.PROSPECT,
+        house=content_house,
+        base_cost=50,
+    )
+    forge_boss = make_content_fighter(
+        type="Forge Boss",
+        category=FighterCategoryChoices.CHAMPION,
+        house=content_house,
+        base_cost=125,
+    )
+    stimmer = make_content_fighter(
+        type="Stimmer",
+        category=FighterCategoryChoices.CHAMPION,
+        house=content_house,
+        base_cost=125,
+    )
+    path = ContentPromotionPath.objects.create(
+        name="Promotion (Forge Boss or Stimmer)",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.PROSPECT,
+        source_fighter=prospect_cf,
+        xp_cost=0,
+        advancements_threshold=5,
+        timing=ContentPromotionPath.Timing.DOWNTIME,
+    )
+    path.targets.set([forge_boss, stimmer])
+    # Catches: dual-Champion paths collapsing to a single target (the original #1467 symptom).
+    assert set(path.targets.values_list("type", flat=True)) == {"Forge Boss", "Stimmer"}
 
 
 # --- G5: content-level availability gate ----------------------------------------------
@@ -121,7 +236,7 @@ def test_is_available_matches_from_category(
     ganger = make_list_fighter(lst, "G", content_fighter=ganger_cf)
     juve = make_list_fighter(lst, "J", content_fighter=juve_cf)
 
-    path = ContentPromotionCategoryPath.objects.create(
+    path = ContentPromotionPath.objects.create(
         name="Promote to Specialist",
         from_category=FighterCategoryChoices.GANGER,
         to_category=FighterCategoryChoices.SPECIALIST,
@@ -131,6 +246,39 @@ def test_is_available_matches_from_category(
     # category — the exact class of bug behind #1596.
     assert path.is_available_to_fighter(ganger) is True
     assert path.is_available_to_fighter(juve) is False
+
+
+@pytest.mark.django_db
+def test_is_available_matches_source_fighter(
+    make_content_fighter, make_list, make_list_fighter, content_house
+):
+    wrecker_cf = make_content_fighter(
+        type="Wrecker",
+        category=FighterCategoryChoices.PROSPECT,
+        house=content_house,
+        base_cost=45,
+    )
+    other_prospect_cf = make_content_fighter(
+        type="Neotek",
+        category=FighterCategoryChoices.PROSPECT,
+        house=content_house,
+        base_cost=45,
+    )
+    lst = make_list("Gang")
+    wrecker = make_list_fighter(lst, "W", content_fighter=wrecker_cf)
+    other = make_list_fighter(lst, "N", content_fighter=other_prospect_cf)
+
+    path = ContentPromotionPath.objects.create(
+        name="Promotion (Road Sergeant or Arms Master)",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.PROSPECT,
+        source_fighter=wrecker_cf,
+        xp_cost=0,
+    )
+    # Catches: a house-specific path keyed to one fighter type leaking to every fighter of the
+    # same category (both are Prospects; only the Wrecker should see this path).
+    assert path.is_available_to_fighter(wrecker) is True
+    assert path.is_available_to_fighter(other) is False
 
 
 @pytest.mark.django_db
@@ -147,7 +295,7 @@ def test_is_available_respects_house_restriction(
     ganger = make_list_fighter(lst, "G", content_fighter=ganger_cf)
 
     other_house = ContentHouse.objects.create(name="Some Other House")
-    path = ContentPromotionCategoryPath.objects.create(
+    path = ContentPromotionPath.objects.create(
         name="Promote to Specialist",
         from_category=FighterCategoryChoices.GANGER,
         to_category=FighterCategoryChoices.SPECIALIST,
@@ -167,30 +315,33 @@ def test_is_available_respects_house_restriction(
 
 @pytest.mark.django_db
 def test_seed_creates_the_two_default_paths_with_exact_values():
-    seed_category_promotions(ContentPromotionCategoryPath)
+    seed_default_promotions(ContentPromotionPath)
 
     by_pair = {
-        (p.from_category, p.to_category): p
-        for p in ContentPromotionCategoryPath.objects.all()
+        (p.from_category, p.to_category): p for p in ContentPromotionPath.objects.all()
     }
     assert len(by_pair) == 2
 
     specialist = by_pair[("GANGER", "SPECIALIST")]
     assert specialist.name == "Promote to Specialist"
+    assert specialist.kind == ContentPromotionPath.Kind.RELABEL
     assert specialist.rank == 1
     assert specialist.xp_cost == 6
     assert specialist.cost_increase == 20
-    assert specialist.rolls == [2, 12]  # the "also roll 12" fix baked into the seed
+    assert specialist.rolls == [2, 12]  # rules: a roll of 2 or 12 promotes
+    assert specialist.timing == ContentPromotionPath.Timing.POST_BATTLE
 
     champion = by_pair[("SPECIALIST", "CHAMPION")]
     assert champion.name == "Promote to Champion"
+    assert champion.kind == ContentPromotionPath.Kind.TYPE_CHANGE
     assert champion.rank == 2
     assert champion.xp_cost == 12
     assert champion.cost_increase == 40
+    assert champion.targets.count() == 0  # per-house champion types are admin-authored
 
-    # Idempotent — re-running never duplicates (the migration may run alongside a prod estate).
-    seed_category_promotions(ContentPromotionCategoryPath)
-    assert ContentPromotionCategoryPath.objects.count() == 2
+    # Idempotent — re-running never duplicates.
+    seed_default_promotions(ContentPromotionPath)
+    assert ContentPromotionPath.objects.count() == 2
 
 
 # --- A4 (linchpin): seed must reproduce today's hardcoded configs ----------------------
@@ -201,11 +352,13 @@ def test_seed_matches_hardcoded_advancement_configs():
 
     This is what makes the Phase 2 refactor cost-NEUTRAL: if anyone edits an
     ``ADVANCEMENT_CONFIGS`` number without the seed (or vice-versa), this fails. No DB needed.
+    The rolls check is membership by design — the seed's list is a superset that adds the
+    missing 12 (see the rules spec).
     """
     from gyrinx.core.forms.advancement import AdvancementTypeForm
 
     configs = AdvancementTypeForm.ADVANCEMENT_CONFIGS
-    by_legacy = {e["_legacy_choice"]: e for e in DEFAULT_CATEGORY_PROMOTIONS}
+    by_legacy = {e["_legacy_choice"]: e for e in DEFAULT_PROMOTIONS}
 
     # Both hardcoded promotion keys must be represented by a seed row.
     assert set(by_legacy) == {"skill_promote_specialist", "skill_promote_champion"}
@@ -217,6 +370,37 @@ def test_seed_matches_hardcoded_advancement_configs():
         if config.roll is not None:
             # The scalar hardcoded roll must be among the seed's roll list.
             assert config.roll in entry["rolls"], choice
+
+
+# --- seed ↔ migration snapshot: the frozen inline SEED must match today's constant ------
+
+
+def test_migration_snapshot_agrees_with_live_seed_constant():
+    """Migration 0181 inlines a frozen snapshot of DEFAULT_PROMOTIONS (no app imports, for
+    reproducibility). The live constant may gain NEW rows in later phases — but for the rows
+    the migration seeded, the two must agree, else fresh installs (migrated) and the test
+    suite (seeded from the constant) see different data for the same promotion.
+    """
+    import importlib.util
+    import pathlib
+
+    from gyrinx.content.migrations import __path__ as migrations_path
+
+    spec_path = pathlib.Path(migrations_path[0]) / "0181_seed_promotion_paths.py"
+    spec = importlib.util.spec_from_file_location("seed_migration", spec_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    live_by_pair = {
+        (e["from_category"], e["to_category"]): e for e in DEFAULT_PROMOTIONS
+    }
+    for frozen in module.SEED:
+        live = live_by_pair[(frozen["from_category"], frozen["to_category"])]
+        for key, frozen_value in frozen.items():
+            # TextChoices members compare equal to their raw string values.
+            assert live[key] == frozen_value, (
+                f"{frozen['from_category']}→{frozen['to_category']}: {key}"
+            )
 
 
 # --- drift guard: content's promotable targets stay aligned with core's override list ---

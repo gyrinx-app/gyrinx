@@ -71,7 +71,7 @@ from .models import (
     ContentModTrait,
     ContentPageRef,
     ContentPolicy,
-    ContentPromotionCategoryPath,
+    ContentPromotionPath,
     ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentRule,
@@ -925,19 +925,39 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     get_restrictions.short_description = "Restrictions"
 
 
-@admin.register(ContentPromotionCategoryPath)
-class ContentPromotionCategoryPathAdmin(ContentAdmin, admin.ModelAdmin):
+@admin.register(ContentPromotionPath)
+class ContentPromotionPathAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
-    list_filter = ["from_category", "to_category", "restricted_to_houses"]
-    filter_horizontal = ["restricted_to_houses"]
+    list_filter = [
+        "kind",
+        "timing",
+        "from_category",
+        "to_category",
+        "restricted_to_houses",
+    ]
+    filter_horizontal = ["targets", "restricted_to_houses"]
+    autocomplete_fields = ["source_fighter"]
     fieldsets = (
-        (None, {"fields": ("name", "from_category", "to_category", "rank")}),
+        (
+            None,
+            {
+                "fields": (
+                    "name",
+                    "kind",
+                    "from_category",
+                    "source_fighter",
+                    "to_category",
+                    "targets",
+                    "rank",
+                )
+            },
+        ),
         ("Cost", {"fields": ("xp_cost", "cost_increase")}),
         (
             "Behaviour",
             {
-                "fields": ("grants_skill", "rolls"),
-                "description": "What the fighter gains, and the 2d6 totals that offer this promotion in the roll-driven flow.",
+                "fields": ("grants_skill", "rolls", "advancements_threshold", "timing"),
+                "description": "What the fighter gains, the 2d6 totals that offer this promotion in the roll-driven flow, and when the rules say it happens.",
             },
         ),
         (
@@ -956,6 +976,7 @@ class ContentPromotionCategoryPathAdmin(ContentAdmin, admin.ModelAdmin):
         # itself be pack content.
         return (
             "name",
+            "kind",
             "from_category",
             "to_category",
             "rank",
