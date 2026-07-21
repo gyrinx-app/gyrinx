@@ -54,7 +54,7 @@ def backwards(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("content", "0178_add_content_promotion_category_path"),
+        ("content", "0180_add_content_promotion_category_path"),
     ]
 
     operations = [
