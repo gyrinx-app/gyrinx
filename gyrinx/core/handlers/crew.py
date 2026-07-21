@@ -100,6 +100,26 @@ CREW_ALWAYS_INCLUDED = "included"  # joins regardless of method, on top
 CREW_NOT_ELIGIBLE = "excluded"  # not in the crew
 CREW_ELIGIBILITY_STATES = (CREW_ELIGIBLE, CREW_ALWAYS_INCLUDED, CREW_NOT_ELIGIBLE)
 
+# The "Part of the Crew" special rule makes a hanger-on fight — and be selected —
+# like a regular Ganger (Core Rulebook: "may be chosen or randomly selected …
+# just like any other Ganger"), so it joins the pick/draw *pool* rather than
+# staying benched with the other hangers-on. That is CREW_ELIGIBLE, NOT the
+# hired-gun "always included on top" treatment. Ragnir Gunnstein's identical rule
+# is titled "Gang Fighter", so both names count. These names are content-defined
+# (they live in the production DB, not here), so detection is by name — a miss
+# just means a wrong default the player overrides on the eligibility screen.
+PART_OF_THE_CREW_RULE_NAMES = frozenset({"Part of the Crew", "Gang Fighter"})
+
+
+def fighter_is_part_of_the_crew(fighter):
+    """Whether ``fighter``'s type carries the "Part of the Crew" rule (or Ragnir's
+    "Gang Fighter" variant). Reads ``content_fighter.rules`` — callers must have
+    ``content_fighter__rules`` prefetched to keep it off the N+1 path."""
+    return any(
+        rule.name in PART_OF_THE_CREW_RULE_NAMES
+        for rule in fighter.content_fighter.rules.all()
+    )
+
 
 def default_crew_eligibility_state(fighter, *, included_categories):
     """The default eligibility state for ``fighter`` before per-crew overrides.
@@ -113,6 +133,10 @@ def default_crew_eligibility_state(fighter, *, included_categories):
     Recovery keeps a fighter out of the next battle, but Convalescence does not
     (it only bars post-battle actions — Core Rulebook), so a convalescing fighter
     defaults to eligible.
+
+    A hanger-on with the "Part of the Crew" rule is the exception to the
+    hangers-on-are-excluded default: it fights like a Ganger, so it defaults to
+    eligible (in the pool) even without the category being opted in.
     """
     if (
         fighter.is_captured
@@ -126,8 +150,34 @@ def default_crew_eligibility_state(fighter, *, included_categories):
     if category in DEFAULT_EXCLUDED_CREW_CATEGORIES and category not in set(
         included_categories
     ):
+        # "Part of the Crew" fights like a regular Ganger — eligible to be picked
+        # or drawn — so it's in the pool despite its excluded-by-default category.
+        if fighter_is_part_of_the_crew(fighter):
+            return CREW_ELIGIBLE
         return CREW_NOT_ELIGIBLE
     return CREW_ELIGIBLE
+
+
+def fighter_crew_status(fighter):
+    """A short status label for a fighter on the eligibility screen — the
+    conditions that bear on whether they can take part (captured / sold /
+    injured), so a player can see *why* someone defaults to not-eligible and
+    change it. ``None`` when the fighter is active and unremarkable.
+
+    Reads ``capture_info`` (for the captured / sold checks), so the fighters
+    must be loaded with it prefetched (the setup form uses ``with_related_data``).
+    """
+    if fighter.is_captured:
+        return "Captured"
+    if fighter.is_sold_to_guilders:
+        return "Sold to guilders"
+    if fighter.injury_state == ListFighter.RECOVERY:
+        return "In recovery"
+    if fighter.injury_state == ListFighter.CONVALESCENCE:
+        return "Convalescing"
+    if fighter.injury_state == ListFighter.DEAD:
+        return "Dead"
+    return None
 
 
 def _selectable_gang_fighters(lst):
@@ -140,7 +190,8 @@ def _selectable_gang_fighters(lst):
     via :func:`sync_linked_crew_members` when their owner is picked. The Crew that
     operate a vehicle *are* shown (opt-in). ``capture_info`` is selected so the
     captured / sold checks don't fan out into a query per fighter on the draw
-    path.
+    path, and ``content_fighter__rules`` is prefetched for the "Part of the Crew"
+    check.
     """
     return (
         ListFighter.objects.filter(
@@ -151,6 +202,7 @@ def _selectable_gang_fighters(lst):
         )
         .exclude(_effective_category_in(EQUIPMENT_CREW_CATEGORIES))
         .select_related("content_fighter", "capture_info")
+        .prefetch_related("content_fighter__rules")
     )
 
 
