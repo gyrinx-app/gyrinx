@@ -299,6 +299,9 @@ class ListFighterQuerySet(models.QuerySet):
                 Prefetch("disabled_rules", queryset=rules_qs),
                 Prefetch("custom_rules", queryset=rules_qs),
                 Prefetch("content_fighter__rules", queryset=rules_qs),
+                # Promoted fighters merge in the promoted type's rules (ruleline);
+                # prefetching keeps them on the query-free fast path.
+                Prefetch("promoted_content_fighter__rules", queryset=rules_qs),
             ]
         else:
             skill_prefetches = [
@@ -310,6 +313,7 @@ class ListFighterQuerySet(models.QuerySet):
                 "disabled_rules",
                 "custom_rules",
                 "content_fighter__rules",
+                "promoted_content_fighter__rules",
             ]
 
         return (
@@ -1644,12 +1648,15 @@ class ListFighter(AppBase):
         set up by with_related_data(packs=...)). Falls back to with_packs()
         queries when prefetch data was not pack-aware.
         """
-        # A type-change promotion swaps special rules wholesale to the promoted type
-        # ("gain all the special rules associated with [the type]"), so promoted
-        # fighters take the query path — their rules aren't in the base prefetch.
-        if self._has_pack_aware_prefetch and self.promoted_content_fighter_id is None:
+        # Base and promoted rule sets are prefetched (fast path) or queried (fallback).
+        if self._has_pack_aware_prefetch:
             # Fast path: read from pack-aware prefetch cache (0 queries)
-            rules = list(self.content_fighter_cached.rules.all())
+            base_rules = list(self.content_fighter.rules.all())
+            promoted_rules = (
+                list(self.promoted_content_fighter.rules.all())
+                if self.promoted_content_fighter_id is not None
+                else []
+            )
             disabled_rules_set = set(self.disabled_rules.all())
             custom_rules = list(self.custom_rules.all())
         else:
@@ -1658,9 +1665,26 @@ class ListFighter(AppBase):
             rules_qs = ContentRule.objects.with_packs(
                 packs, include_archived_items=True
             )
-            rules = list(rules_qs.filter(contentfighter=self.access_content_fighter))
+            base_rules = list(rules_qs.filter(contentfighter=self.content_fighter))
+            promoted_rules = (
+                list(rules_qs.filter(contentfighter=self.promoted_content_fighter))
+                if self.promoted_content_fighter_id is not None
+                else []
+            )
             disabled_rules_set = set(rules_qs.filter(disabled_by_fighters=self))
             custom_rules = list(rules_qs.filter(custom_for_fighters=self))
+
+        # A type-change promotion keeps the fighter's own rules (RAW default) EXCEPT any
+        # flagged shed_on_promotion — the promotion-scaffolding rules like Gang Fighter
+        # (Juve), the Promotion rule itself, and Fast Learner — then adds all the
+        # promoted type's rules on top. Non-promoted fighters just use their own rules.
+        if self.promoted_content_fighter_id is not None:
+            rules = [r for r in base_rules if not r.shed_on_promotion]
+            for rule in promoted_rules:
+                if rule not in rules:
+                    rules.append(rule)
+        else:
+            rules = base_rules
 
         equipment_modded = set()
         user_modded = set()

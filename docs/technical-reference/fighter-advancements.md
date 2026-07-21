@@ -67,7 +67,8 @@ Promotions are data-driven from `ContentPromotionPath` rows (see the
 - **The counts-as pointer** (`ListFighter.promoted_content_fighter`, PROTECT): access-only.
   Equipment-list pricing resolves `legacy > promoted > base` (one shared tie-break helper,
   `preferred_equipment_list_override` in `core/models/list/_common.py`); skill-set access
-  and special rules resolve `promoted > base` (replaced, not merged); statline and base
+  and special rules resolve `promoted > base` (skills replaced; rules kept-by-default,
+  minus any `ContentRule.shed_on_promotion`, then the promoted type's added); statline and base
   cost always read `content_fighter`. The pointer is written only by the advancement flow —
   it is never a user-editable form field, and stash/vehicle targets are rejected.
 - **Roll-driven prefill**: a Ganger's 2d6 total is matched against each path's `rolls`

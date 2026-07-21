@@ -15,7 +15,7 @@ from gyrinx.core.handlers.fighter.advancement import (
     handle_fighter_advancement_deletion,
 )
 from gyrinx.core.models.campaign import CampaignAction
-from gyrinx.core.models.list import ListFighterAdvancement
+from gyrinx.core.models.list import ListFighter, ListFighterAdvancement
 from gyrinx.models import FighterCategoryChoices
 
 
@@ -412,9 +412,12 @@ def test_access_follows_promoted_type(user, prospect_setup, make_content_skill):
     cunning, _ = ContentSkillCategory.objects.get_or_create(name="Cunning")
     prospect_cf.primary_skill_categories.set([cunning])
     stimmer.primary_skill_categories.set([ferocity])
-    rule_old = ContentRule.objects.create(name="Fast Learner")
+    # Fast Learner is promotion scaffolding — shed on promotion; Squat Ancestry is
+    # intrinsic and kept (default). Combat Chems Stash is gained from the new type.
+    rule_shed = ContentRule.objects.create(name="Fast Learner", shed_on_promotion=True)
+    rule_kept = ContentRule.objects.create(name="Squat Ancestry")
     rule_new = ContentRule.objects.create(name="Combat Chems Stash")
-    prospect_cf.rules.set([rule_old])
+    prospect_cf.rules.set([rule_shed, rule_kept])
     stimmer.rules.set([rule_new])
 
     # An equipment-list price only the Stimmer gets.
@@ -443,10 +446,12 @@ def test_access_follows_promoted_type(user, prospect_setup, make_content_skill):
 
     # Skill access follows the promoted type (replaced, not merged).
     assert fighter.get_primary_skill_categories() == {ferocity}
-    # Special rules swap wholesale to the promoted type's set.
+    # Special rules: the new type's are gained, shed-flagged scaffolding is dropped,
+    # and intrinsic rules are kept (default-keep).
     rule_names = [r.value for r in fighter.ruleline]
     assert "Combat Chems Stash" in rule_names
     assert "Fast Learner" not in rule_names
+    assert "Squat Ancestry" in rule_names
     # New purchases price against the promoted type's equipment list.
     assignment = ListFighterEquipmentAssignment.objects.create(
         list_fighter=fighter, content_equipment=equipment
@@ -837,3 +842,86 @@ def test_copy_attributes_to_keeps_promotion_resolvable(
     assert copied.promotion_path == path
     assert copied.promotion_target == forge_boss
     assert copied.resolved_promotion().target == forge_boss
+
+
+# --- shed_on_promotion: rules retained by default, flagged ones dropped -----------------
+
+
+def _promote_to(user, fighter, path, target):
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=target,
+    )
+
+
+@pytest.mark.django_db
+def test_promotion_keeps_rules_by_default_sheds_flagged(user, prospect_setup):
+    """RAW default: a promoted fighter keeps their own rules and gains the new type's;
+    only rules flagged shed_on_promotion (the promotion scaffolding) are dropped."""
+    from gyrinx.content.models import ContentRule
+
+    fighter = prospect_setup["fighter"]
+    prospect_cf = prospect_setup["prospect_cf"]
+    stimmer = prospect_setup["stimmer"]
+
+    kept = ContentRule.objects.create(name="Squat Ancestry")
+    shed_a = ContentRule.objects.create(
+        name="Gang Fighter (Prospect)", shed_on_promotion=True
+    )
+    shed_b = ContentRule.objects.create(name="Fast Learner", shed_on_promotion=True)
+    gained = ContentRule.objects.create(name="Combat Chems Stash")
+    prospect_cf.rules.set([kept, shed_a, shed_b])
+    stimmer.rules.set([gained])
+
+    before = {r.value for r in fighter.ruleline}
+    assert before == {"Squat Ancestry", "Gang Fighter (Prospect)", "Fast Learner"}
+
+    _promote_to(user, fighter, prospect_setup["path"], stimmer)
+    fighter = type(fighter).objects.get(id=fighter.id)
+    after = {r.value for r in fighter.ruleline}
+    # Catches: reverting to the wholesale swap (would drop "Squat Ancestry"), or the flag
+    # being ignored (would keep "Gang Fighter (Prospect)"/"Fast Learner").
+    assert after == {"Squat Ancestry", "Combat Chems Stash"}
+
+
+@pytest.mark.django_db
+def test_shed_flag_ignored_for_unpromoted_fighter(user, prospect_setup):
+    """The flag only bites on promotion — an un-promoted fighter keeps flagged rules."""
+    from gyrinx.content.models import ContentRule
+
+    fighter = prospect_setup["fighter"]
+    shed = ContentRule.objects.create(name="Fast Learner", shed_on_promotion=True)
+    prospect_setup["prospect_cf"].rules.set([shed])
+    assert {r.value for r in fighter.ruleline} == {"Fast Learner"}
+
+
+@pytest.mark.django_db
+def test_promotion_ruleline_prefetch_matches_query(user, prospect_setup):
+    """The prefetch fast path and the query fallback agree for a promoted fighter."""
+    from gyrinx.content.models import ContentRule
+
+    fighter = prospect_setup["fighter"]
+    lst = prospect_setup["list"]
+    stimmer = prospect_setup["stimmer"]
+
+    prospect_setup["prospect_cf"].rules.set(
+        [
+            ContentRule.objects.create(name="Squat Ancestry"),
+            ContentRule.objects.create(name="Fast Learner", shed_on_promotion=True),
+        ]
+    )
+    stimmer.rules.set([ContentRule.objects.create(name="Combat Chems Stash")])
+    _promote_to(user, fighter, prospect_setup["path"], stimmer)
+
+    slow = {r.value for r in ListFighter.objects.get(id=fighter.id).ruleline}
+    fast_fighter = ListFighter.objects.with_related_data(packs=lst.packs.all()).get(
+        id=fighter.id
+    )
+    fast = {r.value for r in fast_fighter.ruleline}
+    assert fast == slow == {"Squat Ancestry", "Combat Chems Stash"}

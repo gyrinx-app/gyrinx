@@ -1264,6 +1264,7 @@ class ContentPageRefAdmin(ContentAdmin, admin.ModelAdmin):
 @admin.register(ContentRule)
 class ContentRuleAdmin(ContentAdmin, admin.ModelAdmin):
     search_fields = ["name"]
+    list_filter = ["shed_on_promotion"]
 
 
 class ContentModInline(ContentTabularInline):
