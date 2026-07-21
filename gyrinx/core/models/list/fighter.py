@@ -2657,13 +2657,19 @@ class ListFighter(AppBase):
 
         # Copy advancements
         for advancement in self.advancements.all():
-            # Create a new advancement for the target fighter
+            # Create a new advancement for the target fighter. advancement_choice and
+            # the promotion FKs must travel too: without them a copied promotion row is
+            # unresolvable, and a later deletion's recalc would silently erase the
+            # copied fighter's promotion.
             ListFighterAdvancement.objects.create(
                 fighter=target_fighter,
                 advancement_type=advancement.advancement_type,
+                advancement_choice=advancement.advancement_choice,
                 stat_increased=advancement.stat_increased,
                 skill=advancement.skill,
                 equipment_assignment=advancement.equipment_assignment,
+                promotion_path=advancement.promotion_path,
+                promotion_target=advancement.promotion_target,
                 description=advancement.description,
                 xp_cost=advancement.xp_cost,
                 cost_increase=advancement.cost_increase,

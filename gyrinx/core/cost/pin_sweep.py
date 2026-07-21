@@ -144,8 +144,10 @@ def _live_through(qs):
 
 def _holder_context_q(fighter, prefix=""):
     """The legacy holder-keyed sweep condition, for the unpinned checks."""
-    return Q(**{f"{prefix}list_fighter__content_fighter": fighter}) | Q(
-        **{f"{prefix}list_fighter__legacy_content_fighter": fighter}
+    return (
+        Q(**{f"{prefix}list_fighter__content_fighter": fighter})
+        | Q(**{f"{prefix}list_fighter__legacy_content_fighter": fighter})
+        | Q(**{f"{prefix}list_fighter__promoted_content_fighter": fighter})
     )
 
 

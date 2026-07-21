@@ -130,6 +130,24 @@ def handle_fighter_advancement(
             f"Required: {xp_cost}, Available: {fighter.xp_current}"
         )
 
+    # Availability is the handler's job, not just the offering layer's: a crafted
+    # confirm/select URL (or programmatic call) must not apply a promotion the fighter
+    # isn't eligible for — including re-buying a path already taken (promotion changes
+    # the fighter's category, so a taken path no longer matches).
+    if promotion_path is not None and not promotion_path.is_available_to_fighter(
+        fighter
+    ):
+        raise ValidationError(
+            f"Promotion '{promotion_path.name}' is not available to {fighter.name}."
+        )
+    if promotion_target is not None and (
+        promotion_path is None
+        or not promotion_path.targets.filter(id=promotion_target.id).exists()
+    ):
+        raise ValidationError(
+            "The chosen promotion target is not one of this path's targets."
+        )
+
     # Capture before values for ListAction
     rating_before = lst.rating_current
     stash_before = lst.stash_current
@@ -596,13 +614,23 @@ def _recalculate_category_override(
     ).exclude(id=advancement_being_deleted.id)
 
     best = None
+    best_with_target = None
     for adv in remaining:
         resolved = adv.resolved_promotion()
         if not resolved or not resolved.to_category:
             continue
         if best is None or resolved.rank > best.rank:
             best = resolved
+        # The pointer competes only among promotions that HAVE a target — a
+        # higher-ranked relabel must not wipe the counts-as of a still-held
+        # type change.
+        if resolved.target is not None and (
+            best_with_target is None or resolved.rank > best_with_target.rank
+        ):
+            best_with_target = resolved
 
     fighter.category_override = best.to_category if best else None
-    fighter.promoted_content_fighter = best.target if best else None
+    fighter.promoted_content_fighter = (
+        best_with_target.target if best_with_target else None
+    )
     fighter.save()

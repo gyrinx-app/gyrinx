@@ -392,14 +392,17 @@ class AdvancementFlowParams(AdvancementBaseParams):
 
     def promotion_needs_target(self) -> bool:
         """
-        True when this promotion offers a choice of target types and none is chosen yet.
+        True when this promotion offers a choice of target types and no VALID choice has
+        been made yet — a tampered/stale promotion_target_id that isn't one of the path's
+        targets counts as no choice, so the flow routes back to the chooser rather than
+        applying an ambiguous promotion.
         """
         if not self.is_promotion_path_advancement():
             return False
-        if self.promotion_target_id is not None:
-            return False
         path = self.promotion_path()
-        return bool(path) and path.targets.count() > 1
+        if not path or path.targets.count() <= 1:
+            return False
+        return self.promotion_target() is None
 
     def promotion_target(self):
         """

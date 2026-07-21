@@ -395,7 +395,8 @@ def _affected_list_ids(instance, include_archived: bool = False) -> list:
             ListFighterEquipmentAssignment.objects.filter(
                 Q(
                     Q(list_fighter__content_fighter=instance.fighter)
-                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter)
+                    | Q(list_fighter__promoted_content_fighter=instance.fighter),
                     content_equipment=instance.equipment,
                 )
                 | Q(pinned_equipment_list_item=instance)
@@ -412,7 +413,8 @@ def _affected_list_ids(instance, include_archived: bool = False) -> list:
             ListFighterEquipmentAssignment.objects.filter(
                 Q(
                     Q(list_fighter__content_fighter=instance.fighter)
-                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter)
+                    | Q(list_fighter__promoted_content_fighter=instance.fighter),
                     weapon_accessories_field=instance.weapon_accessory,
                 )
                 | Q(accessory_rows__pinned_equipment_list_accessory=instance),
@@ -430,7 +432,8 @@ def _affected_list_ids(instance, include_archived: bool = False) -> list:
             ListFighterEquipmentAssignment.objects.filter(
                 Q(
                     Q(list_fighter__content_fighter=instance.fighter)
-                    | Q(list_fighter__legacy_content_fighter=instance.fighter),
+                    | Q(list_fighter__legacy_content_fighter=instance.fighter)
+                    | Q(list_fighter__promoted_content_fighter=instance.fighter),
                     upgrades_field__in=instance.upgrade.same_stack_from_position(),
                 )
                 | Q(upgrade_rows__pinned_equipment_list_upgrade=instance),

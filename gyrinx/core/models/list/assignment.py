@@ -654,16 +654,17 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
             # None here is very important: it means we're looking for the base equipment cost.
             weapon_profile=None,
         )
-        if not overrides.exists():
+        override_rows = list(overrides)
+        if not override_rows:
             return self.content_equipment.cost_int()
 
         # Log warning if there are multiple overrides but only one fighter (shouldn't happen normally)
-        if overrides.count() > 1 and len(fighters) == 1:
+        if len(override_rows) > 1 and len(fighters) == 1:
             logger.warning(
                 f"Multiple overrides for {self.content_equipment} on {self.list_fighter}"
             )
 
-        override = preferred_equipment_list_override(overrides, self.list_fighter)
+        override = preferred_equipment_list_override(override_rows, self.list_fighter)
         return override.cost_int()
 
     @cached_property

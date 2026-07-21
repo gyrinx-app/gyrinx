@@ -43,6 +43,10 @@
                                             Stat
                                         {% elif advancement.advancement_type == advancement.ADVANCEMENT_SKILL %}
                                             Skill
+                                        {% elif advancement.advancement_type == advancement.ADVANCEMENT_PROMOTION %}
+                                            Promotion
+                                        {% elif advancement.advancement_type == advancement.ADVANCEMENT_EQUIPMENT %}
+                                            Equipment
                                         {% else %}
                                             Other
                                         {% endif %}

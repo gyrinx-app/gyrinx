@@ -627,3 +627,213 @@ def test_multi_target_promotion_without_stored_choice_resolves_no_target(
     advancement.apply_advancement()
     fighter.refresh_from_db()
     assert fighter.promoted_content_fighter is None
+
+
+# --- review-driven guards ---------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_taken_path_no_longer_offered_and_rebuy_rejected(user, prospect_setup):
+    """After promotion the source-pinned path stops matching (category changed) and the
+    handler refuses a re-buy — no XP drain / double cost through crafted URLs."""
+    from django.core.exceptions import ValidationError
+
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+    stimmer = prospect_setup["stimmer"]
+
+    assert path.is_available_to_fighter(fighter) is True
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=stimmer,
+    )
+    fighter = type(fighter).objects.get(id=fighter.id)
+    # Catches: the source_fighter branch skipping the category check — the taken path
+    # stayed offered forever (fighter's content_fighter never changes).
+    assert path.is_available_to_fighter(fighter) is False
+    form = AdvancementTypeForm(fighter=fighter)
+    assert f"promotion_{path.id}" not in dict(form.fields["advancement_choice"].choices)
+    with pytest.raises(ValidationError):
+        handle_fighter_advancement(
+            user=user,
+            fighter=fighter,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+            xp_cost=0,
+            cost_increase=0,
+            advancement_choice=f"promotion_{path.id}",
+            promotion_path=path,
+            promotion_target=stimmer,
+        )
+
+
+@pytest.mark.django_db
+def test_tampered_target_id_routes_back_to_chooser(
+    prospect_setup, make_content_fighter, content_house
+):
+    """A promotion_target_id that isn't one of the path's targets counts as no choice."""
+    from gyrinx.core.views.fighter.advancements import AdvancementFlowParams
+
+    outsider = make_content_fighter(
+        type="Outsider",
+        category=FighterCategoryChoices.CHAMPION,
+        house=content_house,
+        base_cost=100,
+    )
+    params = AdvancementFlowParams(
+        advancement_choice=f"promotion_{prospect_setup['path'].id}",
+        promotion_target_id=outsider.id,
+    )
+    # Catches: presence-only checking letting a tampered/stale id through the confirm
+    # gate to an ambiguous apply.
+    assert params.promotion_needs_target() is True
+    assert params.promotion_target() is None
+
+
+@pytest.mark.django_db
+def test_single_target_apply_persists_target_on_row(
+    user, make_content_fighter, make_list, make_list_fighter, content_house
+):
+    """Single-target type-changes pin the resolved target at purchase, so later content
+    edits can't rewrite what existing fighters count as."""
+    prospect_cf = make_content_fighter(
+        type="Wyld Runner",
+        category=FighterCategoryChoices.PROSPECT,
+        house=content_house,
+        base_cost=40,
+    )
+    matriarch = make_content_fighter(
+        type="Matriarch",
+        category=FighterCategoryChoices.CHAMPION,
+        house=content_house,
+        base_cost=125,
+    )
+    path = ContentPromotionPath.objects.create(
+        name="Promotion (Matriarch)",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category=FighterCategoryChoices.PROSPECT,
+        source_fighter=prospect_cf,
+        xp_cost=0,
+    )
+    path.targets.set([matriarch])
+    lst = make_list("Single Target Gang")
+    fighter = make_list_fighter(lst, "Sable", content_fighter=prospect_cf, xp_current=5)
+
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+    )
+    result.advancement.refresh_from_db()
+    # Catches: the row staying target-less, letting an admin's later second target
+    # silently rewrite the fighter's counts-as on reversal recalc.
+    assert result.advancement.promotion_target == matriarch
+
+
+@pytest.mark.django_db
+def test_higher_rank_relabel_does_not_wipe_pointer(user, prospect_setup, combat_skill):
+    """The pointer competes only among promotions WITH targets: recalc triggered by
+    deleting a legacy promotion must not let a higher-ranked relabel wipe the counts-as
+    of a still-held type change."""
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+    stimmer = prospect_setup["stimmer"]
+
+    # Legacy-era promotion row (rank 1 via the static map) — its deletion triggers recalc.
+    legacy = ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_SKILL,
+        advancement_choice="skill_promote_specialist",
+        skill=combat_skill,
+        xp_cost=0,
+        cost_increase=0,
+        owner=user,
+    )
+    legacy.apply_advancement()
+    fighter = type(fighter).objects.get(id=fighter.id)
+    # Path availability checks category; the legacy relabel moved it to SPECIALIST, so
+    # apply the type change directly via the model (rank 2, pointer set)...
+    tc = ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=stimmer,
+        xp_cost=0,
+        cost_increase=0,
+        owner=user,
+    )
+    tc.apply_advancement()
+    # ...and a higher-ranked relabel on top (rank 3).
+    relabel_path = ContentPromotionPath.objects.create(
+        name="Promote to Leader",
+        kind=ContentPromotionPath.Kind.RELABEL,
+        from_category=FighterCategoryChoices.CHAMPION,
+        to_category=FighterCategoryChoices.LEADER,
+        rank=3,
+        xp_cost=0,
+        grants_skill="none",
+    )
+    relabel = ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        advancement_choice=f"promotion_{relabel_path.id}",
+        promotion_path=relabel_path,
+        xp_cost=0,
+        cost_increase=0,
+        owner=user,
+    )
+    relabel.apply_advancement()
+
+    fighter = type(fighter).objects.get(id=fighter.id)
+    assert fighter.category_override == FighterCategoryChoices.LEADER
+    assert fighter.promoted_content_fighter == stimmer
+
+    handle_fighter_advancement_deletion(user=user, fighter=fighter, advancement=legacy)
+    fighter = type(fighter).objects.get(id=fighter.id)
+    # Catches: recalc sourcing the pointer from the single best-rank promotion — the
+    # rank-3 relabel would have wiped the Stimmer pointer.
+    assert fighter.category_override == FighterCategoryChoices.LEADER
+    assert fighter.promoted_content_fighter == stimmer
+
+
+@pytest.mark.django_db
+def test_copy_attributes_to_keeps_promotion_resolvable(
+    user, prospect_setup, make_list_fighter
+):
+    """Copied fighters carry resolvable promotion rows, not inert ones that a later
+    deletion recalc would resolve to nothing."""
+    fighter = prospect_setup["fighter"]
+    path = prospect_setup["path"]
+    forge_boss = prospect_setup["forge_boss"]
+
+    handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{path.id}",
+        promotion_path=path,
+        promotion_target=forge_boss,
+    )
+    fighter = type(fighter).objects.get(id=fighter.id)
+    target_fighter = make_list_fighter(
+        prospect_setup["list"], "Copy", content_fighter=prospect_setup["prospect_cf"]
+    )
+    fighter.copy_attributes_to(target_fighter, include_equipment=False)
+    copied = target_fighter.advancements.get()
+    # Catches: the copy loop omitting advancement_choice/promotion FKs — inert rows
+    # whose recalc would erase the copy's promotion.
+    assert copied.promotion_path == path
+    assert copied.promotion_target == forge_boss
+    assert copied.resolved_promotion().target == forge_boss

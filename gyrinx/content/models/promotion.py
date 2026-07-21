@@ -245,7 +245,11 @@ class ContentPromotionPath(Content):
         """
         if self.to_category:
             return self.to_category
-        target = target or self.targets.first()
+        if target is None:
+            # Only infer from a sole target — a multi-target path with no explicit
+            # choice must not resolve to an arbitrary pick.
+            targets = list(self.targets.all())
+            target = targets[0] if len(targets) == 1 else None
         return target.category if target else ""
 
     def is_available_to_fighter(self, list_fighter) -> bool:
@@ -254,11 +258,15 @@ class ContentPromotionPath(Content):
         This is *only* the content gate. Flow-level eligibility (already promoted, enough XP,
         advancement threshold, etc.) is applied by the advancement flow in Phase 2.
         """
+        # The category check applies to BOTH source modes: promotion changes the
+        # fighter's category (via category_override), so a taken path stops matching —
+        # without this, a source-pinned path would be offered again after promotion
+        # (content_fighter never changes) and could be re-purchased.
+        if list_fighter.get_category() != self.from_category:
+            return False
         if self.source_fighter_id is not None:
             if list_fighter.content_fighter_id != self.source_fighter_id:
                 return False
-        elif list_fighter.get_category() != self.from_category:
-            return False
         houses = list(self.restricted_to_houses.all())
         if houses and list_fighter.list.content_house not in houses:
             return False

@@ -410,6 +410,13 @@ class ListFighterAdvancement(AppBase):
                 ContentPromotionPath.clean_target(resolved.target)
                 self.fighter.promoted_content_fighter = resolved.target
                 changed = True
+                # Persist the resolved target on the row (single-target paths skip the
+                # chooser, so nothing stored it yet). Pins what this fighter counts as
+                # to what was true at purchase — an admin later adding a second target
+                # to the path must not rewrite existing fighters' history.
+                if self.promotion_target_id is None:
+                    self.promotion_target = resolved.target
+                    self.save()
             if resolved.to_category:
                 self.fighter.category_override = resolved.to_category
                 changed = True
