@@ -11,7 +11,7 @@ from django.db import transaction
 from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator
 
 from gyrinx import messages
 from gyrinx.content.models import ContentAdvancementEquipment, ContentSkill
@@ -351,6 +351,9 @@ class AdvancementFlowParams(AdvancementBaseParams):
     description: Optional[str] = None
     # For multi-target promotions: the chosen target fighter type
     promotion_target_id: Optional[uuid.UUID] = None
+    # Request-scoped cache for the resolved path (False = not yet fetched) — the flow
+    # predicates each call promotion_path(), which would otherwise re-query per call.
+    _promotion_path_cache: object = PrivateAttr(default=False)
 
     @field_validator("advancement_choice")
     @classmethod
@@ -374,14 +377,21 @@ class AdvancementFlowParams(AdvancementBaseParams):
     def promotion_path(self):
         """
         Fetch the ContentPromotionPath for a data-driven promotion choice, or None.
+        Cached per params instance; targets are prefetched for the flow predicates.
         """
         from gyrinx.content.models import ContentPromotionPath
 
         if not self.is_promotion_path_advancement():
             return None
-        return ContentPromotionPath.objects.filter(
-            id=self.advancement_choice.removeprefix("promotion_")
-        ).first()
+        if self._promotion_path_cache is False:
+            self._promotion_path_cache = (
+                ContentPromotionPath.objects.filter(
+                    id=self.advancement_choice.removeprefix("promotion_")
+                )
+                .prefetch_related("targets")
+                .first()
+            )
+        return self._promotion_path_cache
 
     def promotion_grants_skill(self) -> str:
         """

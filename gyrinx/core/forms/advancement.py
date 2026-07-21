@@ -38,11 +38,15 @@ def promotion_choice_label(path) -> str:
 
 
 def available_promotion_paths(fighter):
-    """Promotion paths this fighter can currently be offered."""
+    """Promotion paths this fighter can currently be offered.
+
+    The category gate applies in both source modes (see is_available_to_fighter), so it
+    is pushed into SQL; the source-fighter and house checks run on the narrowed set.
+    """
     paths = []
-    for path in ContentPromotionPath.objects.prefetch_related(
-        "restricted_to_houses", "targets"
-    ):
+    for path in ContentPromotionPath.objects.filter(
+        from_category=fighter.get_category()
+    ).prefetch_related("restricted_to_houses", "targets"):
         if not path.is_available_to_fighter(fighter):
             continue
         paths.append(path)
