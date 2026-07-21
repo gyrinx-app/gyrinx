@@ -935,8 +935,11 @@ class ContentPromotionPathAdmin(ContentAdmin, admin.ModelAdmin):
         "to_category",
         "restricted_to_houses",
     ]
-    filter_horizontal = ["targets", "restricted_to_houses"]
-    autocomplete_fields = ["source_fighter"]
+    filter_horizontal = ["restricted_to_houses"]
+    # targets uses autocomplete, not filter_horizontal: rendering a choice per catalog
+    # fighter is an N+1 over thousands of rows and 500s on any fighter whose house row
+    # is missing (str() dereferences house).
+    autocomplete_fields = ["source_fighter", "targets"]
     fieldsets = (
         (
             None,
