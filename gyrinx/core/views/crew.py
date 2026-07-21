@@ -24,7 +24,12 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-from gyrinx.core.forms.crew import CrewForm, CrewLineItemForm, CrewLoadoutsForm
+from gyrinx.core.forms.crew import (
+    CrewEligibilityForm,
+    CrewForm,
+    CrewLineItemForm,
+    CrewLoadoutsForm,
+)
 from gyrinx.core.handlers.crew import (
     TOGGLEABLE_CREW_CATEGORIES,
     crew_battle_spread,
@@ -66,30 +71,6 @@ def _include_csv(included):
     return ",".join(
         slug for cat, slug, _ in TOGGLEABLE_CREW_CATEGORIES if cat in included
     )
-
-
-def _include_picker(*, base_url, included, extra=None):
-    """Entries for the category-include toggles: one per toggleable category,
-    each a link to this same page with that category flipped on/off (the rest,
-    and any ``extra`` params, preserved)."""
-    current = set(included)
-    entries = []
-    for cat, slug, label in TOGGLEABLE_CREW_CATEGORIES:
-        flipped = current - {cat} if cat in current else current | {cat}
-        params = dict(extra or {})
-        # Always carry an explicit include= (even empty) so toggling the last
-        # category off is a real empty value on edit, not an absent one — which
-        # would otherwise fall back to the crew's stored opt-ins (CodeRabbit).
-        params["include"] = _include_csv(flipped)
-        entries.append(
-            {
-                "value": cat,
-                "label": label,
-                "url": f"{base_url}?{urlencode(params)}",
-                "is_on": cat in current,
-            }
-        )
-    return entries
 
 
 def _resolve_method(request, default):
@@ -237,11 +218,6 @@ def crew_new(request, battle_id):
                 current=method,
                 extra=method_extra,
             ),
-            "include_picker": _include_picker(
-                base_url=base_url,
-                included=included,
-                extra={"list": str(gang.id), "method": method},
-            ),
         },
     )
 
@@ -366,11 +342,61 @@ def crew_edit(request, battle_id, crew_id):
                 current=method,
                 extra=method_extra,
             ),
-            "include_picker": _include_picker(
-                base_url=base_url,
-                included=included,
-                extra={"method": method},
-            ),
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def crew_eligibility_edit(request, battle_id, crew_id):
+    """Set which of the gang's fighters are eligible for this crew — Included
+    (always join), Eligible (may be picked or drawn), or Excluded — before the
+    selection method picks from the pool. Sensible defaults per fighter, so most
+    of the time it's a confirm; locked crews can't be changed.
+    """
+    crew = _get_crew(battle_id, crew_id)
+
+    if not crew.can_manage(request.user):
+        messages.error(
+            request, "You don't have permission to edit this crew's eligibility."
+        )
+        return _redirect_crew(crew)
+
+    if crew.is_locked:
+        messages.info(
+            request, "This crew is locked, so its eligibility can no longer change."
+        )
+        return _redirect_crew(crew)
+
+    if request.method == "POST":
+        # Re-fetch under a row lock so a crew being locked concurrently can't
+        # slip an eligibility change past the guard above (mirrors crew_edit).
+        crew = Crew.objects.select_for_update().get(pk=crew.pk)
+        if crew.is_locked:
+            messages.info(
+                request,
+                "This crew was just locked, so its eligibility can no longer change.",
+            )
+            return _redirect_crew(crew)
+        form = CrewEligibilityForm(request.POST, crew=crew)
+        if form.is_valid():
+            form.save()
+            crew.save_with_user(user=request.user)
+            messages.success(request, "Crew eligibility updated.")
+            return HttpResponseRedirect(
+                reverse("core:crew-edit", args=[crew.battle_id, crew.id])
+            )
+    else:
+        form = CrewEligibilityForm(crew=crew)
+
+    return render(
+        request,
+        "core/crew/crew_eligibility.html",
+        {
+            "form": form,
+            "crew": crew,
+            "battle": crew.battle,
+            "gang": crew.list,
         },
     )
 

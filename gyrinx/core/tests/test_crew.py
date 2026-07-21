@@ -1116,27 +1116,157 @@ def test_captured_fighter_is_not_in_the_pool(crew_setup, make_list):
     assert captured not in pool
 
 
-# --- Category-include toggles (selection UI) --------------------------------
-#
-# The selection form hides hangers-on and vehicle crew by default; a URL-driven
-# toggle (like the ?method= picker) opts a category back in for this crew, and
-# the choice persists to Crew.included_categories.
+# --- Eligibility screen (view + form) ---------------------------------------
 
 
-def test_include_picker_toggles_categories():
-    from gyrinx.core.views.crew import _include_picker
+def _eligibility_post_data(crew, changes=None):
+    """POST payload for the eligibility form: every fighter at its current
+    effective state, with ``changes`` (fighter_id -> state) applied on top."""
+    changes = changes or {}
+    data = {}
+    for row in crew_eligibility(crew):
+        fid = row["fighter"].id
+        data[f"elig_{fid}"] = changes.get(fid, row["effective"])
+    return data
 
-    entries = _include_picker(
-        base_url="/x", included=["HANGER_ON"], extra={"method": "custom"}
+
+@pytest.mark.django_db
+def test_eligibility_screen_renders(client, crew_setup):
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
-    by_value = {e["value"]: e for e in entries}
-    assert by_value["HANGER_ON"]["is_on"] is True
-    assert by_value["CREW"]["is_on"] is False
-    # Turning the on one off leaves nothing → an explicit *empty* include (not
-    # an absent one, which on edit would fall back to the stored opt-ins).
-    assert by_value["HANGER_ON"]["url"].endswith("include=")
-    # Turning the off one on adds it alongside — as slugs, not the enum values.
-    assert "include=hangers-on%2Ccrew" in by_value["CREW"]["url"]
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]))
+
+    assert resp.status_code == 200
+    # A row per selectable fighter (the five gangers), all at their default.
+    rows = resp.context["form"].fighter_rows()
+    assert len(rows) == 5
+    assert all(r["effective"] == CREW_ELIGIBLE for r in rows)
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_stores_only_changed_fighters(client, crew_setup):
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    excluded = crew_setup["fighters"][0]
+    client.force_login(crew_setup["user"])
+
+    resp = client.post(
+        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]),
+        _eligibility_post_data(crew, {excluded.id: CREW_NOT_ELIGIBLE}),
+    )
+
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    # Only the fighter moved off their default is stored.
+    assert crew.eligibility_overrides == {str(excluded.id): CREW_NOT_ELIGIBLE}
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_stores_nothing_when_all_default(client, crew_setup):
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+
+    client.post(
+        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]),
+        _eligibility_post_data(crew),
+    )
+
+    crew.refresh_from_db()
+    assert crew.eligibility_overrides == {}
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_change_drops_fighter_from_the_pool(client, crew_setup):
+    """Excluding a fighter on the screen removes them from the selection pool."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    excluded = crew_setup["fighters"][0]
+    client.force_login(crew_setup["user"])
+
+    client.post(
+        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]),
+        _eligibility_post_data(crew, {excluded.id: CREW_NOT_ELIGIBLE}),
+    )
+
+    crew.refresh_from_db()
+    pool = set(eligible_crew_fighters(crew.list, overrides=crew.eligibility_overrides))
+    assert excluded not in pool
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_blocked_on_locked_crew(client, crew_setup):
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        status=Crew.LOCKED,
+    )
+    data = _eligibility_post_data(
+        crew, {crew_setup["fighters"][0].id: CREW_NOT_ELIGIBLE}
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.post(
+        reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]), data
+    )
+
+    assert resp.status_code == 302
+    crew.refresh_from_db()
+    assert crew.eligibility_overrides == {}  # locked: no change
+
+
+@pytest.mark.django_db
+def test_eligibility_screen_requires_manage_permission(client, crew_setup, make_user):
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    stranger = make_user("stranger", "pw")
+    client.force_login(stranger)
+
+    resp = client.get(reverse("core:crew-eligibility", args=[crew.battle_id, crew.id]))
+
+    assert resp.status_code == 302  # redirected, not shown
+
+
+@pytest.mark.django_db
+def test_eligibility_form_diffs_hired_gun_override(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """The form stores only the changed fighter: a hired gun moved to eligible."""
+    from gyrinx.core.forms.crew import CrewEligibilityForm
+
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    data = _eligibility_post_data(crew, {hired.id: CREW_ELIGIBLE})
+
+    form = CrewEligibilityForm(data, crew=crew)
+    assert form.is_valid(), form.errors
+    form.save()
+
+    assert crew.eligibility_overrides == {str(hired.id): CREW_ELIGIBLE}
+
+
+# --- Category include set (seeded, carried through the selection form) ------
+#
+# Hangers-on and vehicle crew are hidden from the pool by default. The category
+# opt-in still exists as the campaign-seeded `included_categories` (and a
+# ?include= querystring that round-trips it) — the per-fighter eligibility screen
+# supersedes the old per-category toggle UI for changing it.
 
 
 def test_resolve_included_maps_slugs_and_normalises(rf):

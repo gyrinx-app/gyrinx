@@ -41,6 +41,14 @@
                                     <i class="bi-three-dots"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
+                                    {% if not crew.is_locked %}
+                                        <li>
+                                            <a class="dropdown-item"
+                                               href="{% url 'core:crew-eligibility' battle.id crew.id %}">
+                                                <i class="bi-people"></i> Set eligibility
+                                            </a>
+                                        </li>
+                                    {% endif %}
                                     <li>
                                         <a class="dropdown-item text-danger"
                                            href="{% url 'core:crew-archive' battle.id crew.id %}">

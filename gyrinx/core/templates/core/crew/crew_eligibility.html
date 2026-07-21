@@ -1,0 +1,55 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Crew eligibility - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:crew' battle.id crew.id as cancel_url %}
+    {% include "core/includes/back.html" with url=cancel_url text="Back" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Crew eligibility</h1>
+        <p class="text-secondary mb-0">
+            Set who can be part of {{ gang.name }}'s crew for
+            <a href="{% url 'core:battle' battle.id %}" class="linked">{{ battle.name }}</a>.
+            The defaults are usually right — change only what you need to.
+        </p>
+        <div class="fs-7 text-secondary">
+            <span class="fw-semibold">Included</span> fighters always join ·
+            <span class="fw-semibold">Eligible</span> fighters may be picked or drawn ·
+            <span class="fw-semibold">Excluded</span> fighters sit this one out.
+        </div>
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% if form.fighter_rows %}
+                <div class="vstack gap-2">
+                    {% for row in form.fighter_rows %}
+                        <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-3 align-items-start align-items-sm-center">
+                            <div class="me-sm-auto">
+                                <div class="fw-semibold">{{ row.fighter.name }}</div>
+                                <div class="fs-7 text-secondary">{{ row.category }} · {{ row.cost }}¢</div>
+                            </div>
+                            <div class="hstack gap-3 flex-wrap">
+                                {% for radio in row.field %}
+                                    <div class="form-check form-check-inline mb-0 me-0">
+                                        {{ radio.tag }}
+                                        <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {{ row.field.errors }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-secondary fs-7 mb-0">
+                    <i class="bi-info-circle"></i>
+                    This gang has no fighters to set eligibility for yet.
+                </p>
+            {% endif %}
+            <div class="hstack gap-3 align-items-center">
+                <button type="submit" class="btn btn-success">Save eligibility</button>
+                <a href="{{ cancel_url }}" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

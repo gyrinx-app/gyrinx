@@ -75,10 +75,17 @@ Two-halved selection screen:
    `{fighter, default, effective}` row per independently-selectable gang fighter
    (children/stash excluded), applying stored overrides. `crew_size` has no
    consumer yet — the screen (step 3) sets it and wires the draw count.
-3. **Eligibility screen** — a step before selection rendering `crew_eligibility`
-   as a table: per-fighter default with a per-fighter override control + the
-   crew-size input + the method picker. Sensible defaults make it a
-   one-click-through in the common case. Persists overrides + crew_size on POST.
+3. **[BUILT this session] Eligibility screen** — dedicated route
+   `battle/<id>/crew/<id>/eligibility` (`crew_eligibility_edit` +
+   `CrewEligibilityForm` + `crew_eligibility.html`) rendering `crew_eligibility`
+   as a table: per fighter, an Included / Eligible / Excluded radio defaulting to
+   the computed default; only fighters moved off their default are stored in
+   `eligibility_overrides`. Reachable from the crew page's action menu and the
+   selection form. The per-category include-toggle UI (#2015) is superseded and
+   removed (`_include_picker` + its test deleted); the campaign-seeded
+   `included_categories` remains the category-level default. The pool already
+   honours overrides (increment 2), so setting states here immediately changes
+   who's picked/drawn. **Not yet on this screen: `crew_size` (next increment).**
 4. **Two-half selection UI** — split the form into pool (top) + always-included
    (bottom).
 5. **"Part of the crew" rule** — look up the content special rule; a fighter

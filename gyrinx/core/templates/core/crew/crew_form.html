@@ -32,22 +32,21 @@
             <div class="form-text">{{ form.method_intro }}</div>
         </div>
         <div>
-            <div class="form-label mb-1">Include normally-excluded types</div>
-            <div class="d-flex flex-wrap gap-2"
-                 role="group"
-                 aria-label="Include categories">
-                {% for t in include_picker %}
-                    <a href="{{ t.url }}"
-                       role="button"
-                       class="btn btn-sm {% if t.is_on %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-                       aria-pressed="{% if t.is_on %}true{% else %}false{% endif %}">
-                        {% if t.is_on %}<i class="bi-check-lg me-1" aria-hidden="true"></i>{% endif %}{{ t.label|capfirst }}
-                    </a>
-                {% endfor %}
-            </div>
-            <div class="form-text">
-                Hangers-on and vehicle crew aren't offered by default — turn them on to pick them for this crew.
-            </div>
+            <div class="form-label mb-1">Eligibility</div>
+            {% if crew %}
+                <a href="{% url 'core:crew-eligibility' battle.id crew.id %}"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi-people me-1" aria-hidden="true"></i>Set who's eligible
+                </a>
+                <div class="form-text">
+                    Choose which fighters can be part of this crew — include a hanger-on, exclude someone, and so on.
+                </div>
+            {% else %}
+                <div class="form-text mt-0">
+                    The pool below is this gang's fighters. Once the crew is created you can fine-tune who's
+                    eligible — include hangers-on, exclude someone, and so on.
+                </div>
+            {% endif %}
         </div>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}

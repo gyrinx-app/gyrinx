@@ -12,7 +12,14 @@ cost, credits, or audit — a crew is a virtual overlay.
 from django import forms
 from django.utils.html import format_html
 
-from gyrinx.core.handlers.crew import eligible_crew_fighters
+from gyrinx.core.handlers.crew import (
+    CREW_ALWAYS_INCLUDED,
+    CREW_ELIGIBILITY_STATES,
+    CREW_ELIGIBLE,
+    CREW_NOT_ELIGIBLE,
+    crew_eligibility,
+    eligible_crew_fighters,
+)
 from gyrinx.core.models.crew import (
     Crew,
     CrewLineItem,
@@ -372,6 +379,92 @@ class CrewForm(forms.ModelForm):
             self.add_error("chosen_fighters", message)
 
         return cleaned
+
+
+# The eligibility screen's per-fighter control. Order runs definitely-in →
+# maybe → out. Values are the states from handlers.crew.
+ELIGIBILITY_CHOICES = [
+    (CREW_ALWAYS_INCLUDED, "Included"),
+    (CREW_ELIGIBLE, "Eligible"),
+    (CREW_NOT_ELIGIBLE, "Excluded"),
+]
+
+ELIGIBILITY_HELP = {
+    CREW_ALWAYS_INCLUDED: "Joins the crew regardless of the selection method.",
+    CREW_ELIGIBLE: "May be picked or drawn using the selection method.",
+    CREW_NOT_ELIGIBLE: "Not part of this crew.",
+}
+
+
+def eligibility_field_name(fighter_id):
+    """The form field name carrying one fighter's eligibility choice."""
+    return f"elig_{fighter_id}"
+
+
+class CrewEligibilityForm(forms.Form):
+    """The pre-selection eligibility screen: per fighter, whether they are
+    *Included* (always join), *Eligible* (may be picked or drawn), or *Excluded*.
+
+    Defaults come from each fighter's category and condition (see
+    :func:`gyrinx.core.handlers.crew.default_crew_eligibility_state`); the player
+    overrides only the ones they want to change, and only those are stored. This
+    picks no fighters — it sets the pool the selection method then works from.
+    """
+
+    def __init__(self, *args, crew=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.crew = crew
+        # One row per independently-selectable fighter, each carrying its
+        # computed default and current effective state.
+        self.rows = crew_eligibility(crew) if crew is not None else []
+        for row in self.rows:
+            fighter = row["fighter"]
+            self.fields[eligibility_field_name(fighter.id)] = forms.ChoiceField(
+                choices=ELIGIBILITY_CHOICES,
+                initial=row["effective"],
+                required=True,
+                label=fighter.name,
+                widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
+            )
+
+    def fighter_rows(self):
+        """One row per fighter for the template: the fighter, its bound radio
+        field, the computed default, its current effective state, category, and
+        cached cost. Pairing these here keeps the template free of dynamic
+        field-name lookups."""
+        out = []
+        for row in self.rows:
+            fighter = row["fighter"]
+            out.append(
+                {
+                    "fighter": fighter,
+                    "field": self[eligibility_field_name(fighter.id)],
+                    "default": row["default"],
+                    "effective": row["effective"],
+                    "category": fighter.content_fighter.get_category_display(),
+                    "cost": fighter.cost_int_cached,
+                }
+            )
+        return out
+
+    def clean(self):
+        cleaned = super().clean()
+        # Store only the fighters the player moved off their computed default —
+        # a clean map that self-heals as defaults change (a fighter coming out of
+        # recovery no longer needs a stored 'excluded').
+        overrides = {}
+        for row in self.rows:
+            fighter = row["fighter"]
+            state = cleaned.get(eligibility_field_name(fighter.id))
+            if state in CREW_ELIGIBILITY_STATES and state != row["default"]:
+                overrides[str(fighter.id)] = state
+        self.cleaned_overrides = overrides
+        return cleaned
+
+    def save(self):
+        """Write the overrides onto the crew instance; the view persists it."""
+        self.crew.eligibility_overrides = self.cleaned_overrides
+        return self.crew
 
 
 class CrewLoadoutsForm(forms.Form):
