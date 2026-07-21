@@ -564,6 +564,19 @@ class ListPrintView(generic.DetailView):
         self.print_config = print_config
         context["print_config"] = print_config
 
+        # Card style: normally part of a saved PrintConfig, but a crew print has
+        # no config, so ?style= picks it straight from the URL (the crew page's
+        # Print dropdown offers Default and Classic). An explicit param wins over
+        # the config either way; anything unrecognised falls back to the config.
+        style = self.request.GET.get("style")
+        if style in ("classic", "default"):
+            use_classic = style == "classic"
+        else:
+            use_classic = bool(
+                print_config and print_config.card_style == PrintConfig.CLASSIC
+            )
+        self.use_classic = use_classic
+
         # A crew print (?crew=<id>) narrows the sheet to one battle crew's
         # fighters. Scoped to this gang so it can't leak another gang's crew.
         crew_id = self.request.GET.get("crew")
@@ -638,21 +651,25 @@ class ListPrintView(generic.DetailView):
 
         context["fighters_with_groups"] = fighters_qs
 
-        # Add attributes if configured to be included
-        if not print_config or print_config.include_attributes:
-            context["attributes"] = get_list_attributes(list_obj)
+        # Attributes / assets / actions only exist on the web sheet — the classic
+        # template renders classic_cards alone, so skip their DB work entirely
+        # when the classic style is selected.
+        if not use_classic:
+            # Add attributes if configured to be included
+            if not print_config or print_config.include_attributes:
+                context["attributes"] = get_list_attributes(list_obj)
 
-        # Add assets and campaign resources if configured to be included
-        if not print_config or print_config.include_assets:
-            # Get campaign resources
-            context["campaign_resources"] = get_list_campaign_resources(list_obj)
+            # Add assets and campaign resources if configured to be included
+            if not print_config or print_config.include_assets:
+                # Get campaign resources
+                context["campaign_resources"] = get_list_campaign_resources(list_obj)
 
-            # Get assets held by this list
-            context["held_assets"] = get_list_held_assets(list_obj)
+                # Get assets held by this list
+                context["held_assets"] = get_list_held_assets(list_obj)
 
-        # Add recent campaign actions if configured to be included
-        if not print_config or print_config.include_actions:
-            context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
+            # Add recent campaign actions if configured to be included
+            if not print_config or print_config.include_actions:
+                context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
         # Add blank card ranges if print_config exists
         if print_config:
@@ -661,9 +678,9 @@ class ListPrintView(generic.DetailView):
 
         # Classic-mode cards: render the grimdark fixed-size cards instead of the
         # web cards. Reuses the already-filtered fighter queryset, then appends
-        # the configured blank cards. Fighter cards only (assets/attributes/etc.
-        # don't apply to the classic sheet).
-        if print_config and print_config.card_style == PrintConfig.CLASSIC:
+        # the configured blank cards (none without a config). Fighter cards only
+        # (assets/attributes/etc. don't apply to the classic sheet).
+        if use_classic:
             from gyrinx.core.print_cards import blank_classic_card, card_from_fighter
 
             # Fighter cards only — the stash is not a classic card (it has no
@@ -674,24 +691,23 @@ class ListPrintView(generic.DetailView):
                 if card.kind == "stash":
                     continue
                 cards.append(card)
-            cards += [
-                blank_classic_card("fighter")
-                for _ in range(print_config.blank_fighter_cards)
-            ]
-            cards += [
-                blank_classic_card("vehicle")
-                for _ in range(print_config.blank_vehicle_cards)
-            ]
+            if print_config:
+                cards += [
+                    blank_classic_card("fighter")
+                    for _ in range(print_config.blank_fighter_cards)
+                ]
+                cards += [
+                    blank_classic_card("vehicle")
+                    for _ in range(print_config.blank_vehicle_cards)
+                ]
             context["classic_cards"] = cards
 
         return context
 
     def get_template_names(self):
-        """Classic-style configs render the fixed-size grimdark sheet."""
-        from gyrinx.core.models import PrintConfig
-
-        pc = getattr(self, "print_config", None)
-        if pc and pc.card_style == PrintConfig.CLASSIC:
+        """Classic style (config- or ?style=-selected) renders the fixed-size
+        grimdark sheet."""
+        if getattr(self, "use_classic", False):
             return ["core/list_print_classic.html"]
         return [self.template_name]
 
