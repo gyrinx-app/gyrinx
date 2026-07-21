@@ -28,8 +28,13 @@ from django.db.models import Q
 from django.utils import timezone
 
 from gyrinx.core.models.campaign import CampaignAction
-from gyrinx.core.models.crew import Crew, CrewMember, roll_selection_spec
-from gyrinx.core.models.list import ListFighter
+from gyrinx.core.models.crew import (
+    Crew,
+    CrewMember,
+    CrewStashItem,
+    roll_selection_spec,
+)
+from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
 from gyrinx.tracing import traced
 
@@ -78,6 +83,9 @@ EQUIPMENT_CREW_CATEGORIES = frozenset(
     {
         FighterCategoryChoices.VEHICLE.value,
         FighterCategoryChoices.EXOTIC_BEAST.value,
+        # Gang terrain (gun emplacements etc.) is bought as stash equipment and
+        # brought via the crew's stash selection, never picked as a fighter.
+        FighterCategoryChoices.GANG_TERRAIN.value,
     }
 )
 
@@ -995,3 +1003,90 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
         whole_gang=whole_gang,
         skipped_ineligible=skipped_ineligible,
     )
+
+
+# --- Stash items -------------------------------------------------------------
+
+
+def crew_stash_rows(crew: Crew):
+    """The gang's stash equipment as crew-stash rows, for the Stash tab and the
+    crew sheet.
+
+    One row per (non-archived) assignment on the gang's stash fighter:
+    ``{assignment, name, cost, child_fighter, always_brought, brought}``.
+    ``always_brought`` items (content flagged ``crew_always_brought``, e.g. the
+    Iron Automaton) are brought on every crew and can't be unticked; the rest
+    are ``brought`` when the crew has a :class:`CrewStashItem` for them.
+    ``child_fighter`` is the linked fighter card some equipment spawns (a gun
+    emplacement) — displayed like a fighter, rated at the equipment's cost.
+    """
+    stash = crew.list.stash_fighter
+    if stash is None:
+        return []
+    brought_ids = set(crew.stash_items.values_list("assignment_id", flat=True))
+    rows = []
+    assignments = (
+        ListFighterEquipmentAssignment.objects.filter(
+            list_fighter=stash, archived=False
+        )
+        .with_related_data()
+        .select_related("child_fighter__content_fighter")
+        .order_by("content_equipment__name")
+    )
+    for assignment in assignments:
+        always = assignment.content_equipment.crew_always_brought
+        rows.append(
+            {
+                "assignment": assignment,
+                "name": assignment.content_equipment.name,
+                "cost": assignment.cost_int_cached,
+                "child_fighter": assignment.child_fighter,
+                "always_brought": always,
+                "brought": always or assignment.id in brought_ids,
+            }
+        )
+    return rows
+
+
+def crew_stash_lines(crew: Crew):
+    """Just the *brought* stash rows plus their total — the crew sheet's Stash
+    section. Computed live (the selection is editable even on a locked crew), so
+    it counts in the live totals but never in the frozen rating snapshots."""
+    rows = [row for row in crew_stash_rows(crew) if row["brought"]]
+    return {"rows": rows, "total": sum(row["cost"] for row in rows)}
+
+
+@traced("handle_crew_stash_save")
+@transaction.atomic
+def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
+    """Reconcile the crew's optional stash selection with ``assignment_ids``.
+
+    Only assignments on this gang's stash count, and always-brought items are
+    ignored either way — they're computed, never stored. No lock gating: gang
+    terrain and the like are chosen after the draw.
+    """
+    stash = crew.list.stash_fighter
+    valid_ids = (
+        set(
+            ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=stash,
+                archived=False,
+                content_equipment__crew_always_brought=False,
+            ).values_list("id", flat=True)
+        )
+        if stash is not None
+        else set()
+    )
+    wanted = {aid for aid in assignment_ids if aid in valid_ids}
+
+    current = {item.assignment_id: item for item in crew.stash_items.all()}
+    stale = [item.pk for aid, item in current.items() if aid not in wanted]
+    if stale:
+        crew.stash_items.filter(pk__in=stale).delete_with_user(user=user)
+    for aid in wanted - set(current):
+        CrewStashItem.objects.create_with_user(
+            user=user,
+            owner_id=crew.list.owner_id,
+            crew=crew,
+            assignment_id=aid,
+        )

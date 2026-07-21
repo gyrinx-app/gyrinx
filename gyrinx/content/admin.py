@@ -419,7 +419,7 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentEquipmentAdminForm
 
     search_fields = ["name", "category__name", "contentweaponprofile__name"]
-    list_filter = ["category"]
+    list_filter = ["category", "crew_always_brought"]
 
     inlines = [
         ContentWeaponProfileInline,

@@ -894,3 +894,48 @@ class CrewLineItem(AppBase):
 
     def __str__(self):
         return f"{self.label} ({self.cost}¢)"
+
+
+class CrewStashItem(AppBase):
+    """A stash item this crew brings to its battle.
+
+    The gang's stash holds equipment as assignments on the stash fighter; a row
+    here marks one of those assignments as coming along. Only *optional* items
+    are stored — equipment whose content is flagged ``crew_always_brought``
+    (e.g. the Iron Automaton) joins every crew automatically and is computed,
+    never stored, so it can't be left behind.
+
+    Deliberately not lock-gated: gang terrain and the like are picked after the
+    crew is drawn, so the stash selection stays editable on a locked crew. Its
+    value therefore counts in the live totals but never in the frozen rating
+    snapshots (which cover members only).
+    """
+
+    crew = models.ForeignKey(
+        Crew,
+        on_delete=models.CASCADE,
+        related_name="stash_items",
+        help_text="The crew bringing this stash item.",
+    )
+    assignment = models.ForeignKey(
+        "core.ListFighterEquipmentAssignment",
+        on_delete=models.CASCADE,
+        related_name="crew_stash_items",
+        help_text="The stash equipment assignment being brought.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = "Crew Stash Item"
+        verbose_name_plural = "Crew Stash Items"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["crew", "assignment"],
+                name="unique_stash_item_per_crew",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.assignment} for {self.crew}"
