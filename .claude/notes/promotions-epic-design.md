@@ -313,6 +313,81 @@ implies D/F should eventually run with the source/target fighter supplied by a *
 the base catalog, since promotions are pack-aware content. Out of scope until Phase 3+, but the
 fixtures should be parametrizable on that axis from the start.
 
+## Initial content ingest (researched 2026-07-21; rules × live content library)
+
+**Structural discovery that shapes the ingest:** the content library already models
+Specialists as **separate ContentFighter rows** — "Sister (Specialist)", "Gunner
+(Specialist)", "Drill-kyn (Specialist)" etc., mostly category **GANGER** (matching RAW:
+"still a Ganger") — each carrying the Specialist's own equipment list and skill access. So
+nearly every promotion ingests as **kind=TYPE_CHANGE with a specific target row**; the
+access half of the promotion falls out of the Phase 3 pointer landing on that row. The
+generic seeded rows remain fallbacks for gangs whose house lacks distinct rows.
+Houses are book-variant-split ("Escher (HoB)" vs "Escher (GotU)"), so `source_fighter`
+alone pins house+book — `restricted_to_houses` is not needed for ingested rows.
+
+Common field values (RAW): family A rows — xp 6, +20¢, rolls `[2,12]`, `primary_random`,
+POST_BATTLE, rank 1. Juve→Specialist and Prospect→Champion rows — xp 0, +0¢ (rules silent),
+no skill, DOWNTIME, `advancements_threshold` 5 (3 where noted), rank 1 (Specialist-level) /
+rank 2 (Champion-level). Specialist→Champion rows — xp 12, +40¢, `primary_random`,
+POST_BATTLE, rank 2.
+
+### A. Ganger → Specialist (per house; source=Ganger row, target=(Specialist) row)
+
+Escher HoB Sister; Goliath HoC Bruiser; Orlock HoI Gunner; Delaque HoS Ghost; Cawdor HoF
+Brethren **and** Redemptionist Brethren (two separate rows); Van Saar HoA Tek → Tek
+Specialist; AWN Tarn'runi Warrior; Ironhead Drill-kyn; Palanite BoJ+BoL Patrolman **and**
+Subjugator Patrolman; Badzone Patrolman; Outcasts Hive Scum; Malstrain Brood Scum →
+Specialist (**no founding** — rules: "may not start with"); Venators — per-statline-profile
+Hunter → Specialist rows (BoP ×4 profiles; AN ×4 house profiles + Beastman/Ogryn/Ratling/
+Squat); GotU generic houses Ganger → Specialist. (~25 rows incl. Venator variants.)
+
+### B. Juve → Specialist (the #1596 fix; threshold 5 unless noted)
+
+| Source (house) | Target(s) | Threshold |
+|---|---|---|
+| Little Sister (Escher HoB) | Sister (Specialist) | 5 |
+| Bully (Goliath HoC) | Bruiser (Specialist) | 5 |
+| Greenhorn (Orlock HoI) | Gunner (Specialist) | 5 |
+| Shadow (Delaque HoS) | Ghost (Specialist) | 5 |
+| Subtek (Van Saar HoA) | Tek Specialist | 5 |
+| Bonepicker (Cawdor HoF) | **choice:** Brethren (Specialist) \| Redemptionist Brethren (Specialist) | 5 |
+| Zealot (Cawdor HoF) | Redemptionist Brethren (Specialist) | 5 |
+| Run'taani Dust Runner (AWN) | Tarn'runi Warrior (Specialist) | **3** |
+| Digger (Ironhead) | Drill-kyn (Specialist) | **3** |
+| Palanite Rookie (BoJ) / Rookie Patrolman (BoL) | Patrolman (Specialist) | **3** |
+| Enlisted Hive Scum (Badzone) | Badzone Patrolman — **a GANGER type** | **3** |
+| GotU generic Juves | Specialist | 5 — **flag: not strictly RAW** for the older GotU book lists; pragmatic extension, Tom to confirm |
+
+### C. Prospect → Champion(s) (threshold 5 unless noted; ×2 targets = the #1467 case)
+
+| Source | Targets | Threshold |
+|---|---|---|
+| Wyld Runner (Escher HoB) | Matriarch | 5 |
+| Forge-born (Goliath HoC) | Forge Boss \| Stimmer | 5 |
+| Wrecker (Orlock HoI) | Road Sergeant \| Arms Master | 5 |
+| Neotek (Van Saar HoA) | Augmek \| Archeotek | 5 |
+| Psy-gheist (Delaque HoS) | Phantom \| Nacht-Ghul | 5 |
+| Cawdor Way-Brethren (HoF) | Firebrand \| Deacon | 5 |
+| Tarh'noki Dust Rider (AWN) | Naku'taari Watcher \| Wy'tari Stormcaller | **3** |
+| Exo-kyn (Ironhead HotA) | Exo Master | **3** |
+
+### D. Specialist → Champion (per house; fixes a latent gap)
+
+The generic seeded row keys on `from_category=SPECIALIST`, but most "(Specialist)" library
+rows are category **GANGER** — a user who *hires* one directly would never see the Champion
+promotion. Ingest per-house rows keyed `source_fighter=(Specialist) row` with
+`targets=` the house's Champion pair (GotU: single "Champion"). (~12 rows.)
+
+### Out of scope for initial ingest
+
+Leader paths (family D / Death of a Leader — needs the conditional-target story);
+Cawdor Fanatical/Pious and GSC-generation conditional targets (player-resolved).
+
+**Delivery vehicle (Tom to confirm):** ~55–60 rows total. Options: pure admin authoring
+(slow, matches content-team culture) vs. a management command that derives the mechanical
+majority by name-pattern ("X" → "X (Specialist)" sibling in the same house) with an admin
+pass for the oddballs (Cawdor choice rows, Badzone Juve→Ganger, Venator profiles).
+
 ## Decisions (resolved with Tom, 2026-07-05; revised 2026-07-21)
 
 1. **Kept gear on type-change → KEEP EVERYTHING.** Equipment persists (keyed to `list_fighter`,
