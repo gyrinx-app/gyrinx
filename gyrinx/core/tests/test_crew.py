@@ -1088,6 +1088,51 @@ def test_crew_eligibility_excludes_child_fighters(
 
 
 @pytest.mark.django_db
+def test_vehicle_category_is_never_in_the_eligibility_list(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """A vehicle is the crew's equipment — never shown in the eligibility list,
+    the pool, or the always-included set, even standing alone (not a child)."""
+    vehicle = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.VEHICLE,
+        "Rig",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    ids = {row["fighter"].id for row in crew_eligibility(crew)}
+    assert vehicle.id not in ids
+    assert vehicle not in set(eligible_crew_fighters(crew_setup["gang"]))
+    assert vehicle not in set(always_included_crew_fighters(crew_setup["gang"]))
+
+
+@pytest.mark.django_db
+def test_ally_defaults_to_always_included(
+    crew_setup, make_content_fighter, make_list_fighter
+):
+    """Allied delegations join like hired guns — always-included by default."""
+    ally = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.ALLY,
+        "House Delegate",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[ally.id] == CREW_ALWAYS_INCLUDED
+    assert ally in set(always_included_crew_fighters(crew_setup["gang"]))
+    assert ally not in set(eligible_crew_fighters(crew_setup["gang"]))
+
+
+@pytest.mark.django_db
 def test_override_drops_a_ganger_from_the_pool(crew_setup):
     """An 'excluded' override removes an otherwise-eligible fighter from the
     pick/draw pool."""

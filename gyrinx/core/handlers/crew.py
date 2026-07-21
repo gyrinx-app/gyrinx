@@ -53,9 +53,10 @@ TOGGLEABLE_CREW_CATEGORIES = [
 ]
 
 # Hired guns and the like are "always included": the rulebook's "You Get What
-# You Pay For" says they aren't counted during the choose step of the pre-battle
-# sequence — instead they may be added to the crew regardless of the selection
-# method. So they never enter the pick/draw pool; they are auto-enrolled on top.
+# You Pay For" (and the alliances' "Here to Help") say they aren't counted during
+# the choose step of the pre-battle sequence — instead they may be added to the
+# crew regardless of the selection method. So they never enter the pick/draw
+# pool; they are auto-enrolled on top.
 ALWAYS_INCLUDED_CREW_CATEGORIES = frozenset(
     {
         FighterCategoryChoices.HIRED_GUN.value,
@@ -63,6 +64,20 @@ ALWAYS_INCLUDED_CREW_CATEGORIES = frozenset(
         FighterCategoryChoices.HOUSE_AGENT.value,
         FighterCategoryChoices.HIVE_SCUM.value,
         FighterCategoryChoices.DRAMATIS_PERSONAE.value,
+        FighterCategoryChoices.ALLY.value,
+    }
+)
+
+# Vehicles and exotic beasts are equipment, not independently-selectable
+# fighters: a vehicle belongs to its Crew, a beast to its owner, and each deploys
+# alongside them. They are dropped from the eligibility roster entirely (like a
+# child fighter) and ride in via sync_linked_crew_members when their owner is
+# picked. Note the *Crew* category itself IS shown — opt-in via
+# DEFAULT_EXCLUDED_CREW_CATEGORIES — only the vehicle is hidden.
+EQUIPMENT_CREW_CATEGORIES = frozenset(
+    {
+        FighterCategoryChoices.VEHICLE.value,
+        FighterCategoryChoices.EXOTIC_BEAST.value,
     }
 )
 
@@ -118,18 +133,25 @@ def default_crew_eligibility_state(fighter, *, included_categories):
 def _selectable_gang_fighters(lst):
     """The gang's independently-selectable fighters — the eligibility roster.
 
-    Excludes the stash, archived fighters, and child fighters (vehicles / exotic
-    beasts that deploy alongside the fighter whose equipment spawned them,
-    rulebook p86 — ``source_assignment__isnull=True`` drops them). ``capture_info``
-    is selected so the captured / sold checks don't fan out into a query per
-    fighter on the draw path.
+    Excludes the stash, archived fighters, child fighters
+    (``source_assignment__isnull=True``), and vehicles / exotic beasts by
+    category (``EQUIPMENT_CREW_CATEGORIES``): those are a fighter's equipment,
+    deploy alongside them, and are never shown in their own right — they ride in
+    via :func:`sync_linked_crew_members` when their owner is picked. The Crew that
+    operate a vehicle *are* shown (opt-in). ``capture_info`` is selected so the
+    captured / sold checks don't fan out into a query per fighter on the draw
+    path.
     """
-    return ListFighter.objects.filter(
-        list=lst,
-        archived=False,
-        content_fighter__is_stash=False,
-        source_assignment__isnull=True,
-    ).select_related("content_fighter", "capture_info")
+    return (
+        ListFighter.objects.filter(
+            list=lst,
+            archived=False,
+            content_fighter__is_stash=False,
+            source_assignment__isnull=True,
+        )
+        .exclude(_effective_category_in(EQUIPMENT_CREW_CATEGORIES))
+        .select_related("content_fighter", "capture_info")
+    )
 
 
 def compute_crew_eligibility(
