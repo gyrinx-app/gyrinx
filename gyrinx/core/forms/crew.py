@@ -290,19 +290,15 @@ class CrewForm(forms.Form):
         return cleaned
 
 
-# The eligibility screen's per-fighter control. Order runs definitely-in →
-# maybe → out. Values are the states from handlers.crew.
+# The eligibility screen's per-fighter control. The common pair (Eligible /
+# Excluded) comes first; "Always included" sits rightmost so it doesn't read as
+# "tick to pick" — it's a standing state (hired guns et al. come by default,
+# regardless of the crew selected). Values are the states from handlers.crew.
 ELIGIBILITY_CHOICES = [
-    (CREW_ALWAYS_INCLUDED, "Included"),
     (CREW_ELIGIBLE, "Eligible"),
     (CREW_NOT_ELIGIBLE, "Excluded"),
+    (CREW_ALWAYS_INCLUDED, "Always included"),
 ]
-
-ELIGIBILITY_HELP = {
-    CREW_ALWAYS_INCLUDED: "Joins the crew regardless of the selection method.",
-    CREW_ELIGIBLE: "May be picked or drawn using the selection method.",
-    CREW_NOT_ELIGIBLE: "Not part of this crew.",
-}
 
 
 def eligibility_field_name(fighter_id):
