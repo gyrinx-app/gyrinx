@@ -1,0 +1,43 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.act> — "one click, one state change."
+
+    The 32 inline `<form class="d-inline" method="post">` row actions: star,
+    pin, archive-toggle, remove-from-campaign, mark-read. A POST because it
+    mutates; inline because it sits inside a table cell or a header line.
+
+        <c-form.act action="{% url 'core:list-star' list.id %}">
+            <c-btn type="submit" variant="link" size="sm" class="p-0" aria-label="Star this gang">
+                <i class="bi-star" aria-hidden="true"></i>
+            </c-btn>
+        </c-form.act>
+
+    Why a form and not a link: these change server state, so they must not be
+    reachable by GET (a prefetching browser or a crawler would fire them). This
+    component exists so that fact is structural rather than remembered — there
+    is no `method` prop, and the CSRF token cannot be omitted.
+
+    Props
+      action      target URL. Required in practice.
+      return_url  emitted as a hidden input when given.
+      class       wrapper classes. Defaults to `d-inline` (28 of the 32 sites);
+                  override for `d-inline ms-2`, `m-0`, etc.
+
+    Default slot: the button, and any hidden inputs. Icon-only buttons MUST
+    carry an aria-label — that is the caller's job, on <c-btn>, and it is worth
+    a test-time assertion rather than a runtime one.
+
+    NO JavaScript: no onsubmit confirm, no fetch. Destructive actions that need
+    a confirmation get their own URL and a <c-confirm> page, which is also what
+    makes them linkable and back-button-safe (URL-driven state).
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars action="" return_url="" class="d-inline" />
+{# djlint:on #}
+<form method="post"
+      {% if action %}action="{{ action }}"{% endif %}
+      {% if class %}class="{{ class }}"{% endif %}{{ attrs|space_before }}>
+    {% csrf_token %}
+    {% if return_url %}<input type="hidden" name="return_url" value="{{ return_url }}">{% endif %}
+    {{ slot }}
+</form>

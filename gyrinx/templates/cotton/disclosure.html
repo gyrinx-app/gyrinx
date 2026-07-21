@@ -1,0 +1,48 @@
+{% comment %}
+    c-disclosure — a bordered box holding a collapsible group of fields.
+
+    Native details/summary: no JavaScript, no client-side state, no
+    data-bs-collapse. Open or closed is decided by the SERVER from form state,
+    which is what the URL-driven-state convention requires.
+
+    (Elements are named without angle brackets below; a literal tag in a comment
+    gets reflowed and flagged as an orphan by djlint's custom_html.)
+
+    Five sites: pack/includes/_equipment_mods_picker.html:13, :32, :57 and
+    _accessory_mods_picker.html:11, :29.
+
+    THIS COMPONENT EXISTS TO FIX A COTTON MIGRATION HAZARD. Those sites currently
+    write a conditional bare attribute — an {% templatetag openblock %} if ... {% templatetag closeblock %} wrapping the word
+    `open` — which CANNOT appear inside any cotton tag. Cotton fails
+    non-deterministically there: it either raises or emits the literal template
+    source into the page with the closing tag eaten, depending on cache state. The
+    rewrite to :open="expr" is a semantic transformation no script can do
+    textually, so naming the situation means it happens once, here, instead of five
+    times by hand. scripts/check_cotton.sh fails the build if the pattern appears.
+
+    Props
+      summary  The summary text. Autoescaped.
+      open     Pass dynamically — :open="form.any_fighter_stat_mod_set" — or as a
+               bare `open` for always-expanded. Emitted through an {% templatetag openblock %} if {% templatetag closeblock %}
+               as a real bare boolean attribute, and deliberately NOT forwarded
+               through {{ attrs }}, where a falsy value would render open="False"
+               and wrongly expand the element.
+      class    Appended last.
+
+    Padding is fixed at p-2 because all five sites use it, and a disclosure is by
+    definition the compact "inline metadata" case.
+
+    SECURITY — NEVER pass user-controlled data as :prop="value". Cotton's
+    {{ attrs }} output is mark_safe'd and does NOT HTML-escape; a value that both
+    begins and ends with a double quote escapes the attribute and injects a live
+    event handler. `summary` is a declared prop and IS autoescaped, so user data
+    belongs there or in the slot — never in :title= or :data-x=. Enforced by
+    scripts/check_cotton.sh.
+{% endcomment %}
+<c-vars summary="" open="" class="" />
+<details class="border rounded p-2{% if class %} {{ class }}{% endif %}"
+         {% if open %}open{% endif %}
+         {{ attrs }}>
+    <summary class="fw-semibold">{{ summary }}</summary>
+    {{ slot }}
+</details>

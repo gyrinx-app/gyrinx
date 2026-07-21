@@ -1,0 +1,74 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.search> — "search this collection."
+
+    The standalone GET search form: homepage gang/campaign boxes, notifications,
+    campaign packs, the pack pickers. ~10 sites.
+
+        <c-form.search action="{% templatetag openblock %} url 'core:lists' {% templatetag closeblock %}" id="search-lists" label="Search lists" value="{{ request.GET.q }}" size="sm">
+            <input type="hidden" name="q_gangs" value="{{ request.GET.q_gangs }}">
+        </c-form.search>
+
+        {# a trailing Clear link, inside the input group #}
+        <c-form.search action="…" label="Search packs" value="{{ request.GET.q }}">
+            <c-slot name="after">
+                <c-btn variant="outline-secondary" href="{{ request.path }}">Clear</c-btn>
+            </c-slot>
+        </c-form.search>
+
+    METHOD IS GET AND THERE IS NO PROP TO CHANGE IT. Search results are a
+    location, not a mutation: they must be linkable, bookmarkable,
+    back-button-safe and cacheable, and the filters must end up in the query
+    string where the rest of the app can read them. That is the URL-driven-state
+    rule, and encoding it here is the difference between a convention and a
+    guarantee. A GET form emits no CSRF token, correctly.
+
+    Props
+      action    target URL. Omit to submit to the current URL.
+      id        form id. Give it one when filter controls elsewhere on the page
+                point at it with form="…".
+      label     the input's accessible name. ALWAYS pass it, and pass the
+                specific one — see <c-filter.query>.
+      input_id  id on the <input> itself, when a label or JS hook needs it.
+      name / value / placeholder / button / size  forwarded to c-filter.query.
+      class     classes on the <form>.
+
+    Slots
+      (default) hidden inputs that must survive the round trip — the
+                cachebuster, preserved sibling query params, the `flash` anchor.
+                It renders in the parent's context, so
+                {% templatetag openblock %} cachebuster {% templatetag closeblock %} and
+                {% templatetag openblock %} qt_getlist {% templatetag closeblock %} keep working.
+      after     forwarded into the input-group, after the submit button.
+
+    OUT OF SCOPE, deliberately: notifications.html:41-56, where the input sits
+    in one grid column and the Apply button in another. A detached submit is not
+    an input-group; use `button=""` here for the input and leave that button raw.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars action=""
+        id=""
+        name="q"
+        value=""
+        placeholder="Search"
+        label=""
+        button="Search"
+        input_id=""
+        size=""
+        class="" />
+{# djlint:on #}
+<form method="get"
+      {% if action %}action="{{ action }}"{% endif %}
+      {% if id %}id="{{ id }}"{% endif %}
+      {% if class %}class="{{ class }}"{% endif %}{{ attrs|space_before }}>
+    {{ slot }}
+    <c-filter.query name="{{ name }}"
+                    value="{{ value }}"
+                    placeholder="{{ placeholder }}"
+                    label="{{ label }}"
+                    button="{{ button }}"
+                    input_id="{{ input_id }}"
+                    size="{{ size }}">
+        <c-slot name="after">{{ after }}</c-slot>
+    </c-filter.query>
+</form>

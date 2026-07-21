@@ -1,0 +1,53 @@
+{% comment %}
+    <c-form.errors> — "something is wrong with this form as a whole."
+
+        <c-form.errors :form="form" class="mb-0" />
+
+    Replaces the 16 hand-rolled `{% templatetag openblock %} if form.non_field_errors {% templatetag closeblock %}`
+    blocks, 10 of which render the errors bare (unstyled, next to an otherwise
+    styled form) and 6 of which hand-build the alert markup.
+
+    IT IS FOR HAND-LAID FORMS ONLY. Do NOT put it above `{{ form }}`.
+    Django's own django/forms/div.html opens with `{{ errors }}`, which already
+    contains `non_field_errors()` plus a `(Hidden field X) …` line for every
+    hidden-field error — so on the 27 whole-form pages this component renders
+    the same messages a SECOND time. Verified: two copies, one in a callout and
+    one as a bare `<ul class="errorlist nonfield">`. A regression test pins the
+    message count so this note and the code cannot drift apart.
+
+    Where it is genuinely load-bearing is the hand-laid forms, which reach the
+    per-field template one field at a time and therefore render
+    `non_field_errors()` NOWHERE unless the author remembered to — and render
+    errors attached to a HIDDEN field nowhere at all. A form can fail validation
+    on a hidden `return_url` / `list_id` / `step` and come back with no message
+    whatsoever. This component surfaces them, named.
+
+    Renders nothing when the form is clean, so it can sit unconditionally at the
+    top of every hand-laid form.
+
+    Props
+      form   the Form instance. Required, and ALWAYS as `:form="form"` — the
+             quoted form stringifies the form to its rendered HTML and every
+             error is silently hidden. scripts/check_cotton.py rejects that.
+      class  utility classes forwarded to each callout (e.g. "mb-0").
+
+    Uses <c-callout variant="danger">, so the icon, the .alert-icon flex
+    contract and the aria wiring are the callout family's problem, not this
+    component's, and stay consistent with every other error surface in the app.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars form="" class="" />
+{# djlint:on #}
+{% if form.non_field_errors %}
+    <c-callout variant="danger" class="{{ class }}">
+        {{ form.non_field_errors }}
+    </c-callout>
+{% endif %}
+{% for hidden in form.hidden_fields %}
+    {% if hidden.errors %}
+        <c-callout variant="danger" class="{{ class }}">
+            <strong>{% firstof hidden.label hidden.name %}</strong>
+            {{ hidden.errors }}
+        </c-callout>
+    {% endif %}
+{% endfor %}

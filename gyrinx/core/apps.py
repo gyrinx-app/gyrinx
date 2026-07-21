@@ -7,4 +7,5 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         """Import signal handlers when the app is ready."""
+        import gyrinx.core.checks  # noqa: F401
         import gyrinx.core.signals  # noqa: F401

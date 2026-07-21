@@ -1,0 +1,35 @@
+{% comment %} djlint:off {% endcomment %}{% comment %}
+    Campaign attribute chip: a light, bordered badge carrying an optional
+    user-chosen colour swatch. Three call sites -- campaign_lists.html:51 and
+    :87, campaign_attributes.html:126 -- identical except that one uses a 10px
+    dot and two use 8px.
+
+    Like badge/fighter_state.html, this earns a file because a caller writing
+    it by hand gets it wrong. Six of its classes are load-bearing and none of
+    them is a colour choice: fw-normal cancels the badge's fw-semibold, border
+    compensates for text-bg-light's low contrast, and
+    d-inline-flex/align-items-center/gap-1 lay the dot out.
+
+    Props
+      value  An object with .colour (a validated hex string, possibly blank)
+             and .name. Pass it dynamically.
+      dot    Swatch diameter, default "8px". campaign_attributes.html passes
+             "10px". Parameterised rather than settled at 8px because the two
+             sizes sit in different table densities and picking one is a visual
+             change nobody asked for.
+      class  Extra utility classes, appended after the chip's own layout
+             utilities.
+
+    Escaping: .colour lands inside a style attribute, so it is interpolated as
+    a normal variable inside a quoted attribute and is autoescaped. It is never
+    routed through the attrs proxy, whose output is mark_safe'd. The model's
+    hex-pattern validator (campaign.py, RegexValidator on a max_length=7 field)
+    is the first lock; this is the second.
+
+    attrs are forwarded to the inner badge with :attrs="attrs", not {{ attrs }}
+    -- cotton masks the latter inside a component tag and would emit it as
+    literal text.
+
+    Whitespace: no trailing newline -- see the note in badge.html. This file
+    delegates, so it would otherwise emit two.
+{% endcomment %}<c-vars value="" dot="8px" class="" /><c-badge variant="light" class="fw-normal border d-inline-flex align-items-center gap-1{% if class %} {{ class }}{% endif %}" :attrs="attrs">{% if value.colour %}<span class="d-inline-block rounded-circle" style="width: {{ dot }}; height: {{ dot }}; background-color: {{ value.colour }}"></span>{% endif %}{{ value.name }}</c-badge>

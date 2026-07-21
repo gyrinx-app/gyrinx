@@ -6,6 +6,7 @@ click==8.4.2
 daphne==4.2.2
 Django==6.0.7
 django-allauth==65.18.0
+django-cotton==2.7.2
 django-csp==4.0
 django-debug-toolbar==7.0.0
 django-extensions==4.1

@@ -497,6 +497,15 @@ label {
     color: var(--bs-danger);
 }
 
+// <c-form.field> renders `{{ field.errors }}` (an ErrorList, i.e. a <ul>)
+// inside `.invalid-feedback`. `.list-unstyled` resets padding and bullets but
+// NOT margins, so Reboot's `ul { margin-bottom: 1rem }` survives and every
+// field with an error gains a rem of trailing space. Zero it here rather than
+// per-component.
+.invalid-feedback > .errorlist {
+    margin-bottom: 0;
+}
+
 // Flash
 
 @keyframes flash-warn {

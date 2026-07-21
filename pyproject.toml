@@ -33,7 +33,28 @@ find = {}
 [tool.djlint]
 profile = "django"
 custom_blocks = "element,slot,setvar,is_active"
-ignore = "H006"
+# H026 fires on the `class=""` default that every cotton component must declare
+# in <c-vars> to merge caller-supplied classes (cotton has no auto-merge: an
+# undeclared `class` emits two class attributes and the caller's is dropped).
+ignore = "H006,H026"
+# django-cotton components (<c-btn>, <c-slot>, <c-forms.field>, <c-vars />).
+# Without this djlint treats them as unknown inline tags and FLATTENS the
+# indentation of their children instead of nesting it.
+custom_html = "c-[\\w.-]+"
+# django-cotton component files are byte-significant and hand-formatted. A
+# component's file content is emitted verbatim, so a TRAILING NEWLINE lands
+# after the closing tag and collapses to a rendered space between adjacent
+# inline elements -- e.g. the dice-result badges butted together inside the
+# for-loop at core/campaign/campaign_action_outcome.html:22.
+# `djlint --reformat` appends that newline even when the file carries
+# `djlint:off`, and reports "0 files were updated" while doing it. So the
+# component directory is excluded outright. pre-commit's end-of-file-fixer is
+# excluded for the same path in .pre-commit-config.yaml.
+# Golden HTML snapshots are RENDERED OUTPUT, not templates. djlint --reformat
+# rewrites them (verified: "16 files would be updated"), which would silently
+# rebaseline the render-equivalence harness against reformatted goldens and
+# make it pass no matter what the migration did.
+extend_exclude = "gyrinx/templates/cotton,gyrinx/core/tests/goldens"
 
 [tool.bandit]
 exclude_dirs = [

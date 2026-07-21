@@ -5,8 +5,16 @@ repos:
   - repo: https://github.com/djlint/djLint
     rev: v1.40.8
     hooks:
+      # django-cotton component files are hand-formatted and byte-significant:
+      # every one carries `djlint:off`, and djlint --reformat appends a trailing
+      # newline regardless, which renders as a space between adjacent inline
+      # badges/buttons. pyproject's [tool.djlint] extend_exclude covers directory
+      # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
+      # paths pre-commit passes, so the exclusion is repeated here.
       - id: djlint-reformat-django
+        exclude: ^(gyrinx/templates/cotton/|gyrinx/core/tests/goldens/)
       - id: djlint-django
+        exclude: ^(gyrinx/templates/cotton/|gyrinx/core/tests/goldens/)
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.8.1
@@ -81,12 +89,22 @@ repos:
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
+        # django-cotton components must NOT end with a newline. A component's
+        # file content is emitted verbatim, so a trailing newline lands after
+        # the closing tag and collapses to a rendered space between adjacent
+        # inline elements -- e.g. the dice-result badges butted together in
+        # core/campaign/campaign_action_outcome.html:22.
+        exclude: ^gyrinx/templates/cotton/
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
       - id: forbid-submodules
       - id: mixed-line-ending
       - id: name-tests-test
         args: [--django]
+        # Test SUPPORT modules, not test modules. They hold no tests; they are
+        # imported by test_render_equivalence.py. Renaming them to test_*.py
+        # would make pytest collect them as empty test modules.
+        exclude: ^gyrinx/core/tests/render_(normalise|world)\.py$
       # - id: no-commit-to-branch
       - id: requirements-txt-fixer
       - id: sort-simple-yaml

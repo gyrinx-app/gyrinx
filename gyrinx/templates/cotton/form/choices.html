@@ -1,0 +1,66 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.choices> — "pick from a list of options you can see."
+
+    The `{% templatetag openblock %} for choice in form.x {% templatetag closeblock %}<div class="form-check">…`
+    idiom: radio groups and small checkbox groups rendered flat rather than
+    through a widget template. 6 sites today, each hand-rolled slightly
+    differently.
+
+        <c-form.choices :field="form.card_style" label="Card style" />
+        <c-form.choices :field="form.eligibility" label="Eligibility" inline check_class="mb-0 me-0" />
+
+    THREE things it gets right that the hand-rolled sites do not:
+
+    1. It is a real <fieldset>/<legend>, so screen readers announce the group
+       name with each option. Five sites currently use `<div class="form-label">`
+       as a fake group heading, which announces nothing.
+    2. The legend carries `float-none w-auto` — Bootstrap 5 resets <legend> to
+       `float: left; width: 100%; font-size: calc(1.275rem + .3vw)`, so a legend
+       without those two utilities is a full-width heading at ~20px. One site in
+       the estate had already discovered this the hard way.
+    3. `<div class="form-check">` wraps `input + label` as DIRECT children with
+       the label immediately after the input. styles.scss has
+       `.form-check > label { @extend .form-check-label; }` — a direct-child
+       selector — and the colour picker relies on `input:checked + label`.
+       Anything that nests differently loses styling with no test failure.
+
+    Props
+      field        a BoundField over a ChoiceField. Required. Iterating it
+                   yields BoundWidget objects with .tag/.choice_label/.id_for_label.
+      label        group name for the legend. Defaults to the field's label.
+      hide_legend  boolean: render the legend visually-hidden (the group name
+                   is already obvious from surrounding copy).
+      inline       boolean: options flow on one line (form-check-inline).
+      check_class  extra classes on EACH `.form-check`. The default is empty,
+                   which is byte-identical to print_config/form.html's
+                   `<div class="form-check">`; crew_setup.html's inline row
+                   passes "mb-0 me-0" (me-0 cancels form-check-inline's right
+                   margin so the enclosing hstack gap governs the spacing).
+      class        classes for the fieldset (e.g. "vstack gap-2").
+
+    Errors are unconditional (#2001) and rendered once for the whole group,
+    which is where a ChoiceField's errors actually belong.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars field="" label="" hide_legend="" inline="" check_class="" class="" />
+{# djlint:on #}
+{% require_bound_field field "form.choices" %}
+<fieldset{% if class %} class="{{ class }}"{% endif %}{{ attrs|space_before }}>
+    {% if hide_legend %}
+        {% field_label field text=label css_class="visually-hidden" tag="legend" %}
+    {% else %}
+        {% field_label field text=label css_class="form-label mb-1 float-none w-auto" tag="legend" %}
+    {% endif %}
+    {% for choice in field %}
+        <div class="form-check{% if inline %} form-check-inline{% endif %}{% if check_class %} {{ check_class }}{% endif %}">
+            {{ choice.tag }}
+            <label class="form-check-label" for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+        </div>
+    {% endfor %}
+    {% if field.help_text %}
+        <div class="form-text text-secondary"
+             {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
+    {% endif %}
+    {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+</fieldset>

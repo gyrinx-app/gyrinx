@@ -1,0 +1,111 @@
+{% comment %}
+c-callout — the filled Bootstrap alert. FEEDBACK ONLY.
+Owns the `alert alert-*` vocabulary. If you are grouping content rather than
+reporting something, you want c-box. If you want a quiet, in-place aside, you
+want c-note.
+NOTE ON THIS COMMENT: it deliberately contains no angle-bracket tags. djlint's
+custom_html rule parses markup inside comment blocks too, and a literal tag
+written as prose here gets reindented, reflowed and then reported as an orphan
+tag. Elements are named CSS-selector style (div.alert, strong, i.bi-*).
+Emits a FIXED anatomy, because `.alert-icon` (styles.scss:183) is a flex rule
+selecting the direct-child i and div — the icon and the body wrapper MUST be
+direct children, in that order, or the layout breaks:
+div.alert.alert-{variant}.alert-icon[role=alert]
+i[aria-hidden]      flex-shrink: 0
+div                 flex-grow: 1; min-width: 0   (this holds the slot)
+button.btn-close    only when dismissible
+Design-system rules encoded here so 91 call sites stop restating them:
+- The icon is DERIVED from the variant. 83 of the 84 icon-bearing alerts in
+the estate already use exactly the variant default, so choosing an icon at
+a call site was never a real decision — only a chance to get it wrong. The
+one true exception (bi-dice-6) passes `icon`.
+- Titles are a plain strong element, never h5.alert-heading. Body text stays
+at body font size.
+NOT THE ONLY EMITTER of `alert alert-*`. Three files keep hand-rolled alert
+markup by decision rather than oversight: core/includes/site_banner.html,
+allauth/elements/alert.html and allauth/elements/fields.html. Read the ESCAPE
+HATCH notes before "tidying" any of them into this component — two of the three
+carry visual changes that need a PR of their own.
+Props
+variant      success | danger | warning | info | secondary | primary.
+Drives alert-{variant} AND the icon. An unknown variant still
+renders and falls back to bi-info-circle, so a typo degrades
+rather than blanking.
+icon         ""        (default) derive from the variant.
+"bi-dice-6"  use this icon instead. Takes a full class string,
+so it is copy-paste from the old markup.
+"none"    no icon, no alert-icon class, no body wrapper. For
+context-free pages such as 500.html. It is the string
+"none" and not a boolean because a template cannot
+tell False from "" — both are falsy.
+heading      Bold lead line. Autoescaped, so safe for user data. If the
+heading needs a class of its own, leave this unset and put your
+own strong element at the top of the slot.
+body_class   Classes on the body wrapper, for the alerts whose body is itself
+a flex row. Not for spacing. Exactly TWO estate sites pass it
+(index.html:31, list_fighter_advancement_other.html:23) and both
+MUST be migrated by hand — see ESCAPE HATCH for why a regex wide
+enough to capture a classed body swallows the wrong closing tag.
+dismissible  Bare boolean; adds `alert-dismissible fade show` + btn-close.
+Flash messages only — inline contextual alerts are permanent.
+role         DECLARED, so a caller override replaces it instead of emitting a
+second role attribute that the browser silently drops. Defaults
+to "alert", which is what all 91 estate alerts use. Pass
+role="status" only for a genuinely polite live region.
+class        Extra utilities, appended LAST.
+Everything else (id, data-bs-*, aria-*) forwards through {{ attrs }}.
+NO IMPLICIT SPACING. 68 of the 80 estate alerts carry mb-0, but the rest use
+mb-3, mb-4, mb-last-0, mt-3, g-col-12 or nothing. Baking mb-0 in would make the
+migration diff empty for 68 sites and silently WRONG for 12. Pass class="mb-0"
+explicitly and it is provably empty for all of them.
+SECURITY — NEVER pass user-controlled data as :prop="value". Cotton's
+{{ attrs }} output is mark_safe'd and does NOT HTML-escape; a value that both
+begins and ends with a double quote escapes the attribute and injects a live
+event handler (verified with :title="gang_name"). Use the slot, the `heading`
+prop, or the static form title="{{ gang_name }}" — all three are autoescaped.
+scripts/check_cotton.sh enforces this repo-wide in pre-commit and CI.
+PARSE HAZARD — a conditional attribute must never appear inside a cotton tag.
+An {% templatetag openblock %} if {% templatetag closeblock %} between the angle brackets fails NON-DETERMINISTICALLY:
+depending on cotton's mtime-keyed compile cache it either raises (TemplateSyntaxError
+"Unclosed tag ... endcotton", or TypeError) or silently emits the literal template
+source into the page with the closing tag mangled. Both were observed here, which is
+why the defence is static (scripts/check_cotton.sh) rather than a runtime smoke test.
+Conditionals INSIDE a quoted attribute value are fine and widely used.
+ISOLATION. Reads no ambient context, so it is safe on the 500 handler where
+context processors are not guaranteed to have run.
+EQUIVALENCE IS ASSERTED AT DOM LEVEL, NOT BYTE LEVEL. With body_class unset the
+body wrapper renders one space before its closing bracket; djlint rewrites the
+tight form back and mangles a djlint:off comment placed around it. Whitespace
+inside a tag is invisible to the parser, so the equivalence harness compares
+parsed tags, attributes and text with class treated as a SET. That comparator
+is needed for c-box anyway, where migration reorders the class attribute at 14
+sites.
+{% endcomment %}
+<c-vars variant="info"
+        icon=""
+        heading=""
+        body_class=""
+        dismissible=""
+        role="alert"
+        class=""
+        :icons="{'success': 'bi-check-lg', 'danger': 'bi-exclamation-triangle', 'warning': 'bi-exclamation-triangle', 'info': 'bi-info-circle', 'secondary': 'bi-info-circle', 'primary': 'bi-info-circle'}" />
+<div class="alert alert-{{ variant }}{% if icon != "none" %} alert-icon{% endif %}{% if dismissible %} alert-dismissible fade show{% endif %}{% if class %} {{ class }}{% endif %}"
+     role="{{ role }}"
+     {{ attrs }}>
+    {% if icon != "none" %}
+        <c-icon name="{% firstof icon icons|get_item:variant "bi-info-circle" %}" />
+        <div {% if body_class %}class="{{ body_class }}"{% endif %}>
+            {% if heading %}<strong>{{ heading }}</strong>{% endif %}
+            {{ slot }}
+        </div>
+    {% else %}
+        {% if heading %}<strong>{{ heading }}</strong>{% endif %}
+        {{ slot }}
+    {% endif %}
+    {% if dismissible %}
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+                aria-label="Close"></button>
+    {% endif %}
+</div>

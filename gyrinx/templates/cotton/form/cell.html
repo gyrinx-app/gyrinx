@@ -1,0 +1,71 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.cell> — "one entry in a dense grid of results."
+
+    The post-battle / stats-entry idiom: a small label with an optional
+    parenthesised current value, a compact control, and errors that must not
+    push the grid around. 8 wrapper sites, 11 dense labels and all 31
+    `text-danger fs-7` error blocks in the estate are this shape.
+
+        <c-form.cell :field="form.credits_gained" label="Credits gained" note="({{ list.credits_current }}¢)" class="col-6 col-md-3 col-lg-2">
+            <c-form.stepper :field="form.credits_gained" label="credits gained" />
+        </c-form.cell>
+
+        {# plain control, no slot needed #}
+        <c-form.cell :field="row.xp" label="XP" class="col-6 col-md-2" />
+
+    It is a SEPARATE component from <c-form.field>, not a `dense` prop on it,
+    because it is a different design decision, not a different size: the label
+    is `form-label fs-7 mb-1`, the error is `text-danger fs-7` (inline, no
+    invalid-feedback block, so a wrapping message doesn't reflow the row), and
+    the control is expected to be compact. Making it a prop would put the
+    choice back at the call site, which is how we got here.
+
+    SAME LABEL CODE PATH as <c-form.field>. The label goes through
+    {% templatetag openblock %} field_label {% templatetag closeblock %}, not a hand-written <label>, which is
+    what makes `note` composable and — the reason it matters — means `for` is
+    resolved by Django. A hand-written `for="{{ field.id_for_label }}"` emits
+    `for=""` for every multi-widget field (SplitDateTime, RadioSelect,
+    CheckboxSelectMultiple all return ""), which is worse for assistive tech
+    than no `for` at all: the label is announced as associated-but-broken and
+    the click target is dead. `row.injury` in the post-battle grid — this
+    component's home — goes through a custom multi-widget.
+
+    Props
+      field  a BoundField. Required — supplies the label, id, help text, errors
+             and, when no slot is given, the widget itself.
+      label  label text. Defaults to the field's own label.
+      note   short secondary annotation rendered inside the label, e.g. the
+             current value. Plain text — autoescaped.
+      class  wrapper classes (grid columns). No spacing of its own.
+
+    Default slot: the control, when it needs wrapping (a stepper input-group, a
+    `data-pb-repeat` group). Omit it and the bare widget is rendered. The slot
+    test is `slot.strip`, never `{% templatetag openblock %} if slot {% templatetag closeblock %}` — djlint's
+    custom_html rule reformats `<c-x>y</c-x>` onto three lines, which makes a
+    bare `{% templatetag openblock %} if slot {% templatetag closeblock %}` permanently true.
+
+    #2001: errors are unconditional and every error is rendered, not `.errors.0`.
+    Help text is rendered too, carrying the `_helptext` id that Django's
+    build_widget_attrs already points the widget's aria-describedby at. Dropping
+    it — as the first draft of this component did — leaves a dangling reference
+    and silently loses the copy, which is the exact defect this family exists to
+    kill.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars field="" label="" note="" class="" />
+{# djlint:on #}
+{% require_bound_field field "form.cell" %}
+<div{% if class %} class="{{ class }}"{% endif %}{{ attrs|space_before }}>
+    {% field_label field text=label css_class="form-label fs-7 mb-1" note=note %}
+    {% if slot.strip %}
+        {{ slot }}
+    {% else %}
+        {{ field }}
+    {% endif %}
+    {% if field.help_text %}
+        <div class="form-text text-secondary fs-7"
+             {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
+    {% endif %}
+    {% for error in field.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
+</div>

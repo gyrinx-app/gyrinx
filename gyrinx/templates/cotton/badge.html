@@ -1,0 +1,101 @@
+{% comment %} djlint:off {% endcomment %}{% comment %}
+    Bootstrap badge. See docs/DESIGN-SYSTEM.md section "Badges".
+
+    This is the ONLY file in the codebase permitted to write a text-bg-* class.
+    If you are reaching for a colour name at a call site, check first whether
+    the decision belongs in the `state` table below, or in one of the two
+    composites (badge/fighter_state.html, badge/chip.html).
+
+    Props
+      variant  Bootstrap contextual colour, emitted as `text-bg-{variant}`.
+               Default "secondary" (the modal value across the estate). The
+               deprecated `bg-*` form is never emitted.
+               "ghost" is a Gyrinx variant: an outlined, uncoloured badge
+               (`text-body border fw-normal`) used on print sheets and on
+               fill-in-by-hand blanks. It emits no text-bg-* class at all.
+               Accepts a template expression, so variant="{{ color }}" and an
+               inline if-tag both work.
+      state    A domain status value. Resolved through the table in c-vars
+               below and WINS over `variant` when it resolves.
+
+               The table is TOTAL over every status vocabulary rendered as a
+               badge in this codebase, and a pytest asserts that -- see
+               test_cotton_badge.py::test_state_table_covers_model_choices.
+               That test is the guard: a blank or unknown state falls through
+               to `variant` silently, so the table being total is what stops a
+               green pill turning grey when somebody adds a status value.
+
+                 ListFighter.injury_state  active, recovery, convalescence,
+                                           in_repair, dead
+                 capture pseudo-states     captured, sold_to_guilders
+                                           (model properties, not injury_state)
+                 Crew.status               draft, locked
+                 Battle.status             pre_battle, in_progress, post_battle
+                 Campaign.status           pre_campaign, in_progress,
+                                           post_campaign
+
+               `injured`, `sold` and `archived` are aliases kept so prior-art
+               call sites port unchanged.
+      pill     Boolean. Adds `rounded-pill`.
+      href     Root-relative URL. When it is a safe same-origin path the badge
+               renders as an anchor and gains `text-decoration-none`; anything
+               else renders as a plain badge with NO link. "Safe" means it
+               starts with "/" and does not start with "//", which is exactly
+               what the url tag emits and what safe_redirect would accept. This
+               fails closed on purpose: `javascript:`, `data:` and
+               scheme-relative `//evil.example` cannot become an href, and
+               autoescaping is no defence against them because they contain no
+               escapable character. Resolve the URL with the url tag at the
+               call site; never pass a caller-supplied redirect string.
+      tag      "span" (default) or "div". Any other value renders a span.
+               Ignored when href is set. Nineteen legacy sites use a div inside
+               line boxes tuned to the badge's metrics, so the element stays
+               the caller's choice -- but the value is constrained rather than
+               interpolated raw, because autoescaping does nothing in tag-name
+               position and a stray space there emits corrupt HTML.
+      title    Plain text, emitted as `title="..."` and autoescaped. Declared
+               rather than left to the attrs proxy because five live sites put
+               user-controlled fighter, gang and pack names in a title, and the
+               proxy's output is mark_safe'd: a value that both starts and ends
+               with a quote escapes its attribute and can inject an event
+               handler. Never use :title="..." -- the colon form also silently
+               drops filters, so :title="names|join:', '" renders no title at
+               all.
+      tooltip  Plain text. Emits `title` plus `data-bs-toggle="tooltip"`, both
+               autoescaped, and overrides `title` when both are given. It emits
+               a real `title` -- not only `data-bs-title` -- so the text is
+               still exposed to assistive tech and to a native browser tooltip
+               when the Bootstrap initialiser in index.js has not run. Bootstrap
+               moves `title` to `data-bs-original-title` on init, so there is no
+               double tooltip. Sites that must keep the exact `data-bs-title`
+               spelling can pass it through the attrs proxy instead.
+      class    Extra utility classes, appended last. Spacing and sizing are
+               always the caller's job: this component emits no margin, no
+               font-size and no positioning utility of its own.
+
+    Everything else is forwarded verbatim through the attrs proxy: id, aria-*,
+    data-bs-*, and bare valueless attributes such as bs-tooltip. The proxy is
+    guarded on attrs.attrs_dict because a bare truthiness test on attrs is
+    ALWAYS true -- c-vars keys stay in the mapping even though they are
+    excluded from the string output, so an unguarded proxy emits a stray space
+    at every one of the call sites. Do NOT route user data through the proxy
+    with a colon-prefixed attribute; use `title`, `tooltip`, `class` or the
+    slot, all of which are autoescaped.
+
+    Class order is fixed as
+        badge [rounded-pill] <colour> [text-decoration-none] [caller classes]
+    to match the existing hand-written strings.
+
+    Whitespace: the element is one physical line, there is no newline between
+    this comment and c-vars, the slot is emitted with no padding, and THE FILE
+    HAS NO TRAILING NEWLINE. That last point is load-bearing, not tidiness:
+    campaign_action_outcome.html:22 butts dice-result badges together inside a
+    for-loop, and a trailing newline collapses to a rendered space between two
+    inline-block elements. pre-commit's end-of-file-fixer is excluded for
+    gyrinx/templates/cotton/ so the missing newline survives; djlint:off stops
+    djlint restoring it.
+
+    djlint:off guards the whole file. Without it djlint parses the component
+    names in this comment as real tags and reflows the prose around them, and
+    it moves the slot onto its own line, padding the inside of every badge.
+{% endcomment %}<c-vars variant="secondary" state="" pill="" href="" tag="span" title="" tooltip="" class="" :state_variants="{'active': 'success', 'recovery': 'warning', 'convalescence': 'warning', 'in_repair': 'warning', 'injured': 'warning', 'captured': 'warning', 'sold_to_guilders': 'secondary', 'sold': 'secondary', 'archived': 'secondary', 'dead': 'danger', 'draft': 'secondary', 'locked': 'success', 'pre_battle': 'secondary', 'in_progress': 'success', 'post_battle': 'secondary', 'pre_campaign': 'secondary', 'post_campaign': 'secondary'}" />{% firstof state_variants|get_item:state variant "secondary" as tone %}{% if href|slice:":1" == "/" and href|slice:":2" != "//" %}{% firstof href as link %}{% else %}{% firstof "" as link %}{% endif %}<{% if link %}a href="{{ link }}"{% elif tag == "div" %}div{% else %}span{% endif %} class="badge{% if pill %} rounded-pill{% endif %} {% if tone == "ghost" %}text-body border fw-normal{% else %}text-bg-{{ tone }}{% endif %}{% if link %} text-decoration-none{% endif %}{% if class %} {{ class }}{% endif %}"{% if tooltip %} title="{{ tooltip }}" data-bs-toggle="tooltip"{% elif title %} title="{{ title }}"{% endif %}{% if attrs.attrs_dict %} {{ attrs }}{% endif %}>{{ slot }}</{% if link %}a{% elif tag == "div" %}div{% else %}span{% endif %}>

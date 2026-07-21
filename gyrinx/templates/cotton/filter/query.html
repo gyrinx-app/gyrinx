@@ -1,0 +1,96 @@
+{% comment %}
+    <c-filter.query> — "the free-text box that narrows this collection."
+
+    The input-group search bar: 20 near-identical copies across lists,
+    campaigns, gear, skills, packs, notifications and the homepage.
+
+        <c-filter.query label="Search lists" placeholder="Search" />
+        <c-filter.query name="q" form="search" size="sm" button="Search" />
+
+        {# list_packs.html: a Clear link INSIDE the group, after the button #}
+        <c-filter.query label="Search packs" value="{{ request.GET.q }}">
+            <c-slot name="after">
+                <a class="btn btn-outline-secondary" href="{{ request.path }}">Clear</a>
+            </c-slot>
+        </c-filter.query>
+
+    A filter control is an EDITOR FOR ONE QUERY-STRING KEY. That framing is the
+    whole design: `name` is the key, `value` is its current value, submitting
+    the form puts it in the URL and the server re-renders. Nothing here reads or
+    writes state in JavaScript, and every filtered view stays linkable and
+    back-button-correct — the project's URL-driven-state rule, made structural.
+
+    Props
+      name         query-string key. Default "q".
+      value        current value. Pass `value="{{ request.GET.q }}"` — as a
+                   STRING attribute, never :value="request.GET.q", so Django
+                   autoescapes it. Search terms are user input.
+      placeholder  default "Search".
+      label        aria-label for the input. ALWAYS pass it, and pass the
+                   SPECIFIC name: the estate deliberately pairs a generic
+                   placeholder ("Search") with a specific accessible name
+                   ("Search campaigns"), and core/index.html renders two search
+                   bars on one page. Collapsing both to "Search" leaves a screen
+                   reader with two identically-named landmarks. It falls back to
+                   the placeholder so a bar is never nameless;
+                   scripts/check_cotton.py requires the attribute so the
+                   fallback is never how a call site ships.
+      button       submit button text. Default "Search". Set button="" for a
+                   type-and-press-enter bar with no button, or when the submit
+                   lives elsewhere on the page (notifications.html puts its
+                   Apply button in its own grid column).
+      form         id of the <form> this control belongs to, for the 22 controls
+                   that sit outside their form in a dropdown panel.
+      input_id     id on the <input> itself. `{{ attrs }}` lands on the
+                   input-group WRAPPER, so without this an id could not be put
+                   where a <label for=…> or a JS hook needs it
+                   (notifications.html:41 uses id="notif-q").
+      size         "" (default) or "sm".
+      class        extra classes on the input-group.
+
+    Slot
+      after        rendered inside the input-group, after the button — the
+                   trailing "Clear" link at list_packs.html:100-113. Outside the
+                   group it would lose its joined-edge styling.
+
+    The magnifier is decorative and aria-hidden; the input carries the name.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars name="q"
+        value=""
+        placeholder="Search"
+        label=""
+        button="Search"
+        form=""
+        input_id=""
+        size=""
+        class="" />
+{# djlint:on #}
+<div class="input-group{% if size %} input-group-{{ size }}{% endif %}{% if class %} {{ class }}{% endif %}"
+     {{ attrs }}>
+    <span class="input-group-text">
+        <i class="bi-search" aria-hidden="true"></i>
+    </span>
+    <input class="form-control"
+           type="search"
+           name="{{ name }}"
+           value="{{ value }}"
+           placeholder="{{ placeholder }}"
+           aria-label="{% firstof label placeholder %}"
+           {% if input_id %}id="{{ input_id }}"{% endif %}
+           {% if form %}form="{{ form }}"{% endif %}>
+    {% if button %}
+        {% if form %}
+            {# form="" would detach the button from its ancestor form, so the #}
+            {# attribute is present or absent, never empty. #}
+            <c-btn type="submit" variant="primary" size="{{ size }}" form="{{ form }}">
+                {{ button }}
+            </c-btn>
+        {% else %}
+            <c-btn type="submit" variant="primary" size="{{ size }}">
+                {{ button }}
+            </c-btn>
+        {% endif %}
+    {% endif %}
+    {{ after }}
+</div>

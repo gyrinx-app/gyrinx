@@ -1,0 +1,71 @@
+{% comment %}
+    c-box — the neutral bordered group container. NOT feedback.
+
+    The design system's default grouping container: `border rounded p-3`, or `p-2`
+    compact. Bootstrap `card` stays reserved for fighter grids and equipment
+    categories, and alert classes must never be used for neutral grouping.
+
+    (Elements are named CSS-selector style below — a literal angle-bracket tag in a
+    comment gets reflowed and then flagged as an orphan by djlint's custom_html.)
+
+    IT MUST NEVER ACQUIRE A `variant` PROP. The moment c-box can be coloured it
+    becomes a second alert system and the filled/outline distinction the design
+    system protects collapses. That distinction is load-bearing rather than
+    cosmetic: notification_banners.html records in its own comment that the outline
+    treatment exists because btn-close is invisible in dark mode. A coloured,
+    icon-led aside is c-note — a NAMED SITUATION, not a colour knob bolted onto the
+    neutral container.
+
+    Props
+      compact  Bare boolean; `p-2` instead of `p-3`. p-3 is "grouped content and
+               forms", p-2 is "inline metadata and section bars". p-3 stays the
+               default because it is the documented primary case, even though the
+               estate is marginally p-2-dominant.
+      class    Everything else — bg-body-secondary, vstack gap-2, h-100, fs-7,
+               .pack-rich-desc, .flash-warn, grid classes. Class passthrough is
+               MANDATORY rather than a nicety: blank_vehicle_card.html supplies the
+               grid context that its .card.g-col-* children fuse their borders
+               against, and list_fighter_weapons_edit.html needs g-col-12 to span.
+
+    Renders a div. The bordered a, label, form, fieldset and pre elements stay raw
+    HTML — see c-disclosure for the details/summary case, and the ESCAPE HATCH
+    notes for the full rule and the by-name exclusion list.
+
+    SCOPE — DO NOT MIGRATE THE WHOLE FAMILY. Only the ~28 notice-shaped boxes are
+    in scope. The ~72 pure-layout boxes (grid parents, scroll containers,
+    responsive rows, form wrappers) carry no callout semantics, so converting them
+    buys nothing and each one is a chance to regress a grid or flex container.
+    Migration also REORDERS the class attribute at the 14 sites that write their
+    utilities before `border rounded`, so byte-equality does not hold for this
+    family — assert DOM equality with class compared as a set.
+
+    PARSE HAZARD — THE ONE THING THAT SILENTLY CORRUPTS A PAGE.
+    A conditional attribute cannot appear inside a cotton tag. Writing an
+    {% templatetag openblock %} if id {% templatetag closeblock %} ... {% templatetag openblock %} endif {% templatetag closeblock %} between the angle brackets fails
+    NON-DETERMINISTICALLY and never fails djlint: depending on cotton's mtime-keyed
+    compile cache it either raises, or emits the literal template source into the
+    HTML with the closing tag mangled and the real attribute lost. Both were
+    observed here — which is worse than a deterministic failure, because a runtime
+    smoke test that happens to hit the raising branch passes while production
+    still breaks. Two estate boxes are written that way and are EXCLUDED BY NAME:
+      - pages/forms/widgets/bs_checkbox_select_compact.html:8
+      - core/pack/includes/weapon_profile_stats_form.html:27
+    Both carry the id that static/core/js/index.js queries for the filter widget,
+    so a silent loss there breaks trait and equipment filtering with no error
+    anywhere. scripts/check_cotton.sh fails the build on this pattern; the rewrite
+    script must refuse any element whose opening tag contains a template tag
+    outside a quoted attribute value.
+
+    Conditionals INSIDE a quoted attribute value are fine and widely used:
+    class="{% templatetag openblock %} if wide {% templatetag closeblock %}h-100{% templatetag openblock %} endif {% templatetag closeblock %}" parses and renders correctly.
+
+    SECURITY — NEVER pass user-controlled data as :prop="value". Cotton's
+    {{ attrs }} output is mark_safe'd and does NOT HTML-escape; a value that both
+    begins and ends with a double quote escapes the attribute and injects a live
+    event handler (verified with :data-name="gang_name"). Use the static form
+    data-name="{{ gang_name }}", which is autoescaped, or put it in the slot.
+    scripts/check_cotton.sh enforces this.
+{% endcomment %}
+<c-vars compact="" class="" />
+<div class="border rounded {% if compact %}p-2{% else %}p-3{% endif %}{% if class %} {{ class }}{% endif %}"
+     {{ attrs }}>{{ slot }}</div>

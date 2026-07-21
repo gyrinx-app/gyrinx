@@ -1,13 +1,49 @@
+{% comment %}
+allauth button element -> c-btn adapter.
+KEEP THIS FILE AND ITS {% element %} API. All 60 vendored call sites stay
+untouched; only this body changes. We have vendored 38 of allauth's
+templates, but allauth ships ~83 more {% element button %} sites we have NOT
+vendored (socialaccount, the rest of account/mfa, email flows) which resolve
+THIS file from DIRS. Deleting it or reshaping its attrs contract breaks
+pages we do not own; keeping it allauth-shaped means an allauth upgrade
+costs a re-vendor, never a re-migration.
+THREE LIVE BUGS FIXED HERE, at zero call sites. The old cascade was
+`{% if "danger" in attrs.tags %}` -> btn-danger,
+`{% elif attrs.type == 'submit' or not attrs.secondary %}` -> btn-primary,
+else btn-secondary — and `attrs.secondary` is never set by any call site,
+because they all use `tags=`. Net effect: EVERY non-danger allauth button
+rendered btn-primary, including tags="link,cancel" Cancel buttons,
+tags="secondary", and the tags="outline,primary" passkey buttons.
+THREE THINGS THAT MUST STAY CONDITIONAL, all of them silent when wrong:
+1. `type`. HTML's missing-value default for a button's type attribute is
+`submit`. allauth's own upstream account/base_confirm_code.html:42 is
+`{% element button form="resend" tags="outline,resend" %}` — no type, no
+href — and relies on that default to submit the `resend` form ("Request
+new code" in the password-reset-by-code and phone-verification flows,
+reached via the unvendored confirm_password_reset_code.html /
+confirm_phone_verification_code.html). Forcing type="button" makes it
+INERT with no error. c-btn now emits `type` only when non-empty, so
+type="{{ attrs.type }}" is safe: an absent type renders "" and nothing is
+emitted.
+2. `href`. c-btn picks its element from whether an href ATTRIBUTE was
+written, so an unconditional href= would turn every allauth button into
+an anchor with an empty href. `tag=` is therefore set explicitly and wins.
+3. `form` / `id` / `name` / `value`. An unconditional form="{{ attrs.form }}"
+emits form="" on every other button, and per the HTML spec an empty form=
+is not a valid form ID — the button would associate with NO form and
+silently stop submitting. {% if %} is not legal inside a c-btn attribute
+list, so these go in the raw_attrs escape slot. The quotes there are
+LITERAL template text; only the interpolated values are autoescaped,
+which is correct for form and element IDs.
+This also removes the djlint:off hack the old file needed: that version
+built its tag NAME out of {% if %} fragments, which djlint cannot parse.
+{% endcomment %}
 {% load allauth %}
-{% comment %} djlint:off {% endcomment %}
-<{% if attrs.href %}a href="{{ attrs.href }}"{% else %}button{% endif %}
-{% if attrs.form %}form="{{ attrs.form }}"{% endif %}
-{% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-{% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-{% if attrs.value %}value="{{ attrs.value }}"{% endif %}
-{% if attrs.type %}type="{{ attrs.type }}"{% endif %}
-class="btn {% if "danger" in attrs.tags %}btn-danger{% elif attrs.type == 'submit' or not attrs.secondary %}btn-primary{% else %}btn-secondary{% endif %}"
->
-{% slot %}
-{% endslot %}
-</{% if attrs.href %}a{% else %}button{% endif %}>
+<c-btn tag="{% if attrs.href %}a{% else %}button{% endif %}"
+       href="{{ attrs.href }}"
+       type="{{ attrs.type }}"
+       variant="{% if 'danger' in attrs.tags %}danger{% elif 'link' in attrs.tags or 'cancel' in attrs.tags %}link{% elif 'secondary' in attrs.tags %}secondary{% elif 'outline' in attrs.tags %}outline-primary{% else %}primary{% endif %}">
+    <c-slot name="raw_attrs">{% if attrs.form %}form="{{ attrs.form }}" {% endif %}{% if attrs.id %}id="{{ attrs.id }}" {% endif %}{% if attrs.name %}name="{{ attrs.name }}" {% endif %}{% if attrs.value %}value="{{ attrs.value }}"{% endif %}</c-slot>
+    {% slot %}
+    {% endslot %}
+</c-btn>

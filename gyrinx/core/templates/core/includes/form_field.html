@@ -1,11 +1,19 @@
 {% comment %}
-    Standard form field wrapper.
+    Standard form field wrapper. Now a one-line delegation to <c-form.field>.
+
     Parameters:
     - field: a BoundField instance (e.g., form.name)
+
+    WHY THIS FILE STILL EXISTS. It is the cheapest half of the form migration:
+    all 36 include call sites move onto the component by editing THIS file and
+    nothing else — including the three sites that pass no `with field=…` and
+    pick `field` up from an enclosing loop (campaign_sub_asset_new.html:20,
+    campaign_sub_asset_edit.html:19,
+    campaign/includes/asset_properties_fields.html:14). Rewriting those 36 sites
+    by hand instead would put 36 chances to drop the colon off `:field=` into a
+    single diff, for no behaviour change.
+
+    Convert call sites to `<c-form.field :field="form.x" />` opportunistically,
+    or never. Both spellings render identically.
 {% endcomment %}
-<div>
-    {{ field.label_tag }}
-    {{ field }}
-    {% if field.help_text %}<small class="form-text text-secondary">{{ field.help_text }}</small>{% endif %}
-    {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
-</div>
+<c-form.field :field="field" />

@@ -1,0 +1,82 @@
+{% comment %}
+    <c-confirm> — "are you sure?"
+
+    42 templates in the estate contain "Are you sure", and about 35 of them are
+    structurally identical: a POST form, a one-line question, an optional refund
+    checkbox, then a danger button and a Cancel link. This is one component, and
+    it is the largest single de-duplication available anywhere in the form work.
+
+        <c-confirm action="{% url 'core:list-fighter-delete' list.id fighter.id %}" prompt="Are you sure you want to delete this fighter?" submit="Delete" cancel="{% url 'core:list' list.id %}" :refund="list.is_campaign_mode" :refund_cost="fighter_cost">
+            <c-slot name="hidden">
+                <input type="hidden" name="archive" value="1">
+            </c-slot>
+        </c-confirm>
+
+    Why this is a DOMAIN component and not "a form with a red button": the
+    danger colour, the refund default-on, the Cancel-not-Back link, the fact
+    that the destructive control is the primary action and Cancel is a link —
+    those are one decision about how Gyrinx asks for confirmation. Expressed as
+    a red-button prop on a generic form, each of the 42 pages gets to re-take it,
+    and three of them already differ.
+
+    Props
+      action       target URL.
+      prompt       the question. Plain text, autoescaped. Use the default slot
+                   for anything richer.
+      submit       button text. Default "Delete".
+      intent       "delete" (default) -> btn-danger. See <c-form.actions> for
+                   the full table; "archive" and "remove" also map to danger.
+      cancel       Cancel URL. Pass it explicitly; the fallback is
+                   {% templatetag openblock %} safe_referer "/" {% templatetag closeblock %}, never a raw referer.
+      cancel_text  default "Cancel".
+      refund       boolean — show the campaign-mode refund checkbox. Pass
+                   :refund="list.is_campaign_mode".
+      refund_cost  the amount shown in the checkbox label.
+      refund_id    id/for pair for the checkbox. Default "refund". The existing
+                   include hardcodes id="refund", which silently breaks if two
+                   ever appear on one page; this makes it settable.
+      return_url   emitted as a hidden input when given.
+
+    Slots
+      (default)    extra body between the question and the buttons: a
+                   <c-callout> warning, a consequences list, an extra field.
+      hidden       hidden inputs, rendered inside the action row exactly where
+                   the hand-written pages put them.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars action=""
+        prompt=""
+        submit="Delete"
+        intent="delete"
+        cancel=""
+        cancel_text="Cancel"
+        refund=""
+        refund_cost=""
+        refund_id="refund"
+        return_url="" />
+{# djlint:on #}
+<c-form.edit action="{{ action }}"
+             gap=""
+             return_url="{{ return_url }}"
+             :attrs="attrs">
+    {% if prompt %}<p>{{ prompt }}</p>{% endif %}
+    {% if refund %}
+        <div class="form-check mt-3">
+            <input class="form-check-input"
+                   type="checkbox"
+                   name="refund"
+                   id="{{ refund_id }}"
+                   checked>
+            <label class="form-check-label" for="{{ refund_id }}">Apply refund (+{{ refund_cost }}¢ to credits)</label>
+        </div>
+    {% endif %}
+    {{ slot }}
+    <c-form.actions intent="{{ intent }}"
+                    submit="{{ submit }}"
+                    cancel="{{ cancel }}"
+                    cancel_text="{{ cancel_text }}">
+        <c-slot name="before">
+            {{ hidden }}
+        </c-slot>
+    </c-form.actions>
+</c-form.edit>

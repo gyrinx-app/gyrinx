@@ -56,6 +56,14 @@ CSRF_FAILURE_VIEW = "gyrinx.core.views.csrf_failure"
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+# Cotton components raise on a mis-wired call site (a stringified BoundField, an
+# unmapped submit intent) instead of rendering something plausible. Defaults to
+# DEBUG; settings_dev forces it ON so it also fires under pytest, where
+# pytest-django sets DEBUG = False. Production logs instead of 500-ing, because
+# scripts/check_cotton.py + test_cotton_call_site_gates.py already make a
+# mis-wired call site uncommittable.
+COTTON_STRICT_COMPONENTS = DEBUG
+
 ALLOWED_HOSTS = _parse_json_env("ALLOWED_HOSTS", [])
 
 INTERNAL_IPS = [
@@ -127,6 +135,18 @@ INSTALLED_APPS = [
     "django_recaptcha",
     # simplehistory
     "simple_history",
+    # django-cotton: template components in templates/cotton/, invoked as <c-btn>.
+    # Autoconfig injects the cotton template loader and the `cotton` builtin tag
+    # library. It POPS APP_DIRS from TEMPLATES and substitutes an explicit
+    # cached.Loader chain that still includes app_directories, so app templates
+    # and the three explicit DIRS all keep resolving.
+    #
+    # Do NOT set COTTON_ISOLATE_BY_DEFAULT: it does not exist in 2.7.2 and fails
+    # silently. Do NOT set COTTON_ENABLE_CONTEXT_ISOLATION either: on 2.7.2 it
+    # builds a fresh RequestContext per component, re-running every context
+    # processor — including `notifications`, which issues an uncached COUNT.
+    # Measured: 20 components = 21 queries with it on, 1 with it off.
+    "django_cotton",
     # Disable Django's static file handling in favour of WhiteNoise in dev
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
