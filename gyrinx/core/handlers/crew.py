@@ -28,8 +28,13 @@ from django.db.models import Q
 from django.utils import timezone
 
 from gyrinx.core.models.campaign import CampaignAction
-from gyrinx.core.models.crew import Crew, CrewMember, roll_selection_spec
-from gyrinx.core.models.list import ListFighter
+from gyrinx.core.models.crew import (
+    Crew,
+    CrewMember,
+    CrewStashItem,
+    roll_selection_spec,
+)
+from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from gyrinx.models import FighterCategoryChoices
 from gyrinx.tracing import traced
 
@@ -40,7 +45,15 @@ logger = logging.getLogger(__name__)
 # vehicle crew are an Ash-Wastes thing. Everything else (including Brutes, which
 # "are treated like any other fighter when selecting a crew") is eligible.
 DEFAULT_EXCLUDED_CREW_CATEGORIES = frozenset(
-    {FighterCategoryChoices.HANGER_ON.value, FighterCategoryChoices.CREW.value}
+    {
+        FighterCategoryChoices.HANGER_ON.value,
+        FighterCategoryChoices.CREW.value,
+        # Gang terrain normally arrives via the stash (a gun emplacement is
+        # stash equipment with a linked card), but some gangs hold terrain as a
+        # top-level fighter — those show here defaulting to Excluded, and a
+        # player can flip one to Always included for a battle.
+        FighterCategoryChoices.GANG_TERRAIN.value,
+    }
 )
 
 # The categories a player (or a campaign default) can opt back in. Each carries a
@@ -995,3 +1008,60 @@ def handle_crew_lock(*, user, crew: Crew, rng=None) -> CrewLockResult:
         whole_gang=whole_gang,
         skipped_ineligible=skipped_ineligible,
     )
+
+
+# --- Stash items -------------------------------------------------------------
+
+
+def crew_stash_rows(crew: Crew):
+    """The gang's stash equipment as crew-stash rows — see
+    :meth:`Crew.stash_rows`. Kept here as the handler-layer entry point the
+    views use; the computation lives on the model so model methods (receipt,
+    printing) never import handler code."""
+    return crew.stash_rows()
+
+
+def crew_stash_lines(crew: Crew):
+    """The *brought* stash rows plus their total — see
+    :meth:`Crew.stash_lines`."""
+    return crew.stash_lines()
+
+
+@traced("handle_crew_stash_save")
+@transaction.atomic
+def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
+    """Reconcile the crew's optional stash selection with ``assignment_ids``.
+
+    Only assignments on this gang's stash count, and always-brought items are
+    ignored either way — they're computed, never stored. No lock gating: gang
+    terrain and the like are chosen after the draw.
+    """
+    # Serialise concurrent saves on the crew row so a double-submit can't race
+    # the read-then-create reconcile into the unique(crew, assignment)
+    # constraint (mirrors handle_crew_lock).
+    crew = Crew.objects.select_for_update().get(pk=crew.pk)
+    stash = crew.list.stash_fighter
+    valid_ids = (
+        set(
+            ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=stash,
+                archived=False,
+                content_equipment__crew_always_brought=False,
+            ).values_list("id", flat=True)
+        )
+        if stash is not None
+        else set()
+    )
+    wanted = {aid for aid in assignment_ids if aid in valid_ids}
+
+    current = {item.assignment_id: item for item in crew.stash_items.all()}
+    stale = [item.pk for aid, item in current.items() if aid not in wanted]
+    if stale:
+        crew.stash_items.filter(pk__in=stale).delete_with_user(user=user)
+    for aid in wanted - set(current):
+        CrewStashItem.objects.create_with_user(
+            user=user,
+            owner_id=crew.list.owner_id,
+            crew=crew,
+            assignment_id=aid,
+        )

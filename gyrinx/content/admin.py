@@ -88,6 +88,20 @@ from .models import (
 )
 
 
+def fighter_house_name(fighter):
+    """Group label for fighter selects, tolerant of a missing house.
+
+    A dangling ``house`` FK (local template-data drift) raises ``DoesNotExist``
+    on attribute access — even behind an ``if fighter.house`` guard — which used
+    to 500 whole admin pages (e.g. every equipment change page). Group such
+    fighters under "No House" instead.
+    """
+    try:
+        return fighter.house.name if fighter.house else "No House"
+    except ContentHouse.DoesNotExist:
+        return "No House"
+
+
 class ContentAdmin(admin.ModelAdmin):
     def __init__(self, model, admin_site):
         self.list_display = [
@@ -288,9 +302,7 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
         )
         grouped_choices = [("", "---------")] + [
             (house_name, [(fighter.pk, label(fighter)) for fighter in items])
-            for house_name, items in groupby(
-                fighters, key=lambda f: f.house.name if f.house else "No House"
-            )
+            for house_name, items in groupby(fighters, key=fighter_house_name)
         ]
 
         original_form = formset.form
@@ -343,7 +355,7 @@ class ContentWeaponAccessoryInline(ContentTabularInline):
 class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(self, "content_fighter", key=lambda x: x.house.name)
+        group_select(self, "content_fighter", key=fighter_house_name)
 
     class Meta:
         model = ContentEquipmentFighterProfile
@@ -419,7 +431,7 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
     form = ContentEquipmentAdminForm
 
     search_fields = ["name", "category__name", "contentweaponprofile__name"]
-    list_filter = ["category"]
+    list_filter = ["category", "crew_always_brought"]
 
     inlines = [
         ContentWeaponProfileInline,
@@ -740,9 +752,7 @@ class ContentPsykerDisciplineAdmin(ContentAdmin):
 class ContentFighterPsykerPowerDefaultAssignmentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_select(
-            self, "fighter", key=lambda x: x.house.name if x.house else "No House"
-        )
+        group_select(self, "fighter", key=fighter_house_name)
         group_select(self, "psyker_power", key=lambda x: x.discipline.name)
 
 

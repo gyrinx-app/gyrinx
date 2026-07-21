@@ -279,6 +279,46 @@
                         <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
                             class="pt-3">
                             <div class="d-flex flex-wrap align-items-center gap-3">
+                                <span class="caps-label">Stash</span>
+                                {% if can_manage %}
+                                    <a href="{% url 'core:crew-stash' battle.id crew.id %}"
+                                       class="icon-link linked fs-7"><i class="bi-box-seam"></i> Edit stash</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% for s in receipt.stash %}
+                        <tr>
+                            <td>
+                                {% if s.child_fighter %}
+                                    {# Equipment with a linked fighter card reads like a fighter row. #}
+                                    <strong>{{ s.child_fighter.name }}</strong>
+                                    <span class="text-secondary fs-7">· {{ s.child_fighter.content_fighter.get_category_display }}</span>
+                                {% else %}
+                                    <strong>{{ s.name }}</strong>
+                                    <span class="text-secondary fs-7">· Stash</span>
+                                {% endif %}
+                                {% if s.always_brought %}
+                                    <span class="badge text-bg-secondary ms-1"
+                                          data-bs-toggle="tooltip"
+                                          data-bs-title="Comes to every battle automatically">Always brought</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">{{ s.cost }}¢</td>
+                            <td></td>
+                            <td></td>
+                            {% if receipt.has_free %}<td></td>{% endif %}
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                                class="text-secondary fs-7">No stash equipment brought.</td>
+                        </tr>
+                    {% endfor %}
+                    <tr>
+                        <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
+                            class="pt-3">
+                            <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Extras</span>
                                 {% if can_manage %}
                                     {% if crew.is_locked %}
@@ -327,7 +367,7 @@
                     {% endfor %}
                 </tbody>
                 <tfoot>
-                    {% if receipt.has_extras %}
+                    {% if receipt.has_extras or receipt.has_stash %}
                         <tr class="border-top">
                             <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
                                 class="pt-3">
@@ -353,6 +393,15 @@
                                 <td></td>
                             {% endif %}
                         </tr>
+                        {% if receipt.has_stash %}
+                            <tr>
+                                <td class="text-secondary">Stash</td>
+                                <td class="text-end">{{ receipt.stash_total }}¢</td>
+                                <td></td>
+                                <td></td>
+                                {% if receipt.has_free %}<td></td>{% endif %}
+                            </tr>
+                        {% endif %}
                         <tr>
                             <td class="text-secondary">Credits</td>
                             <td></td>

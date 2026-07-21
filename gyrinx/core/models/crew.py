@@ -32,6 +32,7 @@ __all__ = [
     "Crew",
     "CrewMember",
     "CrewLineItem",
+    "CrewStashItem",
     "validate_selection_spec",
     "roll_selection_spec",
     "split_selection_spec",
@@ -649,38 +650,101 @@ class Crew(AppBase):
         """ListFighter ids to print for this crew, or ``None`` for the whole gang.
 
         A locked crew prints its frozen attendees; a draft prints the fighters
-        chosen so far. A draft with no members (a whole-gang crew, or one whose
-        attendees are all still to be drawn) has nothing specific to narrow to,
-        so returns ``None`` and the print falls back to the whole gang.
+        chosen so far. Either way the linked fighter cards of the stash items the
+        crew brings (a gun emplacement) print alongside the crew's own cards. A
+        draft with no members (a whole-gang crew, or one whose attendees are all
+        still to be drawn) has nothing specific to narrow to, so returns ``None``
+        and the print falls back to the whole gang.
         """
         ids = list(self.members.values_list("list_fighter_id", flat=True))
-        if self.is_locked:
-            return ids
-        return ids or None
+        if not self.is_locked and not ids:
+            return None
+        return ids + self._stash_child_fighter_ids()
+
+    def stash_rows(self):
+        """The gang's stash equipment as crew-stash rows, for the Stash tab and
+        the crew sheet.
+
+        One row per (non-archived) assignment on the gang's stash fighter:
+        ``{assignment, name, cost, child_fighter, always_brought, brought}``.
+        ``always_brought`` items (content flagged ``crew_always_brought``, e.g.
+        the Iron Automaton) are brought on every crew and can't be unticked; the
+        rest are ``brought`` when the crew has a :class:`CrewStashItem` for
+        them. ``child_fighter`` is the linked fighter card some equipment spawns
+        (a gun emplacement) — displayed like a fighter, rated at the equipment's
+        cost.
+        """
+        from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+        stash = self.list.stash_fighter
+        if stash is None:
+            return []
+        brought_ids = set(self.stash_items.values_list("assignment_id", flat=True))
+        rows = []
+        assignments = (
+            ListFighterEquipmentAssignment.objects.filter(
+                list_fighter=stash, archived=False
+            )
+            .with_related_data()
+            .select_related("child_fighter__content_fighter")
+            .order_by("content_equipment__name")
+        )
+        for assignment in assignments:
+            always = assignment.content_equipment.crew_always_brought
+            rows.append(
+                {
+                    "assignment": assignment,
+                    "name": assignment.content_equipment.name,
+                    "cost": assignment.cost_int_cached,
+                    "child_fighter": assignment.child_fighter,
+                    "always_brought": always,
+                    "brought": always or assignment.id in brought_ids,
+                }
+            )
+        return rows
+
+    def stash_lines(self):
+        """Just the *brought* stash rows plus their total — the crew sheet's
+        Stash section. Computed live (the selection is editable even on a locked
+        crew), so it counts in the live totals but never in the frozen rating
+        snapshots."""
+        rows = [row for row in self.stash_rows() if row["brought"]]
+        return {"rows": rows, "total": sum(row["cost"] for row in rows)}
+
+    def _stash_child_fighter_ids(self):
+        """Ids of the fighter cards linked to the stash items this crew brings."""
+        return [
+            row["child_fighter"].id
+            for row in self.stash_lines()["rows"]
+            if row["child_fighter"] is not None
+        ]
 
     def extras_total(self):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
         return sum(item.cost for item in self.line_items.all())
 
     def credits_value(self):
-        """The crew's fighter rating plus its extra line items.
+        """The crew's fighter rating plus its extra line items and the stash
+        equipment it brings.
 
         NOT the rulebook's underdog-comparison quantity, despite the tempting
         name: scenarios compare the credits value of the *fighters* in each
         starting crew (Core Rulebook p238), and extras — tactics cards, hired
-        help — never enter that comparison. The quantity to compare is
-        :meth:`rating`; this sum (rating + extras) is only a headline total.
+        help, stash gear — never enter that comparison. The quantity to compare
+        is :meth:`rating`; this sum is only a headline total.
         """
-        return self.rating() + self.extras_total()
+        return self.rating() + self.extras_total() + self.stash_lines()["total"]
 
     def receipt(self):
-        """Columnar receipt for the crew page, grouped into a Fighters section
-        and an Extras section. Each fighter contributes to the Rating column;
-        each extra falls in the Credits, Allowance, or Free column by how it is
-        paid for. Returns the grouped rows, the per-column totals (for the
-        annotated subtotal rows), the grand total (the crew's credits value),
-        and the selection note. One batch load; the extras are computed live and
-        only the two rating snapshots are ever persisted."""
+        """Columnar receipt for the crew page, grouped into Fighters, Stash, and
+        Extras sections. Each fighter contributes to the Rating column; each
+        extra falls in the Credits, Allowance, or Free column by how it is paid
+        for; brought stash items rate at their equipment cost. Returns the
+        grouped rows, the per-column totals (for the annotated subtotal rows),
+        the grand total (the crew's credits value), and the selection note. One
+        batch load; the extras and stash are computed live — the stash selection
+        is editable even after the lock — and only the two rating snapshots are
+        ever persisted."""
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
         # The played snapshot is the crew's rating once the battle has frozen
@@ -719,11 +783,24 @@ class Crew(AppBase):
                 }
             )
 
-        total = fighters_total + credits_total + allowance_total + free_total
+        stash = self.stash_lines()
+        total = (
+            fighters_total
+            + credits_total
+            + allowance_total
+            + free_total
+            + stash["total"]
+        )
         return {
             "attendees": attendees,
             "extras": extras,
             "has_extras": bool(extras),
+            # The stash items this crew brings — live, like the extras: the
+            # selection can change even after the lock, so it never enters the
+            # frozen rating snapshots.
+            "stash": stash["rows"],
+            "has_stash": bool(stash["rows"]),
+            "stash_total": stash["total"],
             "fighters_total": fighters_total,
             "credits_total": credits_total,
             "allowance_total": allowance_total,
@@ -894,3 +971,48 @@ class CrewLineItem(AppBase):
 
     def __str__(self):
         return f"{self.label} ({self.cost}¢)"
+
+
+class CrewStashItem(AppBase):
+    """A stash item this crew brings to its battle.
+
+    The gang's stash holds equipment as assignments on the stash fighter; a row
+    here marks one of those assignments as coming along. Only *optional* items
+    are stored — equipment whose content is flagged ``crew_always_brought``
+    (e.g. the Iron Automaton) joins every crew automatically and is computed,
+    never stored, so it can't be left behind.
+
+    Deliberately not lock-gated: gang terrain and the like are picked after the
+    crew is drawn, so the stash selection stays editable on a locked crew. Its
+    value therefore counts in the live totals but never in the frozen rating
+    snapshots (which cover members only).
+    """
+
+    crew = models.ForeignKey(
+        Crew,
+        on_delete=models.CASCADE,
+        related_name="stash_items",
+        help_text="The crew bringing this stash item.",
+    )
+    assignment = models.ForeignKey(
+        "core.ListFighterEquipmentAssignment",
+        on_delete=models.CASCADE,
+        related_name="crew_stash_items",
+        help_text="The stash equipment assignment being brought.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = "Crew Stash Item"
+        verbose_name_plural = "Crew Stash Items"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["crew", "assignment"],
+                name="unique_stash_item_per_crew",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.assignment} for {self.crew}"

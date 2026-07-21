@@ -1,0 +1,83 @@
+{% extends "core/layouts/base.html" %}
+{% block head_title %}
+    Crew stash - {{ battle.name }}
+{% endblock head_title %}
+{% block content %}
+    {% url 'core:crew' battle.id crew.id as parent_url %}
+    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url current="Stash" %}
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <div class="vstack gap-0">
+            <div class="caps-label">Crew</div>
+            <h1 class="h3 mb-0">{{ crew }}</h1>
+        </div>
+        {% include "core/crew/includes/crew_tabs.html" %}
+        <p class="text-secondary mb-0">
+            Choose which of {{ gang.name }}'s stash equipment comes to the battle.
+            {% if crew.is_locked %}
+                The crew is confirmed, but the stash can still change — gang terrain and the like are
+                often picked after the draw.
+            {% endif %}
+        </p>
+        {% if always_rows %}
+            <div>
+                <div class="form-label mb-1">Brought every battle</div>
+                <div class="vstack gap-2">
+                    {% for row in always_rows %}
+                        <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                            <div>
+                                <span class="fw-semibold">{{ row.name }}</span>
+                                {% if row.child_fighter %}<span class="text-secondary fs-7">· adds a fighter card</span>{% endif %}
+                            </div>
+                            <div class="fs-7 text-secondary ms-sm-auto">{{ row.cost }}¢</div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="form-text">These come to every battle automatically — they can't be left behind.</div>
+            </div>
+        {% endif %}
+        <form method="post" class="vstack gap-3">
+            {% csrf_token %}
+            <div>
+                <div class="form-label mb-1">Stash equipment</div>
+                {% if optional_rows %}
+                    <div class="vstack gap-2">
+                        {% for row in optional_rows %}
+                            <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           name="stash_items"
+                                           value="{{ row.assignment.id }}"
+                                           id="stash_{{ row.assignment.id }}"
+                                           {% if row.brought %}checked{% endif %}>
+                                    <label class="form-check-label" for="stash_{{ row.assignment.id }}">
+                                        <span class="fw-semibold">{{ row.name }}</span>
+                                        {% if row.child_fighter %}<span class="text-secondary fs-7">· adds a fighter card</span>{% endif %}
+                                    </label>
+                                </div>
+                                <div class="fs-7 text-secondary ms-sm-auto">{{ row.cost }}¢</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="form-text">Ticked items show in the crew sheet's Stash section and count towards its total.</div>
+                {% else %}
+                    <p class="text-secondary fs-7 mb-0">
+                        <i class="bi-info-circle"></i>
+                        The stash has no equipment to bring.
+                        {% if not always_rows %}Buy gear into the gang's stash first.{% endif %}
+                    </p>
+                {% endif %}
+            </div>
+            {% if optional_rows %}
+                <div class="hstack gap-3 align-items-center">
+                    <button type="submit" class="btn btn-success">Save stash</button>
+                    <a href="{{ parent_url }}" class="btn btn-link">Cancel</a>
+                </div>
+            {% else %}
+                <div>
+                    <a href="{{ parent_url }}" class="btn btn-secondary btn-sm">Back to crew</a>
+                </div>
+            {% endif %}
+        </form>
+    </div>
+{% endblock content %}

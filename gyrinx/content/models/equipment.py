@@ -465,6 +465,16 @@ class ContentEquipment(FighterCostMixin, Content):
         ),
     )
 
+    crew_always_brought = models.BooleanField(
+        default=False,
+        help_text=(
+            "When this equipment sits in a gang's stash, it is brought to every "
+            "battle automatically — it appears in each crew's stash section and "
+            "can't be left behind (e.g. the Iron Automaton, which is effectively "
+            "part of the gang once owned)."
+        ),
+    )
+
     history = HistoricalRecords()
 
     def __str__(self):
