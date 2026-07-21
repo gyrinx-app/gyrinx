@@ -279,6 +279,7 @@ def test_crew_print_dropdown_offers_both_styles(client, user, make_list, campaig
 
     resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
 
+    assert resp.status_code == 200
     content = resp.content.decode()
     assert f"?crew={crew.id}" in content
     assert f"?crew={crew.id}&style=classic" in content
@@ -310,3 +311,37 @@ def test_crew_classic_print_renders_crew_fighters(
     assert "core/list_print_classic.html" in [t.name for t in resp.templates]
     names = [c.name for c in resp.context["classic_cards"]]
     assert names == ["Picked"]  # crew-narrowed, no bench
+
+
+@pytest.mark.django_db
+def test_unrecognised_style_falls_back_to_the_config(
+    client, user, make_list, make_list_fighter
+):
+    """?style=bogus is a navigation accident: the config's style still applies."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Ganger")
+    config = _classic_config(lst, user)
+    client.force_login(user)
+
+    resp = client.get(_print_url(lst, config) + "&style=bogus")
+
+    assert resp.status_code == 200
+    assert "core/list_print_classic.html" in [t.name for t in resp.templates]
+
+
+@pytest.mark.django_db
+def test_style_classic_with_a_config_keeps_its_blank_cards(
+    client, user, make_list, make_list_fighter
+):
+    """?style=classic alongside a config still appends the config's blanks."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Ganger")
+    config = _classic_config(lst, user, blank_fighter_cards=2)
+    client.force_login(user)
+
+    resp = client.get(_print_url(lst, config) + "&style=classic")
+
+    assert resp.status_code == 200
+    cards = resp.context["classic_cards"]
+    assert len(cards) == 3  # the fighter + 2 blanks
+    assert [c.kind for c in cards].count("blank") == 2
