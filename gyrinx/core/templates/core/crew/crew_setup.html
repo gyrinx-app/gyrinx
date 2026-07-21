@@ -17,31 +17,33 @@
         </div>
         {% include "core/crew/includes/crew_tabs.html" %}
         <p class="text-secondary mb-0">
-            Set up how this crew is put together — the selection method, its numbers, and who's eligible.
-            You'll choose the actual fighters next.
+            Set up how this crew is put together — its name, the selection method and its numbers, and
+            who's eligible. You'll choose the actual fighters next.
         </p>
-        <div>
-            <div class="form-label mb-1">Selection method</div>
-            <div class="btn-group" role="group" aria-label="Selection method">
-                {% for entry in method_picker %}
-                    <a href="{{ entry.url }}"
-                       class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
-                       {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
-                {% endfor %}
-            </div>
-            <div class="form-text">{{ form.method_intro }}</div>
-        </div>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {% if is_create %}<input type="hidden" name="list" value="{{ gang.id }}">{% endif %}
             <input type="hidden" name="method" value="{{ method }}">
             <input type="hidden" name="include" value="{{ included_csv }}">
             {{ form.non_field_errors }}
+            {# 1. Crew name #}
             <div>
                 <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
                 {{ form.name }}
                 {% if form.name.help_text %}<div class="form-text">{{ form.name.help_text }}</div>{% endif %}
                 {{ form.name.errors }}
+            </div>
+            {# 2. Selection method and its numbers #}
+            <div>
+                <div class="form-label mb-1">Selection method</div>
+                <div class="btn-group" role="group" aria-label="Selection method">
+                    {% for entry in method_picker %}
+                        <a href="{{ entry.url }}"
+                           class="btn btn-sm {% if entry.is_current %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                           {% if entry.is_current %}aria-current="page"{% endif %}>{{ entry.label }}</a>
+                    {% endfor %}
+                </div>
+                <div class="form-text">{{ form.method_intro }}</div>
             </div>
             {% if form.shows_count %}
                 <div>
@@ -72,6 +74,7 @@
                     {{ form.random_number.errors }}
                 </div>
             {% endif %}
+            {# 3. Eligibility #}
             <div>
                 <div class="form-label mb-1">Eligibility</div>
                 <div class="fs-7 text-secondary mb-2">
@@ -112,4 +115,34 @@
             </div>
         </form>
     </div>
+    {% comment %}
+    Persist the crew name the player has typed across a method switch. The method
+    picker is URL-driven (links that reload the page with a GET), which would
+    otherwise discard an unsaved name. Kept in sessionStorage until the crew is
+    saved; without JS the field simply resets on a method switch, as before.
+    {% endcomment %}
+    <script>
+        (function () {
+            const field = document.getElementById('{{ form.name.id_for_label }}');
+            const form = field && field.closest('form');
+            if (!field || !form) return;
+            const key =
+                'crew-setup-name:{% if crew %}{{ crew.id }}{% else %}new-{{ gang.id }}{% endif %}';
+            // Restore an unsaved name after a method switch; otherwise seed the
+            // store from whatever the server rendered (the crew's saved name).
+            const stored = sessionStorage.getItem(key);
+            if (stored !== null) {
+                field.value = stored;
+            } else if (field.value) {
+                sessionStorage.setItem(key, field.value);
+            }
+            field.addEventListener('input', function () {
+                sessionStorage.setItem(key, field.value);
+            });
+            // Once the crew is saved the name lives on the crew, so drop the copy.
+            form.addEventListener('submit', function () {
+                sessionStorage.removeItem(key);
+            });
+        }());
+    </script>
 {% endblock content %}
