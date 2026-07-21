@@ -71,6 +71,7 @@ from .models import (
     ContentModTrait,
     ContentPageRef,
     ContentPolicy,
+    ContentPromotionPath,
     ContentPsykerDiscipline,
     ContentPsykerPower,
     ContentRule,
@@ -922,6 +923,98 @@ class ContentAdvancementEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
         return " | ".join(restrictions) if restrictions else "-"
 
     get_restrictions.short_description = "Restrictions"
+
+
+class ContentPromotionPathAdminForm(forms.ModelForm):
+    # The model stores rolls as a JSON list of 2d6 totals; hand-typing a JSON array is
+    # error-prone, so render one checkbox per possible total instead (same pattern as
+    # ContentAdvancementEquipmentAdminForm's restricted_to_fighter_categories).
+    rolls = forms.TypedMultipleChoiceField(
+        coerce=int,
+        choices=[(total, str(total)) for total in range(2, 13)],
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="2d6 totals that offer this promotion in the roll-driven flow.",
+    )
+
+    class Meta:
+        model = ContentPromotionPath
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields["rolls"].initial = self.instance.rolls or []
+
+    def clean_rolls(self):
+        # Store sorted for stable equality/display; checkboxes make dupes impossible.
+        return sorted(self.cleaned_data.get("rolls") or [])
+
+
+@admin.register(ContentPromotionPath)
+class ContentPromotionPathAdmin(ContentAdmin, admin.ModelAdmin):
+    form = ContentPromotionPathAdminForm
+    search_fields = ["name"]
+    list_filter = [
+        "kind",
+        "timing",
+        "from_category",
+        "to_category",
+        "restricted_to_houses",
+    ]
+    filter_horizontal = ["restricted_to_houses"]
+    # targets uses autocomplete, not filter_horizontal: rendering a choice per catalog
+    # fighter is an N+1 over thousands of rows and 500s on any fighter whose house row
+    # is missing (str() dereferences house).
+    autocomplete_fields = ["source_fighter", "targets"]
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "name",
+                    "kind",
+                    "from_category",
+                    "source_fighter",
+                    "to_category",
+                    "targets",
+                    "rank",
+                )
+            },
+        ),
+        ("Cost", {"fields": ("xp_cost", "cost_increase")}),
+        (
+            "Behaviour",
+            {
+                "fields": ("grants_skill", "rolls", "advancements_threshold", "timing"),
+                "description": "What the fighter gains, the 2d6 totals that offer this promotion in the roll-driven flow, and when the rules say it happens.",
+            },
+        ),
+        (
+            "Restrictions",
+            {
+                "fields": ("restricted_to_houses",),
+                "classes": ("collapse",),
+                "description": "Optional: limit which houses are offered this promotion.",
+            },
+        ),
+    )
+
+    def get_list_display(self, request):
+        # ContentAdmin.__init__ builds list_display from every model field (including the raw
+        # `rolls` JSON); override with a curated set. Keep packs_display — a promotion path can
+        # itself be pack content.
+        return (
+            "name",
+            "kind",
+            "from_category",
+            "to_category",
+            "rank",
+            "xp_cost",
+            "cost_increase",
+            "grants_skill",
+            "packs_display",
+        )
 
 
 @admin.register(ContentEquipmentFighterProfile)

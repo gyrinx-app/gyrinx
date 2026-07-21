@@ -111,6 +111,7 @@ from .equipment_list import (
 )
 from .default_assignment import ContentFighterDefaultAssignment
 from .advancement import ContentAdvancementAssignment, ContentAdvancementEquipment
+from .promotion import ContentPromotionPath
 
 # Expansion models
 from .expansion import (
@@ -221,6 +222,8 @@ __all__ = [
     # Advancements
     "ContentAdvancementAssignment",
     "ContentAdvancementEquipment",
+    # Promotions
+    "ContentPromotionPath",
     # Expansions
     "ContentEquipmentListExpansion",
     "ContentEquipmentListExpansionItem",
