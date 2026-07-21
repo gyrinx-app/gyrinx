@@ -19,6 +19,7 @@ from gyrinx.core.handlers.crew import (
     CREW_ELIGIBILITY_STATES,
     CREW_ELIGIBLE,
     CREW_NOT_ELIGIBLE,
+    always_included_crew_fighters,
     compute_crew_eligibility,
     eligible_crew_fighters,
 )
@@ -166,6 +167,21 @@ class CrewForm(forms.Form):
             ).with_related_data()
             if self.gang is not None
             else ListFighter.objects.none()
+        )
+
+        # Fighters that join regardless of the method (hired guns et al., or any
+        # marked "included" on setup). Shown read-only on the selection screen so
+        # the player can see who's coming on top of their picks / the draw.
+        self.always_included_fighters = (
+            list(
+                always_included_crew_fighters(
+                    self.gang,
+                    included=self.included_categories,
+                    overrides=self.eligibility_overrides,
+                ).with_related_data()
+            )
+            if self.gang is not None
+            else []
         )
 
         # Random names nobody here; Custom and Hybrid pick from the pool.

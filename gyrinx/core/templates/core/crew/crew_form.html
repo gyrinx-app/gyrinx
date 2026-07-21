@@ -70,6 +70,27 @@
                 <a href="{{ parent_url }}" class="btn btn-secondary btn-sm">Back to crew</a>
             </div>
         {% endif %}
+        {% if form.always_included_fighters %}
+            <div>
+                <div class="form-label mb-1">Always included</div>
+                <div class="fs-7 text-secondary mb-2">
+                    These fighters join regardless of the method — hired guns and anyone marked
+                    <span class="fw-semibold">Included</span> on the
+                    <a href="{% url 'core:crew-setup' battle.id crew.id %}" class="linked">Set up</a> tab. They come on
+                    top of your picks and the draw, and don't count towards the number.
+                </div>
+                <div class="vstack gap-2">
+                    {% for fighter in form.always_included_fighters %}
+                        <div class="border rounded p-2 d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
+                            <div class="fw-semibold">{{ fighter.name }}</div>
+                            <div class="fs-7 text-secondary ms-sm-auto">
+                                {{ fighter.content_fighter.get_category_display }} · {{ fighter.cost_int_cached }}¢
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
     </div>
     {% if form.shows_picks and form.has_eligible_fighters %}
         <script>

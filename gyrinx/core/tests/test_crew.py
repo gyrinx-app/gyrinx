@@ -932,6 +932,37 @@ def test_whole_gang_forecast_includes_hired_guns(
     assert any(r["rating"] == 120 for r in projection["rows"])
 
 
+@pytest.mark.django_db
+def test_selection_screen_shows_always_included_fighters(
+    client, crew_setup, make_content_fighter, make_list_fighter
+):
+    """A hired gun is shown read-only on the Choose screen (it joins on top), not
+    in the pick pool."""
+    hired = _fighter_of_category(
+        crew_setup,
+        make_content_fighter,
+        make_list_fighter,
+        FighterCategoryChoices.HIRED_GUN,
+        "Merc",
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew-edit", args=[crew.battle_id, crew.id]))
+
+    form = resp.context["form"]
+    assert hired in form.always_included_fighters
+    assert hired not in form.eligible_fighters  # joins on top, not from the pool
+    content = resp.content.decode()
+    assert "Always included" in content
+    assert "Merc" in content
+
+
 # --- Eligibility screen (per-fighter defaults + overrides) ------------------
 #
 # The eligibility step computes a default state per fighter (eligible /
