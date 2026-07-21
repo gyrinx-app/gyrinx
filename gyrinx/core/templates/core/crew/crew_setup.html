@@ -90,9 +90,9 @@
                                 <div class="me-sm-auto">
                                     <div class="fw-semibold">
                                         {{ row.fighter.name }}
-                                        {% if row.status %}
-                                            <span class="badge text-bg-secondary fw-normal ms-1">{{ row.status }}</span>
-                                        {% endif %}
+                                        {% for badge in row.status_badges %}
+                                            <span class="badge {{ badge.badge }} ms-1">{{ badge.label }}</span>
+                                        {% endfor %}
                                     </div>
                                     <div class="fs-7 text-secondary">{{ row.category }} · {{ row.cost }}¢</div>
                                 </div>
