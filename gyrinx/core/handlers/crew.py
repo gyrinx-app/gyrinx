@@ -158,26 +158,31 @@ def default_crew_eligibility_state(fighter, *, included_categories):
     return CREW_ELIGIBLE
 
 
-def fighter_crew_status(fighter):
-    """A short status label for a fighter on the eligibility screen — the
-    conditions that bear on whether they can take part (captured / sold /
-    injured), so a player can see *why* someone defaults to not-eligible and
-    change it. ``None`` when the fighter is active and unremarkable.
+def fighter_crew_status_badges(fighter):
+    """Status badges for a fighter on the eligibility screen — the conditions
+    that bear on whether they can take part, so a player can see *why* someone
+    defaults to not-eligible and change it. Empty when active and unremarkable.
 
-    Reads ``capture_info`` (for the captured / sold checks), so the fighters
-    must be loaded with it prefetched (the setup form uses ``with_related_data``).
+    ``[{"label", "badge"}]``, matching the fighter card's presentation exactly
+    (labels and colour classes — see ``fighter_card_content.html``): the injury
+    state's own display name in warning (or danger when dead), plus Captured
+    (warning) / Sold to Guilders (secondary). Reads ``capture_info``, so the
+    fighters must be loaded with it prefetched (the setup form uses
+    ``with_related_data``).
     """
+    badges = []
+    if fighter.injury_state != ListFighter.ACTIVE:
+        badges.append(
+            {
+                "label": fighter.get_injury_state_display(),
+                "badge": "text-bg-danger" if fighter.is_dead else "text-bg-warning",
+            }
+        )
     if fighter.is_captured:
-        return "Captured"
-    if fighter.is_sold_to_guilders:
-        return "Sold to guilders"
-    if fighter.injury_state == ListFighter.RECOVERY:
-        return "In recovery"
-    if fighter.injury_state == ListFighter.CONVALESCENCE:
-        return "Convalescing"
-    if fighter.injury_state == ListFighter.DEAD:
-        return "Dead"
-    return None
+        badges.append({"label": "Captured", "badge": "text-bg-warning"})
+    elif fighter.is_sold_to_guilders:
+        badges.append({"label": "Sold to Guilders", "badge": "text-bg-secondary"})
+    return badges
 
 
 def _selectable_gang_fighters(lst):

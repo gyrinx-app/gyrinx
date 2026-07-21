@@ -1329,13 +1329,18 @@ def test_eligibility_screen_shows_fighter_status(client, crew_setup, make_list):
 
     resp = client.get(reverse("core:crew-setup", args=[crew.battle_id, crew.id]))
 
-    rows = {r["fighter"].id: r["status"] for r in resp.context["form"].fighter_rows()}
-    assert rows[fighters[0].id] == "In recovery"
-    assert rows[fighters[1].id] == "Captured"
-    assert rows[fighters[2].id] is None  # active, no status
+    rows = {
+        r["fighter"].id: [b["label"] for b in r["status_badges"]]
+        for r in resp.context["form"].fighter_rows()
+    }
+    # Labels and colours match the fighter card's presentation exactly.
+    assert rows[fighters[0].id] == ["Recovery"]
+    assert rows[fighters[1].id] == ["Captured"]
+    assert rows[fighters[2].id] == []  # active, no badges
     content = resp.content.decode()
-    assert "In recovery" in content
+    assert "Recovery" in content
     assert "Captured" in content
+    assert "text-bg-warning" in content  # the normal colour-coding
 
 
 @pytest.mark.django_db

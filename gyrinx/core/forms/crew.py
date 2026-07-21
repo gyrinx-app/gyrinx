@@ -22,7 +22,7 @@ from gyrinx.core.handlers.crew import (
     always_included_crew_fighters,
     compute_crew_eligibility,
     eligible_crew_fighters,
-    fighter_crew_status,
+    fighter_crew_status_badges,
 )
 from gyrinx.core.models.crew import (
     Crew,
@@ -433,7 +433,7 @@ class CrewSetupForm(forms.Form):
                     "effective": row["effective"],
                     "category": fighter.content_fighter.get_category_display(),
                     "cost": fighter.cost_int_cached,
-                    "status": fighter_crew_status(fighter),
+                    "status_badges": fighter_crew_status_badges(fighter),
                 }
             )
         return out
