@@ -24,8 +24,28 @@
                         the whole gang — hide it rather than mislead.
                         {% endcomment %}
                         {% if not crew.archived %}
-                            <a href="{% url 'core:list-print' crew.list.id %}?crew={{ crew.id }}"
-                               class="btn btn-secondary btn-sm"><i class="bi-printer"></i> Print</a>
+                            <div class="btn-group" role="group">
+                                <button type="button"
+                                        class="btn btn-secondary btn-sm dropdown-toggle"
+                                        data-bs-toggle="dropdown"
+                                        aria-expanded="false">
+                                    <i class="bi-printer"></i> Print
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-print' crew.list.id %}?crew={{ crew.id }}">
+                                            Default cards
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-print' crew.list.id %}?crew={{ crew.id }}&style=classic">
+                                            Classic cards
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         {% endif %}
                         {% if can_manage %}
                             {% if not crew.is_locked %}

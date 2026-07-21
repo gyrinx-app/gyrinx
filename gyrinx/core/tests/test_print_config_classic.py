@@ -224,3 +224,89 @@ def test_classic_appends_blank_cards(client, user, make_list, make_list_fighter)
     # 1 real fighter card + 3 blank cards
     assert body.count('class="classic-card') == 4
     assert body.count('data-kind="blank"') == 3
+
+
+# ---------------------------------------------------------------------------
+# ?style= URL override (the crew page's Print dropdown)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_style_param_selects_classic_without_a_config(
+    client, user, make_list, make_list_fighter
+):
+    """?style=classic renders the classic sheet with no PrintConfig at all —
+    how the crew page's Print dropdown offers the classic cards."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Ganger")
+    client.force_login(user)
+
+    resp = client.get(_print_url(lst) + "?style=classic")
+
+    assert resp.status_code == 200
+    assert "core/list_print_classic.html" in [t.name for t in resp.templates]
+    assert len(resp.context["classic_cards"]) == 1  # the fighter, no blanks
+
+
+@pytest.mark.django_db
+def test_style_param_overrides_a_classic_config_back_to_default(
+    client, user, make_list, make_list_fighter
+):
+    """An explicit ?style=default wins over a classic config."""
+    lst = make_list("Gang")
+    make_list_fighter(lst, "Ganger")
+    config = _classic_config(lst, user)
+    client.force_login(user)
+
+    resp = client.get(_print_url(lst, config) + "&style=default")
+
+    assert resp.status_code == 200
+    assert "core/list_print_classic.html" not in [t.name for t in resp.templates]
+
+
+@pytest.mark.django_db
+def test_crew_print_dropdown_offers_both_styles(client, user, make_list, campaign):
+    """The crew page's Print control links both card styles for the crew."""
+    from gyrinx.core.models import Battle, List
+    from gyrinx.core.models.crew import Crew
+
+    lst = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    campaign.lists.add(lst)
+    battle = Battle.objects.create(campaign=campaign, mission="Test", owner=user)
+    battle.set_participants([lst])
+    crew = Crew.objects.create(battle=battle, list=lst, owner=user)
+    client.force_login(user)
+
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+
+    content = resp.content.decode()
+    assert f"?crew={crew.id}" in content
+    assert f"?crew={crew.id}&style=classic" in content
+
+
+@pytest.mark.django_db
+def test_crew_classic_print_renders_crew_fighters(
+    client, user, make_list, make_list_fighter, campaign
+):
+    """A crew print in classic style shows the crew's fighters as classic cards."""
+    from gyrinx.core.models import Battle, List
+    from gyrinx.core.models.crew import Crew, CrewMember
+
+    lst = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    campaign.lists.add(lst)
+    picked = make_list_fighter(lst, "Picked")
+    make_list_fighter(lst, "Benched")
+    battle = Battle.objects.create(campaign=campaign, mission="Test", owner=user)
+    battle.set_participants([lst])
+    crew = Crew.objects.create(battle=battle, list=lst, owner=user, status=Crew.LOCKED)
+    CrewMember.objects.create(
+        crew=crew, list_fighter=picked, source=CrewMember.CHOSEN, owner=user
+    )
+    client.force_login(user)
+
+    resp = client.get(_print_url(lst) + f"?crew={crew.id}&style=classic")
+
+    assert resp.status_code == 200
+    assert "core/list_print_classic.html" in [t.name for t in resp.templates]
+    names = [c.name for c in resp.context["classic_cards"]]
+    assert names == ["Picked"]  # crew-narrowed, no bench

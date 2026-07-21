@@ -564,6 +564,19 @@ class ListPrintView(generic.DetailView):
         self.print_config = print_config
         context["print_config"] = print_config
 
+        # Card style: normally part of a saved PrintConfig, but a crew print has
+        # no config, so ?style= picks it straight from the URL (the crew page's
+        # Print dropdown offers Default and Classic). An explicit param wins over
+        # the config either way; anything unrecognised falls back to the config.
+        style = self.request.GET.get("style")
+        if style in ("classic", "default"):
+            use_classic = style == "classic"
+        else:
+            use_classic = bool(
+                print_config and print_config.card_style == PrintConfig.CLASSIC
+            )
+        self.use_classic = use_classic
+
         # A crew print (?crew=<id>) narrows the sheet to one battle crew's
         # fighters. Scoped to this gang so it can't leak another gang's crew.
         crew_id = self.request.GET.get("crew")
@@ -661,9 +674,9 @@ class ListPrintView(generic.DetailView):
 
         # Classic-mode cards: render the grimdark fixed-size cards instead of the
         # web cards. Reuses the already-filtered fighter queryset, then appends
-        # the configured blank cards. Fighter cards only (assets/attributes/etc.
-        # don't apply to the classic sheet).
-        if print_config and print_config.card_style == PrintConfig.CLASSIC:
+        # the configured blank cards (none without a config). Fighter cards only
+        # (assets/attributes/etc. don't apply to the classic sheet).
+        if use_classic:
             from gyrinx.core.print_cards import blank_classic_card, card_from_fighter
 
             # Fighter cards only — the stash is not a classic card (it has no
@@ -674,24 +687,23 @@ class ListPrintView(generic.DetailView):
                 if card.kind == "stash":
                     continue
                 cards.append(card)
-            cards += [
-                blank_classic_card("fighter")
-                for _ in range(print_config.blank_fighter_cards)
-            ]
-            cards += [
-                blank_classic_card("vehicle")
-                for _ in range(print_config.blank_vehicle_cards)
-            ]
+            if print_config:
+                cards += [
+                    blank_classic_card("fighter")
+                    for _ in range(print_config.blank_fighter_cards)
+                ]
+                cards += [
+                    blank_classic_card("vehicle")
+                    for _ in range(print_config.blank_vehicle_cards)
+                ]
             context["classic_cards"] = cards
 
         return context
 
     def get_template_names(self):
-        """Classic-style configs render the fixed-size grimdark sheet."""
-        from gyrinx.core.models import PrintConfig
-
-        pc = getattr(self, "print_config", None)
-        if pc and pc.card_style == PrintConfig.CLASSIC:
+        """Classic style (config- or ?style=-selected) renders the fixed-size
+        grimdark sheet."""
+        if getattr(self, "use_classic", False):
             return ["core/list_print_classic.html"]
         return [self.template_name]
 
