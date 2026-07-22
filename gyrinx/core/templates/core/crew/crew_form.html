@@ -17,7 +17,7 @@
                 {% csrf_token %}
                 {{ form.non_field_errors }}
                 {% if form.over_selected_note %}
-                    {% include "core/includes/alert.html" with variant="warning" heading="More fighters chosen than the scenario allows " message=form.over_selected_note %}
+                    {% include "core/includes/alert.html" with variant="warning" heading="More fighters chosen than the scenario allows" message=form.over_selected_note %}
                 {% endif %}
                 <div>
                     <label class="form-label">{{ form.chosen_fighters.label }}</label>
