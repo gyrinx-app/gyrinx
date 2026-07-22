@@ -1,3 +1,5 @@
+import operator
+from functools import reduce
 from itertools import groupby
 
 from django import forms
@@ -100,6 +102,105 @@ def fighter_house_name(fighter):
         return fighter.house.name if fighter.house else "No House"
     except ContentHouse.DoesNotExist:
         return "No House"
+
+
+def grouped_fighter_choices(field):
+    """Build house-grouped ``<optgroup>`` choices for a fighter select.
+
+    ``group_select`` does the same job, but it runs inside a form's ``__init__``
+    — so on an inline it re-iterates every fighter once per row and issues an
+    N+1 query for each fighter's house. Building the choices once, with
+    ``select_related("house")``, and sharing the resulting list across rows
+    turns thousands of queries into one. See
+    ``share_grouped_fighter_choices``.
+    """
+    label = field.label_from_instance
+    fighters = field.queryset.select_related("house").order_by("house__name", "type")
+    return [("", "---------")] + [
+        (house_name, [(fighter.pk, label(fighter)) for fighter in items])
+        for house_name, items in groupby(fighters, key=fighter_house_name)
+    ]
+
+
+def share_field_choices(formset, field_name, build_choices):
+    """Give every row of ``formset`` the same precomputed choices for a field.
+
+    Inline formsets build one form per existing row plus an empty template
+    form. A field whose option list is expensive to assemble — a fighter select
+    grouped by house, a polymorphic modifications select — would otherwise be
+    rebuilt from scratch by each of those forms, so the page's cost grows with
+    the number of rows.
+    """
+    choices = build_choices(formset.form.base_fields[field_name])
+    original_form = formset.form
+
+    class FormWithSharedChoices(original_form):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.fields[field_name].widget.choices = choices
+
+    formset.form = FormWithSharedChoices
+    return formset
+
+
+def share_grouped_fighter_choices(formset, field_name):
+    """Share one house-grouped fighter option list across every inline row."""
+    return share_field_choices(formset, field_name, grouped_fighter_choices)
+
+
+def _fighter_stat_mods(queryset):
+    mods = list(queryset)
+    ContentModFighterStat.prime_stat_definitions(mods)
+    return mods
+
+
+# How to load each concrete modification type so its label costs no further
+# queries. A polymorphic queryset can't ``select_related`` a child model's
+# field, so labelling modifications one at a time costs a query each — see
+# ``modifier_choices``.
+MODIFIER_LABEL_LOADERS = {
+    ContentModStat: list,
+    ContentModFighterStat: _fighter_stat_mods,
+    ContentModTrait: lambda qs: list(qs.select_related("trait")),
+    ContentModFighterRule: lambda qs: list(qs.select_related("rule")),
+    ContentModFighterSkill: lambda qs: list(qs.select_related("skill")),
+    ContentModSkillTreeAccess: lambda qs: list(qs.select_related("skill_category")),
+    ContentModPsykerDisciplineAccess: lambda qs: list(qs.select_related("discipline")),
+}
+
+# The subset that changes something on the fighter rather than a weapon.
+FIGHTER_MODIFIER_TYPES = (
+    ContentModFighterStat,
+    ContentModFighterRule,
+    ContentModFighterSkill,
+    ContentModSkillTreeAccess,
+    ContentModPsykerDisciplineAccess,
+)
+
+
+def modifier_choices(field):
+    """Build the option list for a modifications field in one query per type.
+
+    Django asks each modification for its label, and a polymorphic instance
+    fetches its own related objects — so a list of N modifications costs N
+    queries, repeated for every form on the page. Fetching each concrete type
+    separately lets ``select_related`` do that work up front.
+    """
+    pks = list(field.queryset.non_polymorphic().values_list("pk", flat=True))
+    mods = []
+    for model, load in MODIFIER_LABEL_LOADERS.items():
+        mods.extend(load(model.objects.filter(pk__in=pks)))
+
+    label = field.label_from_instance
+    return sorted(((mod.pk, label(mod)) for mod in mods), key=lambda choice: choice[1])
+
+
+def restrict_to_fighter_modifiers(field):
+    """Limit a modifications field to the types that affect fighters."""
+    field.queryset = reduce(
+        operator.or_,
+        (field.queryset.instance_of(model) for model in FIGHTER_MODIFIER_TYPES),
+    )
 
 
 class ContentAdmin(admin.ModelAdmin):
@@ -294,34 +395,20 @@ class ContentFighterEquipmentCategoryLimitInline(ContentTabularInline):
             Formset class with shared grouped choices and parent instance access
         """
         formset = super().get_formset(request, obj, **kwargs)
-
-        fighter_field = formset.form.base_fields["fighter"]
-        label = fighter_field.label_from_instance
-        fighters = ContentFighter.objects.select_related("house").order_by(
-            "house__name", "type"
-        )
-        grouped_choices = [("", "---------")] + [
-            (house_name, [(fighter.pk, label(fighter)) for fighter in items])
-            for house_name, items in groupby(fighters, key=fighter_house_name)
-        ]
+        formset = share_grouped_fighter_choices(formset, "fighter")
 
         original_form = formset.form
         parent_instance = obj
 
-        class FormWithGroupedFighters(original_form):
-            """
-            Form wrapper that reuses the precomputed grouped fighter choices and
-            exposes the parent equipment category for validation.
-            """
+        class FormWithParentInstance(original_form):
+            """Expose the parent equipment category to the form for validation."""
 
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 if parent_instance is not None:
                     self.parent_instance = parent_instance
-                # Reuse the shared grouped choices; no per-row requery / N+1.
-                self.fields["fighter"].widget.choices = grouped_choices
 
-        formset.form = FormWithGroupedFighters
+        formset.form = FormWithParentInstance
         return formset
 
 
@@ -346,26 +433,29 @@ class ContentWeaponProfileInline(ContentStackedInline):
     model = ContentWeaponProfile
     extra = 0
 
+    def get_queryset(self, request):
+        # Each row lists its traits; without this that is a query per profile.
+        return super().get_queryset(request).prefetch_related("traits")
+
 
 class ContentWeaponAccessoryInline(ContentTabularInline):
     model = ContentWeaponAccessory
     extra = 0
 
 
-class ContentEquipmentFighterProfileAdminForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        group_select(self, "content_fighter", key=fighter_house_name)
-
-    class Meta:
-        model = ContentEquipmentFighterProfile
-        fields = "__all__"
-
-
 class ContentEquipmentFighterProfileInline(ContentTabularInline):
     model = ContentEquipmentFighterProfile
-    form = ContentEquipmentFighterProfileAdminForm
     extra = 0
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """Render the fighter select grouped by house, built once per page.
+
+        This inline used to group the choices in each row's form ``__init__``,
+        which re-walked every fighter (and queried its house) once per row —
+        the single biggest cost in rendering the equipment change page.
+        """
+        formset = super().get_formset(request, obj, **kwargs)
+        return share_grouped_fighter_choices(formset, "content_fighter")
 
 
 class ContentEquipmentEquipmentProfileInline(ContentTabularInline):
@@ -377,6 +467,21 @@ class ContentEquipmentEquipmentProfileInline(ContentTabularInline):
 class ContentEquipmentUpgradeInline(ContentTabularInline):
     model = ContentEquipmentUpgrade
     extra = 0
+
+    def get_queryset(self, request):
+        # Each row shows the modifications it already has selected; without
+        # this that is a query per row.
+        return super().get_queryset(request).prefetch_related("modifiers")
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """Build the modifications option list once for all upgrade rows.
+
+        Equipment with many upgrades (Unborn has 18) rendered the full
+        polymorphic modifications list once per row, at a query per
+        modification per row.
+        """
+        formset = super().get_formset(request, obj, **kwargs)
+        return share_field_choices(formset, "modifiers", modifier_choices)
 
 
 class ContentEquipmentAdminForm(forms.ModelForm):
@@ -402,26 +507,17 @@ class ContentEquipmentAdminForm(forms.ModelForm):
             ),
             "name",
         )
-        # Filter the queryset for modifiers to only include those that change things
-        # on the fighter.
-        mod_qs = self.fields["modifiers"].queryset
-        self.fields["modifiers"].queryset = (
-            mod_qs.instance_of(
-                ContentModFighterStat,
-            )
-            | mod_qs.instance_of(
-                ContentModFighterRule,
-            )
-            | mod_qs.instance_of(
-                ContentModFighterSkill,
-            )
-            | mod_qs.instance_of(
-                ContentModSkillTreeAccess,
-            )
-            | mod_qs.instance_of(
-                ContentModPsykerDisciplineAccess,
-            )
-        )
+        # Only offer modifications that change things on the fighter.
+        modifiers_field = self.fields["modifiers"]
+        restrict_to_fighter_modifiers(modifiers_field)
+        modifiers_field.widget.choices = modifier_choices(modifiers_field)
+
+        # Every fighter is rendered as an option here, and a fighter's label
+        # includes its house — without select_related that is one query per
+        # fighter.
+        companion_field = self.fields.get("auto_companion_for_fighter")
+        if companion_field is not None:
+            companion_field.queryset = companion_field.queryset.select_related("house")
 
         group_select(self, "category", key=lambda x: x.group)
 
