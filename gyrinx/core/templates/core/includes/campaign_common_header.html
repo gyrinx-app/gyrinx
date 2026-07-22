@@ -7,7 +7,14 @@
 {# campaign); the campaign status is shown either way. #}
 <div class="mb-3 pb-3 border-bottom">
     {% url 'core:campaigns' as campaigns_url %}
-    {% include "core/includes/breadcrumb.html" with type="Campaigns" owner=campaign.owner name=current type_url=campaigns_url campaign=campaign parent=parent parent_url=parent_url only %}
+    <c-breadcrumb type="Campaigns"
+                  :owner="campaign.owner"
+                  name="{{ current }}"
+                  type_url="{{ campaigns_url }}"
+                  :campaign="campaign"
+                  parent="{{ parent }}"
+                  parent_url="{{ parent_url }}"
+                  only />
     <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-sm-center mt-1">
         {% if parent_url %}
             <a class="linked fw-semibold" href="{{ parent_url }}">

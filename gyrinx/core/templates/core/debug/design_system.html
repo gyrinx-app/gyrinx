@@ -1,6 +1,6 @@
 {# djlint:off H021 #}
 {% extends "core/layouts/base.html" %}
-{% load badge_tags %}
+{% load badge_tags custom_tags %}
 {% block head_title %}
     Design system
 {% endblock head_title %}
@@ -1315,449 +1315,496 @@
             <h3 class="h6 caps-label mb-2">Breadcrumb</h3>
             <p class="text-secondary fs-7 mb-2">
                 Sits above the page title on entity detail pages. Shows <code>owner / type / name</code> with optional campaign link.
-                Use <code>
-                {% verbatim %}
-                    {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" type_url="/lists/" only %}
-                {% endverbatim %}
-            </code>.
-        </p>
-        <div class="border rounded p-3 mb-4">
-            <div class="vstack gap-1">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="Cawdor Facts" type_url="/lists/" only %}
-                {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=ds_user name="Iron Hounds" type_url="/lists/" campaign=ds_campaign only %}
-                {% include "core/includes/breadcrumb.html" with type="Pack" owner=ds_user name="Scavvy Pack" type_url="/packs/" only %}
-                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="My Gang" print=True only %}
+                Use <code>&lt;c-breadcrumb type="List" :owner="list.owner" name="{% templatetag openvariable %} list.name {% templatetag closevariable %}"
+                type_url="/lists/" /&gt;</code>.
+            </p>
+            <div class="border rounded p-3 mb-4">
+                <div class="vstack gap-1">
+                    <c-breadcrumb type="List"
+                                  :owner="ds_user"
+                                  name="Cawdor Facts"
+                                  type_url="/lists/"
+                                  only />
+                    <c-breadcrumb type="Campaign Gang"
+                                  :owner="ds_user"
+                                  name="Iron Hounds"
+                                  type_url="/lists/"
+                                  :campaign="ds_campaign"
+                                  only />
+                    <c-breadcrumb type="Pack"
+                                  :owner="ds_user"
+                                  name="Scavvy Pack"
+                                  type_url="/packs/"
+                                  only />
+                    <c-breadcrumb type="List" :owner="ds_user" name="My Gang" print="1" only />
+                </div>
             </div>
-        </div>
-        <p class="text-secondary fs-7 mb-4">
-            Pass <code>only</code> to prevent context leakage. Pass <code>print=True</code> to render without links (print view).
-            Pass <code>campaign=obj</code> for campaign gangs to show <code>· Campaign Name</code>.
-        </p>
-        <h3 class="h6 caps-label mb-2">List/detail header (with breadcrumb)</h3>
-        <p class="text-secondary fs-7 mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
-        <div class="border rounded p-3 mb-4">
-            <div class="vstack gap-0">
-                {% include "core/includes/breadcrumb.html" with type="List" owner=ds_user name="Cawdor Facts" type_url="/lists/" only %}
-                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
-                    <h1 class="h2 mb-0">Cawdor Facts</h1>
-                    <div class="ms-md-auto d-flex gap-1 flex-nowrap">
-                        <a href="#" class="btn btn-primary btn-sm"><i class="bi-person-add"></i> Add fighter</a>
-                        <a href="#" class="btn btn-primary btn-sm"><i class="bi-truck"></i> Add vehicle</a>
-                        <nav class="btn-group">
-                            <a href="#" class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
-                            <div class="btn-group" role="group">
-                                <button type="button"
-                                        class="btn btn-secondary btn-sm dropdown-toggle"
-                                        data-bs-toggle="dropdown">
-                                    <i class="bi-three-dots-vertical"></i>
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li>
-                                        <a class="dropdown-item" href="#">Archive</a>
-                                    </li>
-                                </ul>
-                            </div>
-                        </nav>
+            <p class="text-secondary fs-7 mb-4">
+                Pass <code>only</code> to keep the component isolated from page context. <code>print="1"</code> renders every
+                crumb as plain text for the print sheet. <code>:campaign="obj"</code> adds a campaign crumb.
+                Note the colon on object props and the interpolated form for anything carrying a filter —
+                a filter inside a <code>:prop</code> resolves to nothing.
+            </p>
+            <h3 class="h6 caps-label mb-2">List/detail header (with breadcrumb)</h3>
+            <p class="text-secondary fs-7 mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
+            <div class="border rounded p-3 mb-4">
+                <div class="vstack gap-0">
+                    <c-breadcrumb type="List"
+                                  :owner="ds_user"
+                                  name="Cawdor Facts"
+                                  type_url="/lists/"
+                                  only />
+                    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
+                        <h1 class="h2 mb-0">Cawdor Facts</h1>
+                        <div class="ms-md-auto d-flex gap-1 flex-nowrap">
+                            <a href="#" class="btn btn-primary btn-sm"><i class="bi-person-add"></i> Add fighter</a>
+                            <a href="#" class="btn btn-primary btn-sm"><i class="bi-truck"></i> Add vehicle</a>
+                            <nav class="btn-group">
+                                <a href="#" class="btn btn-secondary btn-sm"><i class="bi-pencil"></i> Edit</a>
+                                <div class="btn-group" role="group">
+                                    <button type="button"
+                                            class="btn btn-secondary btn-sm dropdown-toggle"
+                                            data-bs-toggle="dropdown">
+                                        <i class="bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="#">Archive</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </nav>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
+                        <span><i class="bi-eye"></i> Public</span>
+                        <span>Cawdor (HoF)</span>
+                        <span>1397¢</span>
                     </div>
                 </div>
-                <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
-                    <span><i class="bi-eye"></i> Public</span>
-                    <span>Cawdor (HoF)</span>
-                    <span>1397¢</span>
+                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mt-4 mb-2">
+                    <h2 class="h5 mb-0">Gangs</h2>
+                    <a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gangs</a>
+                </div>
+                <div class="px-2">
+                    <p class="text-secondary fs-7 mb-0">
+                        <strong>Pattern:</strong> Breadcrumb above the title replaces inline owner metadata. Add buttons are separate <code>btn-primary</code>.
+                        Edit + dropdown are grouped in <code>btn-group btn-secondary</code>.
+                        Section-level add links use <code>icon-link linked</code> in the section header bar.
+                    </p>
                 </div>
             </div>
-            <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mt-4 mb-2">
-                <h2 class="h5 mb-0">Gangs</h2>
-                <a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gangs</a>
-            </div>
-            <div class="px-2">
-                <p class="text-secondary fs-7 mb-0">
-                    <strong>Pattern:</strong> Breadcrumb above the title replaces inline owner metadata. Add buttons are separate <code>btn-primary</code>.
-                    Edit + dropdown are grouped in <code>btn-group btn-secondary</code>.
-                    Section-level add links use <code>icon-link linked</code> in the section header bar.
-                </p>
-            </div>
-        </div>
-        <h3 class="h6 caps-label mb-2">Campaign info columns</h3>
-        <p class="text-secondary fs-7 mb-2">
-            Key metadata as horizontal label/value pairs with <code>caps-label</code>. Wraps on mobile.
-        </p>
-        <div class="border rounded p-3 mb-4">
-            <div class="grid gap-3 border-bottom pb-3 mb-2">
-                <div class="g-col-6 g-col-md-3">
-                    <div class="caps-label">Status</div>
-                    <div>In Progress</div>
-                </div>
-                <div class="g-col-6 g-col-md-3">
-                    <div class="caps-label">Phase</div>
-                    <div>Occupation</div>
-                </div>
-                <div class="g-col-6 g-col-md-3">
-                    <div class="caps-label">Budget</div>
-                    <div>1500¢</div>
-                </div>
-                <div class="g-col-6 g-col-md-3">
-                    <div class="caps-label">Content Packs</div>
-                    <div>Scavvy</div>
-                    <a href="#" class="fs-7 linked">Edit</a>
+            <h3 class="h6 caps-label mb-2">Campaign info columns</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Key metadata as horizontal label/value pairs with <code>caps-label</code>. Wraps on mobile.
+            </p>
+            <div class="border rounded p-3 mb-4">
+                <div class="grid gap-3 border-bottom pb-3 mb-2">
+                    <div class="g-col-6 g-col-md-3">
+                        <div class="caps-label">Status</div>
+                        <div>In Progress</div>
+                    </div>
+                    <div class="g-col-6 g-col-md-3">
+                        <div class="caps-label">Phase</div>
+                        <div>Occupation</div>
+                    </div>
+                    <div class="g-col-6 g-col-md-3">
+                        <div class="caps-label">Budget</div>
+                        <div>1500¢</div>
+                    </div>
+                    <div class="g-col-6 g-col-md-3">
+                        <div class="caps-label">Content Packs</div>
+                        <div>Scavvy</div>
+                        <a href="#" class="fs-7 linked">Edit</a>
+                    </div>
                 </div>
             </div>
-        </div>
-        <h3 class="h6 caps-label mb-2">Step progress (multi-step flows)</h3>
-        <p class="text-secondary fs-7 mb-2">
-            Use <code>
-            {% verbatim %}
-                {% include "core/includes/step_progress.html" with step=N total_steps=N title="..." %}
-            {% endverbatim %}
-        </code> for multi-step forms (advancement, vehicle, equipment sell).
-    </p>
-    <div class="border rounded p-3 mb-4">
-        <div class="col-12 col-md-8 col-lg-6">
-            {% include "core/includes/step_progress.html" with step=2 total_steps=3 title="Add Vehicle" subtitle="Select crew" %}
-            <div class="mt-3">
-                <p class="text-secondary fs-7 mb-0">
-                    Step content goes here. The progress bar, h1.h3 title, and optional h2.h5 subtitle are rendered by the include.
-                </p>
+            <h3 class="h6 caps-label mb-2">Step progress (multi-step flows)</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Use <code>&lt;c-steps step="2" total="3" title="…" subtitle="…" /&gt;</code> for multi-step forms
+                (vehicle purchase, equipment sell). The component computes the bar width, so call sites pass plain
+                step numbers. It emits the <code>h1</code>, so the page must not also have one.
+            </p>
+            <div class="border rounded p-3 mb-4">
+                <div class="col-12 col-md-8 col-lg-6">
+                    <c-steps step="2" total="3" title="Add Vehicle" subtitle="Select crew" />
+                    <div class="mt-3">
+                        <p class="text-secondary fs-7 mb-0">
+                            Step content goes here. The progress bar, <code>h1.h3</code> title and optional
+                            <code>h2.h5</code> subtitle all come from <code>&lt;c-steps&gt;</code>.
+                        </p>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</section>
-<!-- ============================================================ -->
-<!-- 13. EMPTY STATES -->
-<!-- ============================================================ -->
-<section>
-    <h2 class="h4 mb-3">Empty states</h2>
-    <h3 class="h6 caps-label mb-2">Block empty state</h3>
-    <div class="border rounded p-3 mb-3">
-        <p class="text-secondary mb-0">No fighters yet.</p>
-    </div>
-    <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
-    <table class="table table-sm table-borderless mb-0 fs-7">
-        <thead>
-            <tr>
-                <th>Fighter</th>
-                <th>Skill</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Stig</td>
-                <td>Infiltrate</td>
-                <td>
-                    <span class="text-secondary fst-italic">None</span>
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</section>
-<!-- ============================================================ -->
-<!-- 14. COMMA-SEPARATED LISTS (SPACELESS) -->
-<!-- ============================================================ -->
-<section>
-    <h2 class="h4 mb-3">Comma-separated lists (spaceless)</h2>
-    <p class="text-secondary fs-7 mb-3">
-        When rendering items inline without unwanted whitespace (rules, skills, injuries on fighter cards),
-        use <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> with
-        <code>&lt;span&gt;</code> wrappers and a comma separator. Without this pattern, Django templates
-        insert whitespace between tags, producing <code>item1 , item2</code> instead of <code>item1,&nbsp;item2</code>.
-    </p>
-    <h3 class="h6 caps-label mb-2">Live example</h3>
-    <div class="border rounded p-3 mb-3 fs-7">
-        <table class="table table-sm table-borderless mb-0">
-            <tr>
-                <th class="text-secondary" style="width: 80px">Rules</th>
-                <td>
-                    {% spaceless %}
-                        <span>Backstab</span><span>,&nbsp;</span><span>Infiltrate</span><span>,&nbsp;</span><span class="text-warning">Gang Fighter (Ganger)</span>
-                    {% endspaceless %}
-                    <a href="#" class="linked fs-7">Edit</a>
-                </td>
-            </tr>
-            <tr>
-                <th class="text-secondary">Skills</th>
-                <td>
-                    {% spaceless %}
-                        <span>Nerves of Steel</span><span>,&nbsp;</span><span>Spring Up</span>
-                    {% endspaceless %}
-                    <a href="#" class="linked fs-7">Edit</a>
-                </td>
-            </tr>
-        </table>
-    </div>
-    <h3 class="h6 caps-label mb-2">Template pattern</h3>
-    <pre class="border rounded p-2 fs-7 mb-3"><code>{% templatetag openblock %} spaceless {% templatetag closeblock %}
-    {% templatetag openblock %} for item in items {% templatetag closeblock %}
-        &lt;span&gt;{% templatetag openvariable %} item {% templatetag closevariable %}&lt;/span&gt;
-        {% templatetag openblock %} if not forloop.last {% templatetag closeblock %}&lt;span&gt;,&amp;nbsp;&lt;/span&gt;{% templatetag openblock %} endif {% templatetag closeblock %}
+        </section>
+        <!-- ============================================================ -->
+        <!-- 13. EMPTY STATES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Empty states</h2>
+            <h3 class="h6 caps-label mb-2">Block empty state</h3>
+            <div class="border rounded p-3 mb-3">
+                <p class="text-secondary mb-0">No fighters yet.</p>
+            </div>
+            <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Fighter</th>
+                        <th>Skill</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Stig</td>
+                        <td>Infiltrate</td>
+                        <td>
+                            <span class="text-secondary fst-italic">None</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 14. COMMA-SEPARATED LISTS (SPACELESS) -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Comma-separated lists (spaceless)</h2>
+            <p class="text-secondary fs-7 mb-3">
+                Use <code>&lt;c-list&gt;</code>. Django emits the newlines between template tags as real text, so a
+                naive loop renders <code>item1 , item2</code> with a space before each comma — the component owns the
+                <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> wrapper that prevents it.
+                Two call sites in the app still carry the comment <em>"All this faff to avoid spaces"</em> above this
+                exact workaround.
+            </p>
+            <h3 class="h6 caps-label mb-2">Live example</h3>
+            <div class="border rounded p-3 mb-3 fs-7">
+                <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                        <th class="text-secondary" style="width: 80px">Rules</th>
+                        <td>
+                            <c-list>
+                                <span>Backstab</span>
+                                <c-list.sep />
+                                <span>Infiltrate</span>
+                                <c-list.sep />
+                                <span class="text-warning">Gang Fighter (Ganger)</span>
+                            </c-list>
+                            <a href="#" class="linked fs-7">Edit</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="text-secondary">Skills</th>
+                        <td>
+                            <c-list :items="ds_skills" />
+                            <a href="#" class="linked fs-7">Edit</a>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <h3 class="h6 caps-label mb-2">Template pattern</h3>
+            {# djlint:off #}
+<pre class="border rounded p-2 fs-7 mb-3"><code>{# plain values: the component owns the loop and the separators #}
+&lt;c-list :items="fighter.skilline_cached" /&gt;
+
+{# markup per item: the loop stays at the call site (cotton has no scoped slots) #}
+&lt;c-list&gt;
+    {% templatetag openblock %} for r in rules {% templatetag closeblock %}
+        &lt;span&gt;{% templatetag openblock %} include "core/includes/rule.html" with rule=r {% templatetag closeblock %}&lt;/span&gt;
+        {% templatetag openblock %} if not forloop.last {% templatetag closeblock %}&lt;c-list.sep /&gt;{% templatetag openblock %} endif {% templatetag closeblock %}
     {% templatetag openblock %} endfor {% templatetag closeblock %}
-{% templatetag openblock %} endspaceless {% templatetag closeblock %}</code></pre>
-    <h3 class="h6 caps-label mb-2">Rules</h3>
-    <table class="table table-sm table-borderless mb-0 fs-7">
-        <thead>
-            <tr>
-                <th>Rule</th>
-                <th>Why</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>
-                    Wrap each item in <code>&lt;span&gt;</code>
-                </td>
-                <td>
-                    <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> collapses whitespace between tags
-                </td>
-            </tr>
-            <tr>
-                <td>
-                    Separator: <code>&lt;span&gt;,&amp;nbsp;&lt;/span&gt;</code>
-                </td>
-                <td>
-                    <code>&amp;nbsp;</code> prevents line breaks mid-list
-                </td>
-            </tr>
-            <tr>
-                <td>
-                    Guard: <code>{% templatetag openblock %} if not forloop.last {% templatetag closeblock %}</code>
-                </td>
-                <td>No trailing comma</td>
-            </tr>
-            <tr>
-                <td>
-                    "Edit" link goes <em>outside</em> <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code>
-                </td>
-                <td>Normal whitespace before the link is fine</td>
-            </tr>
-        </tbody>
-    </table>
-</section>
-<!-- ============================================================ -->
-<!-- 15. LINKS -->
-<!-- ============================================================ -->
-<section>
-    <h2 class="h4 mb-3">Links</h2>
-    <div class="vstack gap-2 mb-4">
-        <div>
-            <a href="#">Default link</a>
-            <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
-        </div>
-        <div>
-            <a href="#" class="linked">Linked style</a>
-            <code class="ms-2 fs-7 text-secondary">.linked (underline on hover/focus)</code>
-        </div>
-        <div>
-            <a href="#" class="linked-secondary">Secondary link</a>
-            <code class="ms-2 fs-7 text-secondary">.linked-secondary (edit/reset actions)</code>
-        </div>
-        <div>
-            <a href="#" class="linked-body">Body-colour link</a>
-            <code class="ms-2 fs-7 text-secondary">.linked-body (inline names in metadata rows)</code>
-        </div>
-        <div>
-            <a href="#"
-               class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover">Danger link</a>
-            <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
-        </div>
-        <div>
-            <a href="#" class="link-primary">Primary link</a>
-            <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
-        </div>
-        <div>
-            <span class="tooltipped">Tooltipped style</span>
-            <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
-        </div>
+&lt;/c-list&gt;</code></pre>
+            {# djlint:on #}
+            <h3 class="h6 caps-label mb-2">Rules</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Rule</th>
+                        <th>Why</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            Wrap each item in <code>&lt;span&gt;</code>
+                        </td>
+                        <td>
+                            <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> collapses whitespace between tags
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Separator: <code>&lt;c-list.sep /&gt;</code>
+                        </td>
+                        <td>
+                            Renders <code>&lt;span&gt;,&amp;nbsp;&lt;/span&gt;</code>; the <code>&amp;nbsp;</code>
+                            prevents line breaks mid-list. Items mode emits these for you
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            Guard: <code>{% templatetag openblock %} if not forloop.last {% templatetag closeblock %}</code> (slot mode only)
+                        </td>
+                        <td>No trailing comma. Items mode has no guard to forget</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            "Edit" link goes <em>outside</em> <code>&lt;c-list&gt;</code>
+                        </td>
+                        <td>Normal whitespace before the link is fine</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 15. LINKS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Links</h2>
+            <div class="vstack gap-2 mb-4">
+                <div>
+                    <a href="#">Default link</a>
+                    <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
+                </div>
+                <div>
+                    <a href="#" class="linked">Linked style</a>
+                    <code class="ms-2 fs-7 text-secondary">.linked (underline on hover/focus)</code>
+                </div>
+                <div>
+                    <a href="#" class="linked-secondary">Secondary link</a>
+                    <code class="ms-2 fs-7 text-secondary">.linked-secondary (edit/reset actions)</code>
+                </div>
+                <div>
+                    <a href="#" class="linked-body">Body-colour link</a>
+                    <code class="ms-2 fs-7 text-secondary">.linked-body (inline names in metadata rows)</code>
+                </div>
+                <div>
+                    <a href="#"
+                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover">Danger link</a>
+                    <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
+                </div>
+                <div>
+                    <a href="#" class="link-primary">Primary link</a>
+                    <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
+                </div>
+                <div>
+                    <span class="tooltipped">Tooltipped style</span>
+                    <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
+                </div>
+            </div>
+            <p class="text-secondary fs-7 mb-0">
+                All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
+                <code>.linked</code> shows its underline only on hover/focus, at 50% opacity (tinted from
+                <code>currentColor</code>). <code>.linked-secondary</code> is the same behaviour in the secondary
+                text colour.
+            </p>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 16. INLINE ACTION MENUS -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Inline action menus</h2>
+            <p class="text-secondary fs-7 mb-3">
+                Contextual action links shown below equipment, weapons, and gear on fighter cards.
+                The <code>bi-arrow-90deg-up</code> icon visually connects the menu to the item above.
+                Use <code>&lt;c-actions&gt;</code> with <code>&lt;c-actions.link&gt;</code> children, separated by the
+                <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> tag (requires
+                <code>{% templatetag openblock %} load custom_tags {% templatetag closeblock %}</code>), which renders as
+                <code>&amp;nbsp;·&amp;nbsp;</code>. Separators stay at the call site on purpose: most menus have
+                conditional links, and a component cannot see which of its children rendered.
+            </p>
+            <h3 class="h6 caps-label mb-2">Weapon menu (table row)</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Used inside weapon stat tables. The menu occupies a full-width <code>&lt;td&gt;</code> with <code>colspan</code> matching the table's column count (e.g. <code>colspan="9"</code> for the standard weapon table).
+            </p>
+            <div class="border rounded p-3 mb-3">
+                <table class="table table-sm table-borderless mb-0 fs-7">
+                    <tbody>
+                        <tr>
+                            <td>Lasgun</td>
+                            <td class="text-center">24"</td>
+                            <td class="text-center">48"</td>
+                            <td class="text-center">4</td>
+                            <td class="text-center">-1</td>
+                            <td class="text-center">1</td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" class="text-end">
+                                <div class="d-flex flex-wrap">
+                                    <i class="bi-arrow-90deg-up text-secondary me-1"></i>
+                                    <c-actions.link href="#">
+                                        Edit
+                                    </c-actions.link>
+                                    {% dot %}
+                                    <c-actions.link href="#">
+                                        Accessories
+                                    </c-actions.link>
+                                    {% dot %}
+                                    <c-actions.link href="#">
+                                        Cost
+                                    </c-actions.link>
+                                    {% dot %}
+                                    <c-actions.link href="#">
+                                        Reassign
+                                    </c-actions.link>
+                                    {% dot %}
+                                    <c-actions.link href="#" variant="danger">
+                                        Delete
+                                    </c-actions.link>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <h3 class="h6 caps-label mb-2">Gear menu (inline)</h3>
+            <p class="text-secondary fs-7 mb-2">Used inline after gear item names. No table wrapper.</p>
+            <div class="border rounded p-3 mb-3 fs-7">
+                <div>Mesh Armour (15¢)</div>
+                <c-actions lead="none">
+                    <c-actions.link href="#">
+                        Cost
+                    </c-actions.link>
+                    {% dot %}
+                    <c-actions.link href="#">
+                        Reassign
+                    </c-actions.link>
+                    {% dot %}
+                    <c-actions.link href="#" variant="danger">
+                        Delete
+                    </c-actions.link>
+                </c-actions>
+            </div>
+            <h3 class="h6 caps-label mb-2">Default equipment menu (inline)</h3>
+            <p class="text-secondary fs-7 mb-2">Used for default (template-provided) equipment. Fewer actions available.</p>
+            <div class="border rounded p-3 mb-3 fs-7">
+                <div>Fighting Knife (default)</div>
+                <c-actions lead="none">
+                    <c-actions.link href="#">
+                        Modify from default
+                    </c-actions.link>
+                    {% dot %}
+                    <c-actions.link href="#" variant="danger">
+                        Delete
+                    </c-actions.link>
+                </c-actions>
+            </div>
+            <h3 class="h6 caps-label mb-2">Rules</h3>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Element</th>
+                        <th>Classes / pattern</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Arrow icon</td>
+                        <td>
+                            <code>bi-arrow-90deg-up text-secondary me-1</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Action link</td>
+                        <td>
+                            <code>link-secondary</code> (edit, cost, reassign, accessories)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Destructive link</td>
+                        <td>
+                            <code>link-danger</code> (delete, archive)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Sell link</td>
+                        <td>
+                            <code>link-warning</code> (stash sell actions)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Separator</td>
+                        <td>
+                            <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> renders <code>&amp;nbsp;·&amp;nbsp;</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Wrapper (table)</td>
+                        <td>
+                            <code>d-flex flex-wrap</code> inside full-width <code>&lt;td&gt;</code>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Wrapper (inline)</td>
+                        <td>
+                            <code>&lt;br&gt;</code> before icon (in real templates), or a <code>&lt;div&gt;</code> wrapper
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 17. CUSTOM CSS REFERENCE -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Custom CSS reference</h2>
+            <p class="text-secondary fs-7 mb-2">
+                Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
+            </p>
+            <table class="table table-sm table-borderless mb-0 fs-7">
+                <thead>
+                    <tr>
+                        <th>Class</th>
+                        <th>Purpose</th>
+                        <th>Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cls, purpose in custom_classes %}
+                        <tr>
+                            <td>
+                                <code>{{ cls }}</code>
+                            </td>
+                            <td>{{ purpose }}</td>
+                            <td>
+                                {% if cls == ".alert-icon" %}
+                                    <span class="text-secondary">(see Feedback section)</span>
+                                {% elif cls == ".caps-label" %}
+                                    <span class="caps-label">Example</span>
+                                {% elif cls == ".linked" %}
+                                    <a href="#" class="linked">linked text</a>
+                                {% elif cls == ".fs-7" %}
+                                    <span class="fs-7">compact text</span>
+                                {% elif cls == ".mb-last-0" %}
+                                    <span class="text-secondary">(removes last-child margin)</span>
+                                {% elif cls == ".flash-warn" %}
+                                    <span class="text-secondary">(see Flash highlight below)</span>
+                                {% elif cls == ".tooltipped" %}
+                                    <span class="tooltipped">hover me</span>
+                                {% elif cls == ".table-fixed" %}
+                                    <span class="text-secondary">(table-layout: fixed)</span>
+                                {% elif cls == ".house-icon" %}
+                                    <span>House{{ ds_house_icon_svg }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        <!-- ============================================================ -->
+        <!-- 18. FLASH ANIMATION -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Flash highlight</h2>
+            <div class="flash-warn border rounded p-3">
+                This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
+                Used when returning from add pages to highlight the newly added item.
+            </div>
+        </section>
     </div>
-    <p class="text-secondary fs-7 mb-0">
-        All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
-        <code>.linked</code> shows its underline only on hover/focus, at 50% opacity (tinted from
-        <code>currentColor</code>). <code>.linked-secondary</code> is the same behaviour in the secondary
-        text colour.
-    </p>
-</section>
-<!-- ============================================================ -->
-<!-- 16. INLINE ACTION MENUS -->
-<!-- ============================================================ -->
-<section>
-    <h2 class="h4 mb-3">Inline action menus</h2>
-    <p class="text-secondary fs-7 mb-3">
-        Contextual action links shown below equipment, weapons, and gear on fighter cards.
-        The <code>bi-arrow-90deg-up</code> icon visually connects the menu to the item above.
-        In templates, links are separated by the <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> tag (requires <code>{% templatetag openblock %} load custom_tags {% templatetag closeblock %}</code>), which renders as <code>&amp;nbsp;·&amp;nbsp;</code>. The live examples below use the literal character.
-    </p>
-    <h3 class="h6 caps-label mb-2">Weapon menu (table row)</h3>
-    <p class="text-secondary fs-7 mb-2">
-        Used inside weapon stat tables. The menu occupies a full-width <code>&lt;td&gt;</code> with <code>colspan</code> matching the table's column count (e.g. <code>colspan="9"</code> for the standard weapon table).
-    </p>
-    <div class="border rounded p-3 mb-3">
-        <table class="table table-sm table-borderless mb-0 fs-7">
-            <tbody>
-                <tr>
-                    <td>Lasgun</td>
-                    <td class="text-center">24"</td>
-                    <td class="text-center">48"</td>
-                    <td class="text-center">4</td>
-                    <td class="text-center">-1</td>
-                    <td class="text-center">1</td>
-                </tr>
-                <tr>
-                    <td colspan="6" class="text-end">
-                        <div class="d-flex flex-wrap">
-                            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
-                            <a href="#" class="link-secondary">Edit</a>
-                            &nbsp;·&nbsp;
-                            <a href="#" class="link-secondary">Accessories</a>
-                            &nbsp;·&nbsp;
-                            <a href="#" class="link-secondary">Cost</a>
-                            &nbsp;·&nbsp;
-                            <a href="#" class="link-secondary">Reassign</a>
-                            &nbsp;·&nbsp;
-                            <a href="#" class="link-danger">Delete</a>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    <h3 class="h6 caps-label mb-2">Gear menu (inline)</h3>
-    <p class="text-secondary fs-7 mb-2">Used inline after gear item names. No table wrapper.</p>
-    <div class="border rounded p-3 mb-3 fs-7">
-        <div>Mesh Armour (15¢)</div>
-        <div>
-            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
-            <a href="#" class="link-secondary">Cost</a>
-            &nbsp;·&nbsp;
-            <a href="#" class="link-secondary">Reassign</a>
-            &nbsp;·&nbsp;
-            <a href="#" class="link-danger">Delete</a>
-        </div>
-    </div>
-    <h3 class="h6 caps-label mb-2">Default equipment menu (inline)</h3>
-    <p class="text-secondary fs-7 mb-2">Used for default (template-provided) equipment. Fewer actions available.</p>
-    <div class="border rounded p-3 mb-3 fs-7">
-        <div>Fighting Knife (default)</div>
-        <div>
-            <i class="bi-arrow-90deg-up text-secondary me-1"></i>
-            <a href="#" class="link-secondary">Modify from default</a>
-            &nbsp;·&nbsp;
-            <a href="#" class="link-danger">Delete</a>
-        </div>
-    </div>
-    <h3 class="h6 caps-label mb-2">Rules</h3>
-    <table class="table table-sm table-borderless mb-0 fs-7">
-        <thead>
-            <tr>
-                <th>Element</th>
-                <th>Classes / pattern</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>Arrow icon</td>
-                <td>
-                    <code>bi-arrow-90deg-up text-secondary me-1</code>
-                </td>
-            </tr>
-            <tr>
-                <td>Action link</td>
-                <td>
-                    <code>link-secondary</code> (edit, cost, reassign, accessories)
-                </td>
-            </tr>
-            <tr>
-                <td>Destructive link</td>
-                <td>
-                    <code>link-danger</code> (delete, archive)
-                </td>
-            </tr>
-            <tr>
-                <td>Sell link</td>
-                <td>
-                    <code>link-warning</code> (stash sell actions)
-                </td>
-            </tr>
-            <tr>
-                <td>Separator</td>
-                <td>
-                    <code>{% templatetag openblock %} dot {% templatetag closeblock %}</code> renders <code>&amp;nbsp;·&amp;nbsp;</code>
-                </td>
-            </tr>
-            <tr>
-                <td>Wrapper (table)</td>
-                <td>
-                    <code>d-flex flex-wrap</code> inside full-width <code>&lt;td&gt;</code>
-                </td>
-            </tr>
-            <tr>
-                <td>Wrapper (inline)</td>
-                <td>
-                    <code>&lt;br&gt;</code> before icon (in real templates), or a <code>&lt;div&gt;</code> wrapper
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</section>
-<!-- ============================================================ -->
-<!-- 17. CUSTOM CSS REFERENCE -->
-<!-- ============================================================ -->
-<section>
-    <h2 class="h4 mb-3">Custom CSS reference</h2>
-    <p class="text-secondary fs-7 mb-2">
-        Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
-    </p>
-    <table class="table table-sm table-borderless mb-0 fs-7">
-        <thead>
-            <tr>
-                <th>Class</th>
-                <th>Purpose</th>
-                <th>Preview</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for cls, purpose in custom_classes %}
-                <tr>
-                    <td>
-                        <code>{{ cls }}</code>
-                    </td>
-                    <td>{{ purpose }}</td>
-                    <td>
-                        {% if cls == ".alert-icon" %}
-                            <span class="text-secondary">(see Feedback section)</span>
-                        {% elif cls == ".caps-label" %}
-                            <span class="caps-label">Example</span>
-                        {% elif cls == ".linked" %}
-                            <a href="#" class="linked">linked text</a>
-                        {% elif cls == ".fs-7" %}
-                            <span class="fs-7">compact text</span>
-                        {% elif cls == ".mb-last-0" %}
-                            <span class="text-secondary">(removes last-child margin)</span>
-                        {% elif cls == ".flash-warn" %}
-                            <span class="text-secondary">(see Flash highlight below)</span>
-                        {% elif cls == ".tooltipped" %}
-                            <span class="tooltipped">hover me</span>
-                        {% elif cls == ".table-fixed" %}
-                            <span class="text-secondary">(table-layout: fixed)</span>
-                        {% elif cls == ".house-icon" %}
-                            <span>House{{ ds_house_icon_svg }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</section>
-<!-- ============================================================ -->
-<!-- 18. FLASH ANIMATION -->
-<!-- ============================================================ -->
-<section>
-    <h2 class="h4 mb-3">Flash highlight</h2>
-    <div class="flash-warn border rounded p-3">
-        This element has the <code>.flash-warn</code> class, which animates a warning background fade over 2s.
-        Used when returning from add pages to highlight the newly added item.
-    </div>
-</section>
-</div>
-<script>
+    <script>
         // Compute and display actual rendered font sizes in pixels.
         document.querySelectorAll("[data-measure]").forEach(function (cell) {
             var row = cell.closest("tr");
@@ -1767,5 +1814,5 @@
                 cell.textContent = Math.round(px * 100) / 100 + "px";
             }
         });
-</script>
+    </script>
 {% endblock content %}

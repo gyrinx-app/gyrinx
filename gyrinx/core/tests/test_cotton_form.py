@@ -819,3 +819,61 @@ def test_the_golden_canonicaliser_is_not_vacuous():
     """Guard the guard: canon() must not erase a real change."""
     assert canon('<input class="x">') == '<input class="x">'
     assert canon("<b>hi</b>") == "<b>hi</b>"
+
+
+def test_actions_link_strips_slot_whitespace():
+    """djlint reflows a one-line call site onto three, so the slot arrives as
+    "\\n    Cost\\n". An <a> is plain inline, so that whitespace renders inside
+    the link and takes its underline. .btn and .badge are immune (inline-block);
+    this one is not, so the component strips it."""
+    out = component('<c-actions.link href="/x">\n    Cost\n</c-actions.link>')
+    assert out == '<a href="/x" class="link-secondary">Cost</a>'
+
+
+def test_actions_link_variant_maps_to_link_class():
+    assert (
+        component('<c-actions.link href="/x" variant="danger">Del</c-actions.link>')
+        == '<a href="/x" class="link-danger">Del</a>'
+    )
+
+
+def test_list_items_mode_has_no_stray_whitespace():
+    out = component('<c-list :items="xs" />', {"xs": ["A", "B"]})
+    assert out == (
+        '<span class="comma-list"><span>A</span><span>,&nbsp;</span><span>B</span></span>'
+    )
+
+
+def test_list_single_item_has_no_trailing_separator():
+    out = component('<c-list :items="xs" />', {"xs": ["Solo"]})
+    assert out == '<span class="comma-list"><span>Solo</span></span>'
+
+
+def test_list_slot_mode_collapses_call_site_whitespace():
+    """The whole point of the component: the call-site loop's newlines must not
+    reach the output as spaces before each comma."""
+    out = component(
+        "<c-list>\n"
+        "    {% for x in xs %}\n"
+        "        <span>{{ x }}</span>\n"
+        "        {% if not forloop.last %}<c-list.sep />{% endif %}\n"
+        "    {% endfor %}\n"
+        "</c-list>",
+        {"xs": ["A", "B"]},
+    )
+    assert out == (
+        '<span class="comma-list"><span>A</span><span>,&nbsp;</span><span>B</span></span>'
+    )
+
+
+def test_steps_computes_bar_width():
+    out = component('<c-steps step="2" total="3" title="Add Vehicle" />')
+    assert 'style="width: 67%"' in out
+    assert "Step 2 of 3" in out
+    assert '<h1 class="h3 mb-0">Add Vehicle</h1>' in out
+    assert "<h2" not in out  # no subtitle passed
+
+
+def test_steps_subtitle_is_optional():
+    out = component('<c-steps step="1" total="2" title="T" subtitle="S" />')
+    assert '<h2 class="h5 mb-0">S</h2>' in out

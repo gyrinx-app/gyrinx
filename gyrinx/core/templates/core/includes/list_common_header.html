@@ -3,9 +3,18 @@
     {# Breadcrumbs get their own full-width row so they're not squished by the stats block. #}
     {% url 'core:lists' as lists_url %}
     {% if list.is_campaign_mode %}
-        {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url|add:"?type=gang" campaign=list.campaign print=print %}
+        <c-breadcrumb type="Campaign Gang"
+                      :owner="list.owner_cached"
+                      name="{{ list.name }}"
+                      type_url="{{ lists_url|add:'?type=gang' }}"
+                      :campaign="list.campaign"
+                      :print="print" />
     {% else %}
-        {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
+        <c-breadcrumb type="List"
+                      :owner="list.owner_cached"
+                      name="{{ list.name }}"
+                      type_url="{{ lists_url }}"
+                      :print="print" />
     {% endif %}
     <div class="d-flex flex-column flex-xl-row gap-2 column-gap-xl-3 align-items-xl-center">
         <div class="vstack">

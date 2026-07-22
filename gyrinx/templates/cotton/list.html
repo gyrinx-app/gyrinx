@@ -1,0 +1,44 @@
+{% comment %}
+    c-list — an inline, comma-separated run of items with no stray whitespace.
+    Rules, skills, psyker powers, gear names on a fighter card.
+
+    TWO MODES.
+
+    1. Items mode, when each item is a plain value:
+
+           <c-list :items="fighter.skilline_cached" />
+
+       The component owns the loop AND the separators, so there is no
+       forloop.last guard to get wrong and no trailing comma.
+
+    2. Slot mode, when each item is MARKUP -- a tooltipped span, a {% ref %}
+       link, a name with a cost suffix:
+
+           <c-list>
+               {% for r in rules %}
+                   <span>{% include "core/includes/rule.html" with rule=r %}</span>
+                   {% if not forloop.last %}<c-list.sep />{% endif %}
+               {% endfor %}
+           </c-list>
+
+       The loop stays at the call site because cotton has no scoped slots: the
+       component cannot render per-item markup supplied by its caller. What it
+       still owns is the spaceless wrapper, which is the part everyone forgets.
+
+    WHY SPACELESS AT ALL. Django emits the newlines and indentation between
+    template tags as real text, so a naive loop renders "Backstab , Infiltrate"
+    with a space before each comma. Two call sites in the estate carry the
+    comment "All this faff to avoid spaces" above exactly this workaround.
+
+    The separator is a real DOM node (span with a non-breaking space either
+    side), not a CSS ::after, so the comma cannot end up inside the anchor and
+    take its underline and hover colour, and the list cannot break lines at the
+    comma. A CSS separator would be less markup and is worth considering, but it
+    changes the printed sheet and belongs in its own reviewed change.
+
+    Props
+      items  optional iterable. Present = items mode; absent = slot mode.
+      tag    wrapper element, default span. Use "div" when the list is the whole
+             contents of a block.
+      class  extra classes on the wrapper.
+{% endcomment %}<c-vars items="" tag="span" class="" />{% spaceless %}<{{ tag }} class="comma-list{% if class %} {{ class }}{% endif %}">{% if items %}{% for item in items %}<span>{{ item }}</span>{% if not forloop.last %}<span>,&nbsp;</span>{% endif %}{% endfor %}{% else %}{{ slot }}{% endif %}</{{ tag }}>{% endspaceless %}

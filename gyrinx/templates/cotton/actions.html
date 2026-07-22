@@ -1,0 +1,49 @@
+{% comment %}
+    c-actions — the inline action menu under a piece of gear, a weapon row or a
+    stash item. Owns the connector arrow and the wrapper.
+
+        <c-actions>                          {# inline: br + arrow + links #}
+            <c-actions.link href="...">Cost</c-actions.link>{% dot %}
+            <c-actions.link href="..." variant="danger">Delete</c-actions.link>
+        </c-actions>
+
+        <c-actions row colspan="9"> ... </c-actions>    {# inside a stat table #}
+
+    TWO SHAPES, because the estate has two. The weapon menu is a full table row
+    whose td spans the stat columns and whose links sit in a flex box; the gear
+    and stash menus are ordinary inline flow after a br, directly beneath the
+    item they act on. They are NOT interchangeable: giving the inline form a
+    d-flex wrapper turns it into a block-level box and it stops sitting on the
+    line under its subject.
+
+    SEPARATORS STAY AT THE CALL SITE. Every real menu has conditional links
+    (upgrades only when there are upgrades, Sell only in campaign mode), and a
+    component cannot see which of its slot children rendered, so it cannot know
+    where a separator belongs. Writing the separator between links keeps that
+    decision next to the {% if %} that causes it. A CSS ::after separator would
+    put the dot inside the anchor, making it underline and take the hover state.
+
+    NOTE the estate is inconsistent here and this component does not resolve it:
+    most menus separate with {% dot %} (&nbsp;·&nbsp;) but fighter_card_stash.html
+    uses a bare <span class="text-secondary">·</span>, which has no non-breaking
+    spaces and so can break across lines. Left as-is per call site to keep this
+    migration byte-identical; worth a follow-up decision.
+
+    Props
+      row      bare boolean; wrap in tr/td/div.d-flex for a weapon stat table.
+      colspan  the td colspan when `row` is set. Must match the table width
+               (9 for the standard weapon table) or the row will not span.
+      lead     "" (default) emit the leading br on the inline form; "none" omits
+               it, for a menu that is already on its own line.
+      arrow    "" (default) show the bi-arrow-90deg-up connector; "none" omits it.
+      class    extra classes on the wrapper.
+{% endcomment %}<c-vars row="" colspan="9" lead="" arrow="" class="" />{% if row %}<tr>
+    <td colspan="{{ colspan }}" class="text-end">
+        <div class="d-flex flex-wrap{% if class %} {{ class }}{% endif %}">
+            {% if arrow != "none" %}<i class="bi-arrow-90deg-up text-secondary me-1"></i>{% endif %}
+            {{ slot }}
+        </div>
+    </td>
+</tr>{% else %}{% if lead != "none" %}<br>{% endif %}
+{% if arrow != "none" %}<i class="bi-arrow-90deg-up text-secondary me-1"></i>{% endif %}
+{{ slot }}{% endif %}

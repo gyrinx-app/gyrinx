@@ -1,0 +1,17 @@
+{% comment %}
+    c-actions.link — one link inside a c-actions menu.
+
+        <c-actions.link href="{% url ... %}">Cost</c-actions.link>
+        <c-actions.link href="{% url ... %}" variant="danger">Delete</c-actions.link>
+
+    Written as one dense line with no trailing newline: these sit inside a
+    {% dot %}-separated run where any stray whitespace shows as a gap around the
+    separator.
+
+    Props
+      href     required in practice; an action with nowhere to go is not an action.
+      variant  secondary (default) | danger | warning. Maps to link-{variant},
+               matching the design-system link roles: secondary for ordinary
+               actions, danger for destructive, warning for selling.
+      class    extra classes.
+{% endcomment %}{% load custom_tags %}<c-vars href="" variant="secondary" class="" /><a href="{{ href }}" class="link-{{ variant }}{% if class %} {{ class }}{% endif %}"{% if attrs.attrs_dict %} {{ attrs }}{% endif %}>{{ slot|strip }}</a>

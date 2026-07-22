@@ -166,6 +166,8 @@ def debug_design_system(request):
         ("locked", "Crew locked for battle"),
         ("in_progress", "Battle or campaign running"),
     ]
+    # Slot-free demo data for the <c-list> items-mode example.
+    ds_skills = ["Nerves of Steel", "Spring Up"]
     # Canonical icons from the design system spec
     common_icons = [
         ("bi-plus-lg", "Add"),
@@ -270,6 +272,7 @@ def debug_design_system(request):
             "button_variants": button_variants,
             "button_outline_variants": button_outline_variants,
             "badge_states": badge_states,
+            "ds_skills": ds_skills,
             "ds_form": _design_system_demo_form(bound=False),
             "ds_form_errors": _design_system_demo_form(bound=True),
             "common_icons": common_icons,

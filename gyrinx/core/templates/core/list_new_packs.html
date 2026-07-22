@@ -5,7 +5,11 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:lists' as lists_url %}
-    {% include "core/includes/breadcrumb.html" with type="Lists" owner=request.user name="New" type_url=lists_url only %}
+    <c-breadcrumb type="Lists"
+                  :owner="request.user"
+                  name="New"
+                  type_url="{{ lists_url }}"
+                  only />
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <h1 class="h3">Add Content Packs?</h1>
         <!-- Default game content -->
