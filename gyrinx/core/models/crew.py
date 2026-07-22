@@ -330,6 +330,14 @@ class Crew(AppBase):
         )
 
     @property
+    def over_picked(self):
+        """More chosen fighters than the scenario's count. Indicative only — the
+        count is a guideline, so this drives warnings, never blocking."""
+        return self.custom_count is not None and (
+            self.members.filter(source=CrewMember.CHOSEN).count() > self.custom_count
+        )
+
+    @property
     def is_whole_gang(self):
         """Custom Selection with no number in brackets: the whole gang may take
         part, so a crew with no picks means everyone attends."""
@@ -547,6 +555,11 @@ class Crew(AppBase):
                 if fighter is not None
                 else 0
             )
+            # Whether this fighter actually has a choice of equipment sets —
+            # the sheet only names the card when there were options.
+            has_sets = (
+                bool(fighter.equipment_sets.all()) if fighter is not None else False
+            )
             cost = (
                 member.rating_played if member.rating_played is not None else live_cost
             )
@@ -563,6 +576,7 @@ class Crew(AppBase):
                         ),
                         "fighter_id": member.list_fighter_id,
                         "loadout": equipment_set.name if equipment_set else None,
+                        "has_sets": has_sets,
                         "is_random": member.source == CrewMember.DRAWN,
                         "member_id": member.id,
                     },

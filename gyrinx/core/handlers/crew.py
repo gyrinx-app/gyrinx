@@ -353,6 +353,7 @@ def crew_whole_gang_projection(crew: Crew):
                 "name": fighter.name,
                 "category": fighter.content_fighter.get_category_display(),
                 "loadout": equipment_set.name if equipment_set else None,
+                "has_sets": bool(fighter.equipment_sets.all()),
                 "rating": rating,
             }
         )
@@ -378,6 +379,7 @@ def crew_whole_gang_projection(crew: Crew):
                 "name": child.name,
                 "category": child.content_fighter.get_category_display(),
                 "loadout": None,
+                "has_sets": bool(child.equipment_sets.all()),
                 "rating": rating,
             }
         )
@@ -398,6 +400,7 @@ def crew_whole_gang_projection(crew: Crew):
                 "name": fighter.name,
                 "category": fighter.content_fighter.get_category_display(),
                 "loadout": None,
+                "has_sets": bool(fighter.equipment_sets.all()),
                 "rating": rating,
             }
         )
@@ -429,6 +432,7 @@ def crew_included_forecast(crew: Crew):
             {
                 "name": fighter.name,
                 "category": fighter.content_fighter.get_category_display(),
+                "has_sets": bool(fighter.equipment_sets.all()),
                 "rating": rating,
             }
         )

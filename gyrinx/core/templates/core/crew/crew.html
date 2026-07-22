@@ -169,14 +169,16 @@
                                           data-bs-toggle="tooltip"
                                           data-bs-title="Drawn at random">Random</span>
                                 {% endif %}
-                                <span class="text-secondary fs-7">
-                                    {% if a.loadout %}
-                                        · {{ a.loadout }}
-                                    {% else %}
-                                        {# Say so on drafts too: the card is part of selection and changes the rating. #}
-                                        · Default
-                                    {% endif %}
-                                </span>
+                                {% if a.has_sets %}
+                                    {# Only name the card when the fighter actually had options. #}
+                                    <span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i>
+                                        {% if a.loadout %}
+                                            {{ a.loadout }}
+                                        {% else %}
+                                            Default
+                                        {% endif %}
+                                    </span>
+                                {% endif %}
                             </td>
                             <td class="text-end">{{ a.rating }}¢</td>
                             <td></td>
@@ -192,13 +194,15 @@
                                     <td>
                                         <strong>{{ p.name }}</strong>
                                         <span class="text-secondary fs-7">· {{ p.category }}</span>
-                                        <span class="text-secondary fs-7">
-                                            {% if p.loadout %}
-                                                · {{ p.loadout }}
-                                            {% else %}
-                                                · Default
-                                            {% endif %}
-                                        </span>
+                                        {% if p.has_sets %}
+                                            <span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i>
+                                                {% if p.loadout %}
+                                                    {{ p.loadout }}
+                                                {% else %}
+                                                    Default
+                                                {% endif %}
+                                            </span>
+                                        {% endif %}
                                     </td>
                                     <td class="text-end text-secondary">{{ p.rating }}¢</td>
                                     <td></td>
@@ -274,26 +278,14 @@
                                     <span class="badge text-bg-secondary ms-1"
                                           data-bs-toggle="tooltip"
                                           data-bs-title="Joins regardless of the selection method">Always included</span>
-                                    <span class="text-secondary fs-7">· Default</span>
+                                    {% if f.has_sets %}<span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i> Default</span>{% endif %}
                                 </td>
                                 <td class="text-end text-secondary">{{ f.rating }}¢</td>
                                 <td></td>
                                 <td></td>
-                                {% if receipt.has_free %}
-                                    <td></td>
-                                {% endif %}
+                                {% if receipt.has_free %}<td></td>{% endif %}
                             </tr>
                         {% endfor %}
-                        <tr>
-                            <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}">
-                                <div class="border rounded p-2 fs-7 text-secondary">
-                                    <i class="bi-info-circle"></i>
-                                    <strong>Always included.</strong>
-                                    These fighters join regardless of the selection method — they're
-                                    enrolled when the crew is confirmed.
-                                </div>
-                            </td>
-                        </tr>
                     {% endif %}
                     <tr>
                         <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}"
