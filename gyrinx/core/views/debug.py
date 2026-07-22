@@ -5,6 +5,7 @@ These views are only available when DEBUG=True or GYRINX_DEBUG=True.
 
 from pathlib import Path
 
+from django import forms
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
@@ -66,6 +67,58 @@ def debug_test_plan_detail(request, filename):
     return HttpResponse(content, content_type="text/plain; charset=utf-8")
 
 
+class _DesignSystemDemoForm(forms.Form):
+    """A throwaway form so the page can demo <c-form.field> against real
+    BoundFields. The component refuses to render anything else -- passing a
+    stringified widget is exactly the mistake that used to drop a field's
+    errors silently (#2001), so it raises instead."""
+
+    # The Bootstrap class goes on the WIDGET, exactly as every real form in
+    # gyrinx/core/forms/ does it. <c-form.field> renders the widget as the form
+    # declares it and deliberately does not inject form-control -- a form that
+    # omits the class renders an unstyled input, with or without the component.
+    name = forms.CharField(
+        label="Fighter name",
+        initial="Stig the Miner",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    fighter_type = forms.ChoiceField(
+        label="Fighter type",
+        choices=[(c, c) for c in ("Juve", "Ganger", "Champion", "Leader")],
+        initial="Champion",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    cost = forms.IntegerField(
+        label="Cost",
+        initial=55,
+        help_text="Credits. Leave as-is to use the fighter type's base cost.",
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    in_roster = forms.BooleanField(
+        label="Include in roster",
+        initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    notes = forms.CharField(
+        label="Notes",
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        initial="Some notes about this fighter.",
+    )
+
+
+def _design_system_demo_form(*, bound):
+    """Unbound for the happy path; deliberately invalid when bound, so the page
+    shows what a field with errors actually looks like."""
+    if not bound:
+        return _DesignSystemDemoForm()
+    form = _DesignSystemDemoForm(
+        data={"name": "", "fighter_type": "Wanderer", "cost": "x"}
+    )
+    form.is_valid()  # populate errors
+    return form
+
+
 def debug_design_system(request):
     """Design system living reference page."""
     if not settings.DEBUG:
@@ -92,6 +145,26 @@ def debug_design_system(request):
         "info",
         "light",
         "dark",
+    ]
+    # <c-btn variant="…"> takes the Bootstrap suffix verbatim, so these double as
+    # the component's variant vocabulary. "link" is button-only (there is no
+    # bg-link), which is why it is not in semantic_colours.
+    button_variants = semantic_colours + ["link"]
+    button_outline_variants = ["primary", "secondary", "success", "danger"]
+    # <c-badge state="…"> maps a domain state to a colour so call sites never
+    # pick one. Kept in step with the table in cotton/badge.html by
+    # test_cotton_badge.py::test_state_table_covers_model_choices.
+    badge_states = [
+        ("active", "Fighter alive and available"),
+        ("recovery", "Fighter recovering from injury"),
+        ("convalescence", "Fighter in convalescence"),
+        ("in_repair", "Vehicle under repair"),
+        ("captured", "Held by another gang"),
+        ("sold_to_guilders", "Sold to the Guilders"),
+        ("dead", "Fighter is dead"),
+        ("draft", "Crew not yet locked"),
+        ("locked", "Crew locked for battle"),
+        ("in_progress", "Battle or campaign running"),
     ]
     # Canonical icons from the design system spec
     common_icons = [
@@ -194,6 +267,11 @@ def debug_design_system(request):
         {
             "theme_colours": theme_colours,
             "semantic_colours": semantic_colours,
+            "button_variants": button_variants,
+            "button_outline_variants": button_outline_variants,
+            "badge_states": badge_states,
+            "ds_form": _design_system_demo_form(bound=False),
+            "ds_form_errors": _design_system_demo_form(bound=True),
             "common_icons": common_icons,
             "extra_icons": extra_icons,
             "spacing_scale": spacing_scale,

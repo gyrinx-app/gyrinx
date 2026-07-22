@@ -591,7 +591,7 @@
         <!-- ============================================================ -->
         <!-- SUPPORTER BADGES -->
         <!-- ============================================================ -->
-        <section>
+        <section id="supporter-badges">
             <h2 class="h4 mb-3">Supporter badges</h2>
             <p class="text-secondary fs-7 mb-2">
                 Pixel-art badges shown next to a user's name — the staff badge and Patreon tiers.
@@ -649,18 +649,86 @@
             </div>
         </section>
         <!-- ============================================================ -->
+        <!-- 5b. BADGES -->
+        <!-- ============================================================ -->
+        <section>
+            <h2 class="h4 mb-3">Badges</h2>
+            <p class="text-secondary fs-7 mb-3">
+                Use <code>&lt;c-badge&gt;</code>. It emits <code>text-bg-*</code> — <code>bg-*</code> alone is
+                deprecated and fails contrast in dark mode. Not to be confused with
+                <a href="#supporter-badges">supporter badges</a> above, which are account flair.
+            </p>
+            <h3 class="h6 caps-label mb-2">Colour variants</h3>
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                {% for v in semantic_colours %}
+                    <c-badge variant="{{ v }}">
+                        {{ v|title }}
+                    </c-badge>
+                {% endfor %}
+                <c-badge variant="ghost">
+                    Ghost
+                </c-badge>
+            </div>
+            <p class="text-secondary fs-7 mb-4">
+                <code>variant="ghost"</code> emits no colour at all
+                (<code>text-body border fw-normal</code>) — for placeholder and outlined badges,
+                notably the blank fighter cards on a print sheet.
+            </p>
+            <h3 class="h6 caps-label mb-2">State — colour is chosen for you</h3>
+            <p class="text-secondary fs-7 mb-2">
+                Prefer <code>state="…"</code> over <code>variant="…"</code> for anything with a domain state.
+                Colour signals state only, and this table is the single place the mapping lives, so a
+                fighter's status can never be green on one page and grey on another.
+            </p>
+            <table class="table table-sm table-borderless mb-3 fs-7">
+                <thead>
+                    <tr>
+                        <th>Badge</th>
+                        <th>state=</th>
+                        <th>Meaning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for state, meaning in badge_states %}
+                        <tr>
+                            <td>
+                                <c-badge state="{{ state }}">
+                                    {{ state }}
+                                </c-badge>
+                            </td>
+                            <td>
+                                <code>{{ state }}</code>
+                            </td>
+                            <td>{{ meaning }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="text-secondary fs-7 mb-0">
+                An unrecognised state falls back to secondary rather than rendering colourless, and a
+                test asserts the table stays total over every status the models can produce — so adding
+                a new fighter state fails the build rather than shipping a grey pill.
+            </p>
+        </section>
+        <!-- ============================================================ -->
         <!-- 6. CONTAINERS & CARDS -->
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Containers and cards</h2>
+            <p class="text-secondary fs-7 mb-3">
+                Use <code>&lt;c-box&gt;</code> for neutral grouping. It has no <code>variant</code> prop by
+                design — a coloured box would be a second alert system. For feedback use
+                <code>&lt;c-callout&gt;</code>; Bootstrap <code>card</code> stays reserved for fighter grids and
+                equipment categories.
+            </p>
             <h3 class="h6 caps-label mb-2">Standard container</h3>
-            <div class="border rounded p-3 mb-3">
-                <strong>border rounded p-3</strong> – Grouped content, forms, callouts.
-            </div>
+            <c-box class="mb-3">
+                <strong>&lt;c-box&gt;</strong> — <code>border rounded p-3</code>. Grouped content, forms.
+            </c-box>
             <h3 class="h6 caps-label mb-2">Compact container</h3>
-            <div class="border rounded p-2 mb-3">
-                <strong>border rounded p-2</strong> – Inline metadata, section bars.
-            </div>
+            <c-box compact class="mb-3">
+                <strong>&lt;c-box compact&gt;</strong> — <code>border rounded p-2</code>. Inline metadata, section bars.
+            </c-box>
             <h3 class="h6 caps-label mb-2">Section header bar (with icon-link action)</h3>
             <div class="mb-4">
                 <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mb-2">
@@ -725,81 +793,46 @@
         <section>
             <h2 class="h4 mb-3">Feedback (alerts)</h2>
             <p class="text-secondary fs-7 mb-3">
-                Use <code>alert alert-icon</code> everywhere.
-                Add/remove <code>alert-dismissible</code> based on context.
-                Always include an icon as the first child.
+                Use <code>&lt;c-callout&gt;</code>. The icon is <strong>derived from the variant</strong>, so there is
+                no per-call-site icon decision to get wrong — pass <code>icon="bi-…"</code> only for a genuine
+                exception. Add <code>dismissible</code> for flash messages; inline contextual alerts are permanent.
             </p>
             <h3 class="caps-label mb-2">Dismissible (flash messages after redirects)</h3>
             <div class="vstack gap-2 mb-4">
-                <div class="alert alert-success alert-icon alert-dismissible fade show mb-0"
-                     role="alert">
-                    <i class="bi-check-lg"></i>
-                    <div>Fighter added to gang.</div>
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="alert"
-                            aria-label="Close"></button>
-                </div>
-                <div class="alert alert-danger alert-icon alert-dismissible fade show mb-0"
-                     role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>Could not save changes.</div>
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="alert"
-                            aria-label="Close"></button>
-                </div>
-                <div class="alert alert-warning alert-icon alert-dismissible fade show mb-0"
-                     role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>Your session is about to expire.</div>
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="alert"
-                            aria-label="Close"></button>
-                </div>
-                <div class="alert alert-info alert-icon alert-dismissible fade show mb-0"
-                     role="alert">
-                    <i class="bi-info-circle"></i>
-                    <div>Invitation sent to opponent's gang.</div>
-                    <button type="button"
-                            class="btn-close"
-                            data-bs-dismiss="alert"
-                            aria-label="Close"></button>
-                </div>
+                <c-callout variant="success" dismissible class="mb-0">
+                    Fighter added to gang.
+                </c-callout>
+                <c-callout variant="danger" dismissible class="mb-0">
+                    Could not save changes.
+                </c-callout>
+                <c-callout variant="warning" dismissible class="mb-0">
+                    Your session is about to expire.
+                </c-callout>
+                <c-callout variant="info" dismissible class="mb-0">
+                    Invitation sent to opponent's gang.
+                </c-callout>
             </div>
             <h3 class="caps-label mb-2">Non-dismissible (inline contextual feedback)</h3>
             <div class="vstack gap-2 mb-4">
-                <div class="alert alert-danger alert-icon mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>This gang uses Content Packs not allowed by this Campaign: Scavvy Pack.</div>
-                </div>
-                <div class="alert alert-warning alert-icon mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>Starting the campaign will clone all gangs. This cannot be undone.</div>
-                </div>
-                <div class="alert alert-warning alert-icon mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>
-                        <strong>Remove gang from campaign?</strong>
-                        <p class="mb-0">The gang will be archived and all held assets will be unassigned.</p>
-                    </div>
-                </div>
-                <div class="alert alert-info alert-icon mb-0" role="alert">
-                    <i class="bi-info-circle"></i>
-                    <div>This action will be logged to the campaign action log.</div>
-                </div>
-                <div class="alert alert-secondary alert-icon mb-0" role="alert">
-                    <i class="bi-info-circle"></i>
-                    <div>Available XP: 6 · Cost: 3 XP</div>
-                </div>
-                <div class="alert alert-info alert-icon mb-0" role="alert">
-                    <i class="bi-info-circle"></i>
-                    <div>
-                        <p class="mb-1">This is a multi-line info note to demonstrate text alignment.</p>
-                        <p class="mb-0">The second line stays aligned with the first, not with the icon.</p>
-                    </div>
-                </div>
+                <c-callout variant="danger" class="mb-0">
+                    This gang uses Content Packs not allowed by this Campaign: Scavvy Pack.
+                </c-callout>
+                <c-callout variant="warning" class="mb-0">
+                    Starting the campaign will clone all gangs. This cannot be undone.
+                </c-callout>
+                <c-callout variant="warning" heading="Remove gang from campaign?" class="mb-0">
+                    <p class="mb-0">The gang will be archived and all held assets will be unassigned.</p>
+                </c-callout>
+                <c-callout variant="info" class="mb-0">
+                    This action will be logged to the campaign action log.
+                </c-callout>
+                <c-callout variant="secondary" class="mb-0">
+                    Available XP: 6 · Cost: 3 XP
+                </c-callout>
+                <c-callout variant="info" class="mb-0">
+                    <p class="mb-1">This is a multi-line info note to demonstrate text alignment.</p>
+                    <p class="mb-0">The second line stays aligned with the first, not with the icon.</p>
+                </c-callout>
             </div>
             <h3 class="caps-label mb-2">Rules</h3>
             <table class="table table-sm table-borderless mb-0 fs-7">
@@ -870,33 +903,49 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Buttons</h2>
-            <h3 class="h6 caps-label mb-2">Toolbar actions (btn-sm)</h3>
+            <p class="text-secondary fs-7 mb-3">
+                Use <code>&lt;c-btn&gt;</code>. It is the only template allowed to contain the string <code>btn-</code>;
+                don't hand-write button classes. The element is chosen by whether you write an <code>href</code>
+                (<code>&lt;a&gt;</code>) or not (<code>&lt;button&gt;</code>).
+            </p>
+            <h3 class="h6 caps-label mb-2">Toolbar actions (size="sm")</h3>
             <div class="d-flex flex-wrap gap-2 mb-4">
-                <button type="button" class="btn btn-primary btn-sm">
-                    <i class="bi-pencil"></i> Edit
-                </button>
-                <button type="button" class="btn btn-primary btn-sm">
-                    <i class="bi-plus-lg"></i> Add
-                </button>
-                <button type="button" class="btn btn-secondary btn-sm">Cancel</button>
-                <button type="button" class="btn btn-danger btn-sm">
-                    <i class="bi-trash"></i> Delete
-                </button>
-                <button type="button" class="btn btn-outline-secondary btn-sm">Clear</button>
+                <c-btn variant="primary" size="sm" type="button">
+                    <c-icon name="edit" />
+                    Edit
+                </c-btn>
+                <c-btn variant="primary" size="sm" type="button">
+                    <c-icon name="add" />
+                    Add
+                </c-btn>
+                <c-btn variant="secondary" size="sm" type="button">
+                    Cancel
+                </c-btn>
+                <c-btn variant="danger" size="sm" type="button">
+                    <c-icon name="delete" />
+                    Delete
+                </c-btn>
+                <c-btn variant="outline-secondary" size="sm" type="button">
+                    Clear
+                </c-btn>
             </div>
             <p class="text-secondary fs-7 mb-3">
                 Toolbar buttons are always <code>btn-primary</code> or <code>btn-secondary</code>.
                 Never use <code>btn-success</code> in toolbars — lifecycle actions (Start Campaign) should be broken out as a separate primary button.
             </p>
-            <h3 class="h6 caps-label mb-2">Form submit (full size)</h3>
+            <h3 class="h6 caps-label mb-2">Form submit (full size — no size prop)</h3>
             <div class="d-flex flex-wrap gap-2 mb-4">
-                <button type="button" class="btn btn-success">
-                    <i class="bi-check-lg"></i> Save
-                </button>
-                <button type="button" class="btn btn-success">
-                    <i class="bi-check-lg"></i> Create
-                </button>
-                <a href="#" class="btn btn-link">Cancel</a>
+                <c-btn variant="success" type="button">
+                    <c-icon name="save" />
+                    Save
+                </c-btn>
+                <c-btn variant="success" type="button">
+                    <c-icon name="save" />
+                    Create
+                </c-btn>
+                <c-btn variant="link" href="#">
+                    Cancel
+                </c-btn>
             </div>
             <p class="text-secondary fs-7 mb-3">
                 <strong>Rule:</strong> <code>btn-primary</code> opens or navigates. <code>btn-success</code> creates, saves, or confirms.
@@ -906,31 +955,33 @@
                 <a href="#" class="icon-link linked"><i class="bi-plus-lg"></i> Add gangs</a>
                 <a href="#" class="icon-link linked"><i class="bi-journal-text"></i> Log action</a>
             </div>
-            <h3 class="h6 caps-label mb-2">All colour variants (btn-sm)</h3>
+            <h3 class="h6 caps-label mb-2">All colour variants (size="sm")</h3>
             <div class="d-flex flex-wrap gap-2 mb-3">
-                <button type="button" class="btn btn-primary btn-sm">Primary</button>
-                <button type="button" class="btn btn-secondary btn-sm">Secondary</button>
-                <button type="button" class="btn btn-success btn-sm">Success</button>
-                <button type="button" class="btn btn-danger btn-sm">Danger</button>
-                <button type="button" class="btn btn-warning btn-sm">Warning</button>
-                <button type="button" class="btn btn-info btn-sm">Info</button>
-                <button type="button" class="btn btn-light btn-sm">Light</button>
-                <button type="button" class="btn btn-dark btn-sm">Dark</button>
-                <button type="button" class="btn btn-link btn-sm">Link</button>
+                {% for v in button_variants %}
+                    <c-btn variant="{{ v }}" size="sm" type="button">
+                        {{ v|title }}
+                    </c-btn>
+                {% endfor %}
             </div>
             <h3 class="h6 caps-label mb-2">Outline variants</h3>
+            <p class="text-secondary fs-7 mb-2">
+                No <code>outline</code> boolean — the outline form is just the variant string, so
+                <code>variant="outline-{% templatetag openvariable %} banner.colour {% templatetag closevariable %}"</code>
+                works off one DB column.
+            </p>
             <div class="d-flex flex-wrap gap-2 mb-3">
-                <button type="button" class="btn btn-outline-primary btn-sm">Primary</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm">Secondary</button>
-                <button type="button" class="btn btn-outline-success btn-sm">Success</button>
-                <button type="button" class="btn btn-outline-danger btn-sm">Danger</button>
+                {% for v in button_outline_variants %}
+                    <c-btn variant="outline-{{ v }}" size="sm" type="button">
+                        {{ v|title }}
+                    </c-btn>
+                {% endfor %}
             </div>
             <h3 class="h6 caps-label mb-2">Button context guide</h3>
             <table class="table table-sm table-borderless mb-0 fs-7">
                 <thead>
                     <tr>
                         <th>Context</th>
-                        <th>Classes</th>
+                        <th>Component</th>
                         <th>Example</th>
                     </tr>
                 </thead>
@@ -938,37 +989,44 @@
                     <tr>
                         <td>Toolbar / header</td>
                         <td>
-                            <code>btn btn-primary btn-sm</code>
+                            <code>&lt;c-btn variant="primary" size="sm"&gt;</code>
                         </td>
                         <td>Edit, Add, Start (always primary in toolbars)</td>
                     </tr>
                     <tr>
                         <td>Form submit</td>
                         <td>
-                            <code>btn btn-success</code>
+                            <code>&lt;c-btn variant="success" type="submit"&gt;</code>
                         </td>
                         <td>Save, Create, Confirm</td>
                     </tr>
                     <tr>
                         <td>Secondary</td>
                         <td>
-                            <code>btn btn-secondary btn-sm</code>
+                            <code>&lt;c-btn variant="secondary" size="sm"&gt;</code>
                         </td>
                         <td>Cancel, Clear</td>
                     </tr>
                     <tr>
                         <td>Destructive</td>
                         <td>
-                            <code>btn btn-danger btn-sm</code>
+                            <code>&lt;c-btn variant="danger" size="sm"&gt;</code>
                         </td>
                         <td>Delete, Archive</td>
+                    </tr>
+                    <tr>
+                        <td>Back / cancel link</td>
+                        <td>
+                            <code>&lt;c-back&gt;</code> · <code>&lt;c-cancel&gt;</code>
+                        </td>
+                        <td>Breadcrumb back link; form cancel (both inherit <code>return_url</code>)</td>
                     </tr>
                     <tr>
                         <td>Section "add" link</td>
                         <td>
                             <code>icon-link linked</code>
                         </td>
-                        <td>"Add Gangs" in section header bar</td>
+                        <td>"Add Gangs" in section header bar — a link, not a button</td>
                     </tr>
                 </tbody>
             </table>
@@ -1067,35 +1125,44 @@
             <p class="text-secondary fs-7 mb-3">
                 Standard layout: <code>form.vstack.gap-3</code> containing field groups. Submit button row: <code>div.mt-3</code>.
             </p>
+            <p class="text-secondary fs-7 mb-3">
+                Render every field with <code>&lt;c-form.field :field="form.x" /&gt;</code>. Note the colon —
+                <code>field="{% templatetag openvariable %} form.x {% templatetag closevariable %}"</code>
+                stringifies the widget, and the component raises rather than rendering a field with no
+                label and no errors. The component emits the label, help text and errors; the
+                <code>form-control</code> / <code>form-select</code> class stays on the widget in the form
+                class, as in every form under <code>gyrinx/core/forms/</code>.
+            </p>
             <h3 class="h6 caps-label mb-2">Complete form example</h3>
             <div class="col-12 col-md-8 col-lg-6 mb-4">
                 <form class="vstack gap-3">
-                    <div>
-                        <label class="form-label" for="ds-name">Fighter name</label>
-                        <input type="text" class="form-control" id="ds-name" value="Stig the Miner">
-                    </div>
-                    <div>
-                        <label class="form-label" for="ds-type">Fighter type</label>
-                        <select class="form-select" id="ds-type">
-                            <option>Juve</option>
-                            <option>Ganger</option>
-                            <option selected>Champion</option>
-                            <option>Leader</option>
-                        </select>
-                    </div>
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" id="ds-check" checked>
-                        <label class="form-check-label" for="ds-check">Include in roster</label>
-                    </div>
-                    <div>
-                        <label class="form-label" for="ds-notes">Notes</label>
-                        <textarea class="form-control" id="ds-notes" rows="2">Some notes about this fighter.</textarea>
-                    </div>
+                    <c-form.field :field="ds_form.name" />
+                    <c-form.field :field="ds_form.fighter_type" />
+                    <c-form.field :field="ds_form.cost" />
+                    <c-form.field :field="ds_form.in_roster" />
+                    <c-form.field :field="ds_form.notes" />
                     <div class="mt-3">
-                        <button type="button" class="btn btn-primary">Save</button>
-                        <a href="#" class="btn btn-link">Cancel</a>
+                        <c-btn variant="success" type="button">
+                            Save
+                        </c-btn>
+                        <c-btn variant="link" href="#">
+                            Cancel
+                        </c-btn>
                     </div>
                 </form>
+            </div>
+            <h3 class="h6 caps-label mb-2">Fields with errors</h3>
+            <p class="text-secondary fs-7 mb-2">
+                There is deliberately <strong>no prop that suppresses errors</strong> — a field cannot be
+                rendered without them. That is the structural fix for the hidden-form-errors bug, which
+                had been patched one template at a time twice before.
+            </p>
+            <div class="col-12 col-md-8 col-lg-6 mb-4">
+                <div class="vstack gap-3">
+                    <c-form.field :field="ds_form_errors.name" />
+                    <c-form.field :field="ds_form_errors.fighter_type" />
+                    <c-form.field :field="ds_form_errors.cost" />
+                </div>
             </div>
             <h3 class="h6 caps-label mb-2">Individual form elements</h3>
             <div class="col-12 col-md-6">
