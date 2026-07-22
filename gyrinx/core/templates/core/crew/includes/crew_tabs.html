@@ -16,8 +16,10 @@
                     2. Choose
                     {% if crew.over_picked %}
                         <i class="bi-exclamation-triangle text-warning"
+                           aria-hidden="true"
                            data-bs-toggle="tooltip"
                            data-bs-title="More fighters chosen than the scenario allows"></i>
+                        <span class="visually-hidden">More fighters chosen than the scenario allows</span>
                     {% endif %}
                 </a>
             </li>

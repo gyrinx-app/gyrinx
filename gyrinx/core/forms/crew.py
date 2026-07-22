@@ -234,7 +234,7 @@ class CrewForm(forms.Form):
     @property
     def over_selected_note(self):
         """The over-selection callout body, or ``None`` when within the count."""
-        if self.custom_count and self.saved_pick_count > self.custom_count:
+        if self.custom_count is not None and self.saved_pick_count > self.custom_count:
             return (
                 f"{self.saved_pick_count} of {self.custom_count} — every pick is "
                 "kept; trim the selection if you want to match the scenario."

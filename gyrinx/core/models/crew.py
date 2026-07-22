@@ -333,7 +333,7 @@ class Crew(AppBase):
     def over_picked(self):
         """More chosen fighters than the scenario's count. Indicative only — the
         count is a guideline, so this drives warnings, never blocking."""
-        return bool(self.custom_count) and (
+        return self.custom_count is not None and (
             self.members.filter(source=CrewMember.CHOSEN).count() > self.custom_count
         )
 
