@@ -115,6 +115,49 @@ def test_notification_unread_action(client, user):
 
 
 @pytest.mark.django_db
+def test_notification_open_marks_read_and_redirects_to_target(client, user, make_list):
+    lst = make_list("Gang")
+    n = notify(recipient=user, subject="x", related_list=lst)
+    client.force_login(user)
+    resp = client.get(reverse("core:notification-open", args=[n.id]))
+    assert resp.status_code == 302
+    assert resp.url == reverse("core:list", args=[lst.id])
+    n.refresh_from_db()
+    assert n.is_read is True
+
+
+@pytest.mark.django_db
+def test_notification_open_without_target_redirects_to_inbox(client, user):
+    n = notify(recipient=user, subject="x")
+    client.force_login(user)
+    resp = client.get(reverse("core:notification-open", args=[n.id]))
+    assert resp.status_code == 302
+    assert resp.url == reverse("core:notifications")
+    n.refresh_from_db()
+    assert n.is_read is True
+
+
+@pytest.mark.django_db
+def test_notification_open_other_users_is_404(client, user, make_user):
+    other = make_user("other", "password")
+    n = notify(recipient=other, subject="theirs")
+    client.force_login(user)
+    resp = client.get(reverse("core:notification-open", args=[n.id]))
+    assert resp.status_code == 404
+    n.refresh_from_db()
+    assert n.is_read is False
+
+
+@pytest.mark.django_db
+def test_inbox_title_links_through_open_proxy(client, user, make_list):
+    lst = make_list("Gang")
+    n = notify_list_owner(lst, subject="list-note")
+    client.force_login(user)
+    resp = client.get(reverse("core:notifications"))
+    assert reverse("core:notification-open", args=[n.id]) in resp.content.decode()
+
+
+@pytest.mark.django_db
 def test_notification_archive_and_delete_actions(client, user):
     n = notify(recipient=user, subject="x")
     client.force_login(user)

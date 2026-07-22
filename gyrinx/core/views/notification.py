@@ -1,8 +1,10 @@
 """Notification inbox views and per-row / bulk actions.
 
 All state (bucket, read/unread filter, type, search) is URL-driven via the query
-string; the server renders the right subset. All mutations are POST + CSRF; the
-row title link is a plain GET so navigating never silently marks something read.
+string; the server renders the right subset. All mutations are POST + CSRF, with
+one deliberate exception: the row title link is a GET "open" proxy that marks
+the notification read before redirecting to its target — following a
+notification is itself the act of reading it.
 """
 
 import uuid
@@ -11,6 +13,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -96,6 +99,21 @@ def _back(request):
         request.POST.get("next"),
         fallback_url=reverse("core:notifications"),
     )
+
+
+@login_required
+def notification_open(request, id):
+    """Title-click proxy: mark the notification read, then follow its link.
+
+    A GET mutation is acceptable here because it is owner-scoped, idempotent,
+    and benign — the worst a forged or prefetched request can do is mark the
+    user's own notification read. The redirect target is the server-derived
+    ``target_url`` (never user input), falling back to the inbox for rows with
+    no related object.
+    """
+    n = _get_owned(request, id)
+    n.mark_read()
+    return HttpResponseRedirect(n.target_url or reverse("core:notifications"))
 
 
 @login_required

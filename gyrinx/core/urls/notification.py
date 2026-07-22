@@ -7,6 +7,7 @@ from ..views import notification as v
 patterns = [
     path("notifications/", v.NotificationInboxView.as_view(), name="notifications"),
     path("notifications/bulk", v.notifications_bulk, name="notifications-bulk"),
+    path("notification/<uuid:id>/open", v.notification_open, name="notification-open"),
     path("notification/<uuid:id>/read", v.notification_read, name="notification-read"),
     path(
         "notification/<uuid:id>/unread",

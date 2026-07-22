@@ -3,8 +3,9 @@
     A single inbox row. Expects `notification` in context. The select checkbox is
     associated with the standalone bulk form via the HTML5 `form` attribute so it
     can live outside that form (no nested forms). Unread rows carry a left accent
-    border; the title is semi-bold. Row actions follow the design-system
-    inline-action-menu pattern (link-styled buttons, dot separators).
+    border; the title is semi-bold and links through the "open" proxy, which
+    marks the row read before redirecting to its target. Row actions follow the
+    design-system inline-action-menu pattern (link-styled buttons, dot separators).
 {% endcomment %}
 <div class="p-2 vstack gap-1{% if not first %} border-top{% endif %}"
      style="border-left: 3px solid {% if notification.is_read %}transparent{% else %}var(--bs-primary){% endif %}">
@@ -20,7 +21,7 @@
     </div>
     <div class="fw-semibold">
         {% if notification.target_url %}
-            <a href="{{ notification.target_url }}"
+            <a href="{% url 'core:notification-open' notification.id %}"
                class="link-body-emphasis link-underline-opacity-25 link-underline-opacity-100-hover">{{ notification.subject }}</a>
         {% else %}
             {{ notification.subject }}
