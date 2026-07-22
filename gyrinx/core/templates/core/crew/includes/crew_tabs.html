@@ -12,7 +12,14 @@
             <li class="nav-item" role="presentation">
                 <a class="nav-link {% if active_tab == 'choose' %}active{% endif %}"
                    href="{% url 'core:crew-edit' battle.id crew.id %}"
-                   {% if active_tab == 'choose' %}aria-current="page"{% endif %}>2. Choose</a>
+                   {% if active_tab == 'choose' %}aria-current="page"{% endif %}>
+                    2. Choose
+                    {% if crew.over_picked %}
+                        <i class="bi-exclamation-triangle text-warning"
+                           data-bs-toggle="tooltip"
+                           data-bs-title="More fighters chosen than the scenario allows"></i>
+                    {% endif %}
+                </a>
             </li>
         {% endif %}
         <li class="nav-item" role="presentation">

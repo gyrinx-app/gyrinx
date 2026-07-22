@@ -16,13 +16,8 @@
             <form method="post" class="vstack gap-3">
                 {% csrf_token %}
                 {{ form.non_field_errors }}
-                {% if form.custom_count and form.saved_pick_count > form.custom_count %}
-                    <div class="border rounded p-2 fs-7">
-                        <i class="bi-exclamation-triangle text-warning"></i>
-                        <strong>More fighters chosen than the scenario allows</strong> —
-                        {{ form.saved_pick_count }} of {{ form.custom_count }}. Every pick is kept;
-                        trim the selection if you want to match the scenario.
-                    </div>
+                {% if form.over_selected_note %}
+                    {% include "core/includes/alert.html" with variant="warning" heading="More fighters chosen than the scenario allows " message=form.over_selected_note %}
                 {% endif %}
                 <div>
                     <label class="form-label">{{ form.chosen_fighters.label }}</label>

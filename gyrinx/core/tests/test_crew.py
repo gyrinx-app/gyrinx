@@ -2748,8 +2748,16 @@ def test_pick_count_is_indicative_and_selections_always_persist(client, crew_set
     resp = client.get(edit_url)
     form = resp.context["form"]
     assert form.saved_pick_count == 4
-    assert "More fighters chosen than the scenario allows" in resp.content.decode()
+    content = resp.content.decode()
+    assert "More fighters chosen than the scenario allows" in content
     assert [c.data["selected"] for c in form["chosen_fighters"]].count(True) == 4
+    # The warning surfaces on the tab title too, and clears once within count.
+    crew.refresh_from_db()
+    assert crew.over_picked is True
+    assert "alert-warning" in content  # the design-system callout
+    client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters[:2]]})
+    crew.refresh_from_db()
+    assert crew.over_picked is False
 
 
 @pytest.mark.django_db

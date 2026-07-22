@@ -330,6 +330,14 @@ class Crew(AppBase):
         )
 
     @property
+    def over_picked(self):
+        """More chosen fighters than the scenario's count. Indicative only — the
+        count is a guideline, so this drives warnings, never blocking."""
+        return bool(self.custom_count) and (
+            self.members.filter(source=CrewMember.CHOSEN).count() > self.custom_count
+        )
+
+    @property
     def is_whole_gang(self):
         """Custom Selection with no number in brackets: the whole gang may take
         part, so a crew with no picks means everyone attends."""

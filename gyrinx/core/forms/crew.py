@@ -231,6 +231,16 @@ class CrewForm(forms.Form):
                 if field is not None:
                     field.initial = member.equipment_set_id
 
+    @property
+    def over_selected_note(self):
+        """The over-selection callout body, or ``None`` when within the count."""
+        if self.custom_count and self.saved_pick_count > self.custom_count:
+            return (
+                f"{self.saved_pick_count} of {self.custom_count} — every pick is "
+                "kept; trim the selection if you want to match the scenario."
+            )
+        return None
+
     def fighter_rows(self):
         """One row per eligible fighter for the template: the checkbox, the
         equipment-set select for fighters that have named sets (``None``
