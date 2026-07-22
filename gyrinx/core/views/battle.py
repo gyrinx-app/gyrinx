@@ -13,7 +13,10 @@ from gyrinx.core.forms.battle import (
     BattleNoteForm,
     BattleRolesForm,
 )
-from gyrinx.core.handlers.battle import handle_battle_end
+from gyrinx.core.handlers.battle import (
+    handle_battle_end,
+    notify_battle_participants,
+)
 from gyrinx.core.handlers.crew import crew_spread_rating
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
@@ -304,6 +307,15 @@ def new_battle(request, campaign_id):
                 owner=request.user,
             )
 
+            # Tell the owners of the other participating gangs their gang is in
+            # a battle. Every participant is newly added here, so pass them all;
+            # the handler skips the acting user's own gangs.
+            notify_battle_participants(
+                user=request.user,
+                battle=battle,
+                added_lists=form.cleaned_data["participants"],
+            )
+
             messages.success(request, f"Battle '{battle.name}' created successfully!")
             return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
     else:
@@ -337,9 +349,25 @@ def edit_battle(request, id):
         if form.is_valid():
             if "result" in form.cleaned_data:
                 battle.result = form.cleaned_data["result"]
+            # Capture the current participants before syncing so we can notify
+            # only the gangs newly added by this edit (removals get nothing).
+            existing_participant_ids = set(
+                battle.participants.values_list("pk", flat=True)
+            )
             form.save()
             battle.set_participants(form.cleaned_data["participants"])
             battle.winners.set(form.cleaned_data.get("winners") or [])
+
+            newly_added = [
+                lst
+                for lst in form.cleaned_data["participants"]
+                if lst.pk not in existing_participant_ids
+            ]
+            notify_battle_participants(
+                user=request.user,
+                battle=battle,
+                added_lists=newly_added,
+            )
 
             # Log the battle update event
             log_event(
