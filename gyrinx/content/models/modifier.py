@@ -20,6 +20,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.functional import cached_property
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
@@ -273,11 +274,29 @@ class ContentModFighterStat(ContentMod, ContentModStatApplyMixin):
     )
     value = models.CharField(max_length=5)
 
-    def __str__(self):
+    @cached_property
+    def stat_definition(self):
+        """The ContentStat this targets, or None if no stat by that name exists."""
         from .statline import ContentStat
 
+        return ContentStat.objects.filter(field_name=self.stat).first()
+
+    @classmethod
+    def prime_stat_definitions(cls, mods):
+        """Resolve ``stat_definition`` for many modifications in a single query.
+
+        Each modification otherwise looks its own stat up, so rendering a list
+        of them — an admin select, say — costs a query apiece.
+        """
+        from .statline import ContentStat
+
+        definitions = {stat.field_name: stat for stat in ContentStat.objects.all()}
+        for mod in mods:
+            mod.__dict__["stat_definition"] = definitions.get(mod.stat)
+
+    def __str__(self):
         mode_choices = dict(self._meta.get_field("mode").choices)
-        stat = ContentStat.objects.filter(field_name=self.stat).first()
+        stat = self.stat_definition
         verb = "to" if self.mode == "set" else "by"
         return f"{mode_choices[self.mode]} fighter {stat.full_name if stat else f'`{self.stat}`'} {verb} {self.value}"
 
