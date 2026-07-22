@@ -216,9 +216,13 @@ class CrewForm(forms.Form):
                 )
         self.has_eligible_fighters = self.eligible_count > 0
 
-        # Initials from the existing chosen members.
+        # Initials from the existing chosen members. The saved pick count feeds
+        # the server-rendered over-selection warning (the scenario's count is
+        # indicative, never blocking).
+        self.saved_pick_count = 0
         if crew is not None and crew.pk and self.shows_picks:
             chosen = list(crew.members.filter(source=CrewMember.CHOSEN))
+            self.saved_pick_count = len(chosen)
             self.fields["chosen_fighters"].initial = [m.list_fighter_id for m in chosen]
             for member in chosen:
                 field = self.fields.get(
@@ -267,26 +271,9 @@ class CrewForm(forms.Form):
             for fighter in picks
         }
 
-        # The pick count is validated against the crew's stored count (set on
-        # setup): Custom picks exactly that many, Hybrid picks that many and the
-        # rest are drawn. Custom with no count is whole-gang — any number is fine.
-        count = self.custom_count
-        if count is None:
-            return cleaned
-
-        # A scenario can ask for more fighters than the gang can field; then the
-        # most it can send is everyone.
-        required = min(count, self.eligible_count)
-        if len(picks) != required:
-            message = (
-                f"Choose exactly {required} fighters — you've chosen {len(picks)}."
-            )
-            if count > self.eligible_count:
-                message += (
-                    f" This gang only has {self.eligible_count} fighters available."
-                )
-            self.add_error("chosen_fighters", message)
-
+        # The scenario's pick count is indicative, not enforced: every tick is
+        # saved regardless, and over-picking is surfaced as a warning on the
+        # screen rather than a rejection that would throw the selection away.
         return cleaned
 
 

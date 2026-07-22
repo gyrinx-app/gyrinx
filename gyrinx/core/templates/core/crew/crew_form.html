@@ -16,6 +16,14 @@
             <form method="post" class="vstack gap-3">
                 {% csrf_token %}
                 {{ form.non_field_errors }}
+                {% if form.custom_count and form.saved_pick_count > form.custom_count %}
+                    <div class="border rounded p-2 fs-7">
+                        <i class="bi-exclamation-triangle text-warning"></i>
+                        <strong>More fighters chosen than the scenario allows</strong> —
+                        {{ form.saved_pick_count }} of {{ form.custom_count }}. Every pick is kept;
+                        trim the selection if you want to match the scenario.
+                    </div>
+                {% endif %}
                 <div>
                     <label class="form-label">{{ form.chosen_fighters.label }}</label>
                     {% if form.has_eligible_fighters %}
@@ -37,6 +45,7 @@
                         reveals it and keeps it current as boxes are ticked.
                         {% endcomment %}
                         <div class="js-crew-total fs-7 text-secondary mt-1 d-none"
+                             data-allowed="{{ form.custom_count|default_if_none:'' }}"
                              role="status"
                              aria-live="polite"></div>
                         <div class="form-text">
@@ -102,6 +111,8 @@
                 const out = document.querySelector('.js-crew-total');
                 if (!rows.length || !out) return;
 
+                const allowed = parseInt(out.dataset.allowed, 10) || 0;
+
                 function update() {
                     let count = 0;
                     let total = 0;
@@ -112,8 +123,18 @@
                             total += parseInt(row.dataset.cost, 10) || 0;
                         }
                     });
-                    const noun = count === 1 ? 'fighter' : 'fighters';
-                    out.textContent = count + ' ' + noun + ' selected · ' + total + '¢';
+                    if (allowed) {
+                        // The scenario's count is indicative: warn, never block.
+                        const over = count > allowed;
+                        out.textContent =
+                            count + '/' + allowed + ' selected · ' + total + '¢' + (over ? ' ⚠️' : '');
+                        out.classList.toggle('text-warning', over);
+                        out.classList.toggle('fw-semibold', over);
+                        out.classList.toggle('text-secondary', !over);
+                    } else {
+                        const noun = count === 1 ? 'fighter' : 'fighters';
+                        out.textContent = count + ' ' + noun + ' selected · ' + total + '¢';
+                    }
                 }
 
                 rows.forEach(function (row) {

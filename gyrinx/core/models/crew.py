@@ -547,6 +547,11 @@ class Crew(AppBase):
                 if fighter is not None
                 else 0
             )
+            # Whether this fighter actually has a choice of equipment sets —
+            # the sheet only names the card when there were options.
+            has_sets = (
+                bool(fighter.equipment_sets.all()) if fighter is not None else False
+            )
             cost = (
                 member.rating_played if member.rating_played is not None else live_cost
             )
@@ -563,6 +568,7 @@ class Crew(AppBase):
                         ),
                         "fighter_id": member.list_fighter_id,
                         "loadout": equipment_set.name if equipment_set else None,
+                        "has_sets": has_sets,
                         "is_random": member.source == CrewMember.DRAWN,
                         "member_id": member.id,
                     },

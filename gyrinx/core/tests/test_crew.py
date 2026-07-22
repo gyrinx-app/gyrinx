@@ -2724,27 +2724,32 @@ def test_edit_without_method_keeps_the_stored_one(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_custom_requires_exactly_the_bracket_number(client, crew_setup):
+def test_pick_count_is_indicative_and_selections_always_persist(client, crew_setup):
+    """The scenario's count never blocks a save: fewer picks save (work in
+    progress), more picks save too (kept, warned about) — nothing is thrown
+    away or silently trimmed."""
     client.force_login(crew_setup["user"])
     fighters = crew_setup["fighters"]
-    # Set up a Custom crew that must pick exactly 3.
     crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="3")
     assert crew.custom_count == 3
     edit_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
 
-    # Picking too few is rejected on the selection screen; nothing saved.
+    # Fewer than the count saves fine.
     resp = client.post(edit_url, {"chosen_fighters": [str(fighters[0].id)]})
-    assert resp.status_code == 200
-    assert resp.context["form"].errors["chosen_fighters"] == [
-        "Choose exactly 3 fighters — you've chosen 1."
-    ]
-    assert crew.members.count() == 0
-
-    # Picking exactly 3 succeeds.
-    resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters[:3]]})
     assert resp.status_code == 302
-    crew.refresh_from_db()
-    assert crew.members.count() == 3
+    assert crew.members.count() == 1
+
+    # More than the count saves too — all four picks are kept...
+    resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters[:4]]})
+    assert resp.status_code == 302
+    assert crew.members.count() == 4
+
+    # ...and re-opening the screen warns without dropping anything.
+    resp = client.get(edit_url)
+    form = resp.context["form"]
+    assert form.saved_pick_count == 4
+    assert "More fighters chosen than the scenario allows" in resp.content.decode()
+    assert [c.data["selected"] for c in form["chosen_fighters"]].count(True) == 4
 
 
 @pytest.mark.django_db
@@ -2777,20 +2782,18 @@ def test_custom_blank_count_with_no_picks_is_the_whole_gang(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_count_over_roster_requires_every_eligible_fighter(client, crew_setup):
+def test_count_over_roster_saves_whatever_is_picked(client, crew_setup):
+    """A scenario can ask for more fighters than the gang can field — any number
+    of picks saves, no exactness demanded."""
     client.force_login(crew_setup["user"])
     fighters = crew_setup["fighters"]
     crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="8")
     edit_url = reverse("core:crew-edit", args=[crew.battle_id, crew.id])
 
     resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters[:3]]})
-    assert resp.status_code == 200
-    assert resp.context["form"].errors["chosen_fighters"] == [
-        "Choose exactly 5 fighters — you've chosen 3. "
-        "This gang only has 5 fighters available."
-    ]
+    assert resp.status_code == 302
+    assert crew.members.count() == 3
 
-    # Sending everyone is accepted, even though the scenario asked for more.
     resp = client.post(edit_url, {"chosen_fighters": [str(f.id) for f in fighters]})
     assert resp.status_code == 302
     crew.refresh_from_db()
