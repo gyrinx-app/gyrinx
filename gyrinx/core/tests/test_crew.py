@@ -4980,3 +4980,25 @@ def test_stash_tab_post_drops_malformed_ids(client, crew_setup, make_equipment):
     assert set(crew.stash_items.values_list("assignment_id", flat=True)) == {
         gear["Ammo Cache"].id
     }
+
+
+@pytest.mark.django_db
+def test_sheet_names_the_set_only_when_the_fighter_has_options(
+    client, crew_setup, equipped_fighter
+):
+    """A fighter with named sets shows the card marker; one without shows no
+    '· Default' noise."""
+    battle, gang = crew_setup["battle"], crew_setup["gang"]
+    with_sets, _ = equipped_fighter(gang)
+    crew = Crew.objects.create(
+        battle=battle, list=gang, owner=crew_setup["user"], custom_count=2
+    )
+    add_chosen(crew, [with_sets, crew_setup["fighters"][0]])
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+
+    lines = {a["name"]: a for a in resp.context["receipt"]["attendees"]}
+    assert lines[with_sets.name]["has_sets"] is True
+    assert lines[crew_setup["fighters"][0].name]["has_sets"] is False
+    assert "bi-collection" in resp.content.decode()

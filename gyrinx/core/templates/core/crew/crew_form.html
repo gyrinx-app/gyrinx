@@ -106,7 +106,10 @@
                 const out = document.querySelector('.js-crew-total');
                 if (!rows.length || !out) return;
 
-                const allowed = parseInt(out.dataset.allowed, 10) || 0;
+                // Empty = no scenario count; zero is a real limit (matches the
+                // server-side `is not None` checks).
+                const allowedRaw = out.dataset.allowed;
+                const allowed = allowedRaw === '' ? null : parseInt(allowedRaw, 10);
 
                 function update() {
                     let count = 0;
@@ -118,7 +121,7 @@
                             total += parseInt(row.dataset.cost, 10) || 0;
                         }
                     });
-                    if (allowed) {
+                    if (allowed !== null && !Number.isNaN(allowed)) {
                         // The scenario's count is indicative: warn, never block.
                         const over = count > allowed;
                         out.textContent =

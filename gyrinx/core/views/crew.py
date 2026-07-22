@@ -363,7 +363,16 @@ def crew_edit(request, battle_id, crew_id):
                 equipment_sets=form.cleaned_data.get("equipment_sets"),
                 included_categories=crew.included_categories,
             )
-            messages.success(request, "Crew updated.")
+            if crew.over_picked:
+                # The crew page has no tabs, so carry the over-pick state there.
+                messages.warning(
+                    request,
+                    "Crew updated — more fighters are chosen than the scenario "
+                    f"allows ({crew.members.filter(source=CrewMember.CHOSEN).count()} "
+                    f"of {crew.custom_count}).",
+                )
+            else:
+                messages.success(request, "Crew updated.")
             return _redirect_crew(crew)
     else:
         form = CrewForm(crew=crew)

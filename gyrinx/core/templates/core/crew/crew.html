@@ -171,7 +171,7 @@
                                 {% endif %}
                                 {% if a.has_sets %}
                                     {# Only name the card when the fighter actually had options. #}
-                                    <span class="text-secondary fs-7">· <i class="bi-collection"></i>
+                                    <span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i>
                                         {% if a.loadout %}
                                             {{ a.loadout }}
                                         {% else %}
@@ -195,7 +195,7 @@
                                         <strong>{{ p.name }}</strong>
                                         <span class="text-secondary fs-7">· {{ p.category }}</span>
                                         {% if p.has_sets %}
-                                            <span class="text-secondary fs-7">· <i class="bi-collection"></i>
+                                            <span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i>
                                                 {% if p.loadout %}
                                                     {{ p.loadout }}
                                                 {% else %}
@@ -278,7 +278,7 @@
                                     <span class="badge text-bg-secondary ms-1"
                                           data-bs-toggle="tooltip"
                                           data-bs-title="Joins regardless of the selection method">Always included</span>
-                                    {% if f.has_sets %}<span class="text-secondary fs-7">· <i class="bi-collection"></i> Default</span>{% endif %}
+                                    {% if f.has_sets %}<span class="text-secondary fs-7">· <i class="bi-collection" aria-hidden="true"></i> Default</span>{% endif %}
                                 </td>
                                 <td class="text-end text-secondary">{{ f.rating }}¢</td>
                                 <td></td>
