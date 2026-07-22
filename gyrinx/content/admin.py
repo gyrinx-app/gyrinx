@@ -1,9 +1,11 @@
 import operator
+from collections import defaultdict
 from functools import reduce
 from itertools import groupby
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.db.models import Case, When
 from django.db.models.functions import Cast
@@ -131,6 +133,10 @@ def share_field_choices(formset, field_name, build_choices):
     rebuilt from scratch by each of those forms, so the page's cost grows with
     the number of rows.
     """
+    # A field listed in readonly_fields is not on the form at all.
+    if field_name not in formset.form.base_fields:
+        return formset
+
     choices = build_choices(formset.form.base_fields[field_name])
     original_form = formset.form
 
@@ -158,6 +164,11 @@ def _fighter_stat_mods(queryset):
 # queries. A polymorphic queryset can't ``select_related`` a child model's
 # field, so labelling modifications one at a time costs a query each — see
 # ``modifier_choices``.
+#
+# This is an optimisation, not an allow-list: a type missing from here still
+# gets its options, just at a query per row. ``modifier_choices`` drives off
+# what is actually in the queryset so a new subclass can never silently lose
+# its <option> (and with it, the selection, on the next save).
 MODIFIER_LABEL_LOADERS = {
     ContentModStat: list,
     ContentModFighterStat: _fighter_stat_mods,
@@ -183,12 +194,25 @@ def modifier_choices(field):
 
     Django asks each modification for its label, and a polymorphic instance
     fetches its own related objects — so a list of N modifications costs N
-    queries, repeated for every form on the page. Fetching each concrete type
-    separately lets ``select_related`` do that work up front.
+    queries, repeated for every form on the page. Grouping the queryset by
+    concrete type lets ``select_related`` do that work up front.
+
+    Every type present is loaded, whether or not ``MODIFIER_LABEL_LOADERS``
+    knows about it. A modification with no ``<option>`` cannot be submitted, so
+    dropping one here would quietly clear it from the field on the next save.
     """
-    pks = list(field.queryset.non_polymorphic().values_list("pk", flat=True))
+    pks_by_type = defaultdict(list)
+    for pk, ctype_id in field.queryset.non_polymorphic().values_list(
+        "pk", "polymorphic_ctype_id"
+    ):
+        pks_by_type[ctype_id].append(pk)
+
     mods = []
-    for model, load in MODIFIER_LABEL_LOADERS.items():
+    for ctype_id, pks in pks_by_type.items():
+        model = ContentType.objects.get_for_id(ctype_id).model_class()
+        if model is None:
+            continue
+        load = MODIFIER_LABEL_LOADERS.get(model, list)
         mods.extend(load(model.objects.filter(pk__in=pks)))
 
     label = field.label_from_instance
@@ -434,8 +458,14 @@ class ContentWeaponProfileInline(ContentStackedInline):
     extra = 0
 
     def get_queryset(self, request):
-        # Each row lists its traits; without this that is a query per profile.
-        return super().get_queryset(request).prefetch_related("traits")
+        # Each row lists its traits and names its equipment; without this that
+        # is two queries per profile.
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("equipment")
+            .prefetch_related("traits")
+        )
 
 
 class ContentWeaponAccessoryInline(ContentTabularInline):
@@ -446,6 +476,15 @@ class ContentWeaponAccessoryInline(ContentTabularInline):
 class ContentEquipmentFighterProfileInline(ContentTabularInline):
     model = ContentEquipmentFighterProfile
     extra = 0
+
+    def get_queryset(self, request):
+        # Each row names its equipment and fighter, and a fighter's name
+        # includes its house.
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("equipment", "content_fighter__house")
+        )
 
     def get_formset(self, request, obj=None, **kwargs):
         """Render the fighter select grouped by house, built once per page.
@@ -469,9 +508,14 @@ class ContentEquipmentUpgradeInline(ContentTabularInline):
     extra = 0
 
     def get_queryset(self, request):
-        # Each row shows the modifications it already has selected; without
-        # this that is a query per row.
-        return super().get_queryset(request).prefetch_related("modifiers")
+        # Each row shows the modifications it already has selected and names
+        # its equipment; without this that is two queries per row.
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("equipment")
+            .prefetch_related("modifiers")
+        )
 
     def get_formset(self, request, obj=None, **kwargs):
         """Build the modifications option list once for all upgrade rows.
@@ -507,7 +551,9 @@ class ContentEquipmentAdminForm(forms.ModelForm):
             ),
             "name",
         )
-        # Only offer modifications that change things on the fighter.
+        # Only offer modifications that change things on the fighter. Order
+        # matters: assigning a field's queryset resets its widget choices, so
+        # the restriction has to happen before the choices are built.
         modifiers_field = self.fields["modifiers"]
         restrict_to_fighter_modifiers(modifiers_field)
         modifiers_field.widget.choices = modifier_choices(modifiers_field)

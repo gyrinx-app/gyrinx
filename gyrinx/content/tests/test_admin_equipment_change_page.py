@@ -17,11 +17,14 @@ from gyrinx.content.models import (
     ContentEquipmentCategory,
     ContentEquipmentFighterProfile,
     ContentEquipmentUpgrade,
+    ContentMod,
     ContentModFighterRule,
     ContentModFighterStat,
     ContentModStat,
+    ContentModTrait,
     ContentRule,
     ContentStat,
+    ContentWeaponTrait,
 )
 from gyrinx.query import capture_queries
 
@@ -89,14 +92,15 @@ def _make_fighter_mods(count):
 
 @pytest.mark.django_db
 def test_change_page_query_count_does_not_scale_with_rows(
-    admin_user, equipment, content_house, make_content_fighter
+    admin_user, equipment_category, content_house, make_content_fighter
 ):
     """Regression: the page must not rebuild its option lists per inline row.
 
     Fighter selects, and the modifications select on every upgrade row, used to
     be assembled inside each row's form — one pass over every fighter (with an
     N+1 on house) and every modification (with an N+1 on each modification's
-    related objects) for each row on the page.
+    related objects) for each row on the page. Rendering the same content with
+    more rows should therefore cost the same number of queries.
     """
     fighters = [
         make_content_fighter(
@@ -109,24 +113,36 @@ def test_change_page_query_count_does_not_scale_with_rows(
     ]
     mods = _make_fighter_mods(10)
 
-    # Several inline rows of each kind, all of which used to multiply the cost.
-    for i, fighter in enumerate(fighters[:5]):
-        ContentEquipmentFighterProfile.objects.create(
-            equipment=equipment, content_fighter=fighter
+    def build(name, rows):
+        equipment = ContentEquipment.objects.create(
+            name=name, category=equipment_category, cost="10"
         )
-    for i in range(8):
-        upgrade = ContentEquipmentUpgrade.objects.create(
-            equipment=equipment, name=f"Upgrade {i}", position=i, cost=5
-        )
-        upgrade.modifiers.set(mods[:4])
-    equipment.modifiers.set(mods[:3])
+        for fighter in fighters[:rows]:
+            ContentEquipmentFighterProfile.objects.create(
+                equipment=equipment, content_fighter=fighter
+            )
+        for i in range(rows):
+            upgrade = ContentEquipmentUpgrade.objects.create(
+                equipment=equipment, name=f"Upgrade {i}", position=i, cost=5
+            )
+            upgrade.modifiers.set(mods[:4])
+        equipment.modifiers.set(mods[:3])
+        return equipment
 
-    _, info = capture_queries(lambda: _render_change_page(admin_user, equipment))
+    small = build("Few Rows", 2)
+    large = build("Many Rows", 8)
 
-    # Before: ~30 fighters x 6 fighter-profile forms, plus ~20 modifications x
-    # 9 upgrade forms, each a query. A generous flat ceiling catches a
-    # regression without being brittle about the exact count.
-    assert info.count < 100, f"too many queries: {info.count}"
+    _, small_info = capture_queries(lambda: _render_change_page(admin_user, small))
+    _, large_info = capture_queries(lambda: _render_change_page(admin_user, large))
+
+    # Four times the rows must not mean four times the queries: the option
+    # lists are built once, and the rows themselves are select_related /
+    # prefetched, so the count should be flat but for a little slack.
+    assert large_info.count <= small_info.count + 2, (
+        f"queries scale with rows: {small_info.count} at 2 rows, "
+        f"{large_info.count} at 8 rows"
+    )
+    assert large_info.count < 100, f"too many queries: {large_info.count}"
 
 
 @pytest.mark.django_db
@@ -219,3 +235,37 @@ def test_prime_stat_definitions_avoids_a_query_per_modification():
     assert len(labels) == 5
     assert all("Movement" in label for label in labels)
     assert info.count == 1, f"expected a single stat query, got {info.count}"
+
+
+@pytest.mark.django_db
+def test_every_modification_type_gets_an_option():
+    """A modification with no <option> would be silently cleared on save.
+
+    ``MODIFIER_LABEL_LOADERS`` is an optimisation, so the choice builder must
+    cover every concrete type in the queryset — including any added later that
+    nobody remembered to list there.
+    """
+    from django import forms
+
+    from gyrinx.content.admin import MODIFIER_LABEL_LOADERS, modifier_choices
+
+    _make_fighter_mods(2)
+    ContentModStat.objects.create(stat="strength", mode="improve", value="1")
+    ContentModTrait.objects.create(
+        trait=ContentWeaponTrait.objects.create(name="Unwieldy"), mode="add"
+    )
+
+    field = forms.ModelMultipleChoiceField(queryset=ContentMod.objects.all())
+    offered = {str(pk) for pk, _label in modifier_choices(field)}
+    everything = {str(pk) for pk in ContentMod.objects.values_list("pk", flat=True)}
+
+    assert offered == everything
+
+    # And the loader map itself should stay in step with the model hierarchy,
+    # so the common path keeps its select_related.
+    def concrete_subclasses(cls):
+        for sub in cls.__subclasses__():
+            yield sub
+            yield from concrete_subclasses(sub)
+
+    assert set(concrete_subclasses(ContentMod)) == set(MODIFIER_LABEL_LOADERS)
