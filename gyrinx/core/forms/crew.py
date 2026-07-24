@@ -81,8 +81,10 @@ RANDOM_GROUP = {
 
 class CrewFighterChoiceField(forms.ModelMultipleChoiceField):
     """Fighter checkboxes labelled ``**name** · category (rating)`` instead of
-    the raw ``__str__``. The queryset should be loaded via ``with_related_data``
-    so the category and cached cost read from the prefetch cache."""
+    the raw ``__str__``. Load the queryset via
+    :func:`~gyrinx.core.handlers.crew.with_crew_cost_data` — the label costs each
+    fighter with ``crew_fighter_cost``, which needs the stash equipment
+    prefetched alongside the rest, or the list costs a query per fighter."""
 
     def label_from_instance(self, obj):
         return format_html(
@@ -166,8 +168,8 @@ class CrewForm(forms.Form):
         self.eligibility_overrides = getattr(crew, "eligibility_overrides", None) or {}
         self.method_intro = METHOD_INTRO[self.method]
 
-        # with_related_data() so the checkbox labels (category + cached cost) and
-        # each fighter's equipment sets render without a query per fighter.
+        # Loaded with the crew-cost data so the checkbox labels (category + cost)
+        # and each fighter's equipment sets render without a query per fighter.
         self.eligible = (
             with_crew_cost_data(
                 eligible_crew_fighters(

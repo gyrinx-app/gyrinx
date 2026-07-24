@@ -219,6 +219,11 @@ def _treated_as_fighter():
             child_fighter=OuterRef("pk"),
             archived=False,
             content_equipment__crew_treated_as_fighter=True,
+            # Stash-held only: the flag describes equipment sitting in the gang's
+            # stash. Flagged gear carried by a regular fighter stays that
+            # fighter's linked child, or it would be both picked here and
+            # enrolled alongside its owner.
+            list_fighter__content_fighter__is_stash=True,
         )
     )
 
@@ -269,12 +274,12 @@ def compute_crew_eligibility(
     single source of truth the pool / always-included helpers and the
     eligibility screen all read from.
 
-    ``fighters`` may be a pre-built queryset (e.g. the form's
-    ``with_related_data()`` load) to skip a second fetch; when passed it must
-    carry ``capture_info`` so the captured / sold checks stay off the N+1 path.
-    ``with_data=True`` loads the roster via ``with_related_data()`` — needed when
-    the caller reads each fighter's ``cost_int_cached`` (a computed property), as
-    the setup screen does; the lean pool helpers leave it off.
+    ``fighters`` may be a pre-built queryset (e.g. the form's own load) to skip a
+    second fetch; when passed it must carry ``capture_info`` so the captured /
+    sold checks stay off the N+1 path. ``with_data=True`` loads the roster via
+    :func:`with_crew_cost_data` — needed when the caller costs each fighter with
+    :func:`crew_fighter_cost`, as the setup screen does; the lean pool helpers
+    leave it off.
     """
     overrides = overrides or {}
     if fighters is None:
@@ -430,7 +435,7 @@ def crew_whole_gang_projection(crew: Crew):
             overrides=crew.eligibility_overrides,
         )
     ):
-        rating = fighter.cost_int_for_equipment_set(None)
+        rating = crew_fighter_cost(fighter)
         total += rating
         rows.append(
             {

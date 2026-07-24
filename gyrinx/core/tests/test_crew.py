@@ -5072,3 +5072,58 @@ def test_sheet_names_the_set_only_when_the_fighter_has_options(
     assert lines[with_sets.name]["has_sets"] is True
     assert lines[crew_setup["fighters"][0].name]["has_sets"] is False
     assert "bi-collection" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_whole_gang_forecast_prices_an_included_treated_as_fighter(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """Marked *Included* on the setup screen, a treated-as-fighter card must
+    still be priced from its stash equipment in the whole-gang forecast — it is
+    costed at zero as a fighter, so the forecast would otherwise omit it."""
+    _, automaton = _automaton_in_stash(crew_setup, make_content_fighter, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        eligibility_overrides={str(automaton.id): CREW_ALWAYS_INCLUDED},
+    )
+
+    projection = crew_whole_gang_projection(crew)
+
+    row = next(r for r in projection["rows"] if r["name"] == automaton.name)
+    assert row["rating"] == 200
+    # Five 100¢ gangers plus the automaton.
+    assert projection["total"] == 500 + 200
+
+
+@pytest.mark.django_db
+def test_treated_as_fighter_flag_only_applies_to_stash_equipment(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The flag describes equipment in the *stash*. The same equipment carried by
+    a regular fighter stays that fighter's linked child — otherwise it would be
+    both selectable here and enrolled alongside its owner."""
+    from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    owner = crew_setup["fighters"][0]
+    auto = make_equipment(name="Iron Automaton", cost=200)
+    auto.crew_treated_as_fighter = True
+    auto.save()
+    auto_type = make_content_fighter(
+        type="Iron Automaton",
+        category=FighterCategoryChoices.BRUTE,
+        house=owner.content_fighter.house,
+        base_cost=0,
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=auto, content_fighter=auto_type
+    )
+    assignment = owner.assign(auto)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    ids = {row["fighter"].id for row in crew_eligibility(crew)}
+    assert assignment.child_fighter_id not in ids
+    assert owner.id in ids  # its owner is still selectable
