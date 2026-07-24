@@ -5,11 +5,15 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:lists' as lists_url %}
-    <c-breadcrumb type="Lists"
-                  :owner="request.user"
-                  name="New"
-                  type_url="{{ lists_url }}"
-                  only />
+    <c-breadcrumb>
+        <c-breadcrumb.user :user="request.user" />
+        <c-breadcrumb.item href="{{ lists_url }}">
+            Lists
+        </c-breadcrumb.item>
+        <c-breadcrumb.item>
+            New
+        </c-breadcrumb.item>
+    </c-breadcrumb>
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <h1 class="h3">Add Content Packs?</h1>
         <!-- Default game content -->

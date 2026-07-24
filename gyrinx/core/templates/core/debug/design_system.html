@@ -113,7 +113,7 @@
                 <span class="badge text-bg-light">Light</span>
                 <span class="badge text-bg-dark">Dark</span>
             </div>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Use <code>text-bg-*</code> format. Example: Credits <span class="badge text-bg-primary">150¢</span>
                 Rating <span class="badge text-bg-secondary">1050¢</span>
             </p>
@@ -121,20 +121,20 @@
             <div class="d-flex flex-wrap gap-3 mb-3">
                 <div>
                     <a href="#" class="link-primary">link-primary</a>
-                    <span class="text-secondary fs-7 d-block">Add / create</span>
+                    <span class="text-secondary d-block">Add / create</span>
                 </div>
                 <div>
                     <a href="#" class="linked-secondary">linked-secondary</a>
-                    <span class="text-secondary fs-7 d-block">Edit / reset</span>
+                    <span class="text-secondary d-block">Edit / reset</span>
                 </div>
                 <div>
                     <a href="#"
                        class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover">link-danger</a>
-                    <span class="text-secondary fs-7 d-block">Delete / archive</span>
+                    <span class="text-secondary d-block">Delete / archive</span>
                 </div>
             </div>
             <h3 class="h6 caps-label mb-2">Dark mode contrast overrides</h3>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 In dark mode, <code>.text-secondary</code> and <code>.link-secondary</code> are lightened
                 (<code>lighten($secondary, 10%)</code>) for better contrast against dark backgrounds.
                 This is a direct class override in <code>styles.scss</code> — it does not affect
@@ -151,7 +151,7 @@
                 </div>
             </div>
             <h3 class="h6 caps-label mb-2">Colour rules</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>What</th>
@@ -191,7 +191,7 @@
         <section>
             <h2 class="h4 mb-3">Typography</h2>
             <h3 class="h6 caps-label mb-2">Type scale (from spec)</h3>
-            <table class="table table-sm table-borderless mb-4 fs-7">
+            <table class="table table-sm table-borderless mb-4">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -492,7 +492,7 @@
             <h3 class="h6 caps-label mb-2">caps-label</h3>
             <div class="border rounded p-3 mb-4">
                 <span class="caps-label">Section label</span>
-                <span class="text-secondary fs-7 ms-2">– <code>.caps-label</code>: small, uppercase, semibold, tracked. For section sub-headers and metadata labels.</span>
+                <span class="text-secondary ms-2">– <code>.caps-label</code>: small, uppercase, semibold, tracked. For section sub-headers and metadata labels.</span>
             </div>
         </section>
         <!-- ============================================================ -->
@@ -501,7 +501,7 @@
         <section>
             <h2 class="h4 mb-3">Spacing</h2>
             <h3 class="h6 caps-label mb-2">Bootstrap spacing scale</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Bootstrap default spacing: 0.25rem increments. 1rem = 16px at default browser settings.
             </p>
             <div class="d-flex flex-wrap align-items-end gap-2 mb-4">
@@ -514,7 +514,7 @@
                 {% endfor %}
             </div>
             <h3 class="h6 caps-label mb-2">Page-level gap conventions</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Page type</th>
@@ -545,7 +545,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Icons (Bootstrap Icons)</h2>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Hyphenated format: <code>bi-pencil</code> not <code>bi bi-pencil</code>.
                 Sizes inherit from parent; use <code>fs-7</code> for compact, <code>fs-4</code> for featured.
             </p>
@@ -573,7 +573,7 @@
                 {% endfor %}
             </div>
             <h3 class="h6 caps-label mb-2 mt-4">House icons</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Inline badge rendered next to a house's name (gang rows, list headers, house
                 filters). Emit it with the
                 <code>{% templatetag openblock %} house_icon house {% templatetag closeblock %}</code>
@@ -583,7 +583,7 @@
             </p>
             <div class="d-flex flex-column gap-2">
                 <div>Squat Prospectors{{ ds_house_icon_svg }}</div>
-                <div class="text-secondary fs-7">
+                <div class="text-secondary">
                     House name at <code>fs-7</code>{{ ds_house_icon_svg }}
                 </div>
             </div>
@@ -593,7 +593,7 @@
         <!-- ============================================================ -->
         <section id="supporter-badges">
             <h2 class="h4 mb-3">Supporter badges</h2>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Pixel-art badges shown next to a user's name — the staff badge and Patreon tiers.
                 Emit a user's chosen badge with
                 <code>{% templatetag openblock %} user_badge user {% templatetag closeblock %}</code>
@@ -633,7 +633,7 @@
                 </div>
             </div>
             <h3 class="h6 caps-label mb-2 mt-4">Vertical alignment in headings</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Sized in <code>em</code>, the badge scales with the text and stays optically
                 centred on it at every size — from a heading down to <code>fs-7</code>.
             </p>
@@ -645,7 +645,7 @@
                 <h5 class="mb-0">Heading 5 {% badge_icon "staff" %}</h5>
                 <h6 class="mb-0">Heading 6 {% badge_icon "staff" %}</h6>
                 <p class="mb-0">Body text {% badge_icon "staff" %}</p>
-                <div class="text-secondary fs-7">Compact text (fs-7) {% badge_icon "staff" %}</div>
+                <div class="text-secondary">Compact text (fs-7) {% badge_icon "staff" %}</div>
             </div>
         </section>
         <!-- ============================================================ -->
@@ -653,7 +653,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Badges</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Use <code>&lt;c-badge&gt;</code>. It emits <code>text-bg-*</code> — <code>bg-*</code> alone is
                 deprecated and fails contrast in dark mode. Not to be confused with
                 <a href="#supporter-badges">supporter badges</a> above, which are account flair.
@@ -669,18 +669,18 @@
                     Ghost
                 </c-badge>
             </div>
-            <p class="text-secondary fs-7 mb-4">
+            <p class="text-secondary mb-4">
                 <code>variant="ghost"</code> emits no colour at all
                 (<code>text-body border fw-normal</code>) — for placeholder and outlined badges,
                 notably the blank fighter cards on a print sheet.
             </p>
             <h3 class="h6 caps-label mb-2">State — colour is chosen for you</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Prefer <code>state="…"</code> over <code>variant="…"</code> for anything with a domain state.
                 Colour signals state only, and this table is the single place the mapping lives, so a
                 fighter's status can never be green on one page and grey on another.
             </p>
-            <table class="table table-sm table-borderless mb-3 fs-7">
+            <table class="table table-sm table-borderless mb-3">
                 <thead>
                     <tr>
                         <th>Badge</th>
@@ -704,7 +704,7 @@
                     {% endfor %}
                 </tbody>
             </table>
-            <p class="text-secondary fs-7 mb-0">
+            <p class="text-secondary mb-0">
                 An unrecognised state falls back to secondary rather than rendering colourless, and a
                 test asserts the table stays total over every status the models can produce — so adding
                 a new fighter state fails the build rather than shipping a grey pill.
@@ -715,7 +715,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Containers and cards</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Use <code>&lt;c-box&gt;</code> for neutral grouping. It has no <code>variant</code> prop by
                 design — a coloured box would be a second alert system. For feedback use
                 <code>&lt;c-callout&gt;</code>; Bootstrap <code>card</code> stays reserved for fighter grids and
@@ -731,12 +731,12 @@
             </c-box>
             <h3 class="h6 caps-label mb-2">Section header bar (with icon-link action)</h3>
             <div class="mb-4">
-                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mb-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Gangs</h2>
                     <a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gangs</a>
                 </div>
                 <div class="px-2">
-                    <p class="text-secondary fs-7 mb-0">
+                    <p class="text-secondary mb-0">
                         Content below is padded with <code>px-2</code> to align with the section title.
                     </p>
                 </div>
@@ -768,12 +768,12 @@
             </div>
             <h3 class="h6 caps-label mb-2">Section header bar (with btn-sm action)</h3>
             <div class="mb-4">
-                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mb-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Battle Reports</h2>
                     <a href="#" class="btn btn-primary btn-sm"><i class="bi-plus-lg"></i> New Battle</a>
                 </div>
                 <div class="px-2">
-                    <p class="text-secondary fs-7 mb-0">No battles reported yet.</p>
+                    <p class="text-secondary mb-0">No battles reported yet.</p>
                 </div>
             </div>
             <h3 class="h6 caps-label mb-2">Card (fighter grids only)</h3>
@@ -783,7 +783,7 @@
                 </div>
                 <div class="card-body p-2">Card body content. Cards are used for fighter grids and equipment categories only.</div>
             </div>
-            <p class="text-secondary fs-7 mb-0">
+            <p class="text-secondary mb-0">
                 Cards are <strong>not</strong> for: info panels, form wrappers, action confirmations, campaign details. Use <code>border rounded p-3</code> instead.
             </p>
         </section>
@@ -792,7 +792,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Feedback (alerts)</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Use <code>&lt;c-callout&gt;</code>. The icon is <strong>derived from the variant</strong>, so there is
                 no per-call-site icon decision to get wrong — pass <code>icon="bi-…"</code> only for a genuine
                 exception. Add <code>dismissible</code> for flash messages; inline contextual alerts are permanent.
@@ -835,7 +835,7 @@
                 </c-callout>
             </div>
             <h3 class="caps-label mb-2">Rules</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Colour</th>
@@ -903,7 +903,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Buttons</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Use <code>&lt;c-btn&gt;</code>. It is the only template allowed to contain the string <code>btn-</code>;
                 don't hand-write button classes. The element is chosen by whether you write an <code>href</code>
                 (<code>&lt;a&gt;</code>) or not (<code>&lt;button&gt;</code>).
@@ -929,7 +929,7 @@
                     Clear
                 </c-btn>
             </div>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Toolbar buttons are always <code>btn-primary</code> or <code>btn-secondary</code>.
                 Never use <code>btn-success</code> in toolbars — lifecycle actions (Start Campaign) should be broken out as a separate primary button.
             </p>
@@ -947,7 +947,7 @@
                     Cancel
                 </c-btn>
             </div>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 <strong>Rule:</strong> <code>btn-primary</code> opens or navigates. <code>btn-success</code> creates, saves, or confirms.
             </p>
             <h3 class="h6 caps-label mb-2">Icon link</h3>
@@ -964,7 +964,7 @@
                 {% endfor %}
             </div>
             <h3 class="h6 caps-label mb-2">Outline variants</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 No <code>outline</code> boolean — the outline form is just the variant string, so
                 <code>variant="outline-{% templatetag openvariable %} banner.colour {% templatetag closevariable %}"</code>
                 works off one DB column.
@@ -977,7 +977,7 @@
                 {% endfor %}
             </div>
             <h3 class="h6 caps-label mb-2">Button context guide</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Context</th>
@@ -1036,12 +1036,12 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Tables</h2>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Canonical: <code>table table-sm table-borderless mb-0</code>.
                 Add <code>table-fixed</code> for stat grids, <code>fs-7</code> for compact data.
             </p>
             <h3 class="h6 caps-label mb-2">Weapon stat table (table-sm table-borderless fs-7)</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead class="table-group-divider">
                     <tr>
                         <th scope="col">Weapon</th>
@@ -1086,7 +1086,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Nav tabs</h2>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Standard Bootstrap <code>nav nav-tabs</code>. Use <code>fs-7 px-2 py-1</code> on tab buttons for compact contexts (fighter card tabs).
             </p>
             <h3 class="h6 caps-label mb-2">Standard tabs</h3>
@@ -1122,10 +1122,10 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Forms</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Standard layout: <code>form.vstack.gap-3</code> containing field groups. Submit button row: <code>div.mt-3</code>.
             </p>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Render every field with <code>&lt;c-form.field :field="form.x" /&gt;</code>. Note the colon —
                 <code>field="{% templatetag openvariable %} form.x {% templatetag closevariable %}"</code>
                 stringifies the widget, and the component raises rather than rendering a field with no
@@ -1152,7 +1152,7 @@
                 </form>
             </div>
             <h3 class="h6 caps-label mb-2">Fields with errors</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 There is deliberately <strong>no prop that suppresses errors</strong> — a field cannot be
                 rendered without them. That is the structural fix for the hidden-form-errors bug, which
                 had been patched one template at a time twice before.
@@ -1214,7 +1214,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Page shells</h2>
-            <table class="table table-sm table-borderless mb-4 fs-7">
+            <table class="table table-sm table-borderless mb-4">
                 <thead>
                     <tr>
                         <th>Shell</th>
@@ -1280,7 +1280,7 @@
                             <span><i class="bi-eye"></i> Public</span>
                         </div>
                     </div>
-                    <div class="text-secondary fs-7">Section content would go here, separated by gap-4 from the header.</div>
+                    <div class="text-secondary">Section content would go here, separated by gap-4 from the header.</div>
                 </div>
             </div>
         </section>
@@ -1289,7 +1289,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Search pattern</h2>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Standard search bar: icon prepend, search input, primary submit. Used on home, lists, campaigns, add-gangs.
             </p>
             <div class="col-12 col-md-8 col-lg-6 mb-3">
@@ -1303,7 +1303,7 @@
                     <button class="btn btn-primary" type="button">Search</button>
                 </div>
             </div>
-            <p class="text-secondary fs-7 mb-0">
+            <p class="text-secondary mb-0">
                 Search is navigation, so uses <code>btn-primary</code> (not <code>btn-success</code>). Optional "Clear" link appears when a query is active.
             </p>
         </section>
@@ -1313,47 +1313,65 @@
         <section>
             <h2 class="h4 mb-3">Page patterns</h2>
             <h3 class="h6 caps-label mb-2">Breadcrumb</h3>
-            <p class="text-secondary fs-7 mb-2">
-                Sits above the page title on entity detail pages. Shows <code>owner / type / name</code> with optional campaign link.
-                Use <code>&lt;c-breadcrumb type="List" :owner="list.owner" name="{% templatetag openvariable %} list.name {% templatetag closevariable %}"
-                type_url="/lists/" /&gt;</code>.
+            <p class="text-secondary mb-2">
+                Sits above the page title on entity detail pages. Compose it from crumbs — any number, in any
+                order — with <code>&lt;c-breadcrumb.user&gt;</code> for the owner and
+                <code>&lt;c-breadcrumb.item&gt;</code> for the rest. A crumb with an <code>href</code> is a link;
+                the last crumb is where you already are, so it has none.
             </p>
             <div class="border rounded p-3 mb-4">
                 <div class="vstack gap-1">
-                    <c-breadcrumb type="List"
-                                  :owner="ds_user"
-                                  name="Cawdor Facts"
-                                  type_url="/lists/"
-                                  only />
-                    <c-breadcrumb type="Campaign Gang"
-                                  :owner="ds_user"
-                                  name="Iron Hounds"
-                                  type_url="/lists/"
-                                  :campaign="ds_campaign"
-                                  only />
-                    <c-breadcrumb type="Pack"
-                                  :owner="ds_user"
-                                  name="Scavvy Pack"
-                                  type_url="/packs/"
-                                  only />
-                    <c-breadcrumb type="List" :owner="ds_user" name="My Gang" print="1" only />
+                    <c-breadcrumb>
+                        <c-breadcrumb.user :user="ds_user" />
+                        <c-breadcrumb.item href="/lists/">
+                            List
+                        </c-breadcrumb.item>
+                        <c-breadcrumb.item>
+                            Cawdor Facts
+                        </c-breadcrumb.item>
+                    </c-breadcrumb>
+                    <c-breadcrumb>
+                        <c-breadcrumb.user :user="ds_user" />
+                        <c-breadcrumb.item href="/lists/">
+                            Campaign Gang
+                        </c-breadcrumb.item>
+                        <c-breadcrumb.item href="/campaign/1">
+                            {{ ds_campaign.name }}
+                        </c-breadcrumb.item>
+                        <c-breadcrumb.item>
+                            Iron Hounds
+                        </c-breadcrumb.item>
+                    </c-breadcrumb>
+                    <c-breadcrumb>
+                        <c-breadcrumb.user :user="ds_user" />
+                        <c-breadcrumb.item href="/packs/">
+                            Pack
+                        </c-breadcrumb.item>
+                        <c-breadcrumb.item>
+                            Scavvy Pack
+                        </c-breadcrumb.item>
+                    </c-breadcrumb>
                 </div>
             </div>
-            <p class="text-secondary fs-7 mb-4">
-                Pass <code>only</code> to keep the component isolated from page context. <code>print="1"</code> renders every
-                crumb as plain text for the print sheet. <code>:campaign="obj"</code> adds a campaign crumb.
-                Note the colon on object props and the interpolated form for anything carrying a filter —
-                a filter inside a <code>:prop</code> resolves to nothing.
+            <p class="text-secondary mb-4">
+                The separator is CSS (<code>.crumbs &gt; * + *::before</code>), not markup, so a crumb can be
+                wrapped in an <code>{% templatetag openblock %} if {% templatetag closeblock %}</code> and
+                dropped without its neighbours knowing. Crumbs render as plain text — no links, no supporter
+                badge — when the page context has <code>print</code> set.
             </p>
             <h3 class="h6 caps-label mb-2">List/detail header (with breadcrumb)</h3>
-            <p class="text-secondary fs-7 mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
+            <p class="text-secondary mb-2">Breadcrumb above title. Title left, action buttons right, metadata below.</p>
             <div class="border rounded p-3 mb-4">
                 <div class="vstack gap-0">
-                    <c-breadcrumb type="List"
-                                  :owner="ds_user"
-                                  name="Cawdor Facts"
-                                  type_url="/lists/"
-                                  only />
+                    <c-breadcrumb>
+                        <c-breadcrumb.user :user="ds_user" />
+                        <c-breadcrumb.item href="/lists/">
+                            List
+                        </c-breadcrumb.item>
+                        <c-breadcrumb.item>
+                            Cawdor Facts
+                        </c-breadcrumb.item>
+                    </c-breadcrumb>
                     <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2">
                         <h1 class="h2 mb-0">Cawdor Facts</h1>
                         <div class="ms-md-auto d-flex gap-1 flex-nowrap">
@@ -1382,12 +1400,12 @@
                         <span>1397¢</span>
                     </div>
                 </div>
-                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mt-4 mb-2">
+                <div class="section-header mt-4 mb-2">
                     <h2 class="h5 mb-0">Gangs</h2>
                     <a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gangs</a>
                 </div>
                 <div class="px-2">
-                    <p class="text-secondary fs-7 mb-0">
+                    <p class="text-secondary mb-0">
                         <strong>Pattern:</strong> Breadcrumb above the title replaces inline owner metadata. Add buttons are separate <code>btn-primary</code>.
                         Edit + dropdown are grouped in <code>btn-group btn-secondary</code>.
                         Section-level add links use <code>icon-link linked</code> in the section header bar.
@@ -1395,7 +1413,7 @@
                 </div>
             </div>
             <h3 class="h6 caps-label mb-2">Campaign info columns</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Key metadata as horizontal label/value pairs with <code>caps-label</code>. Wraps on mobile.
             </p>
             <div class="border rounded p-3 mb-4">
@@ -1420,16 +1438,16 @@
                 </div>
             </div>
             <h3 class="h6 caps-label mb-2">Step progress (multi-step flows)</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Use <code>&lt;c-steps step="2" total="3" title="…" subtitle="…" /&gt;</code> for multi-step forms
                 (vehicle purchase, equipment sell). The component computes the bar width, so call sites pass plain
                 step numbers. It emits the <code>h1</code>, so the page must not also have one.
             </p>
             <div class="border rounded p-3 mb-4">
-                <div class="col-12 col-md-8 col-lg-6">
+                <div>
                     <c-steps step="2" total="3" title="Add Vehicle" subtitle="Select crew" />
                     <div class="mt-3">
-                        <p class="text-secondary fs-7 mb-0">
+                        <p class="text-secondary mb-0">
                             Step content goes here. The progress bar, <code>h1.h3</code> title and optional
                             <code>h2.h5</code> subtitle all come from <code>&lt;c-steps&gt;</code>.
                         </p>
@@ -1447,7 +1465,7 @@
                 <p class="text-secondary mb-0">No fighters yet.</p>
             </div>
             <h3 class="h6 caps-label mb-2">Inline empty value (table cell)</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Fighter</th>
@@ -1471,7 +1489,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Comma-separated lists (spaceless)</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Use <code>&lt;c-list&gt;</code>. Django emits the newlines between template tags as real text, so a
                 naive loop renders <code>item1 , item2</code> with a space before each comma — the component owns the
                 <code>{% templatetag openblock %} spaceless {% templatetag closeblock %}</code> wrapper that prevents it.
@@ -1505,7 +1523,7 @@
             </div>
             <h3 class="h6 caps-label mb-2">Template pattern</h3>
             {# djlint:off #}
-<pre class="border rounded p-2 fs-7 mb-3"><code>{# plain values: the component owns the loop and the separators #}
+<pre class="border rounded p-2 mb-3"><code>{# plain values: the component owns the loop and the separators #}
 &lt;c-list :items="fighter.skilline_cached" /&gt;
 
 {# markup per item: the loop stays at the call site (cotton has no scoped slots) #}
@@ -1517,7 +1535,7 @@
 &lt;/c-list&gt;</code></pre>
             {# djlint:on #}
             <h3 class="h6 caps-label mb-2">Rules</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Rule</th>
@@ -1565,39 +1583,44 @@
             <div class="vstack gap-2 mb-4">
                 <div>
                     <a href="#">Default link</a>
-                    <code class="ms-2 fs-7 text-secondary">&lt;a&gt;</code>
+                    <code class="ms-2 text-secondary">&lt;a&gt;</code>
                 </div>
                 <div>
                     <a href="#" class="linked">Linked style</a>
-                    <code class="ms-2 fs-7 text-secondary">.linked (underline on hover/focus)</code>
+                    <code class="ms-2 text-secondary">.linked (underline on hover/focus)</code>
                 </div>
                 <div>
                     <a href="#" class="linked-secondary">Secondary link</a>
-                    <code class="ms-2 fs-7 text-secondary">.linked-secondary (edit/reset actions)</code>
+                    <code class="ms-2 text-secondary">.linked-secondary (edit/reset actions)</code>
                 </div>
                 <div>
                     <a href="#" class="linked-body">Body-colour link</a>
-                    <code class="ms-2 fs-7 text-secondary">.linked-body (inline names in metadata rows)</code>
+                    <code class="ms-2 text-secondary">.linked-body (inline names in metadata rows)</code>
                 </div>
                 <div>
-                    <a href="#"
-                       class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover">Danger link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-danger (delete/archive)</code>
+                    <a href="#" class="linked-danger">Danger link</a>
+                    <code class="ms-2 text-secondary">.linked-danger (delete/archive)</code>
+                </div>
+                <div>
+                    <a href="#" class="linked-warning">Warning link</a>
+                    <code class="ms-2 text-secondary">.linked-warning (stash sell actions)</code>
                 </div>
                 <div>
                     <a href="#" class="link-primary">Primary link</a>
-                    <code class="ms-2 fs-7 text-secondary">.link-primary (add/create)</code>
+                    <code class="ms-2 text-secondary">.link-primary (add/create)</code>
                 </div>
                 <div>
                     <span class="tooltipped">Tooltipped style</span>
-                    <code class="ms-2 fs-7 text-secondary">.tooltipped (info underline, cursor: help)</code>
+                    <code class="ms-2 text-secondary">.tooltipped (info underline, cursor: help)</code>
                 </div>
             </div>
-            <p class="text-secondary fs-7 mb-0">
+            <p class="text-secondary mb-0">
                 All links inherit the parent font size. Add <code>fs-7</code> to make them compact when needed.
                 <code>.linked</code> shows its underline only on hover/focus, at 50% opacity (tinted from
-                <code>currentColor</code>). <code>.linked-secondary</code> is the same behaviour in the secondary
-                text colour.
+                <code>currentColor</code>); the <code>.linked-*</code> variants are the same behaviour in a
+                different colour. Prefer them over Bootstrap's <code>.link-*</code>, which is underlined at
+                rest — a row of five permanently-underlined action links is noise under every item. Direction
+                of travel is <code>.linked-*</code> everywhere.
             </p>
         </section>
         <!-- ============================================================ -->
@@ -1605,7 +1628,7 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Inline action menus</h2>
-            <p class="text-secondary fs-7 mb-3">
+            <p class="text-secondary mb-3">
                 Contextual action links shown below equipment, weapons, and gear on fighter cards.
                 The <code>bi-arrow-90deg-up</code> icon visually connects the menu to the item above.
                 Use <code>&lt;c-actions&gt;</code> with <code>&lt;c-actions.link&gt;</code> children, separated by the
@@ -1615,11 +1638,11 @@
                 conditional links, and a component cannot see which of its children rendered.
             </p>
             <h3 class="h6 caps-label mb-2">Weapon menu (table row)</h3>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Used inside weapon stat tables. The menu occupies a full-width <code>&lt;td&gt;</code> with <code>colspan</code> matching the table's column count (e.g. <code>colspan="9"</code> for the standard weapon table).
             </p>
             <div class="border rounded p-3 mb-3">
-                <table class="table table-sm table-borderless mb-0 fs-7">
+                <table class="table table-sm table-borderless mb-0">
                     <tbody>
                         <tr>
                             <td>Lasgun</td>
@@ -1659,7 +1682,7 @@
                 </table>
             </div>
             <h3 class="h6 caps-label mb-2">Gear menu (inline)</h3>
-            <p class="text-secondary fs-7 mb-2">Used inline after gear item names. No table wrapper.</p>
+            <p class="text-secondary mb-2">Used inline after gear item names. No table wrapper.</p>
             <div class="border rounded p-3 mb-3 fs-7">
                 <div>Mesh Armour (15¢)</div>
                 <c-actions lead="none">
@@ -1677,7 +1700,7 @@
                 </c-actions>
             </div>
             <h3 class="h6 caps-label mb-2">Default equipment menu (inline)</h3>
-            <p class="text-secondary fs-7 mb-2">Used for default (template-provided) equipment. Fewer actions available.</p>
+            <p class="text-secondary mb-2">Used for default (template-provided) equipment. Fewer actions available.</p>
             <div class="border rounded p-3 mb-3 fs-7">
                 <div>Fighting Knife (default)</div>
                 <c-actions lead="none">
@@ -1691,7 +1714,7 @@
                 </c-actions>
             </div>
             <h3 class="h6 caps-label mb-2">Rules</h3>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Element</th>
@@ -1708,19 +1731,19 @@
                     <tr>
                         <td>Action link</td>
                         <td>
-                            <code>link-secondary</code> (edit, cost, reassign, accessories)
+                            <code>linked-secondary</code> (edit, cost, reassign, accessories)
                         </td>
                     </tr>
                     <tr>
                         <td>Destructive link</td>
                         <td>
-                            <code>link-danger</code> (delete, archive)
+                            <code>linked-danger</code> (delete, archive)
                         </td>
                     </tr>
                     <tr>
                         <td>Sell link</td>
                         <td>
-                            <code>link-warning</code> (stash sell actions)
+                            <code>linked-warning</code> (stash sell actions)
                         </td>
                     </tr>
                     <tr>
@@ -1749,10 +1772,10 @@
         <!-- ============================================================ -->
         <section>
             <h2 class="h4 mb-3">Custom CSS reference</h2>
-            <p class="text-secondary fs-7 mb-2">
+            <p class="text-secondary mb-2">
                 Custom classes defined in <code>styles.scss</code> to fill gaps Bootstrap doesn't cover.
             </p>
-            <table class="table table-sm table-borderless mb-0 fs-7">
+            <table class="table table-sm table-borderless mb-0">
                 <thead>
                     <tr>
                         <th>Class</th>

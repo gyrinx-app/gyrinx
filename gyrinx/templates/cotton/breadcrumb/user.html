@@ -1,0 +1,17 @@
+{% comment %}
+    c-breadcrumb.user — the owner crumb: a link to the user page followed by
+    their supporter badge.
+
+        <c-breadcrumb.user :user="list.owner_cached" />
+
+    Every breadcrumb in the app starts with this, and the badge is easy to
+    forget when hand-writing it, so it gets its own component rather than being
+    copied into six call sites.
+
+    Honours ambient `print` through c-breadcrumb.item, and drops the badge when
+    printing — matching what the previous breadcrumb did. A supporter badge is
+    pixel art; it earns nothing on a printed sheet.
+
+    Props
+      user  a User.
+{% endcomment %}{% load badge_tags %}<c-vars user="" /><c-breadcrumb.item href="{% url "core:user" user.username %}">{{ user }}{% if not print %}{% user_badge user %}{% endif %}</c-breadcrumb.item>

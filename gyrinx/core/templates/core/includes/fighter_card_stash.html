@@ -80,27 +80,27 @@
                                                     <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                                                     {% if not assign.is_from_default_assignment %}
                                                         <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
-                                                           class="link-secondary">Edit</a>
+                                                           class="linked-secondary">Edit</a>
                                                         <span class="text-secondary">·</span>
                                                     {% endif %}
                                                     <a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
-                                                       class="link-secondary">Reassign</a>
+                                                       class="linked-secondary">Reassign</a>
                                                     {% if list.status == 'campaign_mode' %}
                                                         <span class="text-secondary">·</span>
                                                         <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_assign={{ assign.id }}"
-                                                           class="link-warning">Sell</a>
+                                                           class="linked-warning">Sell</a>
                                                     {% endif %}
                                                     <span class="text-secondary">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Delete</a>
+                                                       class="linked-danger">Delete</a>
                                                 {% elif assign.kind == 'default' %}
                                                     <br>
                                                     <i class="bi-arrow-90deg-up text-secondary me-1"></i>
                                                     <a href="{% url 'core:list-fighter-gear-default-convert' list.id fighter.id assign.id %}"
-                                                       class="link-secondary">Modify from default</a>
+                                                       class="linked-secondary">Modify from default</a>
                                                     <span class="text-secondary">·</span>
                                                     <a href="{% url 'core:list-fighter-gear-default-disable' list.id fighter.id assign.id %}"
-                                                       class="link-danger">Delete</a>
+                                                       class="linked-danger">Delete</a>
                                                 {% endif %}
                                             {% endif %}
                                         </div>
@@ -134,7 +134,7 @@
                                                 <i class="bi-dash"></i> {{ profile.name }} (+{{ profile.cost_display }})
                                                 {% if list.status == 'campaign_mode' and list.owner_cached == user and not print %}
                                                     <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ profile.id }}"
-                                                       class="link-warning">Sell</a>
+                                                       class="linked-warning">Sell</a>
                                                 {% endif %}
                                             {% endif %}
                                         {% endfor %}

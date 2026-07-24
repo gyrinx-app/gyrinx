@@ -142,6 +142,10 @@ button[aria-busy="true"] {
 :root,
 [data-bs-theme="light"] {
     --bs-secondary-color: #{lighten($secondary, 15%)};
+
+    // One step darker than Bootstrap's #f8f9fa so section header bars and card
+    // headers actually read as a surface. See $gy-surface-header-light.
+    --bs-tertiary-bg: #{$gy-surface-header-light};
 }
 
 [data-bs-theme="dark"] {
@@ -283,6 +287,50 @@ a[data-bs-toggle="tooltip"] {
     &:focus-visible {
         color: var(--bs-danger);
     }
+}
+
+// Warning-coloured `.linked`, for the stash "Sell" actions — the only place the
+// warning colour is used on a link. Same construction as the two above.
+.linked-warning {
+    @extend .linked;
+    color: var(--bs-warning-text-emphasis);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-warning-text-emphasis);
+    }
+}
+
+// Breadcrumb trail (c-breadcrumb). The separator is a pseudo-element on every
+// crumb but the first, so a conditional crumb can be omitted without its call
+// site needing to know whether it is first — the same construction Bootstrap
+// uses for `.breadcrumb`. Putting it on the crumb wrapper rather than inside
+// the anchor keeps it out of the link's colour and underline.
+.crumbs {
+    > * + *::before {
+        content: "/";
+        margin-inline: map-get($spacers, 2);
+    }
+}
+
+// Section header bar: the grey strip that introduces a section, with the
+// heading on the left and an optional action on the right.
+//
+// Replaces the seven-utility incantation
+// `bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center`
+// and, more importantly, fixes its height. The bar used to be as tall as
+// whatever it contained, so a section whose action was a `btn-sm` (44px) sat
+// noticeably taller than one whose action was a plain link (37px) or which had
+// no action at all. Consecutive sections down a page did not line up.
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: map-get($spacers, 2);
+    min-height: $gy-section-header-height;
+    padding-inline: map-get($spacers, 2);
+    background-color: var(--bs-tertiary-bg);
+    border-radius: var(--bs-border-radius);
 }
 
 // Bootstrap's `.btn-link` is underlined at rest; give link-style buttons the

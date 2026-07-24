@@ -827,13 +827,13 @@ def test_actions_link_strips_slot_whitespace():
     the link and takes its underline. .btn and .badge are immune (inline-block);
     this one is not, so the component strips it."""
     out = component('<c-actions.link href="/x">\n    Cost\n</c-actions.link>')
-    assert out == '<a href="/x" class="link-secondary">Cost</a>'
+    assert out == '<a href="/x" class="linked-secondary">Cost</a>'
 
 
-def test_actions_link_variant_maps_to_link_class():
+def test_actions_link_variant_maps_to_linked_class():
     assert (
         component('<c-actions.link href="/x" variant="danger">Del</c-actions.link>')
-        == '<a href="/x" class="link-danger">Del</a>'
+        == '<a href="/x" class="linked-danger">Del</a>'
     )
 
 

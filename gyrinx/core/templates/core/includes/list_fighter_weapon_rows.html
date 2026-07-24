@@ -73,7 +73,7 @@
                     {% endif %}
                     {% if mode == 'edit' and fighter.is_stash and list.status == 'campaign_mode' and list.owner_cached == user and assign.kind == 'assigned' %}
                         <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?sell_profile={{ pd.profile.id }}"
-                           class="link-warning">Sell</a>
+                           class="linked-warning">Sell</a>
                     {% endif %}
                 {% endif %}
             </td>

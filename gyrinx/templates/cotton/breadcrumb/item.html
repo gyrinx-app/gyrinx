@@ -1,0 +1,19 @@
+{% comment %}
+    c-breadcrumb.item — one crumb.
+
+        <c-breadcrumb.item href="{{ lists_url }}">List</c-breadcrumb.item>
+        <c-breadcrumb.item>{{ list.name }}</c-breadcrumb.item>    {# the current page #}
+
+    A crumb with an href is a link; one without is plain text. The last crumb is
+    where you already are, so it takes no href.
+
+    PRINT: reads `print` from the page context (ambient, like c-back reads
+    return_url) and renders every crumb as plain text when it is set. A printed
+    sheet has nothing to click, and the owner link in particular would otherwise
+    print as blue underlined text. Passing print per crumb would mean repeating
+    it on every one.
+
+    Props
+      href   optional; makes the crumb a link.
+      class  extra classes on the crumb wrapper.
+{% endcomment %}{% load custom_tags %}<c-vars href="" class="" /><span{% if class %} class="{{ class }}"{% endif %}>{% if href and not print %}<a class="linked-secondary" href="{{ href }}">{{ slot|strip }}</a>{% else %}{{ slot|strip }}{% endif %}</span>

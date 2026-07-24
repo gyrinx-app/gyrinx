@@ -1,55 +1,32 @@
 {% comment %}
-    c-breadcrumb — the owner / type / name trail above a page title. Replaces
-    core/includes/breadcrumb.html (13 call sites).
+    c-breadcrumb — the ancestry trail above a page title.
 
-        <c-breadcrumb type="Gang" :owner="list.owner" name="{{ list.name }}"
-                      type_url="{% url 'core:lists' %}" :campaign="campaign" />
+        <c-breadcrumb>
+            <c-breadcrumb.user :user="list.owner_cached" />
+            <c-breadcrumb.item href="{{ lists_url }}">List</c-breadcrumb.item>
+            {% if list.campaign %}
+                <c-breadcrumb.item href="{{ list.campaign.get_absolute_url }}">{{ list.campaign.name }}</c-breadcrumb.item>
+            {% endif %}
+            <c-breadcrumb.item>{{ list.name }}</c-breadcrumb.item>
+        </c-breadcrumb>
 
-    Every crumb except the last is a link when it has a url, plain text
-    otherwise. `print` renders the whole trail as plain text -- a printed sheet
-    has nothing to click, and the owner link in particular would print as blue
-    underlined text.
+    Takes any number of crumbs in any order. The previous version had a fixed
+    prop per position (type, type_url, campaign, parent, parent_url, name) which
+    meant a page with a different ancestry either could not be expressed or had
+    to abuse `parent`; adding a level meant adding two more props.
 
-    NOT the same thing as c-back. c-back is a single "go up one level" control
-    rendered as a nav/ol/li; this is the full ancestry line and is a plain div.
+    THE SEPARATOR IS CSS, not markup: `.crumbs > * + *::before`. That is what
+    makes a conditional crumb work. Cotton has no scoped slots, so a component
+    cannot see which of its children rendered and therefore cannot know where a
+    separator belongs -- exactly the problem that keeps {% dot %} at the call
+    site in c-actions. An adjacent-sibling rule sidesteps it entirely, which is
+    also how Bootstrap.s own .breadcrumb does it. The separator sits on the
+    crumb wrapper rather than inside the link, so it never takes the anchor.s
+    colour or underline.
+
+    Wrapped in {% spaceless %} so the gap between crumbs comes only from the
+    CSS margin and cannot drift when djlint reflows a call site.
 
     Props
-      type       the section name ("Gang", "Campaign", "Content pack").
-      owner      a User. Rendered with its supporter badge via user_badge.
-      name       the current page name. Always plain text -- it is where you are.
-      type_url   optional; makes `type` a link.
-      campaign   optional Campaign crumb between type and name.
-      parent     optional intermediate crumb, with parent_url to link it.
-      print      truthy renders every crumb as plain text.
-      class      extra classes on the wrapper.
-{% endcomment %}{% load badge_tags %}<c-vars type="" owner="" name="" type_url="" campaign="" parent="" parent_url="" print="" class="" /><div class="fs-7 text-secondary{% if class %} {{ class }}{% endif %}">
-    {% if print %}
-        {{ owner }}
-    {% else %}
-        <a class="linked-secondary" href="{% url 'core:user' owner.username %}">{{ owner }}</a>{% user_badge owner %}
-    {% endif %}
-    <span class="mx-1">/</span>
-    {% if print or not type_url %}
-        {{ type }}
-    {% else %}
-        <a class="linked-secondary" href="{{ type_url }}">{{ type }}</a>
-    {% endif %}
-    <span class="mx-1">/</span>
-    {% if campaign %}
-        {% if print %}
-            {{ campaign.name }}
-        {% else %}
-            <a class="linked-secondary" href="{% url 'core:campaign' campaign.id %}">{{ campaign.name }}</a>
-        {% endif %}
-        <span class="mx-1">/</span>
-    {% endif %}
-    {% if parent %}
-        {% if print or not parent_url %}
-            {{ parent }}
-        {% else %}
-            <a class="linked-secondary" href="{{ parent_url }}">{{ parent }}</a>
-        {% endif %}
-        <span class="mx-1">/</span>
-    {% endif %}
-    {{ name }}
-</div>
+      class  extra classes on the wrapper.
+{% endcomment %}<c-vars class="" />{% spaceless %}<div class="crumbs fs-7 text-secondary{% if class %} {{ class }}{% endif %}">{{ slot }}</div>{% endspaceless %}
