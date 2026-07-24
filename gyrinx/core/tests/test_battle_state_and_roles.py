@@ -502,7 +502,7 @@ def test_battle_name_numbers_only_within_the_colliding_group(user, campaign):
 
 
 @pytest.mark.django_db
-def test_battle_name_without_date(user, campaign, make_campaign):
+def test_battle_name_without_date(user, campaign):
     # Undated battles show the mission alone...
     battle = Battle.objects.create(campaign=campaign, mission="Ambush", owner=user)
     assert battle.name == "Ambush"
