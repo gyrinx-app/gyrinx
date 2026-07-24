@@ -108,6 +108,15 @@ def register_cost_change(
         _enqueue_content_cost_propagation(instance)
         instance._cost_changed = False  # Clear flag
 
+    # Without this every generated receiver answers to the same two names, so
+    # anything introspecting them — logging, error reporting, a debugger
+    # listing a signal's receivers — cannot tell the ten models apart. (Raw
+    # traceback frames still show the shared code-object name; this fixes the
+    # `__name__`/`__qualname__` that tooling actually reports.)
+    for func, uid in ((on_cost_change, change_uid), (on_cost_change_saved, action_uid)):
+        func.__name__ = uid
+        func.__qualname__ = f"register_cost_change.<locals>.{uid}"
+
 
 register_cost_change(
     ContentEquipment,
