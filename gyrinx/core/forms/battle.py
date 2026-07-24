@@ -221,7 +221,7 @@ class BattleNoteForm(forms.ModelForm):
         model = BattleNote
         fields = ["content"]
         labels = {
-            "content": "Notes",
+            "content": "Report",
         }
         widgets = {
             "content": TinyMCEWithUpload(

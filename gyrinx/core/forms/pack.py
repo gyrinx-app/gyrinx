@@ -1,5 +1,3 @@
-import copy
-
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
@@ -42,25 +40,14 @@ def rich_text_description_widget(height="200px"):
 
     Returns a fresh instance per call so each form owns its own widget.
     """
-    # Drop the image item from the insert menu (deep-copied so the shared
-    # TINYMCE_EXTRA_ATTRS dict used by PackForm is left untouched).
-    menu = copy.deepcopy(TINYMCE_EXTRA_ATTRS["menu"])
-    menu["insert"]["items"] = (
-        "link media addcomment pageembed codesample inserttable | math "
-        "| charmap emoticons hr | pagebreak nonbreaking anchor "
-        "tableofcontents | insertdatetime"
-    )
     return TinyMCEWithUpload(
         attrs={"cols": 80, "rows": 5},
         mce_attrs={
             **TINYMCE_EXTRA_ATTRS,
-            "menu": menu,
             "height": height,
-            # No image support: drop the image plugin, its toolbar button,
-            # and the empty-line quick-insert bar (which offers quickimage).
-            "plugins": "autoresize autosave code emoticons fullscreen help link lists quickbars textpattern visualblocks",
-            "toolbar": "undo redo | blocks | bold italic underline link | numlist bullist align | code",
-            "quickbars_insert_toolbar": False,
+            # No image support: drop the image plugin and its toolbar button.
+            "plugins": "autoresize autosave link lists textpattern",
+            "toolbar": "undo redo | blocks | bold italic underline | bullist numlist | link | removeformat",
         },
     )
 

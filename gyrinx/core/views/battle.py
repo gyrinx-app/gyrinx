@@ -641,7 +641,7 @@ def add_battle_note(request, battle_id):
                 campaign_name=battle.campaign.name,
             )
 
-            messages.success(request, "Note saved successfully!")
+            messages.success(request, "Battle report saved.")
             return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         if existing_note:

@@ -4655,13 +4655,13 @@ def test_rich_text_description_widget_has_no_image_support():
     """The content-description editor must not offer image insertion.
 
     These descriptions sit in a dense listing where embedded images render
-    awkwardly, so the image plugin, toolbar button, insert-menu item, and
-    empty-line quick-insert bar are all removed.
+    awkwardly, so the image plugin and toolbar button are removed. There is no
+    menubar or quick-insert bar to offer images by another route.
     """
     from gyrinx.core.forms.pack import rich_text_description_widget
 
     mce = rich_text_description_widget().mce_attrs
     assert "image" not in mce["plugins"]
     assert "image" not in mce["toolbar"]
-    assert "image" not in mce["menu"]["insert"]["items"]
-    assert mce["quickbars_insert_toolbar"] is False
+    assert mce["menubar"] is False
+    assert "quickbars" not in mce["plugins"]

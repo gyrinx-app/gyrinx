@@ -2,9 +2,9 @@
 {% load custom_tags %}
 {% block head_title %}
     {% if existing_note %}
-        Edit Note
+        Edit battle report
     {% else %}
-        Add Note
+        Add battle report
     {% endif %}
     - {{ battle.name }}
 {% endblock head_title %}
@@ -13,9 +13,9 @@
     <div class="col-12 col-md-8 col-lg-6 px-0">
         <h1 class="h3">
             {% if existing_note %}
-                Edit Battle Note
+                Edit battle report
             {% else %}
-                Add Battle Note
+                Add battle report
             {% endif %}
         </h1>
         <p class="text-secondary">{{ battle.name }}</p>
@@ -34,9 +34,9 @@
                 <button type="submit" class="btn btn-success">
                     <i class="bi-check-lg"></i>
                     {% if existing_note %}
-                        Update Note
+                        Update report
                     {% else %}
-                        Add Note
+                        Add report
                     {% endif %}
                 </button>
                 <a href="{{ return_url }}">Cancel</a>

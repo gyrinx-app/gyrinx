@@ -100,26 +100,41 @@ class Battle(AppBase):
 
     @cached_property
     def name(self):
-        """Computed name for the battle."""
-        if self.date is not None:
-            battle_number = (
-                self.campaign.battles.filter(date__lt=self.date).count()
-                + self.campaign.battles.filter(
-                    date=self.date, created__lt=self.created
-                ).count()
-                + 1
-            )
-            return f"{self.mission} {self.date} #{battle_number}"
+        """Computed display name: the mission and date, with a disambiguating
+        ordinal only when it is needed.
 
-        # No date yet (pre-battle): number after dated battles, by creation order.
-        battle_number = (
-            self.campaign.battles.filter(date__isnull=False).count()
-            + self.campaign.battles.filter(
-                date__isnull=True, created__lt=self.created
-            ).count()
-            + 1
+        The ordinal used to be a campaign-wide sequence, so "Border Dispute
+        2026-07-19 #7" meant "the campaign's 7th battle" but read as "the 7th
+        Border Dispute". It now counts only within the group it disambiguates
+        — battles of the same mission on the same date in the same campaign —
+        and is left off entirely when the mission and date are already unique.
+        """
+        base = f"{self.mission} {self.date}" if self.date is not None else self.mission
+
+        if self.created is None:  # unsaved: nothing to compare against
+            return base
+
+        # One query for the whole group, this battle included. ``date=None``
+        # becomes IS NULL, so undated battles group with each other rather
+        # than with dated ones. Archived siblings still count, so archiving
+        # one battle doesn't silently rename another. Groups are small — a
+        # handful of battles share a mission and date at most.
+        siblings = list(
+            # campaign_id, not self.campaign: reading the FK would fetch the
+            # campaign for any battle not loaded with select_related, which is
+            # how battle names get rendered in the campaign action log.
+            Battle.objects.filter(
+                campaign_id=self.campaign_id, mission=self.mission, date=self.date
+            ).values_list("created", "pk")
         )
-        return f"{self.mission} #{battle_number}"
+        if len(siblings) <= 1:
+            return base
+
+        # Rank by (created, pk): the pk breaks ties, so two battles saved in
+        # the same instant still get distinct, stable ordinals.
+        key = (self.created, self.pk)
+        ordinal = sum(1 for sibling in siblings if sibling < key) + 1
+        return f"{base} #{ordinal}"
 
     @property
     def result_recorded(self):

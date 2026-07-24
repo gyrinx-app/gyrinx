@@ -451,3 +451,116 @@ def test_battle_page_post_battle_prompt(client, user, make_user, campaign, make_
     content = client.get(url).content.decode()
     assert prompt_mine in content
     assert prompt_theirs not in content
+
+
+# --- Computed name ---------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_battle_name_has_no_number_when_unambiguous(user, campaign):
+    import datetime
+
+    day = datetime.date(2026, 7, 19)
+    battle = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    # A different mission on the same day, and the same mission on another
+    # day, are both already distinguishable — no ordinal on any of them.
+    other_mission = Battle.objects.create(
+        campaign=campaign, mission="The Trap", date=day, owner=user
+    )
+    other_day = Battle.objects.create(
+        campaign=campaign,
+        mission="Border Dispute",
+        date=datetime.date(2026, 7, 20),
+        owner=user,
+    )
+
+    assert battle.name == "Border Dispute 2026-07-19"
+    assert other_mission.name == "The Trap 2026-07-19"
+    assert other_day.name == "Border Dispute 2026-07-20"
+
+
+@pytest.mark.django_db
+def test_battle_name_numbers_only_within_the_colliding_group(user, campaign):
+    import datetime
+
+    day = datetime.date(2026, 7, 19)
+    # Two battles of the same mission on the same day: these need telling
+    # apart, and the ordinal counts within the pair (not across the campaign).
+    first = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    second = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    # A third battle of another mission does not shift those numbers.
+    Battle.objects.create(campaign=campaign, mission="The Trap", date=day, owner=user)
+
+    assert first.name == "Border Dispute 2026-07-19 #1"
+    assert second.name == "Border Dispute 2026-07-19 #2"
+
+
+@pytest.mark.django_db
+def test_battle_name_without_date(user, campaign):
+    # Undated battles show the mission alone...
+    battle = Battle.objects.create(campaign=campaign, mission="Ambush", owner=user)
+    assert battle.name == "Ambush"
+
+    # ...and group with each other, not with dated battles.
+    import datetime
+
+    Battle.objects.create(
+        campaign=campaign,
+        mission="Ambush",
+        date=datetime.date(2026, 7, 19),
+        owner=user,
+    )
+    assert Battle.objects.get(pk=battle.pk).name == "Ambush"
+
+    second_undated = Battle.objects.create(
+        campaign=campaign, mission="Ambush", owner=user
+    )
+    assert Battle.objects.get(pk=battle.pk).name == "Ambush #1"
+    assert second_undated.name == "Ambush #2"
+
+
+@pytest.mark.django_db
+def test_battle_name_does_not_collide_across_campaigns(user, campaign, make_campaign):
+    import datetime
+
+    day = datetime.date(2026, 7, 19)
+    other_campaign = make_campaign("Other Campaign")
+    mine = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    Battle.objects.create(
+        campaign=other_campaign, mission="Border Dispute", date=day, owner=user
+    )
+
+    assert mine.name == "Border Dispute 2026-07-19"
+
+
+@pytest.mark.django_db
+def test_battle_name_ordinals_are_distinct_when_created_at_the_same_instant(
+    user, campaign
+):
+    import datetime
+
+    day = datetime.date(2026, 7, 19)
+    first = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    second = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    # Force identical creation timestamps: the pk breaks the tie, so the two
+    # battles still get distinct ordinals rather than both showing "#1".
+    Battle.objects.filter(pk__in=[first.pk, second.pk]).update(created=first.created)
+    first = Battle.objects.get(pk=first.pk)
+    second = Battle.objects.get(pk=second.pk)
+
+    assert {first.name, second.name} == {
+        "Border Dispute 2026-07-19 #1",
+        "Border Dispute 2026-07-19 #2",
+    }
