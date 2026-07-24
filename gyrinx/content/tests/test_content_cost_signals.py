@@ -1455,6 +1455,20 @@ def test_every_cost_change_dispatch_uid_is_registered_and_live():
         "cost-change pre_save registrations drifted from COST_CHANGE_PAIRS"
     )
 
+    # Same check on the other half of each pair, so a hand-written or unlisted
+    # `_cost_action` receiver can't slip past a matching pre_save set.
+    registered_post = {
+        e[0][0]
+        for e in post_save.receivers
+        if isinstance(e[0][0], str)
+        and e[0][0].endswith("_cost_action")
+        and _live(post_save, e[0][0])
+    }
+    expected_post = {action for _n, _c, action in COST_CHANGE_PAIRS}
+    assert registered_post == expected_post, (
+        "cost-change post_save registrations drifted from COST_CHANGE_PAIRS"
+    )
+
 
 def test_factory_receivers_survive_gc_with_debug_off():
     """The factory's receivers must outlive garbage collection in production.
