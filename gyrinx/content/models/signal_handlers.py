@@ -2,9 +2,13 @@
 Signal handlers for content model cost changes.
 
 This module contains:
-- Pre-save handlers that detect cost changes and mark objects dirty
-- Post-save handlers that create CONTENT_COST_CHANGE actions
-- Helper function for creating cost change actions
+- ``register_cost_change``, the factory that builds the pre_save/post_save
+  receiver pair every price-bearing content model needs, plus the per-model
+  registrations
+- The propagation machinery those receivers hand off to: resolving affected
+  lists, recording CONTENT_COST_CHANGE actions, enqueueing the async task
+- ``sync_auto_equipment_cost``, the one genuinely different post_save
+- Delete-side handlers that orphan pins when a price source is deleted
 """
 
 import logging
@@ -38,270 +42,148 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Pre-save signal handlers
+# Cost-change signals
 #
-# These signals detect when cost fields change on content models and mark
-# affected core objects (assignments, fighters, lists) as dirty.
+# Every price-bearing content model needs the same pair of receivers: a
+# pre_save that spots a cost edit, flags the instance and marks affected core
+# rows dirty; and a post_save that enqueues propagation (audit actions and
+# cache deltas). Rather than hand-write that pair ten times, they are built by
+# one factory and registered per model below.
 # =============================================================================
 
 
-@receiver(
-    pre_save, sender=ContentEquipment, dispatch_uid="content_equipment_cost_change"
+def register_cost_change(
+    model, *, change_uid, action_uid, field="cost", also_watch=None
+):
+    """Register the standard cost-change receiver pair for a content model.
+
+    Args:
+        model: the content model class whose price edits should propagate.
+        change_uid: ``dispatch_uid`` for the ``pre_save`` receiver.
+        action_uid: ``dispatch_uid`` for the ``post_save`` receiver. Both are
+            passed explicitly rather than derived from the model, because the
+            shipped strings predate any single scheme — ``ContentFighter`` is
+            ``content_fighter_base_cost_change`` but ``content_fighter_cost_action``
+            — and ``dispatch_uid`` is the identity Django dedupes registrations
+            on, so they must stay byte-identical.
+        field: the cost field to compare, through the int-coercing helpers.
+        also_watch: optional second field, compared by its *raw* stored value,
+            whose change also counts as a cost change. Two models need this,
+            for different reasons — see the call sites.
+
+    Both receivers connect with ``weak=False``. Django holds receivers weakly by
+    default, and a closure built in here — unlike the module-level functions it
+    replaced — has no other reference, so it would be collected and the signal
+    would silently stop firing. That does not reproduce locally: ``connect``
+    only calls ``func_accepts_kwargs`` when ``settings.DEBUG`` is on, and that
+    runs through an ``lru_cache`` keyed on the function, which incidentally pins
+    it. With DEBUG off (production) nothing does. Green in dev, dead in prod.
+    """
+
+    @receiver(pre_save, sender=model, dispatch_uid=change_uid, weak=False)
+    @traced(f"signal_{change_uid}")
+    def on_cost_change(sender, instance, **kwargs):
+        old_cost = get_old_cost(sender, instance, field)
+        if old_cost is None:
+            return  # New instance, nothing existing to reprice
+
+        changed = old_cost != get_new_cost(instance, field)
+        if not changed and also_watch is not None:
+            old_raw = get_old_field(sender, instance, also_watch)
+            new_raw = getattr(instance, also_watch)
+            changed = old_raw is not MISSING and old_raw != new_raw
+
+        if changed:
+            instance._cost_changed = True  # Flag for post_save to create actions
+            # The pre-change value rides to the async task: amount-snapshot
+            # (DERIVED) receipts are maintained by delta, which needs it.
+            instance._old_cost_for_propagation = old_cost
+            instance.set_dirty()
+
+    @receiver(post_save, sender=model, dispatch_uid=action_uid, weak=False)
+    @traced(f"signal_{action_uid}")
+    def on_cost_change_saved(sender, instance, created, **kwargs):
+        if created or not getattr(instance, "_cost_changed", False):
+            return
+        _enqueue_content_cost_propagation(instance)
+        instance._cost_changed = False  # Clear flag
+
+    # Without this every generated receiver answers to the same two names, so
+    # anything introspecting them — logging, error reporting, a debugger
+    # listing a signal's receivers — cannot tell the ten models apart. (Raw
+    # traceback frames still show the shared code-object name; this fixes the
+    # `__name__`/`__qualname__` that tooling actually reports.)
+    for func, uid in ((on_cost_change, change_uid), (on_cost_change_saved, action_uid)):
+        func.__name__ = uid
+        func.__qualname__ = f"register_cost_change.<locals>.{uid}"
+
+
+register_cost_change(
+    ContentEquipment,
+    change_uid="content_equipment_cost_change",
+    action_uid="content_equipment_cost_action",
 )
-@traced("signal_content_equipment_cost_change")
-def handle_equipment_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentEquipment.cost changes.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save, sender=ContentFighter, dispatch_uid="content_fighter_base_cost_change"
+register_cost_change(
+    ContentFighter,
+    field="base_cost",
+    change_uid="content_fighter_base_cost_change",
+    action_uid="content_fighter_cost_action",
 )
-@traced("signal_content_fighter_base_cost_change")
-def handle_fighter_base_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected list fighters dirty when ContentFighter.base_cost changes.
-    """
-    old_cost = get_old_cost(sender, instance, "base_cost")
-    if old_cost is None:
-        return  # New instance, no existing list fighters
-
-    new_cost = get_new_cost(instance, "base_cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save, sender=ContentWeaponProfile, dispatch_uid="content_profile_cost_change"
+register_cost_change(
+    ContentWeaponProfile,
+    change_uid="content_profile_cost_change",
+    action_uid="content_profile_cost_action",
 )
-@traced("signal_content_profile_cost_change")
-def handle_profile_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentWeaponProfile.cost changes.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save,
-    sender=ContentWeaponAccessory,
-    dispatch_uid="content_accessory_cost_change",
+register_cost_change(
+    ContentWeaponAccessory,
+    change_uid="content_accessory_cost_change",
+    action_uid="content_accessory_cost_action",
+    # A cost_expression edit reprices every assignment carrying this accessory
+    # just as surely as a flat-cost edit, and the int compare cannot see it.
+    also_watch="cost_expression",
 )
-@traced("signal_content_accessory_cost_change")
-def handle_accessory_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentWeaponAccessory.cost or
-    cost_expression changes.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    changed = old_cost != new_cost
-    if not changed:
-        # A cost_expression edit reprices every assignment carrying this
-        # accessory just as surely as a flat-cost edit, but was previously
-        # unwatched: nothing went dirty and no audit action was recorded.
-        old_expression = get_old_field(sender, instance, "cost_expression")
-        changed = (
-            old_expression is not MISSING and old_expression != instance.cost_expression
-        )
-
-    if changed:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save, sender=ContentEquipmentUpgrade, dispatch_uid="content_upgrade_cost_change"
+register_cost_change(
+    ContentEquipmentUpgrade,
+    change_uid="content_upgrade_cost_change",
+    action_uid="content_upgrade_cost_action",
 )
-@traced("signal_content_upgrade_cost_change")
-def handle_upgrade_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentEquipmentUpgrade.cost changes.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save,
-    sender=ContentFighterEquipmentListItem,
-    dispatch_uid="content_equipment_list_item_cost_change",
+register_cost_change(
+    ContentFighterEquipmentListItem,
+    change_uid="content_equipment_list_item_cost_change",
+    action_uid="content_equipment_list_item_cost_action",
 )
-@traced("signal_content_equipment_list_item_cost_change")
-def handle_equipment_list_item_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentFighterEquipmentListItem.cost changes.
-
-    This model provides cost overrides for equipment on specific fighter types.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save,
-    sender=ContentFighterEquipmentListWeaponAccessory,
-    dispatch_uid="content_equipment_list_accessory_cost_change",
+register_cost_change(
+    ContentFighterEquipmentListWeaponAccessory,
+    change_uid="content_equipment_list_accessory_cost_change",
+    action_uid="content_equipment_list_accessory_cost_action",
 )
-@traced("signal_content_equipment_list_accessory_cost_change")
-def handle_equipment_list_accessory_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentFighterEquipmentListWeaponAccessory.cost changes.
-
-    This model provides cost overrides for weapon accessories on specific fighter types.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save,
-    sender=ContentFighterEquipmentListUpgrade,
-    dispatch_uid="content_equipment_list_upgrade_cost_change",
+register_cost_change(
+    ContentFighterEquipmentListUpgrade,
+    change_uid="content_equipment_list_upgrade_cost_change",
+    action_uid="content_equipment_list_upgrade_cost_action",
 )
-@traced("signal_content_equipment_list_upgrade_cost_change")
-def handle_equipment_list_upgrade_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentFighterEquipmentListUpgrade.cost changes.
-
-    This model provides cost overrides for equipment upgrades on specific fighter types.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save,
-    sender=ContentFighterHouseOverride,
-    dispatch_uid="content_fighter_house_override_cost_change",
+register_cost_change(
+    ContentFighterHouseOverride,
+    change_uid="content_fighter_house_override_cost_change",
+    action_uid="content_fighter_house_override_cost_action",
 )
-@traced("signal_content_fighter_house_override_cost_change")
-def handle_fighter_house_override_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected fighters dirty when ContentFighterHouseOverride.cost changes.
-
-    This model provides cost overrides for fighters in specific houses.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing fighters
-
-    new_cost = get_new_cost(instance, "cost")
-    if old_cost != new_cost:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
-
-
-@receiver(
-    pre_save,
-    sender=ContentEquipmentListExpansionItem,
-    dispatch_uid="content_expansion_item_cost_change",
+register_cost_change(
+    ContentEquipmentListExpansionItem,
+    change_uid="content_expansion_item_cost_change",
+    action_uid="content_expansion_item_cost_action",
+    # The int helpers coerce None to 0, but on expansion items None means "use
+    # the base price" and 0 means "free" — a 0 <-> None edit DOES reprice, and
+    # only the raw compare catches it.
+    also_watch="cost",
 )
-@traced("signal_content_expansion_item_cost_change")
-def handle_expansion_item_cost_change(sender, instance, **kwargs):
-    """
-    Mark affected assignments dirty when ContentEquipmentListExpansionItem.cost changes.
-
-    This model provides cost overrides for equipment in expansion lists.
-    """
-    old_cost = get_old_cost(sender, instance, "cost")
-    if old_cost is None:
-        return  # New instance, no existing assignments
-
-    new_cost = get_new_cost(instance, "cost")
-    changed = old_cost != new_cost
-    if not changed:
-        # The int helpers coerce None to 0, but on expansion items None means
-        # "use the base price" and 0 means "free" — a 0 <-> None edit DOES
-        # reprice and must sweep. Compare the raw values to catch it.
-        old_raw = get_old_field(sender, instance, "cost")
-        changed = old_raw is not MISSING and old_raw != instance.cost
-
-    if changed:
-        instance._cost_changed = True  # Flag for post_save to create actions
-        # The pre-change value rides to the async task: amount-snapshot
-        # (DERIVED) receipts are maintained by delta, which needs it.
-        instance._old_cost_for_propagation = old_cost
-        instance.set_dirty()
 
 
 # =============================================================================
-# Post-save signal handlers
+# Cost-change propagation: finding affected lists, recording, enqueueing
 #
-# These handlers run after content models are saved. If the pre_save handler
-# detected a cost change (via _cost_changed flag), they create ListAction
-# records for affected lists.
+# The machinery the post_save receivers above hand off to — resolve which
+# lists a content price change touches, record the CONTENT_COST_CHANGE
+# actions, and hand the work to the async task.
 # =============================================================================
 
 
@@ -776,28 +658,6 @@ def _enqueue_content_cost_propagation(instance):
 
 
 @receiver(
-    post_save, sender=ContentEquipment, dispatch_uid="content_equipment_cost_action"
-)
-@traced("signal_content_equipment_cost_action")
-def create_equipment_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after equipment cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False  # Clear flag
-
-
-@receiver(post_save, sender=ContentFighter, dispatch_uid="content_fighter_cost_action")
-@traced("signal_content_fighter_cost_action")
-def create_fighter_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after fighter base cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
     post_save,
     sender=ContentFighter,
     dispatch_uid="content_fighter_sync_auto_equipment_cost",
@@ -851,116 +711,6 @@ def sync_auto_equipment_cost(sender, instance, created, **kwargs):
         changed = True
     if changed:
         equipment.save()
-
-
-@receiver(
-    post_save, sender=ContentWeaponProfile, dispatch_uid="content_profile_cost_action"
-)
-@traced("signal_content_profile_cost_action")
-def create_profile_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after weapon profile cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentWeaponAccessory,
-    dispatch_uid="content_accessory_cost_action",
-)
-@traced("signal_content_accessory_cost_action")
-def create_accessory_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after weapon accessory cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentEquipmentUpgrade,
-    dispatch_uid="content_upgrade_cost_action",
-)
-@traced("signal_content_upgrade_cost_action")
-def create_upgrade_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after equipment upgrade cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentFighterEquipmentListItem,
-    dispatch_uid="content_equipment_list_item_cost_action",
-)
-@traced("signal_content_equipment_list_item_cost_action")
-def create_equipment_list_item_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after equipment list item cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentFighterEquipmentListWeaponAccessory,
-    dispatch_uid="content_equipment_list_accessory_cost_action",
-)
-@traced("signal_content_equipment_list_accessory_cost_action")
-def create_equipment_list_accessory_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after equipment list accessory cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentFighterEquipmentListUpgrade,
-    dispatch_uid="content_equipment_list_upgrade_cost_action",
-)
-@traced("signal_content_equipment_list_upgrade_cost_action")
-def create_equipment_list_upgrade_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after equipment list upgrade cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentFighterHouseOverride,
-    dispatch_uid="content_fighter_house_override_cost_action",
-)
-@traced("signal_content_fighter_house_override_cost_action")
-def create_fighter_house_override_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after fighter house override cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
-
-
-@receiver(
-    post_save,
-    sender=ContentEquipmentListExpansionItem,
-    dispatch_uid="content_expansion_item_cost_action",
-)
-@traced("signal_content_expansion_item_cost_action")
-def create_expansion_item_cost_action(sender, instance, created, **kwargs):
-    """Create CONTENT_COST_CHANGE actions after expansion item cost change."""
-    if created or not getattr(instance, "_cost_changed", False):
-        return
-    _enqueue_content_cost_propagation(instance)
-    instance._cost_changed = False
 
 
 # =============================================================================

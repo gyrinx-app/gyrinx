@@ -5,6 +5,8 @@ When a Content model's cost field changes, affected core objects
 (assignments, fighters, lists) should be marked as dirty.
 """
 
+import weakref
+
 import pytest
 
 from gyrinx.content.models import (
@@ -1336,3 +1338,201 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
 
     # Clean up
     override.delete()
+
+
+# --- Registration invariants (#1863) -------------------------------------------
+#
+# The ten cost-change receiver pairs are built by a factory
+# (signal_handlers.register_cost_change) rather than hand-written. Two things
+# about that are easy to break silently, so they are pinned here.
+
+
+COST_CHANGE_PAIRS = [
+    (
+        "ContentEquipment",
+        "content_equipment_cost_change",
+        "content_equipment_cost_action",
+    ),
+    (
+        "ContentFighter",
+        "content_fighter_base_cost_change",
+        "content_fighter_cost_action",
+    ),
+    (
+        "ContentWeaponProfile",
+        "content_profile_cost_change",
+        "content_profile_cost_action",
+    ),
+    (
+        "ContentWeaponAccessory",
+        "content_accessory_cost_change",
+        "content_accessory_cost_action",
+    ),
+    (
+        "ContentEquipmentUpgrade",
+        "content_upgrade_cost_change",
+        "content_upgrade_cost_action",
+    ),
+    (
+        "ContentFighterEquipmentListItem",
+        "content_equipment_list_item_cost_change",
+        "content_equipment_list_item_cost_action",
+    ),
+    (
+        "ContentFighterEquipmentListWeaponAccessory",
+        "content_equipment_list_accessory_cost_change",
+        "content_equipment_list_accessory_cost_action",
+    ),
+    (
+        "ContentFighterEquipmentListUpgrade",
+        "content_equipment_list_upgrade_cost_change",
+        "content_equipment_list_upgrade_cost_action",
+    ),
+    (
+        "ContentFighterHouseOverride",
+        "content_fighter_house_override_cost_change",
+        "content_fighter_house_override_cost_action",
+    ),
+    (
+        "ContentEquipmentListExpansionItem",
+        "content_expansion_item_cost_change",
+        "content_expansion_item_cost_action",
+    ),
+]
+
+
+def _receiver_entries(signal, uid, sender=None):
+    """Registry entries for a dispatch_uid, optionally scoped to a sender.
+
+    Django's entry is ``(lookup_key, receiver_or_weakref, sender_ref,
+    is_async)`` and the lookup key is ``(dispatch_uid, sender_id)``; indices 0
+    and 1 have been stable across versions, but this pokes at a private
+    structure. Matching the sender matters: without it a uid wired to the wrong
+    model would still satisfy a per-model assertion.
+    """
+    entries = [e for e in signal.receivers if e[0][0] == uid]
+    if sender is not None:
+        entries = [e for e in entries if e[0][1] == id(sender)]
+    return entries
+
+
+def _live(signal, uid, sender=None):
+    """True if a receiver for ``uid`` (and ``sender``, when given) is registered
+    AND still alive.
+
+    Handles both connection styles: a ``weak=True`` entry stores a weakref that
+    must be dereferenced, while a ``weak=False`` entry stores the function
+    itself (calling that would *invoke the receiver*, so check the type first).
+    A dead weakref lingers in ``signal.receivers`` until Django sweeps it, so
+    membership alone is not proof of life.
+    """
+    for entry in _receiver_entries(signal, uid, sender):
+        target = entry[1]
+        if isinstance(target, weakref.ReferenceType):
+            if target() is not None:
+                return True
+        else:
+            return True
+    return False
+
+
+def test_every_cost_change_dispatch_uid_is_registered_and_live():
+    """dispatch_uid is the identity Django dedupes registrations on, and these
+    strings predate any single scheme, so they must stay byte-identical. Also
+    asserts the set matches exactly, so registering an eleventh model without
+    listing it here fails *here* rather than somewhere less obvious."""
+    from django.apps import apps
+    from django.db.models.signals import post_save, pre_save
+
+    for model_name, change_uid, action_uid in COST_CHANGE_PAIRS:
+        model = apps.get_model("content", model_name)
+        assert _live(pre_save, change_uid, model), (
+            f"{model_name}: pre_save receiver not live for this sender"
+        )
+        assert _live(post_save, action_uid, model), (
+            f"{model_name}: post_save receiver not live for this sender"
+        )
+
+    # Scoped to the cost-change detectors by their `_cost_change` suffix rather
+    # than a `content_` prefix, so an unrelated pre_save receiver on a content
+    # model can't fail this test.
+    registered_pre = {
+        e[0][0]
+        for e in pre_save.receivers
+        if isinstance(e[0][0], str)
+        and e[0][0].endswith("_cost_change")
+        and _live(pre_save, e[0][0])
+    }
+    expected_pre = {change for _n, change, _a in COST_CHANGE_PAIRS}
+    assert registered_pre == expected_pre, (
+        "cost-change pre_save registrations drifted from COST_CHANGE_PAIRS"
+    )
+
+    # Same check on the other half of each pair, so a hand-written or unlisted
+    # `_cost_action` receiver can't slip past a matching pre_save set.
+    registered_post = {
+        e[0][0]
+        for e in post_save.receivers
+        if isinstance(e[0][0], str)
+        and e[0][0].endswith("_cost_action")
+        and _live(post_save, e[0][0])
+    }
+    expected_post = {action for _n, _c, action in COST_CHANGE_PAIRS}
+    assert registered_post == expected_post, (
+        "cost-change post_save registrations drifted from COST_CHANGE_PAIRS"
+    )
+
+
+def test_factory_receivers_survive_gc_with_debug_off():
+    """The factory's receivers must outlive garbage collection in production.
+
+    Django holds receivers weakly by default, so a closure built inside a
+    factory would be collected and the signal would silently stop firing. The
+    factory therefore connects with ``weak=False``.
+
+    This does NOT reproduce under the test settings: ``Signal.connect`` only
+    calls ``func_accepts_kwargs`` when ``settings.DEBUG`` is on, and that runs
+    through an ``lru_cache`` keyed on the function, which incidentally pins it.
+    So the bug is invisible in dev/CI and live in production — hence DEBUG off
+    here, and a control proving an ordinary weak receiver really does die.
+    """
+    import gc
+
+    from django.db.models.signals import post_save, pre_save
+    from django.dispatch import receiver
+    from django.test import override_settings
+
+    from gyrinx.content.models import signal_handlers
+
+    try:
+        with override_settings(DEBUG=False):
+            # Control: a weakly-connected closure with no other reference is
+            # collected. If this stops holding, the assertion below proves
+            # nothing.
+            def register_unheld():
+                @receiver(
+                    pre_save, sender=ContentEquipment, dispatch_uid="probe_unheld"
+                )
+                def _handler(sender, instance, **kwargs):
+                    pass
+
+            register_unheld()
+            gc.collect()
+            assert not _live(pre_save, "probe_unheld"), (
+                "control failed: an unreferenced weak receiver survived, so this "
+                "test cannot demonstrate that weak=False does anything"
+            )
+
+            # The factory's pair survives the same collection.
+            signal_handlers.register_cost_change(
+                ContentEquipment,
+                change_uid="probe_held_change",
+                action_uid="probe_held_action",
+            )
+            gc.collect()
+            assert _live(pre_save, "probe_held_change")
+            assert _live(post_save, "probe_held_action")
+    finally:
+        pre_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_unheld")
+        pre_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_held_change")
+        post_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_held_action")
