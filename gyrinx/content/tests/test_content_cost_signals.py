@@ -1440,10 +1440,13 @@ def test_every_cost_change_dispatch_uid_is_registered_and_live():
             f"{model_name}: post_save receiver not live"
         )
 
+    # Scoped to the cost-change detectors by their `_cost_change` suffix rather
+    # than a `content_` prefix, so an unrelated pre_save receiver on a content
+    # model can't fail this test.
     registered_pre = {
         e[0][0]
         for e in pre_save.receivers
-        if isinstance(e[0][0], str) and e[0][0].startswith("content_")
+        if isinstance(e[0][0], str) and e[0][0].endswith("_cost_change")
     }
     expected_pre = {change for _n, change, _a in COST_CHANGE_PAIRS}
     assert registered_pre == expected_pre, (
