@@ -100,26 +100,34 @@ class Battle(AppBase):
 
     @cached_property
     def name(self):
-        """Computed name for the battle."""
-        if self.date is not None:
-            battle_number = (
-                self.campaign.battles.filter(date__lt=self.date).count()
-                + self.campaign.battles.filter(
-                    date=self.date, created__lt=self.created
-                ).count()
-                + 1
-            )
-            return f"{self.mission} {self.date} #{battle_number}"
+        """Computed display name: the mission and date, with a disambiguating
+        ordinal only when it is needed.
 
-        # No date yet (pre-battle): number after dated battles, by creation order.
-        battle_number = (
-            self.campaign.battles.filter(date__isnull=False).count()
-            + self.campaign.battles.filter(
-                date__isnull=True, created__lt=self.created
-            ).count()
-            + 1
+        The ordinal used to be a campaign-wide sequence, so "Border Dispute
+        2026-07-19 #7" meant "the campaign's 7th battle" but read as "the 7th
+        Border Dispute". It now counts only within the group it disambiguates
+        — battles of the same mission on the same date in the same campaign —
+        and is left off entirely when the mission and date are already unique.
+        """
+        base = f"{self.mission} {self.date}" if self.date is not None else self.mission
+
+        if self.created is None:  # unsaved: nothing to compare against
+            return base
+
+        # One query for the whole group, this battle included. ``date=None``
+        # becomes IS NULL, so undated battles group with each other rather
+        # than with dated ones. Archived siblings still count, so archiving
+        # one battle doesn't silently rename another.
+        siblings = list(
+            self.campaign.battles.filter(
+                mission=self.mission, date=self.date
+            ).values_list("created", flat=True)
         )
-        return f"{self.mission} #{battle_number}"
+        if len(siblings) <= 1:
+            return base
+
+        ordinal = sum(1 for created in siblings if created < self.created) + 1
+        return f"{base} #{ordinal}"
 
     @property
     def result_recorded(self):

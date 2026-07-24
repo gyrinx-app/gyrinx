@@ -2,34 +2,9 @@ from django import forms
 from django.conf import settings
 from tinymce.widgets import TinyMCE
 
-# Additional TinyMCE configuration for forms
+# Additional TinyMCE configuration for forms. The menubar is off (see
+# TINYMCE_UPLOAD_CONFIG), so this is just the Markdown-style shortcuts.
 TINYMCE_EXTRA_ATTRS = {
-    "menu": {
-        "edit": {
-            "title": "Edit",
-            "items": "undo redo | cut copy paste pastetext | selectall | searchreplace",
-        },
-        "view": {
-            "title": "View",
-            "items": "code revisionhistory | visualaid visualchars visualblocks | spellchecker | preview fullscreen | showcomments",
-        },
-        "insert": {
-            "title": "Insert",
-            "items": "image link media addcomment pageembed codesample inserttable | math | charmap emoticons hr | pagebreak nonbreaking anchor tableofcontents | insertdatetime",
-        },
-        "format": {
-            "title": "Format",
-            "items": "bold italic underline strikethrough superscript subscript codeformat | styles blocks fontfamily fontsize align lineheight | forecolor backcolor | language | removeformat",
-        },
-        "tools": {
-            "title": "Tools",
-            "items": "spellchecker spellcheckerlanguage | a11ycheck code wordcount",
-        },
-        "table": {
-            "title": "Table",
-            "items": "inserttable | cell row column | advtablesort | tableprops deletetable",
-        },
-    },
     "textpattern_patterns": [
         {"start": "# ", "replacement": "<h1>%</h1>"},
         {"start": "## ", "replacement": "<h2>%</h2>"},
@@ -52,9 +27,21 @@ TINYMCE_UPLOAD_CONFIG = {
     "resize": "both",
     "width": "100%",
     "height": "400px",
-    "plugins": "autoresize autosave code emoticons fullscreen help image link lists quickbars textpattern visualblocks",
-    "toolbar": "undo redo | blocks | bold italic underline link image | numlist bullist align | code",
-    "menubar": "edit view insert format table tools help",
+    # Kept deliberately small. Across ~3,700 rich-text documents in production,
+    # 80%+ are plain paragraphs; tables, colours and font pickers are used by a
+    # handful of documents each, and nobody had ever set a text colour. The
+    # menubar (which carried tables, fonts, colours, code samples and media) is
+    # off, and the toolbar covers what people actually use.
+    "plugins": "autoresize autosave image link lists textpattern",
+    "toolbar": "undo redo | blocks | bold italic underline | bullist numlist | link image | removeformat",
+    "menubar": False,
+    # Images are laid out by the page, not hand-sized by the author: no
+    # width/height fields in the image dialog and no drag handles, both of
+    # which wrote inline dimensions (often percentages). Site CSS already caps
+    # images at the container width.
+    "image_dimensions": False,
+    "object_resizing": False,
+    "content_style": "img { max-width: 100%; height: auto; }",
     # Character encoding configuration
     "entity_encoding": "raw",  # Store UTF-8 characters instead of HTML entities
     # Image upload configuration
