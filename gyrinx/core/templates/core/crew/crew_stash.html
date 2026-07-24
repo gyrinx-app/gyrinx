@@ -19,30 +19,13 @@
                 often picked after the draw.
             {% endif %}
         </p>
-        {% if always_rows %}
-            <div>
-                <div class="form-label mb-1">Brought every battle</div>
-                <div class="vstack gap-2">
-                    {% for row in always_rows %}
-                        <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
-                            <div>
-                                <span class="fw-semibold">{{ row.name }}</span>
-                                {% if row.child_fighter %}<span class="text-secondary fs-7">· adds a fighter card</span>{% endif %}
-                            </div>
-                            <div class="fs-7 text-secondary ms-sm-auto">{{ row.cost }}¢</div>
-                        </div>
-                    {% endfor %}
-                </div>
-                <div class="form-text">These come to every battle automatically — they can't be left behind.</div>
-            </div>
-        {% endif %}
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             <div>
                 <div class="form-label mb-1">Stash equipment</div>
-                {% if optional_rows %}
+                {% if rows %}
                     <div class="vstack gap-2">
-                        {% for row in optional_rows %}
+                        {% for row in rows %}
                             <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-start align-items-sm-center">
                                 <div class="form-check mb-0">
                                     <input class="form-check-input"
@@ -64,12 +47,11 @@
                 {% else %}
                     <p class="text-secondary fs-7 mb-0">
                         <i class="bi-info-circle"></i>
-                        The stash has no equipment to bring.
-                        {% if not always_rows %}Buy gear into the gang's stash first.{% endif %}
+                        The stash has no equipment to bring — buy gear into the gang's stash first.
                     </p>
                 {% endif %}
             </div>
-            {% if optional_rows %}
+            {% if rows %}
                 <div class="hstack gap-3 align-items-center">
                     <button type="submit" class="btn btn-success">Save stash</button>
                     <a href="{{ parent_url }}" class="btn btn-link">Cancel</a>

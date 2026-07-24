@@ -310,11 +310,6 @@
                                     <strong>{{ s.name }}</strong>
                                     <span class="text-secondary fs-7">· Stash</span>
                                 {% endif %}
-                                {% if s.always_brought %}
-                                    <span class="badge text-bg-secondary ms-1"
-                                          data-bs-toggle="tooltip"
-                                          data-bs-title="Comes to every battle automatically">Always brought</span>
-                                {% endif %}
                             </td>
                             <td class="text-end">{{ s.cost }}¢</td>
                             <td></td>
@@ -401,9 +396,7 @@
                             </td>
                             <td></td>
                             <td></td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                         {% if receipt.has_stash %}
                             <tr>
@@ -426,9 +419,7 @@
                             <td></td>
                             <td></td>
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
-                            {% if receipt.has_free %}
-                                <td></td>
-                            {% endif %}
+                            {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                         {% if receipt.has_free %}
                             <tr>

@@ -4592,63 +4592,53 @@ def test_crew_page_opponent_fighter_count_does_not_raise_query_count(
 
 # --- Stash items -------------------------------------------------------------
 #
-# The gang's stash equipment can come to a battle: optional items are ticked per
-# crew (a CrewStashItem row), and content flagged crew_always_brought (the Iron
-# Automaton) joins every crew automatically. The selection stays editable on a
-# locked crew — gang terrain is picked after the draw.
+# The gang's stash equipment can come to a battle: items are ticked per crew (a
+# CrewStashItem row). Equipment flagged crew_treated_as_fighter (the Iron
+# Automaton) is not a stash item at all — its fighter card is picked on the
+# eligibility and selection screens. The selection stays editable on a locked
+# crew — gang terrain is picked after the draw.
 
 
 def _stash_with_gear(crew_setup, make_equipment):
-    """The gang's stash holding two optional items and one always-brought one.
-    Returns (stash, {name: assignment})."""
+    """The gang's stash holding two items. Returns (stash, {name: assignment})."""
     gang = crew_setup["gang"]
     gang.ensure_stash(owner=crew_setup["user"])
     # ensure_stash created it after the fixture's fighters loaded; refetch.
     stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
     ammo = make_equipment(name="Ammo Cache", cost=20)
     ram = make_equipment(name="Boarding Ram", cost=35)
-    automaton = make_equipment(name="Iron Automaton", cost=200)
-    automaton.crew_always_brought = True
-    automaton.save()
     by_name = {}
-    for eq in (ammo, ram, automaton):
+    for eq in (ammo, ram):
         by_name[eq.name] = stash.assign(eq)
     return stash, by_name
 
 
 @pytest.mark.django_db
-def test_crew_stash_rows_and_always_brought(crew_setup, make_equipment):
+def test_crew_stash_rows(crew_setup, make_equipment):
     _, gear = _stash_with_gear(crew_setup, make_equipment)
     crew = Crew.objects.create(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
 
     rows = {r["name"]: r for r in crew_stash_rows(crew)}
-    assert set(rows) == {"Ammo Cache", "Boarding Ram", "Iron Automaton"}
-    # The automaton is always brought — no row stored, no way to leave it.
-    assert rows["Iron Automaton"]["always_brought"] is True
-    assert rows["Iron Automaton"]["brought"] is True
-    # Optional items start unticked.
+    assert set(rows) == {"Ammo Cache", "Boarding Ram"}
+    # Items start unticked.
     assert rows["Ammo Cache"]["brought"] is False
     assert rows["Boarding Ram"]["cost"] == 35
 
 
 @pytest.mark.django_db
-def test_stash_save_reconciles_and_ignores_always_brought(crew_setup, make_equipment):
+def test_stash_save_reconciles(crew_setup, make_equipment):
     _, gear = _stash_with_gear(crew_setup, make_equipment)
     crew = Crew.objects.create(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
 
-    # Tick both optional items; the automaton id is ignored (computed, not stored).
+    # Tick both items.
     handle_crew_stash_save(
         user=crew_setup["user"],
         crew=crew,
-        assignment_ids={
-            gear["Ammo Cache"].id,
-            gear["Boarding Ram"].id,
-            gear["Iron Automaton"].id,
-        },
+        assignment_ids={gear["Ammo Cache"].id, gear["Boarding Ram"].id},
     )
     assert set(crew.stash_items.values_list("assignment_id", flat=True)) == {
         gear["Ammo Cache"].id,
@@ -4664,8 +4654,8 @@ def test_stash_save_reconciles_and_ignores_always_brought(crew_setup, make_equip
     }
 
     lines = crew_stash_lines(crew)
-    assert {r["name"] for r in lines["rows"]} == {"Ammo Cache", "Iron Automaton"}
-    assert lines["total"] == 20 + 200
+    assert {r["name"] for r in lines["rows"]} == {"Ammo Cache"}
+    assert lines["total"] == 20
 
 
 @pytest.mark.django_db
@@ -4789,11 +4779,7 @@ def test_stash_tab_renders_and_saves(client, crew_setup, make_equipment):
 
     resp = client.get(url)
     assert resp.status_code == 200
-    assert [r["name"] for r in resp.context["always_rows"]] == ["Iron Automaton"]
-    assert {r["name"] for r in resp.context["optional_rows"]} == {
-        "Ammo Cache",
-        "Boarding Ram",
-    }
+    assert {r["name"] for r in resp.context["rows"]} == {"Ammo Cache", "Boarding Ram"}
 
     resp = client.post(url, {"stash_items": [str(gear["Ammo Cache"].id)]})
     assert resp.status_code == 302
@@ -4836,10 +4822,10 @@ def test_receipt_includes_brought_stash(crew_setup, make_equipment):
     receipt = crew.receipt()
 
     assert receipt["has_stash"] is True
-    assert {r["name"] for r in receipt["stash"]} == {"Ammo Cache", "Iron Automaton"}
-    assert receipt["stash_total"] == 20 + 200
-    # Fighter (100) + stash (220): stash counts in the total...
-    assert receipt["total"] == 100 + 220
+    assert {r["name"] for r in receipt["stash"]} == {"Ammo Cache"}
+    assert receipt["stash_total"] == 20
+    # Fighter (100) + stash (20): stash counts in the total...
+    assert receipt["total"] == 100 + 20
     # ...but never in the fighters' own subtotal.
     assert receipt["fighters_total"] == 100
 
@@ -4863,7 +4849,7 @@ def test_stash_stays_out_of_frozen_rating_snapshots(crew_setup, make_equipment):
     handle_crew_lock(user=crew_setup["user"], crew=crew)
 
     crew.refresh_from_db()
-    # One 100¢ ganger; the 35¢ ram and 200¢ automaton aren't frozen in.
+    # One 100¢ ganger; the 35¢ ram isn't frozen in.
     assert crew.rating_selected == 100
 
 
@@ -4915,21 +4901,20 @@ def test_print_includes_stash_child_fighter_cards(
     assert assignment.child_fighter_id in ids
 
 
-@pytest.mark.django_db
-def test_always_brought_with_child_fighter_appears_untouched(
-    crew_setup, make_content_fighter, make_equipment
-):
-    """The Iron Automaton case end to end: fighter-linked equipment flagged
-    always-brought appears on a brand-new crew — stash never touched — with its
-    child fighter card, and prints, without any CrewStashItem stored."""
+def _automaton_in_stash(crew_setup, make_content_fighter, make_equipment):
+    """Stash equipment flagged *treated as a fighter*, with its linked card —
+    the Iron Automaton. Returns (assignment, child fighter)."""
     from gyrinx.content.models import ContentEquipmentFighterProfile
 
     gang = crew_setup["gang"]
     gang.ensure_stash(owner=crew_setup["user"])
     stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
     auto = make_equipment(name="Iron Automaton", cost=200)
-    auto.crew_always_brought = True
+    auto.crew_treated_as_fighter = True
     auto.save()
+    # The card itself is free — a fighter spawned by equipment is costed at zero
+    # (the gang books its value against the equipment), so the crew has to price
+    # it from the stash equipment: 200¢.
     auto_type = make_content_fighter(
         type="Iron Automaton",
         category=FighterCategoryChoices.BRUTE,
@@ -4940,25 +4925,110 @@ def test_always_brought_with_child_fighter_appears_untouched(
         equipment=auto, content_fighter=auto_type
     )
     assignment = stash.assign(auto)
+    return assignment, ListFighter.objects.get(pk=assignment.child_fighter_id)
+
+
+@pytest.mark.django_db
+def test_treated_as_fighter_is_selectable_like_a_fighter(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The Iron Automaton case: stash equipment flagged *treated as a fighter*
+    puts its card on the eligibility screen and in the pick/draw pool, like any
+    other fighter — not in the stash section."""
+    assignment, automaton = _automaton_in_stash(
+        crew_setup, make_content_fighter, make_equipment
+    )
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    # On the eligibility screen, defaulting to eligible like a normal fighter.
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[automaton.id] == CREW_ELIGIBLE
+    # And in the pool the Custom pick / Random draw works from.
+    assert automaton in set(eligible_crew_fighters(crew_setup["gang"]))
+    # It is NOT a stash item any more.
+    assert [r["name"] for r in crew_stash_rows(crew)] == []
+    assert crew.receipt()["has_stash"] is False
+
+
+@pytest.mark.django_db
+def test_treated_as_fighter_can_be_picked_and_prints(
+    client, crew_setup, make_content_fighter, make_equipment
+):
+    """Picked like any fighter: it becomes an attendee (not a stash row), counts
+    in the rating, and prints with the crew."""
+    assignment, automaton = _automaton_in_stash(
+        crew_setup, make_content_fighter, make_equipment
+    )
     crew = Crew.objects.create(
         battle=crew_setup["battle"],
-        list=gang,
+        list=crew_setup["gang"],
         owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
         custom_count=1,
-        status=Crew.LOCKED,
     )
-    add_chosen(crew, crew_setup["fighters"][:1])
+    client.force_login(crew_setup["user"])
 
+    resp = client.post(
+        reverse("core:crew-edit", args=[crew.battle_id, crew.id]),
+        {"chosen_fighters": [str(automaton.id)]},
+    )
+
+    assert resp.status_code == 302
+    assert [m.list_fighter_id for m in crew.members.all()] == [automaton.id]
     receipt = crew.receipt()
+    assert [a["name"] for a in receipt["attendees"]] == [automaton.name]
+    assert receipt["fighters_total"] == 200  # priced from its stash equipment
+    assert automaton.id in crew.print_fighter_ids()
 
-    # On the sheet automatically, with its fighter card, nothing stored.
-    assert crew.stash_items.count() == 0
-    row = next(r for r in receipt["stash"] if r["name"] == "Iron Automaton")
-    assert row["always_brought"] is True
-    assert row["child_fighter"].id == assignment.child_fighter_id
-    assert receipt["stash_total"] == 200
-    # And its card prints with the crew.
-    assert assignment.child_fighter_id in crew.print_fighter_ids()
+
+@pytest.mark.django_db
+def test_treated_as_fighter_respects_its_state(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """It's a fighter, so the normal availability rules apply — an automaton in
+    recovery defaults to not eligible."""
+    _, automaton = _automaton_in_stash(crew_setup, make_content_fighter, make_equipment)
+    automaton.injury_state = ListFighter.RECOVERY
+    automaton.save()
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    states = {row["fighter"].id: row["effective"] for row in crew_eligibility(crew)}
+    assert states[automaton.id] == CREW_NOT_ELIGIBLE
+
+
+@pytest.mark.django_db
+def test_unflagged_stash_card_stays_a_stash_item(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """Without the flag, stash equipment with a card (a gun emplacement) stays a
+    stash item and never joins the fighter roster."""
+    from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    gang = crew_setup["gang"]
+    gang.ensure_stash(owner=crew_setup["user"])
+    stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
+    emplacement = make_equipment(name="Gun Emplacement", cost=150)
+    terrain = make_content_fighter(
+        type="Gun Emplacement",
+        category=FighterCategoryChoices.GANG_TERRAIN,
+        house=crew_setup["fighters"][0].content_fighter.house,
+        base_cost=0,
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=emplacement, content_fighter=terrain
+    )
+    assignment = stash.assign(emplacement)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+
+    assert [r["name"] for r in crew_stash_rows(crew)] == ["Gun Emplacement"]
+    ids = {row["fighter"].id for row in crew_eligibility(crew)}
+    assert assignment.child_fighter_id not in ids
 
 
 @pytest.mark.django_db
