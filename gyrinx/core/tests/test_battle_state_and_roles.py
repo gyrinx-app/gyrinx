@@ -539,3 +539,28 @@ def test_battle_name_does_not_collide_across_campaigns(user, campaign, make_camp
     )
 
     assert mine.name == "Border Dispute 2026-07-19"
+
+
+@pytest.mark.django_db
+def test_battle_name_ordinals_are_distinct_when_created_at_the_same_instant(
+    user, campaign
+):
+    import datetime
+
+    day = datetime.date(2026, 7, 19)
+    first = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    second = Battle.objects.create(
+        campaign=campaign, mission="Border Dispute", date=day, owner=user
+    )
+    # Force identical creation timestamps: the pk breaks the tie, so the two
+    # battles still get distinct ordinals rather than both showing "#1".
+    Battle.objects.filter(pk__in=[first.pk, second.pk]).update(created=first.created)
+    first = Battle.objects.get(pk=first.pk)
+    second = Battle.objects.get(pk=second.pk)
+
+    assert {first.name, second.name} == {
+        "Border Dispute 2026-07-19 #1",
+        "Border Dispute 2026-07-19 #2",
+    }

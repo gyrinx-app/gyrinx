@@ -117,16 +117,20 @@ class Battle(AppBase):
         # One query for the whole group, this battle included. ``date=None``
         # becomes IS NULL, so undated battles group with each other rather
         # than with dated ones. Archived siblings still count, so archiving
-        # one battle doesn't silently rename another.
+        # one battle doesn't silently rename another. Groups are small — a
+        # handful of battles share a mission and date at most.
         siblings = list(
             self.campaign.battles.filter(
                 mission=self.mission, date=self.date
-            ).values_list("created", flat=True)
+            ).values_list("created", "pk")
         )
         if len(siblings) <= 1:
             return base
 
-        ordinal = sum(1 for created in siblings if created < self.created) + 1
+        # Rank by (created, pk): the pk breaks ties, so two battles saved in
+        # the same instant still get distinct, stable ordinals.
+        key = (self.created, self.pk)
+        ordinal = sum(1 for sibling in siblings if sibling < key) + 1
         return f"{base} #{ordinal}"
 
     @property
