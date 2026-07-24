@@ -23,14 +23,17 @@ DEFAULT_GANG_SORT = "-wealth"
 
 RESOURCE_PREFIX = "resource:"
 
-#: metric token -> (label, key function over a List)
-METRIC_SORTS: dict[str, tuple[str, Callable]] = {
-    "name": ("Gang name", lambda lst: lst.name.lower()),
-    "wealth": ("Wealth", lambda lst: lst.wealth_current),
-    "rating": ("Rating", lambda lst: lst.rating_current),
-    "stash": ("Stash", lambda lst: lst.stash_current),
-    "credits": ("Credits", lambda lst: lst.credits_current),
+#: metric token -> (label, short label, key function over a List)
+METRIC_SORTS: dict[str, tuple[str, str, Callable]] = {
+    "name": ("Gang name", "", lambda lst: lst.name.lower()),
+    "rating": ("Rating", "R", lambda lst: lst.rating_current),
+    "credits": ("Credits", "Cr", lambda lst: lst.credits_current),
+    "stash": ("Stash", "St", lambda lst: lst.stash_current),
+    "wealth": ("Wealth", "W", lambda lst: lst.wealth_current),
 }
+
+#: The gang's own figures, in the order the list header shows them: R Cr St W.
+INTRINSIC_METRICS = ("rating", "credits", "stash", "wealth")
 
 
 @dataclass(frozen=True)
@@ -87,7 +90,7 @@ def parse_gang_sort(token, resource_types, resource_lookup=None) -> Optional[Gan
         return None
 
     if metric in METRIC_SORTS:
-        label, key = METRIC_SORTS[metric]
+        label, _short, key = METRIC_SORTS[metric]
         return GangSort(metric=metric, descending=descending, label=label, key=key)
 
     if metric.startswith(RESOURCE_PREFIX):
@@ -138,27 +141,39 @@ def sort_lists(lists, gang_sort):
 
 
 def build_sort_options(current, resource_types):
-    """Dropdown options for the sort control.
+    """Options for the sort control, grouped the way the dropdown shows them.
+
+    The gang's own figures are laid out as an R / Cr / St / W row, mirroring the
+    stats table in the list header; the campaign's resources follow below.
 
     Selecting the metric already in use flips its direction; selecting any other
     metric uses its natural direction — highest first for numbers, A–Z for names.
     """
-    options = [
-        _option(metric, label, current) for metric, (label, _) in METRIC_SORTS.items()
-    ]
-    options += [
-        _option(f"{RESOURCE_PREFIX}{resource_type.id}", resource_type.name, current)
-        for resource_type in resource_types
-    ]
-    return options
+    return {
+        "name": _option("name", current),
+        "intrinsics": [_option(metric, current) for metric in INTRINSIC_METRICS],
+        "resources": [
+            _option(
+                f"{RESOURCE_PREFIX}{resource_type.id}",
+                current,
+                label=resource_type.name,
+            )
+            for resource_type in resource_types
+        ],
+    }
 
 
-def _option(metric, label, current):
+def _option(metric, current, label=None):
+    if label is None:
+        label, short_label, _key = METRIC_SORTS[metric]
+    else:
+        short_label = ""
     active = current.metric == metric
     descending = not current.descending if active else metric != "name"
     return {
         "value": f"-{metric}" if descending else metric,
         "label": label,
+        "short_label": short_label,
         "active": active,
         # Shown on the active option: which way it is currently sorted.
         "icon": current.icon if active else "",

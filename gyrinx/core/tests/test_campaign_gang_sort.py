@@ -112,10 +112,11 @@ def test_sort_by_resource(client, user, campaign, gangs):
     response = get_campaign(client, campaign, sort=f"resource:{reputation.id}")
     assert gang_names(response) == ["Alpha", "Charlie", "Bravo"]
 
-    # The resource appears as a sort option, alongside the cost figures.
-    labels = [option["label"] for option in response.context["gang_sort_options"]]
-    assert "Reputation" in labels
-    assert "Wealth" in labels
+    # The resource is offered below the gang's own R / Cr / St / W figures.
+    options = response.context["gang_sort_options"]
+    assert [o["short_label"] for o in options["intrinsics"]] == ["R", "Cr", "St", "W"]
+    assert [o["label"] for o in options["resources"]] == ["Reputation"]
+    assert options["resources"][0]["active"] is True
 
 
 @pytest.mark.django_db
@@ -313,3 +314,23 @@ def test_only_admins_are_offered_the_default_sort_control(
 
     assert "sort=-wealth" in content
     assert "Set as default for this Campaign" not in content
+
+
+@pytest.mark.django_db
+def test_active_intrinsic_is_marked_and_flips_direction(client, user, campaign, gangs):
+    """The R/Cr/St/W row marks the active figure and offers the opposite way."""
+    client.force_login(user)
+
+    options = get_campaign(client, campaign, sort="-rating").context[
+        "gang_sort_options"
+    ]
+    by_short = {o["short_label"]: o for o in options["intrinsics"]}
+
+    assert by_short["R"]["active"] is True
+    assert by_short["R"]["icon"] == "bi-sort-down"
+    # Choosing the active figure again turns the sort around.
+    assert by_short["R"]["value"] == "rating"
+    assert by_short["W"]["active"] is False
+    # Everything else starts highest-first.
+    assert by_short["W"]["value"] == "-wealth"
+    assert options["name"]["value"] == "name"

@@ -643,3 +643,110 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 });
+
+// Keep the viewport still across a reload triggered by [data-gy-keep-scroll].
+//
+// URL-driven controls (the campaign gang sort) navigate rather than mutate the
+// DOM, so choosing an option would otherwise jump the page — to the top, or to
+// whatever anchor the link carries. We stash the scroll offset on the way out
+// and restore it on the way in, so the change reads as if it happened in place.
+// Links are followed without their anchor when JS is doing the restoring; with
+// no JS the anchor survives and still lands you at the section.
+(() => {
+    const KEY = "gy:keep-scroll";
+
+    const remember = () => {
+        try {
+            sessionStorage.setItem(
+                KEY,
+                JSON.stringify({
+                    path: window.location.pathname,
+                    y: window.scrollY,
+                }),
+            );
+            return true;
+        } catch {
+            // Storage can be unavailable (private mode, blocked cookies). Fall
+            // back to the plain navigation.
+            return false;
+        }
+    };
+
+    document.addEventListener("click", (event) => {
+        const link = event.target.closest("a[data-gy-keep-scroll]");
+        if (!link || event.defaultPrevented) return;
+        // Leave modified clicks (new tab, download, …) to the browser.
+        if (
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+        ) {
+            return;
+        }
+        if (!remember()) return;
+
+        // Drop the anchor: we're restoring the exact offset ourselves, and
+        // letting the browser jump to the section first would show as a flash.
+        const url = new URL(link.href, window.location.href);
+        url.hash = "";
+        event.preventDefault();
+        window.location.assign(url.href);
+    });
+
+    // Forms post and redirect back; the redirect's anchor lands near the right
+    // place and the restore below corrects it.
+    document.addEventListener("submit", (event) => {
+        if (event.target.closest("form[data-gy-keep-scroll]")) remember();
+    });
+
+    // Scroll back, retrying briefly: right after DOMContentLoaded the page can
+    // still be shorter than its final height (images without dimensions, late
+    // fonts), and a scroll past the bottom is silently clamped. Give up once we
+    // land, after a second, or as soon as the reader scrolls for themselves.
+    const restore = (y) => {
+        let cancelled = false;
+        const cancel = () => {
+            cancelled = true;
+        };
+        ["wheel", "touchstart", "keydown"].forEach((type) =>
+            window.addEventListener(type, cancel, {
+                once: true,
+                passive: true,
+            }),
+        );
+
+        const deadline = performance.now() + 1000;
+        const step = () => {
+            if (cancelled) return;
+            // "instant" on purpose: the site scrolls smoothly by default, which
+            // here would both look wrong and never settle — each retry would
+            // restart the animation from wherever it had got to.
+            window.scrollTo({ top: y, left: 0, behavior: "instant" });
+            if (
+                Math.abs(window.scrollY - y) < 2 ||
+                performance.now() > deadline
+            ) {
+                return;
+            }
+            // A timer rather than requestAnimationFrame: frames are paused in a
+            // background tab, and a page restored there should still come back
+            // to the right place when the reader returns to it.
+            window.setTimeout(step, 50);
+        };
+        step();
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+        let saved;
+        try {
+            saved = JSON.parse(sessionStorage.getItem(KEY));
+            sessionStorage.removeItem(KEY);
+        } catch {
+            return;
+        }
+        if (!saved || saved.path !== window.location.pathname) return;
+        if (saved.y > 0) restore(saved.y);
+    });
+})();
