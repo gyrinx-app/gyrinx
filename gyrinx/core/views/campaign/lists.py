@@ -21,6 +21,7 @@ from gyrinx.core.models.list import List
 from gyrinx.core.models.pack import CustomContentPack
 from gyrinx.tracker import track
 from gyrinx.core.views.campaign.common import get_campaign_admin_or_404
+from gyrinx.core.views.campaign.gang_sort import parse_gang_sort
 
 
 @login_required
@@ -462,3 +463,56 @@ def campaign_remove_list(request, id, list_id):
             "list": list_to_remove,
         },
     )
+
+
+@login_required
+def campaign_set_default_gang_sort(request, id):
+    """
+    Store the campaign's default ordering for the Gangs table (#1459).
+
+    Accepts a POST with ``sort`` — a gang sort token such as ``-wealth`` or
+    ``-resource:<resource type id>``. Anyone can reorder their own view of the
+    table with ``?sort=``; this makes the current choice the one every viewer
+    gets by default.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` being updated.
+    """
+    campaign = get_campaign_admin_or_404(request, id)
+    redirect_url = reverse("core:campaign", args=(campaign.id,)) + "#gangs"
+
+    if campaign.archived:
+        messages.error(request, "Cannot modify an archived Campaign.")
+        return HttpResponseRedirect(redirect_url)
+
+    if request.method != "POST":
+        return HttpResponseRedirect(redirect_url)
+
+    resource_types = campaign.resource_types.all()
+    gang_sort = parse_gang_sort(request.POST.get("sort", ""), resource_types)
+    if not gang_sort:
+        messages.error(request, "That's not a sort we can save.")
+        return HttpResponseRedirect(redirect_url)
+
+    campaign.default_gang_sort = gang_sort.token
+    campaign.save_with_user(user=request.user)
+
+    log_event(
+        user=request.user,
+        noun=EventNoun.CAMPAIGN,
+        verb=EventVerb.UPDATE,
+        object=campaign,
+        request=request,
+        campaign_id=str(campaign.id),
+        campaign_name=campaign.name,
+        action="set_default_gang_sort",
+        gang_sort=gang_sort.token,
+    )
+
+    messages.success(
+        request,
+        f"Gangs now sort by {gang_sort.label} ({gang_sort.direction_label}) by default.",
+    )
+    return HttpResponseRedirect(redirect_url)

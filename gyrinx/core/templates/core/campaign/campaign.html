@@ -254,10 +254,13 @@
         </div>
         {% include "core/includes/notification_banners.html" %}
         <!-- Gangs -->
-        <section>
+        <section id="gangs">
             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                 <h2 class="h5 mb-0">Gangs</h2>
-                <div class="hstack gap-3">
+                <div class="hstack gap-3 flex-wrap justify-content-end">
+                    {% if campaign.has_lists %}
+                        {% include "core/campaign/includes/campaign_gangs_sort.html" %}
+                    {% endif %}
                     {% if attribute_types %}
                         <a href="{% url 'core:campaign-attributes' campaign.id %}"
                            class="linked fs-7">Manage Attributes →</a>
@@ -275,7 +278,7 @@
                 </div>
             </div>
             <div class="px-2">
-                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists resource_types=resource_types resource_lookup=resource_lookup %}
+                {% include "core/campaign/includes/campaign_lists.html" with lists=sorted_lists pending_invitations=pending_invitations attribute_types=visible_attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists resource_types=resource_types resource_lookup=resource_lookup %}
             </div>
         </section>
         <!-- Assets, Battles, Action Log & Captured Fighters -->

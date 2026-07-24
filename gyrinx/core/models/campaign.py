@@ -102,6 +102,16 @@ class Campaign(AppBase):
         related_name="+",
         help_text="The attribute type used to group and visually divide lists in the campaign view. Must be single-select.",
     )
+    default_gang_sort = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text=(
+            "Default ordering for the gang table on the campaign page — a metric "
+            "name, prefixed with '-' for descending: e.g. '-wealth', 'name', or "
+            "'-resource:<resource type id>'. Blank means wealth, highest first."
+        ),
+    )
     packs = models.ManyToManyField(
         "CustomContentPack",
         blank=True,

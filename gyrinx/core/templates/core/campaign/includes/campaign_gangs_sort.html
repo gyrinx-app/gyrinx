@@ -1,0 +1,51 @@
+{% load custom_tags %}
+{% comment %}
+    Sort control for the campaign Gangs table (#1459).
+
+    URL-driven: every option is a link back to this page carrying ?sort=, so the
+    server renders the order and the view is linkable. Admins can save the sort
+    they're looking at as the campaign default.
+{% endcomment %}
+<div class="btn-group">
+    <button type="button"
+            class="btn btn-outline-primary btn-sm dropdown-toggle"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+        <span class="d-none d-sm-inline">Sort:</span> {{ gang_sort.label }}
+        <i class="{{ gang_sort.icon }}"></i>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end shadow-sm fs-7">
+        {% for option in gang_sort_options %}
+            <a class="dropdown-item{% if option.active %} active{% endif %}"
+               href="?{% qt request sort=option.value %}#gangs">
+                {{ option.label }}
+                {% if option.active %}<i class="{{ option.icon }}"></i>{% endif %}
+            </a>
+        {% endfor %}
+        {% if campaign.group_attribute_type %}
+            <div class="dropdown-divider"></div>
+            {% if show_groups %}
+                <a class="dropdown-item icon-link"
+                   href="?{% qt request group=0 %}#gangs">
+                    <i class="bi-list-ul"></i> Sort across all gangs
+                </a>
+            {% else %}
+                <a class="dropdown-item icon-link"
+                   href="?{% qt request group=None %}#gangs">
+                    <i class="bi-collection"></i> Group by {{ campaign.group_attribute_type.name }}
+                </a>
+            {% endif %}
+        {% endif %}
+        {% if is_admin and can_set_default_gang_sort and not campaign.archived %}
+            <div class="dropdown-divider"></div>
+            <form method="post"
+                  action="{% url 'core:campaign-set-default-gang-sort' campaign.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="sort" value="{{ gang_sort.token }}">
+                <button type="submit" class="dropdown-item icon-link">
+                    <i class="bi-pin-angle"></i> Set as default for this Campaign
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</div>
