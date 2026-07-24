@@ -369,7 +369,8 @@ def crew_edit(request, battle_id, crew_id):
                 equipment_sets=form.cleaned_data.get("equipment_sets"),
                 included_categories=crew.included_categories,
             )
-            # The crew page has no tabs, so carry the over-pick state there.
+            # Carry the over-pick state into the message too: it is easy to miss
+            # the tab strip's warning icon on the way past.
             chosen_count = crew.members.filter(source=CrewMember.CHOSEN).count()
             if crew.custom_count is not None and chosen_count > crew.custom_count:
                 messages.warning(

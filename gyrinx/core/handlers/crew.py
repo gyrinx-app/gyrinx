@@ -203,7 +203,10 @@ def with_crew_cost_data(fighters):
     """Load ``fighters`` for crew costing.
 
     ``with_related_data()`` clears inherited prefetches, so the stash-equipment
-    prefetch that :func:`crew_fighter_cost` needs has to be applied *after* it.
+    lookups that :func:`crew_fighter_cost` needs have to be applied *after* it.
+    Note this covers finding the assignment, not pricing it: costing a flagged
+    card still fans out over its own profiles and upgrades (a few queries per
+    card, and a gang holds very few).
     """
     return fighters.with_related_data().prefetch_related(
         "source_assignment__content_equipment",
@@ -1097,8 +1100,12 @@ def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
             ListFighterEquipmentAssignment.objects.filter(
                 list_fighter=stash,
                 archived=False,
-                content_equipment__crew_treated_as_fighter=False,
-            ).values_list("id", flat=True)
+            )
+            .exclude(
+                content_equipment__crew_treated_as_fighter=True,
+                child_fighter__isnull=False,
+            )
+            .values_list("id", flat=True)
         )
         if stash is not None
         else set()

@@ -5157,3 +5157,80 @@ def test_flagged_gear_on_a_regular_fighter_is_not_double_counted(
 
     # The owner carries the 200¢; the child stays free.
     assert crew_fighter_cost(child) == 0
+
+
+@pytest.mark.django_db
+def test_member_rating_prices_a_treated_as_fighter_card(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """The per-member accessor agrees with the crew's own rating."""
+    _, automaton = _automaton_in_stash(crew_setup, make_content_fighter, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    member = CrewMember.objects.create(
+        crew=crew,
+        list_fighter=automaton,
+        source=CrewMember.CHOSEN,
+        owner=crew_setup["user"],
+    )
+
+    assert member.rating() == 200
+    assert crew.live_rating() == 200
+
+
+@pytest.mark.django_db
+def test_flagged_equipment_without_a_card_stays_a_stash_item(
+    crew_setup, make_equipment
+):
+    """The flag only means anything for equipment that brings a fighter card.
+    Flagged gear with no card must not vanish from both places."""
+    gang = crew_setup["gang"]
+    gang.ensure_stash(owner=crew_setup["user"])
+    stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
+    odd = make_equipment(name="Mystery Crate", cost=40)
+    odd.crew_treated_as_fighter = True  # flagged, but brings no fighter
+    odd.save()
+    assignment = stash.assign(odd)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=gang, owner=crew_setup["user"]
+    )
+
+    assert [r["name"] for r in crew_stash_rows(crew)] == ["Mystery Crate"]
+    # And it can still be brought.
+    handle_crew_stash_save(
+        user=crew_setup["user"], crew=crew, assignment_ids={assignment.id}
+    )
+    assert crew.stash_items.count() == 1
+
+
+@pytest.mark.django_db
+def test_saving_picks_moves_on_to_the_stash_tab(client, crew_setup):
+    """The wizard walks Set up -> Choose -> Stash, so saving picks lands on the
+    stash step rather than dropping out to the crew sheet."""
+    client.force_login(crew_setup["user"])
+    crew = _create_crew(client, crew_setup, method=Crew.CUSTOM, custom_count="1")
+
+    resp = client.post(
+        reverse("core:crew-edit", args=[crew.battle_id, crew.id]),
+        {"chosen_fighters": [str(crew_setup["fighters"][0].id)]},
+    )
+
+    assert resp.status_code == 302
+    assert resp.url == reverse("core:crew-stash", args=[crew.battle_id, crew.id])
+
+
+@pytest.mark.django_db
+def test_random_setup_skips_ahead_to_the_stash_tab(client, crew_setup):
+    """A Random crew has nothing to choose, so setup goes straight to stash."""
+    client.force_login(crew_setup["user"])
+    gang = crew_setup["gang"]
+
+    resp = client.post(
+        _crew_new_url(crew_setup, Crew.RANDOM),
+        _setup_data(gang, method=Crew.RANDOM, dice="D3", number=""),
+    )
+
+    crew = Crew.objects.get(battle=crew_setup["battle"], list=gang)
+    assert resp.status_code == 302
+    assert resp.url == reverse("core:crew-stash", args=[crew.battle_id, crew.id])

@@ -143,6 +143,10 @@ def crew_fighter_cost(fighter, equipment_set=None):
     N+1 path.
     """
     cost = fighter.cost_int_for_equipment_set(equipment_set)
+    if fighter.is_captured or fighter.is_sold_to_guilders:
+        # Worth nothing to its old gang; adding the equipment back would
+        # contradict the zero its own cost already reports.
+        return cost
     for assignment in fighter.source_assignment.all():
         if (
             assignment.content_equipment.crew_treated_as_fighter
@@ -560,7 +564,10 @@ class Crew(AppBase):
         members = list(self.members.all())
         loaded = (
             ListFighter.objects.with_related_data()
-            .prefetch_related("source_assignment__content_equipment")
+            .prefetch_related(
+                "source_assignment__content_equipment",
+                "source_assignment__list_fighter__content_fighter",
+            )
             .in_bulk([m.list_fighter_id for m in members])
         )
 
@@ -725,7 +732,13 @@ class Crew(AppBase):
             ListFighterEquipmentAssignment.objects.filter(
                 list_fighter=stash,
                 archived=False,
-                content_equipment__crew_treated_as_fighter=False,
+            )
+            # Only a flagged assignment that actually brings a card leaves the
+            # stash — flagged equipment with no linked fighter has nowhere else
+            # to appear, so it stays a normal stash item.
+            .exclude(
+                content_equipment__crew_treated_as_fighter=True,
+                child_fighter__isnull=False,
             )
             .with_related_data()
             .select_related("child_fighter__content_fighter")
@@ -957,7 +970,7 @@ class CrewMember(AppBase):
         """
         if self.rating_played is not None:
             return self.rating_played
-        return self.list_fighter.cost_int_for_equipment_set(self.equipment_set)
+        return crew_fighter_cost(self.list_fighter, self.equipment_set)
 
 
 class CrewLineItem(AppBase):
