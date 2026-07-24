@@ -120,8 +120,11 @@ class Battle(AppBase):
         # one battle doesn't silently rename another. Groups are small — a
         # handful of battles share a mission and date at most.
         siblings = list(
-            self.campaign.battles.filter(
-                mission=self.mission, date=self.date
+            # campaign_id, not self.campaign: reading the FK would fetch the
+            # campaign for any battle not loaded with select_related, which is
+            # how battle names get rendered in the campaign action log.
+            Battle.objects.filter(
+                campaign_id=self.campaign_id, mission=self.mission, date=self.date
             ).values_list("created", "pk")
         )
         if len(siblings) <= 1:
