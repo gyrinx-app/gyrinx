@@ -13,9 +13,7 @@
                 {% include "core/includes/_list_card_toggle.html" with target="list-card-actions" label="Actions" open=request.GET.actions_open %}
             {% endif %}
         </div>
-        <div id="list-card-actions"
-             class="{% if not print %}collapse list-card-collapse{% if request.GET.actions_open == '1' %} show{% endif %}{% endif %}"
-             data-gy-collapse-url="actions_open">
+        <div id="list-card-actions" class="{% if not print %}collapse list-card-collapse{% if request.GET.actions_open == '1' %} show{% endif %}{% endif %}" data-gy-collapse-url="actions_open">
             <div class="px-2">
                 <p class="text-secondary fs-7 mb-2">
                     From <a href="{% url 'core:campaign' list.campaign.id %}" class="linked">{{ list.campaign.name }}</a>

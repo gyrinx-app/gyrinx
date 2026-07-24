@@ -7,9 +7,7 @@
                 {% include "core/includes/_list_card_toggle.html" with target="list-card-assets" label="Assets & Resources" open=request.GET.assets_open %}
             {% endif %}
         </div>
-        <div id="list-card-assets"
-             class="{% if not print %}collapse list-card-collapse{% if request.GET.assets_open == '1' %} show{% endif %}{% endif %}"
-             data-gy-collapse-url="assets_open">
+        <div id="list-card-assets" class="{% if not print %}collapse list-card-collapse{% if request.GET.assets_open == '1' %} show{% endif %}{% endif %}" data-gy-collapse-url="assets_open">
             <div class="px-2">
                 <div class="vstack gap-3">
                     {% if held_assets %}
