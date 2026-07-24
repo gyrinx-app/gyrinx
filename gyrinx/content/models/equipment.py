@@ -465,13 +465,16 @@ class ContentEquipment(FighterCostMixin, Content):
         ),
     )
 
-    crew_always_brought = models.BooleanField(
+    crew_treated_as_fighter = models.BooleanField(
         default=False,
+        verbose_name="Treated as a fighter for crews",
         help_text=(
-            "When this equipment sits in a gang's stash, it is brought to every "
-            "battle automatically — it appears in each crew's stash section and "
-            "can't be left behind (e.g. the Iron Automaton, which is effectively "
-            "part of the gang once owned)."
+            "When this equipment sits in a gang's stash, the fighter card it "
+            "brings is treated as one of the gang's fighters when a crew is "
+            "picked: it appears on the crew's eligibility and selection screens "
+            "like any other fighter, rather than as a stash item (e.g. the Iron "
+            "Automaton, which is effectively part of the gang once owned). Only "
+            "meaningful for equipment that has a linked fighter."
         ),
     )
 

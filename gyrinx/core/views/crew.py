@@ -124,15 +124,21 @@ def _redirect_battle(battle):
     return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
 
+def _redirect_stash(crew):
+    return HttpResponseRedirect(
+        reverse("core:crew-stash", args=[crew.battle_id, crew.id])
+    )
+
+
 def _redirect_after_setup(crew):
     """After setup, Custom and Hybrid crews still need fighters chosen, so land
-    on the selection screen; Random crews name nobody (drawn on confirm), so go
-    straight to the crew page."""
+    on the selection screen; Random crews name nobody (drawn on confirm), so
+    they skip ahead to the stash step."""
     if crew.selection_method in (Crew.CUSTOM, Crew.HYBRID):
         return HttpResponseRedirect(
             reverse("core:crew-edit", args=[crew.battle_id, crew.id])
         )
-    return _redirect_crew(crew)
+    return _redirect_stash(crew)
 
 
 def _apply_crew_setup(*, request, crew, form, method, included):
@@ -363,7 +369,8 @@ def crew_edit(request, battle_id, crew_id):
                 equipment_sets=form.cleaned_data.get("equipment_sets"),
                 included_categories=crew.included_categories,
             )
-            # The crew page has no tabs, so carry the over-pick state there.
+            # Carry the over-pick state into the message too: it is easy to miss
+            # the tab strip's warning icon on the way past.
             chosen_count = crew.members.filter(source=CrewMember.CHOSEN).count()
             if crew.custom_count is not None and chosen_count > crew.custom_count:
                 messages.warning(
@@ -373,7 +380,9 @@ def crew_edit(request, battle_id, crew_id):
                 )
             else:
                 messages.success(request, "Crew updated.")
-            return _redirect_crew(crew)
+            # Walk on to the last step of the wizard rather than dropping out to
+            # the crew sheet — the stash still has to be chosen.
+            return _redirect_stash(crew)
     else:
         form = CrewForm(crew=crew)
 
@@ -475,8 +484,6 @@ def crew_stash(request, battle_id, crew_id):
 
     Deliberately NOT lock-gated: gang terrain and the like are picked after the
     crew is drawn, so the selection stays editable on a locked crew.
-    Always-brought items (content flagged, e.g. the Iron Automaton) are shown but
-    can't be unticked — they come to every battle.
     """
     crew = _get_crew(battle_id, crew_id)
 
@@ -497,7 +504,6 @@ def crew_stash(request, battle_id, crew_id):
         messages.success(request, "Crew stash updated.")
         return _redirect_crew(crew)
 
-    rows = crew_stash_rows(crew)
     return render(
         request,
         "core/crew/crew_stash.html",
@@ -505,8 +511,7 @@ def crew_stash(request, battle_id, crew_id):
             "crew": crew,
             "battle": crew.battle,
             "gang": crew.list,
-            "always_rows": [r for r in rows if r["always_brought"]],
-            "optional_rows": [r for r in rows if not r["always_brought"]],
+            "rows": crew_stash_rows(crew),
             "active_tab": "stash",
         },
     )

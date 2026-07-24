@@ -23,12 +23,14 @@ from gyrinx.core.handlers.crew import (
     compute_crew_eligibility,
     eligible_crew_fighters,
     fighter_crew_status_badges,
+    with_crew_cost_data,
 )
 from gyrinx.core.models.crew import (
     Crew,
     CrewLineItem,
     CrewMember,
     build_selection_spec,
+    crew_fighter_cost,
     split_selection_spec,
 )
 from gyrinx.core.models.list import ListFighter
@@ -79,16 +81,24 @@ RANDOM_GROUP = {
 
 class CrewFighterChoiceField(forms.ModelMultipleChoiceField):
     """Fighter checkboxes labelled ``**name** · category (rating)`` instead of
-    the raw ``__str__``. The queryset should be loaded via ``with_related_data``
-    so the category and cached cost read from the prefetch cache."""
+    the raw ``__str__``. Load the queryset via
+    :func:`~gyrinx.core.handlers.crew.with_crew_cost_data` — the label costs each
+    fighter with ``crew_fighter_cost``, which needs the stash equipment
+    prefetched alongside the rest, or the list costs a query per fighter."""
 
     def label_from_instance(self, obj):
         return format_html(
             "<strong>{}</strong> · {} ({}¢)",
             obj.name,
             obj.content_fighter.get_category_display(),
-            obj.cost_int_cached,
+            crew_fighter_cost(obj),
         )
+
+
+def _with_crew_cost(fighter):
+    """Stamp a fighter with its crew cost so the template can read it directly."""
+    fighter.crew_cost = crew_fighter_cost(fighter)
+    return fighter
 
 
 def equipment_set_field_name(fighter_id):
@@ -158,14 +168,16 @@ class CrewForm(forms.Form):
         self.eligibility_overrides = getattr(crew, "eligibility_overrides", None) or {}
         self.method_intro = METHOD_INTRO[self.method]
 
-        # with_related_data() so the checkbox labels (category + cached cost) and
-        # each fighter's equipment sets render without a query per fighter.
+        # Loaded with the crew-cost data so the checkbox labels (category + cost)
+        # and each fighter's equipment sets render without a query per fighter.
         self.eligible = (
-            eligible_crew_fighters(
-                self.gang,
-                included=self.included_categories,
-                overrides=self.eligibility_overrides,
-            ).with_related_data()
+            with_crew_cost_data(
+                eligible_crew_fighters(
+                    self.gang,
+                    included=self.included_categories,
+                    overrides=self.eligibility_overrides,
+                )
+            )
             if self.gang is not None
             else ListFighter.objects.none()
         )
@@ -174,13 +186,16 @@ class CrewForm(forms.Form):
         # marked "included" on setup). Shown read-only on the selection screen so
         # the player can see who's coming on top of their picks / the draw.
         self.always_included_fighters = (
-            list(
-                always_included_crew_fighters(
-                    self.gang,
-                    included=self.included_categories,
-                    overrides=self.eligibility_overrides,
-                ).with_related_data()
-            )
+            [
+                _with_crew_cost(fighter)
+                for fighter in with_crew_cost_data(
+                    always_included_crew_fighters(
+                        self.gang,
+                        included=self.included_categories,
+                        overrides=self.eligibility_overrides,
+                    )
+                )
+            ]
             if self.gang is not None
             else []
         )
@@ -247,16 +262,17 @@ class CrewForm(forms.Form):
         otherwise), and the fighter's current cost. Pairing these here keeps the
         template free of dynamic field-name lookups.
 
-        ``cost`` is the same ``cost_int_cached`` shown in the checkbox label,
-        read from the fighters already loaded via ``with_related_data()`` — no
-        query per fighter — and surfaced as a data attribute so a small progressive
+        ``cost`` is the same ``crew_fighter_cost`` shown in the checkbox label,
+        read from the fighters already loaded via
+        :func:`~gyrinx.core.handlers.crew.with_crew_cost_data` — no query per
+        fighter — and surfaced as a data attribute so a small progressive
         enhancement can total the ticked fighters. It is the fighter's whole-kit
         cost, not scoped to the equipment set they bring; the label shows the same
         number, so the running total matches what the player reads off each row.
         """
         if not self.shows_picks:
             return []
-        cost_by_id = {str(f.pk): f.cost_int_cached for f in self.eligible_fighters}
+        cost_by_id = {str(f.pk): crew_fighter_cost(f) for f in self.eligible_fighters}
         rows = []
         for checkbox in self["chosen_fighters"]:
             value = checkbox.data["value"]
@@ -429,7 +445,7 @@ class CrewSetupForm(forms.Form):
                     "default": row["default"],
                     "effective": row["effective"],
                     "category": fighter.content_fighter.get_category_display(),
-                    "cost": fighter.cost_int_cached,
+                    "cost": crew_fighter_cost(fighter),
                     "status_badges": fighter_crew_status_badges(fighter),
                 }
             )

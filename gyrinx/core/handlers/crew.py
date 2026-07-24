@@ -24,7 +24,7 @@ from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from gyrinx.core.models.campaign import CampaignAction
@@ -32,6 +32,7 @@ from gyrinx.core.models.crew import (
     Crew,
     CrewMember,
     CrewStashItem,
+    crew_fighter_cost,
     roll_selection_spec,
 )
 from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
@@ -198,29 +199,73 @@ def fighter_crew_status_badges(fighter):
     return badges
 
 
+def with_crew_cost_data(fighters):
+    """Load ``fighters`` for crew costing.
+
+    ``with_related_data()`` clears inherited prefetches, so the stash-equipment
+    lookups that :func:`crew_fighter_cost` needs have to be applied *after* it.
+    Note this covers finding the assignment, not pricing it: costing a flagged
+    card still fans out over its own profiles and upgrades (a few queries per
+    card, and a gang holds very few).
+    """
+    return fighters.with_related_data().prefetch_related(
+        "source_assignment__content_equipment",
+        "source_assignment__list_fighter__content_fighter",
+    )
+
+
+def _treated_as_fighter():
+    """``Exists`` for "this fighter card comes from stash equipment flagged
+    *treated as a fighter*" — the Iron Automaton case, where the card is
+    effectively one of the gang's fighters rather than a piece of kit."""
+    return Exists(
+        ListFighterEquipmentAssignment.objects.filter(
+            child_fighter=OuterRef("pk"),
+            archived=False,
+            content_equipment__crew_treated_as_fighter=True,
+            # Stash-held only: the flag describes equipment sitting in the gang's
+            # stash. Flagged gear carried by a regular fighter stays that
+            # fighter's linked child, or it would be both picked here and
+            # enrolled alongside its owner.
+            list_fighter__content_fighter__is_stash=True,
+        )
+    )
+
+
 def _selectable_gang_fighters(lst):
     """The gang's independently-selectable fighters — the eligibility roster.
 
-    Excludes the stash, archived fighters, child fighters
-    (``source_assignment__isnull=True``), and vehicles / exotic beasts by
-    category (``EQUIPMENT_CREW_CATEGORIES``): those are a fighter's equipment,
-    deploy alongside them, and are never shown in their own right — they ride in
-    via :func:`sync_linked_crew_members` when their owner is picked. The Crew that
-    operate a vehicle *are* shown (opt-in). ``capture_info`` is selected so the
-    captured / sold checks don't fan out into a query per fighter on the draw
-    path, and ``content_fighter__rules`` is prefetched for the "Part of the Crew"
-    check.
+    Excludes the stash, archived fighters, child fighters, and vehicles / exotic
+    beasts by category (``EQUIPMENT_CREW_CATEGORIES``): those are a fighter's
+    equipment, deploy alongside them, and are never shown in their own right —
+    they ride in via :func:`sync_linked_crew_members` when their owner is picked.
+    The Crew that operate a vehicle *are* shown (opt-in).
+
+    The exception is equipment flagged *treated as a fighter* (the Iron
+    Automaton): its card is selected like any other fighter, so it joins the
+    roster despite being a child — and its category never benches it either.
+
+    ``capture_info`` is selected so the captured / sold checks don't fan out into
+    a query per fighter on the draw path, and ``content_fighter__rules`` is
+    prefetched for the "Part of the Crew" check.
     """
     return (
         ListFighter.objects.filter(
             list=lst,
             archived=False,
             content_fighter__is_stash=False,
-            source_assignment__isnull=True,
         )
-        .exclude(_effective_category_in(EQUIPMENT_CREW_CATEGORIES))
+        .annotate(treated_as_fighter=_treated_as_fighter())
+        .filter(Q(source_assignment__isnull=True) | Q(treated_as_fighter=True))
+        .exclude(
+            Q(treated_as_fighter=False)
+            & _effective_category_in(EQUIPMENT_CREW_CATEGORIES)
+        )
         .select_related("content_fighter", "capture_info")
-        .prefetch_related("content_fighter__rules")
+        .prefetch_related(
+            "content_fighter__rules", "source_assignment__content_equipment"
+        )
+        .distinct()
     )
 
 
@@ -233,18 +278,18 @@ def compute_crew_eligibility(
     single source of truth the pool / always-included helpers and the
     eligibility screen all read from.
 
-    ``fighters`` may be a pre-built queryset (e.g. the form's
-    ``with_related_data()`` load) to skip a second fetch; when passed it must
-    carry ``capture_info`` so the captured / sold checks stay off the N+1 path.
-    ``with_data=True`` loads the roster via ``with_related_data()`` — needed when
-    the caller reads each fighter's ``cost_int_cached`` (a computed property), as
-    the setup screen does; the lean pool helpers leave it off.
+    ``fighters`` may be a pre-built queryset (e.g. the form's own load) to skip a
+    second fetch; when passed it must carry ``capture_info`` so the captured /
+    sold checks stay off the N+1 path. ``with_data=True`` loads the roster via
+    :func:`with_crew_cost_data` — needed when the caller costs each fighter with
+    :func:`crew_fighter_cost`, as the setup screen does; the lean pool helpers
+    leave it off.
     """
     overrides = overrides or {}
     if fighters is None:
         fighters = _selectable_gang_fighters(lst)
         if with_data:
-            fighters = fighters.with_related_data()
+            fighters = with_crew_cost_data(fighters)
     rows = []
     for fighter in fighters:
         default = default_crew_eligibility_state(
@@ -313,9 +358,9 @@ def eligible_crew_fighters_for_loadouts(lst, *, included=(), overrides=None):
     assignments in with the batch, which is what lets the resolver and the
     set-scoped cost run without a query per fighter.
     """
-    return eligible_crew_fighters(
-        lst, included=included, overrides=overrides
-    ).with_related_data()
+    return with_crew_cost_data(
+        eligible_crew_fighters(lst, included=included, overrides=overrides)
+    )
 
 
 @traced("crew_whole_gang_projection")
@@ -345,7 +390,7 @@ def crew_whole_gang_projection(crew: Crew):
     )
     for fighter in roster:
         equipment_set = crew.resolve_loadout(fighter)
-        rating = fighter.cost_int_for_equipment_set(equipment_set)
+        rating = crew_fighter_cost(fighter, equipment_set)
         total += rating
         rows.append(
             {
@@ -387,12 +432,14 @@ def crew_whole_gang_projection(crew: Crew):
     # Always-included hired guns join every crew regardless of method, so they
     # are part of the whole-gang forecast too (they aren't in the roster above —
     # eligible_crew_fighters keeps them out of the pool).
-    for fighter in always_included_crew_fighters(
-        crew.list,
-        included=crew.included_categories,
-        overrides=crew.eligibility_overrides,
-    ).with_related_data():
-        rating = fighter.cost_int_for_equipment_set(None)
+    for fighter in with_crew_cost_data(
+        always_included_crew_fighters(
+            crew.list,
+            included=crew.included_categories,
+            overrides=crew.eligibility_overrides,
+        )
+    ):
+        rating = crew_fighter_cost(fighter)
         total += rating
         rows.append(
             {
@@ -421,12 +468,14 @@ def crew_included_forecast(crew: Crew):
     """
     rows = []
     total = 0
-    for fighter in always_included_crew_fighters(
-        crew.list,
-        included=crew.included_categories,
-        overrides=crew.eligibility_overrides,
-    ).with_related_data():
-        rating = fighter.cost_int_for_equipment_set(None)
+    for fighter in with_crew_cost_data(
+        always_included_crew_fighters(
+            crew.list,
+            included=crew.included_categories,
+            overrides=crew.eligibility_overrides,
+        )
+    ):
+        rating = crew_fighter_cost(fighter)
         total += rating
         rows.append(
             {
@@ -1036,9 +1085,10 @@ def crew_stash_lines(crew: Crew):
 def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
     """Reconcile the crew's optional stash selection with ``assignment_ids``.
 
-    Only assignments on this gang's stash count, and always-brought items are
-    ignored either way — they're computed, never stored. No lock gating: gang
-    terrain and the like are chosen after the draw.
+    Only assignments on this gang's stash count, and equipment treated as a
+    fighter is ignored either way — its card is picked on the selection screens,
+    not here. No lock gating: gang terrain and the like are chosen after the
+    draw.
     """
     # Serialise concurrent saves on the crew row so a double-submit can't race
     # the read-then-create reconcile into the unique(crew, assignment)
@@ -1050,8 +1100,12 @@ def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
             ListFighterEquipmentAssignment.objects.filter(
                 list_fighter=stash,
                 archived=False,
-                content_equipment__crew_always_brought=False,
-            ).values_list("id", flat=True)
+            )
+            .exclude(
+                content_equipment__crew_treated_as_fighter=True,
+                child_fighter__isnull=False,
+            )
+            .values_list("id", flat=True)
         )
         if stash is not None
         else set()

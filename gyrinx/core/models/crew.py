@@ -127,6 +127,35 @@ def build_selection_spec(dice, number):
     return ""
 
 
+def crew_fighter_cost(fighter, equipment_set=None):
+    """What a fighter is worth to a crew.
+
+    Normally the fighter's own cost. A card that comes from stash equipment
+    flagged *treated as a fighter* (the Iron Automaton) is costed at zero as a
+    fighter — the gang books its value against the equipment sitting in the
+    stash — so the equipment's cost is added back here, otherwise fielding it
+    would look free.
+
+    Stash-held only, matching what the flag describes: the same equipment
+    carried by a regular fighter is already priced into *that* fighter's cost,
+    so adding it again for their linked child would count it twice. Callers load
+    the fighters via ``handlers.crew.with_crew_cost_data`` to keep this off the
+    N+1 path.
+    """
+    cost = fighter.cost_int_for_equipment_set(equipment_set)
+    if fighter.is_captured or fighter.is_sold_to_guilders:
+        # Worth nothing to its old gang; adding the equipment back would
+        # contradict the zero its own cost already reports.
+        return cost
+    for assignment in fighter.source_assignment.all():
+        if (
+            assignment.content_equipment.crew_treated_as_fighter
+            and assignment.list_fighter.content_fighter.is_stash
+        ):
+            cost += assignment.cost_int_cached
+    return cost
+
+
 def default_included_categories():
     """Empty opt-in list default for ``Crew.included_categories``.
 
@@ -533,8 +562,13 @@ class Crew(AppBase):
         # prefetch_related("members") cache is honoured; the fighter and its
         # name come from the batched with_related_data() load below.
         members = list(self.members.all())
-        loaded = ListFighter.objects.with_related_data().in_bulk(
-            [m.list_fighter_id for m in members]
+        loaded = (
+            ListFighter.objects.with_related_data()
+            .prefetch_related(
+                "source_assignment__content_equipment",
+                "source_assignment__list_fighter__content_fighter",
+            )
+            .in_bulk([m.list_fighter_id for m in members])
         )
 
         lines = []
@@ -551,9 +585,7 @@ class Crew(AppBase):
                     None,
                 )
             live_cost = (
-                fighter.cost_int_for_equipment_set(equipment_set)
-                if fighter is not None
-                else 0
+                crew_fighter_cost(fighter, equipment_set) if fighter is not None else 0
             )
             # Whether this fighter actually has a choice of equipment sets —
             # the sheet only names the card when there were options.
@@ -680,13 +712,14 @@ class Crew(AppBase):
         the crew sheet.
 
         One row per (non-archived) assignment on the gang's stash fighter:
-        ``{assignment, name, cost, child_fighter, always_brought, brought}``.
-        ``always_brought`` items (content flagged ``crew_always_brought``, e.g.
-        the Iron Automaton) are brought on every crew and can't be unticked; the
-        rest are ``brought`` when the crew has a :class:`CrewStashItem` for
-        them. ``child_fighter`` is the linked fighter card some equipment spawns
-        (a gun emplacement) — displayed like a fighter, rated at the equipment's
-        cost.
+        ``{assignment, name, cost, child_fighter, brought}``, ``brought`` when
+        the crew has a :class:`CrewStashItem` for it. ``child_fighter`` is the
+        linked fighter card some equipment spawns (a gun emplacement) —
+        displayed like a fighter, rated at the equipment's cost.
+
+        Equipment flagged *treated as a fighter* (the Iron Automaton) is not a
+        stash item at all: its card is picked on the crew's eligibility and
+        selection screens like any other fighter, so it is left out here.
         """
         from gyrinx.core.models.list import ListFighterEquipmentAssignment
 
@@ -697,22 +730,28 @@ class Crew(AppBase):
         rows = []
         assignments = (
             ListFighterEquipmentAssignment.objects.filter(
-                list_fighter=stash, archived=False
+                list_fighter=stash,
+                archived=False,
+            )
+            # Only a flagged assignment that actually brings a card leaves the
+            # stash — flagged equipment with no linked fighter has nowhere else
+            # to appear, so it stays a normal stash item.
+            .exclude(
+                content_equipment__crew_treated_as_fighter=True,
+                child_fighter__isnull=False,
             )
             .with_related_data()
             .select_related("child_fighter__content_fighter")
             .order_by("content_equipment__name")
         )
         for assignment in assignments:
-            always = assignment.content_equipment.crew_always_brought
             rows.append(
                 {
                     "assignment": assignment,
                     "name": assignment.content_equipment.name,
                     "cost": assignment.cost_int_cached,
                     "child_fighter": assignment.child_fighter,
-                    "always_brought": always,
-                    "brought": always or assignment.id in brought_ids,
+                    "brought": assignment.id in brought_ids,
                 }
             )
         return rows
@@ -931,7 +970,7 @@ class CrewMember(AppBase):
         """
         if self.rating_played is not None:
             return self.rating_played
-        return self.list_fighter.cost_int_for_equipment_set(self.equipment_set)
+        return crew_fighter_cost(self.list_fighter, self.equipment_set)
 
 
 class CrewLineItem(AppBase):
@@ -991,10 +1030,9 @@ class CrewStashItem(AppBase):
     """A stash item this crew brings to its battle.
 
     The gang's stash holds equipment as assignments on the stash fighter; a row
-    here marks one of those assignments as coming along. Only *optional* items
-    are stored — equipment whose content is flagged ``crew_always_brought``
-    (e.g. the Iron Automaton) joins every crew automatically and is computed,
-    never stored, so it can't be left behind.
+    here marks one of those assignments as coming along. Equipment flagged
+    ``crew_treated_as_fighter`` (e.g. the Iron Automaton) is not a stash item —
+    its fighter card is picked on the eligibility and selection screens instead.
 
     Deliberately not lock-gated: gang terrain and the like are picked after the
     crew is drawn, so the stash selection stays editable on a locked crew. Its
