@@ -40,6 +40,10 @@
     // the bottom (.cc-foot); the slack flexes between them.
     --cc-body-top: 30mm;
     --cc-body-gap: 1.5mm; // between the weapons table and the detail block
+    // Breathing room between the flowing body and the bottom-attached footer.
+    // Blank cards spread their write-in boxes to fill the detail block, so
+    // without this the last box butts straight up against the XP/Kills row.
+    --cc-main-gap: 2mm;
     // Gap between the two detail columns — shared with the XP/Kills row so the
     // two splits line up. Change here and both stay aligned.
     --cc-detail-gap: 3mm;
@@ -360,6 +364,7 @@
         bottom: var(--cc-pad);
         display: flex;
         flex-direction: column;
+        gap: var(--cc-main-gap);
         overflow: hidden;
     }
 
