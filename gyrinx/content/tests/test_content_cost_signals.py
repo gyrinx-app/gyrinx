@@ -1446,7 +1446,9 @@ def test_every_cost_change_dispatch_uid_is_registered_and_live():
     registered_pre = {
         e[0][0]
         for e in pre_save.receivers
-        if isinstance(e[0][0], str) and e[0][0].endswith("_cost_change")
+        if isinstance(e[0][0], str)
+        and e[0][0].endswith("_cost_change")
+        and _live(pre_save, e[0][0])
     }
     expected_pre = {change for _n, change, _a in COST_CHANGE_PAIRS}
     assert registered_pre == expected_pre, (
