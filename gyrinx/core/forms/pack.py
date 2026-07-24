@@ -102,11 +102,16 @@ class PackItemFormMixin:
 
     CRITICAL — archive semantics (see CLAUDE.md "Content packs: archive
     semantics"): every ``CustomContentPackItem`` lookup here filters
-    ``archived=False``. This is a form-validation / unique-constraint write
-    path, and the ``CustomContentPackItem`` unique constraint is itself
-    conditional on ``archived=False`` — so the "live" item lookup MUST match.
-    Do not broaden these to include archived items.
+    ``archived=False``. Archiving is the pack owner's soft-delete, so an
+    archived item must stop reserving its name against its own owner —
+    otherwise they can never reuse a name they archived. Do not broaden these
+    to include archived items.
     """
+
+    # Forms that are never pack-scoped (and so never assign ``self._pack``)
+    # still inherit these helpers; the default keeps their "no pack" branches
+    # working rather than raising AttributeError.
+    _pack = None
 
     def _raise_if_name_taken(self, qs, message):
         """Exclude the current instance, then raise ``ValidationError`` if any
