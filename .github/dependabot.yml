@@ -60,3 +60,22 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # .pre-commit-config.yaml pins its own djlint/ruff, independent of
+  # requirements.txt. While the two agree the drift is invisible; when they
+  # diverge the commit hook reverts the exact reformat CI demands and no commit
+  # can satisfy both (see #2038). Keep them moving together.
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      pre-commit:
+        patterns:
+          - "*"
+
+  # The Dockerfile pins the uv release it copies its binary from.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

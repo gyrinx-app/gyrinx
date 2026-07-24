@@ -9,10 +9,16 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=on \
     PIP_DEFAULT_TIMEOUT=100
 
+# Pinned so the image resolves with the same uv as CI and scripts/dev.sh.
+# Dependabot's docker ecosystem keeps this tag current.
+COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /usr/local/bin/uv
+
 WORKDIR /app
-RUN python -m venv /opt/venv
-# Enable venv
-ENV PATH="/opt/venv/bin:$PATH"
+RUN uv venv /opt/venv
+# Enable venv. VIRTUAL_ENV is what uv reads to pick an install target; PATH
+# alone is not enough.
+ENV VIRTUAL_ENV="/opt/venv" \
+    PATH="/opt/venv/bin:$PATH"
 
 # Set application settings
 ENV DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-gyrinx.settings}
@@ -24,7 +30,7 @@ COPY gyrinx/ /app/gyrinx/
 COPY content/ /app/content/
 # Set a version for setuptools-scm when .git is not available
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_GYRINX=1.0.0
-RUN pip install --editable .
+RUN uv pip install --editable .
 
 # Install system dependencies for Node.js
 RUN apt-get update && apt-get install -y --no-install-recommends \

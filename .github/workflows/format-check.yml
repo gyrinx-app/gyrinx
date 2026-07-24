@@ -27,13 +27,11 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Cache Python dependencies
-        uses: actions/cache@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          enable-cache: true
+          cache-dependency-glob: "requirements.txt"
 
       - name: Cache npm dependencies
         uses: actions/cache@v6
@@ -45,9 +43,18 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m venv .venv && \
-          . .venv/bin/activate && \
-          pip install --editable .
+          uv venv .venv && \
+          uv pip install --editable .
+
+      # uv.lock is not installed from — the image and CI resolve from
+      # requirements.txt — so nothing exercised it and it silently rotted, at
+      # one point holding a Twisted version a full major release behind and
+      # generating a high-severity alert on its own (see #2038). --refresh is
+      # required: dependencies are dynamic (read from requirements.txt), and
+      # without it uv compares against cached project metadata and reports a
+      # stale lock as current.
+      - name: Check uv.lock is up to date
+        run: uv lock --check --refresh
 
       - name: Write to .env file
         run: |
