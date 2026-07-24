@@ -53,12 +53,18 @@
             </div>
             {% if rows %}
                 <div class="hstack gap-3 align-items-center">
-                    <button type="submit" class="btn btn-success">Save stash</button>
-                    <a href="{{ parent_url }}" class="btn btn-link">Cancel</a>
+                    <c-btn variant="success" type="submit">
+                        Save stash
+                    </c-btn>
+                    <c-btn variant="link" href="{{ parent_url }}">
+                        Cancel
+                    </c-btn>
                 </div>
             {% else %}
                 <div>
-                    <a href="{{ parent_url }}" class="btn btn-secondary btn-sm">Back to crew</a>
+                    <c-btn variant="secondary" size="sm" href="{{ parent_url }}">
+                        Back to crew
+                    </c-btn>
                 </div>
             {% endif %}
         </form>
