@@ -289,6 +289,22 @@ def test_crew_print_dropdown_offers_both_styles(client, user, make_list, campaig
 
 
 @pytest.mark.django_db
+def test_print_config_index_default_row_offers_both_styles(client, user, make_list):
+    """The built-in Default row's Print control links both card styles."""
+    lst = make_list("Gang")
+    client.force_login(user)
+
+    resp = client.get(reverse("core:print-config-index", args=[lst.id]))
+
+    assert resp.status_code == 200
+    content = resp.content.decode()
+    print_url = reverse("core:list-print", kwargs={"id": lst.id})
+    assert 'data-bs-toggle="dropdown"' in content
+    assert f'href="{print_url}"' in content
+    assert f'href="{print_url}?style=classic"' in content
+
+
+@pytest.mark.django_db
 def test_crew_classic_print_renders_crew_fighters(
     client, user, make_list, make_list_fighter, campaign
 ):

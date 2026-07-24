@@ -38,11 +38,31 @@
                         </td>
                         <td class="text-secondary">All cards and active fighters</td>
                         <td class="text-end">
-                            <a href="{% url 'core:list-print' list.id %}"
-                               class="btn btn-primary btn-sm">
-                                <i class="bi-printer"></i>
-                                Print
-                            </a>
+                            <div class="btn-group" role="group">
+                                {% comment %}
+                                The surrounding .table-responsive scrolls on overflow,
+                                which clips an absolutely-positioned menu. Popper's fixed
+                                strategy positions against the viewport instead, so the
+                                menu escapes the wrapper.
+                                {% endcomment %}
+                                <button type="button"
+                                        class="btn btn-primary btn-sm dropdown-toggle"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-popper-config='{"strategy": "fixed"}'
+                                        aria-expanded="false">
+                                    <i class="bi-printer"></i>
+                                    Print
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'core:list-print' list.id %}">Default cards</a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'core:list-print' list.id %}?style=classic">Classic cards</a>
+                                    </li>
+                                </ul>
+                            </div>
                         </td>
                     </tr>
                     <!-- User configurations -->
