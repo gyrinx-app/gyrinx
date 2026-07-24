@@ -70,7 +70,7 @@ def test_archived_pack_item_does_not_block_the_name(pack, trait_in_pack):
 
 
 @pytest.mark.django_db
-def test_pack_item_object_ids_excludes_archived(pack, trait_in_pack, user):
+def test_pack_item_object_ids_excludes_archived(pack, trait_in_pack):
     """The shared primitive both the uniqueness check and the choice grouping
     build on — archived items are out of scope for both."""
     trait, item = trait_in_pack
@@ -114,7 +114,7 @@ def test_editing_an_object_does_not_collide_with_itself(pack, trait_in_pack):
 
 
 @pytest.mark.django_db
-def test_grouped_choices_put_custom_before_default(pack, trait_in_pack, user):
+def test_grouped_choices_put_custom_before_default(pack, trait_in_pack):
     """The shared grouping helper: a blank sentinel, then this pack's items
     under "Custom", then base-library items under "Default". Pinned because
     three call sites collapsed into this one implementation."""
