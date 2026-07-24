@@ -10,6 +10,13 @@ requires-python = ">=3.12"
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
 
+[tool.uv]
+# uv.lock's format is versioned. An older uv silently rewrites the lock to its
+# own older format, which then fails the `uv lock --check` guard in CI with no
+# obvious cause. Refusing to run is clearer: uv prints "Update `uv` by running
+# `uv self update`". Raise this floor when the lock is next regenerated.
+required-version = ">=0.11"
+
 [project.scripts]
 manage = "scripts.manage:main"
 
