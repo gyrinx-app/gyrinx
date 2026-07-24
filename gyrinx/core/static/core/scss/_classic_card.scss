@@ -88,6 +88,11 @@
     // iOS Safari auto-inflates text in fixed-width blocks ("text autosizing"),
     // which overflows the precisely-sized mm regions and breaks the layout on
     // mobile. Pin it so the mm type renders at exactly the size we set.
+    //
+    // The -webkit- prefix is the one that does the work on iOS and must stay:
+    // `stylelint --fix` once stripped it, leaving two identical unprefixed
+    // declarations and silently undoing this fix.
+    // stylelint-disable-next-line property-no-vendor-prefix
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-print-color-adjust: exact;

@@ -307,7 +307,10 @@ a[data-bs-toggle="tooltip"] {
 // uses for `.breadcrumb`. Putting it on the crumb wrapper rather than inside
 // the anchor keeps it out of the link's colour and underline.
 .crumbs {
-    > * + *::before {
+    // Targets `span` rather than `*` so the rule only ever hits crumbs — every
+    // crumb is a span emitted by c-breadcrumb.item — and cannot put a separator
+    // in front of something else that happens to be nested here.
+    > span + span::before {
         content: "/";
         margin-inline: map-get($spacers, 2);
     }
