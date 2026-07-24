@@ -298,8 +298,10 @@ def test_print_config_index_default_row_offers_both_styles(client, user, make_li
 
     assert resp.status_code == 200
     content = resp.content.decode()
-    print_url = reverse("core:list-print", kwargs={"id": lst.id})
-    assert 'data-bs-toggle="dropdown"' in content
+    print_url = _print_url(lst)
+    # Not data-bs-toggle="dropdown" — base.html's theme switcher carries that on
+    # every page, so it would pass with this dropdown deleted.
+    assert "data-bs-popper-config" in content
     assert f'href="{print_url}"' in content
     assert f'href="{print_url}?style=classic"' in content
 
