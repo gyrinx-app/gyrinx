@@ -1401,15 +1401,24 @@ COST_CHANGE_PAIRS = [
 ]
 
 
-def _receiver_entries(signal, uid):
-    """Registry entries for a dispatch_uid. Django's entry is
-    ``(lookup_key, receiver_or_weakref, sender_ref, is_async)``; indices 0 and 1
-    have been stable across versions, but this pokes at a private structure."""
-    return [e for e in signal.receivers if e[0][0] == uid]
+def _receiver_entries(signal, uid, sender=None):
+    """Registry entries for a dispatch_uid, optionally scoped to a sender.
+
+    Django's entry is ``(lookup_key, receiver_or_weakref, sender_ref,
+    is_async)`` and the lookup key is ``(dispatch_uid, sender_id)``; indices 0
+    and 1 have been stable across versions, but this pokes at a private
+    structure. Matching the sender matters: without it a uid wired to the wrong
+    model would still satisfy a per-model assertion.
+    """
+    entries = [e for e in signal.receivers if e[0][0] == uid]
+    if sender is not None:
+        entries = [e for e in entries if e[0][1] == id(sender)]
+    return entries
 
 
-def _live(signal, uid):
-    """True if a receiver for ``uid`` is registered AND still alive.
+def _live(signal, uid, sender=None):
+    """True if a receiver for ``uid`` (and ``sender``, when given) is registered
+    AND still alive.
 
     Handles both connection styles: a ``weak=True`` entry stores a weakref that
     must be dereferenced, while a ``weak=False`` entry stores the function
@@ -1417,7 +1426,7 @@ def _live(signal, uid):
     A dead weakref lingers in ``signal.receivers`` until Django sweeps it, so
     membership alone is not proof of life.
     """
-    for entry in _receiver_entries(signal, uid):
+    for entry in _receiver_entries(signal, uid, sender):
         target = entry[1]
         if isinstance(target, weakref.ReferenceType):
             if target() is not None:
@@ -1432,12 +1441,16 @@ def test_every_cost_change_dispatch_uid_is_registered_and_live():
     strings predate any single scheme, so they must stay byte-identical. Also
     asserts the set matches exactly, so registering an eleventh model without
     listing it here fails *here* rather than somewhere less obvious."""
+    from django.apps import apps
     from django.db.models.signals import post_save, pre_save
 
     for model_name, change_uid, action_uid in COST_CHANGE_PAIRS:
-        assert _live(pre_save, change_uid), f"{model_name}: pre_save receiver not live"
-        assert _live(post_save, action_uid), (
-            f"{model_name}: post_save receiver not live"
+        model = apps.get_model("content", model_name)
+        assert _live(pre_save, change_uid, model), (
+            f"{model_name}: pre_save receiver not live for this sender"
+        )
+        assert _live(post_save, action_uid, model), (
+            f"{model_name}: post_save receiver not live for this sender"
         )
 
     # Scoped to the cost-change detectors by their `_cost_change` suffix rather
