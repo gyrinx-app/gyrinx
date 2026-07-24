@@ -214,7 +214,6 @@ def test_classic_renders_fighter_portrait(
     # separately rather than raw occurrences of the "cc-portrait" prefix.
     assert body.count('class="cc-portrait"') == 1
     assert body.count("cc-portrait__img") == 1
-    assert "has-portrait" in body
 
 
 @pytest.mark.django_db

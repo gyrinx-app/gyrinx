@@ -555,9 +555,9 @@
         overflow: hidden;
     }
 
-    // XP + Kills — pinned row of two equal columns. The gap between them is the
-    // shared --cc-detail-gap so the XP/Kills split lines up with the
-    // Skills+Rules / Gear columns above.
+    // XP + Kills — a row of two equal columns at the top of the footer. The gap
+    // between them is the shared --cc-detail-gap so the XP/Kills split lines up
+    // with the Skills+Rules / Gear columns above.
     .cc-kills {
         flex: 0 0 auto;
         height: var(--cc-kills-h);

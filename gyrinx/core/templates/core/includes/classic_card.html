@@ -6,7 +6,7 @@ Params:
   theme   -- background theme key (blank/odd/even/paper_odd/paper_even/dark)
   show_grid -- if truthy, overlay a mm alignment grid (lab tuning aid)
 {% endcomment %}
-<div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if card.image_url %} has-portrait{% endif %}{% if show_grid %} show-grid{% endif %}"
+<div class="classic-card theme-{{ theme|default:'blank' }}{% if card.dead %} is-dead{% endif %}{% if show_grid %} show-grid{% endif %}"
      data-kind="{{ card.kind }}">
     <div class="cc-bg"></div>
     {% comment %} Condition tabs + save value in the leftover space {% endcomment %}
@@ -47,8 +47,8 @@ Params:
     {% comment %}
     Everything below the statline is one absolutely-pinned flex column. The body
     (weapons + detail) flows from the top; the footer (XP/Kills + Notes +
-    Injuries) attaches to the bottom; the slack flexes between them. Only the top
-    chrome above and the portrait below keep their own absolute positioning.
+    Injuries, plus the portrait) attaches to the bottom; the slack flexes between
+    them. Only the top chrome above keeps its own absolute positioning.
     {% endcomment %}
     <div class="cc-region cc-main">
         <div class="cc-body">
