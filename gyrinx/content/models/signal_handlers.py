@@ -2,9 +2,13 @@
 Signal handlers for content model cost changes.
 
 This module contains:
-- Pre-save handlers that detect cost changes and mark objects dirty
-- Post-save handlers that create CONTENT_COST_CHANGE actions
-- Helper function for creating cost change actions
+- ``register_cost_change``, the factory that builds the pre_save/post_save
+  receiver pair every price-bearing content model needs, plus the per-model
+  registrations
+- The propagation machinery those receivers hand off to: resolving affected
+  lists, recording CONTENT_COST_CHANGE actions, enqueueing the async task
+- ``sync_auto_equipment_cost``, the one genuinely different post_save
+- Delete-side handlers that orphan pins when a price source is deleted
 """
 
 import logging
@@ -48,20 +52,6 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-# Django stores receivers as weakrefs, so a receiver needs a strong reference
-# somewhere or it is collected and the signal silently stops firing. The
-# module-level functions this factory replaced had one implicitly (their own
-# module global); closures built inside a factory do not, so we keep them here.
-#
-# This is easy to get wrong because it does not reproduce in development or in
-# the test suite: `Signal.connect` only calls `func_accepts_kwargs(receiver)`
-# when `settings.DEBUG` is true, and that check runs through an `lru_cache`
-# keyed on the function — which pins it. With DEBUG on, every receiver is held
-# alive incidentally; with DEBUG off (production) nothing holds it, and the
-# receiver is collected. Green locally, dead in prod, no error either way.
-_COST_CHANGE_RECEIVERS = []
-
-
 def register_cost_change(
     model, *, change_uid, action_uid, field="cost", also_watch=None
 ):
@@ -80,9 +70,17 @@ def register_cost_change(
         also_watch: optional second field, compared by its *raw* stored value,
             whose change also counts as a cost change. Two models need this,
             for different reasons — see the call sites.
+
+    Both receivers connect with ``weak=False``. Django holds receivers weakly by
+    default, and a closure built in here — unlike the module-level functions it
+    replaced — has no other reference, so it would be collected and the signal
+    would silently stop firing. That does not reproduce locally: ``connect``
+    only calls ``func_accepts_kwargs`` when ``settings.DEBUG`` is on, and that
+    runs through an ``lru_cache`` keyed on the function, which incidentally pins
+    it. With DEBUG off (production) nothing does. Green in dev, dead in prod.
     """
 
-    @receiver(pre_save, sender=model, dispatch_uid=change_uid)
+    @receiver(pre_save, sender=model, dispatch_uid=change_uid, weak=False)
     @traced(f"signal_{change_uid}")
     def on_cost_change(sender, instance, **kwargs):
         old_cost = get_old_cost(sender, instance, field)
@@ -102,15 +100,13 @@ def register_cost_change(
             instance._old_cost_for_propagation = old_cost
             instance.set_dirty()
 
-    @receiver(post_save, sender=model, dispatch_uid=action_uid)
+    @receiver(post_save, sender=model, dispatch_uid=action_uid, weak=False)
     @traced(f"signal_{action_uid}")
     def on_cost_change_saved(sender, instance, created, **kwargs):
         if created or not getattr(instance, "_cost_changed", False):
             return
         _enqueue_content_cost_propagation(instance)
         instance._cost_changed = False  # Clear flag
-
-    _COST_CHANGE_RECEIVERS.extend((on_cost_change, on_cost_change_saved))
 
 
 register_cost_change(

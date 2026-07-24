@@ -5,6 +5,8 @@ When a Content model's cost field changes, affected core objects
 (assignments, fighters, lists) should be marked as dirty.
 """
 
+import weakref
+
 import pytest
 
 from gyrinx.content.models import (
@@ -1399,41 +1401,68 @@ COST_CHANGE_PAIRS = [
 ]
 
 
-def _registered_uids(signal):
-    return {entry[0][0] for entry in signal.receivers if isinstance(entry[0][0], str)}
+def _receiver_entries(signal, uid):
+    """Registry entries for a dispatch_uid. Django's entry is
+    ``(lookup_key, receiver_or_weakref, sender_ref, is_async)``; indices 0 and 1
+    have been stable across versions, but this pokes at a private structure."""
+    return [e for e in signal.receivers if e[0][0] == uid]
 
 
-def test_every_cost_change_dispatch_uid_is_registered():
+def _live(signal, uid):
+    """True if a receiver for ``uid`` is registered AND still alive.
+
+    Handles both connection styles: a ``weak=True`` entry stores a weakref that
+    must be dereferenced, while a ``weak=False`` entry stores the function
+    itself (calling that would *invoke the receiver*, so check the type first).
+    A dead weakref lingers in ``signal.receivers`` until Django sweeps it, so
+    membership alone is not proof of life.
+    """
+    for entry in _receiver_entries(signal, uid):
+        target = entry[1]
+        if isinstance(target, weakref.ReferenceType):
+            if target() is not None:
+                return True
+        else:
+            return True
+    return False
+
+
+def test_every_cost_change_dispatch_uid_is_registered_and_live():
     """dispatch_uid is the identity Django dedupes registrations on, and these
-    strings predate any single scheme, so they must stay byte-identical."""
+    strings predate any single scheme, so they must stay byte-identical. Also
+    asserts the set matches exactly, so registering an eleventh model without
+    listing it here fails *here* rather than somewhere less obvious."""
     from django.db.models.signals import post_save, pre_save
 
-    pre_uids = _registered_uids(pre_save)
-    post_uids = _registered_uids(post_save)
     for model_name, change_uid, action_uid in COST_CHANGE_PAIRS:
-        assert change_uid in pre_uids, f"{model_name}: pre_save {change_uid} missing"
-        assert action_uid in post_uids, f"{model_name}: post_save {action_uid} missing"
+        assert _live(pre_save, change_uid), f"{model_name}: pre_save receiver not live"
+        assert _live(post_save, action_uid), (
+            f"{model_name}: post_save receiver not live"
+        )
 
-
-def test_every_factory_receiver_has_a_strong_reference():
-    """One strong ref per registered receiver — see the next test for why."""
-    from gyrinx.content.models import signal_handlers
-
-    assert len(signal_handlers._COST_CHANGE_RECEIVERS) == 2 * len(COST_CHANGE_PAIRS)
+    registered_pre = {
+        e[0][0]
+        for e in pre_save.receivers
+        if isinstance(e[0][0], str) and e[0][0].startswith("content_")
+    }
+    expected_pre = {change for _n, change, _a in COST_CHANGE_PAIRS}
+    assert registered_pre == expected_pre, (
+        "cost-change pre_save registrations drifted from COST_CHANGE_PAIRS"
+    )
 
 
 def test_factory_receivers_survive_gc_with_debug_off():
     """The factory's receivers must outlive garbage collection in production.
 
-    Django stores receivers as weakrefs, so a closure built inside a factory
-    needs a strong reference somewhere or it is collected and the signal
-    silently stops firing. This does NOT reproduce under the test settings:
-    `Signal.connect` only calls `func_accepts_kwargs` when `settings.DEBUG` is
-    on, and that runs through an `lru_cache` keyed on the function, pinning it.
-    So the bug is invisible in dev/CI and live in production.
+    Django holds receivers weakly by default, so a closure built inside a
+    factory would be collected and the signal would silently stop firing. The
+    factory therefore connects with ``weak=False``.
 
-    This test therefore runs with DEBUG off, and first proves the mechanism is
-    real (an unheld closure does die) before asserting the guard defeats it.
+    This does NOT reproduce under the test settings: ``Signal.connect`` only
+    calls ``func_accepts_kwargs`` when ``settings.DEBUG`` is on, and that runs
+    through an ``lru_cache`` keyed on the function, which incidentally pins it.
+    So the bug is invisible in dev/CI and live in production — hence DEBUG off
+    here, and a control proving an ordinary weak receiver really does die.
     """
     import gc
 
@@ -1443,14 +1472,11 @@ def test_factory_receivers_survive_gc_with_debug_off():
 
     from gyrinx.content.models import signal_handlers
 
-    def alive(signal, uid):
-        return any(e[0][0] == uid and e[1]() is not None for e in signal.receivers)
-
-    kept_before = len(signal_handlers._COST_CHANGE_RECEIVERS)
     try:
         with override_settings(DEBUG=False):
-            # Control: without a strong reference the receiver is collected.
-            # If this ever stops holding, the assertions below prove nothing.
+            # Control: a weakly-connected closure with no other reference is
+            # collected. If this stops holding, the assertion below proves
+            # nothing.
             def register_unheld():
                 @receiver(
                     pre_save, sender=ContentEquipment, dispatch_uid="probe_unheld"
@@ -1460,22 +1486,21 @@ def test_factory_receivers_survive_gc_with_debug_off():
 
             register_unheld()
             gc.collect()
-            assert not alive(pre_save, "probe_unheld"), (
-                "control failed: an unreferenced receiver survived, so this test "
-                "cannot demonstrate that the strong-ref list does anything"
+            assert not _live(pre_save, "probe_unheld"), (
+                "control failed: an unreferenced weak receiver survived, so this "
+                "test cannot demonstrate that weak=False does anything"
             )
 
-            # The factory keeps its receivers, so they survive the same collection.
+            # The factory's pair survives the same collection.
             signal_handlers.register_cost_change(
                 ContentEquipment,
                 change_uid="probe_held_change",
                 action_uid="probe_held_action",
             )
             gc.collect()
-            assert alive(pre_save, "probe_held_change")
-            assert alive(post_save, "probe_held_action")
+            assert _live(pre_save, "probe_held_change")
+            assert _live(post_save, "probe_held_action")
     finally:
         pre_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_unheld")
         pre_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_held_change")
         post_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_held_action")
-        del signal_handlers._COST_CHANGE_RECEIVERS[kept_before:]
