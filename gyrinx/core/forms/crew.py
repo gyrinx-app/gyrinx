@@ -262,9 +262,10 @@ class CrewForm(forms.Form):
         otherwise), and the fighter's current cost. Pairing these here keeps the
         template free of dynamic field-name lookups.
 
-        ``cost`` is the same ``cost_int_cached`` shown in the checkbox label,
-        read from the fighters already loaded via ``with_related_data()`` — no
-        query per fighter — and surfaced as a data attribute so a small progressive
+        ``cost`` is the same ``crew_fighter_cost`` shown in the checkbox label,
+        read from the fighters already loaded via
+        :func:`~gyrinx.core.handlers.crew.with_crew_cost_data` — no query per
+        fighter — and surfaced as a data attribute so a small progressive
         enhancement can total the ticked fighters. It is the fighter's whole-kit
         cost, not scoped to the equipment set they bring; the label shows the same
         number, so the running total matches what the player reads off each row.
