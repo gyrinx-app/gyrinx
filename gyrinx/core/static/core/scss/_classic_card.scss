@@ -27,30 +27,28 @@
     --cc-h: 110mm;
     --cc-pad: 3.2mm;
 
-    // Condition tabs across the top; the save value fills the leftover space.
+    // Top chrome is still individually pinned (see the .cc-region users below).
     --cc-tabs-top: 0;
     --cc-tabs-h: 6mm;
     --cc-name-top: 7mm;
     --cc-name-h: 11mm;
     --cc-stat-top: 18.5mm;
     --cc-stat-h: 11mm;
-    --cc-weap-top: 30mm;
-    --cc-weap-h: 30mm;
-    // detail block: 2-column grid (skills / rules / gear / other). Its height
-    // stops ~2mm short of the pinned XP/Kills row to leave a margin above it.
-    --cc-detail-top: 60mm;
-    --cc-detail-h: 21.5mm;
+    // Everything below the statline lives in one flex column (.cc-main) pinned
+    // from here to the bottom padding — no per-region top/height pins. Weapons +
+    // detail flow from the top (.cc-body); XP/Kills + Notes + Injuries attach at
+    // the bottom (.cc-foot); the slack flexes between them.
+    --cc-body-top: 30mm;
+    --cc-body-gap: 1.5mm; // between the weapons table and the detail block
     // Gap between the two detail columns — shared with the XP/Kills row so the
     // two splits line up. Change here and both stay aligned.
     --cc-detail-gap: 3mm;
-    // XP/Kills, notes, and injuries are pinned so they never clip.
-    --cc-kills-top: 83.5mm;
+    // Fixed heights for the bottom write-in fields so their boxes keep room to
+    // write in by hand (and the fit-to-box script has a bound to shrink into).
     --cc-kills-h: 3.5mm;
-    --cc-notes-top: 87.5mm;
     --cc-notes-h: 9.5mm;
-    // injuries sit under notes at the very bottom
-    --cc-injuries-top: 97.5mm;
     --cc-injuries-h: 10mm;
+    --cc-foot-gap: 0.5mm; // between the XP/Kills, Notes and Injuries rows
     // shared label-column width for the XP / Kills / Notes / Injuries rows so
     // their write-in boxes all start at the same x.
     --cc-fieldlabel-w: 13mm;
@@ -191,7 +189,7 @@
     // injuries are printed inside; the rest is space to fill in by hand.
     // =======================================================================
     .cc-injuries {
-        top: var(--cc-injuries-top);
+        flex: 0 0 auto;
         height: var(--cc-injuries-h);
         display: flex;
         flex-direction: row;
@@ -348,12 +346,44 @@
     }
 
     // =======================================================================
-    // Weapons
+    // Body + footer — the two flex columns that replace the old per-region
+    // absolute pins for everything below the statline.
+    //
+    //   .cc-main  absolutely pinned from --cc-body-top to the bottom padding.
+    //   .cc-body  weapons + detail, flowing from the top. Grows to fill so the
+    //             slack shows as whitespace below the detail, above the footer.
+    //   .cc-foot  XP/Kills + Notes + Injuries, content-sized, sitting flush at
+    //             the bottom and growing upward.
+    // =======================================================================
+    .cc-main {
+        top: var(--cc-body-top);
+        bottom: var(--cc-pad);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .cc-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--cc-body-gap);
+        overflow: hidden;
+    }
+
+    .cc-foot {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: var(--cc-foot-gap);
+    }
+
+    // =======================================================================
+    // Weapons — sizes to its content at the top of the body column.
     // =======================================================================
     .cc-weapons {
-        top: var(--cc-weap-top);
-        height: var(--cc-weap-h);
-        overflow: hidden;
+        flex: 0 0 auto;
     }
 
     .cc-wtable {
@@ -427,12 +457,14 @@
     // they flow in reading order (Skills, Rules, Gear, then the "other" groups)
     // and the browser splits them to keep the columns even.
     .cc-detail {
-        top: var(--cc-detail-top);
-        height: var(--cc-detail-h);
+        // Fills the remaining body height below the weapons table; its content
+        // flows from the top. A definite flex height keeps .cc-detail__cols'
+        // `max-height: 100%` bound so the fit-to-box script can still shrink
+        // long content into the column box.
+        flex: 1 1 auto;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        justify-content: flex-end;
-        overflow: hidden;
     }
 
     .cc-detail__cols {
@@ -476,8 +508,14 @@
         margin-bottom: 1mm;
     }
 
+    // Long labels (e.g. "Legendary Names") wrap to their narrowest — one word
+    // per line — so the value keeps as much horizontal space as possible.
+    // Blank cards override this with a fixed label column (see the
+    // [data-kind="blank"] block below).
     .cc-detail .cc-label {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
+        width: min-content;
+        overflow-wrap: break-word;
     }
 
     .cc-detail .cc-section__body {
@@ -502,7 +540,7 @@
     // shared --cc-detail-gap so the XP/Kills split lines up with the
     // Skills+Rules / Gear columns above.
     .cc-kills {
-        top: var(--cc-kills-top);
+        flex: 0 0 auto;
         height: var(--cc-kills-h);
         display: flex;
         align-items: stretch;
@@ -535,7 +573,7 @@
 
     // Notes — label + write-in box.
     .cc-notes {
-        top: var(--cc-notes-top);
+        flex: 0 0 auto;
         height: var(--cc-notes-h);
         display: flex;
         flex-direction: row;
@@ -565,24 +603,22 @@
         position: absolute;
         z-index: 3;
         right: var(--cc-pad);
-        bottom: var(--cc-pad);
+        bottom: calc(var(--cc-pad) - 1.5mm);
         width: auto;
         height: auto;
         max-width: var(--cc-portrait-w);
-        max-height: 26mm;
+        max-height: 24mm;
         border: 0.4mm solid var(--cc-ink);
         border-radius: 1mm;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
-    // Keep the bottom write-in rows clear of the portrait footprint.
-    &.has-portrait {
-        .cc-kills,
-        .cc-notes,
-        .cc-injuries {
-            right: calc(var(--cc-pad) + var(--cc-portrait-w) + 2mm);
-        }
+    // Keep the footer's write-in rows clear of the portrait footprint. The rows
+    // are flex children now (not absolutely positioned), so shrink the footer's
+    // content width with padding rather than a `right` offset.
+    &.has-portrait .cc-foot {
+        padding-right: calc(var(--cc-portrait-w) + 2mm);
     }
 
     // =======================================================================
