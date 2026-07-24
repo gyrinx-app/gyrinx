@@ -1336,3 +1336,146 @@ def test_no_action_when_equipment_cost_change_has_zero_delta(
 
     # Clean up
     override.delete()
+
+
+# --- Registration invariants (#1863) -------------------------------------------
+#
+# The ten cost-change receiver pairs are built by a factory
+# (signal_handlers.register_cost_change) rather than hand-written. Two things
+# about that are easy to break silently, so they are pinned here.
+
+
+COST_CHANGE_PAIRS = [
+    (
+        "ContentEquipment",
+        "content_equipment_cost_change",
+        "content_equipment_cost_action",
+    ),
+    (
+        "ContentFighter",
+        "content_fighter_base_cost_change",
+        "content_fighter_cost_action",
+    ),
+    (
+        "ContentWeaponProfile",
+        "content_profile_cost_change",
+        "content_profile_cost_action",
+    ),
+    (
+        "ContentWeaponAccessory",
+        "content_accessory_cost_change",
+        "content_accessory_cost_action",
+    ),
+    (
+        "ContentEquipmentUpgrade",
+        "content_upgrade_cost_change",
+        "content_upgrade_cost_action",
+    ),
+    (
+        "ContentFighterEquipmentListItem",
+        "content_equipment_list_item_cost_change",
+        "content_equipment_list_item_cost_action",
+    ),
+    (
+        "ContentFighterEquipmentListWeaponAccessory",
+        "content_equipment_list_accessory_cost_change",
+        "content_equipment_list_accessory_cost_action",
+    ),
+    (
+        "ContentFighterEquipmentListUpgrade",
+        "content_equipment_list_upgrade_cost_change",
+        "content_equipment_list_upgrade_cost_action",
+    ),
+    (
+        "ContentFighterHouseOverride",
+        "content_fighter_house_override_cost_change",
+        "content_fighter_house_override_cost_action",
+    ),
+    (
+        "ContentEquipmentListExpansionItem",
+        "content_expansion_item_cost_change",
+        "content_expansion_item_cost_action",
+    ),
+]
+
+
+def _registered_uids(signal):
+    return {entry[0][0] for entry in signal.receivers if isinstance(entry[0][0], str)}
+
+
+def test_every_cost_change_dispatch_uid_is_registered():
+    """dispatch_uid is the identity Django dedupes registrations on, and these
+    strings predate any single scheme, so they must stay byte-identical."""
+    from django.db.models.signals import post_save, pre_save
+
+    pre_uids = _registered_uids(pre_save)
+    post_uids = _registered_uids(post_save)
+    for model_name, change_uid, action_uid in COST_CHANGE_PAIRS:
+        assert change_uid in pre_uids, f"{model_name}: pre_save {change_uid} missing"
+        assert action_uid in post_uids, f"{model_name}: post_save {action_uid} missing"
+
+
+def test_every_factory_receiver_has_a_strong_reference():
+    """One strong ref per registered receiver — see the next test for why."""
+    from gyrinx.content.models import signal_handlers
+
+    assert len(signal_handlers._COST_CHANGE_RECEIVERS) == 2 * len(COST_CHANGE_PAIRS)
+
+
+def test_factory_receivers_survive_gc_with_debug_off():
+    """The factory's receivers must outlive garbage collection in production.
+
+    Django stores receivers as weakrefs, so a closure built inside a factory
+    needs a strong reference somewhere or it is collected and the signal
+    silently stops firing. This does NOT reproduce under the test settings:
+    `Signal.connect` only calls `func_accepts_kwargs` when `settings.DEBUG` is
+    on, and that runs through an `lru_cache` keyed on the function, pinning it.
+    So the bug is invisible in dev/CI and live in production.
+
+    This test therefore runs with DEBUG off, and first proves the mechanism is
+    real (an unheld closure does die) before asserting the guard defeats it.
+    """
+    import gc
+
+    from django.db.models.signals import post_save, pre_save
+    from django.dispatch import receiver
+    from django.test import override_settings
+
+    from gyrinx.content.models import signal_handlers
+
+    def alive(signal, uid):
+        return any(e[0][0] == uid and e[1]() is not None for e in signal.receivers)
+
+    kept_before = len(signal_handlers._COST_CHANGE_RECEIVERS)
+    try:
+        with override_settings(DEBUG=False):
+            # Control: without a strong reference the receiver is collected.
+            # If this ever stops holding, the assertions below prove nothing.
+            def register_unheld():
+                @receiver(
+                    pre_save, sender=ContentEquipment, dispatch_uid="probe_unheld"
+                )
+                def _handler(sender, instance, **kwargs):
+                    pass
+
+            register_unheld()
+            gc.collect()
+            assert not alive(pre_save, "probe_unheld"), (
+                "control failed: an unreferenced receiver survived, so this test "
+                "cannot demonstrate that the strong-ref list does anything"
+            )
+
+            # The factory keeps its receivers, so they survive the same collection.
+            signal_handlers.register_cost_change(
+                ContentEquipment,
+                change_uid="probe_held_change",
+                action_uid="probe_held_action",
+            )
+            gc.collect()
+            assert alive(pre_save, "probe_held_change")
+            assert alive(post_save, "probe_held_action")
+    finally:
+        pre_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_unheld")
+        pre_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_held_change")
+        post_save.disconnect(sender=ContentEquipment, dispatch_uid="probe_held_action")
+        del signal_handlers._COST_CHANGE_RECEIVERS[kept_before:]
