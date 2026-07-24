@@ -465,10 +465,12 @@ def test_campaign_detail_shows_resources(content_house):
     assert response.status_code == 200
 
     content = response.content.decode()
-    # Resource types render as column headers in the Gangs table
-    assert '<th class="caps-label text-end">Meat</th>' in content
-    assert '<th class="caps-label text-end">Credits</th>' in content
-    assert "Manage Resources" in content
+    # Resource types render as column headers in the Gangs table, each of them a
+    # control for sorting the gangs by that resource (#1459).
+    assert 'aria-label="Sort by Meat"' in content
+    assert 'aria-label="Sort by Credits"' in content
+    # …and the section heading links through to the resources page.
+    assert reverse("core:campaign-resources", args=[campaign.id]) in content
 
 
 @pytest.mark.django_db

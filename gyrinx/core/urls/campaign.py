@@ -43,6 +43,11 @@ patterns = [
         name="campaign-remove-list",
     ),
     path(
+        "campaign/<id>/gangs/set-default-sort",
+        campaign_lists.campaign_set_default_gang_sort,
+        name="campaign-set-default-gang-sort",
+    ),
+    path(
         "campaign/<id>/action/new",
         campaign_actions.campaign_log_action,
         name="campaign-action-new",

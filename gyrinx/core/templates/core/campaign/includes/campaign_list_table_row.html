@@ -1,0 +1,34 @@
+{% load custom_tags %}
+{% comment %}One gang's row in the campaign Gangs table. Expects: list, attribute_types,
+attribute_assignment_lookup, resource_types, resource_lookup.{% endcomment %}
+<tr>
+    <td class="ps-0">
+        <a href="{% url 'core:list' list.id %}"
+           class="text-decoration-none text-body">
+            {% include "core/campaign/includes/list_row.html" with list=list %}
+        </a>
+    </td>
+    {% for attribute_type in attribute_types %}
+        <td>
+            {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
+                {% if list_assignments %}
+                    <div class="hstack gap-1 flex-wrap">
+                        {% for assignment in list_assignments %}
+                            <span class="badge fw-normal text-bg-light border d-inline-flex align-items-center gap-1">
+                                {% if assignment.attribute_value.colour %}
+                                    <span class="d-inline-block rounded-circle"
+                                          style="width: 8px;
+                                                 height: 8px;
+                                                 background-color: {{ assignment.attribute_value.colour }}"></span>
+                                {% endif %}
+                                {{ assignment.attribute_value.name }}
+                            </span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </td>
+    {% endfor %}
+    {% include "core/campaign/includes/resource_cells.html" with list=list %}
+    {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
+</tr>

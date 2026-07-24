@@ -6,6 +6,7 @@
 |------|--------|
 | 2026-03-28 | Initial spec: principles, colour, typography, spacing, icons, containers, feedback, buttons, tables, forms, page shells, empty states |
 | 2026-03-28 | v2: Remove `bi-plus-circle`/`bi-check-circle` — use `bi-plus-lg` and `bi-check-lg` only. Button colours: `btn-success` for create/confirm, `btn-primary` for navigation/open. Section header bar now includes padded inner content. Alert heading uses body font size. Unify list/detail page shells. Add search pattern, list header, campaign info columns. |
+| 2026-07-24 | Section header actions: a `.section-actions` row with `·` between items. Links to a management page are `bi-pencil` + the noun ("Attributes"), not "Manage Attributes →". |
 
 ---
 
@@ -155,17 +156,27 @@ renders nothing for houses without an icon or for users outside the group.
 
 ### Section header bar
 
-The bar contains a title and optional action. Content below the bar is padded to align with the title.
+The bar contains a title and optional actions. Content below the bar is padded to align with the title.
 
 ```html
 <div class="d-flex justify-content-between align-items-center mb-3 bg-body-secondary rounded px-2 py-1">
     <h2 class="h5 mb-0">Section title</h2>
-    <a href="#" class="fs-7 linked">Action</a>
+    <div class="hstack gap-2 section-actions">
+        <span><a href="#" class="icon-link linked fs-7"><i class="bi-pencil"></i> Resources</a></span>
+        <span><a href="#" class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add Gang</a></span>
+    </div>
 </div>
 <div class="px-2">
     <!-- Section content, padded to align with title -->
 </div>
 ```
+
+**Actions:**
+
+- Wrap the row in `hstack gap-2 section-actions`. `.section-actions` puts a `·` between items, so they read as one menu rather than a line of separate buttons.
+- Wrap each item in its own `<span>` — the separator is a pseudo-element on the wrapper, which keeps the dots right when items are conditionally rendered.
+- A link to a management page is the **icon plus the noun** — `<i class="bi-pencil"></i> Attributes`, not "Manage Attributes →". Adding uses `bi-plus-lg` ("Add Gangs"); "View all →" keeps its arrow.
+- Actions are `fs-7`, and `icon-link linked` when they carry an icon.
 
 Cards are NOT for: info panels, form wrappers, action confirmations, campaign details. Use `border rounded p-3` instead.
 
@@ -218,11 +229,13 @@ Flash messages (after redirect) are dismissible. Inline contextual alerts are no
 | Secondary action | `btn btn-secondary btn-sm` | Cancel, Clear |
 | Destructive | `btn btn-danger btn-sm` | Delete, Archive |
 | Section "add" link | `icon-link linked` in section header bar | "Add Gangs", "Add Fighter" |
+| Section "manage" link | `icon-link linked` with `bi-pencil` + the noun | "Attributes", "Resources", "Assets" |
 | Back link | `{% include "core/includes/back.html" %}` | All back navigation |
 
 **Rules:**
 
 - Page header: Edit + dropdown grouped in `btn-group`. "Add" links go in section header bars as `icon-link linked`, not in the page header.
+- Section header actions sit in a `.section-actions` row, separated by `·` — see [Section header bar](#section-header-bar).
 - Form submit: `btn-success` for save/create/confirm. `btn-primary` for search (navigation).
 - Lifecycle: `btn-success` for start/reopen, `btn-danger` for end.
 
@@ -428,6 +441,7 @@ A `<br>` before the icon in real templates, or a `<div>` wrapper:
 |-------|---------|
 | `.alert-icon` | Flex layout for alerts with pinned icon |
 | `.caps-label` | Uppercase, tracked, semibold section labels |
+| `.section-actions` | Section header action row; puts `·` between wrapped items |
 | `.linked` | Composed link style (secondary, underline-opacity) |
 | `.fs-7` | Compact font size (0.79rem) |
 | `.mb-last-0` | Remove margin from last child in rich text |

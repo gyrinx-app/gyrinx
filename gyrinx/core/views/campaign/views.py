@@ -17,6 +17,12 @@ from .common import (
     ensure_campaign_list_resources,
     get_campaign_resource_types_with_resources,
 )
+from .gang_sort import (
+    DEFAULT_GANG_SORT,
+    build_sort_options,
+    resolve_gang_sort,
+    sort_lists,
+)
 
 
 class Campaigns(generic.ListView):
@@ -290,17 +296,53 @@ class CampaignDetailView(generic.DetailView):
             attribute_assignment_lookup[attr_type.id] = type_assignments
         context["attribute_assignment_lookup"] = attribute_assignment_lookup
 
-        # Build grouped lists data for the template
+        # Gang table ordering (#1459). The viewer's ?sort= wins, then the campaign's
+        # stored default, then wealth highest-first. Sorting is done in Python over
+        # the prefetched lists — the cost figures are cached columns and the
+        # resource amounts are already in resource_lookup, so this costs no queries.
+        gang_sort = resolve_gang_sort(
+            self.request.GET.get("sort"),
+            campaign.default_gang_sort,
+            context["resource_types"],
+            resource_lookup,
+        )
+        context["gang_sort"] = gang_sort
+        context["gang_sort_options"] = build_sort_options(
+            gang_sort, context["resource_types"]
+        )
+        # Admins can promote whatever they're looking at to the campaign default.
+        context["can_set_default_gang_sort"] = gang_sort.token != (
+            campaign.default_gang_sort or DEFAULT_GANG_SORT
+        )
+
+        sorted_lists = sort_lists(list(campaign.lists.all()), gang_sort)
+        context["sorted_lists"] = sorted_lists
+
+        # Grouping can be switched off for a view (?group=0) so the sort runs across
+        # every gang in the campaign rather than within each group.
         group_attribute_type = campaign.group_attribute_type
-        if group_attribute_type:
+        show_groups = (
+            bool(group_attribute_type) and self.request.GET.get("group") != "0"
+        )
+        context["show_groups"] = show_groups
+
+        # The grouping attribute has its own heading row when grouped, so it only
+        # earns a column of its own when groups are off.
+        context["visible_attribute_types"] = [
+            attr_type
+            for attr_type in attribute_types
+            if not (show_groups and attr_type.id == group_attribute_type.id)
+        ]
+
+        # Build grouped lists data for the template
+        if show_groups:
             group_assignments = attribute_assignment_lookup.get(
                 group_attribute_type.id, {}
             )
             # Build: list of (group_value_name, group_colour, [lists])
             # Lists without a group assignment go into an "Unassigned" group
             group_value_lists = {}
-            all_lists = list(campaign.lists.all())
-            for lst in all_lists:
+            for lst in sorted_lists:
                 assignments = group_assignments.get(lst.id, [])
                 if assignments:
                     # Single-select, so take the first assignment
@@ -310,7 +352,8 @@ class CampaignDetailView(generic.DetailView):
                     key = ("Unassigned", "", None)
                 group_value_lists.setdefault(key, []).append(lst)
 
-            # Sort groups: named groups by value name, "Unassigned" at the end
+            # Sort groups: named groups by value name, "Unassigned" at the end.
+            # Gangs within a group keep the order set by the chosen sort.
             grouped_lists = []
             for (name, colour, pk), lists in sorted(
                 group_value_lists.items(),
@@ -320,7 +363,7 @@ class CampaignDetailView(generic.DetailView):
                     {
                         "name": name,
                         "colour": colour,
-                        "lists": sorted(lists, key=lambda lst: lst.name),
+                        "lists": lists,
                     }
                 )
             context["grouped_lists"] = grouped_lists

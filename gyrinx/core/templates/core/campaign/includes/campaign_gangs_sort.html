@@ -1,0 +1,97 @@
+{% load custom_tags %}
+{% comment %}
+    Sort control for the campaign Gangs table (#1459).
+
+    URL-driven: every option is a link back to this page carrying ?sort=, so the
+    server renders the order and the view is linkable. The gang's own figures are
+    laid out as R / Cr / St / W to match the stats table in the list header, with
+    the active one in primary and its direction underneath. data-gy-keep-scroll
+    holds the viewport still across the reload; without JS the #gangs anchor lands
+    you at the table instead.
+{% endcomment %}
+<div class="btn-group">
+    <button type="button"
+            class="btn btn-outline-secondary btn-sm dropdown-toggle"
+            data-bs-toggle="dropdown"
+            aria-expanded="false">
+        <span class="d-none d-sm-inline">Sort:</span> {{ gang_sort.label }}
+        <i class="{{ gang_sort.icon }}"></i>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end shadow-sm fs-7">
+        <h6 class="dropdown-header">Sort by:</h6>
+        <a class="dropdown-item{% if gang_sort_options.name.active %} active{% endif %}"
+           data-gy-keep-scroll
+           href="?{% qt request sort=gang_sort_options.name.value %}#gangs">
+            {{ gang_sort_options.name.label }}
+            {% if gang_sort_options.name.active %}<i class="{{ gang_sort_options.name.icon }}"></i>{% endif %}
+        </a>
+        <div class="dropdown-divider"></div>
+        <table class="table table-sm table-borderless text-center mb-0 w-auto mx-auto">
+            <thead>
+                <tr class="align-middle">
+                    {% for option in gang_sort_options.intrinsics %}
+                        {# Padding rather than bare text: these are one-or-two character #}
+                        {# targets, so give them a row's worth of height to hit. #}
+                        <th class="p-0 bg-transparent">
+                            <a href="?{% qt request sort=option.value %}#gangs"
+                               data-gy-keep-scroll
+                               class="d-block px-3 py-2 text-decoration-none {% if option.active %}link-primary fw-bold{% else %}link-secondary{% endif %}"
+                               bs-tooltip
+                               data-bs-toggle="tooltip"
+                               title="Sort by {{ option.label }}"
+                               aria-label="Sort by {{ option.label }}">{{ option.short_label }}</a>
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="align-middle">
+                    {% for option in gang_sort_options.intrinsics %}
+                        <td class="py-0 px-2 bg-transparent text-primary">
+                            {% if option.active %}<i class="{{ option.icon }}"></i>{% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+        {% if gang_sort_options.resources %}
+            <div class="dropdown-divider"></div>
+            {% for option in gang_sort_options.resources %}
+                <a class="dropdown-item{% if option.active %} active{% endif %}"
+                   data-gy-keep-scroll
+                   href="?{% qt request sort=option.value %}#gangs">
+                    {{ option.label }}
+                    {% if option.active %}<i class="{{ option.icon }}"></i>{% endif %}
+                </a>
+            {% endfor %}
+        {% endif %}
+        {% if campaign.group_attribute_type %}
+            <div class="dropdown-divider"></div>
+            {% if show_groups %}
+                <a class="dropdown-item icon-link"
+                   data-gy-keep-scroll
+                   href="?{% qt request group=0 %}#gangs">
+                    <i class="bi-list-ul"></i> Sort across all gangs
+                </a>
+            {% else %}
+                <a class="dropdown-item icon-link"
+                   data-gy-keep-scroll
+                   href="?{% qt request group=None %}#gangs">
+                    <i class="bi-collection"></i> Group by {{ campaign.group_attribute_type.name }}
+                </a>
+            {% endif %}
+        {% endif %}
+        {% if is_admin and can_set_default_gang_sort and not campaign.archived %}
+            <div class="dropdown-divider"></div>
+            <form method="post"
+                  data-gy-keep-scroll
+                  action="{% url 'core:campaign-set-default-gang-sort' campaign.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="sort" value="{{ gang_sort.token }}">
+                <button type="submit" class="dropdown-item icon-link">
+                    <i class="bi-pin-angle"></i> Set as default for this Campaign
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</div>

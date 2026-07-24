@@ -5,12 +5,26 @@
             <thead>
                 <tr>
                     <th class="caps-label ps-0">Gang</th>
-                    {% for attribute_type in attribute_types %}
-                        {% if not campaign.group_attribute_type_id == attribute_type.id %}
-                            <th class="caps-label">{{ attribute_type.name }}</th>
-                        {% endif %}
+                    {% for attribute_type in attribute_types %}<th class="caps-label">{{ attribute_type.name }}</th>{% endfor %}
+                    {% for resource_type in resource_types %}
+                        {# Clicking a resource heading sorts by it; clicking the one already #}
+                        {# in use turns the order around (#1459). #}
+                        <th class="caps-label text-end">
+                            {% with option=gang_sort_options.by_resource_type|lookup:resource_type.id %}
+                                {% if option %}
+                                    <a href="?{% qt request sort=option.value %}#gangs"
+                                       data-gy-keep-scroll
+                                       class="text-decoration-none {% if option.active %}link-primary{% else %}link-secondary{% endif %}"
+                                       aria-label="Sort by {{ resource_type.name }}">
+                                        {{ resource_type.name }}
+                                        {% if option.active %}<i class="{{ option.icon }}"></i>{% endif %}
+                                    </a>
+                                {% else %}
+                                    {{ resource_type.name }}
+                                {% endif %}
+                            {% endwith %}
+                        </th>
                     {% endfor %}
-                    {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
                     <th class="ps-0"></th>
                 </tr>
             </thead>
@@ -34,74 +48,12 @@
                             </td>
                         </tr>
                         {% for list in group.lists %}
-                            <tr>
-                                <td class="ps-0">
-                                    <a href="{% url 'core:list' list.id %}"
-                                       class="text-decoration-none text-body">
-                                        {% include "core/campaign/includes/list_row.html" with list=list %}
-                                    </a>
-                                </td>
-                                {% for attribute_type in attribute_types %}
-                                    {% if not campaign.group_attribute_type_id == attribute_type.id %}
-                                        <td>
-                                            {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
-                                                {% if list_assignments %}
-                                                    <div class="hstack gap-1 flex-wrap">
-                                                        {% for assignment in list_assignments %}
-                                                            <span class="badge fw-normal text-bg-light border d-inline-flex align-items-center gap-1">
-                                                                {% if assignment.attribute_value.colour %}
-                                                                    <span class="d-inline-block rounded-circle"
-                                                                          style="width: 8px;
-                                                                                 height: 8px;
-                                                                                 background-color: {{ assignment.attribute_value.colour }}"></span>
-                                                                {% endif %}
-                                                                {{ assignment.attribute_value.name }}
-                                                            </span>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
-                                            {% endwith %}
-                                        </td>
-                                    {% endif %}
-                                {% endfor %}
-                                {% include "core/campaign/includes/resource_cells.html" with list=list %}
-                                {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
-                            </tr>
+                            {% include "core/campaign/includes/campaign_list_table_row.html" with list=list %}
                         {% endfor %}
                     {% endfor %}
                 {% else %}
-                    {% for list in campaign.lists.all %}
-                        <tr>
-                            <td class="ps-0">
-                                <a href="{% url 'core:list' list.id %}"
-                                   class="text-decoration-none text-body">
-                                    {% include "core/campaign/includes/list_row.html" with list=list %}
-                                </a>
-                            </td>
-                            {% for attribute_type in attribute_types %}
-                                <td>
-                                    {% with list_assignments=attribute_assignment_lookup|lookup:attribute_type.id|lookup:list.id %}
-                                        {% if list_assignments %}
-                                            <div class="hstack gap-1 flex-wrap">
-                                                {% for assignment in list_assignments %}
-                                                    <span class="badge fw-normal text-bg-light border d-inline-flex align-items-center gap-1">
-                                                        {% if assignment.attribute_value.colour %}
-                                                            <span class="d-inline-block rounded-circle"
-                                                                  style="width: 8px;
-                                                                         height: 8px;
-                                                                         background-color: {{ assignment.attribute_value.colour }}"></span>
-                                                        {% endif %}
-                                                        {{ assignment.attribute_value.name }}
-                                                    </span>
-                                                {% endfor %}
-                                            </div>
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                            {% endfor %}
-                            {% include "core/campaign/includes/resource_cells.html" with list=list %}
-                            {% include "core/campaign/includes/campaign_list_row_actions.html" with list=list %}
-                        </tr>
+                    {% for list in lists %}
+                        {% include "core/campaign/includes/campaign_list_table_row.html" with list=list %}
                     {% endfor %}
                 {% endif %}
             </tbody>

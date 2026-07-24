@@ -254,28 +254,41 @@
         </div>
         {% include "core/includes/notification_banners.html" %}
         <!-- Gangs -->
-        <section>
+        <section id="gangs">
             <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                 <h2 class="h5 mb-0">Gangs</h2>
-                <div class="hstack gap-3">
+                <div class="hstack gap-2 flex-wrap justify-content-end section-actions">
+                    {% if campaign.has_lists %}
+                        <span>{% include "core/campaign/includes/campaign_gangs_sort.html" %}</span>
+                    {% endif %}
                     {% if attribute_types %}
-                        <a href="{% url 'core:campaign-attributes' campaign.id %}"
-                           class="linked fs-7">Manage Attributes →</a>
+                        <span>
+                            <a href="{% url 'core:campaign-attributes' campaign.id %}"
+                               class="icon-link linked fs-7">
+                                <i class="bi-pencil"></i> Attributes
+                            </a>
+                        </span>
                     {% endif %}
                     {% if resource_types or is_admin %}
-                        <a href="{% url 'core:campaign-resources' campaign.id %}"
-                           class="linked fs-7">Manage Resources →</a>
+                        <span>
+                            <a href="{% url 'core:campaign-resources' campaign.id %}"
+                               class="icon-link linked fs-7">
+                                <i class="bi-pencil"></i> Resources
+                            </a>
+                        </span>
                     {% endif %}
                     {% if is_admin and not campaign.is_post_campaign and not campaign.archived %}
-                        <a href="{% url 'core:campaign-add-lists' campaign.id %}"
-                           class="icon-link linked fs-7">
-                            <i class="bi-plus-lg"></i> Add Gangs
-                        </a>
+                        <span>
+                            <a href="{% url 'core:campaign-add-lists' campaign.id %}"
+                               class="icon-link linked fs-7">
+                                <i class="bi-plus-lg"></i> Add Gangs
+                            </a>
+                        </span>
                     {% endif %}
                 </div>
             </div>
             <div class="px-2">
-                {% include "core/campaign/includes/campaign_lists.html" with lists=campaign.lists.all pending_invitations=pending_invitations attribute_types=attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists resource_types=resource_types resource_lookup=resource_lookup %}
+                {% include "core/campaign/includes/campaign_lists.html" with lists=sorted_lists pending_invitations=pending_invitations attribute_types=visible_attribute_types attribute_assignment_lookup=attribute_assignment_lookup grouped_lists=grouped_lists resource_types=resource_types resource_lookup=resource_lookup %}
             </div>
         </section>
         <!-- Assets, Battles, Action Log & Captured Fighters -->
@@ -289,8 +302,14 @@
                            data-bs-toggle="tooltip"
                            data-bs-title="Assets are physical items or locations that gangs fight to control during the campaign."></i>
                     </h2>
-                    <a href="{% url 'core:campaign-assets' campaign.id %}"
-                       class="linked fs-7">Manage Assets →</a>
+                    <div class="hstack gap-2 section-actions">
+                        <span>
+                            <a href="{% url 'core:campaign-assets' campaign.id %}"
+                               class="icon-link linked fs-7">
+                                <i class="bi-pencil"></i> Assets
+                            </a>
+                        </span>
+                    </div>
                 </div>
                 <div class="px-2">
                     {% if asset_types %}
@@ -380,10 +399,14 @@
             <section class="col-xl-6">
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                     <h2 class="h5 mb-0">Battles</h2>
-                    {% if can_log_actions %}
-                        <a href="{% url 'core:battle-new' campaign.id %}"
-                           class="icon-link linked fs-7"><i class="bi-plus-lg"></i> New Battle</a>
-                    {% endif %}
+                    <div class="hstack gap-2 section-actions">
+                        {% if can_log_actions %}
+                            <span>
+                                <a href="{% url 'core:battle-new' campaign.id %}"
+                                   class="icon-link linked fs-7"><i class="bi-plus-lg"></i> New Battle</a>
+                            </span>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="px-2">
                     {% if recent_battles %}
@@ -414,13 +437,17 @@
                            data-bs-toggle="tooltip"
                            data-bs-title="The Action Log tracks all significant events and activities that occur during the campaign."></i>
                     </h2>
-                    <div class="hstack gap-3">
+                    <div class="hstack gap-2 section-actions">
                         {% if can_log_actions and not campaign.archived %}
-                            <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
-                               class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Log Action</a>
+                            <span>
+                                <a href="{% url 'core:campaign-action-new' campaign.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                   class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Log Action</a>
+                            </span>
                         {% endif %}
-                        <a href="{% url 'core:campaign-actions' campaign.id %}"
-                           class="linked fs-7">View all →</a>
+                        <span>
+                            <a href="{% url 'core:campaign-actions' campaign.id %}"
+                               class="linked fs-7">View all →</a>
+                        </span>
                     </div>
                 </div>
                 <div class="px-2">
@@ -446,8 +473,12 @@
                 <section class="col-xl-6">
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
                         <h2 class="h5 mb-0">Captured Fighters</h2>
-                        <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
-                           class="linked fs-7">View all →</a>
+                        <div class="hstack gap-2 section-actions">
+                            <span>
+                                <a href="{% url 'core:campaign-captured-fighters' campaign.id %}"
+                                   class="linked fs-7">View all →</a>
+                            </span>
+                        </div>
                     </div>
                     <div class="px-2">
                         {% include "core/includes/campaign_captured_fighters.html" with campaign=campaign captured_fighters=captured_fighters %}
