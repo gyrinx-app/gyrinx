@@ -469,7 +469,8 @@ def test_campaign_detail_shows_resources(content_house):
     # control for sorting the gangs by that resource (#1459).
     assert 'aria-label="Sort by Meat"' in content
     assert 'aria-label="Sort by Credits"' in content
-    assert "Manage Resources" in content
+    # …and the section heading links through to the resources page.
+    assert reverse("core:campaign-resources", args=[campaign.id]) in content
 
 
 @pytest.mark.django_db

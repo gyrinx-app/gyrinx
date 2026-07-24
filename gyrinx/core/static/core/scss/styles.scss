@@ -385,6 +385,18 @@ label {
     letter-spacing: 0.03em;
 }
 
+// Section header bar actions
+//
+// The row of links (and the odd small control) on the right of a section header
+// bar, read as one menu rather than a line of separate buttons. Separators are
+// pseudo-elements on the wrapper spans rather than markup between items, so the
+// dots stay right however many of the items are conditionally rendered.
+.section-actions > * + *::before {
+    content: "·";
+    color: var(--bs-secondary-color);
+    margin-inline-end: 0.5rem;
+}
+
 // Home row meta line (house/credits, campaign status, etc). Reserve one text
 // line of height so a line holding only a badge — badges use font-size .75em /
 // line-height 1, so they're shorter than base text — stays as tall as a line
