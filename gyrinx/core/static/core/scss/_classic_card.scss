@@ -518,7 +518,22 @@
 
     // Each group is inline (label left, value wraps to its right) and stays
     // whole within a column; baseline-align the label with the body's text.
+    //
+    // `inline-flex` (not `flex`) is load-bearing: WebKit ignores `break-inside:
+    // avoid` on a block-level flex container inside a multicol, and its attempt
+    // to fragment one produces garbage — on iOS Safari a long Rules group was
+    // sliced mid-list with the second half painted overlapping the next group,
+    // and when the column box had a constrained height the trailing group (Gear)
+    // was dropped from the card altogether. An atomic inline-level box is
+    // *monolithic* per CSS Fragmentation, so no engine may split it; `width:
+    // 100%` keeps each group on its own line so the block still reads as a
+    // stack. Verified against iOS 26 Safari — the prefixed
+    // `-webkit-column-break-inside: avoid` does NOT fix this, inline-flex does.
+    // Blank cards re-blockify these back to flex items (the [data-kind="blank"]
+    // override swaps the column box to a flex column), so they are unaffected.
     .cc-detail .cc-section {
+        display: inline-flex;
+        width: 100%;
         flex-direction: row;
         align-items: baseline;
         gap: 1.5mm;
