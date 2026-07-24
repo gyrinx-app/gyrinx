@@ -209,8 +209,11 @@ def test_classic_renders_fighter_portrait(
     client.force_login(user)
     body = client.get(_print_url(lst, cfg)).content.decode()
 
-    assert body.count("cc-portrait") == 1  # only the fighter with an image
-    assert "has-portrait" in body
+    # Exactly one portrait column, for the fighter with an image. The image
+    # lives in a wrapper (see classic_card.html), so count the two parts
+    # separately rather than raw occurrences of the "cc-portrait" prefix.
+    assert body.count('class="cc-portrait"') == 1
+    assert body.count("cc-portrait__img") == 1
 
 
 @pytest.mark.django_db
