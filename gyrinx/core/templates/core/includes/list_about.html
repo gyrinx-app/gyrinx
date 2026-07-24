@@ -58,7 +58,7 @@
                         <div class="mb-2">
                             <img src="{{ fighter.image.url }}"
                                  alt="{{ fighter.name }}"
-                                 class="img-fluid rounded size-em-5">
+                                 class="img-fluid rounded size-em-5 object-fit-cover">
                         </div>
                     {% endif %}
                     {{ fighter.narrative|safe_rich_text|safe }}
@@ -73,7 +73,7 @@
                         <div class="mb-2">
                             <img src="{{ fighter.image.url }}"
                                  alt="{{ fighter.name }}"
-                                 class="img-fluid rounded size-em-5">
+                                 class="img-fluid rounded size-em-5 object-fit-cover">
                         </div>
                     {% endif %}
                     <p class="text-secondary">No lore added yet.</p>
