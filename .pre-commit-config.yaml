@@ -3,7 +3,7 @@
 # fail_fast: true
 repos:
   - repo: https://github.com/djlint/djLint
-    rev: v1.40.2
+    rev: v1.40.8
     hooks:
       - id: djlint-reformat-django
       - id: djlint-django
@@ -18,7 +18,7 @@ repos:
         types: [jupyter]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.20
+    rev: v0.15.22
     hooks:
       - id: ruff
         types_or: [python, pyi]

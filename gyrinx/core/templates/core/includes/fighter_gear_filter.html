@@ -119,85 +119,35 @@
                         {% qt_has_key request "al" as al_key_exists %}
                         {% qt_contains request "al" "C" as al_contains_c %}
                         <div class="form-check mb-0">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   role="switch"
-                                   form="search"
-                                   id="al-c"
-                                   name="al"
-                                   value="C"
-                                   {% if render_preset_al %}{% if "C" in preset_al %}checked{% endif %}
-                                   {% elif not request.GET.al or al_contains_c %}
-                                   checked
-                                   {% endif %}>
+                            <input class="form-check-input" type="checkbox" role="switch" form="search" id="al-c" name="al" value="C" {% if render_preset_al %}{% if "C" in preset_al %}checked{% endif %} {% elif not request.GET.al or al_contains_c %} checked {% endif %}>
                             <label class="form-check-label" for="al-c">Common (C)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="C" %}#search">only</a>
                         </div>
                         {% qt_contains request "al" "R" as al_contains_r %}
                         <div class="form-check mb-0">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   role="switch"
-                                   form="search"
-                                   id="al-r"
-                                   name="al"
-                                   value="R"
-                                   {% if render_preset_al %}{% if "R" in preset_al %}checked{% endif %}
-                                   {% elif not request.GET.al or al_contains_r %}
-                                   checked
-                                   {% endif %}>
+                            <input class="form-check-input" type="checkbox" role="switch" form="search" id="al-r" name="al" value="R" {% if render_preset_al %}{% if "R" in preset_al %}checked{% endif %} {% elif not request.GET.al or al_contains_r %} checked {% endif %}>
                             <label class="form-check-label" for="al-r">Rare (R)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="R" %}#search">only</a>
                         </div>
                         {% qt_contains request "al" "I" as al_contains_i %}
                         <div class="form-check mb-0">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   role="switch"
-                                   form="search"
-                                   id="al-i"
-                                   name="al"
-                                   value="I"
-                                   {% if render_preset_al %}{% if "I" in preset_al %}checked{% endif %}
-                                   {% elif al_contains_i %}
-                                   checked
-                                   {% endif %}>
+                            <input class="form-check-input" type="checkbox" role="switch" form="search" id="al-i" name="al" value="I" {% if render_preset_al %}{% if "I" in preset_al %}checked{% endif %} {% elif al_contains_i %} checked {% endif %}>
                             <label class="form-check-label" for="al-i">Illegal (I)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="I" %}#search">only</a>
                         </div>
                         {% qt_contains request "al" "E" as al_contains_e %}
                         <div class="form-check mb-0">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   role="switch"
-                                   form="search"
-                                   id="al-e"
-                                   name="al"
-                                   value="E"
-                                   {% if render_preset_al %}{% if "E" in preset_al %}checked{% endif %}
-                                   {% elif al_contains_e %}
-                                   checked
-                                   {% endif %}>
+                            <input class="form-check-input" type="checkbox" role="switch" form="search" id="al-e" name="al" value="E" {% if render_preset_al %}{% if "E" in preset_al %}checked{% endif %} {% elif al_contains_e %} checked {% endif %}>
                             <label class="form-check-label" for="al-e">Exclusive (E)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="E" %}#search">only</a>
                         </div>
                         {% qt_contains request "al" "U" as al_contains_u %}
                         <div class="form-check mb-0">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   role="switch"
-                                   form="search"
-                                   id="al-u"
-                                   name="al"
-                                   value="U"
-                                   {% if render_preset_al %}{% if "U" in preset_al %}checked{% endif %}
-                                   {% elif al_contains_u %}
-                                   checked
-                                   {% endif %}>
+                            <input class="form-check-input" type="checkbox" role="switch" form="search" id="al-u" name="al" value="U" {% if render_preset_al %}{% if "U" in preset_al %}checked{% endif %} {% elif al_contains_u %} checked {% endif %}>
                             <label class="form-check-label" for="al-u">Unique (U)</label>
                             •
                             <a class="ms-auto" href="?{% qt request al="U" %}#search">only</a>
