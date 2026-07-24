@@ -25,7 +25,7 @@ RESOURCE_PREFIX = "resource:"
 
 #: metric token -> (label, short label, key function over a List)
 METRIC_SORTS: dict[str, tuple[str, str, Callable]] = {
-    "name": ("Gang name", "", lambda lst: lst.name.lower()),
+    "name": ("Name", "", lambda lst: lst.name.lower()),
     "rating": ("Rating", "R", lambda lst: lst.rating_current),
     "credits": ("Credits", "Cr", lambda lst: lst.credits_current),
     "stash": ("Stash", "St", lambda lst: lst.stash_current),
