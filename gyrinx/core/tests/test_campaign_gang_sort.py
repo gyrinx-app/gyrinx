@@ -334,3 +334,21 @@ def test_active_intrinsic_is_marked_and_flips_direction(client, user, campaign, 
     # Everything else starts highest-first.
     assert by_short["W"]["value"] == "-wealth"
     assert options["name"]["value"] == "name"
+
+
+@pytest.mark.django_db
+def test_resource_column_heading_sorts_by_that_resource(client, user, campaign, gangs):
+    """The Reputation heading is a sort control, and turns around on re-click."""
+    client.force_login(user)
+    reputation = CampaignResourceType.objects.create(
+        campaign=campaign, name="Reputation", owner=user
+    )
+
+    content = get_campaign(client, campaign).content.decode()
+    assert f"sort=-resource%3A{reputation.id}" in content
+
+    # Sorting by it already: the heading now offers the opposite order.
+    content = get_campaign(
+        client, campaign, sort=f"-resource:{reputation.id}"
+    ).content.decode()
+    assert f"sort=resource%3A{reputation.id}" in content

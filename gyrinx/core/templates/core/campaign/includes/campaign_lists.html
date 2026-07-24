@@ -6,7 +6,25 @@
                 <tr>
                     <th class="caps-label ps-0">Gang</th>
                     {% for attribute_type in attribute_types %}<th class="caps-label">{{ attribute_type.name }}</th>{% endfor %}
-                    {% for resource_type in resource_types %}<th class="caps-label text-end">{{ resource_type.name }}</th>{% endfor %}
+                    {% for resource_type in resource_types %}
+                        {# Clicking a resource heading sorts by it; clicking the one already #}
+                        {# in use turns the order around (#1459). #}
+                        <th class="caps-label text-end">
+                            {% with option=gang_sort_options.by_resource_type|lookup:resource_type.id %}
+                                {% if option %}
+                                    <a href="?{% qt request sort=option.value %}#gangs"
+                                       data-gy-keep-scroll
+                                       class="text-decoration-none {% if option.active %}link-primary{% else %}link-secondary{% endif %}"
+                                       aria-label="Sort by {{ resource_type.name }}">
+                                        {{ resource_type.name }}
+                                        {% if option.active %}<i class="{{ option.icon }}"></i>{% endif %}
+                                    </a>
+                                {% else %}
+                                    {{ resource_type.name }}
+                                {% endif %}
+                            {% endwith %}
+                        </th>
+                    {% endfor %}
                     <th class="ps-0"></th>
                 </tr>
             </thead>

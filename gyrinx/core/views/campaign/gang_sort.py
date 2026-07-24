@@ -149,17 +149,19 @@ def build_sort_options(current, resource_types):
     Selecting the metric already in use flips its direction; selecting any other
     metric uses its natural direction — highest first for numbers, A–Z for names.
     """
+    resources = {
+        resource_type.id: _option(
+            f"{RESOURCE_PREFIX}{resource_type.id}", current, label=resource_type.name
+        )
+        for resource_type in resource_types
+    }
     return {
         "name": _option("name", current),
         "intrinsics": [_option(metric, current) for metric in INTRINSIC_METRICS],
-        "resources": [
-            _option(
-                f"{RESOURCE_PREFIX}{resource_type.id}",
-                current,
-                label=resource_type.name,
-            )
-            for resource_type in resource_types
-        ],
+        "resources": list(resources.values()),
+        # Keyed by resource type so the table's column headings can find their
+        # own option without relying on the two loops staying in step.
+        "by_resource_type": resources,
     }
 
 
