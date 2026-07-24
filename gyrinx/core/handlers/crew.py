@@ -206,7 +206,8 @@ def with_crew_cost_data(fighters):
     prefetch that :func:`crew_fighter_cost` needs has to be applied *after* it.
     """
     return fighters.with_related_data().prefetch_related(
-        "source_assignment__content_equipment"
+        "source_assignment__content_equipment",
+        "source_assignment__list_fighter__content_fighter",
     )
 
 

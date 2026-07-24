@@ -134,12 +134,20 @@ def crew_fighter_cost(fighter, equipment_set=None):
     flagged *treated as a fighter* (the Iron Automaton) is costed at zero as a
     fighter — the gang books its value against the equipment sitting in the
     stash — so the equipment's cost is added back here, otherwise fielding it
-    would look free. Callers must prefetch ``source_assignment__content_equipment``
-    to keep this off the N+1 path.
+    would look free.
+
+    Stash-held only, matching what the flag describes: the same equipment
+    carried by a regular fighter is already priced into *that* fighter's cost,
+    so adding it again for their linked child would count it twice. Callers load
+    the fighters via ``handlers.crew.with_crew_cost_data`` to keep this off the
+    N+1 path.
     """
     cost = fighter.cost_int_for_equipment_set(equipment_set)
     for assignment in fighter.source_assignment.all():
-        if assignment.content_equipment.crew_treated_as_fighter:
+        if (
+            assignment.content_equipment.crew_treated_as_fighter
+            and assignment.list_fighter.content_fighter.is_stash
+        ):
             cost += assignment.cost_int_cached
     return cost
 

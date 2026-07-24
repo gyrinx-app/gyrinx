@@ -5127,3 +5127,33 @@ def test_treated_as_fighter_flag_only_applies_to_stash_equipment(
     ids = {row["fighter"].id for row in crew_eligibility(crew)}
     assert assignment.child_fighter_id not in ids
     assert owner.id in ids  # its owner is still selectable
+
+
+@pytest.mark.django_db
+def test_flagged_gear_on_a_regular_fighter_is_not_double_counted(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """Flagged equipment carried by a regular fighter is already priced into that
+    fighter, so their linked child must not add it again."""
+    from gyrinx.content.models import ContentEquipmentFighterProfile
+
+    from gyrinx.core.models.crew import crew_fighter_cost
+
+    owner = crew_setup["fighters"][0]
+    auto = make_equipment(name="Iron Automaton", cost=200)
+    auto.crew_treated_as_fighter = True
+    auto.save()
+    auto_type = make_content_fighter(
+        type="Iron Automaton",
+        category=FighterCategoryChoices.BRUTE,
+        house=owner.content_fighter.house,
+        base_cost=0,
+    )
+    ContentEquipmentFighterProfile.objects.create(
+        equipment=auto, content_fighter=auto_type
+    )
+    assignment = owner.assign(auto)
+    child = ListFighter.objects.get(pk=assignment.child_fighter_id)
+
+    # The owner carries the 200¢; the child stays free.
+    assert crew_fighter_cost(child) == 0
