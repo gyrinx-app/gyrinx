@@ -500,7 +500,12 @@
     .cc-detail__cols {
         display: flex;
         flex-direction: row;
-        align-items: flex-start;
+        // Columns stretch (the flex default) rather than sizing to their
+        // content: blank cards spread their write-in boxes down the column with
+        // `justify-content: space-between`, which does nothing unless the
+        // column is as tall as the block. Groups stack from the top either way,
+        // so this is invisible on a normal card.
+        align-items: stretch;
         gap: var(--cc-detail-gap);
         max-height: 100%;
         overflow: hidden;

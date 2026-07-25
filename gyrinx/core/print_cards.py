@@ -165,11 +165,11 @@ class ClassicCard:
 
         This split is done here rather than by CSS multi-column layout because
         WebKit does not support a multi-column container nested inside another
-        fragmentation context: when printing (where the page *is* a fragmenta-
-        tion context) iOS Safari collapses the block to a single full-width
-        column, so cards printed from an iPhone lost the two-column detail
-        layout entirely. Splitting server-side renders identically on screen
-        and on paper, in every engine.
+        fragmentation context: when printing (where the page *is* a
+        fragmentation context) iOS Safari collapses the block to a single
+        full-width column, so cards printed from an iPhone lost the two-column
+        detail layout entirely. Splitting server-side renders identically on
+        screen and on paper, in every engine.
 
         Groups keep their reading order and are cut at one point, exactly as
         column-major flow would: column one takes the first N, column two the
