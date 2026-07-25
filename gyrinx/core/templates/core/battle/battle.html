@@ -104,7 +104,12 @@
                                         only for crews that received one.
                                         {% endcomment %}
                                         <tr>
-                                            <th></th>
+                                            {% comment %}
+                                            Gang spans both tiers rather than leaving an empty
+                                            cell above it: an empty th in a multi-row header
+                                            can be announced as the first column's header.
+                                            {% endcomment %}
+                                            <th rowspan="2" scope="col" class="caps-label align-bottom border-bottom">Gang</th>
                                             <th colspan="2"
                                                 scope="colgroup"
                                                 class="caps-label text-center border-bottom">Before balancing</th>
@@ -113,7 +118,6 @@
                                                 class="caps-label text-center border-bottom ps-3">After balancing</th>
                                         </tr>
                                         <tr class="border-bottom">
-                                            <th scope="col" class="caps-label">Gang</th>
                                             <th scope="col" class="caps-label text-end">Rating</th>
                                             <th scope="col" class="caps-label ps-3">vs top</th>
                                             <th scope="col" class="caps-label text-end ps-3">Rating</th>
