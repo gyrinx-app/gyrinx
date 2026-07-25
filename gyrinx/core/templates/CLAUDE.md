@@ -28,8 +28,10 @@ Working rules:
   | `{% include "core/includes/back.html" %}` | `<c-back>` |
   | a `bg-body-tertiary rounded px-2 py-2 d-flex …` bar | `class="section-header"` |
 
-  `btn-` should appear in exactly one template (`cotton/btn.html`). Hand-written markup
-  for a covered pattern trips `scripts/check_raw_markup.py`.
+  Raw `btn btn-*` should not appear outside `gyrinx/templates/cotton/` — that is what
+  `scripts/check_raw_markup.py` counts. Within the library `cotton/btn.html` owns the
+  variant classes (`cotton/form/stepper.html` still writes its own and could compose
+  `<c-btn>`; `btn-close` in `cotton/callout.html` is Bootstrap's dismiss control).
 - Reach for an existing snippet in `core/includes/` before writing new markup. The fighter
   card lives at [core/includes/fighter_card_content_inner.html](core/includes/fighter_card_content_inner.html).
 

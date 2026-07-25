@@ -24,8 +24,10 @@ Adding raw markup for one of these patterns should be questioned — the
 `check-raw-markup` hook fails the build when the count rises. Converting nearby
 markup while editing a template is welcome but not mandatory.
 
-`btn-` should appear in exactly one template (`cotton/btn.html`). Same idea for the
-other families: the class strings live in the component.
+Raw `btn btn-*` should not appear outside `gyrinx/templates/cotton/` — that is exactly
+what the ratchet counts. Inside the library, `cotton/btn.html` owns the variant classes;
+`cotton/form/stepper.html` still writes its own and could compose `<c-btn>` instead, and
+the `btn-close` in `cotton/callout.html` is Bootstrap's dismiss control, not a variant.
 
 ## Component call-site mistakes that fail SILENTLY
 
