@@ -328,12 +328,8 @@
                             <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Extras</span>
                                 {% if can_manage %}
-                                    {% if crew.is_locked %}
-                                        <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
-                                           class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
-                                    {% else %}
-                                        <span class="text-secondary fs-7">Hired guns and balancing are added once the crew is confirmed</span>
-                                    {% endif %}
+                                    <a href="{% url 'core:crew-extra-new' battle.id crew.id %}"
+                                       class="icon-link linked fs-7"><i class="bi-plus-lg"></i> Add extra</a>
                                 {% endif %}
                             </div>
                         </td>
@@ -431,6 +427,41 @@
                             </tr>
                         {% endif %}
                     {% endif %}
+                    {% comment %}
+                    The two figures the battle page ranks crews on, on their own
+                    dividers so they read as a distinct pair rather than more
+                    per-column subtotals. Before balancing is Fighters & Stash +
+                    Spending; after adds the allowance. A pending draw has no
+                    known rating, matching the Total below.
+                    {% endcomment %}
+                    <tr class="border-top">
+                        <td class="text-secondary">Rating before balancing</td>
+                        <td class="text-end"
+                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
+                            {% if receipt.pending_roll %}
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      title="Unknown until you roll for selection">?</span>
+                            {% else %}
+                                {{ rating_before }}¢
+                                {% if rating_provisional %}<span class="fs-7 text-secondary">provisional</span>{% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="text-secondary">Rating after balancing</td>
+                        <td class="text-end"
+                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
+                            {% if receipt.pending_roll %}
+                                <span bs-tooltip
+                                      data-bs-toggle="tooltip"
+                                      title="Unknown until you roll for selection">?</span>
+                            {% else %}
+                                {{ rating_after }}¢
+                                {% if rating_provisional %}<span class="fs-7 text-secondary">provisional</span>{% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
                     <tr class="border-top fs-5 fw-semibold">
                         <td>Total</td>
                         <td class="text-end"

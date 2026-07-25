@@ -2106,7 +2106,8 @@ def test_crew_and_extra_owned_by_gang_owner(
     crew = Crew.objects.get(battle=battle, list=other_gang)
     assert crew.owner == player
 
-    # Extras can only be added once the crew is locked.
+    # The extra is owned by the player whose gang it is, not the arbitrator who
+    # typed it in — the same rule as the crew itself.
     Crew.objects.filter(pk=crew.pk).update(status=Crew.LOCKED)
     client.post(
         reverse("core:crew-extra-new", args=[battle.id, crew.id]),
@@ -2366,10 +2367,10 @@ def test_crew_extra_add_edit_delete(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_extras_only_added_after_the_crew_is_locked(client, crew_setup):
-    """Extras — hired guns, balancing credits — are worked out once the crew is
-    set (the allowance is calculated after crew selection, and a random crew
-    isn't even known until the draw), so a new extra can't be added to a draft."""
+def test_extras_can_be_added_at_any_point_in_a_crews_life(client, crew_setup):
+    """Extras were once gated on the crew being confirmed, on the grounds that
+    an allowance is worked out after selection. Players know about a hired gun
+    or an allowance before then, so both a draft and a locked crew take them."""
     client.force_login(crew_setup["user"])
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(battle=battle, list=gang, owner=crew_setup["user"])
@@ -2380,14 +2381,14 @@ def test_extras_only_added_after_the_crew_is_locked(client, crew_setup):
         "reason": "",
     }
 
-    # Draft: blocked, nothing created.
-    client.post(reverse("core:crew-extra-new", args=[battle.id, crew.id]), payload)
-    assert not crew.line_items.exists()
-
-    # Locked: the extra is added.
-    Crew.objects.filter(pk=crew.pk).update(status=Crew.LOCKED)
+    # Draft: recorded, not turned away.
     client.post(reverse("core:crew-extra-new", args=[battle.id, crew.id]), payload)
     assert crew.line_items.count() == 1
+
+    # Locked: still fine.
+    Crew.objects.filter(pk=crew.pk).update(status=Crew.LOCKED)
+    client.post(reverse("core:crew-extra-new", args=[battle.id, crew.id]), payload)
+    assert crew.line_items.count() == 2
 
 
 @pytest.mark.django_db
@@ -5587,3 +5588,96 @@ def test_battle_page_marks_a_forecast_provisional_in_both_columns(
     assert crew_row["is_forecast"] is True
     # Once for the pre-balancing rating, once for the post-balancing one.
     assert resp.content.decode().count(">provisional</span>") == 2
+
+
+# --- Extras before the crew is confirmed --------------------------------------
+
+
+@pytest.mark.django_db
+def test_extras_can_be_added_to_a_draft_crew(client, crew_setup):
+    """Spending and balancing used to be gated on confirming the crew. Players
+    know about a hired gun or an allowance before then, and nothing downstream
+    needs the lock — extras never enter the frozen rating snapshots."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+    assert not crew.is_locked
+
+    client.force_login(crew_setup["user"])
+    resp = client.post(
+        reverse("core:crew-extra-new", args=[crew.battle_id, crew.id]),
+        {
+            "label": "Underdog hire",
+            "cost": "150",
+            "payment": Crew.PAY_ALLOWANCE,
+            "reason": "",
+        },
+    )
+    assert resp.status_code == 302
+
+    item = CrewLineItem.objects.get(crew=crew)
+    assert item.cost == 150
+    assert crew.balancing_total() == 150
+    # Balancing stays out of the comparison rating even on a draft.
+    assert crew.rating_before_balancing() == 100
+    assert crew.rating_after_balancing() == 250
+
+
+@pytest.mark.django_db
+def test_draft_crew_page_offers_the_add_extra_link(client, crew_setup):
+    """The link was replaced by a 'confirm the crew first' note on a draft."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    client.force_login(crew_setup["user"])
+    body = client.get(
+        reverse("core:crew", args=[crew.battle_id, crew.id])
+    ).content.decode()
+
+    assert reverse("core:crew-extra-new", args=[crew.battle_id, crew.id]) in body
+    assert "added once the crew is confirmed" not in body
+
+
+@pytest.mark.django_db
+def test_crew_sheet_shows_the_ratings_the_battle_page_compares(client, crew_setup):
+    """The crew sheet spells out both battle-page figures, so a player can see
+    where that screen's number comes from."""
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:2])
+    _extra(crew, crew_setup["user"], "Tactics card", 40, Crew.PAY_CREDITS)
+    _extra(crew, crew_setup["user"], "Underdog hire", 150, Crew.PAY_ALLOWANCE)
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+
+    # 200 fighters + 40 spending; balancing lands only on the second figure.
+    assert resp.context["rating_before"] == 240
+    assert resp.context["rating_after"] == 390
+    # The same numbers the battle page ranks on.
+    assert crew_spread_rating(crew)[0] == resp.context["rating_before"]
+
+    body = resp.content.decode()
+    assert "Rating before balancing" in body
+    assert "Rating after balancing" in body
+
+
+@pytest.mark.django_db
+def test_locked_badge_says_membership_locked(client, crew_setup):
+    """What freezes at lock is who is in the crew — loadouts, stash and extras
+    all stay editable, and a bare "Locked" read as though nothing could."""
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    assert crew.get_status_display() == "Membership locked"
+
+    client.force_login(crew_setup["user"])
+    body = client.get(
+        reverse("core:crew", args=[crew.battle_id, crew.id])
+    ).content.decode()
+    assert "Membership locked" in body

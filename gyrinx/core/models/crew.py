@@ -173,7 +173,11 @@ class Crew(AppBase):
     LOCKED = "locked"
     STATUS_CHOICES = [
         (DRAFT, "Draft"),
-        (LOCKED, "Locked"),
+        # "Membership locked", not "Locked": what freezes is *who is in the
+        # crew*. The loadouts they bring, the stash they carry and the extras
+        # they are credited with all stay editable afterwards, and a bare
+        # "Locked" was read as though the whole crew were finished.
+        (LOCKED, "Membership locked"),
     ]
 
     # The rulebook's three crew selection methods. "Whole gang" is deliberately
