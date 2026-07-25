@@ -20,6 +20,8 @@ and development guides.
 Before getting started, you'll need:
 
 - **Python 3.12+** - Use [pyenv](https://github.com/pyenv/pyenv) to manage versions
+- **[uv](https://docs.astral.sh/uv/) 0.11+** - Manages the Python environment and dependencies.
+  Install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **macOS with Homebrew** - The local dev scripts (`setup-local-postgres.sh`, `dev.sh`) are
   macOS-only. Linux contributors will need to set up PostgreSQL 16 manually and start it
   before running `dev.sh`
@@ -31,9 +33,9 @@ Before getting started, you'll need:
 # Clone and enter the repository
 git clone git@github.com:gyrinx-app/gyrinx.git && cd gyrinx
 
-# Set up Python environment
-python -m venv .venv && . .venv/bin/activate
-pip install --editable .
+# Set up Python environment (creates .venv and installs the locked dependencies)
+uv sync
+. .venv/bin/activate
 
 # Configure the application
 manage setupenv
@@ -83,19 +85,24 @@ The Quick Start above gets you running fast. For more detailed steps:
     If you use `pyenv`, we have a `.python-version` file. If you have pyenv active
     in your environment, this file will automatically activate this version for you.
 
-3. Create and activate a virtual environment:
+3. Create the virtual environment and install dependencies:
 
     ```bash
-    python -m venv .venv && . .venv/bin/activate
+    uv sync && . .venv/bin/activate
     ```
 
-4. Install the project in editable mode so you can use the `manage` command:
+    `uv sync` creates `.venv`, installs the exact versions pinned in `uv.lock`,
+    and installs the project itself in editable mode.
+
+4. Check the `manage` command is available:
 
     ```bash
-    pip install --editable .
+    manage --help
     ```
 
-    `setuptools` will handle installing dependencies.
+    Dependencies are declared in `pyproject.toml` — never edit `uv.lock` by hand,
+    and don't `pip install` into the venv, as the next `uv sync` will remove
+    anything the lock doesn't mention. Use `uv add` / `uv remove` instead.
 
 5. You should then be able to run Django `manage` commands. This one will set up
    your `.env` file:

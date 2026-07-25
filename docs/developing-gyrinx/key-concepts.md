@@ -71,6 +71,44 @@ Here's a breakdown of the directories in the repo, with files that are not impor
     └── manage.py           -- Django command line management script
 ```
 
+### Dependency Management
+
+Python dependencies are declared in `pyproject.toml` and resolved into `uv.lock`,
+which is the source of truth for what actually gets installed. Everything — the
+production image, CI, and local worktrees — installs with `uv sync --locked`.
+
+```bash
+uv sync                  # install exactly what uv.lock pins (creates .venv)
+uv add  <package>        # add a dependency: updates pyproject.toml and uv.lock
+uv remove <package>      # remove one
+uv lock --upgrade        # refresh every pin to the latest allowed version
+uv lock --check          # assert the lock matches pyproject.toml (CI does this)
+```
+
+Never hand-edit `uv.lock`. Never `pip install` into the venv — the next
+`uv sync` removes anything the lock does not mention.
+
+`--locked` makes each install refuse to run against a lock that has drifted from
+`pyproject.toml`, so a stale lock fails fast at install time rather than silently
+shipping the wrong versions. It once drifted far enough to hold Twisted a full
+major version behind and raise a security alert on its own.
+
+Two settings in `[tool.uv]` are deliberate, and both have a comment explaining
+why:
+
+- `environments` restricts resolution to CPython on Linux and macOS. Resolving
+  for every imaginable platform forces the lock to honour constraints from
+  environments we never run — `autobahn` caps `cbor2<6` on PyPy-for-Windows,
+  which would otherwise downgrade cbor2 for production too.
+- `required-version` sets a floor on uv itself, because `uv.lock`'s format is
+  versioned and an older uv silently rewrites the lock into its own older format.
+
+**Tool versions are duplicated in `.pre-commit-config.yaml`.** The pinned djlint
+and ruff revs there are independent of `pyproject.toml`. They must be kept in
+step: when the two djlint versions disagree, the commit hook reformats templates
+one way while CI demands the other, and no commit can satisfy both. Dependabot
+watches both, but it cannot tell that they need to match — so bump them together.
+
 ## Technical Principles of Gyrinx
 
 ### Not an SPA
