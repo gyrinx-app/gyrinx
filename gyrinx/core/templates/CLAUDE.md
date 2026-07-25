@@ -59,7 +59,9 @@ the gate, fix the call site.
   excluded from djlint and `end-of-file-fixer` because a newline there renders as a stray
   space between inline elements. Don't reformat them.
 - Mobile-first; responsive utilities scale up. Left-aligned content typically `col-12 col-xl-6`.
-- Avoid `alert` classes — prefer `border rounded p-2`. Cards are reserved for fighter grids.
+- Feedback goes in `<c-callout>`; neutral grouped content goes in `<c-box>`. Don't reach for
+  `alert` classes or hand-write a bordered box. Bootstrap `card` stays reserved for fighter
+  grids and equipment categories.
 - Never apply `|safe` directly to user-supplied content. Sanitize first — the project ships
   the `safe_rich_text` template filter (in `core/templatetags/custom_tags.py`) for this.
   Only use `|safe` on values you control or that have already been sanitized.
