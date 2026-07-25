@@ -23,7 +23,14 @@ COTTON_DIR = REPO_ROOT / "gyrinx" / "templates" / "cotton"
 OPEN_TAG_RE = re.compile(
     r"<c-(?P<name>[\w.\-]+)(?P<body>(?:\"[^\"]*\"|'[^']*'|[^>\"'])*)>"
 )
-ATTR_RE = re.compile(r"(?P<colon>:?)(?P<name>[\w.@:\-]+)\s*=\s*\"(?P<value>[^\"]*)\"")
+# Quote-agnostic on purpose: hardcoding `"` let `:disabled='not can_roll'` --
+# the exact "silently ships the control enabled" bug these gates exist for --
+# walk straight past every one of them.
+ATTR_RE = re.compile(
+    r"(?P<colon>:?)(?P<name>[\w.@:\-]+)\s*=\s*"
+    r"(?P<q>[\"'])(?P<value>(?:(?!(?P=q)).)*)(?P=q)",
+    re.S,
+)
 
 
 def html_files():
@@ -138,7 +145,16 @@ def declared_props():
         return out
     for path in COTTON_DIR.rglob("*.html"):
         name = str(path.relative_to(COTTON_DIR).with_suffix("")).replace("/", ".")
-        m = re.search(r"<c-vars([^>]*)/?>", path.read_text(encoding="utf-8"))
+        # Blank {% comment %} blocks first — see the same fix in
+        # scripts/check_cotton.py. Doc comments mention <c-vars>, and taking the
+        # first match parsed prose and returned {} for six components.
+        source = re.sub(
+            r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}",
+            "",
+            path.read_text(encoding="utf-8"),
+            flags=re.S,
+        )
+        m = re.search(r"<c-vars([^>]*)/?>", source)
         out[name] = (
             {a.group("name") for a in ATTR_RE.finditer(m.group(1))} if m else set()
         )
@@ -374,3 +390,60 @@ def test_no_multiline_hash_comments():
         "Multi-line {# #} comments render as literal text in the page. "
         "Use {% comment %}...{% endcomment %} instead.\n  " + "\n  ".join(offenders)
     )
+
+
+def test_declared_props_are_parsed_from_the_real_cvars_not_the_doc_comment():
+    """Every component's doc comment discusses `<c-vars>`, and both gates take the
+    FIRST match in the file — so without blanking comments they parse prose and
+    return an empty prop set.
+
+    That silently blinded the undeclared-prop XSS check on the six busiest
+    components. It failed closed (an empty set flags every `:prop`), but it had a
+    fail-OPEN twin: a doc comment spelling out `<c-vars foo="">` as an example
+    would mark `foo` declared, letting a real `:foo=` reach the mark_safe'd
+    `{{ attrs }}`. Adding one sentence of prose to badge/icon/messages flipped all
+    three, and nothing noticed — hence this test.
+    """
+    props = declared_props()
+    assert "disabled" in props["btn"], (
+        "c-btn declares `disabled`; if this is empty the gate is parsing the doc "
+        "comment instead of the real <c-vars>."
+    )
+    assert {"variant", "state", "class"} <= props["badge"] | {"variant"}
+    for name in ("btn", "badge", "back", "cancel", "icon", "messages", "callout"):
+        assert props[name], f"{name}: empty prop set means the gate is blind"
+
+
+def test_gate_regex_is_quote_agnostic():
+    """`:disabled='not can_roll'` is the canonical "ships the control enabled"
+    bug. A double-quote-only ATTR_RE let it past every gate."""
+    single = dict(
+        (m.group("name"), m.group("value"))
+        for m in ATTR_RE.finditer("""<c-btn :disabled='not can_roll' :id='payload'>""")
+    )
+    assert single == {"disabled": "not can_roll", "id": "payload"}
+    double = dict(
+        (m.group("name"), m.group("value"))
+        for m in ATTR_RE.finditer('<c-btn :disabled="not can_roll">')
+    )
+    assert double == {"disabled": "not can_roll"}
+
+
+def test_raw_markup_ratchet_holds():
+    """scripts/check_raw_markup.py counts hand-written Bootstrap markup and fails
+    if it rises above scripts/raw_markup_baseline.json.
+
+    Run here as well as in pre-commit so it is a genuine merge gate: it caught
+    four raw buttons that arrived on main while this branch was in flight, and a
+    ratchet nobody runs is just a file.
+    """
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    proc = subprocess.run(  # noqa: S603
+        [sys.executable, str(REPO_ROOT / "scripts" / "check_raw_markup.py")],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr

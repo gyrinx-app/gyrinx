@@ -57,7 +57,15 @@ def declared_props(component):
     for base in COTTON_DIRS:
         path = base / rel
         if path.is_file():
-            match = CVARS.search(path.read_text(encoding="utf-8", errors="replace"))
+            # blank_comments FIRST: every component's doc comment talks about
+            # <c-vars>, and CVARS.search takes the first match, so without this it
+            # parses prose and returns an empty set. That silently blinded the
+            # undeclared-prop XSS check on back/badge/btn/cancel/icon/messages —
+            # fail-closed, but it also means a doc comment spelling out
+            # `<c-vars foo="">` as an example would mark foo "declared" and let a
+            # real `:foo=` through to the mark_safe'd attrs. Fail-open, from prose.
+            src = blank_comments(path.read_text(encoding="utf-8", errors="replace"))
+            match = CVARS.search(src)
             return set(VAR_NAME.findall(match.group(1))) if match else set()
     return None
 

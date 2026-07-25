@@ -901,3 +901,20 @@ def test_strip_filter_escapes_unsafe_input_and_preserves_safe_input():
     assert '"' not in escaped
     assert "&quot;" in escaped
     assert conditional_escape(strip_filter(mark_safe('  a="b"  '))) == 'a="b"'
+
+
+def test_btn_tag_is_allowlisted():
+    """`tag` lands in tag-NAME position (`<{{ el }}`), where autoescaping does
+    nothing — so it is allowlisted rather than escaped.
+
+    Before: `tag="span onload=alert(1)"` emitted
+    `<span onload=alert(1) class="btn">`, a genuinely parsed handler. No call site
+    passes anything but a literal, so constraining it costs nothing; c-badge
+    already fails closed the same way for its own tag.
+    """
+    assert "onload" not in component('<c-btn tag="span onload=alert(1)">x</c-btn>')
+    # unrecognised value falls back to the auto element rather than being emitted
+    assert "<button" in component('<c-btn tag="span onload=alert(1)">x</c-btn>')
+    # the legitimate values still work
+    assert '<span class="btn"' in norm(component('<c-btn tag="span">ok</c-btn>'))
+    assert "<label" in component('<c-btn tag="label">l</c-btn>')

@@ -25,7 +25,11 @@
 
     PROPS
       tag       "" (auto) | "button" | "a" | "label" | "span". Auto = "a" when
-                an href attribute is written, else "button". Explicit values
+                an href attribute is written, else "button". ALLOWLISTED: the
+                value lands in tag-NAME position (`<{{ el }}`), where escaping
+                does nothing — `tag="span onload=alert(1)"` would emit a parsed
+                handler. Anything outside the list falls back to the auto
+                element, the same fail-closed shape c-badge uses for its own tag. Explicit values
                 exist for the 7 `<label class="btn …">` btn-check toggles
                 (campaign_add_lists.html, list_fighter_gear_edit.html,
                 list_fighter_weapon_assign_upgrade_form.html) and the one
@@ -143,4 +147,4 @@
     express any of them. Slot-first also means inner content moves across
     verbatim during migration, which is what keeps the rewrite mechanical.
     For a semantic icon name use <c-icon> inside the slot.
-{% endcomment %}{% comment %} djlint:off {% endcomment %}<c-vars tag="" variant="" size="" href="" type="" disabled="" label="" title="" tooltip="" current="" class="" />{% if "href" in attrs %}{% firstof tag "a" as el %}{% else %}{% firstof tag "button" as el %}{% endif %}<{{ el }} class="btn{% if variant %} btn-{{ variant }}{% endif %}{% if size %} btn-{{ size }}{% endif %}{% if disabled and el == "a" %} disabled{% endif %}{% if class %} {{ class }}{% endif %}"{% if el == "a" %} href="{{ href }}"{% endif %}{% if el == "button" and type %} type="{{ type }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}{% if tooltip %}{% if "data-bs-toggle" not in attrs %} data-bs-toggle="tooltip"{% endif %} data-bs-title="{{ tooltip }}"{% endif %}{% if disabled %}{% if el == "button" %} disabled{% else %} aria-disabled="true"{% endif %}{% endif %}{% if disabled and el == "a" %} tabindex="-1"{% endif %}{% if current %} aria-current="page"{% endif %}{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}{% if raw_attrs.strip %} {{ raw_attrs }}{% endif %}>{{ slot }}{% if label %}<span class="visually-hidden">{{ label }}</span>{% endif %}</{{ el }}>{% comment %} djlint:on {% endcomment %}
+{% endcomment %}{% comment %} djlint:off {% endcomment %}<c-vars tag="" variant="" size="" href="" type="" disabled="" label="" title="" tooltip="" current="" class="" />{% if tag == "button" or tag == "a" or tag == "label" or tag == "span" %}{% firstof tag as el %}{% elif "href" in attrs %}{% firstof "a" as el %}{% else %}{% firstof "button" as el %}{% endif %}<{{ el }} class="btn{% if variant %} btn-{{ variant }}{% endif %}{% if size %} btn-{{ size }}{% endif %}{% if disabled and el == "a" %} disabled{% endif %}{% if class %} {{ class }}{% endif %}"{% if el == "a" %} href="{{ href }}"{% endif %}{% if el == "button" and type %} type="{{ type }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}{% if tooltip %}{% if "data-bs-toggle" not in attrs %} data-bs-toggle="tooltip"{% endif %} data-bs-title="{{ tooltip }}"{% endif %}{% if disabled %}{% if el == "button" %} disabled{% else %} aria-disabled="true"{% endif %}{% endif %}{% if disabled and el == "a" %} tabindex="-1"{% endif %}{% if current %} aria-current="page"{% endif %}{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}{% if raw_attrs.strip %} {{ raw_attrs }}{% endif %}>{{ slot }}{% if label %}<span class="visually-hidden">{{ label }}</span>{% endif %}</{{ el }}>{% comment %} djlint:on {% endcomment %}

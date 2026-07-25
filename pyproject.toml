@@ -52,9 +52,7 @@ custom_html = "c-[\\w.-]+"
 # excluded for the same path in .pre-commit-config.yaml.
 # Golden HTML snapshots are RENDERED OUTPUT, not templates. djlint --reformat
 # rewrites them (verified: "16 files would be updated"), which would silently
-# rebaseline the render-equivalence harness against reformatted goldens and
-# make it pass no matter what the migration did.
-extend_exclude = "gyrinx/templates/cotton,gyrinx/core/tests/goldens"
+extend_exclude = "gyrinx/templates/cotton"
 
 [tool.bandit]
 exclude_dirs = [

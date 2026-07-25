@@ -12,9 +12,9 @@ repos:
       # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
       # paths pre-commit passes, so the exclusion is repeated here.
       - id: djlint-reformat-django
-        exclude: ^(gyrinx/templates/cotton/|gyrinx/core/tests/goldens/)
+        exclude: ^gyrinx/templates/cotton/
       - id: djlint-django
-        exclude: ^(gyrinx/templates/cotton/|gyrinx/core/tests/goldens/)
+        exclude: ^gyrinx/templates/cotton/
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.8.1
@@ -66,6 +66,27 @@ repos:
         types_or: [scss, javascript, json, markdown, yaml]
         pass_filenames: false
 
+      # Hand-written Bootstrap markup may not increase. Templates should use the
+      # components in gyrinx/templates/cotton/ instead; see
+      # scripts/raw_markup_baseline.json for the current ceiling. A pytest test
+      # runs the same script, so CI enforces it too.
+      - id: check-raw-markup
+        name: check-raw-markup
+        entry: python3 scripts/check_raw_markup.py
+        language: system
+        types: [html]
+        pass_filenames: false
+
+      # Component call-site contract: props that must be passed with a colon,
+      # conditional attributes cotton silently drops, undeclared props that skip
+      # escaping. Also run by test_cotton_call_site_gates.py in CI.
+      - id: check-cotton
+        name: check-cotton
+        entry: ./scripts/check_cotton.sh
+        language: script
+        types: [html]
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -93,29 +114,18 @@ repos:
         # file content is emitted verbatim, so a trailing newline lands after
         # the closing tag and collapses to a rendered space between adjacent
         # inline elements -- e.g. the dice-result badges butted together in
-        # core/campaign/campaign_action_outcome.html:22. The render-equivalence
-        # goldens are byte-exact snapshots of real Django output, which contains
-        # trailing whitespace and a final newline; "fixing" them makes them
-        # unmatchable.
-        exclude: ^(gyrinx/templates/cotton/|gyrinx/core/tests/goldens/)
+        # core/campaign/campaign_action_outcome.html:22.
+        exclude: ^gyrinx/templates/cotton/
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
       - id: forbid-submodules
       - id: mixed-line-ending
       - id: name-tests-test
         args: [--django]
-        # Test SUPPORT modules, not test modules. They hold no tests; they are
-        # imported by test_render_equivalence.py. Renaming them to test_*.py
-        # would make pytest collect them as empty test modules.
-        exclude: ^gyrinx/core/tests/render_(normalise|world)\.py$
       # - id: no-commit-to-branch
       - id: requirements-txt-fixer
       - id: sort-simple-yaml
       - id: trailing-whitespace
-        # The render-equivalence goldens are byte-exact snapshots of real
-        # rendered pages; Django template output legitimately carries trailing
-        # whitespace, so stripping it here makes the golden unmatchable.
-        exclude: ^gyrinx/core/tests/goldens/
 
   - repo: local
     hooks:

@@ -6,7 +6,7 @@ someone re-introducing `class="btn btn-primary"` in a new template afterwards,
 and by the time anyone notices there are forty of them again. This script pins
 a per-pattern ceiling that may only ever go DOWN.
 
-    scripts/check_raw_markup.py            # enforce (CI + pre-commit)
+    scripts/check_raw_markup.py            # enforce (pre-commit + CI via pytest)
     scripts/check_raw_markup.py --update   # re-baseline after a migration batch
     scripts/check_raw_markup.py --list btn # show the remaining call sites
 
@@ -36,10 +36,6 @@ EXCLUDE = (
     "gyrinx/templates/errors/",
     "gyrinx/templates/404.html",
     "gyrinx/templates/500.html",
-    # Golden snapshots are RENDERED OUTPUT. They contain the raw markup the
-    # components emit, by definition, and counting them would make the ratchet
-    # move every time a golden is recaptured.
-    "gyrinx/core/tests/goldens/",
     # Django admin vocabulary (form-row/submit-row/default), not Bootstrap.
     "gyrinx/templates/admin/",
     "gyrinx/core/templates/admin/",
