@@ -20,7 +20,7 @@
     --cc-line-soft: rgba(29, 26, 22, 0.35);
     --cc-hl: rgba(122, 45, 41, 0.16); // mental-stat / highlighted band tint
     --cc-paper: #fff; // base the texture fades onto
-    --cc-fade: 0.5; // white wash over the texture (0 = full-strength texture)
+    --cc-fade: 0.6; // white wash over the texture (0 = full-strength texture)
 
     // --- geometry (mm) — tune the whole card from here ---------------------
     --cc-w: 100mm;
@@ -414,7 +414,7 @@
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
-        font-size: 2.3mm;
+        font-size: 2.5mm;
 
         th,
         td {
@@ -430,7 +430,7 @@
             text-transform: uppercase;
             letter-spacing: 0.02em;
             border-bottom: 0.3mm solid var(--cc-line);
-            font-size: 2mm;
+            font-size: 2.15mm;
         }
 
         .cc-w-name {
@@ -447,7 +447,7 @@
         .cc-w-traits {
             width: 22%;
             text-align: left;
-            font-size: 2mm;
+            font-size: 2.15mm;
             color: rgba(29, 26, 22, 0.85);
         }
 
@@ -463,7 +463,7 @@
     }
 
     .cc-weapons__empty {
-        font-size: 2.3mm;
+        font-size: 2.5mm;
         color: rgba(29, 26, 22, 0.5);
         font-style: italic;
         padding-top: 1mm;
@@ -491,14 +491,34 @@
         flex-direction: column;
     }
 
+    // Two side-by-side columns. Which groups land in which column is decided in
+    // Python (ClassicCard.detail_columns), NOT by CSS multi-column layout:
+    // WebKit doesn't support a multicol container nested inside another
+    // fragmentation context, so when printing (the page being a fragmentation
+    // context) iOS Safari collapsed the whole block to one full-width column.
+    // Two plain flex columns fragment fine and render identically everywhere.
     .cc-detail__cols {
-        column-count: 2;
-        column-gap: var(--cc-detail-gap);
+        display: flex;
+        flex-direction: row;
+        // Columns stretch (the flex default) rather than sizing to their
+        // content: blank cards spread their write-in boxes down the column with
+        // `justify-content: space-between`, which does nothing unless the
+        // column is as tall as the block. Groups stack from the top either way,
+        // so this is invisible on a normal card.
+        align-items: stretch;
+        gap: var(--cc-detail-gap);
         max-height: 100%;
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
-        // script (print_lab_sheet.html) can shrink the whole block as one unit.
-        font-size: 2.3mm;
+        // script (includes/classic_sheet.html) can shrink the block as one unit.
+        font-size: 2.5mm;
+    }
+
+    .cc-detail__col {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
     }
 
     .cc-section {
@@ -521,29 +541,17 @@
         font-size: 1em;
     }
 
-    // Each group is inline (label left, value wraps to its right) and stays
-    // whole within a column; baseline-align the label with the body's text.
-    //
-    // `inline-flex` (not `flex`) is load-bearing: WebKit ignores `break-inside:
-    // avoid` on a block-level flex container inside a multicol, and its attempt
-    // to fragment one produces garbage — on iOS Safari a long Rules group was
-    // sliced mid-list with the second half painted overlapping the next group,
-    // and when the column box had a constrained height the trailing group (Gear)
-    // was dropped from the card altogether. An atomic inline-level box is
-    // *monolithic* per CSS Fragmentation, so no engine may split it; `width:
-    // 100%` keeps each group on its own line so the block still reads as a
-    // stack. Verified against iOS 26 Safari — the prefixed
-    // `-webkit-column-break-inside: avoid` does NOT fix this, inline-flex does.
-    // Blank cards re-blockify these back to flex items (the [data-kind="blank"]
-    // override swaps the column box to a flex column), so they are unaffected.
+    // Each group is a row (label left, value wraps to its right), baseline-
+    // aligned with the body's first line. These used to need `inline-flex` to
+    // stop WebKit slicing a group across a column break — with the columns now
+    // built in Python there is no fragmentation to guard against, so they are
+    // ordinary flex rows again.
     .cc-detail .cc-section {
-        display: inline-flex;
-        width: 100%;
+        display: flex;
         flex-direction: row;
         align-items: baseline;
         gap: 1.5mm;
         min-width: 0;
-        break-inside: avoid;
         margin-bottom: 1mm;
     }
 
@@ -691,13 +699,14 @@
         }
 
         // Skills / Rules / Gear full-width, each a label beside a write-in box
-        // (like the XP / Notes rows), spread to fill the detail area.
+        // (like the XP / Notes rows), spread to fill the detail area. Every
+        // group is in the first column (see ClassicCard.detail_columns), so the
+        // column itself carries the spread and the empty second one is dropped.
         .cc-detail__cols {
-            column-count: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
             height: 100%;
+        }
+        .cc-detail__col {
+            justify-content: space-between;
         }
         .cc-detail .cc-section {
             flex-direction: row;
