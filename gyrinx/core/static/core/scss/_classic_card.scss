@@ -20,7 +20,7 @@
     --cc-line-soft: rgba(29, 26, 22, 0.35);
     --cc-hl: rgba(122, 45, 41, 0.16); // mental-stat / highlighted band tint
     --cc-paper: #fff; // base the texture fades onto
-    --cc-fade: 0.5; // white wash over the texture (0 = full-strength texture)
+    --cc-fade: 0.6; // white wash over the texture (0 = full-strength texture)
 
     // --- geometry (mm) — tune the whole card from here ---------------------
     --cc-w: 100mm;
@@ -414,7 +414,7 @@
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
-        font-size: 2.3mm;
+        font-size: 2.5mm;
 
         th,
         td {
@@ -430,7 +430,7 @@
             text-transform: uppercase;
             letter-spacing: 0.02em;
             border-bottom: 0.3mm solid var(--cc-line);
-            font-size: 2mm;
+            font-size: 2.15mm;
         }
 
         .cc-w-name {
@@ -447,7 +447,7 @@
         .cc-w-traits {
             width: 22%;
             text-align: left;
-            font-size: 2mm;
+            font-size: 2.15mm;
             color: rgba(29, 26, 22, 0.85);
         }
 
@@ -463,7 +463,7 @@
     }
 
     .cc-weapons__empty {
-        font-size: 2.3mm;
+        font-size: 2.5mm;
         color: rgba(29, 26, 22, 0.5);
         font-style: italic;
         padding-top: 1mm;
@@ -498,7 +498,7 @@
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
         // script (print_lab_sheet.html) can shrink the whole block as one unit.
-        font-size: 2.3mm;
+        font-size: 2.5mm;
     }
 
     .cc-section {
