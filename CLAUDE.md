@@ -37,9 +37,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   validation. If you reach for `addEventListener('change', …)` to rewrite
   a form, you've probably skipped a navigation. See the rationale and the
   full rule in `.claude/skills/gyrinx-conventions/SKILL.md`.
+- **Use the cotton components, don't hand-write Bootstrap.** UI primitives live in
+  `gyrinx/templates/cotton/` and are invoked as HTML tags:
+  `<c-btn variant="primary" size="sm">Edit</c-btn>`, `<c-badge state="injured">`,
+  `<c-callout variant="danger">`, `<c-form.field :field="form.name" />`. New and
+  edited templates should use them. `scripts/check_raw_markup.py` holds a ceiling on
+  hand-written markup and fails if it rises. See
+  [gyrinx/core/templates/CLAUDE.md](gyrinx/core/templates/CLAUDE.md) for the call-site
+  traps — several of them fail *silently*.
 - Mobile-first design
 - Look up model definitions before use - don't assume field names
 - Always validate redirect URLs with `safe_redirect`
+
+## Long-term Projects
+
+Directions the codebase is actively moving in. Push work towards them, and say
+something when a change moves against them — even if the change is otherwise fine.
+
+**Adopting the cotton component library.** The four core families (buttons, badges,
+callouts, form fields) are built and ~290 call sites use them, but ~800 hand-written
+Bootstrap sites remain — the fighter-card stack, the equipment pickers and
+`core/layouts/base.html` among them. Keep converting:
+
+- Adding raw markup for a pattern a component already covers is a regression. The
+  `check-raw-markup` hook enforces the ceiling.
+- Converting nearby markup while editing a template for another reason is welcome.
+- The remaining hot paths (fighter cards render many times per page and are shared
+  between screen and print) need conversions done with an eye on render cost — but
+  being a hot path is not a reason to leave them hand-written forever.
+- Prefer the project's `.linked-*` link classes over Bootstrap's `.link-*`, which is
+  underlined at rest.
+
+**Design-system documentation.** `docs/DESIGN-SYSTEM.md` (the spec) and
+`/_debug/design-system/` (the living reference, which renders the real components)
+should agree. The markdown still lacks canonical sections for badges, back links and
+form-field anatomy — issue #2002.
 
 ## Infrastructure
 

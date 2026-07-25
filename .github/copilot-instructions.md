@@ -1,0 +1,92 @@
+# Gyrinx — repository instructions
+
+Gyrinx is a Django app for managing Necromunda gangs and campaigns. Server-rendered
+HTML with Bootstrap 5 and a little vanilla JS. There is no SPA, no client-side
+framework and no JS build step. Python 3.12, Postgres, deployed to Cloud Run.
+
+## What matters most in review
+
+**UI state belongs in the URL.** Anything that picks a form variant, switches a
+visible section or selects a tab is a navigation: a link or a GET form pointing at
+the same view, with the state in the query string, rendered by the server. JS may
+enhance, but the page must work and be linkable without it. Flag any
+`addEventListener('change', …)` that rewrites a form, hides fields or alters
+validation — that is the pattern this codebase deliberately does not use.
+
+**Use the components, don't hand-write Bootstrap.** UI primitives live as
+django-cotton components in `gyrinx/templates/cotton/` and are invoked like
+`<c-btn variant="primary">Save</c-btn>`. New or edited templates should use them
+rather than repeating class strings. See `.github/instructions/templates.instructions.md`
+for the specifics.
+
+**Security.** Never apply `|safe` to user-supplied content — the project ships a
+`safe_rich_text` filter for sanitising. Always validate redirect targets from user
+input with `safe_redirect` / `get_return_url` (`gyrinx/core/utils.py`).
+
+**The fighter list is the hot query path.** Adding a FK or M2M to `ListFighter`
+means updating `ListFighterQuerySet.with_related_data()` and the query-count
+snapshot at `gyrinx/core/tests/fixtures/performance_view_queries.json`. Missing a
+prefetch degrades silently in dev and only shows up under load.
+
+**Content packs: archive is a soft-delete for the *owner*, not a retraction.** Once
+a list or campaign subscribes to a pack, archived items in it must stay visible to
+that subscriber. Subscriber read paths must not filter `archived=False`; pass
+`include_archived_items=True` to `ContentQuerySet.with_packs()`. Owner-side
+library, gallery and picker views should filter it out.
+
+**Models and tests.** Core models inherit `AppBase` (UUID pk, owner, archive,
+history); content models inherit `Content`. Never call `self.full_clean()` from
+`save()`. Tests are module-level pytest functions with `@pytest.mark.django_db` —
+no `TestCase` — and should use the fixtures in `gyrinx/conftest.py` rather than
+building users, houses, fighters or lists inline.
+
+**Don't commit generated CSS.** `gyrinx/core/static/core/css/` is built from SCSS.
+
+## Long-term projects
+
+These are directions the codebase is actively moving in. Reviews should push work
+towards them, and flag changes that move against them — even when the change is
+otherwise fine.
+
+### Adopting the cotton component library
+
+The four core UI families (buttons, badges, callouts, form fields) exist as
+components, and roughly 290 call sites use them — but about 800 hand-written
+Bootstrap sites remain, including the fighter-card stack, the equipment pickers and
+`core/layouts/base.html`. The direction is to keep converting them.
+
+What to look for:
+
+- **New hand-written markup is a regression.** `scripts/check_raw_markup.py` holds a
+  per-pattern ceiling in `scripts/raw_markup_baseline.json` and fails if it rises.
+  If a diff adds raw `btn btn-*`, `badge text-bg-*`, `alert alert-*` or a
+  `border rounded` box, ask for the component instead.
+- **Opportunistic conversion is welcome.** A template being edited for another
+  reason is a good moment to move its markup onto components. Not required, but
+  worth suggesting.
+- **The remaining hot paths need care, not avoidance.** Fighter cards render many
+  times per page and are shared between screen and print, so conversions there
+  should come with a look at render cost — but "it's the hot path" is not a reason
+  to leave it hand-written forever.
+- **`linked-*` over `link-*`.** Bootstrap's `.link-*` is underlined at rest; the
+  project's `.linked-*` family underlines on hover/focus only. New links should use
+  `linked-*`.
+
+### Design-system documentation
+
+`docs/DESIGN-SYSTEM.md` is the written spec and `/_debug/design-system/` is the
+living reference that renders the real components. They should agree. The markdown
+still lacks canonical sections for badges, back links and form-field anatomy
+(issue #2002) — worth filling in when touching those areas.
+
+## Conventions worth knowing
+
+- Django management commands run via `manage`, not `python manage.py`.
+- Conventional-commit prefixes on commits and PR titles (`feat:`, `fix:`,
+  `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `style:`).
+- Mobile-first; design at 375px and enhance upwards. Dense over spacious.
+- Colour signals state, never decoration.
+- Avoid `alert` classes for neutral grouped content — use a bordered box. Bootstrap
+  `card` is reserved for fighter grids and equipment categories.
+- Never put machine-local paths (`/Users/…`, `~/`) in commits, PRs or committed
+  docs.

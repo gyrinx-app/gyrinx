@@ -99,7 +99,10 @@ def main():
             unquoted = re.sub(r"\"[^\"]*\"|'[^']*'", "", attrs)
 
             # 1. conditional attribute inside the tag
-            if "{%" in unquoted:
+            # Both forms are equally hazardous in attribute position, and the pytest
+            # gate has always checked both — this half only checked {%, so a
+            # `<c-btn {{ x }}>` passed the hook and failed only in CI.
+            if "{%" in unquoted or "{{" in unquoted:
                 problems.append(
                     f"{rel}:{line}: conditional attribute inside <c-{name}> -- cotton emits "
                     f"raw template source and drops the attribute.\n"

@@ -14,10 +14,48 @@ Working rules:
 
 - Extend `core/layouts/base.html` for full-page layouts and `core/layouts/page.html` for
   simple content pages. Don't roll a new top-level layout.
+- **Use the cotton components in [gyrinx/templates/cotton/](../../templates/cotton/)
+  rather than hand-writing Bootstrap.** Read the component file first — each carries its
+  props and traps in a comment block at the top.
+
+  | Instead of | Use |
+  | --- | --- |
+  | `<button class="btn btn-primary btn-sm">` | `<c-btn variant="primary" size="sm">` |
+  | `<span class="badge text-bg-warning">` | `<c-badge variant="warning">` / `state="injured"` |
+  | `<div class="alert alert-danger alert-icon">` | `<c-callout variant="danger">` |
+  | `<div class="border rounded p-3">` | `<c-box>` (`compact` for `p-2`) |
+  | label + widget + help + errors by hand | `<c-form.field :field="form.x" />` |
+  | `{% include "core/includes/back.html" %}` | `<c-back>` |
+  | a `bg-body-tertiary rounded px-2 py-2 d-flex …` bar | `class="section-header"` |
+
+  `btn-` should appear in exactly one template (`cotton/btn.html`). Hand-written markup
+  for a covered pattern trips `scripts/check_raw_markup.py`.
 - Reach for an existing snippet in `core/includes/` before writing new markup. The fighter
   card lives at [core/includes/fighter_card_content_inner.html](core/includes/fighter_card_content_inner.html).
-- Use the Bootstrap 5 button classes documented in the root `CLAUDE.md` (`btn btn-primary
-  btn-sm`, etc.) rather than inventing new ones.
+
+### Component call sites: the mistakes that fail SILENTLY
+
+Cotton renders something plausible, djlint lints it clean, and the page returns 200 with a
+control that doesn't work — so none of these show up in manual testing. Static gates
+(`scripts/check_cotton.py`, `test_cotton_call_site_gates.py`) catch them; don't work around
+the gate, fix the call site.
+
+- **A filter or expression inside a `:prop` resolves to nothing.** `:url="a|default:b"` and
+  `:disabled="not can_roll"` both evaluate to empty — the second ships the control
+  **enabled**. Use `url="{{ a|default:b }}"` / `disabled="{% if not can_roll %}1{% endif %}"`.
+  A `:prop` may only be a bare dotted path.
+- **A `{% if %}` in attribute position renders as literal text**, and the browser parses the
+  braces as junk attributes. `<c-btn {% if x %}disabled{% endif %}>` ships enabled.
+- **A `:prop` the component doesn't declare skips escaping** — undeclared attributes go out
+  through `{{ attrs }}`, which is `mark_safe`'d, so `:id="value"` is an injection hole.
+- **A form passed without the colon is stringified.** `field="{{ form.x }}"` renders the
+  widget to HTML; every `field.*` lookup then resolves to nothing and the field ships with
+  no label, no help text and **no errors**. Always `:field="form.x"`.
+- **Multi-line comments must use `{% comment %}`** — Django's `{# #}` is single-line only,
+  and a multi-line one renders into the page as visible text.
+- **Files in `gyrinx/templates/cotton/` are byte-significant**: dense, no trailing newline,
+  excluded from djlint and `end-of-file-fixer` because a newline there renders as a stray
+  space between inline elements. Don't reformat them.
 - Mobile-first; responsive utilities scale up. Left-aligned content typically `col-12 col-xl-6`.
 - Avoid `alert` classes — prefer `border rounded p-2`. Cards are reserved for fighter grids.
 - Never apply `|safe` directly to user-supplied content. Sanitize first — the project ships
