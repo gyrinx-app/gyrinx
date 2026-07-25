@@ -4,7 +4,7 @@
     Transfer {{ asset.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with text="Back" %}
+    <c-back text="Back" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Transfer {{ asset.asset_type.name_singular }}</h1>
         <h2 class="h5 text-secondary">{{ asset.name }}</h2>
@@ -25,14 +25,15 @@
               class="vstack gap-3">
             {% csrf_token %}
             {% return_url_field %}
-            {% include "core/includes/form_field.html" with field=form.new_holder %}
-            <div class="alert alert-info alert-icon mb-0" role="alert">
-                <i class="bi-info-circle"></i>
-                <div>This action will be recorded in the campaign action log.</div>
-            </div>
+            <c-form.field :field="form.new_holder" />
+            <c-callout variant="info" class="mb-0">
+                This action will be recorded in the campaign action log.
+            </c-callout>
             <div class="mt-3">
-                <button type="submit" class="btn btn-primary">Transfer Asset</button>
-                {% include "core/includes/cancel.html" %}
+                <c-btn variant="primary" type="submit">
+                    Transfer Asset
+                </c-btn>
+                <c-cancel />
             </div>
         </form>
     </div>

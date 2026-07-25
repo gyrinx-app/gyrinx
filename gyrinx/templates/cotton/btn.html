@@ -1,0 +1,150 @@
+{% comment %}
+    <c-btn> — the design-system button, link-button and button-styled label.
+    docs/DESIGN-SYSTEM.md § Buttons. This is the ONLY template in the repo that
+    is allowed to contain the string "btn-".
+
+        <c-btn variant="primary" size="sm" href="{% url 'core:list-edit' list.id %}">
+            <i class="bi-pencil"></i> Edit
+        </c-btn>
+        <c-btn variant="success" type="submit">Save</c-btn>
+        <c-btn tag="label" variant="outline-primary" size="sm" for="owner-all">All Gangs</c-btn>
+
+    ELEMENT SELECTION — written, not resolved.
+    `tag` wins. With no `tag`, the element is chosen by whether the CALL SITE
+    WROTE an `href` attribute, not by whether that href resolves to something:
+        <c-btn href="{{ back_url }}">   -> <a href="">  even when back_url is ""
+        <c-btn>                         -> <button>
+    This matters. 60 estate anchors take href from a bare context variable
+    ({{ back_url }}, {{ parent_url }}, {{ entry.url }}, {% url ... as x %}), and
+    {% url %}-as and missing model methods both yield "" silently (PLAN.md
+    gotcha #4). Keying off emptiness would turn a link into an inert <button>
+    with identical styling and no visual cue. `{% if "href" in attrs %}` tests
+    ATTRIBUTE PRESENCE — declared props stay in the attrs MAPPING even though
+    <c-vars> strips them from the attrs STRING — so element identity is a
+    property of the template, never of the data.
+
+    PROPS
+      tag       "" (auto) | "button" | "a" | "label" | "span". Auto = "a" when
+                an href attribute is written, else "button". ALLOWLISTED: the
+                value lands in tag-NAME position (`<{{ el }}`), where escaping
+                does nothing — `tag="span onload=alert(1)"` would emit a parsed
+                handler. Anything outside the list falls back to the auto
+                element, the same fail-closed shape c-badge uses for its own tag. Explicit values
+                exist for the 7 `<label class="btn …">` btn-check toggles
+                (campaign_add_lists.html, list_fighter_gear_edit.html,
+                list_fighter_weapon_assign_upgrade_form.html) and the one
+                `<span class="btn …">` at list_archived_fighters.html:29 — a
+                deliberately non-interactive control that must stay a span so
+                its explanatory tooltip still fires. Without `tag` those 8 sites
+                would have to hand-write `btn btn-outline-primary btn-sm`,
+                breaking this file's "only place that says btn-" invariant.
+      variant   The Bootstrap suffix, VERBATIM, including outline forms:
+                "primary" · "success" · "danger" · "secondary" · "link" ·
+                "outline-secondary" · "outline-primary" · "warning" · "dark"…
+                -> btn-{variant}. There is deliberately no `outline` boolean:
+                `btn-outline-secondary` -> variant="outline-secondary" is a pure
+                string transform with no judgement, and it lets site_banner.html
+                write variant="{{ banner.colour }}" and
+                variant="outline-{{ banner.colour }}" off one DB column.
+                variant="" emits a bare `.btn` (fighter_switcher.html needs it).
+      size      "sm" | "lg". Empty = full size. NO implicit btn-sm — 63
+                btn-success, 53 btn-primary and 88 btn-link sites in the estate
+                are full size, and an implicit "sm" would silently shrink them.
+      href      Emitted on the `a` branch. See ELEMENT SELECTION above.
+      type      button | submit | reset. Emitted on the `button` branch ONLY
+                WHEN SET. There is deliberately NO "button" default: HTML's
+                missing-value default for <button type> is `submit`, and three
+                estate buttons plus allauth's upstream
+                account/base_confirm_code.html rely on it
+                ({% element button form="resend" %} — a type-less submitter for
+                the "Request new code" control in the password-reset-by-code and
+                phone-verification flows). Defaulting to "button" made those
+                inert with no error. Omitting `type` is therefore byte-preserving
+                for a mechanical rewrite; write type="button" explicitly when you
+                want an inert button, exactly as the raw markup does.
+      disabled  Boolean. DECLARED, never passed through {{ attrs }}: forwarding
+                it would emit disabled="False", and HTML treats ANY value on a
+                boolean attribute as true. Per element:
+                  button -> the native `disabled` attribute
+                  a      -> .disabled class + aria-disabled="true" + tabindex="-1"
+                            (Bootstrap's documented disabled-link pattern; all 7
+                            dice.html sites currently omit the tabindex)
+                  other  -> aria-disabled="true" only. NOT the .disabled class:
+                            it sets pointer-events:none, which would suppress the
+                            very tooltip that explains why the span is disabled.
+                WARNING: `:disabled="not can_roll"` silently evaluates to nothing
+                and ships the button ENABLED — cotton's `:` is a variable
+                resolver, not an evaluator, and filters/`not`/comparisons all
+                vanish without error. Use disabled="{% if not can_roll %}1{% endif %}"
+                or a positive view flag. test_cotton_call_site_gates.py fails the
+                build on any `:prop` that is not a bare dotted variable path.
+      label     Accessible name for an icon-only control. Emits ONLY a trailing
+                <span class="visually-hidden">, matching the good precedent at
+                includes/list.html:118. It does NOT set title= — the 11
+                unlabelled icon-only controls in the #2001 audit have no hover
+                tooltip today and a mechanical migration must not add one. Pass
+                title= as well if you want both.
+      title     Native tooltip text.
+      tooltip   Bootstrap tooltip text -> data-bs-title, plus
+                data-bs-toggle="tooltip" UNLESS the call site already passed a
+                data-bs-toggle (dropdown / collapse / tab). Emitting both would
+                produce a duplicate attribute; the browser keeps the first and
+                the dropdown silently stops opening.
+      current   Truthy -> aria-current="page". Designed to be fed the existing
+                tag: current="{% active_view 'core:dice' %}". This is what makes
+                the navbar / notification buttons expressible at all — a tag
+                that emits a whole ATTRIBUTE ({% active_aria %}) cannot live
+                inside a <c-btn …> attribute list.
+      class     Extra utility / tone / JS-hook classes, appended LAST, so the
+                emitted order is base -> variant -> size -> [disabled] -> caller.
+                Declared because cotton does NOT merge classes: an undeclared
+                `class` emits a second class attribute and the browser silently
+                drops the caller's.
+
+    Everything else flows through {{ attrs }} verbatim: id, name, value, form,
+    rel, role, target, for, onclick, aria-*, data-bs-*, data-clipboard-*,
+    data-gy-*. Entity-encoded values round-trip byte-identically.
+
+    SECURITY — the rule, stated precisely. String interpolation is ALWAYS safe:
+    both declared props and undeclared passthrough attributes are autoescaped.
+        title="{{ fighter.name }}"        SAFE (declared prop, autoescaped)
+        aria-label="{{ fighter.name }}"   SAFE (passthrough, autoescaped)
+        :title="fighter.name"             SAFE — declared props render through
+                                          {{ title }} in this file
+        :id="fighter.name"                UNSAFE — UNDECLARED, so it goes out
+                                          through {{ attrs }}, which is
+                                          mark_safe'd and whose ensure_quoted()
+                                          early-returns any already-quoted value
+                                          verbatim. Verified: a payload of
+                                          `"a" onmouseover=alert(1) "` produced a
+                                          genuinely parsed onmouseover handler.
+    So the ban is not "`:` on title/aria-label/value" — it is `:` on ANY
+    attribute this component does not declare. test_cotton_call_site_gates.py
+    enforces exactly that, by parsing <c-vars> out of each component.
+
+    ESCAPE HATCH — `raw_attrs`. A named slot injected verbatim into the opening
+    tag, for the one thing cotton cannot express: a CONDITIONAL GROUP of
+    attributes.
+        <c-slot name="raw_attrs">{% if not is_equipment_list %}data-bs-toggle="dropdown" aria-expanded="false"{% endif %}</c-slot>
+    NOTE the failure mode this replaces: a bare {% if %} written directly in a
+    <c-btn …> attribute list does NOT raise (cotton #300 notwithstanding) — it
+    renders as LITERAL TEXT and the browser parses `{%`, `if`, `%}disabled{%` as
+    junk attributes, shipping the control enabled. djlint lints it clean and
+    reformats it into something that looks correct. The gate test hard-fails on
+    `{%` or `{{` inside a `<c-…>` open tag outside a quoted value.
+    raw_attrs is only reliable for LITERAL attribute text. Slot content is
+    autoescaped, so a {% tag %} or {{ var }} yielding quotes comes out as &quot;
+    and breaks; escaping also does NOT make it injection-proof (spaces and `=`
+    survive). Never put user data in it. For a tag that emits a whole attribute
+    use `current`, or capture and mark safe:
+        {% active_aria 'core:dice' as aa %}{{ aa|safe }}
+
+    Reads no ambient context, so it is isolation-invariant.
+
+    Icons live in the SLOT, not in a prop. Three sites build the icon name from
+    a conditional (bi-pin-angle{% if is_pinned %}-fill{% endif %}), one hangs a
+    JS hook on the child <i>, and 28 bracket the label — an icon="" prop cannot
+    express any of them. Slot-first also means inner content moves across
+    verbatim during migration, which is what keeps the rewrite mechanical.
+    For a semantic icon name use <c-icon> inside the slot.
+{% endcomment %}{% comment %} djlint:off {% endcomment %}<c-vars tag="" variant="" size="" href="" type="" disabled="" label="" title="" tooltip="" current="" class="" />{% if tag == "button" or tag == "a" or tag == "label" or tag == "span" %}{% firstof tag as el %}{% elif "href" in attrs %}{% firstof "a" as el %}{% else %}{% firstof "button" as el %}{% endif %}<{{ el }} class="btn{% if variant %} btn-{{ variant }}{% endif %}{% if size %} btn-{{ size }}{% endif %}{% if disabled and el == "a" %} disabled{% endif %}{% if class %} {{ class }}{% endif %}"{% if el == "a" %} href="{{ href }}"{% endif %}{% if el == "button" and type %} type="{{ type }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}{% if tooltip %}{% if "data-bs-toggle" not in attrs %} data-bs-toggle="tooltip"{% endif %} data-bs-title="{{ tooltip }}"{% endif %}{% if disabled %}{% if el == "button" %} disabled{% else %} aria-disabled="true"{% endif %}{% endif %}{% if disabled and el == "a" %} tabindex="-1"{% endif %}{% if current %} aria-current="page"{% endif %}{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}{% if raw_attrs.strip %} {{ raw_attrs }}{% endif %}>{{ slot }}{% if label %}<span class="visually-hidden">{{ label }}</span>{% endif %}</{{ el }}>{% comment %} djlint:on {% endcomment %}

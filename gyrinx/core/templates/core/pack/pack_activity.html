@@ -4,7 +4,7 @@
     Activity - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=pack.get_absolute_url text="Back to Content Pack" %}
+    <c-back url="{{ pack.get_absolute_url }}" text="Back to Content Pack" />
     <div class="col-12 col-xl-8 px-0 vstack gap-3">
         <div>
             <h1 class="h3 mb-0">Activity</h1>

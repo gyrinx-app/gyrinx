@@ -6,30 +6,20 @@
     {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
     <div class="col-12 col-md-8 col-lg-6">
         <div class="vstack gap-1">
-            {% include "core/includes/step_progress.html" with step=1 total_steps=3 title="Add Vehicle" %}
+            <c-steps step="1" total="3" title="Add Vehicle" />
             <h3 class="h5 mb-0">Select a vehicle</h3>
         </div>
         <form method="post" class="vstack gap-4 mt-3">
             {% csrf_token %}
-            <div>
-                <label for="{{ form.vehicle_equipment.id_for_label }}" class="form-label">{{ form.vehicle_equipment.label }}</label>
-                {{ form.vehicle_equipment.errors }}
-                {{ form.vehicle_equipment }}
-            </div>
+            <c-form.field :field="form.vehicle_equipment" />
             <div class="hstack gap-3 align-items-center">
-                <button type="submit"
-                        name="action"
-                        value="select_crew"
-                        class="btn btn-primary">
+                <c-btn type="submit" name="action" value="select_crew" variant="primary">
                     Select Crew fighter <i class="bi-arrow-right"></i>
-                </button>
+                </c-btn>
                 or
-                <button type="submit"
-                        name="action"
-                        value="add_to_stash"
-                        class="btn btn-secondary">
+                <c-btn type="submit" name="action" value="add_to_stash" variant="secondary">
                     Add to Stash <i class="bi-arrow-right"></i>
-                </button>
+                </c-btn>
                 <a href="{% url "core:list" list.id %}" class="link-secondary">Cancel</a>
             </div>
         </form>

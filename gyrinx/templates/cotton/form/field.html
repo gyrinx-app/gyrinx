@@ -1,0 +1,103 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.field> — "ask the user for one thing, on a page form."
+
+        <c-form.field :field="form.name" />
+        <c-form.field :field="form.xp_cost" label="XP Spend" />
+        <c-form.field :field="field" class="col-12 col-md-6" />
+
+    ALWAYS use the colon form (`:field="form.name"`). `field="{{ form.name }}"`
+    stringifies the widget, after which every `field.*` lookup silently returns
+    nothing and the component renders a wrapper with no label, no help text and
+    NO ERRORS. {% templatetag openblock %} require_bound_field {% templatetag closeblock %} is called
+    UNCONDITIONALLY on the first line of every branch so that mistake raises in
+    DEBUG instead of rendering; scripts/check_cotton.py rejects it at commit
+    time and test_cotton_call_site_gates.py at CI time.
+
+    WHAT THIS COMPONENT DECIDES FOR YOU (docs/DESIGN-SYSTEM.md § Forms):
+      * anatomy is label -> widget -> help -> errors, in that order, always;
+      * labels carry `form-label` and NO trailing colon. One decision, applied
+        to both the include sites and the 27 `{{ form }}` pages, so the two
+        renderings cannot drift apart again;
+      * help text is `.form-text.text-secondary` carrying the
+        `<auto_id>_helptext` id that Django's own aria-describedby already
+        points at — today that reference dangles at all 36 include sites. It is
+        BLOCK-level in the checkbox and fieldset branches, where an inline
+        <small> collapses onto the label line;
+      * errors are <div class="invalid-feedback d-block"> and render ALL of
+        them, never `.errors.0`;
+      * the branch (fieldset / checkbox / plain) is read off the widget, never
+        chosen by the caller. Deriving costs no API and cannot be got wrong.
+
+    WHAT IT DELIBERATELY DOES NOT ACCEPT: `label_class`, `help_class`,
+    `errors=`, `layout=`, `widget_class`. Those knobs are precisely how the
+    estate grew 13 label-class variants and 6 error renderings. If a call site
+    needs a different label weight it is a different KIND of field — use
+    <c-form.cell> (dense numeric grid) or <c-form.choices> (visible option
+    list) — not a restyled one.
+
+    ONE LABEL CODE PATH. `label` overrides the TEXT only and still goes through
+    BoundField.label_tag(), so `for=`, Django's multi-widget id resolution and
+    the required/aria handling survive. Hand-rolling <label> at a call site
+    loses all three; that is exactly what the 101 hand-written labels did.
+
+    BRANCH ORDER MATTERS: `use_fieldset` is tested FIRST, because
+    CheckboxSelectMultiple reports `input_type == "checkbox"` too and would
+    otherwise be mistaken for a single checkbox.
+
+    Props
+      field   a BoundField. Required.
+      label   override the label text (11 real sites do this, e.g. "XP Spend"
+              over a field labelled "Cost"). Autoescaped by label_tag.
+      class   classes for the wrapper element (grid columns, spacing). The
+              component itself emits no spacing.
+
+    #2001: there is NO prop that suppresses errors. A field cannot be rendered
+    without its errors. That is the structural fix for the hidden-form-errors
+    class of bug, which has now been patched one template at a time twice.
+
+    Reads nothing from the ambient context: identical output with
+    COTTON_ENABLE_CONTEXT_ISOLATION either way, and safe with the `only` flag.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars field="" label="" class="" />
+{# djlint:on #}
+{% require_bound_field field "form.field" %}
+{% if field.use_fieldset %}
+    <fieldset{% if class %} class="{{ class }}"{% endif %}
+        {% if field.help_text and field.auto_id and "aria-describedby" not in field.field.widget.attrs %}aria-describedby="{{ field.auto_id }}_helptext"{% endif %}{{ attrs|space_before }}>
+        {% if field.label %}
+            {% field_label field text=label css_class="form-label mb-1 float-none w-auto" tag="legend" %}
+        {% endif %}
+        {{ field }}
+        {% if field.help_text %}
+            <div class="form-text text-secondary"
+                 {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
+        {% endif %}
+        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+    </fieldset>
+{% elif field.field.widget.input_type == "checkbox" %}
+    <div class="form-check{% if class %} {{ class }}{% endif %}"{{ attrs|space_before }}>
+        {{ field }}
+        {% if field.label %}
+            {% field_label field text=label css_class="form-check-label" %}
+        {% endif %}
+        {% if field.help_text %}
+            <div class="form-text text-secondary"
+                 {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
+        {% endif %}
+        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+    </div>
+{% else %}
+    <div{% if class %} class="{{ class }}"{% endif %}{{ attrs|space_before }}>
+        {% if field.label %}
+            {% field_label field text=label css_class="form-label" %}
+        {% endif %}
+        {{ field }}
+        {% if field.help_text %}
+            <small class="form-text text-secondary"
+                   {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</small>
+        {% endif %}
+        {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors }}</div>{% endif %}
+    </div>
+{% endif %}

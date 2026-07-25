@@ -138,10 +138,27 @@ button[aria-busy="true"] {
     }
 }
 
-// Lighten secondary in light mode, darken in dark mode
-:root,
+// Lighten secondary in light mode, darken in dark mode.
+//
+// `:root:not([data-bs-theme="dark"])`, NOT a bare `:root`. Bootstrap's dark
+// theme is an attribute on that same html element, and `[data-bs-theme="dark"]`
+// has exactly the same specificity as `:root` — so a `:root` declaration that
+// appears after Bootstrap's (this file is imported last) wins in BOTH themes.
+// That is how the darker tertiary-bg below leaked into dark mode and turned
+// every section header bar and card header near-white.
+//
+// `--bs-secondary-color` had the same latent bug and only got away with it
+// because the dark block immediately below re-declares it. The `:not()` makes
+// both correct by construction instead of by coincidence. Safe because dark mode
+// here is attribute-driven (core/js/index.js sets data-bs-theme), never a bare
+// prefers-color-scheme media query.
+:root:not([data-bs-theme="dark"]),
 [data-bs-theme="light"] {
     --bs-secondary-color: #{lighten($secondary, 15%)};
+
+    // One step darker than Bootstrap's #f8f9fa so section header bars and card
+    // headers actually read as a surface. See $gy-surface-header-light.
+    --bs-tertiary-bg: #{$gy-surface-header-light};
 }
 
 [data-bs-theme="dark"] {
@@ -283,6 +300,53 @@ a[data-bs-toggle="tooltip"] {
     &:focus-visible {
         color: var(--bs-danger);
     }
+}
+
+// Warning-coloured `.linked`, for the stash "Sell" actions — the only place the
+// warning colour is used on a link. Same construction as the two above.
+.linked-warning {
+    @extend .linked;
+    color: var(--bs-warning-text-emphasis);
+
+    &:hover,
+    &:focus-visible {
+        color: var(--bs-warning-text-emphasis);
+    }
+}
+
+// Breadcrumb trail (c-breadcrumb). The separator is a pseudo-element on every
+// crumb but the first, so a conditional crumb can be omitted without its call
+// site needing to know whether it is first — the same construction Bootstrap
+// uses for `.breadcrumb`. Putting it on the crumb wrapper rather than inside
+// the anchor keeps it out of the link's colour and underline.
+.crumbs {
+    // Targets `span` rather than `*` so the rule only ever hits crumbs — every
+    // crumb is a span emitted by c-breadcrumb.item — and cannot put a separator
+    // in front of something else that happens to be nested here.
+    > span + span::before {
+        content: "/";
+        margin-inline: map-get($spacers, 2);
+    }
+}
+
+// Section header bar: the grey strip that introduces a section, with the
+// heading on the left and an optional action on the right.
+//
+// Replaces the seven-utility incantation
+// `bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center`
+// and, more importantly, fixes its height. The bar used to be as tall as
+// whatever it contained, so a section whose action was a `btn-sm` (44px) sat
+// noticeably taller than one whose action was a plain link (37px) or which had
+// no action at all. Consecutive sections down a page did not line up.
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: map-get($spacers, 2);
+    min-height: $gy-section-header-height;
+    padding-inline: map-get($spacers, 2);
+    background-color: var(--bs-tertiary-bg);
+    border-radius: var(--bs-border-radius);
 }
 
 // Bootstrap's `.btn-link` is underlined at rest; give link-style buttons the
@@ -495,6 +559,15 @@ label {
 .errorlist {
     @extend .list-unstyled;
     color: var(--bs-danger);
+}
+
+// <c-form.field> renders `{{ field.errors }}` (an ErrorList, i.e. a <ul>)
+// inside `.invalid-feedback`. `.list-unstyled` resets padding and bullets but
+// NOT margins, so Reboot's `ul { margin-bottom: 1rem }` survives and every
+// field with an error gains a rem of trailing space. Zero it here rather than
+// per-component.
+.invalid-feedback > .errorlist {
+    margin-bottom: 0;
 }
 
 // Flash

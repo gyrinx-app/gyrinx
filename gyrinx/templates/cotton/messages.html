@@ -1,0 +1,48 @@
+{% comment %}
+    c-messages — the Django messages framework loop. ONE implementation, used by
+    BOTH core/layouts/base.html and allauth/layouts/base.html.
+
+    FIXES A LIVE BUG (#2001). allauth/layouts/base.html:8 keys its cascade on
+    message.tags, but `tags` concatenates the level tag with any extra_tags — so a
+    message carrying extra_tags fails every equality test and silently renders as a
+    blue info alert, INCLUDING errors. core/layouts/base.html was corrected to
+    level_tag in a8ca3c5c and this second copy was missed. That is exactly what
+    having two copies buys you, so there is now one.
+
+    Regression test to keep: a message with level ERROR and extra_tags="toast" must
+    render alert-danger. Its level_tag is "error" while its tags is "toast error".
+    Verified: the old cascade renders alert-info for that message, this renders
+    alert-danger.
+
+    INTENDED VISUAL CHANGE — call it out in the PR. Flash messages currently have
+    no icon and no alert-icon class, contradicting DESIGN-SYSTEM.md § Feedback
+    ("use alert alert-icon everywhere") and the reference demos at
+    design_system.html:709. Routing them through c-callout gives them the pinned
+    variant icon. To ship the migration WITHOUT the visual change, add icon="none"
+    to the c-callout below — one line, revertible in one commit.
+
+    NO PROPS. `messages` arrives from django.contrib.messages.context_processors
+    .messages, which is a context-processor global and therefore the one category
+    of ambient read that stays legal even under COTTON_ENABLE_CONTEXT_ISOLATION.
+    That keeps the call site a bare self-closing c-messages tag.
+
+    Renders nothing at all — wrapper div included — when there are no messages,
+    matching the live {% templatetag openblock %} if messages {% templatetag closeblock %} guard.
+
+    `get_item` needs no {% load %}: it is one of two filters django-cotton itself
+    injects as a template builtin (with `merge`). Note the project ALSO defines a
+    `get_item` in custom_tags — this resolves to cotton's, since a builtin applies
+    unless a template loads a library that overrides it. They agree on every dict
+    lookup, including a missing key; they differ only when the subject is None,
+    where cotton's raises and ours returns None. The subject here is always the
+    dict literal declared in <c-vars> above, so that difference is unreachable.
+{% endcomment %}
+<c-vars :variants="{'debug': 'secondary', 'info': 'info', 'success': 'success', 'warning': 'warning', 'error': 'danger'}" />
+{% if messages %}
+    <div>
+        {% for message in messages %}
+            <c-callout variant="{% firstof variants|get_item:message.level_tag 'info' %}"
+                       dismissible>{{ message }}</c-callout>
+        {% endfor %}
+    </div>
+{% endif %}

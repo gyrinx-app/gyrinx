@@ -1,5 +1,5 @@
 {% url "core:list-fighter-advancements" list.id fighter.id as advancements_url %}
-{% include "core/includes/back.html" with text="Back to Advancements" url=advancements_url %}
+<c-back url="{{ advancements_url }}" text="Back to Advancements" />
 {% widthratio current_step total_steps 100 as computed_progress %}
 {% with display_progress=progress|default:computed_progress %}
     {# djlint:off #}

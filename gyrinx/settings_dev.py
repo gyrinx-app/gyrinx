@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 DEBUG = True
 WHITENOISE_AUTOREFRESH = True
 
+# Cotton component call sites fail loudly in dev AND under pytest. pytest-django
+# forces DEBUG = False, so keying this off DEBUG alone would silently disable
+# every component guard in exactly the place they are supposed to catch things.
+COTTON_STRICT_COMPONENTS = True
+
 _UNDER_PYTEST = bool(os.getenv("PYTEST_CURRENT_TEST")) or "pytest" in os.getenv("_", "")
 
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests

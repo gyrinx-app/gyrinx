@@ -1,0 +1,63 @@
+{% comment %}
+    <c-back> — replaces core/includes/back.html (119 call sites, the
+    most-included template in the repo).
+
+        <c-back url="{{ list.get_absolute_url }}" text="{{ list.name }}" />
+        <c-back />                                     {# inherits return_url #}
+
+    NOT a button. It renders a breadcrumb <nav>/<ol>/<li> and carries no .btn
+    class; it lives beside <c-btn> only because it shares the URL cascade, and
+    that cascade must have exactly one implementation. Do not fold it into
+    <c-btn> — the brief's premise that back.html is "already a button" is wrong
+    and folding it would change the markup of 119 pages.
+
+    URL FALLBACK — all three steps, same as <c-cancel>:
+        url  ->  return_url  ->  {% safe_referer "/" %}
+    `return_url` is deliberately NOT declared in <c-vars>, so it inherits from
+    the page context exactly as the {% include %} did. See the long note in
+    cotton/cancel.html: declaring it silently shadows the view-computed value on
+    the 8 bare `{% include "core/includes/back.html" %}` sites (list_new.html,
+    list_clone.html, list_archive.html, campaign_new.html, campaign_archive.html,
+    pack_new.html, pack_edit.html, list_fighter_assign_upgrade_edit.html). Never
+    pass return_url= to <c-back>; pass url=.
+
+    No url_arg / url_name prop (removed in a8ca3c5c, #2001). Resolve at the call
+    site: {% url 'core:list' list.id as back_url %}.
+
+    FILTERS DO NOT WORK IN `:prop` VALUES. pack/pack_archived.html:7 is
+        {% include "core/includes/back.html" with url=back_url|default:pack.get_absolute_url text=back_text|default:pack.name %}
+    and the natural-looking rewrite `:url="back_url|default:pack.get_absolute_url"`
+    silently resolves to NOTHING (cotton #273) — you get a breadcrumb reading
+    "Back" pointing at the Referer. Use string interpolation instead:
+        <c-back url="{{ back_url|default:pack.get_absolute_url }}" text="{{ back_text|default:pack.name }}" />
+    test_cotton_call_site_gates.py fails the build on any `:prop` containing a
+    filter, `not`, a comparison or whitespace.
+
+    `text` keeps the include's `{% if text %}…{% else %}Back{% endif %}` guard.
+    41 of the 119 call sites pass a model field (pack.name ×19,
+    content_fighter.type ×11, list.name ×6, campaign.name ×3,
+    form.instance.name ×1) and a missing attribute renders "" silently
+    (PLAN.md gotcha #4) — relying on the <c-vars> default, which only fires when
+    the attribute is ABSENT, would produce a breadcrumb link with no text.
+
+    a11y FIX baked in (#2001 audit). The original wrapped the link in
+    <li class="breadcrumb-item active" aria-current="page"> — announcing a link
+    to the PARENT page as the current page. aria-current is dropped here. The
+    `.active` CLASS is deliberately KEPT: it drives
+    --bs-breadcrumb-item-active-color, so removing it would be a visible colour
+    change across 119 pages inside a mechanical migration. The result is a
+    screen-reader fix with a zero-pixel diff, which is the only kind of a11y
+    change that is safe to apply to 119 sites in one commit. Restructuring to a
+    real two-item breadcrumb is a separate, screenshot-reviewed change.
+
+    #2002 canonical spec: the link TEXT is the parent page's name
+    (list.name, pack.name, content_fighter.type — the dominant real usage);
+    bare "Back" only when the parent is genuinely ambiguous.
+{% endcomment %}{% load custom_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><nav aria-label="breadcrumb"{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}>
+    <ol class="breadcrumb{% if class %} {{ class }}{% endif %}">
+        <li class="breadcrumb-item active">
+            <i class="bi-chevron-left" aria-hidden="true"></i>
+            <a href="{% if url %}{{ url }}{% elif return_url %}{{ return_url }}{% else %}{% safe_referer "/" %}{% endif %}">{% if text %}{{ text }}{% else %}Back{% endif %}</a>
+        </li>
+    </ol>
+</nav>{% comment %} djlint:on {% endcomment %}

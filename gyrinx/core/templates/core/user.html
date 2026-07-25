@@ -30,7 +30,7 @@
         <!-- Public Lists -->
         {% if public_lists or is_own_profile %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Public lists</h2>
                     {% if is_own_profile %}
                         <a href="{% url 'core:lists-new' %}" class="btn btn-primary btn-sm">
@@ -65,7 +65,7 @@
         <!-- Unlisted Lists (only visible to the owner) -->
         {% if unlisted_lists %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">
                         <i class="bi-eye-slash"></i> Unlisted
                     </h2>
@@ -93,7 +93,7 @@
         <!-- Campaign Gangs -->
         {% if campaign_gangs or is_own_profile %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Campaign Gangs</h2>
                 </div>
                 <div class="px-2">
@@ -126,7 +126,7 @@
         <!-- Campaigns -->
         {% if campaigns or is_own_profile %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Campaigns</h2>
                     {% if is_own_profile %}
                         <a href="{% url 'core:campaigns-new' %}" class="btn btn-primary btn-sm">
@@ -160,7 +160,7 @@
         <!-- Packs -->
         {% if show_packs and packs or show_packs and is_own_profile %}
             <section>
-                <div class="d-flex justify-content-between align-items-center mb-2 bg-body-tertiary rounded px-2 py-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Content Packs</h2>
                     {% if is_own_profile %}
                         <a href="{% url 'core:packs-new' %}" class="btn btn-primary btn-sm">

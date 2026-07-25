@@ -1,31 +1,60 @@
-{% if field.field.widget.input_type == "checkbox" and not field.use_fieldset %}
-    <div class="form-check">
-        {{ field }}
-        {% if field.label %}
-            <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {% endif %}
-        {{ field.errors }}
-        {% if field.help_text %}
-            <div class="helptext form-text"
-                 {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
-        {% endif %}
-    </div>
-{% elif field.use_fieldset %}
-    <fieldset {% if field.help_text and field.auto_id and "aria-describedby" not in field.field.widget.attrs %} aria-describedby="{{ field.auto_id }}_helptext"{% endif %}>
-        {% if field.label %}{{ field.legend_tag }}{% endif %}
-        {{ field.errors }}
-        {{ field }}
-        {% if field.help_text %}
-            <div class="helptext form-text"
-                 {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
-        {% endif %}
-    </fieldset>
-{% else %}
-    {% if field.label %}{{ field.label_tag }}{% endif %}
-    {{ field.errors }}
-    {{ field }}
-    {% if field.help_text %}
-        <div class="helptext form-text"
-             {% if field.auto_id %}id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text }}</div>
-    {% endif %}
-{% endif %}
+{% comment %}
+    Project override of Django's per-field template. Reached because
+    gyrinx/settings.py sets FORM_RENDERER = "django.forms.renderers.TemplatesSetting".
+
+    EXACT COVERAGE (checked against Django 6.0.7's own form templates, not
+    assumed). Only django/forms/div.html routes fields through this file, via
+    `field.as_field_group`:
+
+      * `{{ form }}`              -> as_div  -> div.html  -> HERE   (27 sites)
+      * `{{ form.as_div }}`       ->            div.html  -> HERE   (1 site)
+      * `{{ field.as_field_group }}`                      -> HERE   (2 sites)
+      * `{{ form.as_p }}`         -> p.html   -> does NOT reach this file.
+        p.html inlines `{{ field.label_tag }}` / `{{ field }}` /
+        `<span class="helptext">` itself. The three as_p sites are
+        admin/core/notification/broadcast.html (Django-admin CSS) and two
+        vendored allauth MFA templates — both surfaces the migration leaves
+        alone by design. They keep Django's stock rendering.
+        test_cotton_call_site_gates.py pins that list so it cannot grow.
+
+    So this one line moves 30 sites onto the component with ZERO edits to any of
+    those templates, and it is still the highest-leverage edit in the form work.
+
+    It also ends a real split. This file used to be a three-branch cascade that
+    DISAGREED with core/includes/form_field.html on both help text
+    (`div.helptext.form-text` vs `small.form-text.text-secondary`) and errors
+    (bare errorlist vs `div.invalid-feedback.d-block`). The app shipped two
+    different-looking field renderings depending on whether a template said
+    `{{ form }}` or included the partial. Now there is one.
+
+    INTENDED VISUAL CHANGES on the 30 whole-form sites, each pinned by a test in
+    test_cotton_form.py and each listed in the PR with a screenshot:
+
+      1. Labels gain `class="form-label"` (margin-bottom .5rem, was the project's
+         bare-label .25rem) and LOSE the trailing colon. The component passes
+         `label_suffix=""` everywhere so the include sites and these pages
+         cannot drift apart again; the 101 hand-rolled `<label class="form-label">`
+         sites then migrate byte-identically.
+      2. Legends gain `form-label mb-1 float-none w-auto`, so a fieldset group
+         heading renders at body size instead of Bootstrap's floated,
+         full-width 1.5rem reboot default. Affects theme_color, participants,
+         and the pack rules/traits pickers.
+      3. Field errors move from BEFORE the widget to AFTER it, and render inside
+         `div.invalid-feedback.d-block` (0.875em) rather than as a bare
+         1rem errorlist. This is the anatomy the 36 include sites already use.
+         styles.scss zeroes the nested errorlist's inherited 1rem
+         margin-bottom so the block does not gain trailing space.
+
+    No recursion: `{{ field }}` inside <c-form.field> is BoundField.__str__ ->
+    as_widget(), which renders django/forms/widgets/*.html and never re-enters
+    this template. Django's renderer resolves this file through get_template(),
+    so cotton's loader compiles the tag — from_string() would NOT.
+
+    Known cosmetic diff: Django's own div.html already wraps each field in
+    `<div {{ field.css_classes }}>`, so whole-form renders emit one extra, inert
+    nesting level. Both are plain block divs and nothing in Bootstrap or
+    styles.scss depends on the depth. Overriding div.html to remove it would
+    mean taking ownership of the `field.css_classes` error/required hook, which
+    is not worth the risk.
+{% endcomment %}
+<c-form.field :field="field" />

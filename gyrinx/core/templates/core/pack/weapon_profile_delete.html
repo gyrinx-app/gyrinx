@@ -4,7 +4,7 @@
     Archive profile - {{ equipment.name }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <c-back url="{{ back_url }}" text="{{ pack.name }}" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Archive profile</h1>
         <p>
@@ -14,8 +14,12 @@
         <form action="{{ form_action_url }}" method="post">
             {% csrf_token %}
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-danger btn-sm">Archive</button>
-                <a href="{{ back_url }}" class="btn btn-link btn-sm">Cancel</a>
+                <c-btn variant="danger" size="sm" type="submit">
+                    Archive
+                </c-btn>
+                <c-btn variant="link" size="sm" href="{{ back_url }}">
+                    Cancel
+                </c-btn>
             </div>
         </form>
     </div>

@@ -3,9 +3,38 @@
     {# Breadcrumbs get their own full-width row so they're not squished by the stats block. #}
     {% url 'core:lists' as lists_url %}
     {% if list.is_campaign_mode %}
-        {% include "core/includes/breadcrumb.html" with type="Campaign Gang" owner=list.owner_cached name=list.name type_url=lists_url|add:"?type=gang" campaign=list.campaign print=print %}
+        <c-breadcrumb>
+            <c-breadcrumb.user :user="list.owner_cached" />
+            <c-breadcrumb.item href="{{ lists_url|add:'?type=gang' }}">
+                Campaign Gang
+            </c-breadcrumb.item>
+            {% comment %}
+                A list can be in campaign mode with no campaign attached (the campaign was
+                deleted, or the mode was set directly). Reversing core:campaign with a null
+                id raises NoReverseMatch and 500s the whole page, so the crumb is guarded —
+                which is exactly the conditional-crumb case the CSS separator exists for.
+
+                Written as a comment BLOCK, not the hash form: Django's hash comment is
+                single-line only, so a multi-line one is not a comment at all and renders
+                as literal text into the page.
+            {% endcomment %}
+            {% if list.campaign %}
+                <c-breadcrumb.item href="{% url 'core:campaign' list.campaign.id %}">{{ list.campaign.name }}</c-breadcrumb.item>
+            {% endif %}
+            <c-breadcrumb.item>
+                {{ list.name }}
+            </c-breadcrumb.item>
+        </c-breadcrumb>
     {% else %}
-        {% include "core/includes/breadcrumb.html" with type="List" owner=list.owner_cached name=list.name type_url=lists_url print=print %}
+        <c-breadcrumb>
+            <c-breadcrumb.user :user="list.owner_cached" />
+            <c-breadcrumb.item href="{{ lists_url }}">
+                List
+            </c-breadcrumb.item>
+            <c-breadcrumb.item>
+                {{ list.name }}
+            </c-breadcrumb.item>
+        </c-breadcrumb>
     {% endif %}
     <div class="d-flex flex-column flex-xl-row gap-2 column-gap-xl-3 align-items-xl-center">
         <div class="vstack">

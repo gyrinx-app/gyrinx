@@ -4,23 +4,18 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:campaign' campaign.id as campaign_url %}
-    {% include "core/includes/back.html" with url=campaign_url text="Back to Campaign" %}
+    <c-back url="{{ campaign_url }}" text="Back to Campaign" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">New Battle</h1>
         <p class="text-secondary">Set up a new battle for {{ campaign.name }}. You can add the result later.</p>
         <form method="post" class="vstack gap-3">
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger alert-icon mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>{{ form.non_field_errors }}</div>
-                </div>
-            {% endif %}
+            <c-errors :form="form" class="mb-0" />
             {% csrf_token %}
             {{ form }}
-            <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">Create Battle</button>
-                <a href="{{ campaign_url }}" class="btn btn-link">Cancel</a>
-            </div>
+            <c-form.actions intent="create"
+                            submit="Create Battle"
+                            cancel="{{ campaign_url }}"
+                            class="hstack gap-3 align-items-center" />
         </form>
     </div>
 {% endblock content %}

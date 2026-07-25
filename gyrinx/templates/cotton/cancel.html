@@ -1,0 +1,55 @@
+{% comment %}
+    <c-cancel> — replaces core/includes/cancel.html (23 include sites; 88
+    `<a class="btn btn-link">Cancel</a>` anchors in the estate, 84 of which
+    carry the literal text "Cancel").
+
+        <c-cancel />                                   {# inherits return_url #}
+        <c-cancel url="{% url 'core:list' list.id %}" text="Skip" />
+
+    Delegates to <c-btn> so the `btn btn-link` class string lives in exactly one
+    place.
+
+    URL FALLBACK — byte-identical to the include, all three steps:
+        url  ->  return_url  ->  {% safe_referer "/" %}
+    `safe_referer` validates the Referer against the current host
+    (core/templatetags/custom_tags.py), so there is no open-redirect path, and
+    views already validate return_url on the way out via
+    core/utils.get_return_url(). This component adds no unvalidated path.
+
+    `return_url` IS DELIBERATELY NOT DECLARED IN <c-vars>, and that is the
+    whole point. A declared prop SHADOWS the ambient page context: with
+    return_url="/campaign/1/actions" in the view context, a <c-cancel/> that
+    declared it rendered href="<the Referer>" instead — silently, on 11 bare
+    `{% include "core/includes/cancel.html" %}` sites whose views compute
+    return_url precisely so the include can pick it up (campaign_log_action.html,
+    campaign_asset_transfer.html, campaign_resource_modify.html,
+    campaign_archive.html, fighter_release.html, fighter_return_to_owner.html,
+    fighter_sell_to_guilders.html, battle_archive.html, list_edit.html,
+    list_clone.html, list_archive.html). After a failed POST the Referer IS the
+    form page, so Cancel would loop the user back into the form they are trying
+    to leave. Leaving it undeclared makes `{% include %}` -> `<c-cancel />` a
+    genuinely mechanical substitution and removes 11 hand-edits from the
+    big-bang diff.
+    Consequences, both enforced by test_cotton_call_site_gates.py:
+      * NEVER pass return_url= to <c-cancel>. Undeclared attributes are
+        forwarded to {{ attrs }} and would be emitted as a stray HTML attribute.
+        Pass url= instead.
+      * This is the one place the component set relies on ambient context, so it
+        is NOT isolation-safe. COTTON_ENABLE_CONTEXT_ISOLATION must stay off
+        (it is: on 2.7.2 it re-runs the notifications context processor — an
+        uncached COUNT — once per component). If isolation is ever turned on,
+        these 11 sites need an explicit url=.
+
+    It deliberately has NO url_arg / url_name prop — that foot-gun was removed
+    in a8ca3c5c (#2001) and must not come back. `url` is a resolved URL string
+    only; resolve at the call site with {% url 'core:list' list.id as u %}.
+
+    `text` keeps the include's `{% if text %}…{% else %}Cancel{% endif %}`
+    guard rather than relying on the <c-vars> default: a default only applies
+    when the ATTRIBUTE IS ABSENT, so text="{{ maybe_empty }}" would otherwise
+    render a Cancel button with no label at all.
+
+    Body is a `text` prop, not a slot: all 23 existing sites pass plain text,
+    and `{% if slot %}` is truthy for whitespace-only content — which djlint can
+    introduce — so a slot would make an empty <c-cancel></c-cancel> render blank.
+{% endcomment %}{% load custom_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><c-btn variant="link" href="{% if url %}{{ url }}{% elif return_url %}{{ return_url }}{% else %}{% safe_referer "/" %}{% endif %}" class="{{ class }}" :attrs="attrs">{% if text %}{{ text }}{% else %}Cancel{% endif %}</c-btn>{% comment %} djlint:on {% endcomment %}

@@ -16,7 +16,7 @@
                     {% else %}
                         {% include "core/includes/back.html" with url=gear_edit_url text="Back to Gear" %}
                     {% endif %}
-                    {% include "core/includes/step_progress.html" with step=1 total_steps=3 title="Sell Equipment" %}
+                    <c-steps step="1" total="3" title="Sell Equipment" />
                     <h3 class="h5 mb-0">Select Sale Price Method</h3>
                 </div>
             </div>
@@ -90,7 +90,7 @@
             <div class="vstack gap-3">
                 <div class="vstack gap-1">
                     {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
-                    {% include "core/includes/step_progress.html" with step=2 total_steps=3 title="Confirm Equipment Sale" %}
+                    <c-steps step="2" total="3" title="Confirm Equipment Sale" />
                     <h3 class="h5 mb-0">Sale Summary</h3>
                 </div>
             </div>
@@ -162,7 +162,7 @@
             <div class="vstack gap-3">
                 <div class="vstack gap-1">
                     {% include "core/includes/back_to_list.html" with url_name="core:list" back_text="Back to list" %}
-                    {% include "core/includes/step_progress.html" with step=3 total_steps=3 title="Sale Complete" %}
+                    <c-steps step="3" total="3" title="Sale Complete" />
                     <h3 class="h5 mb-0">Sale Results</h3>
                 </div>
             </div>

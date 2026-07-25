@@ -1,0 +1,127 @@
+{% comment %}
+    c-note — a de-emphasised aside. The OUTLINE callout.
+
+    The third callout idiom in the estate, and the reason c-box can stay
+    colourless. Two populations converge here:
+
+      - 14 icon-led `border rounded p-2` notes — crew.html:72, :86, :104, :198,
+        :269, crew_form.html:63, crew_loadouts.html:38, crew_archive.html:18,
+        crew_lock.html:23, battle_end.html:30, campaign.html:8,
+        campaign_battles.html:31, includes/list.html:4,
+        list_post_battle_updates.html:228. VERIFIED: only 7 of these carry fs-7 —
+        crew_archive:18, crew_lock:23, campaign_battles:31,
+        list_post_battle_updates:228, battle_end:30, campaign:8 and
+        includes/list:4 are at BODY size. That is why fs-7 is not baked in.
+      - 8 `border border-{colour} rounded` boxes that no `border rounded` grep has
+        ever seen, because the colour class sits in between (list_archive ×2,
+        campaign_copy_from, campaign_copy_to, campaign_add_lists,
+        pack_fighter_default_assignment_remove, battle, list_common_header).
+
+    Both are doing an alert's job at lower visual weight. Naming that situation is
+    what stops it being re-invented ad hoc a ninth time.
+
+    Unlike c-callout, the icon is NOT derived: these notes use archive / bar-chart
+    / dice / info by MEANING, not by severity. So `icon` is a real argument and
+    resolves through c-icon's semantic table.
+
+    FIVE INDEPENDENT AXES, FIVE INDEPENDENT PROPS. An earlier draft welded padding
+    to font size, border colour to background tint, and icon colour to border
+    colour. Every weld made a real estate site inexpressible, so each axis now
+    stands alone:
+
+      padding      `roomy` gives p-3; default is p-2.
+      font size    NOT A PROP — pass class="fs-7". Half the sites are body size.
+      border       `variant` gives border-{variant}.
+      background   `tinted` gives bg-{variant}-subtle. OPT-IN, because
+                   campaign_add_lists.html:21 and battle.html:10 have a coloured
+                   border and NO background at all.
+      icon colour  `icon_class` overrides the variant-derived tint outright, for
+                   battle_end.html:30, which wants a text-warning icon inside a
+                   NEUTRAL border.
+
+    Props
+      icon        Semantic name ("archive") or a bootstrap name ("bi-archive").
+                  Defaults to "info". Pass icon="" for no icon at all.
+      icon_class  Classes on the icon, replacing the default text-{variant} /
+                  text-secondary. Use for a coloured icon on a neutral border, or
+                  to add pt-1 optical alignment in a roomy note.
+      variant     Optional border colour. This is the ONLY callout component with a
+                  colour knob, and it lives here rather than on c-box precisely so
+                  c-box stays incapable of impersonating an alert.
+      tinted      Bare boolean; adds the subtle background. Requires `variant`.
+      roomy       Bare boolean; p-3 instead of p-2.
+      align       flex align-items value for the row: start (default), center, end,
+                  baseline. A prop rather than a class because passing
+                  align-items-center through class= would leave two align-items
+                  utilities on the element and let Bootstrap's source order, not
+                  the caller, decide the winner.
+      heading     Bold lead-in. Autoescaped. If the heading needs a class of its
+                  own (list_archive.html uses a text-warning strong), leave this
+                  unset and put your own strong element at the top of the slot.
+      role        Not emitted unless passed. Pass role="alert" only when the note
+                  genuinely announces a state change.
+      class       Appended last.
+
+    Named slot: `action`
+      Rendered as a DIRECT FLEX CHILD after the body, so ms-auto on it still pushes
+      it to the right edge. This exists for the archived-gang and archived-campaign
+      banners (includes/list.html:4, campaign.html:8), whose Unarchive control is
+      the only escape route from an archived state. Content placed in the DEFAULT
+      slot instead lands inside the body wrapper, where ms-auto silently becomes a
+      no-op — a real regression, not a cosmetic one. Trailing controls go in the
+      `action` slot.
+
+      `action` is ALSO declared in c-vars, and that declaration is load-bearing.
+      Context isolation is off (it costs a DB query per component on 2.7.2), so
+      without a declared default the name would resolve against the parent
+      context — and `action` is one of the most common variable names in this
+      codebase, holding a form's action URL. Verified: an ambient action="/x/"
+      rendered the raw URL as visible text inside the note. The c-vars default
+      shadows it. Any future named slot needs the same treatment.
+
+    DISQUALIFIER — WHEN TO LEAVE A SITE AS RAW HTML. If slot content relies on
+    being a direct flex child of the container for anything OTHER than a single
+    trailing action (flex-grow, align-self, order, a second ms-auto), c-note cannot
+    express it: the body wrapper breaks the relationship. Leave it raw.
+
+    ONE INTENDED VISUAL CHANGE, to be screenshot-checked in the PR: the existing
+    notes put the icon inline, so wrapped text runs back underneath it. This uses
+    the flex layout copied verbatim from notification_banners.html, so the body now
+    hangs indented — consistent with .alert-icon.
+
+    NOT MECHANISABLE — SHIP IN ITS OWN PR. Choosing icon / variant / roomy / tinted
+    from freeform markup is judgement, not pattern-matching, and c-note is the only
+    component in this family that changes rendered output on purpose. Folding its
+    22 sites into the mechanical c-callout wave would cost reviewers the ability to
+    skim that diff. Separate PR, before/after screenshots for all 22.
+
+    SECURITY — never pass user-controlled data as :prop="value"; cotton's
+    {{ attrs }} output is mark_safe'd and can be escaped out of. Use the slot, the
+    `heading` prop, or the static form attr="{{ value }}". Enforced by
+    scripts/check_cotton.sh.
+
+    PARSE HAZARD — a conditional attribute inside a cotton tag emits literal
+    template source into the page without erroring. Use a declared prop, or leave
+    the site raw.
+{% endcomment %}
+<c-vars icon="info"
+        icon_class=""
+        variant=""
+        tinted=""
+        heading=""
+        roomy=""
+        align="start"
+        role=""
+        action=""
+        class="" />
+<div class="border rounded {% if roomy %}p-3{% else %}p-2{% endif %}{% if variant %} border-{{ variant }}{% if tinted %} bg-{{ variant }}-subtle{% endif %}{% endif %} d-flex gap-2 align-items-{{ align }}{% if class %} {{ class }}{% endif %}"
+     {% if role %}role="{{ role }}"{% endif %}
+     {{ attrs }}>
+    <c-icon name="{{ icon }}"
+            class="{% if icon_class %}{{ icon_class }}{% else %}text-{% firstof variant "secondary" %}{% endif %}" />
+    <div class="flex-grow-1 mb-last-0">
+        {% if heading %}<strong>{{ heading }}</strong>{% endif %}
+        {{ slot }}
+    </div>
+    {{ action }}
+</div>

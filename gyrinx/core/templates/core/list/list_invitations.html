@@ -10,7 +10,7 @@
         {% if invitations %}
             <div class="mb-3">
                 {% for invitation in invitations %}
-                    <div class="border rounded p-3 mb-3">
+                    <c-box class="mb-3">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
                                 <h5 class="mb-1">
@@ -29,16 +29,20 @@
                                   action="{% url 'core:invitation-accept' list.id invitation.id %}"
                                   class="d-inline">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-success btn-sm">Accept</button>
+                                <c-btn variant="success" size="sm" type="submit">
+                                    Accept
+                                </c-btn>
                             </form>
                             <form method="post"
                                   action="{% url 'core:invitation-decline' list.id invitation.id %}"
                                   class="d-inline ms-2">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-link text-secondary btn-sm">Decline</button>
+                                <c-btn variant="link" size="sm" type="submit" class="text-secondary">
+                                    Decline
+                                </c-btn>
                             </form>
                         </div>
-                    </div>
+                    </c-box>
                 {% endfor %}
             </div>
         {% else %}

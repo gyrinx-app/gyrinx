@@ -4,7 +4,7 @@
     Edit profile - {{ equipment.name }} - {{ pack.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=back_url text=pack.name %}
+    <c-back url="{{ back_url }}" text="{{ pack.name }}" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
             <i class="bi-crosshair"></i> Edit profile
@@ -16,16 +16,20 @@
             {{ form }}
             {% include "core/pack/includes/weapon_profile_stats_form.html" with weapon_stats=weapon_stat_values %}
             <div class="mt-3 d-flex align-items-center gap-2 flex-wrap">
-                <button type="submit" class="btn btn-success">Save</button>
+                <c-btn variant="success" type="submit">
+                    Save
+                </c-btn>
                 {% if customise_another_url %}
                     <span>or</span>
-                    <button type="submit"
-                            name="save_and_customise_another"
-                            class="btn btn-secondary">Save and customise a different weapon</button>
+                    <c-btn variant="secondary" type="submit" name="save_and_customise_another">
+                        Save and customise a different weapon
+                    </c-btn>
                 {% endif %}
-                <a href="{{ back_url }}" class="btn btn-link">Cancel</a>
+                <c-cancel url="{{ back_url }}" />
                 {% if profile.name %}
-                    <a href="{{ delete_url }}" class="btn btn-link text-danger ms-auto">Archive profile</a>
+                    <c-btn variant="link" class="text-danger ms-auto" href="{{ delete_url }}">
+                        Archive profile
+                    </c-btn>
                 {% endif %}
             </div>
         </form>

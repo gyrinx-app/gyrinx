@@ -4,7 +4,7 @@
     Campaign Assets - {{ campaign.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=campaign.get_absolute_url text="Back to Campaign" %}
+    <c-back url="{{ campaign.get_absolute_url }}" text="Back to Campaign" />
     <div class="col-12 px-0 vstack gap-4">
         <!-- Header -->
         <div>
@@ -49,12 +49,15 @@
                             </a>
                             <!-- Dropdown for mobile -->
                             <div class="dropdown d-sm-none">
-                                <button class="btn btn-sm btn-link text-secondary p-0"
-                                        type="button"
-                                        data-bs-toggle="dropdown"
-                                        aria-expanded="false">
+                                <c-btn variant="link"
+                                       size="sm"
+                                       class="text-secondary p-0"
+                                       type="button"
+                                       label="Actions for {{ asset_type.name_plural }}"
+                                       data-bs-toggle="dropdown"
+                                       aria-expanded="false">
                                     <i class="bi-three-dots-vertical"></i>
-                                </button>
+                                </c-btn>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item"
@@ -144,12 +147,15 @@
                                                 </span>
                                                 <!-- Dropdown for mobile -->
                                                 <div class="dropdown d-sm-none d-inline-block">
-                                                    <button class="btn btn-sm btn-link text-secondary p-0"
-                                                            type="button"
-                                                            data-bs-toggle="dropdown"
-                                                            aria-expanded="false">
+                                                    <c-btn variant="link"
+                                                           size="sm"
+                                                           class="text-secondary p-0"
+                                                           type="button"
+                                                           label="Actions for {{ asset.name }}"
+                                                           data-bs-toggle="dropdown"
+                                                           aria-expanded="false">
                                                         <i class="bi-three-dots-vertical"></i>
-                                                    </button>
+                                                    </c-btn>
                                                     <ul class="dropdown-menu dropdown-menu-end">
                                                         <li>
                                                             <a class="dropdown-item"

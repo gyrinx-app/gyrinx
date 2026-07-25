@@ -6,7 +6,7 @@
 {% block content %}
     {{ form.media }}
     {% url 'core:campaign-assets' campaign.id as back_url %}
-    {% include "core/includes/back.html" with url=back_url text="Back to Assets" %}
+    <c-back url="{{ back_url }}" text="Back to Assets" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Add {{ asset_type.name_singular }}</h1>
         <h2 class="h5 text-secondary">{{ campaign.name }}</h2>
@@ -14,18 +14,21 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
-            {% include "core/includes/form_field.html" with field=form.name %}
-            {% include "core/includes/form_field.html" with field=form.description %}
+            <c-form.field :field="form.name" />
+            <c-form.field :field="form.description" />
             {% if form.holder %}
-                {% include "core/includes/form_field.html" with field=form.holder %}
+                <c-form.field :field="form.holder" />
             {% endif %}
             {% include "core/campaign/includes/asset_properties_fields.html" %}
             <div class="mt-3">
-                <button type="submit" class="btn btn-success" name="save">Create {{ asset_type.name_singular }}</button>
+                <c-btn variant="success" type="submit" name="save">
+                    Create {{ asset_type.name_singular }}
+                </c-btn>
                 or
-                <button type="submit" class="btn btn-secondary" name="save_and_add_another">Create and add another</button>
-                <a href="{% url 'core:campaign-assets' campaign.id %}"
-                   class="btn btn-link">Cancel</a>
+                <c-btn variant="secondary" type="submit" name="save_and_add_another">
+                    Create and add another
+                </c-btn>
+                <c-cancel url="{% url 'core:campaign-assets' campaign.id %}" />
             </div>
         </form>
     </div>

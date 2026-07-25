@@ -10,13 +10,15 @@
     you at the table instead.
 {% endcomment %}
 <div class="btn-group">
-    <button type="button"
-            class="btn btn-outline-secondary btn-sm dropdown-toggle"
-            data-bs-toggle="dropdown"
-            aria-expanded="false">
+    <c-btn variant="outline-secondary"
+           size="sm"
+           type="button"
+           class="dropdown-toggle"
+           data-bs-toggle="dropdown"
+           aria-expanded="false">
         <span class="d-none d-sm-inline">Sort:</span> {{ gang_sort.label }}
         <i class="{{ gang_sort.icon }}"></i>
-    </button>
+    </c-btn>
     <div class="dropdown-menu dropdown-menu-end shadow-sm fs-7">
         <h6 class="dropdown-header">Sort by:</h6>
         <a class="dropdown-item{% if gang_sort_options.name.active %} active{% endif %}"

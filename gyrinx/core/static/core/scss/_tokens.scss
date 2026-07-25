@@ -25,7 +25,23 @@ $gy-action-confirm: $success;
 $gy-text-muted: var(--bs-secondary-color); // replaces deprecated text-muted
 
 // Surfaces
-// Section header bars use bg-body-tertiary (matches card-header lightness)
+// Section header bars use bg-body-tertiary (matches card-header lightness).
+// Bootstrap's light-mode default (#f8f9fa) is only 3% off white and the bars
+// read as barely-there against the page; this is one step darker so a section
+// header actually separates its content from what precedes it. Dark mode keeps
+// Bootstrap's value, where the contrast was already right.
+$gy-surface-header-light: #f1f3f5;
+
+// Section header bar height. Derived from Bootstrap's own btn-sm metrics plus
+// the bar's vertical padding, so a bar whose action is a btn-sm and a bar whose
+// action is a plain link (or which has none) are the same height. Deriving it
+// rather than hard-coding means it tracks the type scale if that ever moves.
+// ($btn-border-width is `var(--bs-border-width)`, so it can only be multiplied
+// inside calc() — hence the split rather than one SCSS sum.)
+$gy-section-header-height: calc(
+    #{$btn-font-size-sm * $btn-line-height + $btn-padding-y-sm * 2 + $spacer} +
+        #{$btn-border-width} * 2
+);
 
 // --------------------------------------------------------------------------
 // Component tokens

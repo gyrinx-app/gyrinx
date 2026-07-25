@@ -4,23 +4,18 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:battle' battle.id as battle_url %}
-    {% include "core/includes/back.html" with url=battle_url text="Back to Battle" %}
+    <c-back url="{{ battle_url }}" text="Back to Battle" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Edit Battle</h1>
         <p class="text-secondary">{{ battle.name }}</p>
         <form method="post" class="vstack gap-3">
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger alert-icon mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>{{ form.non_field_errors }}</div>
-                </div>
-            {% endif %}
+            <c-errors :form="form" class="mb-0" />
             {% csrf_token %}
             {{ form }}
-            <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">Save</button>
-                <a href="{{ battle_url }}" class="btn btn-link">Cancel</a>
-            </div>
+            <c-form.actions intent="save"
+                            submit="Save"
+                            cancel="{{ battle_url }}"
+                            class="hstack gap-3 align-items-center" />
         </form>
     </div>
 {% endblock content %}

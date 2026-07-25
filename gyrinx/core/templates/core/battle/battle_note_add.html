@@ -9,7 +9,7 @@
     - {{ battle.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/back.html" with url=return_url text="Back" %}
+    <c-back url="{{ return_url }}" text="Back" />
     <div class="col-12 col-md-8 col-lg-6 px-0">
         <h1 class="h3">
             {% if existing_note %}
@@ -20,25 +20,20 @@
         </h1>
         <p class="text-secondary">{{ battle.name }}</p>
         <form method="post" class="vstack gap-3">
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger alert-icon mb-0" role="alert">
-                    <i class="bi-exclamation-triangle"></i>
-                    <div>{{ form.non_field_errors }}</div>
-                </div>
-            {% endif %}
+            <c-errors :form="form" class="mb-0" />
             {% csrf_token %}
             <input type="hidden" name="return_url" value="{{ return_url }}">
             {{ form.media }}
             {{ form }}
             <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">
+                <c-btn type="submit" variant="success">
                     <i class="bi-check-lg"></i>
                     {% if existing_note %}
                         Update report
                     {% else %}
                         Add report
                     {% endif %}
-                </button>
+                </c-btn>
                 <a href="{{ return_url }}">Cancel</a>
             </div>
         </form>

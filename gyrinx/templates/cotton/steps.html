@@ -1,0 +1,35 @@
+{% comment %}
+    c-steps — the step-progress header for multi-step flows (add vehicle, sell
+    equipment). Replaces core/includes/step_progress.html.
+
+        <c-steps step="2" total="3" title="Add Vehicle" subtitle="Select crew" />
+
+    Emits the progress bar, the h1 and the optional h2. The bar width is
+    computed with widthratio, so `step` and `total` are plain integers and the
+    component owns the arithmetic -- call sites never compute a percentage.
+
+    The h1 is INSIDE this component, so a page using it must not also emit its
+    own h1: one h1 per page is a design-system rule and these flows put the step
+    title in that role.
+
+    Props
+      step      1-based index of the current step.
+      total     total number of steps.
+      title     the h1 text.
+      subtitle  optional h2 under it.
+      class     extra classes on the progress bar wrapper.
+
+    The bar is full-width by construction (a block-level flex container), so
+    the PAGE WRAPPER decides how wide it is. Do not wrap it in a narrower
+    column than the step content it heads, or the bar and the form beneath it
+    disagree about where the page edge is.
+{% endcomment %}{% load custom_tags %}<c-vars step="1" total="1" title="" subtitle="" class="" />{% widthratio step total 100 as progress %}{% comment %} djlint:off {% endcomment %}<div class="progress mb-2{% if class %} {{ class }}{% endif %}"
+     role="progressbar"
+     aria-label="Step {{ step }} of {{ total }}"
+     aria-valuenow="{{ progress }}"
+     aria-valuemin="0"
+     aria-valuemax="100">
+    <div class="progress-bar" style="width: {{ progress }}%">Step {{ step }} of {{ total }}</div>
+</div>{% comment %} djlint:on {% endcomment %}
+<h1 class="h3 mb-0">{{ title }}</h1>{% if subtitle %}
+<h2 class="h5 mb-0">{{ subtitle }}</h2>{% endif %}

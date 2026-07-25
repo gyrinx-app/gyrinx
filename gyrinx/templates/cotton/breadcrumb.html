@@ -1,0 +1,32 @@
+{% comment %}
+    c-breadcrumb — the ancestry trail above a page title.
+
+        <c-breadcrumb>
+            <c-breadcrumb.user :user="list.owner_cached" />
+            <c-breadcrumb.item href="{{ lists_url }}">List</c-breadcrumb.item>
+            {% if list.campaign %}
+                <c-breadcrumb.item href="{{ list.campaign.get_absolute_url }}">{{ list.campaign.name }}</c-breadcrumb.item>
+            {% endif %}
+            <c-breadcrumb.item>{{ list.name }}</c-breadcrumb.item>
+        </c-breadcrumb>
+
+    Takes any number of crumbs in any order. The previous version had a fixed
+    prop per position (type, type_url, campaign, parent, parent_url, name) which
+    meant a page with a different ancestry either could not be expressed or had
+    to abuse `parent`; adding a level meant adding two more props.
+
+    THE SEPARATOR IS CSS, not markup: `.crumbs > * + *::before`. That is what
+    makes a conditional crumb work. Cotton has no scoped slots, so a component
+    cannot see which of its children rendered and therefore cannot know where a
+    separator belongs -- exactly the problem that keeps {% dot %} at the call
+    site in c-actions. An adjacent-sibling rule sidesteps it entirely, which is
+    also how Bootstrap.s own .breadcrumb does it. The separator sits on the
+    crumb wrapper rather than inside the link, so it never takes the anchor.s
+    colour or underline.
+
+    Wrapped in {% spaceless %} so the gap between crumbs comes only from the
+    CSS margin and cannot drift when djlint reflows a call site.
+
+    Props
+      class  extra classes on the wrapper.
+{% endcomment %}<c-vars class="" />{% spaceless %}<div class="crumbs fs-7 text-secondary{% if class %} {{ class }}{% endif %}">{{ slot }}</div>{% endspaceless %}

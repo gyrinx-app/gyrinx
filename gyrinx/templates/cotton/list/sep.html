@@ -1,0 +1,10 @@
+{% comment %}
+    c-list.sep — the separator between two c-list items in slot mode.
+
+    Renders <span>,&nbsp;</span>. The non-breaking space is the point: it keeps
+    the comma welded to the item before it so a long list never wraps with a
+    leading comma on the next line.
+
+    One dense line, no trailing newline -- it sits between two items inside
+    {% spaceless %} and any whitespace it emitted would defeat the wrapper.
+{% endcomment %}<span>,&nbsp;</span>

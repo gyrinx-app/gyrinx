@@ -1,0 +1,107 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.actions> — "finish, or abandon."
+
+    The submit row. 73 of the 122 rows in the estate are exactly
+    `<div class="mt-3"><button class="btn btn-success">Save</button>
+    <a class="btn btn-link">Cancel</a></div>`; the other 49 are the same idea in
+    eight different wrappers, and there are 103 hand-rolled Cancel links against
+    only 23 uses of the cancel include.
+
+        <c-form.actions submit="Save" :cancel="return_url" />
+        <c-form.actions intent="create" submit="Create fighter" cancel="{% templatetag openblock %} url 'core:lists' {% templatetag closeblock %}" />
+        <c-form.actions intent="delete" submit="Delete" :cancel="return_url" />
+
+        {# 69 sites put an icon in the button: one prop, same markup #}
+        <c-form.actions intent="capture" icon="person-lock" submit="Mark as Captured" cancel="…" />
+
+        {# anything the text/icon props cannot express goes in the slot #}
+        <c-form.actions intent="confirm" cancel="…">
+            <i class="bi-heart-pulse" aria-hidden="true"></i> {% templatetag openblock %} trans "Resurrect Fighter" {% templatetag closeblock %}
+        </c-form.actions>
+
+    THE POINT: the call site names what the button DOES; the component picks the
+    Bootstrap colour. `intent` is the only colour input, and the table lives in
+    SUBMIT_INTENTS (gyrinx/core/templatetags/form_tags.py):
+
+        save | create | confirm | apply | add | update | restore …  -> btn-success
+        delete | archive | remove | discard | reset | sell | kill … -> btn-danger
+        next | continue | search | filter | select | go             -> btn-primary
+        capture | warn                                              -> btn-warning
+        secondary                                                   -> btn-secondary
+
+    AN UNKNOWN INTENT IS AN ERROR, NOT A DEFAULT. The first draft of this
+    component used `{{ intents|get_item:intent|default:'success' }}`, which
+    rendered `intent="destroy"`, `intent="unarchive"` and the plain typo
+    `intent="Delete"` as a GREEN button on a delete page, silently. Green means
+    "creates or confirms" in this design system. `submit_variant` raises in
+    DEBUG and degrades to `secondary` — visibly wrong instead of invisibly
+    wrong — in production. Add a verb to SUBMIT_INTENTS rather than working
+    around it.
+
+    docs/DESIGN-SYSTEM.md and core/debug/design_system.html disagree about
+    toolbars (btn-success allowed vs banned). That disagreement is about
+    TOOLBARS. This component is the FORM SUBMIT row, where both agree.
+
+    Props
+      intent        semantic verb, table above. Default "save".
+      submit        button text. Default "Save". Ignored when the default slot
+                    has content.
+      icon          Bootstrap icon name without the `bi-` prefix, rendered
+                    before the label — this is the 69 `<i class="bi-…"></i>
+                    Label` submit buttons, expressed once.
+      cancel        URL for the Cancel link. Omit for no Cancel; pass an
+                    explicit URL (or :cancel="return_url") — the fallback inside
+                    <c-cancel> is the same-host-validated
+                    {% templatetag openblock %} safe_referer {% templatetag closeblock %}, never a raw header (#2001).
+      cancel_text   default "Cancel".
+      size          "" (default, full size) or "sm".
+      submit_class  extra classes on the submit BUTTON — `w-100`,
+                    `flex-shrink-0`, `text-nowrap` in the estate. `class` styles
+                    the row, not the button; conflating them is why the first
+                    draft could not express those sites at all.
+      class         the row wrapper. Defaults to the design-system `mt-3`;
+                    override wholesale for the hstack variants.
+      name/value    forwarded through {{ attrs }} to the <button> for the
+                    multi-submit forms (18 sites use name=, 10 use value=).
+
+    Slots
+      (default)  the button's own content, when text + icon are not enough:
+                 {% templatetag openblock %} trans {% templatetag closeblock %}, a nested <span class="d-none d-md-inline">,
+                 a second icon. Overrides `submit`.
+      before     rendered first inside the row — this is where the hidden
+                 inputs of the confirm/delete pages live
+                 (`name="archive" value="1"`), exactly where they sit today.
+      after      rendered between the submit button and Cancel: a second
+                 button, a note.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars intent="save"
+        submit="Save"
+        icon=""
+        cancel=""
+        cancel_text=""
+        size=""
+        submit_class=""
+        class="mt-3" />
+{# djlint:on #}
+{% submit_variant intent as variant %}
+<div{% if class %} class="{{ class }}"{% endif %}>
+    {{ before }}
+    <c-btn type="submit"
+           variant="{{ variant }}"
+           size="{{ size }}"
+           class="{{ submit_class }}"
+           :attrs="attrs">
+        {% if icon %}
+            <i class="bi-{{ icon }} me-1" aria-hidden="true"></i>
+        {% endif %}
+        {% if slot.strip %}
+            {{ slot }}
+        {% else %}
+            {{ submit }}
+        {% endif %}
+    </c-btn>
+    {{ after }}
+    {% if cancel %}<c-cancel url="{{ cancel }}" text="{{ cancel_text }}" />{% endif %}
+</div>

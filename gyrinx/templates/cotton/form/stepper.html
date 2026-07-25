@@ -1,0 +1,51 @@
+{% load form_tags %}
+{% comment %}
+    <c-form.stepper> — "nudge a number up or down."
+
+    Replaces core/includes/number_stepper.html (4 sites).
+
+        <c-form.stepper :field="form.credits_gained" label="credits gained" />
+
+    The −/+ buttons are a progressive enhancement wired by the shared stepper JS
+    (`data-stepper`). WITHOUT JavaScript the native <input type="number"> spinner
+    still works and the form still submits — the buttons are type="button", so
+    they cannot accidentally submit either. No state lives in JS.
+
+    The widget renders BARE, with no label and no wrapper of its own: an
+    input-group is a flex container, and any element between it and the control
+    breaks the joined-edge styling. The label belongs outside — usually
+    <c-form.cell>'s, which also renders this field's help text and errors.
+
+    Props
+      field  a BoundField rendered as a number input. Required.
+      label  short noun used in the buttons' accessible names ("credits gained"
+             -> "Increase credits gained"). Icon-only controls MUST have one;
+             the fallback is deliberately vague so a missing label is visible.
+      floor  boolean. Adds `data-stepper-floor`, which stops the JS decrementing
+             below the input's min.
+      class  extra classes on the input-group.
+
+    The control's own Bootstrap class comes from the widget (set in
+    gyrinx/core/forms/*.py) — this component wraps, it does not restyle.
+{% endcomment %}
+{# djlint:off H026 #}
+<c-vars field="" label="value" floor="" class="" />
+{# djlint:on #}
+{% require_bound_field field "form.stepper" %}
+<div class="input-group input-group-sm flex-nowrap{% if class %} {{ class }}{% endif %}"
+     data-stepper
+     {% if floor %}data-stepper-floor{% endif %}{{ attrs|space_before }}>
+    <button type="button"
+            class="btn btn-outline-secondary px-2"
+            data-step="-1"
+            aria-label="Decrease {{ label }}">
+        <i class="bi-dash-lg" aria-hidden="true"></i>
+    </button>
+    {{ field }}
+    <button type="button"
+            class="btn btn-outline-secondary px-2"
+            data-step="1"
+            aria-label="Increase {{ label }}">
+        <i class="bi-plus-lg" aria-hidden="true"></i>
+    </button>
+</div>

@@ -30,7 +30,9 @@
                    aria-label="Search lists"
                    name="q"
                    value="{{ request.GET.q }}">
-            <button class="btn btn-primary btn-sm" type="submit">Search</button>
+            <c-btn type="submit" variant="primary" size="sm">
+                Search
+            </c-btn>
         </div>
     </form>
 {% else %}
@@ -54,7 +56,9 @@
                            aria-label="Search lists"
                            name="q"
                            value="{{ request.GET.q }}">
-                    <button class="btn btn-primary" type="submit">Search</button>
+                    <c-btn type="submit" variant="primary">
+                        Search
+                    </c-btn>
                 </div>
             </div>
         </div>
@@ -66,11 +70,15 @@
             {% endfor %}
             {# House filter dropdown #}
             <div class="btn-group">
-                <button type="button"
-                        class="btn btn-outline-primary btn-sm dropdown-toggle"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                        data-bs-auto-close="outside">House</button>
+                <c-btn type="button"
+                       variant="outline-primary"
+                       size="sm"
+                       class="dropdown-toggle"
+                       data-bs-toggle="dropdown"
+                       aria-expanded="false"
+                       data-bs-auto-close="outside">
+                    House
+                </c-btn>
                 <div class="dropdown-menu shadow-sm p-2 fs-7 dropdown-menu-mw">
                     <label class="form-label">
                         <a href="#" id="house-all-link">All</a>
@@ -97,23 +105,29 @@
                         <span class="text-secondary">No houses available.</span>
                     {% endfor %}
                     <div class="btn-group align-items-center">
-                        <button class="btn btn-link icon-link btn-sm" type="submit">
+                        <c-btn type="submit" variant="link" size="sm" class="icon-link">
                             <i class="bi-arrow-clockwise"></i>
                             Update
-                        </button>
+                        </c-btn>
                         •
-                        <a class="btn btn-link linked-secondary icon-link btn-sm"
-                           href="?{% qt request house="all" %}#search">Reset</a>
+                        <c-btn variant="link"
+                               size="sm"
+                               class="linked-secondary icon-link"
+                               href="?{% qt request house="all" %}#search">Reset</c-btn>
                     </div>
                 </div>
             </div>
             {% if show_sort %}
                 {# Sort dropdown #}
                 <div class="btn-group">
-                    <button type="button"
-                            class="btn btn-outline-primary btn-sm dropdown-toggle"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false">Sort</button>
+                    <c-btn type="button"
+                           variant="outline-primary"
+                           size="sm"
+                           class="dropdown-toggle"
+                           data-bs-toggle="dropdown"
+                           aria-expanded="false">
+                        Sort
+                    </c-btn>
                     <div class="dropdown-menu shadow-sm fs-7">
                         <a class="dropdown-item{% if current_sort == 'recent' or not current_sort %} active{% endif %}"
                            href="?{% qt request sort='recent' page=None %}#search">Recently updated</a>
@@ -167,15 +181,21 @@
                 </div>
             {% endif %}
             <div class="btn-group align-items-center">
-                <button class="btn btn-link icon-link btn-sm"
-                        type="submit"
-                        id="update-filters">
+                <c-btn type="submit"
+                       variant="link"
+                       size="sm"
+                       class="icon-link"
+                       id="update-filters">
                     <i class="bi-arrow-clockwise"></i>
                     Update
-                </button>
+                </c-btn>
                 •
-                <a class="btn btn-link linked-secondary icon-link btn-sm"
-                   href="{{ action }}">Reset</a>
+                <c-btn variant="link"
+                       size="sm"
+                       class="linked-secondary icon-link"
+                       href="{{ action }}">
+                    Reset
+                </c-btn>
             </div>
         </div>
     </form>

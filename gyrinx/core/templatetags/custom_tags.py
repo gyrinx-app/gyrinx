@@ -15,7 +15,7 @@ from django.urls import resolve
 from django.urls.exceptions import Resolver404
 from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.utils.safestring import mark_safe
+from django.utils.safestring import SafeData, mark_safe
 
 from gyrinx.content.models import ContentPageRef
 from gyrinx.core import url
@@ -759,3 +759,32 @@ def safe_rich_text(value):
 def is_campaign_admin(campaign, user):
     """True when user administers campaign (owner or shared admin). None-safe."""
     return campaign is not None and campaign.is_admin(user)
+
+
+@register.filter(name="strip")
+def strip_filter(value):
+    """Trim leading/trailing whitespace from rendered slot content.
+
+    Needed by cotton components whose slot lands inside a plain INLINE element,
+    where the surrounding whitespace is not collapsed away. djlint reflows a
+    one-line call site
+
+        <c-actions.link href="…">Cost</c-actions.link>
+
+    onto three lines, so the slot arrives as "\\n    Cost\\n" and the anchor
+    renders with underlined whitespace either side of the word. `.btn` and
+    `.badge` are immune because Bootstrap makes them inline-block, which strips
+    leading and trailing whitespace inside the box; a bare <a> is not.
+
+    Preserves safety: slot content is already-rendered, escaped HTML, so this
+    re-marks it safe rather than escaping it a second time. A plain str input --
+    a `class` prop carrying user text, say -- is returned unmarked and the engine
+    escapes it as usual. Deliberately NOT registered `is_safe=True`: that flag
+    only propagates safeness, which the isinstance check below already does, so
+    carrying it as well just invited the question of whether it skipped escaping.
+    """
+    if value is None:
+        return ""
+    text = value if isinstance(value, str) else str(value)
+    stripped = text.strip()
+    return mark_safe(stripped) if isinstance(value, SafeData) else stripped

@@ -1,23 +1,20 @@
 {% load custom_tags %}
-<br>
-<i class="bi-arrow-90deg-up text-secondary me-1"></i>
-{% if not assign.is_from_default_assignment %}
-    <a href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}"
-       class="link-secondary">Cost</a>
+<c-actions>
+    {% if not assign.is_from_default_assignment %}
+        <c-actions.link href="{% url 'core:list-fighter-gear-cost-edit' list.id fighter.id assign.id %}">Cost</c-actions.link>
+        {% dot %}
+    {% endif %}
+    {% if assign.upgrades_display|length > 0 %}
+        <c-actions.link href="{% url 'core:list-fighter-gear-upgrade-edit' list.id fighter.id assign.id %}">{{ assign.equipment.upgrade_stack_name_display }}</c-actions.link>
+        {% dot %}
+    {% endif %}
+    <c-actions.link href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}">Reassign</c-actions.link>
     {% dot %}
-{% endif %}
-{% if assign.upgrades_display|length > 0 %}
-    <a href="{% url 'core:list-fighter-gear-upgrade-edit' list.id fighter.id assign.id %}"
-       class="link-secondary">{{ assign.equipment.upgrade_stack_name_display }}</a>
-    {% dot %}
-{% endif %}
-<a href="{% url 'core:list-fighter-gear-reassign' list.id fighter.id assign.id %}"
-   class="link-secondary">Reassign</a>
-{% dot %}
-<a href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
-   class="link-danger">Delete</a>
-{% if fighter.is_stash %}
-    {% dot %}
-    <a href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
-       class="link-warning">Sell</a>
-{% endif %}
+    <c-actions.link href="{% url 'core:list-fighter-gear-delete' list.id fighter.id assign.id %}"
+                    variant="danger">Delete</c-actions.link>
+    {% if fighter.is_stash %}
+        {% dot %}
+        <c-actions.link href="{% url 'core:list-fighter-equipment-sell' list.id fighter.id assign.id %}?assign={{ assign.id }}&sell_assign={{ assign.id }}"
+                        variant="warning">Sell</c-actions.link>
+    {% endif %}
+</c-actions>

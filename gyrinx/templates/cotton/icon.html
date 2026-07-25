@@ -1,0 +1,32 @@
+{% comment %}
+    <c-icon> — a decorative Bootstrap Icon.
+
+    The design system uses the HYPHENATED form (`bi-pencil`), never `bi bi-pencil`.
+    This component is the only place that fact is written down.
+
+    Props:
+      name  — a SEMANTIC name from the map below ("edit", "delete", "add"...) or a
+              raw Bootstrap Icons name ("heartbreak", "pin-angle-fill"). A leading
+              "bi-" is tolerated and stripped. Empty name renders nothing.
+      class — extra classes, appended last (e.g. "fs-7", "text-warning").
+
+    Icons are ALWAYS aria-hidden. Every one of the 614 icon uses in the estate is
+    decorative; an icon-only control gets its accessible name from <c-btn label="…">,
+    not from the icon. There is deliberately no opt-out.
+
+    BYTE-SIGNIFICANT: this file is deliberately written as one dense line below the
+    comment, with no trailing newline. An icon is an INLINE element — it sits against
+    text, inside buttons, and beside {% templatetag openblock %} dot {% templatetag closeblock %}
+    separators — so any newline in the renderable body is emitted verbatim and collapses
+    to a rendered space in the wrong place. `gyrinx/templates/cotton/` is excluded from
+    djlint and end-of-file-fixer precisely so this formatting survives; do not "tidy" it.
+    See .claude/notes/cotton-whitespace-and-toolchain-decisions.md.
+
+    `get_item` needs no {% load %}: it is one of two filters django-cotton itself
+    injects as a template builtin (with `merge`). Note the project ALSO defines a
+    `get_item` in custom_tags — this resolves to cotton's, since a builtin applies
+    unless a template loads a library that overrides it. They agree on every dict
+    lookup, including a missing key; they differ only when the subject is None,
+    where cotton's raises and ours returns None. The subject here is always the
+    dict literal declared in <c-vars> above, so that difference is unreachable.
+{% endcomment %}<c-vars name="" class="" :icons="{'add': 'plus-lg', 'edit': 'pencil', 'delete': 'trash', 'back': 'chevron-left', 'search': 'search', 'warning': 'exclamation-triangle', 'info': 'info-circle', 'confirm': 'check-lg', 'save': 'check-lg', 'more': 'three-dots-vertical', 'pack': 'box-seam', 'archive': 'archive', 'clone': 'copy', 'person': 'person', 'eye': 'eye', 'gear': 'gear', 'dice': 'dice-6'}" />{% if name %}{% with resolved=icons|get_item:name|default:name %}{% if resolved|slice:":3" == "bi-" %}<i class="bi-{{ resolved|slice:"3:" }}{% if class %} {{ class }}{% endif %}" aria-hidden="true"></i>{% else %}<i class="bi-{{ resolved }}{% if class %} {{ class }}{% endif %}" aria-hidden="true"></i>{% endif %}{% endwith %}{% endif %}

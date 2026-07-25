@@ -5,8 +5,16 @@ repos:
   - repo: https://github.com/djlint/djLint
     rev: v1.40.8
     hooks:
+      # django-cotton component files are hand-formatted and byte-significant:
+      # every one carries `djlint:off`, and djlint --reformat appends a trailing
+      # newline regardless, which renders as a space between adjacent inline
+      # badges/buttons. pyproject's [tool.djlint] extend_exclude covers directory
+      # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
+      # paths pre-commit passes, so the exclusion is repeated here.
       - id: djlint-reformat-django
+        exclude: ^gyrinx/templates/cotton/
       - id: djlint-django
+        exclude: ^gyrinx/templates/cotton/
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.8.1
@@ -58,6 +66,27 @@ repos:
         types_or: [scss, javascript, json, markdown, yaml]
         pass_filenames: false
 
+      # Hand-written Bootstrap markup may not increase. Templates should use the
+      # components in gyrinx/templates/cotton/ instead; see
+      # scripts/raw_markup_baseline.json for the current ceiling. A pytest test
+      # runs the same script, so CI enforces it too.
+      - id: check-raw-markup
+        name: check-raw-markup
+        entry: python3 scripts/check_raw_markup.py
+        language: system
+        types: [html]
+        pass_filenames: false
+
+      # Component call-site contract: props that must be passed with a colon,
+      # conditional attributes cotton silently drops, undeclared props that skip
+      # escaping. Also run by test_cotton_call_site_gates.py in CI.
+      - id: check-cotton
+        name: check-cotton
+        entry: ./scripts/check_cotton.sh
+        language: script
+        types: [html]
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -81,6 +110,12 @@ repos:
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
+        # django-cotton components must NOT end with a newline. A component's
+        # file content is emitted verbatim, so a trailing newline lands after
+        # the closing tag and collapses to a rendered space between adjacent
+        # inline elements -- e.g. the dice-result badges butted together in
+        # core/campaign/campaign_action_outcome.html:22.
+        exclude: ^gyrinx/templates/cotton/
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
       - id: forbid-submodules
