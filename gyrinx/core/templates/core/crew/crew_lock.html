@@ -19,21 +19,10 @@
                     {# Random Selection names nobody, so don't open with "0 chosen fighters". #}
                     <strong>{{ crew.random_spec }}</strong> fighters will be drawn at random from the gang.
                 {% else %}
-                    {% comment %}
-                    A Custom crew nobody has picked for yet. This used to fall into
-                    the random branch and render "  fighters will be drawn at
-                    random" with an empty count.
-                    {% endcomment %}
                     No fighters have been chosen, so the crew will go in empty.
                 {% endif %}
             </p>
             <c-callout variant="warning" class="mt-3 mb-0">
-                {% comment %}
-                What freezes is the membership, not the crew — loadouts, stash
-                and extras all stay editable, which is why the status badge says
-                "Membership locked". Saying "can no longer be changed" here sent
-                players looking for an undo they did not need.
-                {% endcomment %}
                 After this, the crew's membership is fixed{% if crew.random_spec %}, and the random draw runs once — it can't be re-rolled{% endif %}. You can still change the equipment sets they bring, the stash they carry and their extras.
             </c-callout>
             <div class="mt-3">

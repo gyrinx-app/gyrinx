@@ -11,11 +11,6 @@
                 {% spaceless %}
                     {% for participant in battle.participants.all %}
                         <span>{{ participant.name }}</span>
-                        {% comment %}
-                        The trophy is the only thing marking a winner here, and it
-                        carries no tooltip — so the icon is decorative and the
-                        state is spelled out for screen readers alongside it.
-                        {% endcomment %}
                         {% if participant in battle.winners.all %}<span>&nbsp;<i class="bi-trophy-fill text-warning" aria-hidden="true"></i><span class="visually-hidden">(winner)</span></span>{% endif %}
                         {% if not forloop.last %}<span>,&nbsp;</span>{% endif %}
                     {% endfor %}

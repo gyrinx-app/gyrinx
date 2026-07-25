@@ -131,14 +131,6 @@
             <table class="table table-sm table-borderless align-middle mb-0">
                 <thead>
                     <tr>
-                        {% comment %}
-                        The Fighters heading and its actions share the header row
-                        rather than opening the body with a section row of their
-                        own — that row put a rule across the whole table before a
-                        single figure had been shown. Actions sit beside the title,
-                        not pushed right, where they would line up under the rating
-                        columns and read as belonging to them.
-                        {% endcomment %}
                         <th>
                             <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Fighters</span>
@@ -348,7 +340,11 @@
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="4" class="text-secondary fs-7">No spending or balancing.</td>
+                            <td colspan="4" class="text-secondary fs-7">
+                                No spending or balancing. Use this to record credits spent for this
+                                battle, or as part of balancing mechanics such as the underdog
+                                system. Rules may vary by campaign.
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -396,17 +392,6 @@
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
                         </tr>
                     {% endif %}
-                    {% comment %}
-                    The figure the battle page ranks crews on, sitting in the
-                    column its last contribution lands in — under Spending,
-                    because it is Fighters & Stash + Spending — so it reads as a
-                    running total of the columns above rather than a number
-                    pinned to the right edge. A pending draw has no known
-                    rating, matching the Total below.
-
-                    There is no matching "after balancing" row: the Total below
-                    already carries that number.
-                    {% endcomment %}
                     <tr class="border-top">
                         <td class="text-secondary">Rating before balancing</td>
                         <td></td>

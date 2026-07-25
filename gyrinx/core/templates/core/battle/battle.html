@@ -96,19 +96,8 @@
                             <div class="table-responsive">
                                 <table class="table table-sm table-borderless align-middle mb-0">
                                     <thead>
-                                        {% comment %}
-                                        Two tiers: the spanning row labels each pair of
-                                        columns, so "Rating / vs top" is read once before
-                                        balancing and once after. Balancing is what a crew
-                                        spends from its allowance, so the two pairs differ
-                                        only for crews that received one.
-                                        {% endcomment %}
                                         <tr>
-                                            {% comment %}
-                                            Gang spans both tiers rather than leaving an empty
-                                            cell above it: an empty th in a multi-row header
-                                            can be announced as the first column's header.
-                                            {% endcomment %}
+                                            {# An empty th here can be announced as the first column's header. #}
                                             <th rowspan="2" scope="col" class="caps-label align-bottom border-bottom">Gang</th>
                                             <th colspan="2"
                                                 scope="colgroup"
@@ -153,12 +142,7 @@
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>
                                                     <td class="text-secondary ps-3">{% if p.rating_delta %}−{% credits p.rating_delta %}{% endif %}</td>
-                                                    {% comment %}
-                                                    A gang never receives balancing — that is
-                                                    granted to the crew it fields — so the
-                                                    post-balancing pair is blank rather than a
-                                                    repeat of the figures to the left.
-                                                    {% endcomment %}
+                                                    {# Balancing is granted to a crew, not a gang. #}
                                                     <td></td>
                                                     <td></td>
                                                 </tr>
@@ -200,11 +184,6 @@
                                                                       data-bs-toggle="tooltip"
                                                                       title="Unknown until the crew is rolled for selection">?</span>
                                                             {% elif p.crew.is_forecast %}
-                                                                {% comment %}
-                                                                Derived from the same forecast as the
-                                                                pre-balancing figure, so it carries the same
-                                                                caveat — unmarked it would read as settled.
-                                                                {% endcomment %}
                                                                 <span bs-tooltip
                                                                       data-bs-toggle="tooltip"
                                                                       title="The whole gang takes part, so this forecasts who would attend. It resolves when the crew is confirmed.">{% credits p.crew.rating_after %}<span class="text-secondary fs-7 ms-1">provisional</span></span>
