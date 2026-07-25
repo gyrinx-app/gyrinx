@@ -2,7 +2,11 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # "uv", not "pip": the uv ecosystem updates pyproject.toml *and* uv.lock in the
+  # same PR. Under "pip" only requirements.txt moved, so every Python PR left the
+  # lock stale and failed the install's --locked assertion — unfixable by
+  # Dependabot itself, which is what stalled the queue after #2043.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -61,8 +65,8 @@ updates:
         patterns:
           - "*"
 
-  # .pre-commit-config.yaml pins its own djlint/ruff, independent of
-  # requirements.txt. While the two agree the drift is invisible; when they
+  # .pre-commit-config.yaml pins its own djlint/ruff, independent of the versions
+  # in pyproject.toml. While the two agree the drift is invisible; when they
   # diverge the commit hook reverts the exact reformat CI demands and no commit
   # can satisfy both (see #2038). Keep them moving together.
   - package-ecosystem: "pre-commit"

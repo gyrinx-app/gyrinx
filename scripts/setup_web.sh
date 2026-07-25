@@ -95,14 +95,12 @@ echo "uv: $(uv --version)"
 # 4. Python virtual environment + project install
 # ---------------------------------------------------------------------------
 echo "--- [4/9] Setting up Python environment ---"
-if [ -d .venv ]; then
-  echo "Reusing existing .venv"
-else
-  uv venv .venv
-fi
+# `uv sync` creates .venv if needed and installs exactly what uv.lock pins.
+# UV_PROJECT_ENVIRONMENT is pinned because the next line sources ./.venv — an
+# inherited value would sync a different environment and leave this broken.
+UV_PROJECT_ENVIRONMENT=.venv uv sync --locked
 # shellcheck disable=SC1091
 source .venv/bin/activate
-uv pip install --editable .
 echo "Python $(python --version) — packages installed"
 
 # ---------------------------------------------------------------------------

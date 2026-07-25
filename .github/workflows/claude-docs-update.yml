@@ -81,14 +81,12 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Cache pip
+      - name: Set up uv
         if: steps.prs.outputs.count != '0'
-        uses: actions/cache@v6
+        uses: astral-sh/setup-uv@v9.0.0
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Cache npm dependencies
         if: steps.prs.outputs.count != '0'
@@ -101,10 +99,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.prs.outputs.count != '0'
-        run: |
-          python -m venv .venv && \
-          . .venv/bin/activate && \
-          pip install --editable .
+        run: uv sync --locked
 
       - name: Write to .env file
         if: steps.prs.outputs.count != '0'
@@ -115,12 +110,6 @@ jobs:
       - name: Install Node dependencies
         if: steps.prs.outputs.count != '0'
         run: npm ci
-
-      - name: Install pre-commit
-        if: steps.prs.outputs.count != '0'
-        run: |
-          . .venv/bin/activate && \
-          pip install pre-commit
 
       - name: Install pre-commit hooks
         if: steps.prs.outputs.count != '0'

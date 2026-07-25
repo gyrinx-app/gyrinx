@@ -45,7 +45,7 @@ python scripts/screenshot.py --check
 
 **Requirements:**
 
-- Playwright must be installed: `pip install playwright`
+- Playwright is a locked dependency, so `uv sync --locked` installs it
 - Django project must be properly configured
 - User account must exist for authentication
 - Chromium browser will be automatically installed on first run

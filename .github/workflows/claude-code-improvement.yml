@@ -43,14 +43,11 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Cache pip
-        id: cache-pip
-        uses: actions/cache@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Cache npm dependencies
         uses: actions/cache@v6
@@ -61,10 +58,7 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        run: |
-          python -m venv .venv && \
-          . .venv/bin/activate && \
-          pip install --editable .
+        run: uv sync --locked
 
       - name: Write to .env file
         run: |

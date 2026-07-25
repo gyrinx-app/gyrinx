@@ -51,14 +51,11 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Cache pip
-        id: cache-pip
-        uses: actions/cache@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v9.0.0
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - name: Cache npm dependencies
         uses: actions/cache@v6
         with:
@@ -67,10 +64,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
       - name: Install dependencies
-        run: |
-          python -m venv .venv && \
-          . .venv/bin/activate && \
-          pip install --editable .
+        run: uv sync --locked
       - name: Write to .env file
         run: |
           echo "SECRET_KEY=test-secret" >> .env
@@ -78,10 +72,6 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Install pre-commit
-        run: |
-          . .venv/bin/activate && \
-          pip install pre-commit
       - name: Install pre-commit hooks
         run: |
           . .venv/bin/activate && \
@@ -112,7 +102,7 @@ jobs:
             --model claude-opus-4-7
             --allowedTools Bash
             --system-prompt "IMPORTANT: Before running any Python code, tests, or linting tools, you MUST first run:
-            pip install --editable .
+            uv sync --locked
 
             This installs all project dependencies defined in pyproject.toml, including:
             - pytest for testing

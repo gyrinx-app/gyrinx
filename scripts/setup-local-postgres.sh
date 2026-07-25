@@ -292,7 +292,7 @@ else
   else
     echo "ERROR: No .venv found at ${VENV_PATH}." >&2
     echo "Create one and install the project before running this script:" >&2
-    echo "    python -m venv .venv && . .venv/bin/activate && pip install --editable ." >&2
+    echo "    uv sync --locked" >&2
     exit 1
   fi
 

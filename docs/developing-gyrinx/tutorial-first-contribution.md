@@ -31,11 +31,9 @@ If you haven't already, clone the repository and set up your environment:
 git clone git@github.com:gyrinx-app/gyrinx.git
 cd gyrinx
 
-# Create virtual environment
-python -m venv .venv && . .venv/bin/activate
-
-# Install dependencies
-pip install --editable .
+# Create the virtual environment and install dependencies from uv.lock
+uv sync --locked
+. .venv/bin/activate
 
 # Set up environment variables
 manage setupenv
