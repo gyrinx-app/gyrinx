@@ -4,7 +4,7 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:crew' battle.id crew.id as crew_url %}
-    {% include "core/includes/back.html" with url=crew_url text="Back to Crew" %}
+    <c-back url="{{ crew_url }}" text="Back to Crew" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
             {% if item %}
@@ -14,16 +14,16 @@
             {% endif %}
         </h1>
         <p class="text-secondary">
-            Extras are credit-consuming things attached to the crew — tactics cards, hired
-            help, and the like. How they're paid for is recorded but no credits are moved.
+            Use this to record credits spent for this battle, or as part of balancing
+            mechanics such as the underdog system. Rules may vary by campaign.
         </p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
             {{ form.as_div }}
-            <div class="hstack gap-3 align-items-center">
-                <button type="submit" class="btn btn-success">Save extra</button>
-                <a href="{{ crew_url }}" class="btn btn-link">Cancel</a>
-            </div>
+            <c-form.actions intent="save"
+                            submit="Save extra"
+                            cancel="{{ crew_url }}"
+                            class="hstack gap-3 align-items-center" />
         </form>
     </div>
 {% endblock content %}

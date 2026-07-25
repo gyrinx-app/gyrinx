@@ -867,17 +867,18 @@ class Crew(AppBase):
         note = self._note(sum(line["live_rating"] for _, line in lines))
 
         extras = []
-        credits_total = allowance_total = free_total = 0
-        has_free = False
+        credits_total = allowance_total = 0
         for item in self.line_items.all():
-            credits = allowance = free = None
+            credits = allowance = None
             if item.payment == self.PAY_ALLOWANCE:
                 allowance = item.cost
                 allowance_total += item.cost
             elif item.payment == self.PAY_FREE:
-                free = item.cost
-                free_total += item.cost
-                has_free = True
+                # Free items sit in the Spending column at 0¢ rather than in a
+                # column of their own: what the gang paid for them *is* nothing,
+                # and a fourth column existed only to say so. Their own cost is
+                # still on the record (item.cost), it just buys no rating.
+                credits = 0
             else:
                 credits = item.cost
                 credits_total += item.cost
@@ -886,18 +887,13 @@ class Crew(AppBase):
                     "item": item,
                     "credits": credits,
                     "allowance": allowance,
-                    "free": free,
                 }
             )
 
         stash = self.stash_lines()
-        total = (
-            fighters_total
-            + credits_total
-            + allowance_total
-            + free_total
-            + stash["total"]
-        )
+        # Free items add nothing, so this is exactly
+        # :meth:`rating_after_balancing` — which is what the sheet labels it.
+        total = fighters_total + credits_total + allowance_total + stash["total"]
         return {
             "attendees": attendees,
             "extras": extras,
@@ -911,8 +907,6 @@ class Crew(AppBase):
             "fighters_total": fighters_total,
             "credits_total": credits_total,
             "allowance_total": allowance_total,
-            "free_total": free_total,
-            "has_free": has_free,
             "total": total,
             # None when there's nothing to say; otherwise what was picked, what
             # the headline number is now, and whether they differ.

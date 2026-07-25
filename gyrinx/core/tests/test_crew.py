@@ -367,14 +367,21 @@ def test_receipt_totals(crew_setup):
     # Each attendee carries its fighter category for the bold "name · category".
     assert all(a["category"] for a in receipt["attendees"])
     assert receipt["has_extras"] is True
-    # Extras land in the column for how they're paid.
+    # Extras land in the column for how they're paid. A free item shows in the
+    # Spending column at 0¢ rather than in a column of its own — what the gang
+    # paid for it is nothing — so it moves no total.
     assert receipt["credits_total"] == 20
-    assert receipt["free_total"] == 30
     assert receipt["allowance_total"] == 0
-    assert receipt["has_free"] is True
-    # Grand total = fighters + all extras (the crew's credits value).
-    assert receipt["total"] == 150
-    assert receipt["total"] == crew.credits_value()
+    by_label = {e["item"].label: e for e in receipt["extras"]}
+    assert by_label["Tactics card"]["credits"] == 20
+    assert by_label["Free favour"]["credits"] == 0
+
+    # Grand total = fighters + what was actually paid, i.e. exactly the
+    # post-balancing rating the sheet labels it as. The free item's 30¢ is not
+    # in it, which is why this is no longer credits_value().
+    assert receipt["total"] == 120
+    assert receipt["total"] == crew.rating_after_balancing()
+    assert crew.credits_value() == 150
 
 
 @pytest.mark.django_db
