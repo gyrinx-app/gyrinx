@@ -31,6 +31,10 @@ from .base import Content
 
 logger = logging.getLogger(__name__)
 
+# Stat names already reported as having no ContentStat, so each is only
+# warned about once per process. See _get_stat_configuration.
+_undefined_stats_warned: set[str] = set()
+
 
 class ContentMod(PolymorphicModel, Content):
     """
@@ -68,10 +72,10 @@ class ContentModStatApplyMixin:
             content_stat = all_stats.get(self.stat)
             if content_stat is not None:
                 return (
-                    content_stat["is_inverted"],
-                    content_stat["is_inches"],
-                    content_stat["is_modifier"],
-                    content_stat["is_target"],
+                    content_stat.get("is_inverted", False),
+                    content_stat.get("is_inches", False),
+                    content_stat.get("is_modifier", False),
+                    content_stat.get("is_target", False),
                 )
         else:
             content_stat = ContentStat.objects.filter(field_name=self.stat).first()
@@ -83,12 +87,17 @@ class ContentModStatApplyMixin:
                     content_stat.is_target,
                 )
 
-        logger.warning(
-            "No ContentStat defined for stat %r on %s — "
-            "applying the modification without stat-specific formatting",
-            self.stat,
-            self.__class__.__name__,
-        )
+        # Once per stat per process: a modification is applied for every stat
+        # of every fighter on a page, so warning each time would turn one bad
+        # stat name into hundreds of identical lines per request.
+        if self.stat not in _undefined_stats_warned:
+            _undefined_stats_warned.add(self.stat)
+            logger.warning(
+                "No ContentStat defined for stat %r on %s — "
+                "applying the modification without stat-specific formatting",
+                self.stat,
+                self.__class__.__name__,
+            )
         return (False, False, False, False)
 
     def apply(self, input_value: str, mod_ctx: Optional[ModContext] = None) -> str:

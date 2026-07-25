@@ -95,7 +95,7 @@ def test_track_event_with_all_parameters(caplog_json):
 def test_track_model_context_labels(caplog_json):
     """Test an event carrying labels that identify a model and one of its fields."""
     tracker.track(
-        "content_stat_missing",
+        "example_event",
         stat_name="ammo",
         model_class="ContentModStat",
     )
@@ -103,7 +103,7 @@ def test_track_model_context_labels(caplog_json):
     logs = caplog_json.get_json_logs()
     assert len(logs) == 1
     assert logs[0] == {
-        "event": "content_stat_missing",
+        "event": "example_event",
         "n": 1,
         "labels": {"stat_name": "ammo", "model_class": "ContentModStat"},
     }

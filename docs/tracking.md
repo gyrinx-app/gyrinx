@@ -46,8 +46,8 @@ track("error_occurred", error_type="ValidationError", endpoint="/lists/create", 
 # Track when a feature is used
 track("feature_used", feature="equipment_upgrade", list_id=str(list.id))
 
-# Track backward compatibility code
-track("stat_config_fallback_used", stat_name="ammo", model_class="ContentModStatApply")
+# Track an action being applied
+track("list_action_apply_succeeded", action_type="advancement", list_id=str(list.id))
 ```
 
 #### Performance Metrics
@@ -101,7 +101,7 @@ When running in production, events can be queried using Cloud Logging queries:
 
 ```
 resource.type="cloud_run_revision"
-jsonPayload.event="stat_config_fallback_used"
+jsonPayload.event="list_action_apply_succeeded"
 ```
 
 You can filter by labels:

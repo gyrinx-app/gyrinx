@@ -1,10 +1,12 @@
 from typing import Callable
 
 import pytest
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
 from django.core.cache import cache
+from django.db.models.signals import post_migrate
 
 from gyrinx.content.models import (
     ContentBook,
@@ -84,13 +86,16 @@ def warm_contenttype_cache(django_db_setup, django_db_blocker):
 
 
 # Stats that every real environment is guaranteed to have, because data
-# migration content.0148 creates them. Tests run with --nomigrations, so data
-# migrations never execute and the test database would otherwise have no
-# ContentStat rows at all — mod formatting would then be driven by absent
-# configuration rather than by the definitions production actually holds.
+# migrations create them: content.0148 seeds the stats that modifications
+# classify, and content.0156 seeds the standard fighter statline. Tests run
+# with --nomigrations, so data migrations never execute and the test database
+# would otherwise have no ContentStat rows at all — mod formatting would then
+# be driven by absent configuration rather than by the definitions production
+# actually holds.
 #
 # field_name -> (short_name, full_name, inverted, inches, modifier, target)
 CANONICAL_CONTENT_STATS = {
+    # From content.0148 — the stats a modification classifies
     "accuracy_long": ("L", "Long Accuracy", False, False, True, False),
     "accuracy_short": ("S", "Short Accuracy", False, False, True, False),
     "ammo": ("Am", "Ammo", True, False, False, True),
@@ -107,40 +112,62 @@ CANONICAL_CONTENT_STATS = {
     "save": ("Sv", "Save", True, False, False, True),
     "weapon_skill": ("WS", "Weapon Skill", True, False, False, True),
     "willpower": ("Wil", "Willpower", True, False, False, True),
+    # Also from content.0156 — carry no classification flags
+    "attacks": ("A", "Attacks", False, False, False, False),
+    "strength": ("S", "Strength", False, False, False, False),
+    "toughness": ("T", "Toughness", False, False, False, False),
+    "wounds": ("W", "Wounds", False, False, False, False),
 }
+
+
+def _seed_content_stats(**kwargs):
+    """Create or correct every canonical ContentStat row."""
+    from gyrinx.content.models.statline import ContentStat
+
+    for field_name, (
+        short_name,
+        full_name,
+        is_inverted,
+        is_inches,
+        is_modifier,
+        is_target,
+    ) in CANONICAL_CONTENT_STATS.items():
+        ContentStat.objects.update_or_create(
+            field_name=field_name,
+            defaults={
+                "short_name": short_name,
+                "full_name": full_name,
+                "is_inverted": is_inverted,
+                "is_inches": is_inches,
+                "is_modifier": is_modifier,
+                "is_target": is_target,
+            },
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)
 def content_stat_definitions(django_db_setup, django_db_blocker):
-    """Seed the ContentStat rows that migration content.0148 guarantees.
+    """Seed the ContentStat rows the data migrations guarantee.
 
     Stat classification (inverted / inches / modifier / target) is read from
     ContentStat when a modification is applied. Without these rows every stat
     would look unconfigured, so tests would exercise a code path that no real
     environment reaches. Tests needing stats beyond this set create their own.
+
+    Seeding once per session is not enough: a transactional test truncates
+    every table on teardown, which would leave the rest of that worker's
+    transactional tests running against an empty table. Django re-emits
+    post_migrate after that flush — the same hook that restores content types
+    and permissions — so re-seed from there too.
     """
     with django_db_blocker.unblock():
-        from gyrinx.content.models.statline import ContentStat
+        _seed_content_stats()
 
-        for field_name, (
-            short_name,
-            full_name,
-            is_inverted,
-            is_inches,
-            is_modifier,
-            is_target,
-        ) in CANONICAL_CONTENT_STATS.items():
-            ContentStat.objects.get_or_create(
-                field_name=field_name,
-                defaults={
-                    "short_name": short_name,
-                    "full_name": full_name,
-                    "is_inverted": is_inverted,
-                    "is_inches": is_inches,
-                    "is_modifier": is_modifier,
-                    "is_target": is_target,
-                },
-            )
+    post_migrate.connect(
+        _seed_content_stats,
+        sender=apps.get_app_config("content"),
+        dispatch_uid="tests.seed_content_stats",
+    )
 
 
 @pytest.fixture(scope="session")

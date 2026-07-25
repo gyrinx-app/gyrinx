@@ -1,6 +1,9 @@
+import logging
+
 import pytest
 
 from gyrinx.content.models import ContentModFighterStat, ContentModStat, ContentStat
+from gyrinx.content.models import modifier
 
 
 @pytest.mark.django_db
@@ -216,23 +219,48 @@ def test_stat_definition_drives_classification():
 
 
 @pytest.mark.django_db
-def test_undefined_stat_is_modified_without_reformatting():
+def test_undefined_stat_is_modified_without_reformatting(caplog):
     """A stat with no definition still applies, it just gains no formatting.
 
     Every stat a modification can name has a definition, so this is a data
     problem rather than a supported configuration — but it must not take a
     page down when it happens.
     """
+    # Warnings are emitted once per stat per process, so make sure this one
+    # has not already been reported by an earlier test in the same worker.
+    modifier._undefined_stats_warned.discard("undefined_stat")
+
     mod = ContentModStat.objects.create(
         stat="undefined_stat",
         mode="improve",
         value="1",
     )
 
-    assert mod.apply("3") == "4"
+    with caplog.at_level(logging.WARNING, logger=modifier.__name__):
+        assert mod.apply("3") == "4"
+
+    assert "undefined_stat" in caplog.text
 
     mod.mode = "worsen"
     assert mod.apply("3") == "2"
+
+
+@pytest.mark.django_db
+def test_undefined_stat_is_only_warned_about_once(caplog):
+    """One bad stat name must not flood the logs on every render."""
+    modifier._undefined_stats_warned.discard("noisy_stat")
+
+    mod = ContentModStat.objects.create(
+        stat="noisy_stat",
+        mode="improve",
+        value="1",
+    )
+
+    with caplog.at_level(logging.WARNING, logger=modifier.__name__):
+        for _ in range(5):
+            mod.apply("3")
+
+    assert len([r for r in caplog.records if "noisy_stat" in r.getMessage()]) == 1
 
 
 @pytest.mark.django_db
