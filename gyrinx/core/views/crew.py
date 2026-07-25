@@ -34,6 +34,7 @@ from gyrinx.core.handlers.crew import (
     TOGGLEABLE_CREW_CATEGORIES,
     crew_battle_spread,
     crew_included_forecast,
+    crew_spread_rating,
     crew_stash_rows,
     crew_whole_gang_projection,
     eligible_crew_fighters_for_loadouts,
@@ -310,6 +311,17 @@ def crew_detail(request, battle_id, crew_id):
     # crew, or one still pending its draw) or this crew is the top.
     rating_gap = crew_battle_spread(crew)
 
+    # The pre-balancing figure the battle page ranks crews on, shown here so a
+    # player can see where the number on that screen comes from. Taken from the
+    # same helper it uses, so the two can't disagree; None while a draw is
+    # pending. The post-balancing figure needs no variable of its own — the
+    # sheet's total already carries it.
+    #
+    # The receipt above already loaded the brought stash — a full equipment
+    # prefetch chain — so hand that total over rather than letting the helper
+    # walk it a second time.
+    rating_before, rating_provisional = crew_spread_rating(crew, receipt["stash_total"])
+
     return render(
         request,
         "core/crew/crew.html",
@@ -327,6 +339,8 @@ def crew_detail(request, battle_id, crew_id):
             "provisional_total": provisional_total,
             "can_edit_loadouts": bool(projection and can_manage),
             "rating_gap": rating_gap,
+            "rating_before": rating_before,
+            "rating_provisional": rating_provisional,
         },
     )
 
@@ -692,16 +706,12 @@ def crew_extra(request, battle_id, crew_id, item_id=None):
     if item_id is not None:
         item = get_object_or_404(CrewLineItem, id=item_id, crew=crew)
 
-    # Extras — hired guns, balancing credits — are worked out once the crew is
-    # set: the underdog allowance is calculated after crews are chosen, and a
-    # random/hybrid crew isn't even known until the draw. So a *new* extra can
-    # only be added to a locked crew (editing an existing one is always fine).
-    if item is None and not crew.is_locked:
-        messages.info(
-            request, "Confirm the crew first — extras are added once it's set."
-        )
-        return _redirect_crew(crew)
-
+    # Extras — spending and balancing — can be recorded at any point in a crew's
+    # life. They used to be gated on the crew being confirmed, on the grounds
+    # that an underdog allowance is worked out after crews are chosen; but
+    # players legitimately know about a hired gun or an allowance before they
+    # confirm, and nothing downstream depends on the crew being locked (extras
+    # never enter the frozen rating snapshots).
     if request.method == "POST":
         form = CrewLineItemForm(request.POST, instance=item)
         if form.is_valid():

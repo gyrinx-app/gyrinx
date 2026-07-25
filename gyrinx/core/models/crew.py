@@ -173,7 +173,11 @@ class Crew(AppBase):
     LOCKED = "locked"
     STATUS_CHOICES = [
         (DRAFT, "Draft"),
-        (LOCKED, "Locked"),
+        # "Membership locked", not "Locked": what freezes is *who is in the
+        # crew*. The loadouts they bring, the stash they carry and the extras
+        # they are credited with all stay editable afterwards, and a bare
+        # "Locked" was read as though the whole crew were finished.
+        (LOCKED, "Membership locked"),
     ]
 
     # The rulebook's three crew selection methods. "Whole gang" is deliberately
@@ -776,15 +780,65 @@ class Crew(AppBase):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
         return sum(item.cost for item in self.line_items.all())
 
-    def credits_value(self):
-        """The crew's fighter rating plus its extra line items and the stash
-        equipment it brings.
+    def spending_total(self):
+        """What the gang paid out of its own pocket for this crew's extras — the
+        Spending column.
 
-        NOT the rulebook's underdog-comparison quantity, despite the tempting
-        name: scenarios compare the credits value of the *fighters* in each
-        starting crew (Core Rulebook p238), and extras — tactics cards, hired
-        help, stash gear — never enter that comparison. The quantity to compare
-        is :meth:`rating`; this sum is only a headline total.
+        Only ``PAY_CREDITS`` items. Anything drawn from the balancing allowance
+        or handed over free is not the gang's own outlay and belongs in its own
+        column.
+        """
+        return sum(
+            item.cost
+            for item in self.line_items.all()
+            if item.payment == self.PAY_CREDITS
+        )
+
+    def balancing_total(self):
+        """The pre-battle balancing allowance this crew spent — the Balancing
+        column. Only ``PAY_ALLOWANCE`` items."""
+        return sum(
+            item.cost
+            for item in self.line_items.all()
+            if item.payment == self.PAY_ALLOWANCE
+        )
+
+    def rating_before_balancing(self, stash_total=None):
+        """The crew's fundamental rating: its fighters and the stash gear it
+        brings, plus what the gang spent on extras.
+
+        This is the quantity dealt against the other crews in the battle to
+        decide who is the underdog and what balancing they are owed, so it is
+        the figure the battle page compares. Balancing is deliberately *not* in
+        it: the allowance is compensation for the gap, so counting it would
+        shrink the very gap that earned it — a crew would be penalised for
+        having been behind. Free extras are excluded for the plainer reason that
+        they cost nobody anything.
+
+        ``stash_total`` lets a caller rating several crews at once pass in the
+        figure from :func:`handlers.crew.crew_stash_totals`, which loads them in
+        a single batch; omitted, the crew works out its own.
+        """
+        if stash_total is None:
+            stash_total = self.stash_lines()["total"]
+        return self.rating() + stash_total + self.spending_total()
+
+    def rating_after_balancing(self, stash_total=None):
+        """What the crew fields once its balancing allowance is counted.
+
+        Compared against the other crews' post-balancing ratings, this shows
+        whether the balancing actually closed the gap it was granted for.
+        """
+        return self.rating_before_balancing(stash_total) + self.balancing_total()
+
+    def credits_value(self):
+        """The crew's fighter rating plus *every* extra line item and the stash
+        equipment it brings — a headline total, nothing more.
+
+        Not the quantity to compare crews by: this counts free extras and the
+        balancing allowance, neither of which belongs in a rating. Use
+        :meth:`rating_before_balancing` (or :meth:`rating_after_balancing`) for
+        that.
         """
         return self.rating() + self.extras_total() + self.stash_lines()["total"]
 
@@ -813,17 +867,18 @@ class Crew(AppBase):
         note = self._note(sum(line["live_rating"] for _, line in lines))
 
         extras = []
-        credits_total = allowance_total = free_total = 0
-        has_free = False
+        credits_total = allowance_total = 0
         for item in self.line_items.all():
-            credits = allowance = free = None
+            credits = allowance = None
             if item.payment == self.PAY_ALLOWANCE:
                 allowance = item.cost
                 allowance_total += item.cost
             elif item.payment == self.PAY_FREE:
-                free = item.cost
-                free_total += item.cost
-                has_free = True
+                # Free items sit in the Spending column at 0¢ rather than in a
+                # column of their own: what the gang paid for them *is* nothing,
+                # and a fourth column existed only to say so. Their own cost is
+                # still on the record (item.cost), it just buys no rating.
+                credits = 0
             else:
                 credits = item.cost
                 credits_total += item.cost
@@ -832,18 +887,13 @@ class Crew(AppBase):
                     "item": item,
                     "credits": credits,
                     "allowance": allowance,
-                    "free": free,
                 }
             )
 
         stash = self.stash_lines()
-        total = (
-            fighters_total
-            + credits_total
-            + allowance_total
-            + free_total
-            + stash["total"]
-        )
+        # Free items add nothing, so this is exactly
+        # :meth:`rating_after_balancing` — which is what the sheet labels it.
+        total = fighters_total + credits_total + allowance_total + stash["total"]
         return {
             "attendees": attendees,
             "extras": extras,
@@ -857,8 +907,6 @@ class Crew(AppBase):
             "fighters_total": fighters_total,
             "credits_total": credits_total,
             "allowance_total": allowance_total,
-            "free_total": free_total,
-            "has_free": has_free,
             "total": total,
             # None when there's nothing to say; otherwise what was picked, what
             # the headline number is now, and whether they differ.

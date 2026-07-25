@@ -488,33 +488,96 @@ def crew_included_forecast(crew: Crew):
     return {"rows": rows, "total": total}
 
 
-def crew_spread_rating(crew: Crew) -> tuple[Optional[int], bool]:
+def crew_stash_totals(crews) -> dict:
+    """Brought-stash total for each of ``crews``, as ``{crew_id: credits}``, in
+    one batched assignment load.
+
+    :meth:`Crew.stash_rows` is built for the Stash tab: it pays a full
+    ``with_related_data()`` prefetch chain — a dozen queries or more, growing
+    with the gang's stash — to render complete rows. Asking every crew on a
+    battle page for its own total multiplies that by the number of crews. An
+    assignment's cost is composed from its profiles, accessories and upgrades,
+    so there is no cheap aggregate to fall back on —
+    but the chain costs the same whether it loads one crew's assignments or
+    every crew's, so loading them together is the whole saving.
+
+    Mirrors ``stash_rows``'s exclusions, so a crew's total here and its rows
+    there agree: archived assignments are out, and so is equipment flagged
+    *treated as a fighter* that actually brings a card (that card is picked on
+    the selection screen instead, and is rated there).
+    """
+    crews = list(crews)
+    if not crews:
+        return {}
+    by_crew = {crew.id: [] for crew in crews}
+    assignment_ids = set()
+    for crew_id, assignment_id in CrewStashItem.objects.filter(
+        crew__in=crews
+    ).values_list("crew_id", "assignment_id"):
+        by_crew[crew_id].append(assignment_id)
+        assignment_ids.add(assignment_id)
+    if not assignment_ids:
+        return {crew.id: 0 for crew in crews}
+    costs = {
+        assignment.id: assignment.cost_int_cached
+        for assignment in ListFighterEquipmentAssignment.objects.filter(
+            id__in=assignment_ids,
+            archived=False,
+        )
+        .exclude(
+            content_equipment__crew_treated_as_fighter=True,
+            child_fighter__isnull=False,
+        )
+        .with_related_data()
+    }
+    return {
+        crew.id: sum(costs.get(aid, 0) for aid in by_crew[crew.id]) for crew in crews
+    }
+
+
+def crew_spread_rating(
+    crew: Crew, stash_total: Optional[int] = None
+) -> tuple[Optional[int], bool]:
     """What a crew is worth *right now* for spread/underdog comparison, and
     whether that figure is provisional. Returns ``(rating, is_provisional)``.
 
+    This is the crew's **pre-balancing** rating — fighters, the stash gear it
+    brings, and what the gang spent on extras (see
+    :meth:`Crew.rating_before_balancing` for why balancing and free extras stay
+    out). Callers wanting the post-balancing figure add
+    :meth:`Crew.balancing_total` on top.
+
     The single definition of a crew's comparison rating, so the battle page and
-    the (future) crew-page spread can never drift — two copies of this cascade
-    is how they would. Three cases:
+    the crew-page spread can never drift — two copies of this cascade is how
+    they would. Three cases:
 
     - a **pending random draw** has no known rating yet — ``(None, False)``; the
       side drops out of the comparison until it is drawn;
     - a **whole-gang draft** that has enrolled nobody would otherwise read 0¢
-      ("no fighters") rather than "the whole gang attends", so it is forecast
-      from the currently-eligible roster — ``(forecast total, True)``,
-      provisional because the roster only resolves at battle start;
-    - **otherwise** the crew's own :meth:`Crew.rating` — live until the battle
-      freezes ``rating_played``, the played snapshot after — ``(rating, False)``.
+      ("no fighters") rather than "the whole gang attends", so its fighters are
+      forecast from the currently-eligible roster — ``(forecast, True)``,
+      provisional because the roster only resolves at battle start. Stash and
+      spending are known already and count the same as anywhere else;
+    - **otherwise** :meth:`Crew.rating_before_balancing`, whose fighter
+      component is live until the battle freezes ``rating_played`` and the
+      played snapshot after — ``(rating, False)``.
 
     Reads ``crew.members`` from a caller's ``prefetch_related("members")`` cache
-    when present, so it adds no query in the whole-gang / locked cases; the
-    forecast branch runs one batched roster load via
+    when present; the forecast branch runs one batched roster load via
     :func:`crew_whole_gang_projection`.
+
+    ``stash_total`` lets a caller rating *several* crews supply the figure from
+    :func:`crew_stash_totals`, which loads them all in one go. Left out, the
+    crew computes its own — correct, but a full prefetch chain per crew.
     """
     if crew.pending_roll:
         return None, False
+    if stash_total is None:
+        stash_total = crew.stash_lines()["total"]
     if not crew.is_locked and crew.is_whole_gang and not crew.members.exists():
-        return crew_whole_gang_projection(crew)["total"], True
-    return crew.rating(), False
+        forecast = crew_whole_gang_projection(crew)["total"]
+        return forecast + stash_total + crew.spending_total(), True
+    return crew.rating_before_balancing(stash_total), False
 
 
 def crew_battle_spread(crew: Crew) -> Optional[int]:
@@ -535,9 +598,13 @@ def crew_battle_spread(crew: Crew) -> Optional[int]:
     crews = list(
         crew.battle.crews.filter(archived=False)
         .select_related("list")
-        .prefetch_related("members")
+        .prefetch_related("members", "line_items")
     )
-    ratings = {other.id: crew_spread_rating(other)[0] for other in crews}
+    stash_totals = crew_stash_totals(crews)
+    ratings = {
+        other.id: crew_spread_rating(other, stash_totals.get(other.id, 0))[0]
+        for other in crews
+    }
     known = [r for r in ratings.values() if r is not None]
     this = ratings.get(crew.id)
     if len(known) < 2 or this is None:

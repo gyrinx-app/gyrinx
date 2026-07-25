@@ -96,17 +96,28 @@
                             <div class="table-responsive">
                                 <table class="table table-sm table-borderless align-middle mb-0">
                                     <thead>
+                                        <tr>
+                                            {# An empty th here can be announced as the first column's header. #}
+                                            <th rowspan="2" scope="col" class="caps-label align-bottom border-bottom">Gang</th>
+                                            <th colspan="2"
+                                                scope="colgroup"
+                                                class="caps-label text-center border-bottom">Before balancing</th>
+                                            <th colspan="2"
+                                                scope="colgroup"
+                                                class="caps-label text-center border-bottom ps-3">After balancing</th>
+                                        </tr>
                                         <tr class="border-bottom">
-                                            <th class="caps-label">Gang</th>
-                                            <th class="caps-label text-end">Rating</th>
-                                            <th class="caps-label ps-3">vs top</th>
+                                            <th scope="col" class="caps-label text-end">Rating</th>
+                                            <th scope="col" class="caps-label ps-3">vs top</th>
+                                            <th scope="col" class="caps-label text-end ps-3">Rating</th>
+                                            <th scope="col" class="caps-label ps-3">vs top</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for group in participant_groups %}
                                             {% if roles_in_use %}
                                                 <tr>
-                                                    <td colspan="3"
+                                                    <td colspan="5"
                                                         class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
                                                         {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
                                                     </td>
@@ -131,6 +142,9 @@
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>
                                                     <td class="text-secondary ps-3">{% if p.rating_delta %}−{% credits p.rating_delta %}{% endif %}</td>
+                                                    {# Balancing is granted to a crew, not a gang. #}
+                                                    <td></td>
+                                                    <td></td>
                                                 </tr>
                                                 {% if p.crew %}
                                                     <tr>
@@ -164,10 +178,24 @@
                                                             {% endif %}
                                                         </td>
                                                         <td class="text-secondary ps-3">{% if p.crew.rating_delta %}−{% credits p.crew.rating_delta %}{% endif %}</td>
+                                                        <td class="text-end ps-3">
+                                                            {% if p.crew.pending_roll %}
+                                                                <span bs-tooltip
+                                                                      data-bs-toggle="tooltip"
+                                                                      title="Unknown until the crew is rolled for selection">?</span>
+                                                            {% elif p.crew.is_forecast %}
+                                                                <span bs-tooltip
+                                                                      data-bs-toggle="tooltip"
+                                                                      title="The whole gang takes part, so this forecasts who would attend. It resolves when the crew is confirmed.">{% credits p.crew.rating_after %}<span class="text-secondary fs-7 ms-1">provisional</span></span>
+                                                            {% else %}
+                                                                {% credits p.crew.rating_after %}
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-secondary ps-3">{% if p.crew.rating_delta_after %}−{% credits p.crew.rating_delta_after %}{% endif %}</td>
                                                     </tr>
                                                 {% elif p.can_add_crew %}
                                                     <tr>
-                                                        <td colspan="3" class="ps-4">
+                                                        <td colspan="5" class="ps-4">
                                                             <a href="{% url 'core:crew-new' battle.id %}?list={{ p.list.id }}"
                                                                class="icon-link linked fs-7">
                                                                 <i class="bi-plus-lg"></i> Add crew

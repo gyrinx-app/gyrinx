@@ -34,6 +34,10 @@ Working rules:
   `<c-btn>`; `btn-close` in `cotton/callout.html` is Bootstrap's dismiss control).
 - Reach for an existing snippet in `core/includes/` before writing new markup. The fighter
   card lives at [core/includes/fighter_card_content_inner.html](core/includes/fighter_card_content_inner.html).
+- Keep template comments sparse. Markup is mostly self-explanatory, so comment only where
+  the reason for something genuinely isn't visible — a non-obvious ordering constraint, a
+  workaround, a rule that will look wrong to the next reader. Don't narrate what the markup
+  already says.
 
 ### Component call sites: the mistakes that fail SILENTLY
 

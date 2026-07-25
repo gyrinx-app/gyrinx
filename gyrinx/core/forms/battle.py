@@ -35,7 +35,10 @@ def result_field(required_error="Choose a result before ending the battle."):
             (Battle.RESULT_WINNERS, "One or more gangs won"),
             (Battle.RESULT_DRAW, "Draw — no winner"),
         ],
-        widget=BsRadioSelect(),
+        # form-check-input is what gives the control Bootstrap's 1em box and its
+        # 0.25em top margin; without it the browser default sits high against
+        # the first line of the label in the widget's align-items-start row.
+        widget=BsRadioSelect(attrs={"class": "form-check-input"}),
         label="Result",
         error_messages={"required": required_error},
     )
@@ -151,7 +154,7 @@ class BattleEndForm(forms.Form):
     winners = forms.ModelMultipleChoiceField(
         queryset=List.objects.none(),
         required=False,
-        widget=BsCheckboxSelectMultiple(),
+        widget=BsCheckboxSelectMultiple(attrs={"class": "form-check-input"}),
         label="Winner(s)",
         help_text="Only gangs taking part in this battle can be selected",
     )
