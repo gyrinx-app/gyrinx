@@ -35,6 +35,22 @@ $cyan: #10bdd3;
 // Card header background — match section header bars (bg-body-tertiary)
 $card-cap-bg: var(--bs-tertiary-bg);
 
+// The section-header / card-header surface. Bootstrap's light-mode default
+// ($gray-100, #f8f9fa) is 3% off white, so those bars read as barely-there
+// against the page; one step darker makes a section header actually separate its
+// content from what precedes it. Dark mode is a different variable
+// ($body-tertiary-bg-dark) and keeps Bootstrap's value, where contrast was
+// already right.
+//
+// Set HERE, before bootstrap/scss/variables — not as a `--bs-tertiary-bg`
+// override in :root afterwards. Bootstrap derives *two* custom properties from
+// this one variable, `--bs-tertiary-bg` and `--bs-tertiary-bg-rgb`, and the
+// `.bg-body-tertiary` utility reads the rgb one. Overriding only the first left
+// the utility on the old colour, so a bar written `bg-body-tertiary rounded …`
+// and a bar written `.section-header` rendered two different greys. Setting the
+// source keeps them in step and needs no specificity games with [data-bs-theme].
+$body-tertiary-bg: #f1f3f5;
+
 // Required
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
@@ -144,21 +160,19 @@ button[aria-busy="true"] {
 // theme is an attribute on that same html element, and `[data-bs-theme="dark"]`
 // has exactly the same specificity as `:root` — so a `:root` declaration that
 // appears after Bootstrap's (this file is imported last) wins in BOTH themes.
-// That is how the darker tertiary-bg below leaked into dark mode and turned
-// every section header bar and card header near-white.
+// A darker tertiary-bg was declared here once and leaked into dark mode that
+// way, turning every section header bar and card header near-white; it now
+// comes from `$body-tertiary-bg` above, before Bootstrap, where per-theme values
+// are separate variables and this trap does not exist.
 //
-// `--bs-secondary-color` had the same latent bug and only got away with it
-// because the dark block immediately below re-declares it. The `:not()` makes
-// both correct by construction instead of by coincidence. Safe because dark mode
-// here is attribute-driven (core/js/index.js sets data-bs-theme), never a bare
+// `--bs-secondary-color` has the same latent bug and only gets away with it
+// because the dark block immediately below re-declares it. The `:not()` makes it
+// correct by construction instead of by coincidence. Safe because dark mode here
+// is attribute-driven (core/js/index.js sets data-bs-theme), never a bare
 // prefers-color-scheme media query.
 :root:not([data-bs-theme="dark"]),
 [data-bs-theme="light"] {
     --bs-secondary-color: #{lighten($secondary, 15%)};
-
-    // One step darker than Bootstrap's #f8f9fa so section header bars and card
-    // headers actually read as a surface. See $gy-surface-header-light.
-    --bs-tertiary-bg: #{$gy-surface-header-light};
 }
 
 [data-bs-theme="dark"] {
