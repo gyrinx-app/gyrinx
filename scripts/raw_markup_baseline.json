@@ -2,8 +2,8 @@
   "alert": 72,
   "badge": 82,
   "border-rounded": 74,
-  "btn": 420,
-  "include-back": 83,
+  "btn": 418,
+  "include-back": 82,
   "include-cancel": 18,
   "include-form_field": 24,
   "invalid-feedback": 27
