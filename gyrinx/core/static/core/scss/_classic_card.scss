@@ -510,7 +510,7 @@
         max-height: 100%;
         overflow: hidden;
         // em anchor: labels + bodies below are em-relative so the fit-to-box
-        // script (print_lab_sheet.html) can shrink the whole block as one unit.
+        // script (includes/classic_sheet.html) can shrink the block as one unit.
         font-size: 2.5mm;
     }
 

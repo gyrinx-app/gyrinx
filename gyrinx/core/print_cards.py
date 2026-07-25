@@ -182,8 +182,8 @@ class ClassicCard:
         claim half the width.
         """
         groups = self.detail_groups
-        if self.kind == "blank" or not groups:
-            return [groups] if groups else []
+        if self.kind == "blank":
+            return [groups]
 
         heights = [g.height for g in groups]
         total = sum(heights)
