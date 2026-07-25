@@ -53,9 +53,9 @@
                                                       data-bs-toggle="tooltip"
                                                       class="tooltipped"
                                                       title="This is assigned to the fighter by default.">
-                                                {% endif %}
-                                                {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
-                                                {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
+                                            {% endif %}
+                                            {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
+                                            {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                             {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print and not compact %}
@@ -136,9 +136,9 @@
                                                       data-bs-toggle="tooltip"
                                                       class="tooltipped"
                                                       title="This is assigned to the fighter by default.">
-                                                {% endif %}
-                                                {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
-                                                {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
+                                            {% endif %}
+                                            {% include "core/includes/gear_assign_name.html" with assign=assign forloop=forloop %}
+                                            {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
                                             {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                             {% include "core/debug/assignment_debug_inline.html" %}
                                             {% if list.owner_cached == user and not print and not compact %}
@@ -218,16 +218,16 @@
                                               data-bs-toggle="tooltip"
                                               class="linked-secondary"
                                               title="This is assigned to the fighter by default.">
-                                        {% endif %}
-                                        {% if assign.is_linked %}
-                                            <span bs-tooltip
-                                                  data-bs-toggle="tooltip"
-                                                  class="linked-secondary"
-                                                  title="This gear is assigned via the {{ assign.linked_parent.name }} and cannot be removed directly.">
-                                            {% endif %}
-                                            {% include "core/includes/gear_assign_name.html" with assign=assign %}
-                                            {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
-                                        {% if assign.is_linked %}</span>{% endif %}
+                                    {% endif %}
+                                    {% if assign.is_linked %}
+                                        <span bs-tooltip
+                                              data-bs-toggle="tooltip"
+                                              class="linked-secondary"
+                                              title="This gear is assigned via the {{ assign.linked_parent.name }} and cannot be removed directly.">
+                                    {% endif %}
+                                    {% include "core/includes/gear_assign_name.html" with assign=assign %}
+                                    {% if assign.is_from_default_assignment or assign.kind == "default" %}</span>{% endif %}
+                                    {% if assign.is_linked %}</span>{% endif %}
                                     {% if assign.cost_int != 0 %}({{ assign.cost_display }}){% endif %}
                                     {% include "core/debug/assignment_debug_inline.html" %}
                                     {% if list.owner_cached == user and not print and not compact %}

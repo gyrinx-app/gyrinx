@@ -11,8 +11,10 @@ import sys
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-# Import and run the main function from scripts/manage.py
-from scripts.manage import main
+# Import and run the main function from scripts/manage.py.
+# Deliberately below the sys.path.insert above — that is the whole point of this
+# wrapper, so the import cannot move to the top of the file.
+from scripts.manage import main  # noqa: E402
 
 if __name__ == "__main__":
     main()

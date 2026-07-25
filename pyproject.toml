@@ -25,7 +25,7 @@ dependencies = [
     "django-simple-history==3.12.0",
     "django-storages[google]==1.14.6",
     "django-tinymce==5.0.0",
-    "djlint==1.40.8",
+    "djlint==1.42.3",
     "docutils==0.23",
     "fido2==2.2.1",
     "filelock==3.31.0",
@@ -66,7 +66,7 @@ dependencies = [
     "referencing==0.37.0",
     "requests==2.34.2",
     "rich==15.0.0",
-    "ruff==0.15.22",
+    "ruff==0.16.0",
     "setuptools==81.0.0",
     "simpleeval==1.0.7",
     "sqlparse==0.5.5",
@@ -119,13 +119,36 @@ find = {}
 
 [tool.setuptools_scm]
 
+[tool.ruff.lint]
+# Pin the rule selection to what ruff has historically enabled by default.
+# Without this, a ruff upgrade silently changes which rules apply: 0.16 turned on
+# a dozen extra families and reported 1918 new errors on unchanged code — 1086 of
+# them RUF012, which objects to the mutable class attributes Django models are
+# built from. Adopting new rules should be a deliberate decision, not a
+# side effect of a version bump.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.format]
+# 0.16 began formatting Python inside Markdown code fences. Every file it wanted
+# to rewrite here was Markdown — no real source needed reformatting — and the
+# rewrites damaged docs: hand-aligned trailing comments got collapsed, and an
+# illustrative `= (...)` placeholder became `= ...`, changing what the example
+# says. Prose is not source; keep the formatter off it.
+exclude = ["*.md"]
+
 [tool.djlint]
 profile = "django"
 custom_blocks = "element,slot,setvar,is_active"
 # H026 fires on the `class=""` default that every cotton component must declare
 # in <c-vars> to merge caller-supplied classes (cotton has no auto-merge: an
 # undeclared `class` emits two class attributes and the caller's is dropped).
-ignore = "H006,H026"
+# T038: 1.42.3 started linting template tags written *inside* {% comment %}
+# blocks. allauth/elements/button.html documents its own `{% element %}` and
+# `{% if %}` API in prose and gets 6 false "no matching end tag" errors for it,
+# with no such tags in the rendered body. The rule cannot distinguish prose from
+# markup, so it is off rather than sprinkling djlint:off through comments — that
+# file deliberately removed one such hack.
+ignore = "H006,H026,T038"
 # django-cotton components (<c-btn>, <c-slot>, <c-forms.field>, <c-vars />).
 # Without this djlint treats them as unknown inline tags and FLATTENS the
 # indentation of their children instead of nesting it.
