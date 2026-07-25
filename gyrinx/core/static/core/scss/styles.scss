@@ -138,8 +138,21 @@ button[aria-busy="true"] {
     }
 }
 
-// Lighten secondary in light mode, darken in dark mode
-:root,
+// Lighten secondary in light mode, darken in dark mode.
+//
+// `:root:not([data-bs-theme="dark"])`, NOT a bare `:root`. Bootstrap's dark
+// theme is an attribute on that same html element, and `[data-bs-theme="dark"]`
+// has exactly the same specificity as `:root` — so a `:root` declaration that
+// appears after Bootstrap's (this file is imported last) wins in BOTH themes.
+// That is how the darker tertiary-bg below leaked into dark mode and turned
+// every section header bar and card header near-white.
+//
+// `--bs-secondary-color` had the same latent bug and only got away with it
+// because the dark block immediately below re-declares it. The `:not()` makes
+// both correct by construction instead of by coincidence. Safe because dark mode
+// here is attribute-driven (core/js/index.js sets data-bs-theme), never a bare
+// prefers-color-scheme media query.
+:root:not([data-bs-theme="dark"]),
 [data-bs-theme="light"] {
     --bs-secondary-color: #{lighten($secondary, 15%)};
 

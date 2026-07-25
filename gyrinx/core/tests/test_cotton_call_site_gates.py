@@ -347,3 +347,30 @@ def test_whole_form_shortcuts_that_bypass_the_field_component_are_pinned():
         f"unexpected: {sorted(found - STOCK_RENDER_SITES)}\n"
         f"gone: {sorted(STOCK_RENDER_SITES - found)}"
     )
+
+
+def test_no_multiline_hash_comments():
+    """Django's ``{# #}`` comment is SINGLE-LINE ONLY.
+
+    Spanning it over two lines does not produce a comment: the template engine
+    never recognises it, so the whole thing renders into the page as literal
+    text. It shipped a paragraph of implementation notes into the middle of the
+    breadcrumb on every campaign-mode gang page.
+
+    Nothing else catches this. It is valid HTML, djlint is happy with it, and the
+    text only appears when that branch of the template renders — so a page whose
+    tests never exercise the branch stays green. Use ``{% comment %}`` blocks for
+    anything longer than one line.
+    """
+    offenders = []
+    for path in html_files():
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in re.finditer(r"\{#", text):
+            close = text.find("#}", match.end())
+            if close != -1 and "\n" in text[match.end() : close]:
+                line = text[: match.start()].count("\n") + 1
+                offenders.append(f"{rel(path)}:{line}")
+    assert not offenders, (
+        "Multi-line {# #} comments render as literal text in the page. "
+        "Use {% comment %}...{% endcomment %} instead.\n  " + "\n  ".join(offenders)
+    )

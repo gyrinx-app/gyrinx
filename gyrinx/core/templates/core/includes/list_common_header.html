@@ -8,10 +8,16 @@
             <c-breadcrumb.item href="{{ lists_url|add:'?type=gang' }}">
                 Campaign Gang
             </c-breadcrumb.item>
-            {# A list can be in campaign mode with no campaign attached (the campaign was
-               deleted, or the mode was set directly). Reversing core:campaign with a null
-               id raises NoReverseMatch and 500s the whole page, so the crumb is guarded —
-               which is exactly the conditional-crumb case the CSS separator exists for. #}
+            {% comment %}
+                A list can be in campaign mode with no campaign attached (the campaign was
+                deleted, or the mode was set directly). Reversing core:campaign with a null
+                id raises NoReverseMatch and 500s the whole page, so the crumb is guarded —
+                which is exactly the conditional-crumb case the CSS separator exists for.
+
+                Written as a comment BLOCK, not the hash form: Django's hash comment is
+                single-line only, so a multi-line one is not a comment at all and renders
+                as literal text into the page.
+            {% endcomment %}
             {% if list.campaign %}
                 <c-breadcrumb.item href="{% url 'core:campaign' list.campaign.id %}">{{ list.campaign.name }}</c-breadcrumb.item>
             {% endif %}
