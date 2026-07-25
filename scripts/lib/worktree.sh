@@ -163,11 +163,10 @@ provision_worktree_venv() {
   # the partial venv before returning — otherwise the next call sees the
   # directory, skips provisioning, and activation puts a half-built venv on
   # PATH (no editable install, broken imports).
-  if ! uv venv "$venv" >/dev/null; then
-    rm -rf "$venv"
-    return 1
-  fi
-  if ! (cd "$wt_root" && uv pip install --python "$venv/bin/python" --editable . --quiet); then
+  # UV_PROJECT_ENVIRONMENT keeps `uv sync` pointed at this worktree's venv rather
+  # than the default ./.venv, which is what stops it repointing another
+  # worktree's editable install.  --locked installs exactly uv.lock.
+  if ! (cd "$wt_root" && UV_PROJECT_ENVIRONMENT="$venv" uv sync --locked --quiet); then
     rm -rf "$venv"
     return 1
   fi

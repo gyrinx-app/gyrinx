@@ -62,7 +62,7 @@ Here's a breakdown of the directories in the repo, with files that are not impor
 │   └── urls.py             -- URL routing
 ├── package.json            -- Node.js package configuration
 ├── pyproject.toml          -- Python package configuration
-├── requirements.txt        -- Python package requirements
+├── uv.lock                 -- Locked Python dependency versions
 └── scripts
     ├── dev.sh              -- Start the full dev environment (DB + server + CSS watch)
     ├── setup-local-postgres.sh -- One-time local Postgres setup

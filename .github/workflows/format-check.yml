@@ -31,7 +31,7 @@ jobs:
         uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-          cache-dependency-glob: "requirements.txt"
+          cache-dependency-glob: "uv.lock"
 
       - name: Cache npm dependencies
         uses: actions/cache@v6
@@ -41,20 +41,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
+      # --locked installs exactly uv.lock and fails if it has drifted from
+      # pyproject.toml, so every install path is also the staleness check. That
+      # replaces the dedicated `uv lock --check` step this used to need.
       - name: Install dependencies
-        run: |
-          uv venv .venv && \
-          uv pip install --editable .
-
-      # uv.lock is not installed from — the image and CI resolve from
-      # requirements.txt — so nothing exercised it and it silently rotted, at
-      # one point holding a Twisted version a full major release behind and
-      # generating a high-severity alert on its own (see #2038). --refresh is
-      # required: dependencies are dynamic (read from requirements.txt), and
-      # without it uv compares against cached project metadata and reports a
-      # stale lock as current.
-      - name: Check uv.lock is up to date
-        run: uv lock --check --refresh
+        run: uv sync --locked
 
       - name: Write to .env file
         run: |

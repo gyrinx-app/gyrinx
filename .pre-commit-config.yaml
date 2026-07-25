@@ -123,7 +123,6 @@ repos:
       - id: name-tests-test
         args: [--django]
       # - id: no-commit-to-branch
-      - id: requirements-txt-fixer
       - id: sort-simple-yaml
       - id: trailing-whitespace
 

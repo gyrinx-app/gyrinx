@@ -70,7 +70,7 @@ Each git worktree gets its own Postgres database and Django port, started with a
 - **Each child worktree gets its own `.venv` with `gyrinx` editable-installed from that worktree**, so
   `import gyrinx` always resolves to worktree-local code (new migrations, new models, etc.). Without this,
   `manage migrate` from a child worktree silently misses new migrations and `pytest` fails with
-  `ImportError`. `./scripts/dev.sh` provisions the venv via `uv venv` + `uv pip install --editable .` on
+  `ImportError`. `./scripts/dev.sh` provisions the venv via `uv sync --locked` on
   first run (~1 minute). Main worktree continues to use whatever venv it already had.
 - The session hook (`activate_venv_hook.sh`) auto-sets `DB_NAME` and `DJANGO_PORT` for every
   Claude Code Bash invocation
@@ -199,8 +199,7 @@ Keep the fully technical version for commit messages and code comments.
 
 ```bash
 # Setup virtual environment and install dependencies
-uv venv .venv
-uv pip install --editable .
+uv sync --locked
 
 # Setup environment file
 manage setupenv
