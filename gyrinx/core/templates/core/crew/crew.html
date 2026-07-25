@@ -430,14 +430,19 @@
                     {% comment %}
                     The two figures the battle page ranks crews on, on their own
                     dividers so they read as a distinct pair rather than more
-                    per-column subtotals. Before balancing is Fighters & Stash +
-                    Spending; after adds the allowance. A pending draw has no
-                    known rating, matching the Total below.
+                    per-column subtotals.
+
+                    Each sits in the column its last contribution lands in —
+                    before balancing under Spending (Fighters & Stash +
+                    Spending), after balancing under Balancing — so the pair
+                    reads as a running total across the columns above rather
+                    than two numbers pinned to the right edge. A pending draw
+                    has no known rating, matching the Total below.
                     {% endcomment %}
                     <tr class="border-top">
                         <td class="text-secondary">Rating before balancing</td>
-                        <td class="text-end"
-                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
+                        <td></td>
+                        <td class="text-end">
                             {% if receipt.pending_roll %}
                                 <span bs-tooltip
                                       data-bs-toggle="tooltip"
@@ -447,11 +452,14 @@
                                 {% if rating_provisional %}<span class="fs-7 text-secondary">provisional</span>{% endif %}
                             {% endif %}
                         </td>
+                        <td></td>
+                        {% if receipt.has_free %}<td></td>{% endif %}
                     </tr>
                     <tr>
                         <td class="text-secondary">Rating after balancing</td>
-                        <td class="text-end"
-                            colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
+                        <td></td>
+                        <td></td>
+                        <td class="text-end">
                             {% if receipt.pending_roll %}
                                 <span bs-tooltip
                                       data-bs-toggle="tooltip"
@@ -461,6 +469,7 @@
                                 {% if rating_provisional %}<span class="fs-7 text-secondary">provisional</span>{% endif %}
                             {% endif %}
                         </td>
+                        {% if receipt.has_free %}<td></td>{% endif %}
                     </tr>
                     <tr class="border-top fs-5 fw-semibold">
                         <td>Total</td>
