@@ -109,7 +109,7 @@ if [ -d "$VENV_PATH" ]; then
 else
   echo "ERROR: No .venv found in ${WT_ROOT} or ${MAIN_WT}." >&2
   echo "Create one from the main worktree before running dev.sh:" >&2
-  echo "    python -m venv .venv && . .venv/bin/activate && pip install --editable ." >&2
+  echo "    uv sync --locked" >&2
   exit 1
 fi
 

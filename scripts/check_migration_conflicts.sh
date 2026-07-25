@@ -10,7 +10,7 @@
 # create migrations with *different* numbers that still conflict.
 #
 # Requires Django to be importable (run inside the virtualenv or CI
-# after `pip install`).
+# after `uv sync`).
 
 set -euo pipefail
 

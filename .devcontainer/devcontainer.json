@@ -4,7 +4,7 @@
     "cpus": 4
   },
   "waitFor": "onCreateCommand",
-  "postCreateCommand": "python -m venv .venv && . .venv/bin/activate && pip install --editable . && manage migrate",
+  "postCreateCommand": "uv sync --locked && . .venv/bin/activate && manage migrate",
   "postAttachCommand": {
     "server": ". .venv/bin/activate && manage migrate && DJANGO_SETTINGS_MODULE=gyrinx.settings_dev manage runserver"
   },

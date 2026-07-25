@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 
 # Check if pytest-xdist is installed
 if ! python -c "import xdist" 2>/dev/null; then
-    echo "Error: pytest-xdist is not installed. Please run: pip install pytest-xdist"
+    echo "Error: pytest-xdist is not installed. Please run: uv sync --locked"
     exit 1
 fi
 

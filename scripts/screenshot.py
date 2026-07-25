@@ -43,7 +43,7 @@ try:
     from playwright.sync_api import sync_playwright  # noqa: F401
 except ImportError:
     print("Error: Playwright is not installed.")
-    print("Please run: pip install playwright")
+    print("Please run: uv sync --locked")
     sys.exit(1)
 
 
@@ -413,7 +413,7 @@ def main():
         except ImportError:
             print("✗ Playwright is not installed")
             print("\nTo install, run:")
-            print("  pip install playwright")
+            print("  uv sync --locked")
             return
 
     # Require url_name if not checking

@@ -137,7 +137,7 @@ homebrew_postgres_data_dir() {
 #   its own venv, so `import gyrinx` resolves to worktree-local code and
 #   pre-commit hooks see the worktree's migrations / models.  Without this,
 #   the main venv's editable install can get repointed to a child worktree
-#   by an errant `uv pip install --editable .`, corrupting every other
+#   by an errant `uv sync` run without UV_PROJECT_ENVIRONMENT, corrupting every other
 #   session.  See issue #1772.
 #
 #   Echoes a one-line progress message to stderr on first provision so the
