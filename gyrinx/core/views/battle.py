@@ -17,7 +17,7 @@ from gyrinx.core.handlers.battle import (
     handle_battle_end,
     notify_battle_participants,
 )
-from gyrinx.core.handlers.crew import crew_spread_rating
+from gyrinx.core.handlers.crew import crew_spread_rating, crew_stash_totals
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
@@ -136,15 +136,24 @@ class BattleDetailView(generic.DetailView):
         crews = list(
             battle.crews.filter(archived=False)
             .select_related("list")
-            .prefetch_related("members")
+            .prefetch_related("members", "line_items")
         )
+        # Every crew's brought-stash total in one load. Left to themselves the
+        # crews would each pay a full equipment prefetch chain, which is ~70
+        # queries apiece on a page that shows one crew per gang.
+        stash_totals = crew_stash_totals(crews)
         crew_by_gang = {}
         for crew in crews:
             # The one definition of what a crew is worth right now (pending draw
             # → unknown; whole-gang draft → forecast; else its live/played
             # rating), shared with the crew-page spread so the two can't drift.
             # A forecast is flagged provisional; a pending draw returns no rating.
-            rating, is_forecast = crew_spread_rating(crew)
+            rating, is_forecast = crew_spread_rating(crew, stash_totals.get(crew.id, 0))
+            # Balancing sits outside that rating by design, so the table can show
+            # the gap the allowance was granted for and the gap that remains once
+            # it is spent. A crew with no allowance has identical figures either
+            # side, which is the honest answer rather than a missing one.
+            balancing = crew.balancing_total()
             pending = crew.pending_roll
             # The rating shown is what the gang would field now, or, once the
             # battle has ended, what it did field. Either way, flag when that
@@ -157,6 +166,8 @@ class BattleDetailView(generic.DetailView):
                 "crew": crew,
                 "method_label": crew.method_label(),
                 "rating": rating,
+                "balancing": balancing,
+                "rating_after": None if rating is None else rating + balancing,
                 "pending_roll": pending,
                 "is_forecast": is_forecast,
                 "show_rating_note": bool(note and note["differs"]),
@@ -191,6 +202,7 @@ class BattleDetailView(generic.DetailView):
         # can be found for the inline deltas below — no extra query.
         gang_ratings = []
         crew_ratings = []
+        crew_ratings_after = []
 
         groups = []
         for group in battle.participants_grouped_by_role():
@@ -200,6 +212,9 @@ class BattleDetailView(generic.DetailView):
                 crew = crew_by_gang.get(gang.id)
                 gang_ratings.append(gang.rating_current)
                 crew_ratings.append(crew["rating"] if crew is not None else None)
+                crew_ratings_after.append(
+                    crew["rating_after"] if crew is not None else None
+                )
                 rows.append(
                     {
                         "list": gang,
@@ -232,14 +247,24 @@ class BattleDetailView(generic.DetailView):
         # hand, so no extra query. A delta needs at least two known ratings to
         # mean anything; the top side (and any side with no known rating) shows
         # none.
+        #
+        # Crews get the comparison twice: once on the pre-balancing ratings (the
+        # gap that earns an allowance) and once on the post-balancing ones (the
+        # gap left after it is spent). Each is measured against the top of its
+        # own column — spending an allowance can change *which* crew is top, so
+        # reusing the pre-balancing leader would misreport the remaining gap.
         top_gang = _top_rating(gang_ratings)
         top_crew = _top_rating(crew_ratings)
+        top_crew_after = _top_rating(crew_ratings_after)
         for group in groups:
             for row in group["participants"]:
                 row["rating_delta"] = _delta(top_gang, row["rating"])
                 if row["crew"] is not None:
                     row["crew"]["rating_delta"] = _delta(
                         top_crew, row["crew"]["rating"]
+                    )
+                    row["crew"]["rating_delta_after"] = _delta(
+                        top_crew_after, row["crew"]["rating_after"]
                     )
 
 

@@ -30,6 +30,7 @@ from gyrinx.core.handlers.crew import (
     crew_spread_rating,
     crew_stash_lines,
     crew_stash_rows,
+    crew_stash_totals,
     crew_whole_gang_projection,
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
@@ -45,6 +46,7 @@ from gyrinx.core.models.crew import (
     Crew,
     CrewLineItem,
     CrewMember,
+    CrewStashItem,
     build_selection_spec,
     roll_selection_spec,
     split_selection_spec,
@@ -5234,3 +5236,320 @@ def test_random_setup_skips_ahead_to_the_stash_tab(client, crew_setup):
     crew = Crew.objects.get(battle=crew_setup["battle"], list=gang)
     assert resp.status_code == 302
     assert resp.url == reverse("core:crew-stash", args=[crew.battle_id, crew.id])
+
+
+# --- The fundamental rating: Fighters & Stash + Spending ---------------------
+#
+# A crew's rating is what gets dealt against the other crews in the battle to
+# decide who is the underdog. It counts the fighters, the stash gear they bring,
+# and what the gang spent on extras. It deliberately excludes the balancing
+# allowance (compensation for the gap — counting it would shrink the very gap
+# that earned it) and free extras (they cost nobody anything).
+
+
+def _extra(crew, user, label, cost, payment):
+    return CrewLineItem.objects.create(
+        crew=crew, owner=user, label=label, cost=cost, payment=payment
+    )
+
+
+@pytest.mark.django_db
+def test_rating_before_balancing_counts_fighters_stash_and_spending(
+    crew_setup, make_equipment
+):
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:2])
+    assert crew.rating_before_balancing() == 200  # two 100¢ gangers
+
+    handle_crew_stash_save(
+        user=crew_setup["user"],
+        crew=crew,
+        assignment_ids={gear["Ammo Cache"].id},  # 20¢
+    )
+    _extra(crew, crew_setup["user"], "Tactics card", 30, Crew.PAY_CREDITS)
+
+    assert crew.rating_before_balancing() == 250
+
+
+@pytest.mark.django_db
+def test_rating_before_balancing_excludes_balancing_and_free(crew_setup):
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Underdog hire", 100, Crew.PAY_ALLOWANCE)
+    _extra(crew, crew_setup["user"], "Scenario gift", 50, Crew.PAY_FREE)
+
+    # Neither moves the rating the underdog comparison is made on...
+    assert crew.rating_before_balancing() == 100
+    # ...but the allowance is what the post-balancing figure adds back.
+    assert crew.balancing_total() == 100
+    assert crew.rating_after_balancing() == 200
+
+
+@pytest.mark.django_db
+def test_spending_total_counts_only_the_gangs_own_outlay(crew_setup):
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Bought", 30, Crew.PAY_CREDITS)
+    _extra(crew, crew_setup["user"], "Granted", 40, Crew.PAY_ALLOWANCE)
+    _extra(crew, crew_setup["user"], "Gifted", 50, Crew.PAY_FREE)
+
+    assert crew.spending_total() == 30
+    assert crew.balancing_total() == 40
+    # extras_total is the undifferentiated headline sum, unchanged.
+    assert crew.extras_total() == 120
+
+
+@pytest.mark.django_db
+def test_crew_with_no_extras_rates_the_same_either_side_of_balancing(crew_setup):
+    """The common case: no allowance, so the two columns agree rather than one
+    of them going missing."""
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:2])
+    assert crew.balancing_total() == 0
+    assert crew.rating_after_balancing() == crew.rating_before_balancing() == 200
+
+
+@pytest.mark.django_db
+def test_spread_rating_counts_the_stash_a_crew_brings(crew_setup, make_equipment):
+    """The reported bug: gear brought from the stash never reached the battle
+    page's rating, so a crew carrying 55¢ of kit read as though it carried none.
+    """
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    assert crew_spread_rating(crew) == (100, False)
+
+    handle_crew_stash_save(
+        user=crew_setup["user"],
+        crew=crew,
+        assignment_ids={gear["Ammo Cache"].id, gear["Boarding Ram"].id},  # 20 + 35
+    )
+
+    assert crew_spread_rating(crew) == (155, False)
+
+
+@pytest.mark.django_db
+def test_spread_rating_of_a_forecast_crew_counts_stash_and_spending(
+    crew_setup, make_equipment
+):
+    """A whole-gang draft forecasts its fighters, but its stash and spending are
+    already known and count the same as anywhere else."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    assert crew.is_whole_gang
+    forecast = crew_whole_gang_projection(crew)["total"]
+
+    handle_crew_stash_save(
+        user=crew_setup["user"], crew=crew, assignment_ids={gear["Boarding Ram"].id}
+    )
+    _extra(crew, crew_setup["user"], "Tactics card", 10, Crew.PAY_CREDITS)
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is True
+    assert rating == forecast + 35 + 10
+
+
+@pytest.mark.django_db
+def test_battle_page_rating_includes_the_stash(client, crew_setup, make_equipment):
+    """End to end: the figure on the battle overview counts the brought stash."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    gang = crew_setup["gang"]
+    crew_setup["battle"].set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    handle_crew_stash_save(
+        user=crew_setup["user"],
+        crew=crew,
+        assignment_ids={gear["Boarding Ram"].id},  # 35¢
+    )
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    crew_row = resp.context["participant_groups"][0]["participants"][0]["crew"]
+
+    assert crew_row["rating"] == 135
+
+
+# --- Battle page: before/after balancing -------------------------------------
+
+
+@pytest.mark.django_db
+def test_battle_page_splits_the_spread_either_side_of_balancing(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """Two crews, one behind. The allowance it spends closes the gap, so the gap
+    before balancing is the one it was granted for and the gap after is what
+    remains."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 4
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    behind = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100¢
+    ahead = _locked_crew(crew_setup, iron, iron_fighters[:3])  # 300¢
+    _extra(behind, crew_setup["user"], "Underdog hire", 150, Crew.PAY_ALLOWANCE)
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    rows = {
+        p["list"].id: p["crew"]
+        for group in resp.context["participant_groups"]
+        for p in group["participants"]
+    }
+
+    # The underdog: 200¢ behind before its allowance, 50¢ behind after it.
+    assert rows[riot.id]["rating"] == 100
+    assert rows[riot.id]["rating_delta"] == 200
+    assert rows[riot.id]["rating_after"] == 250
+    assert rows[riot.id]["rating_delta_after"] == 50
+
+    # The leader is unmoved and tops both columns, so shows no gap in either.
+    assert rows[iron.id]["rating"] == rows[iron.id]["rating_after"] == 300
+    assert rows[iron.id]["rating_delta"] is None
+    assert rows[iron.id]["rating_delta_after"] is None
+
+    assert ahead.balancing_total() == 0
+    assert behind.balancing_total() == 150
+
+
+@pytest.mark.django_db
+def test_balancing_can_overtake_and_the_after_column_says_so(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """An allowance big enough to pass the leader makes the underdog top of the
+    post-balancing column — so that column must be measured against its own top,
+    not the pre-balancing leader."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 4
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    behind = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])  # 100¢
+    _locked_crew(crew_setup, iron, iron_fighters[:2])  # 200¢
+    _extra(behind, crew_setup["user"], "Big hire", 250, Crew.PAY_ALLOWANCE)
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    rows = {
+        p["list"].id: p["crew"]
+        for group in resp.context["participant_groups"]
+        for p in group["participants"]
+    }
+
+    # Behind before (100 vs 200), ahead after (350 vs 200).
+    assert rows[riot.id]["rating_delta"] == 100
+    assert rows[riot.id]["rating_after"] == 350
+    assert rows[riot.id]["rating_delta_after"] is None
+    assert rows[iron.id]["rating_delta"] is None
+    assert rows[iron.id]["rating_delta_after"] == 150
+
+
+@pytest.mark.django_db
+def test_battle_page_pending_crew_has_no_rating_either_side(client, crew_setup):
+    """A crew whose draw hasn't happened drops out of both comparisons rather
+    than reading as 0¢."""
+    gang = crew_setup["gang"]
+    crew_setup["battle"].set_participants([gang])
+    _pending_crew(crew_setup, gang)
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    crew_row = resp.context["participant_groups"][0]["participants"][0]["crew"]
+
+    assert crew_row["pending_roll"] is True
+    assert crew_row["rating"] is None
+    assert crew_row["rating_after"] is None
+
+
+@pytest.mark.django_db
+def test_battle_page_labels_both_halves_of_the_spread(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """The two-tier header is what tells a reader which pair of columns is
+    which — without it the table shows two unexplained ratings."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 2
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])
+    _locked_crew(crew_setup, iron, iron_fighters[:2])
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    body = resp.content.decode()
+
+    assert "Before balancing" in body
+    assert "After balancing" in body
+
+
+def _crew_bringing_stash(crew_setup, make_list, make_list_fighter, equipment, i):
+    """A further gang with stash gear, and a locked crew that brings it."""
+    gang, fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, f"Gang {i}", 1
+    )
+    gang.ensure_stash(owner=crew_setup["user"])
+    stash = ListFighter.objects.get(list=gang, content_fighter__is_stash=True)
+    assignment = stash.assign(equipment)
+    crew = _locked_crew(crew_setup, gang, fighters[:1])
+    handle_crew_stash_save(
+        user=crew_setup["user"], crew=crew, assignment_ids={assignment.id}
+    )
+    return gang, crew
+
+
+@pytest.mark.django_db
+def test_crew_stash_totals_is_batched_across_crews(
+    crew_setup, make_list, make_list_fighter, make_equipment
+):
+    """Costing a crew's stash means loading its assignments with the full
+    equipment prefetch chain — ~70 queries. Asked crew by crew that multiplies
+    by the number of crews on a battle page, so the totals are loaded together:
+    five crews must cost what one does, not five times it.
+    """
+    crate = make_equipment(name="Supply Crate", cost=15)
+    one = [_crew_bringing_stash(crew_setup, make_list, make_list_fighter, crate, 0)[1]]
+    five = one + [
+        _crew_bringing_stash(crew_setup, make_list, make_list_fighter, crate, i)[1]
+        for i in range(1, 5)
+    ]
+
+    def count(crews):
+        with CaptureQueriesContext(connection) as ctx:
+            totals = crew_stash_totals(crews)
+        assert set(totals.values()) == {15}, totals
+        return len(ctx)
+
+    together = count(five)
+    # What the page did before: ask each crew for its own total, paying the
+    # prefetch chain every time.
+    with CaptureQueriesContext(connection) as ctx:
+        for crew in five:
+            crew_stash_totals([crew])
+    one_by_one = len(ctx)
+
+    assert together < one_by_one / 2, (
+        f"{together} queries batched vs {one_by_one} one-by-one — "
+        "the stash load is not being shared across crews"
+    )
+    # And the batch is barely more than a single crew's: the chain runs once,
+    # only the per-assignment cost work scales.
+    assert together < count(one) * 2
+
+
+@pytest.mark.django_db
+def test_crew_stash_totals_ignores_cards_picked_as_fighters(
+    crew_setup, make_content_fighter, make_equipment
+):
+    """Equipment treated as a fighter is rated on the selection screen, so the
+    batched total must exclude it exactly as the stash rows do — otherwise the
+    same card is counted twice."""
+    assignment, _card = _automaton_in_stash(
+        crew_setup, make_content_fighter, make_equipment
+    )
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    CrewStashItem.objects.create(
+        crew=crew, owner=crew_setup["user"], assignment=assignment
+    )
+
+    assert crew_stash_totals([crew]) == {crew.id: 0}

@@ -726,7 +726,11 @@ class Crew(AppBase):
         stash = self.list.stash_fighter
         if stash is None:
             return []
-        brought_ids = set(self.stash_items.values_list("assignment_id", flat=True))
+        # .all() rather than .values_list(): it reads a caller's
+        # prefetch_related("stash_items") cache when there is one (the battle
+        # page asks every crew for this), and costs the same single query when
+        # there isn't. values_list() would bypass the cache and always query.
+        brought_ids = {item.assignment_id for item in self.stash_items.all()}
         rows = []
         assignments = (
             ListFighterEquipmentAssignment.objects.filter(
@@ -776,15 +780,65 @@ class Crew(AppBase):
         """Total credits of the crew's extra line items (tactics cards, etc.)."""
         return sum(item.cost for item in self.line_items.all())
 
-    def credits_value(self):
-        """The crew's fighter rating plus its extra line items and the stash
-        equipment it brings.
+    def spending_total(self):
+        """What the gang paid out of its own pocket for this crew's extras — the
+        Spending column.
 
-        NOT the rulebook's underdog-comparison quantity, despite the tempting
-        name: scenarios compare the credits value of the *fighters* in each
-        starting crew (Core Rulebook p238), and extras — tactics cards, hired
-        help, stash gear — never enter that comparison. The quantity to compare
-        is :meth:`rating`; this sum is only a headline total.
+        Only ``PAY_CREDITS`` items. Anything drawn from the balancing allowance
+        or handed over free is not the gang's own outlay and belongs in its own
+        column.
+        """
+        return sum(
+            item.cost
+            for item in self.line_items.all()
+            if item.payment == self.PAY_CREDITS
+        )
+
+    def balancing_total(self):
+        """The pre-battle balancing allowance this crew spent — the Balancing
+        column. Only ``PAY_ALLOWANCE`` items."""
+        return sum(
+            item.cost
+            for item in self.line_items.all()
+            if item.payment == self.PAY_ALLOWANCE
+        )
+
+    def rating_before_balancing(self, stash_total=None):
+        """The crew's fundamental rating: its fighters and the stash gear it
+        brings, plus what the gang spent on extras.
+
+        This is the quantity dealt against the other crews in the battle to
+        decide who is the underdog and what balancing they are owed, so it is
+        the figure the battle page compares. Balancing is deliberately *not* in
+        it: the allowance is compensation for the gap, so counting it would
+        shrink the very gap that earned it — a crew would be penalised for
+        having been behind. Free extras are excluded for the plainer reason that
+        they cost nobody anything.
+
+        ``stash_total`` lets a caller rating several crews at once pass in the
+        figure from :func:`handlers.crew.crew_stash_totals`, which loads them in
+        a single batch; omitted, the crew works out its own.
+        """
+        if stash_total is None:
+            stash_total = self.stash_lines()["total"]
+        return self.rating() + stash_total + self.spending_total()
+
+    def rating_after_balancing(self, stash_total=None):
+        """What the crew fields once its balancing allowance is counted.
+
+        Compared against the other crews' post-balancing ratings, this shows
+        whether the balancing actually closed the gap it was granted for.
+        """
+        return self.rating_before_balancing(stash_total) + self.balancing_total()
+
+    def credits_value(self):
+        """The crew's fighter rating plus *every* extra line item and the stash
+        equipment it brings — a headline total, nothing more.
+
+        Not the quantity to compare crews by: this counts free extras and the
+        balancing allowance, neither of which belongs in a rating. Use
+        :meth:`rating_before_balancing` (or :meth:`rating_after_balancing`) for
+        that.
         """
         return self.rating() + self.extras_total() + self.stash_lines()["total"]
 

@@ -96,17 +96,35 @@
                             <div class="table-responsive">
                                 <table class="table table-sm table-borderless align-middle mb-0">
                                     <thead>
+                                        {% comment %}
+                                        Two tiers: the spanning row labels each pair of
+                                        columns, so "Rating / vs top" is read once before
+                                        balancing and once after. Balancing is what a crew
+                                        spends from its allowance, so the two pairs differ
+                                        only for crews that received one.
+                                        {% endcomment %}
+                                        <tr>
+                                            <th></th>
+                                            <th colspan="2"
+                                                scope="colgroup"
+                                                class="caps-label text-center border-bottom">Before balancing</th>
+                                            <th colspan="2"
+                                                scope="colgroup"
+                                                class="caps-label text-center border-bottom ps-3">After balancing</th>
+                                        </tr>
                                         <tr class="border-bottom">
-                                            <th class="caps-label">Gang</th>
-                                            <th class="caps-label text-end">Rating</th>
-                                            <th class="caps-label ps-3">vs top</th>
+                                            <th scope="col" class="caps-label">Gang</th>
+                                            <th scope="col" class="caps-label text-end">Rating</th>
+                                            <th scope="col" class="caps-label ps-3">vs top</th>
+                                            <th scope="col" class="caps-label text-end ps-3">Rating</th>
+                                            <th scope="col" class="caps-label ps-3">vs top</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for group in participant_groups %}
                                             {% if roles_in_use %}
                                                 <tr>
-                                                    <td colspan="3"
+                                                    <td colspan="5"
                                                         class="caps-label text-secondary {% if not forloop.first %}pt-3{% endif %}">
                                                         {% if group.role_option %}{{ group.role_option.name }}{% else %}No role{% endif %}
                                                     </td>
@@ -131,6 +149,14 @@
                                                     </td>
                                                     <td class="text-end">{% credits p.rating %}</td>
                                                     <td class="text-secondary ps-3">{% if p.rating_delta %}−{% credits p.rating_delta %}{% endif %}</td>
+                                                    {% comment %}
+                                                    A gang never receives balancing — that is
+                                                    granted to the crew it fields — so the
+                                                    post-balancing pair is blank rather than a
+                                                    repeat of the figures to the left.
+                                                    {% endcomment %}
+                                                    <td></td>
+                                                    <td></td>
                                                 </tr>
                                                 {% if p.crew %}
                                                     <tr>
@@ -164,10 +190,20 @@
                                                             {% endif %}
                                                         </td>
                                                         <td class="text-secondary ps-3">{% if p.crew.rating_delta %}−{% credits p.crew.rating_delta %}{% endif %}</td>
+                                                        <td class="text-end ps-3">
+                                                            {% if p.crew.pending_roll %}
+                                                                <span bs-tooltip
+                                                                      data-bs-toggle="tooltip"
+                                                                      title="Unknown until the crew is rolled for selection">?</span>
+                                                            {% else %}
+                                                                {% credits p.crew.rating_after %}
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-secondary ps-3">{% if p.crew.rating_delta_after %}−{% credits p.crew.rating_delta_after %}{% endif %}</td>
                                                     </tr>
                                                 {% elif p.can_add_crew %}
                                                     <tr>
-                                                        <td colspan="3" class="ps-4">
+                                                        <td colspan="5" class="ps-4">
                                                             <a href="{% url 'core:crew-new' battle.id %}?list={{ p.list.id }}"
                                                                class="icon-link linked fs-7">
                                                                 <i class="bi-plus-lg"></i> Add crew

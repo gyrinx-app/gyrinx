@@ -132,9 +132,9 @@
                 <thead>
                     <tr class="border-bottom">
                         <th></th>
-                        <th class="caps-label text-end">Rating</th>
-                        <th class="caps-label text-end">Credits</th>
-                        <th class="caps-label text-end">Allowance</th>
+                        <th class="caps-label text-end">Fighters &amp; Stash</th>
+                        <th class="caps-label text-end">Spending</th>
+                        <th class="caps-label text-end">Balancing</th>
                         {% if receipt.has_free %}<th class="caps-label text-end">Free</th>{% endif %}
                     </tr>
                 </thead>
@@ -382,7 +382,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td class="text-secondary">Rating</td>
+                            <td class="text-secondary">Fighters</td>
                             <td class="text-end">
                                 {% if projection %}
                                     <span class="text-secondary">{{ projection.total }}¢</span>
@@ -408,14 +408,14 @@
                             </tr>
                         {% endif %}
                         <tr>
-                            <td class="text-secondary">Credits</td>
+                            <td class="text-secondary">Spending</td>
                             <td></td>
                             <td class="text-end">{{ receipt.credits_total }}¢</td>
                             <td></td>
                             {% if receipt.has_free %}<td></td>{% endif %}
                         </tr>
                         <tr>
-                            <td class="text-secondary">Allowance</td>
+                            <td class="text-secondary">Balancing</td>
                             <td></td>
                             <td></td>
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
