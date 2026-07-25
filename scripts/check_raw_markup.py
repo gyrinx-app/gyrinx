@@ -36,6 +36,11 @@ EXCLUDE = (
     "gyrinx/templates/errors/",
     "gyrinx/templates/404.html",
     "gyrinx/templates/500.html",
+    # Scratch templates written and deleted by the component test harnesses while
+    # they run (uuid-named, so no prefix rule catches them). They deliberately
+    # contain the shapes this counts, and they vanish mid-scan under pytest-xdist.
+    "gyrinx/core/templates/cotton_test/",
+    "gyrinx/templates/_cotton_test_host/",
     # Django admin vocabulary (form-row/submit-row/default), not Bootstrap.
     "gyrinx/templates/admin/",
     "gyrinx/core/templates/admin/",
@@ -68,7 +73,13 @@ def scan():
     sites = {k: [] for k in PATTERNS}
     compiled = {k: re.compile(v) for k, v in PATTERNS.items()}
     for rel, path in templates():
-        text = path.read_text(encoding="utf-8", errors="replace")
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            # A concurrent test deleted its scratch template between the glob and
+            # this read. The exclusions above cover the known harnesses; this keeps
+            # the walk from crashing on any future one.
+            continue
         for i, line in enumerate(text.splitlines(), 1):
             for key, rx in compiled.items():
                 n = len(rx.findall(line))

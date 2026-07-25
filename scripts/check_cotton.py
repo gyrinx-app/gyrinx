@@ -98,12 +98,21 @@ def main():
             line = line_of(src, match.start())
             unquoted = re.sub(r"\"[^\"]*\"|'[^']*'", "", attrs)
 
-            # 1. conditional attribute inside the tag
-            if "{%" in unquoted:
+            # 1. any template tag ({% %} or {{ }}) in attribute position
+            # Both forms are equally hazardous in attribute position, and the pytest
+            # gate has always checked both — this half only checked {%, so a
+            # `<c-btn {{ x }}>` passed the hook and failed only in CI.
+            if "{%" in unquoted or "{{" in unquoted:
                 problems.append(
-                    f"{rel}:{line}: conditional attribute inside <c-{name}> -- cotton emits "
-                    f"raw template source and drops the attribute.\n"
-                    f'    Fix: declare it as a prop (:open="expr"), or leave the element raw HTML.'
+                    f"{rel}:{line}: template tag in attribute position inside "
+                    f"<c-{name}> -- cotton emits the raw source and the attribute "
+                    f"is lost.\n"
+                    # Plain strings, not f-strings: the example contains {% %}.
+                    "    Fix: move it inside a quoted value "
+                    '(attr="{% if cond %}...{% endif %}" / attr="{{ value }}"), or '
+                    'pass a declared prop as a BARE dotted path (:field="form.x") '
+                    "-- an expression in a :prop resolves to nothing. Otherwise "
+                    "leave the element raw HTML."
                 )
 
             # 2. dynamic attr that the component does not declare
