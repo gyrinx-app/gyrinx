@@ -2367,7 +2367,7 @@ def test_crew_extra_add_edit_delete(client, crew_setup):
 
 
 @pytest.mark.django_db
-def test_extras_can_be_added_at_any_point_in_a_crews_life(client, crew_setup):
+def test_extras_can_be_added_at_any_point_in_a_crew_lifecycle(client, crew_setup):
     """Extras were once gated on the crew being confirmed, on the grounds that
     an allowance is worked out after selection. Players know about a hired gun
     or an allowance before then, so both a draft and a locked crew take them."""
@@ -5717,3 +5717,45 @@ def test_crew_page_loads_the_brought_stash_once(
         f"the crew page walked its stash {calls.count(crew.id)} times — "
         "the rating figures should reuse the receipt's total"
     )
+
+
+@pytest.mark.django_db
+def test_confirm_page_describes_a_custom_crew_with_no_picks(client, crew_setup):
+    """A Custom crew nobody has picked for fell into the random-draw branch and
+    rendered "  fighters will be drawn at random" with an empty count."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+        custom_count=2,
+    )
+
+    client.force_login(crew_setup["user"])
+    body = client.get(
+        reverse("core:crew-lock", args=[crew.battle_id, crew.id])
+    ).content.decode()
+
+    assert "No fighters have been chosen" in body
+    assert "fighters will be drawn at random" not in body
+
+
+@pytest.mark.django_db
+def test_confirm_page_says_what_stays_editable(client, crew_setup):
+    """ "The crew can no longer be changed" outlived the change that let
+    loadouts, stash and extras keep moving after the lock."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        custom_count=1,
+    )
+    add_chosen(crew, crew_setup["fighters"][:1])
+
+    client.force_login(crew_setup["user"])
+    body = client.get(
+        reverse("core:crew-lock", args=[crew.battle_id, crew.id])
+    ).content.decode()
+
+    assert "the crew's membership is fixed" in body
+    assert "can no longer be changed" not in body
