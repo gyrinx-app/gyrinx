@@ -4,6 +4,7 @@ import pytest
 from django.test import override_settings
 from django.urls import reverse
 
+from gyrinx.core.print_cards import DetailGroup
 from gyrinx.core.views.print_lab import (
     PRESET_LABELS,
     ClassicCard,
@@ -324,3 +325,68 @@ def test_all_presets_render_without_error(client):
     for key in PRESET_LABELS:
         url = reverse("debug_print_lab_sheet") + f"?source=preset&preset={key}"
         assert client.get(url).status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Detail block columns
+#
+# The two columns are split in Python rather than by CSS multi-column layout,
+# because WebKit collapses a multicol nested inside a fragmentation context —
+# printing from iOS Safari lost the two-column layout entirely.
+# ---------------------------------------------------------------------------
+
+
+def test_detail_groups_cover_every_labelled_row():
+    card = synthetic_presets()["psyker"]
+    labels = [g.label for g in card.detail_groups]
+    assert labels[:3] == ["Skills", "Rules", "Gear"]
+    assert "Wyrd Powers" in labels
+    for category_label, _ in card.gear_categories:
+        assert category_label in labels
+
+
+def test_detail_group_text_joins_items():
+    group = DetailGroup("Skills", ["Nerves of Steel", "Spring Up"])
+    assert group.text == "Nerves of Steel, Spring Up"
+
+
+def test_detail_columns_split_into_two_without_losing_groups():
+    card = synthetic_presets()["overflow"]
+    columns = card.detail_columns
+    assert len(columns) == 2
+    flattened = [g.label for col in columns for g in col]
+    assert flattened == [g.label for g in card.detail_groups]  # order preserved
+
+
+def test_detail_columns_balance_the_taller_column():
+    """The split point is chosen to keep the taller column as short as it can
+    be — a naive fixed split would pile everything into column one."""
+    card = ClassicCard(
+        skills=["A very long list of skills " * 4],
+        rules=["Short"],
+        wargear=["Also short"],
+    )
+    left, right = card.detail_columns
+    assert [g.label for g in left] == ["Skills"]
+    assert [g.label for g in right] == ["Rules", "Gear"]
+
+
+def test_detail_columns_never_returns_an_empty_column():
+    """An empty column is still a flex item, so it would claim half the width."""
+    for key in PRESET_LABELS:
+        for column in synthetic_presets()[key].detail_columns:
+            assert column
+
+
+def test_blank_card_keeps_one_full_width_detail_column():
+    card = synthetic_presets()["blank"]
+    assert len(card.detail_columns) == 1
+    assert [g.label for g in card.detail_columns[0]] == ["Skills", "Rules", "Gear"]
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_sheet_renders_two_detail_columns(client):
+    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=psyker"
+    body = client.get(url).content.decode()
+    assert body.count('class="cc-detail__col"') == 2

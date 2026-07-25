@@ -50,6 +50,10 @@ THEMES = [
 ]
 DEFAULT_THEME = "blank"
 
+# Roughly how many characters of value text fit on one line of one detail
+# column. Feeds the column-balancing estimate only (see DetailGroup.height).
+DETAIL_CHARS_PER_LINE = 28
+
 
 # ---------------------------------------------------------------------------
 # Normalised card data
@@ -65,6 +69,31 @@ class StatCell:
     highlight: bool = False
     first_of_group: bool = False
     modded: bool = False
+
+
+@dataclass
+class DetailGroup:
+    """One labelled row in the lower detail block (Skills / Rules / Gear / ...)."""
+
+    label: str
+    items: list[str] = field(default_factory=list)
+    css_class: str = ""
+
+    @property
+    def text(self) -> str:
+        return ", ".join(self.items)
+
+    @property
+    def height(self) -> int:
+        """Rough rendered line count, used to balance the two detail columns.
+
+        Only ever compared against other groups' estimates to pick a split
+        point, so it needs to rank groups correctly rather than predict the
+        real layout. A long label ("Legendary Names") wraps to one word per
+        line (see the .cc-label rule), which can outgrow a short value.
+        """
+        body_lines = -(-len(self.text) // DETAIL_CHARS_PER_LINE)  # ceil
+        return max(1, body_lines, len(self.label.split()))
 
 
 @dataclass
@@ -113,6 +142,61 @@ class ClassicCard:
     captured: bool = False
     dead: bool = False
     fighter_id: str = ""
+
+    @property
+    def detail_groups(self) -> list[DetailGroup]:
+        """The lower detail block's rows, in reading order."""
+        groups = [
+            DetailGroup("Skills", self.skills, "cc-skills"),
+            DetailGroup("Rules", self.rules, "cc-rules-q"),
+            DetailGroup("Gear", self.wargear, "cc-wargear"),
+        ]
+        if self.powers:
+            groups.append(DetailGroup("Wyrd Powers", self.powers, "cc-powers"))
+        groups += [
+            DetailGroup(label, list(items), "cc-gearcat")
+            for label, items in self.gear_categories
+        ]
+        return groups
+
+    @property
+    def detail_columns(self) -> list[list[DetailGroup]]:
+        """``detail_groups`` split into the card's two detail columns.
+
+        This split is done here rather than by CSS multi-column layout because
+        WebKit does not support a multi-column container nested inside another
+        fragmentation context: when printing (where the page *is* a fragmenta-
+        tion context) iOS Safari collapses the block to a single full-width
+        column, so cards printed from an iPhone lost the two-column detail
+        layout entirely. Splitting server-side renders identically on screen
+        and on paper, in every engine.
+
+        Groups keep their reading order and are cut at one point, exactly as
+        column-major flow would: column one takes the first N, column two the
+        rest. The cut is the one that minimises the taller column, which is
+        what multicol's balancing was doing for us.
+
+        Blank (fillable) cards keep every group in one full-width column so
+        their write-in boxes are as wide as possible. An empty column is never
+        returned — each column is a flex item, so an empty one would still
+        claim half the width.
+        """
+        groups = self.detail_groups
+        if self.kind == "blank" or not groups:
+            return [groups] if groups else []
+
+        heights = [g.height for g in groups]
+        total = sum(heights)
+        best_split, best_tallest = len(groups), total
+        run = 0
+        # Prefer the largest qualifying left column on a tie, matching how
+        # column-major flow fills column one before spilling into column two.
+        for split in range(1, len(groups) + 1):
+            run += heights[split - 1]
+            tallest = max(run, total - run)
+            if tallest <= best_tallest:
+                best_split, best_tallest = split, tallest
+        return [c for c in (groups[:best_split], groups[best_split:]) if c]
 
 
 def _get(obj, name, default=""):

@@ -106,31 +106,22 @@ Params:
                     <div class="cc-weapons__empty">No weapons.</div>
                 {% endif %}
             </div>
-            {% comment %} Lower detail block — balanced 2 columns: skills, rules, gear, then others {% endcomment %}
+            {% comment %}
+            Lower detail block — two balanced columns (skills, rules, gear, then
+            others). The split is computed in Python (ClassicCard.detail_columns)
+            rather than by CSS multicol, which WebKit collapses to one column
+            when printing. Blank cards put everything in the first column.
+            {% endcomment %}
             <div class="cc-detail">
                 <div class="cc-detail__cols">
-                    <div class="cc-section cc-skills">
-                        <div class="cc-label">Skills</div>
-                        {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.skills|join:", " }}</div>{% endif %}
-                    </div>
-                    <div class="cc-section cc-rules-q">
-                        <div class="cc-label">Rules</div>
-                        {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.rules|join:", " }}</div>{% endif %}
-                    </div>
-                    <div class="cc-section cc-wargear">
-                        <div class="cc-label">Gear</div>
-                        {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ card.wargear|join:", " }}</div>{% endif %}
-                    </div>
-                    {% if card.powers %}
-                        <div class="cc-section cc-powers">
-                            <div class="cc-label">Wyrd Powers</div>
-                            <div class="cc-section__body">{{ card.powers|join:", " }}</div>
-                        </div>
-                    {% endif %}
-                    {% for cat in card.gear_categories %}
-                        <div class="cc-section cc-gearcat">
-                            <div class="cc-label">{{ cat.0 }}</div>
-                            <div class="cc-section__body">{{ cat.1|join:", " }}</div>
+                    {% for column in card.detail_columns %}
+                        <div class="cc-detail__col">
+                            {% for group in column %}
+                                <div class="cc-section {{ group.css_class }}">
+                                    <div class="cc-label">{{ group.label }}</div>
+                                    {% if card.kind == "blank" %}<div class="cc-writein cc-section__box"></div>{% else %}<div class="cc-section__body">{{ group.text }}</div>{% endif %}
+                                </div>
+                            {% endfor %}
                         </div>
                     {% endfor %}
                 </div>
