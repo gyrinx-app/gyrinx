@@ -3,7 +3,7 @@
 # fail_fast: true
 repos:
   - repo: https://github.com/djlint/djLint
-    rev: v1.40.8
+    rev: v1.42.3
     hooks:
       # django-cotton component files are hand-formatted and byte-significant:
       # every one carries `djlint:off`, and djlint --reformat appends a trailing
@@ -17,7 +17,7 @@ repos:
         exclude: ^gyrinx/templates/cotton/
 
   - repo: https://github.com/kynan/nbstripout
-    rev: 0.8.1
+    rev: 0.9.1
     hooks:
       - id: nbstripout
         name: nbstripout
@@ -26,7 +26,7 @@ repos:
         types: [jupyter]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.22
+    rev: v0.16.0
     hooks:
       - id: ruff
         types_or: [python, pyi]
@@ -35,7 +35,7 @@ repos:
         types_or: [python, pyi]
 
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.0
+    rev: 1.9.4
     hooks:
       - id: bandit
         types_or: [python, pyi]
@@ -53,7 +53,7 @@ repos:
 
   # Lint GitHub Actions workflow files
   - repo: https://github.com/mpalmer/action-validator
-    rev: v0.7.0
+    rev: v0.9.0
     hooks:
       - id: action-validator
 
@@ -88,7 +88,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
         args: [--maxkb=5120]

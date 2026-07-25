@@ -13,11 +13,11 @@
                 {% if group %}
                     <div>
                         <label class="h6">{{ group }}</label>
-                    {% endif %}
-                    {% for option in options %}
-                        <div class="mb-1" data-filter-label="{{ option.label }}">{% include option.template_name with widget=option %}</div>
-                    {% endfor %}
-                    {% if group %}
+                {% endif %}
+                {% for option in options %}
+                    <div class="mb-1" data-filter-label="{{ option.label }}">{% include option.template_name with widget=option %}</div>
+                {% endfor %}
+                {% if group %}
                     </div>
                 {% endif %}
             {% endfor %}
