@@ -28,7 +28,7 @@ COPY content/ /app/content/
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_GYRINX=1.0.0
 # --locked installs exactly what uv.lock pins and fails if the lock is stale, so
 # the image can never be built from a lock that has drifted from pyproject.toml.
-RUN uv sync --locked
+RUN uv sync --locked --no-dev
 
 # Install system dependencies for Node.js
 RUN apt-get update && apt-get install -y --no-install-recommends \

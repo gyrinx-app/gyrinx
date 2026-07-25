@@ -60,8 +60,7 @@ because the imported `gyrinx` doesn't have the worktree's new code.
 `./scripts/dev.sh` provisions the venv on first run in a child worktree:
 
 ```bash
-uv venv "${WT_ROOT}/.venv"
-( cd "$WT_ROOT" && uv pip install --python "$WT_VENV/bin/python" --editable . )
+( cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="${WT_ROOT}/.venv" uv sync --locked )
 ```
 
 Then installs the per-worktree DB env hook via

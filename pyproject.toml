@@ -47,7 +47,6 @@ dependencies = [
     # pin breaks installs. 1.14.0 is now published and un-yanked, so this pin can
     # go — but as a deliberate dependency bump, not silently inside a migration.
     "opentelemetry-resourcedetector-gcp==1.12.0a0",
-    # OpenTelemetry - Cloud Trace integration
     "opentelemetry-sdk==1.44.0",
     "Pillow==12.3.0",
     "playwright==1.61.0",
@@ -77,6 +76,17 @@ dependencies = [
     "whitenoise==6.12.0",
 ]
 
+[dependency-groups]
+# Not shipped: the image installs with --no-dev. django-extensions' shell_plus
+# (used by `manage prodshell`) prefers IPython and silently falls back to the
+# plain shell without it. It was never declared, so once installs became
+# `uv sync` — which prunes anything the lock does not mention — a hand-installed
+# copy would disappear and the piped-query workflow in CLAUDE.md would quietly
+# stop working.
+dev = [
+    "ipython==9.15.0",
+]
+
 [tool.uv]
 # Resolve only for the environments we actually run: CPython on Linux (Cloud Run)
 # and macOS (development). Without this the lock has to satisfy every environment
@@ -92,7 +102,9 @@ environments = [
 # own older format, which then fails the `--locked` assertion on every install
 # with no obvious cause. Refusing to run is clearer: uv prints "Update `uv` by
 # running `uv self update`". Raise this floor when the lock is next regenerated.
-required-version = ">=0.11"
+# 0.11.12 is what dependabot-core ships, so anything older cannot round-trip
+# a lock it writes.
+required-version = ">=0.11.12"
 
 [project.scripts]
 manage = "scripts.manage:main"

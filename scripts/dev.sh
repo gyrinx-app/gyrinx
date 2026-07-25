@@ -105,6 +105,21 @@ if [ ! -d "$VENV_PATH" ] && [ "$WT_ROOT" != "$MAIN_WT" ]; then
   VENV_PATH="${MAIN_WT}/.venv"
 fi
 if [ -d "$VENV_PATH" ]; then
+  # Re-sync before activating.  Provisioning only runs when .venv is absent, so
+  # an existing venv otherwise keeps whatever it was built with and silently
+  # predates any lock change from a pull or branch switch — meaning pytest runs
+  # against the wrong dependencies.  Already in sync this is near-instant.
+  #
+  # Only ever sync the venv this worktree owns: syncing the main worktree's venv
+  # from a child would repoint its editable install at us (see the warning in
+  # scripts/lib/worktree.sh).  Non-fatal, because a lock that is stale mid
+  # dependency-edit should be visible but should not block the dev loop.
+  if command -v uv >/dev/null 2>&1 && [ "$VENV_PATH" = "${WT_ROOT}/.venv" ]; then
+    if ! (cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_PATH" uv sync --locked --quiet); then
+      echo "WARNING: 'uv sync --locked' failed — .venv may not match uv.lock." >&2
+      echo "         If you have edited pyproject.toml, run 'uv lock'." >&2
+    fi
+  fi
   source "$VENV_PATH/bin/activate"
 else
   echo "ERROR: No .venv found in ${WT_ROOT} or ${MAIN_WT}." >&2
