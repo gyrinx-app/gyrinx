@@ -56,64 +56,6 @@
     form.non_field_errors emits ul.errorlist, which styles.scss:483 already renders
     list-unstyled in --bs-danger.
 
-% comment %}
-    c-errors — "this form was rejected as a whole."
-
-        c-errors :form="form"
-        c-errors :form="form" class="mb-3"
-
-    Replaces the hand-rolled non-field-error alert blocks, and
-    allauth/elements/fields.html, which renders the same concept a third way.
-
-    (Elements are named CSS-selector style below; a literal angle-bracket tag in a
-    comment gets reflowed and flagged as an orphan by djlint's custom_html.)
-
-    THE GUARD IS INSIDE. It renders nothing when the form is clean, so it is safe —
-    and intended — to place unconditionally at the top of every form. That is the
-    structural half of the #2001 "hidden form errors" fix: the bug class is a
-    hand-rolled block that forgets the error branch, and it cannot happen here
-    because the call site has no branch to forget.
-
-    It also surfaces errors attached to HIDDEN fields, which today render NOWHERE.
-    A form can fail validation on a hidden return_url / list_id / step and the page
-    comes back with no message at all.
-
-    NOT A DROP-IN FOR AN `{% templatetag openblock %} if form.errors {% templatetag closeblock %}` BLOCK. This component
-    renders non-field and hidden-field errors only. Two estate sites render their
-    widget bare and use a form.errors alert as their ONLY error surface:
-      - core/list_attribute_edit.html:24
-      - core/campaign/campaign_list_attribute_assign.html:19
-    They are byte-shaped like the blocks this replaces, so a mechanical pass will
-    try to convert them; doing so HIDES every field error and recreates #2001
-    exactly. Convert those two as a plain c-callout keeping the form.errors
-    accessor, or route their widget through c-field so field errors get their own
-    invalid-feedback block.
-
-    Props
-      form    A Form. MUST be passed dynamically as :form="form" — see below.
-      errors  Alternative for a pre-computed ErrorList, e.g. formset
-              non_form_errors.
-      class   Utilities on each alert. Defaults to EMPTY. The estate is not mb-3:
-              of the 11 blocks this replaces, 3 use mb-0, 2 use mb-last-0 mb-0, 2
-              use mb-last-0, 2 use nothing and only 2 use mb-3. Every mb-0 site
-              sits inside a form.vstack.gap-3, where a default margin would stack
-              with the gap and add dead space above the first field.
-
-    THE COLON IS LOAD-BEARING. Writing form="..." instead of :form="form"
-    stringifies the rendered form into the prop, every lookup then resolves to
-    nothing, and the component renders SILENTLY EMPTY — the same failure it exists
-    to prevent. So it is made loud two ways: an HTML comment marker is emitted
-    below (caught by the no-misuse smoke test, testPlan T10), and
-    scripts/check_cotton.sh fails the build on a colon-less form= at any c-errors
-    call site.
-
-    `form` and `errors` are declared in c-vars deliberately — that strips them from
-    {{ attrs }}. Were `form` undeclared, cotton would render the whole Form object
-    into the tag as an attribute value.
-
-    form.non_field_errors emits ul.errorlist, which styles.scss:483 already renders
-    list-unstyled in --bs-danger.
-
 {% endcomment %}
 <c-vars form="" errors="" class="" />
 {% if form and not form.fields %}
