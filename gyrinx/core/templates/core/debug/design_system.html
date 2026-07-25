@@ -743,7 +743,7 @@
             </div>
             <h3 class="h6 caps-label mb-2">Section header bar (several actions)</h3>
             <div class="mb-4">
-                <div class="bg-body-tertiary rounded px-2 py-2 d-flex justify-content-between align-items-center mb-2">
+                <div class="section-header mb-2">
                     <h2 class="h5 mb-0">Gangs</h2>
                     <div class="hstack gap-2 flex-wrap justify-content-end section-actions">
                         <span>
@@ -758,11 +758,13 @@
                     </div>
                 </div>
                 <div class="px-2">
-                    <p class="text-secondary fs-7 mb-0">
-                        Actions sit in a <code>hstack gap-2 section-actions</code> row, each wrapped in a
-                        <code>span</code> so <code>.section-actions</code> can put a <code>·</code> between them —
-                        the separators stay right when items are conditionally rendered. A link to a management
-                        page is <code>bi-pencil</code> plus the noun, not "Manage X →".
+                    <p class="text-secondary mb-0">
+                        Same <code>.section-header</code> as above — the bar does not change when a section grows
+                        from one action to several. Actions sit in a <code>hstack gap-2 section-actions</code> row,
+                        each wrapped in a <code>span</code> so <code>.section-actions</code> can put a
+                        <code>·</code> between them; the separators stay right when items are conditionally
+                        rendered. A link to a management page is <code>bi-pencil</code> plus the noun, not
+                        "Manage X →".
                     </p>
                 </div>
             </div>
