@@ -114,10 +114,6 @@
     form.non_field_errors emits ul.errorlist, which styles.scss:483 already renders
     list-unstyled in --bs-danger.
 
-    DUPLICATE TO COLLAPSE BEFORE MERGE: cotton/form/errors.html is the same
-    component under the form namespace. Exactly one must survive. Recommend keeping
-    the c-form.errors name (form errors are a form concern) and deleting this file,
-    or vice versa — but not both.
 {% endcomment %}
 <c-vars form="" errors="" class="" />
 {% if form and not form.fields %}

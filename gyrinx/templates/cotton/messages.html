@@ -41,7 +41,7 @@
 {% if messages %}
     <div>
         {% for message in messages %}
-            <c-callout variant="{% firstof variants|get_item:message.level_tag "info" %}"
+            <c-callout variant="{% firstof variants|get_item:message.level_tag 'info' %}"
                        dismissible>{{ message }}</c-callout>
         {% endfor %}
     </div>
