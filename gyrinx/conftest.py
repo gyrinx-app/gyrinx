@@ -83,6 +83,66 @@ def warm_contenttype_cache(django_db_setup, django_db_blocker):
         ContentType.objects.get_for_model(ContentModFighterStat)
 
 
+# Stats that every real environment is guaranteed to have, because data
+# migration content.0148 creates them. Tests run with --nomigrations, so data
+# migrations never execute and the test database would otherwise have no
+# ContentStat rows at all — mod formatting would then be driven by absent
+# configuration rather than by the definitions production actually holds.
+#
+# field_name -> (short_name, full_name, inverted, inches, modifier, target)
+CANONICAL_CONTENT_STATS = {
+    "accuracy_long": ("L", "Long Accuracy", False, False, True, False),
+    "accuracy_short": ("S", "Short Accuracy", False, False, True, False),
+    "ammo": ("Am", "Ammo", True, False, False, True),
+    "armour_piercing": ("AP", "Armour Piercing", True, False, True, False),
+    "ballistic_skill": ("BS", "Ballistic Skill", True, False, False, True),
+    "cool": ("Cl", "Cool", True, False, False, True),
+    "handling": ("Hnd", "Handling", True, False, False, True),
+    "initiative": ("I", "Initiative", True, False, False, True),
+    "intelligence": ("Int", "Intelligence", True, False, False, True),
+    "leadership": ("Ld", "Leadership", True, False, False, True),
+    "movement": ("M", "Movement", False, True, False, False),
+    "range_long": ("L", "Long Range", False, True, False, False),
+    "range_short": ("S", "Short Range", False, True, False, False),
+    "save": ("Sv", "Save", True, False, False, True),
+    "weapon_skill": ("WS", "Weapon Skill", True, False, False, True),
+    "willpower": ("Wil", "Willpower", True, False, False, True),
+}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def content_stat_definitions(django_db_setup, django_db_blocker):
+    """Seed the ContentStat rows that migration content.0148 guarantees.
+
+    Stat classification (inverted / inches / modifier / target) is read from
+    ContentStat when a modification is applied. Without these rows every stat
+    would look unconfigured, so tests would exercise a code path that no real
+    environment reaches. Tests needing stats beyond this set create their own.
+    """
+    with django_db_blocker.unblock():
+        from gyrinx.content.models.statline import ContentStat
+
+        for field_name, (
+            short_name,
+            full_name,
+            is_inverted,
+            is_inches,
+            is_modifier,
+            is_target,
+        ) in CANONICAL_CONTENT_STATS.items():
+            ContentStat.objects.get_or_create(
+                field_name=field_name,
+                defaults={
+                    "short_name": short_name,
+                    "full_name": full_name,
+                    "is_inverted": is_inverted,
+                    "is_inches": is_inches,
+                    "is_modifier": is_modifier,
+                    "is_target": is_target,
+                },
+            )
+
+
 @pytest.fixture(scope="session")
 def content_books(django_db_setup, django_db_blocker):
     """Create ContentBook objects needed for tests."""

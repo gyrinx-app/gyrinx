@@ -14,13 +14,13 @@ def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) 
     In development, logs as JSON string to console.
 
     Args:
-        event: Event name (e.g. 'stat_config_fallback_used')
+        event: Event name (e.g. 'list_action_apply_succeeded')
         n: Count increment (default=1)
         value: Optional numeric value (e.g. for distributions)
         **labels: Arbitrary key=value metadata
 
     Example:
-        track("stat_config_fallback_used", stat_name="ammo", model_type="ContentModStatApply")
+        track("list_action_apply_succeeded", action_type="advancement", list_id=str(pk))
     """
     payload = {
         "event": event,
