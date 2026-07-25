@@ -155,7 +155,7 @@ provision_worktree_venv() {
   if ! command -v uv >/dev/null 2>&1; then
     echo "[gyrinx] uv not on PATH; cannot auto-provision ${venv}." >&2
     echo "[gyrinx] Install uv (https://docs.astral.sh/uv/) then re-run, or:" >&2
-    echo "[gyrinx]   cd ${wt_root} && UV_PROJECT_ENVIRONMENT=${venv} uv sync --locked" >&2
+    echo "[gyrinx]   cd '${wt_root}' && UV_PROJECT_ENVIRONMENT='${venv}' uv sync --locked" >&2
     return 1
   fi
   echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
