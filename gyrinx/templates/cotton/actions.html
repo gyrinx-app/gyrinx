@@ -40,10 +40,10 @@
 {% endcomment %}<c-vars row="" colspan="9" lead="" arrow="" class="" />{% if row %}<tr>
     <td colspan="{{ colspan }}" class="text-end">
         <div class="d-flex flex-wrap{% if class %} {{ class }}{% endif %}">
-            {% if arrow != "none" %}<i class="bi-arrow-90deg-up text-secondary me-1"></i>{% endif %}
+            {% if arrow != "none" %}<i class="bi-arrow-90deg-up text-secondary me-1" aria-hidden="true"></i>{% endif %}
             {{ slot }}
         </div>
     </td>
 </tr>{% else %}{% if lead != "none" %}<br>{% endif %}
-{% if arrow != "none" %}<i class="bi-arrow-90deg-up text-secondary me-1"></i>{% endif %}
+{% if arrow != "none" %}<i class="bi-arrow-90deg-up text-secondary me-1" aria-hidden="true"></i>{% endif %}
 {{ slot }}{% endif %}

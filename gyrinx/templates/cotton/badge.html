@@ -98,4 +98,12 @@
     djlint:off guards the whole file. Without it djlint parses the component
     names in this comment as real tags and reflows the prose around them, and
     it moves the slot onto its own line, padding the inside of every badge.
+
+    `get_item` needs no {% load %}: it is one of two filters django-cotton itself
+    injects as a template builtin (with `merge`). Note the project ALSO defines a
+    `get_item` in custom_tags — this resolves to cotton's, since a builtin applies
+    unless a template loads a library that overrides it. They agree on every dict
+    lookup, including a missing key; they differ only when the subject is None,
+    where cotton's raises and ours returns None. The subject here is always the
+    dict literal declared in <c-vars> above, so that difference is unreachable.
 {% endcomment %}<c-vars variant="secondary" state="" pill="" href="" tag="span" title="" tooltip="" class="" :state_variants="{'active': 'success', 'recovery': 'warning', 'convalescence': 'warning', 'in_repair': 'warning', 'injured': 'warning', 'captured': 'warning', 'sold_to_guilders': 'secondary', 'sold': 'secondary', 'archived': 'secondary', 'dead': 'danger', 'draft': 'secondary', 'locked': 'success', 'pre_battle': 'secondary', 'in_progress': 'success', 'post_battle': 'secondary', 'pre_campaign': 'secondary', 'post_campaign': 'secondary'}" />{% firstof state_variants|get_item:state variant "secondary" as tone %}{% if href|slice:":1" == "/" and href|slice:":2" != "//" %}{% firstof href as link %}{% else %}{% firstof "" as link %}{% endif %}<{% if link %}a href="{{ link }}"{% elif tag == "div" %}div{% else %}span{% endif %} class="badge{% if pill %} rounded-pill{% endif %} {% if tone == "ghost" %}text-body border fw-normal{% else %}text-bg-{{ tone }}{% endif %}{% if link %} text-decoration-none{% endif %}{% if class %} {{ class }}{% endif %}"{% if tooltip %} title="{{ tooltip }}" data-bs-toggle="tooltip"{% elif title %} title="{{ title }}"{% endif %}{% if attrs.attrs_dict %} {{ attrs }}{% endif %}>{{ slot }}</{% if link %}a{% elif tag == "div" %}div{% else %}span{% endif %}>

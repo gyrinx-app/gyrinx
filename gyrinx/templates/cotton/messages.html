@@ -28,6 +28,14 @@
 
     Renders nothing at all — wrapper div included — when there are no messages,
     matching the live {% templatetag openblock %} if messages {% templatetag closeblock %} guard.
+
+    `get_item` needs no {% load %}: it is one of two filters django-cotton itself
+    injects as a template builtin (with `merge`). Note the project ALSO defines a
+    `get_item` in custom_tags — this resolves to cotton's, since a builtin applies
+    unless a template loads a library that overrides it. They agree on every dict
+    lookup, including a missing key; they differ only when the subject is None,
+    where cotton's raises and ours returns None. The subject here is always the
+    dict literal declared in <c-vars> above, so that difference is unreachable.
 {% endcomment %}
 <c-vars :variants="{'debug': 'secondary', 'info': 'info', 'success': 'success', 'warning': 'warning', 'error': 'danger'}" />
 {% if messages %}

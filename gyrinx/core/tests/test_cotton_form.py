@@ -877,3 +877,27 @@ def test_steps_computes_bar_width():
 def test_steps_subtitle_is_optional():
     out = component('<c-steps step="1" total="2" title="T" subtitle="S" />')
     assert '<h2 class="h5 mb-0">S</h2>' in out
+
+
+def test_strip_filter_escapes_unsafe_input_and_preserves_safe_input():
+    """The filter propagates safeness; it never confers it.
+
+    It is deliberately not registered `is_safe=True` — that flag also only
+    propagates, so carrying both invited the reading that unsafe input skipped
+    escaping. This pins the actual contract: a plain str (a `class` prop holding
+    user text, say) is escaped by the engine as normal; only already-safe slot
+    output passes through untouched.
+    """
+    from django.utils.html import conditional_escape
+    from django.utils.safestring import mark_safe
+
+    from gyrinx.core.templatetags.custom_tags import strip_filter
+
+    # The defence is escaping the QUOTES: with those gone the payload cannot
+    # terminate the attribute it is sitting in, so the words surviving as text is
+    # expected and harmless.
+    hostile = '" onmouseover=alert(1) x="'
+    escaped = conditional_escape(strip_filter(f"  {hostile}  "))
+    assert '"' not in escaped
+    assert "&quot;" in escaped
+    assert conditional_escape(strip_filter(mark_safe('  a="b"  '))) == 'a="b"'

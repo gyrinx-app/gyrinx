@@ -56,7 +56,7 @@
 {% endcomment %}{% load custom_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><nav aria-label="breadcrumb"{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}>
     <ol class="breadcrumb{% if class %} {{ class }}{% endif %}">
         <li class="breadcrumb-item active">
-            <i class="bi-chevron-left"></i>
+            <i class="bi-chevron-left" aria-hidden="true"></i>
             <a href="{% if url %}{{ url }}{% elif return_url %}{{ return_url }}{% else %}{% safe_referer "/" %}{% endif %}">{% if text %}{{ text }}{% else %}Back{% endif %}</a>
         </li>
     </ol>

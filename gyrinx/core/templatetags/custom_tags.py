@@ -761,7 +761,7 @@ def is_campaign_admin(campaign, user):
     return campaign is not None and campaign.is_admin(user)
 
 
-@register.filter(name="strip", is_safe=True)
+@register.filter(name="strip")
 def strip_filter(value):
     """Trim leading/trailing whitespace from rendered slot content.
 
@@ -777,7 +777,11 @@ def strip_filter(value):
     leading and trailing whitespace inside the box; a bare <a> is not.
 
     Preserves safety: slot content is already-rendered, escaped HTML, so this
-    re-marks it safe rather than escaping it a second time.
+    re-marks it safe rather than escaping it a second time. A plain str input --
+    a `class` prop carrying user text, say -- is returned unmarked and the engine
+    escapes it as usual. Deliberately NOT registered `is_safe=True`: that flag
+    only propagates safeness, which the isinstance check below already does, so
+    carrying it as well just invited the question of whether it skipped escaping.
     """
     if value is None:
         return ""
