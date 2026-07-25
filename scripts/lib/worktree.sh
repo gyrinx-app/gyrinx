@@ -154,12 +154,12 @@ provision_worktree_venv() {
   fi
   if ! command -v uv >/dev/null 2>&1; then
     echo "[gyrinx] uv not on PATH; cannot auto-provision ${venv}." >&2
-    echo "[gyrinx] Install uv or create the venv manually:" >&2
-    echo "[gyrinx]   python -m venv ${venv} && ${venv}/bin/pip install --editable ${wt_root}" >&2
+    echo "[gyrinx] Install uv (https://docs.astral.sh/uv/) then re-run, or:" >&2
+    echo "[gyrinx]   cd ${wt_root} && UV_PROJECT_ENVIRONMENT=${venv} uv sync --locked" >&2
     return 1
   fi
   echo "[gyrinx] Provisioning per-worktree venv at ${venv} (~1 min)..." >&2
-  # If provisioning fails after `uv venv` has created the directory, remove
+  # If provisioning fails after `uv sync` has created the directory, remove
   # the partial venv before returning — otherwise the next call sees the
   # directory, skips provisioning, and activation puts a half-built venv on
   # PATH (no editable install, broken imports).

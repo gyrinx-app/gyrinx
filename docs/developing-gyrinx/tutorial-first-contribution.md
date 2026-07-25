@@ -32,7 +32,7 @@ git clone git@github.com:gyrinx-app/gyrinx.git
 cd gyrinx
 
 # Create the virtual environment and install dependencies from uv.lock
-uv sync
+uv sync --locked
 . .venv/bin/activate
 
 # Set up environment variables

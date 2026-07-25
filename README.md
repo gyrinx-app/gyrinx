@@ -34,7 +34,7 @@ Before getting started, you'll need:
 git clone git@github.com:gyrinx-app/gyrinx.git && cd gyrinx
 
 # Set up Python environment (creates .venv and installs the locked dependencies)
-uv sync
+uv sync --locked
 . .venv/bin/activate
 
 # Configure the application
@@ -88,7 +88,7 @@ The Quick Start above gets you running fast. For more detailed steps:
 3. Create the virtual environment and install dependencies:
 
     ```bash
-    uv sync && . .venv/bin/activate
+    uv sync --locked && . .venv/bin/activate
     ```
 
     `uv sync` creates `.venv`, installs the exact versions pinned in `uv.lock`,
@@ -120,7 +120,7 @@ The Quick Start above gets you running fast. For more detailed steps:
 
 6. Next, set up the frontend toolchain:
 
-    Get `nodeenv` (installed by `pip` earlier) to install
+    Get `nodeenv` (installed by `uv sync` earlier) to install
     [node](https://nodejs.org/en) and [npm](https://www.npmjs.com/) in the
     virtual env.
 
@@ -152,7 +152,8 @@ The Quick Start above gets you running fast. For more detailed steps:
 
     Before making any changes, make sure you've got pre-commit hooks installed.
 
-    `pre-commit` is installed by pip.
+    `pre-commit` is one of the locked dependencies, so `uv sync` already
+    installed it.
 
     ```bash
     pre-commit install

@@ -78,11 +78,11 @@ which is the source of truth for what actually gets installed. Everything — th
 production image, CI, and local worktrees — installs with `uv sync --locked`.
 
 ```bash
-uv sync                  # install exactly what uv.lock pins (creates .venv)
+uv sync --locked         # install exactly what uv.lock pins (creates .venv)
 uv add  <package>        # add a dependency: updates pyproject.toml and uv.lock
 uv remove <package>      # remove one
 uv lock --upgrade        # refresh every pin to the latest allowed version
-uv lock --check          # assert the lock matches pyproject.toml (CI does this)
+uv lock --check          # assert the lock matches pyproject.toml
 ```
 
 Never hand-edit `uv.lock`. Never `pip install` into the venv — the next
