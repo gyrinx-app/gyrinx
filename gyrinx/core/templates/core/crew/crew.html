@@ -130,35 +130,35 @@
         <div class="table-responsive">
             <table class="table table-sm table-borderless align-middle mb-0">
                 <thead>
-                    <tr class="border-bottom">
-                        <th></th>
-                        <th class="caps-label text-end">Fighters &amp; Stash</th>
-                        <th class="caps-label text-end">Spending</th>
-                        <th class="caps-label text-end">Balancing</th>
-                        {% if receipt.has_free %}<th class="caps-label text-end">Free</th>{% endif %}
-                    </tr>
-                </thead>
-                <tbody>
                     <tr>
-                        <td colspan="{% if receipt.has_free %}5{% else %}4{% endif %}">
-                            {% comment %}
-                            Actions sit beside the section title, not pushed to the
-                            right, where they would line up under the rating columns
-                            and read as belonging to them.
-                            {% endcomment %}
+                        {% comment %}
+                        The Fighters heading and its actions share the header row
+                        rather than opening the body with a section row of their
+                        own — that row put a rule across the whole table before a
+                        single figure had been shown. Actions sit beside the title,
+                        not pushed right, where they would line up under the rating
+                        columns and read as belonging to them.
+                        {% endcomment %}
+                        <th>
                             <div class="d-flex flex-wrap align-items-center gap-3">
                                 <span class="caps-label">Fighters</span>
                                 {% if can_manage and not crew.is_locked %}
                                     {% if can_edit_loadouts %}
                                         <a href="{% url 'core:crew-loadouts' battle.id crew.id %}"
-                                           class="icon-link linked fs-7"><i class="bi-bag"></i> Edit loadouts</a>
+                                           class="icon-link linked fs-7 fw-normal"><i class="bi-bag"></i> Edit loadouts</a>
                                     {% endif %}
                                     <a href="{% url 'core:crew-edit' battle.id crew.id %}"
-                                       class="icon-link linked fs-7"><i class="bi-pencil"></i> Edit choices</a>
+                                       class="icon-link linked fs-7 fw-normal"><i class="bi-pencil"></i> Edit choices</a>
                                 {% endif %}
                             </div>
-                        </td>
+                        </th>
+                        <th class="caps-label text-end align-bottom">Fighters &amp; Stash</th>
+                        <th class="caps-label text-end align-bottom">Spending</th>
+                        <th class="caps-label text-end align-bottom">Balancing</th>
+                        {% if receipt.has_free %}<th class="caps-label text-end align-bottom">Free</th>{% endif %}
                     </tr>
+                </thead>
+                <tbody>
                     {% for a in receipt.attendees %}
                         <tr>
                             <td>
@@ -428,16 +428,15 @@
                         {% endif %}
                     {% endif %}
                     {% comment %}
-                    The two figures the battle page ranks crews on, on their own
-                    dividers so they read as a distinct pair rather than more
-                    per-column subtotals.
+                    The figure the battle page ranks crews on, sitting in the
+                    column its last contribution lands in — under Spending,
+                    because it is Fighters & Stash + Spending — so it reads as a
+                    running total of the columns above rather than a number
+                    pinned to the right edge. A pending draw has no known
+                    rating, matching the Total below.
 
-                    Each sits in the column its last contribution lands in —
-                    before balancing under Spending (Fighters & Stash +
-                    Spending), after balancing under Balancing — so the pair
-                    reads as a running total across the columns above rather
-                    than two numbers pinned to the right edge. A pending draw
-                    has no known rating, matching the Total below.
+                    There is no matching "after balancing" row: the Total below
+                    already carries that number.
                     {% endcomment %}
                     <tr class="border-top">
                         <td class="text-secondary">Rating before balancing</td>
@@ -455,24 +454,8 @@
                         <td></td>
                         {% if receipt.has_free %}<td></td>{% endif %}
                     </tr>
-                    <tr>
-                        <td class="text-secondary">Rating after balancing</td>
-                        <td></td>
-                        <td></td>
-                        <td class="text-end">
-                            {% if receipt.pending_roll %}
-                                <span bs-tooltip
-                                      data-bs-toggle="tooltip"
-                                      title="Unknown until you roll for selection">?</span>
-                            {% else %}
-                                {{ rating_after }}¢
-                                {% if rating_provisional %}<span class="fs-7 text-secondary">provisional</span>{% endif %}
-                            {% endif %}
-                        </td>
-                        {% if receipt.has_free %}<td></td>{% endif %}
-                    </tr>
                     <tr class="border-top fs-5 fw-semibold">
-                        <td>Total</td>
+                        <td>Total (after balancing)</td>
                         <td class="text-end"
                             colspan="{% if receipt.has_free %}4{% else %}3{% endif %}">
                             {% if projection %}

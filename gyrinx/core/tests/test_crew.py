@@ -5650,7 +5650,8 @@ def test_draft_crew_page_offers_the_add_extra_link(client, crew_setup):
 @pytest.mark.django_db
 def test_crew_sheet_shows_the_ratings_the_battle_page_compares(client, crew_setup):
     """The crew sheet spells out both battle-page figures, so a player can see
-    where that screen's number comes from."""
+    where that screen's number comes from: the pre-balancing rating on its own
+    row, the post-balancing one as the sheet's total."""
     crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:2])
     _extra(crew, crew_setup["user"], "Tactics card", 40, Crew.PAY_CREDITS)
     _extra(crew, crew_setup["user"], "Underdog hire", 150, Crew.PAY_ALLOWANCE)
@@ -5658,15 +5659,18 @@ def test_crew_sheet_shows_the_ratings_the_battle_page_compares(client, crew_setu
     client.force_login(crew_setup["user"])
     resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
 
-    # 200 fighters + 40 spending; balancing lands only on the second figure.
+    # 200 fighters + 40 spending; balancing lands only on the total.
     assert resp.context["rating_before"] == 240
-    assert resp.context["rating_after"] == 390
-    # The same numbers the battle page ranks on.
+    assert resp.context["receipt"]["total"] == 390
+    assert crew.rating_after_balancing() == 390
+    # The same number the battle page ranks on.
     assert crew_spread_rating(crew)[0] == resp.context["rating_before"]
 
     body = resp.content.decode()
     assert "Rating before balancing" in body
-    assert "Rating after balancing" in body
+    assert "Total (after balancing)" in body
+    # The redundant second rating row is gone — the total carries that figure.
+    assert "Rating after balancing" not in body
 
 
 @pytest.mark.django_db

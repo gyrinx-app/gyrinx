@@ -311,17 +311,16 @@ def crew_detail(request, battle_id, crew_id):
     # crew, or one still pending its draw) or this crew is the top.
     rating_gap = crew_battle_spread(crew)
 
-    # The two figures the battle page compares crews on, shown here so a player
-    # can see where the number on that screen comes from. Taken from the same
-    # helper it uses, so the two can't disagree; None while a draw is pending.
+    # The pre-balancing figure the battle page ranks crews on, shown here so a
+    # player can see where the number on that screen comes from. Taken from the
+    # same helper it uses, so the two can't disagree; None while a draw is
+    # pending. The post-balancing figure needs no variable of its own — the
+    # sheet's total already carries it.
     #
     # The receipt above already loaded the brought stash — a full equipment
     # prefetch chain — so hand that total over rather than letting the helper
-    # walk it a second time. The allowance likewise comes off the receipt.
+    # walk it a second time.
     rating_before, rating_provisional = crew_spread_rating(crew, receipt["stash_total"])
-    rating_after = (
-        None if rating_before is None else rating_before + receipt["allowance_total"]
-    )
 
     return render(
         request,
@@ -341,7 +340,6 @@ def crew_detail(request, battle_id, crew_id):
             "can_edit_loadouts": bool(projection and can_manage),
             "rating_gap": rating_gap,
             "rating_before": rating_before,
-            "rating_after": rating_after,
             "rating_provisional": rating_provisional,
         },
     )
