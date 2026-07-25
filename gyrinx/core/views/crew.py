@@ -314,9 +314,14 @@ def crew_detail(request, battle_id, crew_id):
     # The two figures the battle page compares crews on, shown here so a player
     # can see where the number on that screen comes from. Taken from the same
     # helper it uses, so the two can't disagree; None while a draw is pending.
-    rating_before, rating_provisional = crew_spread_rating(crew)
-    balancing_total = crew.balancing_total()
-    rating_after = None if rating_before is None else rating_before + balancing_total
+    #
+    # The receipt above already loaded the brought stash — a full equipment
+    # prefetch chain — so hand that total over rather than letting the helper
+    # walk it a second time. The allowance likewise comes off the receipt.
+    rating_before, rating_provisional = crew_spread_rating(crew, receipt["stash_total"])
+    rating_after = (
+        None if rating_before is None else rating_before + receipt["allowance_total"]
+    )
 
     return render(
         request,

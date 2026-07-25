@@ -5504,7 +5504,7 @@ def test_crew_stash_totals_is_batched_across_crews(
     crew_setup, make_list, make_list_fighter, make_equipment
 ):
     """Costing a crew's stash means loading its assignments with the full
-    equipment prefetch chain — ~70 queries. Asked crew by crew that multiplies
+    equipment prefetch chain. Asked crew by crew that multiplies
     by the number of crews on a battle page, so the totals are loaded together:
     five crews must cost what one does, not five times it.
     """
@@ -5681,3 +5681,39 @@ def test_locked_badge_says_membership_locked(client, crew_setup):
         reverse("core:crew", args=[crew.battle_id, crew.id])
     ).content.decode()
     assert "Membership locked" in body
+
+
+@pytest.mark.django_db
+def test_crew_page_loads_the_brought_stash_once(
+    client, crew_setup, make_equipment, monkeypatch
+):
+    """The sheet's receipt and its before/after rating figures both need the
+    brought-stash total, and loading it pays a full equipment prefetch chain.
+    The rating figures take the receipt's total rather than walking it again."""
+    _, gear = _stash_with_gear(crew_setup, make_equipment)
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    handle_crew_stash_save(
+        user=crew_setup["user"],
+        crew=crew,
+        assignment_ids={gear["Ammo Cache"].id},
+    )
+
+    calls = []
+    original = Crew.stash_rows
+
+    def counting(self):
+        calls.append(self.id)
+        return original(self)
+
+    monkeypatch.setattr(Crew, "stash_rows", counting)
+
+    client.force_login(crew_setup["user"])
+    assert (
+        client.get(reverse("core:crew", args=[crew.battle_id, crew.id])).status_code
+        == 200
+    )
+
+    assert calls.count(crew.id) == 1, (
+        f"the crew page walked its stash {calls.count(crew.id)} times — "
+        "the rating figures should reuse the receipt's total"
+    )

@@ -493,10 +493,11 @@ def crew_stash_totals(crews) -> dict:
     one batched assignment load.
 
     :meth:`Crew.stash_rows` is built for the Stash tab: it pays a full
-    ``with_related_data()`` prefetch chain (~70 queries) to render complete
-    rows. Asking every crew on a battle page for its own total multiplies that
-    by the number of crews. An assignment's cost is composed from its profiles,
-    accessories and upgrades, so there is no cheap aggregate to fall back on —
+    ``with_related_data()`` prefetch chain — a dozen queries or more, growing
+    with the gang's stash — to render complete rows. Asking every crew on a
+    battle page for its own total multiplies that by the number of crews. An
+    assignment's cost is composed from its profiles, accessories and upgrades,
+    so there is no cheap aggregate to fall back on —
     but the chain costs the same whether it loads one crew's assignments or
     every crew's, so loading them together is the whole saving.
 

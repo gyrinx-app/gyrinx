@@ -139,8 +139,8 @@ class BattleDetailView(generic.DetailView):
             .prefetch_related("members", "line_items")
         )
         # Every crew's brought-stash total in one load. Left to themselves the
-        # crews would each pay a full equipment prefetch chain, which is ~70
-        # queries apiece on a page that shows one crew per gang.
+        # crews would each pay a full equipment prefetch chain — a dozen queries
+        # or more apiece, on a page that shows one crew per gang.
         stash_totals = crew_stash_totals(crews)
         crew_by_gang = {}
         for crew in crews:
