@@ -726,11 +726,7 @@ class Crew(AppBase):
         stash = self.list.stash_fighter
         if stash is None:
             return []
-        # .all() rather than .values_list(): it reads a caller's
-        # prefetch_related("stash_items") cache when there is one (the battle
-        # page asks every crew for this), and costs the same single query when
-        # there isn't. values_list() would bypass the cache and always query.
-        brought_ids = {item.assignment_id for item in self.stash_items.all()}
+        brought_ids = set(self.stash_items.values_list("assignment_id", flat=True))
         rows = []
         assignments = (
             ListFighterEquipmentAssignment.objects.filter(

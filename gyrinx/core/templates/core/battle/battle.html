@@ -195,6 +195,15 @@
                                                                 <span bs-tooltip
                                                                       data-bs-toggle="tooltip"
                                                                       title="Unknown until the crew is rolled for selection">?</span>
+                                                            {% elif p.crew.is_forecast %}
+                                                                {% comment %}
+                                                                Derived from the same forecast as the
+                                                                pre-balancing figure, so it carries the same
+                                                                caveat — unmarked it would read as settled.
+                                                                {% endcomment %}
+                                                                <span bs-tooltip
+                                                                      data-bs-toggle="tooltip"
+                                                                      title="The whole gang takes part, so this forecasts who would attend. It resolves when the crew is confirmed.">{% credits p.crew.rating_after %}<span class="text-secondary fs-7 ms-1">provisional</span></span>
                                                             {% else %}
                                                                 {% credits p.crew.rating_after %}
                                                             {% endif %}

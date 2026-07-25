@@ -5553,3 +5553,37 @@ def test_crew_stash_totals_ignores_cards_picked_as_fighters(
     )
 
     assert crew_stash_totals([crew]) == {crew.id: 0}
+
+
+@pytest.mark.django_db
+def test_battle_page_marks_a_forecast_provisional_in_both_columns(
+    client, crew_setup, make_list, make_list_fighter
+):
+    """A whole-gang draft's rating is a forecast on both sides of balancing —
+    the post-balancing figure is derived from it, so leaving that one unmarked
+    would read as settled."""
+    riot = crew_setup["gang"]
+    iron, iron_fighters = _spread_gang(
+        crew_setup, make_list, make_list_fighter, "Iron Skulls", 2
+    )
+    crew_setup["battle"].set_participants([riot, iron])
+    forecast = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=riot,
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    _locked_crew(crew_setup, iron, iron_fighters[:2])
+    assert forecast.is_whole_gang
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    crew_row = {
+        p["list"].id: p["crew"]
+        for group in resp.context["participant_groups"]
+        for p in group["participants"]
+    }[riot.id]
+
+    assert crew_row["is_forecast"] is True
+    # Once for the pre-balancing rating, once for the post-balancing one.
+    assert resp.content.decode().count(">provisional</span>") == 2

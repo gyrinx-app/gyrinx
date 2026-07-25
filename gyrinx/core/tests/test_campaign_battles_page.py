@@ -67,3 +67,46 @@ def test_campaign_battles_page_empty_state(client, user, campaign):
     resp = client.get(reverse("core:campaign-battles", args=[campaign.id]))
     assert resp.status_code == 200
     assert "No battles have been recorded" in resp.content.decode()
+
+
+@pytest.mark.django_db
+def test_battle_card_separates_gang_names_without_a_leading_space(
+    client, user, campaign, make_list
+):
+    """The names sat on their own template lines, so the newline rendered as a
+    space and the list read "Gang A , Gang B"."""
+    client.force_login(user)
+    first = make_list("Gang A")
+    second = make_list("Gang B")
+    campaign.lists.add(first, second)
+    battle = Battle.objects.create(campaign=campaign, mission="Mission", owner=user)
+    battle.set_participants([first, second])
+
+    content = client.get(
+        reverse("core:campaign-battles", args=[campaign.id])
+    ).content.decode()
+
+    assert "<span>Gang A</span><span>,&nbsp;</span><span>Gang B</span>" in content
+    assert "Gang A ," not in content
+
+
+@pytest.mark.django_db
+def test_battle_card_announces_the_winner_to_screen_readers(
+    client, user, campaign, make_list
+):
+    """The trophy is the only winner marker on this card and carries no tooltip,
+    so it must be decorative with the state spelled out beside it."""
+    client.force_login(user)
+    winner = make_list("Gang A")
+    loser = make_list("Gang B")
+    campaign.lists.add(winner, loser)
+    battle = Battle.objects.create(campaign=campaign, mission="Mission", owner=user)
+    battle.set_participants([winner, loser])
+    battle.winners.set([winner])
+
+    content = client.get(
+        reverse("core:campaign-battles", args=[campaign.id])
+    ).content.decode()
+
+    assert '<i class="bi-trophy-fill text-warning" aria-hidden="true"></i>' in content
+    assert '<span class="visually-hidden">(winner)</span>' in content
