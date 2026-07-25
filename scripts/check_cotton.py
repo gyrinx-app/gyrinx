@@ -106,7 +106,12 @@ def main():
                 problems.append(
                     f"{rel}:{line}: conditional attribute inside <c-{name}> -- cotton emits "
                     f"raw template source and drops the attribute.\n"
-                    f'    Fix: declare it as a prop (:open="expr"), or leave the element raw HTML.'
+                    # Plain strings, not f-strings: the example contains {% %}.
+                    "    Fix: put it in a quoted value "
+                    '(disabled="{% if cond %}1{% endif %}"), or pass a declared '
+                    'prop as a BARE dotted path (:field="form.x") -- an expression '
+                    "in a :prop resolves to nothing. Otherwise leave the element "
+                    "raw HTML."
                 )
 
             # 2. dynamic attr that the component does not declare
