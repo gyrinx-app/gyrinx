@@ -96,7 +96,9 @@ echo "uv: $(uv --version)"
 # ---------------------------------------------------------------------------
 echo "--- [4/9] Setting up Python environment ---"
 # `uv sync` creates .venv if needed and installs exactly what uv.lock pins.
-uv sync --locked
+# UV_PROJECT_ENVIRONMENT is pinned because the next line sources ./.venv — an
+# inherited value would sync a different environment and leave this broken.
+UV_PROJECT_ENVIRONMENT=.venv uv sync --locked
 # shellcheck disable=SC1091
 source .venv/bin/activate
 echo "Python $(python --version) — packages installed"

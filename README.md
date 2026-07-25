@@ -20,7 +20,7 @@ and development guides.
 Before getting started, you'll need:
 
 - **Python 3.12+** - Use [pyenv](https://github.com/pyenv/pyenv) to manage versions
-- **[uv](https://docs.astral.sh/uv/) 0.11+** - Manages the Python environment and dependencies.
+- **[uv](https://docs.astral.sh/uv/) 0.11.12+** - Manages the Python environment and dependencies.
   Install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **macOS with Homebrew** - The local dev scripts (`setup-local-postgres.sh`, `dev.sh`) are
   macOS-only. Linux contributors will need to set up PostgreSQL 16 manually and start it
