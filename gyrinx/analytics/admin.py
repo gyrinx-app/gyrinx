@@ -17,8 +17,15 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class AnalyticsAdminSite(admin.AdminSite):
-    """Custom admin site with analytics dashboard"""
+class AnalyticsAdminSite(admin.site.__class__):
+    """Custom admin site with analytics dashboard.
+
+    Extends whatever class ``admin.site`` is currently using rather than
+    ``admin.AdminSite`` directly, so it composes with the site installed by
+    ``gyrinx.admin_site`` (which routes admin login through allauth) instead of
+    replacing it. ``gyrinx.maintenance`` then stacks on top of this — see
+    ``gyrinx/maintenance/admin.py``.
+    """
 
     def get_urls(self):
         urls = super().get_urls()

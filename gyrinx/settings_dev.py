@@ -49,6 +49,13 @@ if "runserver" in sys.argv and not _UNDER_PYTEST:
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
 
+# The admin's 2FA gate follows DEBUG when ADMIN_REQUIRE_MFA is unset, which
+# leaves it off for the dev server. pytest-django forces DEBUG = False, though,
+# so without this the whole suite would run with the gate on. Tests that cover it
+# use override_settings.
+if _UNDER_PYTEST and os.getenv("ADMIN_REQUIRE_MFA") is None:
+    ADMIN_REQUIRE_MFA = False
+
 # Allow local hosts for development
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
