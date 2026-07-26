@@ -859,8 +859,22 @@ class Crew(AppBase):
         ]
 
     def extras_total(self):
-        """Total credits of the crew's extra line items (tactics cards, etc.)."""
+        """Total the crew's extras cost the gang, whatever the source."""
         return sum(item.cost for item in self.line_items.all())
+
+    def extras_rating(self, *, exclude_balancing=False):
+        """What the crew's extras add to its rating.
+
+        Rating and cost are separate facts: a free hired gun adds its full value
+        here while costing nothing, and a tactics card costs credits while
+        adding nothing. ``exclude_balancing`` drops the entries the allowance
+        paid for, which is what makes the pre-balancing figure pre-balancing.
+        """
+        return sum(
+            item.rating_value
+            for item in self.line_items.all()
+            if not (exclude_balancing and item.payment == self.PAY_ALLOWANCE)
+        )
 
     def spending_total(self):
         """What the gang paid out of its own pocket for this crew's extras — the
@@ -886,16 +900,21 @@ class Crew(AppBase):
         )
 
     def rating_before_balancing(self, stash_total=None):
-        """The crew's fundamental rating: its fighters and the stash gear it
-        brings, plus what the gang spent on extras.
+        """The crew's fundamental rating: its fighters, the stash gear it
+        brings, and what its extras are worth — before any allowance.
 
         This is the quantity dealt against the other crews in the battle to
         decide who is the underdog and what balancing they are owed, so it is
-        the figure the battle page compares. Balancing is deliberately *not* in
-        it: the allowance is compensation for the gap, so counting it would
-        shrink the very gap that earned it — a crew would be penalised for
-        having been behind. Free extras are excluded for the plainer reason that
-        they cost nobody anything.
+        the figure the battle page compares. Entries the allowance paid for are
+        deliberately *not* in it: the allowance is compensation for the gap, so
+        counting what it bought would shrink the very gap that earned it — a
+        crew would be penalised for having been behind.
+
+        Free entries ARE in it. They cost nothing, but what they add to the
+        table is real: "a Hired Gun increases the gang's Rating in the same way
+        as any other fighter", and the scenario comparison is on the credits
+        value of the fighters in the starting crew, not on what was paid for
+        them.
 
         ``stash_total`` lets a caller rating several crews at once pass in the
         figure from :func:`handlers.crew.crew_stash_totals`, which loads them in
@@ -903,15 +922,19 @@ class Crew(AppBase):
         """
         if stash_total is None:
             stash_total = self.stash_lines()["total"]
-        return self.rating() + stash_total + self.spending_total()
+        return self.rating() + stash_total + self.extras_rating(exclude_balancing=True)
 
     def rating_after_balancing(self, stash_total=None):
         """What the crew fields once its balancing allowance is counted.
 
         Compared against the other crews' post-balancing ratings, this shows
-        whether the balancing actually closed the gap it was granted for.
+        whether the balancing actually closed the gap it was granted for. Adds
+        what the allowance bought — its rating value, not the price paid, which
+        can differ.
         """
-        return self.rating_before_balancing(stash_total) + self.balancing_total()
+        if stash_total is None:
+            stash_total = self.stash_lines()["total"]
+        return self.rating() + stash_total + self.extras_rating()
 
     def credits_value(self):
         """The crew's fighter rating plus *every* extra line item and the stash
@@ -954,16 +977,16 @@ class Crew(AppBase):
 
         extras = []
         credits_total = allowance_total = 0
+        extras_rating_total = extras_rating_before = 0
         for item in self.line_items.all():
+            # Every entry shows what it adds to rating. What it *cost* goes in
+            # whichever payment column applies — a free entry shows an explicit
+            # 0¢ under Spending, which is the visible proof it was a gift.
             credits = allowance = None
             if item.payment == self.PAY_ALLOWANCE:
                 allowance = item.cost
                 allowance_total += item.cost
             elif item.payment == self.PAY_FREE:
-                # Free items sit in the Spending column at 0¢ rather than in a
-                # column of their own: what the gang paid for them *is* nothing,
-                # and a fourth column existed only to say so. Their own cost is
-                # still on the record (item.cost), it just buys no rating.
                 credits = 0
             else:
                 credits = item.cost
@@ -971,15 +994,21 @@ class Crew(AppBase):
             extras.append(
                 {
                     "item": item,
+                    "rating": item.rating_value,
                     "credits": credits,
                     "allowance": allowance,
                 }
             )
+            extras_rating_total += item.rating_value
+            if item.payment != self.PAY_ALLOWANCE:
+                extras_rating_before += item.rating_value
 
         stash = self.stash_lines()
-        # Free items add nothing, so this is exactly
-        # :meth:`rating_after_balancing` — which is what the sheet labels it.
-        total = fighters_total + credits_total + allowance_total + stash["total"]
+        # The Rating column: fighters, the stash they bring, and what every
+        # extra is worth. The payment columns are not added in — the entry's
+        # value is already here, and counting the price too would double it.
+        rating_total = fighters_total + stash["total"] + extras_rating_total
+        total = rating_total
         return {
             "attendees": attendees,
             "extras": extras,
@@ -993,6 +1022,13 @@ class Crew(AppBase):
             "fighters_total": fighters_total,
             "credits_total": credits_total,
             "allowance_total": allowance_total,
+            # What the extras add to rating, and the same excluding whatever the
+            # allowance paid for — the sheet's two rating figures.
+            "extras_rating_total": extras_rating_total,
+            "rating_total": rating_total,
+            "rating_before_balancing": fighters_total
+            + stash["total"]
+            + extras_rating_before,
             "total": total,
             # None when there's nothing to say; otherwise what was picked, what
             # the headline number is now, and whether they differ.
@@ -1111,9 +1147,20 @@ class CrewLineItem(AppBase):
     """A credit-consuming extra attached to a crew (or one of its members).
 
     Generic on purpose: a tactics card is a crew-level item; a hired gun is a
-    member plus a member-linked item. ``payment`` records where the credits come
-    from, and decides whether they are real: gang credits are taken when the
-    battle starts, while balancing and free entries are only ever recorded.
+    member plus a member-linked item.
+
+    TWO INDEPENDENT AMOUNTS, and conflating them is the bug this model exists to
+    avoid. ``rating_value`` is what the thing adds to the crew's rating;
+    ``cost`` is what the gang pays for it. A hired gun taken for free is worth
+    its full value on the table but costs nothing (Feigned Nobility, The Hand
+    That Feeds You, A Mysterious Stranger, Heroes of High Anchor all work this
+    way — "a Hired Gun increases the gang's Rating in the same way as any other
+    fighter"). A tactics card is the mirror image: it costs credits and adds
+    nothing, because rating counts fighters and their gear, not cards.
+
+    ``payment`` says where the cost comes from, and whether it is real: gang
+    credits are taken when the battle starts, while balancing and free entries
+    are only ever recorded.
     """
 
     crew = models.ForeignKey(
@@ -1132,11 +1179,21 @@ class CrewLineItem(AppBase):
     )
     label = models.CharField(
         max_length=255,
-        help_text="What this is (e.g. 'Tactics card: Ambush').",
+        help_text="What this is (e.g. 'Tactics Card').",
+    )
+    rating_value = models.PositiveIntegerField(
+        default=0,
+        help_text=(
+            "What this adds to the crew's rating. Independent of what it cost: "
+            "a hired gun taken for free still fights, so it still counts."
+        ),
     )
     cost = models.PositiveIntegerField(
         default=0,
-        help_text="Credits value of this item.",
+        help_text=(
+            "What the gang pays for it, from whichever source ``payment`` "
+            "names. Zero for a free entry."
+        ),
     )
     payment = models.CharField(
         max_length=12,

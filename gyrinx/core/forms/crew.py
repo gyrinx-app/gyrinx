@@ -569,27 +569,36 @@ class CrewLineItemForm(forms.ModelForm):
 
     class Meta:
         model = CrewLineItem
-        fields = ["label", "payment", "cost", "reason"]
+        fields = ["label", "rating_value", "payment", "cost", "reason"]
         labels = {
-            "label": "What is it?",
-            "cost": "Credits value",
-            "payment": "Where do the credits come from?",
+            "label": "What are you adding?",
+            "rating_value": "What will it add to rating?",
+            "payment": "How are you paying for it?",
+            "cost": "What does it cost?",
             "reason": "Reason",
         }
         help_texts = {
-            "payment": (
-                "Gang credits are taken from the gang when the battle starts. "
-                "Balancing and free entries are recorded but never charged."
+            "rating_value": (
+                "A fighter's credits value, even if you got them for nothing. "
+                "A tactics card adds nothing — rating counts fighters and their "
+                "gear, not cards."
             ),
-            "cost": "What it is worth. Leave blank for a free item.",
+            "payment": "",
+            "cost": (
+                "Leave blank for a free entry. Gang credits are taken from your "
+                "gang when the battle starts."
+            ),
             "reason": "Optional — note why, when free or from balancing.",
         }
         widgets = {
             "label": forms.TextInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "e.g. Tactics card: Ambush",
+                    "placeholder": "e.g. Tactics Card",
                 }
+            ),
+            "rating_value": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "placeholder": "0"}
             ),
             "cost": forms.NumberInput(
                 attrs={"class": "form-control", "min": 0, "placeholder": "0"}
@@ -602,23 +611,23 @@ class CrewLineItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Group the two paid sources together and leave Free as the exception at
-        # the end, so the choice reads "who pays … or nobody does".
+        # Phrased as answers to "how are you paying for it?".
         self.fields["payment"].choices = [
-            (Crew.PAY_CREDITS, "Gang credits"),
-            (Crew.PAY_ALLOWANCE, "Balancing"),
-            (Crew.PAY_FREE, "Free"),
+            (Crew.PAY_FREE, "It's free"),
+            (Crew.PAY_CREDITS, "Buying it with credits"),
+            (Crew.PAY_ALLOWANCE, "Using balancing"),
         ]
-        # A free item has no amount to give, so the field cannot be required.
+        # Both amounts can legitimately be nothing: a free entry costs zero, and
+        # a tactics card adds zero to rating.
         self.fields["cost"].required = False
+        self.fields["rating_value"].required = False
 
     def clean(self):
         cleaned = super().clean()
-        # Free means free: zero here rather than trusting whatever was left in a
-        # box the player may not have been able to see. Without this the
-        # scripted and unscripted forms would disagree about the same input.
+        # Free means free, whatever was typed in the cost box.
         if cleaned.get("payment") == Crew.PAY_FREE:
             cleaned["cost"] = 0
-        elif cleaned.get("cost") is None:
-            cleaned["cost"] = 0
+        for field in ("cost", "rating_value"):
+            if cleaned.get(field) is None:
+                cleaned[field] = 0
         return cleaned

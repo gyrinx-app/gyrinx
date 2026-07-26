@@ -193,7 +193,7 @@
                         <th class="caps-label text-end align-bottom">
                             <span class="tooltipped"
                                   data-bs-toggle="tooltip"
-                                  title="The fighters in the crew and the stash gear you're bringing.">Fighters &amp; Stash</span>
+                                  title="What the crew is worth: its fighters, the stash gear it brings, and everything else you add — whether or not you paid for it.">Rating</span>
                         </th>
                         <th class="caps-label text-end align-bottom">
                             <span class="tooltipped"
@@ -380,7 +380,7 @@
                                     </form>
                                 {% endif %}
                             </td>
-                            <td></td>
+                            <td class="text-end">{% if e.rating %}{{ e.rating }}¢{% endif %}</td>
                             <td class="text-end">{% if e.credits is not None %}{{ e.credits }}¢{% endif %}</td>
                             <td class="text-end">{% if e.allowance is not None %}{{ e.allowance }}¢{% endif %}</td>
                         </tr>
@@ -425,14 +425,22 @@
                                 <td></td>
                             </tr>
                         {% endif %}
+                        {% if receipt.extras_rating_total %}
+                            <tr>
+                                <td class="text-secondary">Spending &amp; balancing</td>
+                                <td class="text-end">{{ receipt.extras_rating_total }}¢</td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                        {% endif %}
                         <tr>
-                            <td class="text-secondary">Spending</td>
+                            <td class="text-secondary">Paid with credits</td>
                             <td></td>
                             <td class="text-end">{{ receipt.credits_total }}¢</td>
                             <td></td>
                         </tr>
                         <tr>
-                            <td class="text-secondary">Balancing</td>
+                            <td class="text-secondary">Paid from balancing</td>
                             <td></td>
                             <td></td>
                             <td class="text-end">{{ receipt.allowance_total }}¢</td>
@@ -440,7 +448,6 @@
                     {% endif %}
                     <tr class="border-top">
                         <td class="text-secondary pt-3">Rating before balancing</td>
-                        <td class="pt-3"></td>
                         <td class="text-end pt-3">
                             {% if receipt.pending_roll %}
                                 <span bs-tooltip
@@ -452,10 +459,11 @@
                             {% endif %}
                         </td>
                         <td class="pt-3"></td>
+                        <td class="pt-3"></td>
                     </tr>
                     <tr class="border-top fw-semibold">
                         <td class="pt-3">Total (after balancing)</td>
-                        <td class="text-end pt-3" colspan="3">
+                        <td class="text-end pt-3">
                             {% if projection %}
                                 {{ provisional_total }}¢
                                 <span class="fs-7 fw-normal text-secondary">provisional</span>
@@ -470,6 +478,8 @@
                                 {{ receipt.total }}¢
                             {% endif %}
                         </td>
+                        <td class="pt-3"></td>
+                        <td class="pt-3"></td>
                     </tr>
                 </tfoot>
             </table>

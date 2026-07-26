@@ -359,13 +359,20 @@ def test_receipt_totals(crew_setup):
     CrewMember.objects.create(
         crew=crew, list_fighter=crew_setup["fighters"][0], owner=crew_setup["user"]
     )
-    CrewLineItem.objects.create(
-        crew=crew, label="Tactics card", cost=20, owner=crew_setup["user"]
-    )
+    # A card: costs credits, adds nothing to what the crew is worth.
     CrewLineItem.objects.create(
         crew=crew,
-        label="Free favour",
-        cost=30,
+        label="Tactics card",
+        cost=20,
+        rating_value=0,
+        owner=crew_setup["user"],
+    )
+    # A gift: costs nothing, and is worth its full value on the table.
+    CrewLineItem.objects.create(
+        crew=crew,
+        label="Free House Agent",
+        cost=0,
+        rating_value=30,
         payment=Crew.PAY_FREE,
         owner=crew_setup["user"],
     )
@@ -376,21 +383,23 @@ def test_receipt_totals(crew_setup):
     # Each attendee carries its fighter category for the bold "name · category".
     assert all(a["category"] for a in receipt["attendees"])
     assert receipt["has_extras"] is True
-    # Extras land in the column for how they're paid. A free item shows in the
-    # Spending column at 0¢ rather than in a column of its own — what the gang
-    # paid for it is nothing — so it moves no total.
+
+    # The payment columns show what was paid; a free entry shows an explicit 0¢.
     assert receipt["credits_total"] == 20
     assert receipt["allowance_total"] == 0
     by_label = {e["item"].label: e for e in receipt["extras"]}
     assert by_label["Tactics card"]["credits"] == 20
-    assert by_label["Free favour"]["credits"] == 0
+    assert by_label["Free House Agent"]["credits"] == 0
 
-    # Grand total = fighters + what was actually paid, i.e. exactly the
-    # post-balancing rating the sheet labels it as. The free item's 30¢ is not
-    # in it, which is why this is no longer credits_value().
-    assert receipt["total"] == 120
+    # The Rating column shows what each is worth — the mirror image of the above.
+    assert by_label["Tactics card"]["rating"] == 0
+    assert by_label["Free House Agent"]["rating"] == 30
+    assert receipt["extras_rating_total"] == 30
+
+    # Total = fighters + stash + what the extras are worth. The card's 20¢ was
+    # paid but buys no rating; the gift's 30¢ was free but counts.
+    assert receipt["total"] == 130
     assert receipt["total"] == crew.rating_after_balancing()
-    assert crew.credits_value() == 150
 
 
 @pytest.mark.django_db
@@ -5266,9 +5275,16 @@ def test_random_setup_skips_ahead_to_the_stash_tab(client, crew_setup):
 # that earned it) and free extras (they cost nobody anything).
 
 
-def _extra(crew, user, label, cost, payment):
+def _extra(crew, user, label, cost, payment, rating=None):
+    """A crew extra. ``rating`` defaults to the price — the ordinary case where
+    you pay what a thing is worth — but the two are independent."""
     return CrewLineItem.objects.create(
-        crew=crew, owner=user, label=label, cost=cost, payment=payment
+        crew=crew,
+        owner=user,
+        label=label,
+        cost=cost,
+        rating_value=cost if rating is None else rating,
+        payment=payment,
     )
 
 
@@ -5291,16 +5307,21 @@ def test_rating_before_balancing_counts_fighters_stash_and_spending(
 
 
 @pytest.mark.django_db
-def test_rating_before_balancing_excludes_balancing_and_free(crew_setup):
+def test_rating_before_balancing_excludes_only_what_balancing_bought(crew_setup):
+    """A free hired gun still fights, so it counts towards the rating the
+    underdog comparison is made on — "a Hired Gun increases the gang's Rating in
+    the same way as any other fighter". Only what the allowance paid for is held
+    back, because that is the compensation for the gap being measured."""
     crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
     _extra(crew, crew_setup["user"], "Underdog hire", 100, Crew.PAY_ALLOWANCE)
-    _extra(crew, crew_setup["user"], "Scenario gift", 50, Crew.PAY_FREE)
+    _extra(crew, crew_setup["user"], "Free House Agent", 0, Crew.PAY_FREE, rating=50)
 
-    # Neither moves the rating the underdog comparison is made on...
-    assert crew.rating_before_balancing() == 100
-    # ...but the allowance is what the post-balancing figure adds back.
+    # The free agent's 50¢ counts; the allowance's 100¢ does not, yet.
+    assert crew.rating_before_balancing() == 150
     assert crew.balancing_total() == 100
-    assert crew.rating_after_balancing() == 200
+    # It costs the gang nothing, so it never reaches the Spending column.
+    assert crew.spending_total() == 0
+    assert crew.rating_after_balancing() == 250
 
 
 @pytest.mark.django_db
@@ -5630,6 +5651,7 @@ def test_extras_can_be_added_to_a_draft_crew(client, crew_setup):
         reverse("core:crew-extra-new", args=[crew.battle_id, crew.id]),
         {
             "label": "Underdog hire",
+            "rating_value": "150",
             "cost": "150",
             "payment": Crew.PAY_ALLOWANCE,
             "reason": "",
@@ -5639,8 +5661,10 @@ def test_extras_can_be_added_to_a_draft_crew(client, crew_setup):
 
     item = CrewLineItem.objects.get(crew=crew)
     assert item.cost == 150
+    assert item.rating_value == 150
     assert crew.balancing_total() == 150
-    # Balancing stays out of the comparison rating even on a draft.
+    # What the allowance bought stays out of the comparison rating even on a
+    # draft — that gap is what earned the allowance in the first place.
     assert crew.rating_before_balancing() == 100
     assert crew.rating_after_balancing() == 250
 
@@ -6027,22 +6051,29 @@ def test_paid_entries_keep_their_amount(crew_setup):
 
 
 @pytest.mark.django_db
-def test_form_orders_the_paid_sources_before_free(crew_setup):
+def test_form_asks_rating_then_payment_then_price(crew_setup):
     """Free is the exception at the end, so the choice reads "who pays … or
     nobody does" — and the amount sits below the source it depends on."""
     form = CrewLineItemForm()
     assert [value for value, _ in form.fields["payment"].choices] == [
+        Crew.PAY_FREE,
         Crew.PAY_CREDITS,
         Crew.PAY_ALLOWANCE,
-        Crew.PAY_FREE,
     ]
-    assert list(form.fields) == ["label", "payment", "cost", "reason"]
+    assert list(form.fields) == [
+        "label",
+        "rating_value",
+        "payment",
+        "cost",
+        "reason",
+    ]
 
 
 @pytest.mark.django_db
-def test_extra_form_page_carries_the_reveal_hook(client, crew_setup):
-    """The script keys off the stored value rather than a hardcoded string, so
-    the page has to hand it over."""
+def test_extra_form_page_asks_both_amounts(client, crew_setup):
+    """Rating and price are asked separately, and no script hides either: an
+    entry can add nothing while costing credits, or cost nothing while adding
+    its full value."""
     crew = Crew.objects.create(
         battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
     )
@@ -6051,6 +6082,42 @@ def test_extra_form_page_carries_the_reveal_hook(client, crew_setup):
         reverse("core:crew-extra-new", args=[crew.battle_id, crew.id])
     ).content.decode()
 
-    assert f'data-free-payment="{Crew.PAY_FREE}"' in body
-    assert "js-extra-cost" in body
+    assert "What will it add to rating?" in body
+    assert "What does it cost?" in body
     assert 'type="radio"' in body
+    # The price is revealed only when something is being paid; the hook the
+    # script keys off has to be on the page for that to work.
+    assert "js-extra-cost" in body
+    assert f'data-free-payment="{Crew.PAY_FREE}"' in body
+
+
+@pytest.mark.django_db
+def test_a_free_entry_is_worth_something_but_costs_nothing(crew_setup):
+    """The case the rules forced: Feigned Nobility and friends hand you a
+    fighter for free. They cost nothing and are worth their full value."""
+    form = CrewLineItemForm(
+        data={
+            "label": "House Agent",
+            "rating_value": "145",
+            "cost": "999",
+            "payment": Crew.PAY_FREE,
+        }
+    )
+    assert form.is_valid(), form.errors
+    # Free means free, whatever was typed in the price box...
+    assert form.cleaned_data["cost"] == 0
+    # ...but what it brings to the table is untouched.
+    assert form.cleaned_data["rating_value"] == 145
+
+
+@pytest.mark.django_db
+def test_a_tactics_card_costs_credits_and_adds_no_rating(crew_setup):
+    """The mirror image, and why one amount could not do the job: rating counts
+    fighters and their gear, not cards."""
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Tactics Card", 20, Crew.PAY_CREDITS, rating=0)
+
+    assert crew.spending_total() == 20
+    assert crew.extras_rating() == 0
+    # The card is paid for but adds nothing to what the crew is worth.
+    assert crew.rating_before_balancing() == 100
