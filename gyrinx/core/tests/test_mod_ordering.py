@@ -33,9 +33,10 @@ def wheels():
     gear = ContentEquipment.objects.create(
         name="Ash Wheels", category=category, cost="0"
     )
-    gear.modifiers.add(
-        ContentModFighterStat.objects.create(stat="movement", mode="set", value='8"')
+    mod, _ = ContentModFighterStat.objects.get_or_create(
+        stat="movement", mode="set", value='8"'
     )
+    gear.modifiers.add(mod)
     return gear
 
 
@@ -94,7 +95,92 @@ def test_an_advancement_still_applies_without_a_set(user, make_list, make_list_f
     """The reordering must not stop ordinary advancements working."""
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Plain Fighter")
-    base = shown(fighter, "movement")
+    assert shown(fighter, "movement") == '5"'
+
     advance(fighter, user, "movement")
 
-    assert shown(fighter, "movement") != base
+    assert shown(fighter, "movement") == '6"'
+
+
+@pytest.mark.django_db
+def test_an_injury_still_worsens_a_stat_the_gear_set(
+    user, make_list, make_list_fighter, wheels
+):
+    """Injuries apply after equipment, so a set is not the last word."""
+    from gyrinx.content.models import ContentInjury, ContentInjuryDefaultOutcome
+    from gyrinx.core.models.list import ListFighterInjury
+
+    injury = ContentInjury.objects.create(
+        name="Buckled Wheel",
+        phase=ContentInjuryDefaultOutcome.NO_CHANGE,
+    )
+    injury.modifiers.add(
+        ContentModFighterStat.objects.get_or_create(
+            stat="movement", mode="worsen", value="1"
+        )[0]
+    )
+
+    lst = make_list("Gang", status="campaign_mode")
+    fighter = make_list_fighter(lst, "Injured Rider")
+    give(fighter, wheels)
+    ListFighterInjury.objects.create(fighter=fighter, injury=injury, owner=user)
+
+    # The gear sets 8"; the injury still takes one off it
+    assert shown(fighter, "movement") == '7"'
+
+
+@pytest.mark.django_db
+def test_advancement_set_and_injury_together(
+    user, make_list, make_list_fighter, wheels
+):
+    """All three at once: the advancement is swallowed, the injury is not."""
+    from gyrinx.content.models import ContentInjury, ContentInjuryDefaultOutcome
+    from gyrinx.core.models.list import ListFighterInjury
+
+    injury = ContentInjury.objects.create(
+        name="Cracked Axle",
+        phase=ContentInjuryDefaultOutcome.NO_CHANGE,
+    )
+    injury.modifiers.add(
+        ContentModFighterStat.objects.get_or_create(
+            stat="movement", mode="worsen", value="1"
+        )[0]
+    )
+
+    lst = make_list("Gang", status="campaign_mode")
+    fighter = make_list_fighter(lst, "Injured Ashwheel")
+    give(fighter, wheels)
+    advance(fighter, user, "movement")
+    ListFighterInjury.objects.create(fighter=fighter, injury=injury, owner=user)
+
+    assert shown(fighter, "movement") == '7"'
+
+
+@pytest.mark.django_db
+def test_a_roll_result_does_not_stack_on_a_set_either(
+    user, make_list, make_list_fighter, wheels
+):
+    """Power Boosts are permanent improvements, same as advancements.
+
+    Both roll-result stat mods in content improve movement or initiative, and
+    every set-mode mod targets movement — so this is the same collision.
+    """
+    from gyrinx.content.models.roll_table import ContentRollTable, ContentRollTableRow
+    from gyrinx.core.models.list import ListFighterRollResult
+
+    table = ContentRollTable.objects.create(name="Power Boost")
+    row = ContentRollTableRow.objects.create(
+        table=table, roll_value="1", name="Speed Boost"
+    )
+    row.modifiers.add(
+        ContentModFighterStat.objects.get_or_create(
+            stat="movement", mode="improve", value="1"
+        )[0]
+    )
+
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Boosted Rider")
+    give(fighter, wheels)
+    ListFighterRollResult.objects.create(fighter=fighter, row=row, owner=user)
+
+    assert shown(fighter, "movement") == '8"'
