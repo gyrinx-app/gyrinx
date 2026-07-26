@@ -307,6 +307,26 @@ def _classify(
     return make(7)
 
 
+@dataclass
+class ApplyResult:
+    """What a run did, recorded on the Backfill row."""
+
+    changed: int = 0
+    visible: int = 0
+    messages_sent: int = 0
+    by_situation: dict = field(default_factory=dict)
+    changes: list = field(default_factory=list)
+
+    def as_dict(self):
+        return {
+            "changed": self.changed,
+            "visible": self.visible,
+            "messages_sent": self.messages_sent,
+            "by_situation": {str(k): v for k, v in self.by_situation.items()},
+            "changes": self.changes,
+        }
+
+
 def apply_plan(plan):
     """Write the plan's changes. Returns how many pairs were acted on."""
     from gyrinx.core.models.list import ListFighter
@@ -471,3 +491,35 @@ def send_messages(messages):
         ):
             sent += 1
     return sent
+
+
+def run(*, notify=True, triggered_by=None):
+    """Plan, apply, and tell the affected players. Returns an ApplyResult.
+
+    ``triggered_by`` is accepted for symmetry with the other maintenance
+    operations; the messages are deliberately system-sent rather than
+    attributed to the operator.
+    """
+    plan = build_plan()
+    messages = build_messages(plan)
+    changed = apply_plan(plan)
+    sent = send_messages(messages) if notify else 0
+
+    return ApplyResult(
+        changed=changed,
+        visible=len(plan.visible),
+        messages_sent=sent,
+        by_situation=plan.by_situation(),
+        changes=[
+            {
+                "list": c.list_name,
+                "fighter": c.fighter_name,
+                "stat": c.stat,
+                "situation": c.situation,
+                "before": c.displayed_before,
+                "after": c.displayed_after,
+                "direction": c.direction,
+            }
+            for c in plan.visible
+        ],
+    )

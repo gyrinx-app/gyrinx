@@ -204,3 +204,80 @@ def test_post_scoped_by_list_id_only_touches_that_list(
     bf = Backfill.objects.get(triggered_by=su)
     assert str(bf.list_id_scope) == str(s1["list"].id)
     assert bf.summary["moved"] == 1
+
+
+@pytest.mark.django_db
+def test_stat_advancements_preview_changes_nothing(
+    make_user, make_list, make_list_fighter
+):
+    """The dry run must render the plan without writing anything."""
+    from gyrinx.core.models import ListFighterAdvancement
+
+    superuser = make_user("statsuper", "pw")
+    superuser.is_staff = superuser.is_superuser = True
+    superuser.save()
+
+    lst = make_list("Preview Gang")
+    fighter = make_list_fighter(lst, "Inert Fighter")
+    ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="toughness",
+        uses_mod_system=False,
+        xp_cost=5,
+        cost_increase=5,
+        owner=lst.owner,
+    )
+
+    client = Client()
+    client.force_login(superuser)
+    response = client.get(reverse("admin:maintenance_stat_advancements"))
+
+    assert response.status_code == 200
+    assert b"Inert Fighter" in response.content
+    # Nothing applied, nothing recorded
+    assert ListFighterAdvancement.objects.filter(uses_mod_system=False).exists()
+    assert not Backfill.objects.filter(
+        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_stat_advancements_apply_records_a_backfill(
+    make_user, make_list, make_list_fighter
+):
+    from gyrinx.core.models import ListFighterAdvancement
+    from gyrinx.core.models.notification import Notification
+
+    superuser = make_user("statsuper2", "pw")
+    superuser.is_staff = superuser.is_superuser = True
+    superuser.save()
+
+    lst = make_list("Apply Gang")
+    fighter = make_list_fighter(lst, "Inert Fighter")
+    ListFighterAdvancement.objects.create(
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="toughness",
+        uses_mod_system=False,
+        xp_cost=5,
+        cost_increase=5,
+        owner=lst.owner,
+    )
+
+    client = Client()
+    client.force_login(superuser)
+    response = client.post(
+        reverse("admin:maintenance_stat_advancements"), {"notify": "on"}
+    )
+
+    assert response.status_code == 302
+    backfill = Backfill.objects.get(operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS)
+    assert backfill.status == Backfill.Status.DONE
+    assert backfill.triggered_by == superuser
+    assert backfill.summary["changed"] == 1
+    assert backfill.summary["visible"] == 1
+    assert backfill.summary["messages_sent"] == 1
+
+    assert not ListFighterAdvancement.objects.filter(uses_mod_system=False).exists()
+    assert Notification.objects.filter(owner=lst.owner).exists()

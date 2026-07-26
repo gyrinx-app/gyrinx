@@ -4,7 +4,7 @@ import pytest
 
 from gyrinx.core.models import ListFighter, ListFighterAdvancement
 from gyrinx.core.models.notification import Notification
-from gyrinx.core.stat_advancement_cleanup import (
+from gyrinx.core.maintenance.stat_advancements import (
     apply_plan,
     build_messages,
     build_plan,

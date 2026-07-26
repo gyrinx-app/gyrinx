@@ -26,6 +26,12 @@ from gyrinx.core.maintenance.persistent_stash import (
     apply as apply_persistent_stash,
     find_candidates as find_persistent_stash_candidates,
 )
+from gyrinx.core.maintenance.stat_advancements import (
+    SITUATION_LABELS,
+    build_messages,
+    build_plan,
+    run as run_stat_advancements,
+)
 from gyrinx.core.models import Backfill
 from gyrinx.core.models.list import ListFighterEquipmentAssignment, PinState
 from gyrinx.core.tasks import backfill_pins, reconcile_all_lists
@@ -109,6 +115,11 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_backfill_pins",
             ),
             path(
+                "maintenance/stat-advancements/",
+                self.admin_view(_superuser_only(self.stat_advancements_view)),
+                name="maintenance_stat_advancements",
+            ),
+            path(
                 "maintenance/backfill/<uuid:pk>/",
                 self.admin_view(_superuser_only(self.backfill_detail_view)),
                 name="maintenance_backfill_detail",
@@ -155,6 +166,18 @@ class MaintenanceAdminSite(admin.site.__class__):
                     "Write acquisition receipts onto every legacy assignment "
                     "via the pinning choke point. Idempotent, resumable, "
                     "value-neutral. Run AFTER reconcile, in a quiet window."
+                ),
+            },
+            {
+                "key": Backfill.Operation.FIX_STAT_ADVANCEMENTS.value,
+                "name": Backfill.Operation.FIX_STAT_ADVANCEMENTS.label,
+                "url": reverse("admin:maintenance_stat_advancements"),
+                "description": (
+                    "Finish moving stat advancements onto the mod system: "
+                    "back-compute manual edits so cards do not move, switch on "
+                    "advancements that were bought but showing nothing, and "
+                    "remove improvements being counted twice. Notifies every "
+                    "affected player once. Preview before applying."
                 ),
             },
         ]
@@ -339,6 +362,56 @@ class MaintenanceAdminSite(admin.site.__class__):
             "apply_url": reverse("admin:maintenance_backfill_pins"),
         }
         return render(request, "admin/maintenance/backfill_pins.html", ctx)
+
+    def stat_advancements_view(self, request):
+        """Preview, then run, the #2070 stat-advancement cleanup."""
+        if request.method == "POST":
+            notify = request.POST.get("notify") == "on"
+            try:
+                result = run_stat_advancements(notify=notify, triggered_by=request.user)
+                backfill = Backfill.objects.create(
+                    operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+                    triggered_by=request.user,
+                    status=Backfill.Status.DONE,
+                    summary=result.as_dict(),
+                )
+                messages.success(
+                    request,
+                    f"Changed {result.changed} fighter/stat pair(s); "
+                    f"{result.visible} visible to players; "
+                    f"{result.messages_sent} message(s) sent.",
+                )
+            except Exception as e:
+                logger.exception("Stat-advancement cleanup failed")
+                Backfill.objects.create(
+                    operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+                    triggered_by=request.user,
+                    status=Backfill.Status.FAILED,
+                    error=f"{e}\n\n{traceback.format_exc()}",
+                )
+                messages.error(request, f"Cleanup failed: {e}")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_stat_advancements")
+                )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+            )
+
+        plan = build_plan()
+        ctx = {
+            **self.each_context(request),
+            "title": "Finish the stat-advancement cleanup",
+            "counts": [
+                (situation, SITUATION_LABELS[situation], count)
+                for situation, count in plan.by_situation().items()
+            ],
+            "to_change": len(plan.acted_on),
+            "visible": sorted(
+                plan.visible, key=lambda c: (c.list_name, c.fighter_name)
+            ),
+            "message_count": len(build_messages(plan)),
+        }
+        return render(request, "admin/maintenance/stat_advancements.html", ctx)
 
     def backfill_detail_view(self, request, pk):
         backfill = get_object_or_404(Backfill, pk=pk)
