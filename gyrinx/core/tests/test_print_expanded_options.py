@@ -14,11 +14,7 @@ information:
 import pytest
 from django.urls import reverse
 
-from gyrinx.content.models import (
-    ContentAttribute,
-    ContentAttributeValue,
-    ContentFighter,
-)
+from gyrinx.content.models import ContentAttribute, ContentAttributeValue
 from gyrinx.core.models import PrintConfig
 from gyrinx.core.models.campaign import (
     CampaignAsset,
@@ -26,7 +22,7 @@ from gyrinx.core.models.campaign import (
     CampaignListResource,
     CampaignResourceType,
 )
-from gyrinx.core.models.list import ListAttributeAssignment, ListFighter
+from gyrinx.core.models.list import ListAttributeAssignment
 from gyrinx.core.print_cards import (
     gang_card_from_list,
     lore_card_from_fighter,
@@ -99,21 +95,16 @@ def _give_attribute(list_obj, name="Alignment", value="Outlaw"):
     return attr_value
 
 
-def _give_stash(list_obj, equipment):
+def _give_stash(list_obj, equipment, make_content_fighter, make_list_fighter):
     """Attach a stash fighter holding ``equipment``."""
-    stash_content_fighter = ContentFighter.objects.create(
-        house=list_obj.content_house,
-        is_stash=True,
+    stash_content_fighter = make_content_fighter(
         type="Stash",
         category="STASH",
+        house=list_obj.content_house,
         base_cost=0,
+        is_stash=True,
     )
-    stash = ListFighter.objects.create(
-        name="Stash",
-        content_fighter=stash_content_fighter,
-        list=list_obj,
-        owner=list_obj.owner,
-    )
+    stash = make_list_fighter(list_obj, "Stash", content_fighter=stash_content_fighter)
     stash.assign(equipment)
     return stash
 
@@ -237,11 +228,21 @@ def test_classic_gang_plate_honours_the_attribute_toggle(
 
 @pytest.mark.django_db
 def test_classic_gang_plate_carries_the_stash(
-    client, user, list_with_campaign, make_list_fighter, make_equipment
+    client,
+    user,
+    list_with_campaign,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
 ):
     """The stash has no fighter card, so its contents ride on the gang plate."""
     lst = list_with_campaign
-    _give_stash(lst, make_equipment("Spare Autogun", cost=25))
+    _give_stash(
+        lst,
+        make_equipment("Spare Autogun", cost=25),
+        make_content_fighter,
+        make_list_fighter,
+    )
 
     cfg = _classic_config(lst, user)
     client.force_login(user)
@@ -305,6 +306,27 @@ def test_web_print_xp_toggle(client, user, make_list, make_list_fighter):
     body = client.get(_print_url(lst, cfg)).content.decode()
 
     assert "12 XP" not in body
+
+
+@pytest.mark.django_db
+def test_classic_card_xp_follows_the_same_toggle(
+    client, user, make_list, make_list_fighter
+):
+    """The toggle governs both sheets — the classic card has an XP region too."""
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Grimjaw")
+    fighter.xp_current = 12
+    fighter.save()
+    cfg = _classic_config(lst, user)
+    client.force_login(user)
+
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert ">12<" in body  # the classic card's XP value
+
+    cfg.include_xp = False
+    cfg.save()
+    body = client.get(_print_url(lst, cfg)).content.decode()
+    assert ">12<" not in body
 
 
 @pytest.mark.django_db
@@ -447,6 +469,26 @@ def test_lore_cards_flatten_rich_text(make_list, make_list_fighter):
 
     private = lore_card_from_fighter(fighter, include_private=True)
     assert [g.label for g in private.sections] == ["Lore", "Notes", "Private notes"]
+
+
+@pytest.mark.django_db
+def test_lore_plates_flatten_prose_readably(make_list, make_list_fighter):
+    """Rich text has to survive the trip to plain text.
+
+    Stripping tags alone runs paragraphs together and leaves entities encoded,
+    so an ampersand typed in the editor would print as "&amp;".
+    """
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Grimjaw")
+    fighter.narrative = "<p>First para.</p><p>Second para.</p>"
+    fighter.notes = "<p>Bob &amp; Sons, the &#39;finest&#39; gang</p>"
+    fighter.save()
+
+    card = lore_card_from_fighter(fighter)
+    lore, notes = card.sections[0], card.sections[1]
+
+    assert lore.text == "First para. Second para."
+    assert notes.text == "Bob & Sons, the 'finest' gang"
 
 
 @pytest.mark.django_db

@@ -40,6 +40,8 @@ instead of the fixed fighter regions (:class:`ClassicTextCard`, #1816):
 
 from __future__ import annotations
 
+import html
+import re
 from dataclasses import dataclass, field
 
 from django.utils.html import strip_tags
@@ -380,7 +382,7 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
 
     # notes is rich text; the card wants compact plain text.
     notes_lines: list[str] = []
-    own_notes = strip_tags(str(getattr(fighter, "notes", "") or "")).strip()
+    own_notes = _plain_text(getattr(fighter, "notes", ""))
     if own_notes:
         notes_lines.append(own_notes)
 
@@ -489,13 +491,29 @@ def _section(label: str, items, css_class: str = "cc-gangsec") -> DetailGroup | 
     return DetailGroup(label, items, css_class)
 
 
+def _plain_text(value) -> str:
+    """Flatten rich text to the plain text a fixed-size card can lay out.
+
+    ``strip_tags`` alone is not enough for prose. It removes the tags without
+    replacing them, so ``<p>One.</p><p>Two.</p>`` comes out as "One.Two.", and
+    it leaves entities encoded, so an ampersand typed in the editor reaches the
+    template as ``&amp;`` and prints literally.
+    """
+    text = re.sub(
+        r"(?i)<(?:br\s*/?|/(?:p|div|li|tr|h[1-6]|blockquote))\s*>",
+        " ",
+        str(value or ""),
+    )
+    return " ".join(html.unescape(strip_tags(text)).split())
+
+
 def _writein_section(label: str, value) -> DetailGroup:
     """A lore/notes section: whatever is written, plus room to write more.
 
     Unlike :func:`_section` this never returns None — an empty section still
     prints its label and its write-in box.
     """
-    text = strip_tags(str(value or "")).strip()
+    text = _plain_text(value)
     return DetailGroup(label, [text] if text else [], "cc-gangsec", writein=True)
 
 
@@ -588,7 +606,7 @@ def lore_card_from_fighter(fighter, *, include_private=False) -> ClassicTextCard
         _writein_section("Notes", _get(fighter, "notes", "")),
     ]
     if include_private:
-        private = strip_tags(str(_get(fighter, "private_notes", "") or "")).strip()
+        private = _plain_text(_get(fighter, "private_notes", ""))
         if section := _section("Private notes", [private] if private else []):
             sections.append(section)
 

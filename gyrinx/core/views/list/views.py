@@ -732,11 +732,17 @@ class ListPrintView(generic.DetailView):
             # the gang plate's Stash section instead.
             cards = []
             stash_fighter = None
+            want_xp = not print_config or print_config.include_xp
             for fighter in fighters_qs:
                 card = card_from_fighter(fighter, list_obj)
                 if card.kind == "stash":
                     stash_fighter = fighter
                     continue
+                # The classic card has its own XP region, filled in by the card
+                # builder. The toggle governs both sheets, so clear it here
+                # rather than leaving "hide XP" meaning "hide it on web only".
+                if not want_xp:
+                    card.xp = ""
                 cards.append(card)
 
             # Gang plate: the gang-level information the web sheet carries in
