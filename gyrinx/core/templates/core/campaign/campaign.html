@@ -180,18 +180,20 @@
             </div>
         </div>
         {% if campaign.template and not campaign.archived %}
-            <c-box class="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
-                <div>
-                    <strong>This is a template Campaign.</strong>
-                    <span class="text-secondary">Start your own with these Assets, Resources and Content Packs already set up.</span>
+            <c-callout variant="info" class="mb-0">
+                <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                    <div>
+                        <strong>This is a template Campaign.</strong>
+                        Start your own with these Assets, Resources and Content Packs already set up.
+                    </div>
+                    <c-btn variant="primary"
+                           size="sm"
+                           class="ms-sm-auto flex-shrink-0"
+                           href="{% url 'core:campaigns-new' %}?template={{ campaign.id }}">
+                        <i class="bi-stars" aria-hidden="true"></i> Use this template
+                    </c-btn>
                 </div>
-                <c-btn variant="primary"
-                       size="sm"
-                       class="ms-sm-auto flex-shrink-0"
-                       href="{% url 'core:campaigns-new' %}?template={{ campaign.id }}">
-                    <i class="bi-stars" aria-hidden="true"></i> Use this template
-                </c-btn>
-            </c-box>
+            </c-callout>
         {% endif %}
         <!-- Campaign Info Section -->
         <div class="vstack gap-2">
