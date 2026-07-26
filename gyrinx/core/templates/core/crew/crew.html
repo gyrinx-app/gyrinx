@@ -147,7 +147,7 @@
                         <th class="caps-label text-end align-bottom">
                             <span class="tooltipped"
                                   data-bs-toggle="tooltip"
-                                  title="The fighters attending and the stash gear they bring.">Fighters &amp; Stash</span>
+                                  title="The fighters in the crew and the stash gear you're bringing.">Fighters &amp; Stash</span>
                         </th>
                         <th class="caps-label text-end align-bottom">
                             <span class="tooltipped"
@@ -393,9 +393,9 @@
                         </tr>
                     {% endif %}
                     <tr class="border-top">
-                        <td class="text-secondary">Rating before balancing</td>
-                        <td></td>
-                        <td class="text-end">
+                        <td class="text-secondary pt-3">Rating before balancing</td>
+                        <td class="pt-3"></td>
+                        <td class="text-end pt-3">
                             {% if receipt.pending_roll %}
                                 <span bs-tooltip
                                       data-bs-toggle="tooltip"
@@ -405,11 +405,11 @@
                                 {% if rating_provisional %}<span class="fs-7 text-secondary">provisional</span>{% endif %}
                             {% endif %}
                         </td>
-                        <td></td>
+                        <td class="pt-3"></td>
                     </tr>
-                    <tr class="border-top fs-5 fw-semibold">
-                        <td>Total (after balancing)</td>
-                        <td class="text-end" colspan="3">
+                    <tr class="border-top fw-semibold">
+                        <td class="pt-3">Total (after balancing)</td>
+                        <td class="text-end pt-3" colspan="3">
                             {% if projection %}
                                 {{ provisional_total }}¢
                                 <span class="fs-7 fw-normal text-secondary">provisional</span>
