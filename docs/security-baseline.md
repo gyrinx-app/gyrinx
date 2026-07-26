@@ -71,11 +71,16 @@ The admin has no login form of its own. `/admin/login/` redirects into the allau
 login flow, so an admin session is created by the same code path — and the same
 second-factor challenge — as an ordinary app session. See `gyrinx/admin_site.py`.
 
-Reaching the admin also requires a second factor, unless `ADMIN_REQUIRE_MFA` is set
-to `False` (the default in local development, where seeded users have no
-authenticator). Staff who do not meet the requirement are redirected into allauth to
-set up TOTP or to enter a code — they are never locked out. The requirement covers
-`/admin/doc/` as well as the admin proper.
+Reaching the admin also requires a second factor. Left unset, `ADMIN_REQUIRE_MFA`
+follows `DEBUG`: on in production, off locally, where each worktree has its own
+database and requiring TOTP would mean enrolling a separate authenticator per
+worktree. Set `ADMIN_REQUIRE_MFA=True` to exercise the production gate locally, or
+`False` to switch it off. Only the second factor is relaxed — admin login goes
+through allauth in every environment.
+
+Staff who do not meet the requirement are redirected into allauth to set up TOTP or
+to enter a code — they are never locked out. The requirement covers `/admin/doc/` as
+well as the admin proper.
 
 Two consequences worth knowing:
 

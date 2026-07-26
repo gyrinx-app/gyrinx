@@ -44,8 +44,18 @@ _UNSET = object()
 
 
 def admin_requires_mfa() -> bool:
-    """Whether the admin is gated on a completed second-factor challenge."""
-    return getattr(settings, "ADMIN_REQUIRE_MFA", True)
+    """Whether the admin is gated on a completed second-factor challenge.
+
+    An explicit ``ADMIN_REQUIRE_MFA`` wins. Left unset, the gate follows
+    ``DEBUG``: on in production, off in local development, where each worktree
+    has its own database and requiring TOTP would mean a separate authenticator
+    per worktree. Note that this only relaxes the *second factor* — admin login
+    still goes through allauth everywhere.
+    """
+    configured = getattr(settings, "ADMIN_REQUIRE_MFA", None)
+    if configured is not None:
+        return bool(configured)
+    return not settings.DEBUG
 
 
 def session_authenticated_with_mfa(request) -> bool:

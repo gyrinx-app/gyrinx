@@ -311,7 +311,14 @@ MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes i
 # session, before the Django admin will let them in. Staff who fall short are
 # redirected into allauth's TOTP setup or challenge — never locked out.
 # See gyrinx/admin_site.py.
-ADMIN_REQUIRE_MFA = os.getenv("ADMIN_REQUIRE_MFA", "True") == "True"
+#
+# Unset (the default) means "follow DEBUG": required in production, off in local
+# development. Each worktree has its own database, so requiring TOTP locally
+# would mean enrolling a separate authenticator per worktree. The environment
+# variable forces either answer — set it to True to exercise the production gate
+# locally.
+_admin_require_mfa = os.getenv("ADMIN_REQUIRE_MFA")
+ADMIN_REQUIRE_MFA = None if _admin_require_mfa is None else _admin_require_mfa == "True"
 
 
 # Password validation

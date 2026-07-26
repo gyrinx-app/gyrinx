@@ -326,3 +326,44 @@ def test_password_reauthentication_still_works_away_from_the_admin(user):
     response = client.get(f"{ACCOUNT_REAUTHENTICATE}?next=/account/")
 
     assert response.status_code == 200
+
+
+# ------------------------------------------------------- the DEBUG default
+
+
+@override_settings(ADMIN_REQUIRE_MFA=None, DEBUG=True)
+@pytest.mark.django_db
+def test_the_gate_is_off_in_debug_by_default(staff_user):
+    """Local worktrees each have their own database — one TOTP each is a faff."""
+    client = Client()
+    client.force_login(staff_user)
+
+    assert client.get(ADMIN_INDEX).status_code == 200
+
+
+@override_settings(ADMIN_REQUIRE_MFA=None, DEBUG=False)
+@pytest.mark.django_db
+def test_the_gate_is_on_outside_debug_by_default(staff_user):
+    client = Client()
+    client.force_login(staff_user)
+
+    assert client.get(ADMIN_INDEX).status_code == 302
+
+
+@override_settings(ADMIN_REQUIRE_MFA=True, DEBUG=True)
+@pytest.mark.django_db
+def test_the_gate_can_still_be_forced_on_in_debug(staff_user):
+    """So the production behaviour can be exercised locally."""
+    client = Client()
+    client.force_login(staff_user)
+
+    assert client.get(ADMIN_INDEX).status_code == 302
+
+
+@override_settings(ADMIN_REQUIRE_MFA=None, DEBUG=True)
+@pytest.mark.django_db
+def test_admin_login_still_goes_through_allauth_in_debug():
+    """DEBUG relaxes the second factor, never the login path."""
+    response = Client().get(ADMIN_LOGIN)
+
+    assert response.url == f"{ALLAUTH_LOGIN}?next={ADMIN_INDEX}"
