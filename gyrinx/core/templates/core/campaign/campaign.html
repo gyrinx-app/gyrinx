@@ -168,7 +168,7 @@
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
                 {% if campaign.template %}
                     <span data-bs-toggle="tooltip"
-                          data-bs-title="Anyone can start a new campaign based on this one"><i class="bi-stars"></i> Template</span>
+                          data-bs-title="Anyone can start a new campaign based on this one"><i class="bi-stars" aria-hidden="true"></i> Template</span>
                 {% endif %}
                 {% if campaign.public %}
                     <span data-bs-toggle="tooltip"
@@ -189,7 +189,7 @@
                        size="sm"
                        class="ms-sm-auto flex-shrink-0"
                        href="{% url 'core:campaigns-new' %}?template={{ campaign.id }}">
-                    <i class="bi-stars"></i> Use this template
+                    <i class="bi-stars" aria-hidden="true"></i> Use this template
                 </c-btn>
             </c-box>
         {% endif %}

@@ -11,7 +11,7 @@
         {% if template_campaign %}
             <c-box class="vstack gap-2">
                 <div>
-                    <i class="bi-stars"></i>
+                    <i class="bi-stars" aria-hidden="true"></i>
                     Based on <a href="{% url 'core:campaign' template_campaign.id %}" class="linked">{{ template_campaign.name }}</a>
                 </div>
                 {% if template_contents %}
