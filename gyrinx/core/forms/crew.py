@@ -639,9 +639,18 @@ class CrewLineItemForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        payment = cleaned.get("payment")
         # Free means free, whatever was typed in the cost box.
-        if cleaned.get("payment") == Crew.PAY_FREE:
+        if payment == Crew.PAY_FREE:
             cleaned["cost"] = 0
+        elif payment and cleaned.get("cost") is None:
+            # Blank would quietly save as 0, which is "free" wearing the wrong
+            # label — and with the reveal script off, blank is what you get by
+            # doing nothing.
+            self.add_error(
+                "cost",
+                "Say what it cost, or choose \u201cIt\u2019s free\u201d.",
+            )
         for field in ("cost", "rating_value"):
             if cleaned.get(field) is None:
                 cleaned[field] = 0

@@ -6258,3 +6258,31 @@ def test_battle_page_survives_a_gang_with_no_owner(client, crew_setup):
     client.force_login(crew_setup["user"])
     resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
     assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_a_paid_entry_must_say_what_it_cost(crew_setup):
+    """Blank would save as 0 — "free" wearing the wrong label — and blank is
+    what doing nothing gives you when the reveal script isn't running."""
+    form = CrewLineItemForm(
+        data={
+            "label": "Hired gun",
+            "rating_value": "145",
+            "cost": "",
+            "payment": Crew.PAY_CREDITS,
+        }
+    )
+    assert not form.is_valid()
+    assert "cost" in form.errors
+
+    # Free is the one case that legitimately has nothing to give.
+    ok = CrewLineItemForm(
+        data={
+            "label": "House Agent",
+            "rating_value": "145",
+            "cost": "",
+            "payment": Crew.PAY_FREE,
+        }
+    )
+    assert ok.is_valid(), ok.errors
+    assert ok.cleaned_data["cost"] == 0

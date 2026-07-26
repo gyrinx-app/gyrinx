@@ -137,9 +137,10 @@
         {% if crew.credits_shortfall %}
             <c-callout variant="danger" class="mb-0">
                 <strong>{{ crew.credits_shortfall }}¢ unpaid.</strong>
-                The battle charged {{ crew.credits_charged }}¢ of this crew's
-                {{ receipt.credits_total }}¢ spending — {{ crew.list.name }} could not cover
-                the rest, so its balance stopped at zero rather than going negative.
+                The battle charged {{ crew.credits_charged }}¢ of the
+                {{ crew.credits_owed }}¢ this crew was spending at the time —
+                {{ crew.list.name }} could not cover the rest, so its balance stopped at
+                zero rather than going negative.
             </c-callout>
         {% endif %}
         {% if show_rating_note %}
