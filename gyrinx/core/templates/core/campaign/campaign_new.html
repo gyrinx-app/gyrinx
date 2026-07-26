@@ -8,14 +8,37 @@
     {% include "core/includes/back.html" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Create a new Campaign</h1>
-        <form action="{% url 'core:campaigns-new' %}"
+        {% if template_campaign %}
+            <c-box class="vstack gap-2">
+                <div>
+                    <i class="bi-stars"></i>
+                    Based on <a href="{% url 'core:campaign' template_campaign.id %}" class="linked">{{ template_campaign.name }}</a>
+                </div>
+                {% if template_contents %}
+                    <div class="fs-7 text-secondary vstack gap-1">
+                        {% for group in template_contents %}
+                            <div>
+                                <span class="caps-label">{{ group.label }}</span>
+                                {{ group.names|join:", " }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <div class="fs-7">
+                    <a href="{% url 'core:campaigns-new' %}" class="linked-secondary">Start from scratch instead</a>
+                </div>
+            </c-box>
+        {% endif %}
+        <form action="{% url 'core:campaigns-new' %}{% if template_campaign %}?template={{ template_campaign.id }}{% endif %}"
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
             {{ form }}
             <div class="mt-3">
-                <button type="submit" class="btn btn-success">Create</button>
-                <a href="{% safe_referer '/campaigns/' %}" class="btn btn-link">Cancel</a>
+                <c-btn variant="success" type="submit">
+                    Create
+                </c-btn>
+                <c-btn variant="link" href="{% safe_referer '/campaigns/' %}">Cancel</c-btn>
             </div>
         </form>
     </div>

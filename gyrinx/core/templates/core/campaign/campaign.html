@@ -166,6 +166,10 @@
                 {% endif %}
             </div>
             <div class="d-flex flex-wrap gap-2 text-secondary fs-7">
+                {% if campaign.template %}
+                    <span data-bs-toggle="tooltip"
+                          data-bs-title="Anyone can start a new campaign based on this one"><i class="bi-stars"></i> Template</span>
+                {% endif %}
                 {% if campaign.public %}
                     <span data-bs-toggle="tooltip"
                           data-bs-title="This campaign is visible to all users"><i class="bi-eye"></i> Public</span>
@@ -175,6 +179,20 @@
                 {% endif %}
             </div>
         </div>
+        {% if campaign.template and not campaign.archived %}
+            <c-box class="d-flex flex-column flex-sm-row align-items-sm-center gap-2">
+                <div>
+                    <strong>This is a template Campaign.</strong>
+                    <span class="text-secondary">Start your own with these Assets, Resources and Content Packs already set up.</span>
+                </div>
+                <c-btn variant="primary"
+                       size="sm"
+                       class="ms-sm-auto flex-shrink-0"
+                       href="{% url 'core:campaigns-new' %}?template={{ campaign.id }}">
+                    <i class="bi-stars"></i> Use this template
+                </c-btn>
+            </c-box>
+        {% endif %}
         <!-- Campaign Info Section -->
         <div class="vstack gap-2">
             <div class="grid gap-3 border-bottom pb-3 mb-2">

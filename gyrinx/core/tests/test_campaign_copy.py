@@ -4,8 +4,10 @@ import pytest
 from django.urls import reverse
 
 from gyrinx.core.handlers.campaign_copy import (
+    apply_campaign_template,
     check_copy_conflicts,
     copy_campaign_content,
+    describe_campaign_contents,
 )
 from gyrinx.core.models.campaign import (
     Campaign,
@@ -1092,3 +1094,281 @@ def test_copy_to_view_with_packs(client, user, make_campaign):
     assert response.status_code == 302
     assert target.packs.count() == 1
     assert target.packs.get().name == "Pack Beta"
+
+
+# --- Starting a new Campaign from a template ---
+
+
+@pytest.fixture
+def template_campaign(user, make_campaign):
+    """A template campaign with one of everything worth copying."""
+    template = make_campaign(
+        "Ash Wastes Starter",
+        template=True,
+        budget=1000,
+        default_included_crew_categories=["CREW"],
+    )
+    asset_type = CampaignAssetType.objects.create(
+        campaign=template,
+        owner=user,
+        name_singular="Territory",
+        name_plural="Territories",
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        owner=user,
+        name="Slag Furnace",
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        owner=user,
+        sub_asset_type="crew",
+        name="Furnace Crew",
+    )
+    CampaignResourceType.objects.create(
+        campaign=template,
+        owner=user,
+        name="Meat",
+        default_amount=4,
+    )
+    attribute_type = CampaignAttributeType.objects.create(
+        campaign=template,
+        owner=user,
+        name="Alliance",
+    )
+    CampaignAttributeValue.objects.create(
+        attribute_type=attribute_type,
+        owner=user,
+        name="Guild",
+    )
+    template.packs.add(
+        CustomContentPack.objects.create(name="Pack Alpha", owner=user, listed=True)
+    )
+    return template
+
+
+@pytest.mark.django_db
+def test_new_campaign_from_template_copies_everything(client, user, template_campaign):
+    """Creating from a template copies assets, resources, attributes and packs."""
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "My Ash Wastes", "summary": "", "narrative": "", "budget": 1000},
+    )
+    assert response.status_code == 302
+
+    campaign = Campaign.objects.get(name="My Ash Wastes")
+    assert response.url == reverse("core:campaign", args=(campaign.id,))
+
+    asset_type = campaign.asset_types.get()
+    assert asset_type.name_plural == "Territories"
+    asset = asset_type.assets.get()
+    assert asset.name == "Slag Furnace"
+    assert asset.sub_assets.get().name == "Furnace Crew"
+
+    assert campaign.resource_types.get(name="Meat").default_amount == 4
+    attribute_type = campaign.attribute_types.get()
+    assert attribute_type.name == "Alliance"
+    assert attribute_type.values.get().name == "Guild"
+    assert campaign.packs.get().name == "Pack Alpha"
+
+    # The template is untouched — this is a copy, not a move.
+    assert template_campaign.asset_types.count() == 1
+
+
+@pytest.mark.django_db
+def test_new_campaign_from_template_copies_crew_categories(
+    client, user, template_campaign
+):
+    """Crew category defaults come across; they have no field on the form."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "Crewed Up", "summary": "", "narrative": "", "budget": 1000},
+    )
+
+    campaign = Campaign.objects.get(name="Crewed Up")
+    assert campaign.default_included_crew_categories == ["CREW"]
+
+
+@pytest.mark.django_db
+def test_new_campaign_form_prefills_budget_from_template(
+    client, user, template_campaign
+):
+    """The template's budget is a starting point the user can still override."""
+    client.force_login(user)
+
+    response = client.get(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+    )
+    assert response.status_code == 200
+    assert response.context["form"].initial["budget"] == 1000
+    assert response.context["template_campaign"] == template_campaign
+    assert "Ash Wastes Starter" in response.content.decode()
+
+    # Whatever the user submits wins over the template.
+    client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "Richer Gangs", "summary": "", "narrative": "", "budget": 2000},
+    )
+    assert Campaign.objects.get(name="Richer Gangs").budget == 2000
+
+
+@pytest.mark.django_db
+def test_new_campaign_from_template_keeps_template_reputation(
+    client, user, template_campaign
+):
+    """A template's own Reputation survives instead of being replaced by the default."""
+    CampaignResourceType.objects.create(
+        campaign=template_campaign,
+        owner=user,
+        name="Reputation",
+        description="Standing among the wastelanders",
+        default_amount=5,
+    )
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "Reputable", "summary": "", "narrative": "", "budget": 1000},
+    )
+
+    campaign = Campaign.objects.get(name="Reputable")
+    reputation = campaign.resource_types.get(name="Reputation")
+    assert reputation.default_amount == 5
+    assert reputation.description == "Standing among the wastelanders"
+    assert campaign.resource_types.filter(name__iexact="Reputation").count() == 1
+
+
+@pytest.mark.django_db
+def test_new_campaign_from_template_without_reputation_gets_the_default(
+    client, user, template_campaign
+):
+    """Templates that don't define Reputation still get the standard one."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "Standard Rep", "summary": "", "narrative": "", "budget": 1000},
+    )
+
+    campaign = Campaign.objects.get(name="Standard Rep")
+    assert campaign.resource_types.get(name="Reputation").default_amount == 1
+
+
+@pytest.mark.django_db
+def test_new_campaign_without_template_is_unchanged(client, user):
+    """The plain create flow still produces exactly one Reputation and nothing else."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new"),
+        {"name": "From Scratch", "summary": "", "narrative": "", "budget": 1500},
+    )
+
+    campaign = Campaign.objects.get(name="From Scratch")
+    assert campaign.resource_types.get().name == "Reputation"
+    assert not campaign.asset_types.exists()
+    assert campaign.budget == 1500
+
+
+@pytest.mark.django_db
+def test_new_campaign_rejects_a_campaign_that_is_not_a_template(
+    client, user, make_campaign
+):
+    """?template= only accepts campaigns actually marked as templates."""
+    not_a_template = make_campaign("Just a Campaign")
+    client.force_login(user)
+
+    response = client.get(
+        reverse("core:campaigns-new") + f"?template={not_a_template.id}"
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_new_campaign_rejects_archived_and_malformed_templates(
+    client, user, template_campaign
+):
+    template_campaign.archived = True
+    template_campaign.save()
+    client.force_login(user)
+
+    assert (
+        client.get(
+            reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(reverse("core:campaigns-new") + "?template=not-a-uuid").status_code
+        == 404
+    )
+
+
+@pytest.mark.django_db
+def test_template_owned_by_another_user_can_be_used(
+    client, make_user, template_campaign
+):
+    """Templates are offered to everyone — that is what marking one is for."""
+    other = make_user("otheruser", "password")
+    client.force_login(other)
+
+    response = client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "Borrowed", "summary": "", "narrative": "", "budget": 1000},
+    )
+    assert response.status_code == 302
+
+    campaign = Campaign.objects.get(name="Borrowed")
+    assert campaign.owner == other
+    assert campaign.asset_types.get().name_plural == "Territories"
+
+
+@pytest.mark.django_db
+def test_campaign_page_offers_the_template_button(client, user, template_campaign):
+    """The button appears on a template campaign and not on an ordinary one."""
+    client.force_login(user)
+    use_url = reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+
+    response = client.get(reverse("core:campaign", args=(template_campaign.id,)))
+    assert use_url in response.content.decode()
+
+    template_campaign.template = False
+    template_campaign.save()
+    response = client.get(reverse("core:campaign", args=(template_campaign.id,)))
+    assert use_url not in response.content.decode()
+
+
+@pytest.mark.django_db
+def test_apply_campaign_template_leaves_id_bearing_settings_alone(
+    user, make_campaign, template_campaign
+):
+    """group_attribute_type and default_gang_sort point at the template's own rows."""
+    attribute_type = template_campaign.attribute_types.get()
+    template_campaign.group_attribute_type = attribute_type
+    template_campaign.default_gang_sort = "-wealth"
+    template_campaign.save()
+
+    campaign = make_campaign("Fresh")
+    apply_campaign_template(
+        template_campaign=template_campaign, campaign=campaign, user=user
+    )
+
+    campaign.refresh_from_db()
+    assert campaign.group_attribute_type is None
+    assert campaign.default_gang_sort == ""
+
+
+@pytest.mark.django_db
+def test_describe_campaign_contents_summarises_a_template(template_campaign):
+    groups = {
+        g["label"]: g["names"] for g in describe_campaign_contents(template_campaign)
+    }
+
+    assert groups["Assets"] == ["Territories (1)"]
+    assert groups["Resources"] == ["Meat"]
+    assert groups["Attributes"] == ["Alliance"]
+    assert groups["Content Packs"] == ["Pack Alpha"]
