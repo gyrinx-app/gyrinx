@@ -88,6 +88,7 @@ from .modifier import (
     ContentModTrait,
 )
 from .injury import (
+    ContentEquipmentInjuryLink,
     ContentInjury,
     ContentInjuryDefaultOutcome,
     ContentInjuryGroup,
@@ -207,6 +208,7 @@ __all__ = [
     "ContentModStatApplyMixin",
     "ContentModTrait",
     # Injuries
+    "ContentEquipmentInjuryLink",
     "ContentInjury",
     "ContentInjuryDefaultOutcome",
     "ContentInjuryGroup",

@@ -369,16 +369,40 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
     rules = [r for r in rules if r]
 
     # Lasting injuries get their own write-in strip at the top of the card.
+    # Treated ones are flagged: on paper there is no tooltip to hover, so an
+    # injury repaired by a bionic would otherwise read exactly like a live one.
+    # The treating item itself is already listed in the card's wargear.
+    injuries: list[str] = []
     try:
-        injury_rows = (
-            list(fighter.injuries.all()) if hasattr(fighter, "injuries") else []
-        )
+        entries = list(_get(fighter, "injuries_display", []) or [])
     except Exception:
-        injury_rows = []
-    injuries = [
-        str(getattr(getattr(i, "injury", None), "name", "")) for i in injury_rows
-    ]
-    injuries = [n for n in injuries if n]
+        entries = []
+    for entry in entries:
+        name = str(
+            getattr(getattr(getattr(entry, "injury", None), "injury", None), "name", "")
+            or ""
+        ).strip()
+        if not name:
+            continue
+        injuries.append(f"{name} (treated)" if entry.is_treated else name)
+
+    if not entries:
+        # Anything not carrying injuries_display (raw or partially-built
+        # fighter shapes) still gets bare names.
+        try:
+            injury_rows = (
+                list(fighter.injuries.all()) if hasattr(fighter, "injuries") else []
+            )
+        except Exception:
+            injury_rows = []
+        injuries = [
+            n
+            for n in (
+                str(getattr(getattr(i, "injury", None), "name", ""))
+                for i in injury_rows
+            )
+            if n
+        ]
 
     # notes is rich text; the card wants compact plain text.
     notes_lines: list[str] = []

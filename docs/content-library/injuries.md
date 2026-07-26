@@ -20,6 +20,8 @@ Injuries are a campaign-mode feature. They cannot be added to fighters outside o
 
 **Fighter State** -- The availability status of a fighter in campaign mode. Injuries drive state changes, but the state is tracked on the fighter itself, not on the injury. See the "Fighter States and Availability" section below for details.
 
+**Equipment Injury Link** -- A record marking an item of equipment as treating a particular injury, such as a bionic eye treating an Eye Injury. A fighter holding that equipment has the injury shown as treated. See "Equipment That Treats Injuries" below.
+
 ## Models
 
 ### `ContentInjuryGroup`
@@ -88,6 +90,42 @@ An enumeration of the possible default outcomes for injuries. These values map t
 
 When a user adds an injury to a fighter, the form automatically suggests the injury's default outcome as the new fighter state. The user can override this selection before confirming.
 
+### `ContentEquipmentInjuryLink`
+
+Marks an item of equipment as treating a particular injury. In Necromunda a fighter who suffers a lasting injury can buy gear that repairs it -- a bionic eye for an Eye Injury, a bionic leg for Hobbled, and so on. This model records that relationship so the application can show the injury as treated when the fighter holds the equipment.
+
+#### Fields
+
+| Field | Type | Description |
+|---|---|---|
+| `equipment` | ForeignKey to `ContentEquipment` | The equipment that treats the injury. |
+| `injury` | ForeignKey to `ContentInjury` | The injury this equipment treats. |
+| `mode` | CharField | Either `offset` or `suppress`. This determines what happens to the injury's own modifiers. See "Choosing a Mode" below. |
+
+An item may treat several injuries, and an injury may be treated by several items. Each equipment/injury pair may only be linked once.
+
+#### Choosing a Mode
+
+**This is the setting to get right.** Picking the wrong mode either doubles a fighter's benefit or leaves them permanently penalised, and neither shows up as an error.
+
+**Offset** -- the injury stays active and keeps applying its own modifiers. Use this when the equipment carries its own modifiers that cancel the injury out. Trading Post bionics work this way: a bionic eye grants +1 Ballistic Skill, which cancels the Eye Injury's -1. Both modifiers stay in play and the fighter ends up back on their printed stat.
+
+**Suppress** -- the injury's modifiers stop applying entirely. Use this when the equipment does *not* carry offsetting modifiers. Van Saar Archaeo-Cyberteknika work this way: they replace the injury's effects with their own, which are rules rather than stat changes, so nothing cancels the penalty and it has to be switched off directly.
+
+The test is simply: **does this item carry stat modifiers that cancel the injury?** If yes, use offset. If no, use suppress.
+
+Do not combine the two -- an item set to `suppress` that *also* carries offsetting modifiers will switch the penalty off and apply its bonus on top, leaving the fighter better off than before they were injured. Nothing in the application prevents this, so it is on the content author to avoid.
+
+#### What a Link Does Not Do
+
+A link never deletes the injury. Lasting injuries are a permanent note on the gang roster and remain listed on the fighter's card, marked as treated. Users can still remove them by hand.
+
+A link also does not change the fighter's state. In the rules, buying bionics does not shorten a recovery -- a fighter In Recovery stays In Recovery.
+
+#### Admin Interface
+
+Links are managed as an inline on both the Equipment and Injury detail pages, so you can author them from whichever end you are working on. On an equipment page the inline is labelled "Injuries treated" and lets you pick the injury; on an injury page it is labelled "Treated by equipment" and lets you pick the equipment. The side you are already editing is not shown, since it is the page you are on.
+
 ## How It Works in the Application
 
 ### Fighter States and Availability
@@ -132,6 +170,14 @@ Users can remove injuries from fighters when they recover. Removing an injury:
 3. Logs the recovery to the campaign action log.
 4. Immediately removes any stat modifiers that were applied by the injury.
 
+### Equipment That Treats Injuries
+
+When a fighter holds equipment linked to one of their injuries, that injury is shown as treated. On the fighter card the injury name is marked with a spanner icon and the treating item is named in a tooltip; on the injuries edit page it is spelled out as "Treated by \<item\>"; on the classic print sheet the injury reads "\<name\> (treated)".
+
+Treated status is worked out from the equipment the fighter currently holds rather than stored against the injury. This means it keeps itself honest: sell or remove the bionic and the injury reverts to untreated with no further action. It also means an injury can be treated by more than one item at once, in which case all of them are named.
+
+If the link's mode is `suppress`, the injury's modifiers are also dropped from the fighter's statline. If it is `offset`, they stay -- the equipment's own modifiers are doing the cancelling.
+
 ### Injuries on Fighter Cards
 
 In campaign mode, fighter cards display an "Injuries" row in the statline area. This row lists the names of all active injuries. If the list owner or campaign arbitrator is viewing the card, an "Edit" link appears next to the injuries, or an "Add" link if the fighter has no injuries yet. Outside of campaign mode, the injuries row is not shown.
@@ -171,6 +217,47 @@ Alternatively, you can create injuries individually through the Injuries admin s
 4. Save the injury.
 
 The modifier will now be applied to any fighter who receives this injury during campaign play.
+
+### Linking Equipment to an Injury It Treats
+
+1. Go to the Injuries section in the admin and open the injury -- or go to the Equipment section and open the item. Either end works.
+2. In the "Treated by equipment" inline (on an injury) or "Injuries treated" inline (on an item), click "Add another".
+3. Select the other side of the link.
+4. Choose the mode. Use `offset` if the item carries stat modifiers that cancel the injury; use `suppress` if it does not. See "Choosing a Mode" above -- this is the step worth double-checking.
+5. Save.
+
+Any fighter holding that equipment will now show the injury as treated.
+
+#### Worked Example: Trading Post Bionics
+
+The seven injuries that reduce characteristics each have a bionic that repairs them. All of these use **offset**, because each bionic already carries a +1 modifier that cancels the injury:
+
+| Injury | Treated by |
+|---|---|
+| Eye Injury | Bionic eye |
+| Hand Injury | Bionic arm |
+| Hobbled | Bionic leg |
+| Spinal Injury | Skeletal enhancers |
+| Enfeebled | Aortic supercharger |
+| Humiliated | Lobo chip |
+| Head Injury | Cortex-cogitator |
+
+Humiliated and Head Injury each reduce two characteristics, so they have both a mundane version (which repairs one characteristic, and exists as a separate item per choice) and an improved version (which repairs both). Link every variant to the same injury -- a fighter will only hold one of them.
+
+#### Worked Example: Van Saar Cyberteknika
+
+The six Cyberteknika items also repair injuries, but use **suppress**, because their benefits are rules rather than stat modifiers and so nothing cancels the injury's penalty:
+
+| Injury | Treated by |
+|---|---|
+| Head Injury *and* Humiliated | Cranial Cyberteknika |
+| Eye Injury | Ocular Cyberteknika |
+| Hand Injury | Sindextrous Cyberteknika |
+| Hobbled | Motive Cyberteknika |
+| Spinal Injury | Torsonic Cyberteknika |
+| Enfeebled | Vascular Cyberteknika |
+
+Cranial Cyberteknika needs two links, one for each injury it can repair.
 
 ### Setting Up Vehicle Damage
 

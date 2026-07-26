@@ -24,7 +24,7 @@
                 </div>
             </div>
         </div>
-        {% if fighter.injuries.exists %}
+        {% if fighter.injuries_display %}
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">Current {{ fighter.term_injury_plural }}</h5>
@@ -41,19 +41,27 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for injury in fighter.injuries.all %}
+                            {% for entry in fighter.injuries_display %}
                                 <tr>
-                                    <td {% if injury.notes %}rowspan="2"{% endif %}>{{ injury.injury.name }}</td>
-                                    <td>{{ injury.date_received|date:"M j, Y" }}</td>
+                                    <td rowspan="{{ entry.row_span }}">{{ entry.injury.injury.name }}</td>
+                                    <td>{{ entry.injury.date_received|date:"M j, Y" }}</td>
                                     <td>
-                                        <a href="{% url 'core:list-fighter-injury-remove' list.id fighter.id injury.id %}"
+                                        <a href="{% url 'core:list-fighter-injury-remove' list.id fighter.id entry.injury.id %}"
                                            class="link-danger">Remove</a>
                                     </td>
                                 </tr>
-                                {% if injury.notes %}
+                                {% if entry.is_treated %}
                                     <tr>
                                         <td colspan="2" class="ps-4 fs-7 text-secondary">
-                                            <em>{{ injury.notes }}</em>
+                                            <c-icon name="wrench-adjustable" />
+                                            Treated by {{ entry.treated_by }}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% if entry.injury.notes %}
+                                    <tr>
+                                        <td colspan="2" class="ps-4 fs-7 text-secondary">
+                                            <em>{{ entry.injury.notes }}</em>
                                         </td>
                                     </tr>
                                 {% endif %}
