@@ -4,10 +4,11 @@ import pytest
 from django.apps import apps
 
 from gyrinx.core.models import ListFighter, ListFighterAdvancement
+from gyrinx.models import FighterCategoryChoices
 
 migration = __import__(
     "gyrinx.core.migrations.0196_convert_legacy_stat_advancements",
-    fromlist=["convert", "improved"],
+    fromlist=["convert"],
 )
 
 
@@ -32,18 +33,54 @@ def make_advancement(fighter, user, stat, *, uses_mod_system):
     )
 
 
-def test_improved_replicates_legacy_arithmetic():
-    # Target rolls improve downwards
-    assert migration.improved("4+", 1) == "3+"
-    assert migration.improved("4+", 2) == "2+"
-    # Distances keep their quote mark
-    assert migration.improved('4"', 1) == '5"'
-    # Plain values just count up
-    assert migration.improved("3", 2) == "5"
-    # Anything unparseable cannot be attributed
-    assert migration.improved("-", 1) is None
-    assert migration.improved("", 1) is None
-    assert migration.improved("4+", 0) is None
+@pytest.mark.django_db
+def test_legacy_value_written_from_a_differently_shaped_base_is_left_alone(
+    user, make_list, make_list_fighter, make_content_fighter, content_house
+):
+    """The legacy arithmetic and the mod system do not always agree.
+
+    Where a target roll is stored without its "+", the legacy code read the
+    string shape and counted upwards, writing a worse value. The mod system
+    classifies the stat from its definition and counts downwards. Converting
+    such a fighter would move its displayed stat, so it must be skipped.
+    """
+    # Ballistic Skill stored as "4" rather than "4+"
+    cf = make_content_fighter(
+        type="Odd Statline Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+        movement='4"',
+        weapon_skill="4+",
+        ballistic_skill="4",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="7",
+        cool="7",
+        willpower="7",
+        intelligence="7",
+    )
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Odd Fighter", content_fighter=cf)
+
+    # The legacy path saw no "+", so it counted up: 4 -> 5
+    make_advancement(fighter, user, "ballistic_skill", uses_mod_system=False)
+    fighter.ballistic_skill_override = "5"
+    fighter.save()
+
+    before = stat_value(fighter, "ballistic_skill")
+
+    migration.convert(apps, None)
+
+    fighter.refresh_from_db()
+    assert fighter.ballistic_skill_override == "5"
+    assert ListFighterAdvancement.objects.filter(
+        fighter=fighter, uses_mod_system=False
+    ).exists()
+    assert stat_value(fighter, "ballistic_skill") == before
 
 
 @pytest.mark.django_db
@@ -182,6 +219,49 @@ def test_advancements_shadowed_by_a_stat_override_are_left_alone(
         fighter=fighter, uses_mod_system=False
     ).exists()
     assert stat_value(fighter, "weapon_skill") == before
+
+
+@pytest.mark.django_db
+def test_a_malformed_stat_value_is_survived(
+    user, make_list, make_list_fighter, make_content_fighter, content_house
+):
+    """Stats are free text, and production holds values that cannot be modified.
+
+    Applying a modifier to one raises, which must not abort the migration —
+    the pair simply cannot be verified, so it is left alone.
+    """
+    cf = make_content_fighter(
+        type="Malformed Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+        movement='4"',
+        weapon_skill="4+",
+        ballistic_skill="4+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="7_",  # a real shape seen in production
+        cool="7",
+        willpower="7",
+        intelligence="7",
+    )
+    lst = make_list("Test List")
+    fighter = make_list_fighter(lst, "Malformed Fighter", content_fighter=cf)
+
+    make_advancement(fighter, user, "leadership", uses_mod_system=False)
+    fighter.leadership_override = "8"
+    fighter.save()
+
+    migration.convert(apps, None)
+
+    fighter.refresh_from_db()
+    assert fighter.leadership_override == "8"
+    assert ListFighterAdvancement.objects.filter(
+        fighter=fighter, uses_mod_system=False
+    ).exists()
 
 
 @pytest.mark.django_db
