@@ -130,7 +130,7 @@ def convert(apps, schema_editor):
             stat["field_name"]: stat["value"]
             for stat in fighter.content_fighter_statline
         }
-        dirty = False
+        cleared = {}
 
         for stat in STAT_FIELDS:
             counts = grouped.get((fighter.id, stat))
@@ -161,13 +161,11 @@ def convert(apps, schema_editor):
                 if override != expected:
                     left_alone.append((fighter.id, stat, override, "mismatch"))
                     continue
-                setattr(fighter, f"{stat}_override", None)
-                dirty = True
+                cleared[f"{stat}_override"] = None
                 converted_keys.append((fighter.id, stat))
             elif mod_count and override not in (None, ""):
                 if override == after_advancements(stat, base, mod_count):
-                    setattr(fighter, f"{stat}_override", None)
-                    dirty = True
+                    cleared[f"{stat}_override"] = None
                     repaired.append((fighter.id, stat, override, base))
                 else:
                     # Still worth reporting: an override sitting alongside
@@ -178,8 +176,13 @@ def convert(apps, schema_editor):
                         (fighter.id, stat, override, "override-over-mod-advancements")
                     )
 
-        if dirty:
-            fighter.save()
+        if cleared:
+            # Written with an UPDATE rather than save(): saving a fighter fires
+            # post_save receivers that materialise child fighters and bump the
+            # parent list's modified timestamp. Neither belongs in a migration
+            # that is only clearing a stat field, and the timestamp churn would
+            # reorder every affected gang for its owner.
+            ListFighter.objects.filter(pk=fighter.pk).update(**cleared)
 
     # Flip only the advancements whose override was successfully cleared.
     for fighter_id, stat in converted_keys:
@@ -227,6 +230,10 @@ def unconvert(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("core", "0195_crew_credits_owed"),
+        # Stat classification is read from ContentStat rows, which this content
+        # migration guarantees. Without the dependency the ordering is only
+        # incidental, and running first would leave every stat unclassified.
+        ("content", "0148_ensure_contentstat_entries_exist"),
     ]
 
     operations = [
