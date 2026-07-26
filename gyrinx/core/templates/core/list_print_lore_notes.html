@@ -1,0 +1,62 @@
+{% extends "core/layouts/base_print.html" %}
+{% load static custom_tags %}
+{% block head_title %}
+    Lore & notes | {{ list.name }}
+{% endblock head_title %}
+{% block stylesheet %}
+    <link rel="stylesheet" href="{% static 'core/css/print.css' %}">
+{% endblock stylesheet %}
+{% block content %}
+    <div id="content" class="p-2">
+        <div class="col px-0 vstack gap-4">
+            <div>
+                <h1 class="h2 mb-0">{{ list.name }}</h1>
+                <div class="text-secondary">{{ list.content_house_name }} · Lore & notes</div>
+            </div>
+            {% if has_gang_prose %}
+                <div class="break-inside-avoid">
+                    <h2 class="h4">Overview</h2>
+                    {% if list.narrative %}<div class="mb-last-0">{{ list.narrative|safe_rich_text|safe }}</div>{% endif %}
+                    {% if list.notes %}
+                        <h3 class="caps-label mt-2">Notes</h3>
+                        <div class="mb-last-0">{{ list.notes|safe_rich_text|safe }}</div>
+                    {% endif %}
+                </div>
+            {% endif %}
+            {% for entry in entries %}
+                <div class="break-inside-avoid">
+                    <div class="hstack gap-3 align-items-start">
+                        {% if entry.fighter.image %}
+                            <img src="{{ entry.fighter.image.url }}"
+                                 alt=""
+                                 class="rounded size-em-5 object-fit-cover flex-shrink-0">
+                        {% endif %}
+                        <div>
+                            <h2 class="h4 mb-0">{{ entry.fighter.name }}</h2>
+                            <div class="text-secondary">{{ entry.fighter.content_fighter_cached.name }}</div>
+                        </div>
+                    </div>
+                    {% if entry.narrative %}<div class="mt-2 mb-last-0">{{ entry.narrative|safe_rich_text|safe }}</div>{% endif %}
+                    {% if entry.notes %}
+                        <h3 class="caps-label mt-2">Notes</h3>
+                        <div class="mb-last-0">{{ entry.notes|safe_rich_text|safe }}</div>
+                    {% endif %}
+                    {% if entry.private_notes %}
+                        <h3 class="caps-label mt-2">Private notes</h3>
+                        <div class="mb-last-0">{{ entry.private_notes|safe_rich_text|safe }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            {% if not entries and not has_gang_prose %}
+                <p class="text-secondary">No lore or notes have been written for this Gang yet.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}
+{% block extra_body %}
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            window.print();
+        });
+    </script>
+{% endblock extra_body %}

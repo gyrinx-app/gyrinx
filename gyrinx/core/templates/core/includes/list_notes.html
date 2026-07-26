@@ -1,13 +1,6 @@
 {% load custom_tags %}
 <div>
-    <ul class="nav nav-tabs mb-4">
-        <li class="nav-item">
-            <a href="{% url 'core:list-about' list.id %}" class="nav-link">Lore</a>
-        </li>
-        <li class="nav-item">
-            <a href="{% url 'core:list-notes' list.id %}" class="nav-link active">Notes</a>
-        </li>
-    </ul>
+    {% include "core/includes/list_lore_notes_tabs.html" with list=list active="notes" %}
     <nav class="nav card card-body flex-column mb-3 p-2">
         <a class="nav-link p-2 py-1" href="#notes-list">Overview</a>
         {% for fighter in list.active_fighters %}

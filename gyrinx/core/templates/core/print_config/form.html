@@ -28,7 +28,8 @@
                     {% endfor %}
                 </div>
                 <p class="text-secondary fs-7 mb-0 mt-2">
-                    Classic cards print Fighter cards only — the Asset, Attribute, Action, and Stash options below apply to Web cards.
+                    Classic cards gather Assets, Resources, Attributes and the Stash onto a single Gang card. The Action
+                    option below applies to Web cards only.
                 </p>
             </div>
             <!-- Card Types Section -->
@@ -59,6 +60,12 @@
                         <label class="form-check-label"
                                for="{{ form.include_dead_fighters.id_for_label }}">Include Dead Fighters</label>
                     </div>
+                    <c-form.field :field="form.include_xp" label="Show XP on Fighter cards" />
+                    {% comment %}
+                    "and", not "&": the label prop is autoescaped by label_tag,
+                    so an &amp; entity written here reaches the page doubled.
+                    {% endcomment %}
+                    <c-form.field :field="form.include_lore_notes" label="Include lore and notes cards" />
                 </div>
             </div>
             <!-- Fighter Selection Section -->

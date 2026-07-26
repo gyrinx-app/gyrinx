@@ -54,19 +54,24 @@
                 </td>
             </tr>
         {% endif %}
-        {% comment %} XP {% endcomment %}
-        {% if not fighter.is_vehicle and not print %}
-            <tr class="fs-7">
-                <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
-                <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
-                    {% if not fighter.is_captured and not fighter.is_sold_to_guilders %}
-                        {% if can_edit or is_arbitrator %}
-                            <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
+        {% comment %}
+        XP. Hidden in print unless the print config asks for it (#1816) — the
+        classic card has always printed XP, so this keeps the two sheets level.
+        {% endcomment %}
+        {% if not fighter.is_vehicle %}
+            {% if not print or not print_config or print_config.include_xp %}
+                <tr class="fs-7">
+                    <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">XP</th>
+                    <td colspan="{% widthratio 66 100 fighter.statline|length %}">
+                        <span class="badge text-bg-primary">{{ fighter.xp_current }} XP</span>
+                        {% if not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
+                            {% if can_edit or is_arbitrator %}
+                                <a href="{% url 'core:list-fighter-xp-edit' list.id fighter.id %}">Edit XP</a>
+                            {% endif %}
                         {% endif %}
-                    {% endif %}
-                </td>
-            </tr>
+                    </td>
+                </tr>
+            {% endif %}
         {% endif %}
         {% comment %} Counters {% endcomment %}
         {% if fighter.applicable_counters and not print %}

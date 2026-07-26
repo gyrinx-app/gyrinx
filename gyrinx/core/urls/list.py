@@ -24,6 +24,11 @@ patterns = [
     path(
         "list/<id>/notes", list_views.ListNotesDetailView.as_view(), name="list-notes"
     ),
+    path(
+        "list/<id>/print/lore-notes",
+        list_views.ListLoreNotesPrintView.as_view(),
+        name="list-print-lore-notes",
+    ),
     path("list/<id>/archive", list_views.archive_list, name="list-archive"),
     path("list/<id>/show-stash", list_views.show_stash, name="list-show-stash"),
     path(

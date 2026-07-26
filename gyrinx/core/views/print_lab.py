@@ -41,23 +41,33 @@ from django.shortcuts import render
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from gyrinx.core.models.list import List, ListFighter
+from gyrinx.core.utils import (
+    get_list_attributes,
+    get_list_campaign_resources,
+    get_list_held_assets,
+)
 from gyrinx.core.print_cards import (
     DEFAULT_THEME,
     THEMES,
     ClassicCard,
+    ClassicTextCard,
+    DetailGroup,
     WeaponRow,
     _crew_stats,
     _humanoid_stats,
     _vehicle_stats,
     card_from_fighter,
+    gang_card_from_list,
+    lore_card_from_fighter,
+    lore_card_from_list,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def synthetic_presets() -> "dict[str, ClassicCard]":
-    """Ordered map of preset key -> ClassicCard, covering layout edge cases."""
-    presets: dict[str, ClassicCard] = {}
+def synthetic_presets() -> "dict[str, ClassicCard | ClassicTextCard]":
+    """Ordered map of preset key -> card, covering layout edge cases."""
+    presets: dict[str, ClassicCard | ClassicTextCard] = {}
 
     presets["ganger"] = ClassicCard(
         kind="fighter",
@@ -373,6 +383,56 @@ def synthetic_presets() -> "dict[str, ClassicCard]":
         notes_lines=[],
     )
 
+    # Text plates (#1816) — same 100x110mm shape, flowing sections instead of
+    # the fixed fighter regions.
+    presets["gang"] = ClassicTextCard(
+        kind="gang",
+        name="The Ashen Choir",
+        subtitle="House Cawdor",
+        cost="1,245¢",
+        meta=[("Credits", "180¢")],
+        sections=[
+            DetailGroup("Resources", ["Reputation: 7", "Meat: 3"], "cc-gangsec"),
+            DetailGroup(
+                "Assets",
+                ["Old Factory (Territory)", "Slag Refinery (Territory)"],
+                "cc-gangsec",
+            ),
+            DetailGroup("Alignment", ["Outlaw"], "cc-gangsec"),
+            DetailGroup(
+                "Stash",
+                ["Autogun", "Mesh armour", "Respirator", "Frag grenade"],
+                "cc-gangsec",
+            ),
+        ],
+    )
+
+    presets["lore"] = ClassicTextCard(
+        kind="lore",
+        name="Cardinal Kaustus",
+        subtitle="Leader",
+        columns=1,
+        sections=[
+            DetailGroup(
+                "Lore",
+                [
+                    "Kaustus came up through the Redemption in Hive Primus, preaching "
+                    "over the sump-fires until enough of the faithful followed him out "
+                    "into the ash wastes. He does not speak of what he heard there, "
+                    "only that it told him to gather a gang and go back."
+                ],
+                "cc-gangsec",
+                writein=True,
+            ),
+            DetailGroup(
+                "Notes",
+                ["Wounded turn 3 against the Iron Skulls. Watch the leg."],
+                "cc-gangsec",
+                writein=True,
+            ),
+        ],
+    )
+
     return presets
 
 
@@ -384,6 +444,8 @@ PRESET_LABELS = {
     "psyker": "Psyker (powers + legendary names)",
     "overflow": "Overflow (stress test)",
     "blank": "Blank fighter card",
+    "gang": "Gang plate (resources / assets / stash)",
+    "lore": "Lore & notes plate",
 }
 
 
@@ -441,11 +503,51 @@ def _cards_for_request(request):
             .order_by("name")
         )
         cards = []
+        stash_fighter = None
         for f in fighters:
             card = card_from_fighter(f, list_obj)
             if card.kind == "stash":
+                stash_fighter = f
                 continue
             cards.append(card)
+
+        # Gang plate, as the real classic sheet builds it (#1816).
+        gang_card = gang_card_from_list(
+            list_obj,
+            resources=get_list_campaign_resources(list_obj),
+            held_assets=get_list_held_assets(list_obj),
+            attributes=get_list_attributes(list_obj),
+            stash_fighter=stash_fighter,
+        )
+        if gang_card.has_content:
+            cards.insert(0, gang_card)
+        return cards, None
+
+    if source == "lore":
+        lid = request.GET.get("list", "").strip()
+        if not lid:
+            return [], "Enter a list id."
+        try:
+            list_obj = List.objects.get(id=lid)
+        except Exception:
+            return [], f"No gang found for id {lid!r}."
+        # Mirrors ListLoreNotesPrintView's classic branch, minus the private
+        # notes — the lab has no viewer identity to gate them on.
+        cards = []
+        gang_card = lore_card_from_list(list_obj)
+        if gang_card.has_content:
+            cards.append(gang_card)
+        fighters = (
+            ListFighter.objects.filter(list=list_obj, archived=False)
+            .exclude(content_fighter__is_stash=True)
+            .select_related("content_fighter", "list")
+        )
+        for f in fighters:
+            card = lore_card_from_fighter(f)
+            if card.has_content:
+                cards.append(card)
+        if not cards:
+            return [], "No lore or notes written for that gang."
         return cards, None
 
     if source == "preset":

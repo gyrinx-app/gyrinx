@@ -1,0 +1,72 @@
+{% comment %}
+Classic-mode text plate (#1816). Same 100mm x 110mm shape and chrome as the
+fighter card, but the body is flowing labelled sections rather than the fixed
+statline/weapons regions. Used for the gang plate (kind "gang") and the
+lore/notes plates (kind "lore").
+
+Params:
+  card    -- a ClassicTextCard (see gyrinx.core.print_cards)
+  theme   -- background theme key (blank/odd/even/paper_odd/paper_even/dark)
+  show_grid -- if truthy, overlay a mm alignment grid (lab tuning aid)
+{% endcomment %}
+<div class="classic-card classic-card--text theme-{{ theme|default:'blank' }}{% if show_grid %} show-grid{% endif %}"
+     data-kind="{{ card.kind }}">
+    <div class="cc-bg"></div>
+    <div class="cc-nameplate"></div>
+    {% comment %}
+    Unlike the fighter card, the cog is dropped entirely when there is no value
+    for it — a lore plate has no rating, and an empty circle reads as a mistake.
+    {% endcomment %}
+    <div class="cc-region cc-name{% if not card.cost %} cc-name--nocog{% endif %}">
+        <div class="cc-name__value">{{ card.name|default:"&nbsp;" }}</div>
+        {% if card.subtitle %}<div class="cc-name__sub">{{ card.subtitle }}</div>{% endif %}
+    </div>
+    {% if card.cost %}
+        <div class="cc-cog">
+            <span class="cc-cog__cost">{{ card.cost }}</span>
+        </div>
+    {% endif %}
+    <div class="cc-region cc-main">
+        <div class="cc-body">
+            {% if card.meta %}
+                <div class="cc-meta">
+                    {% for label, value in card.meta %}
+                        <div class="cc-meta__item">
+                            <span class="cc-label">{{ label }}</span>
+                            <span class="cc-meta__val">{{ value }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% comment %}
+            Same markup as the fighter card's detail block, so the shrink-to-fit
+            script in classic_sheet.html (which targets .cc-detail__cols) applies
+            here unchanged.
+            {% endcomment %}
+            <div class="cc-detail">
+                <div class="cc-detail__cols">
+                    {% for column in card.detail_columns %}
+                        <div class="cc-detail__col">
+                            {% for group in column %}
+                                <div class="cc-section {{ group.css_class }}{% if group.writein %} cc-section--writein{% endif %}">
+                                    <div class="cc-label">{{ group.label }}</div>
+                                    {% if group.text %}<div class="cc-section__body">{{ group.text }}</div>{% endif %}
+                                    {% if group.writein %}
+                                        <div class="cc-writein cc-writein--lore"></div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% if card.image_url %}
+            <div class="cc-foot">
+                <div class="cc-portrait cc-portrait--text">
+                    <img class="cc-portrait__img" src="{{ card.image_url }}" alt="">
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
