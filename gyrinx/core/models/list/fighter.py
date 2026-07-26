@@ -1,6 +1,7 @@
 import logging
 import re
 from collections import namedtuple
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from django.contrib import admin
@@ -26,6 +27,7 @@ from gyrinx.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
+    ContentEquipmentInjuryLink,
     ContentFighter,
     ContentFighterCategoryTerms,
     ContentFighterDefaultAssignment,
@@ -63,6 +65,7 @@ from gyrinx.tracing import traced
 
 if TYPE_CHECKING:
     from gyrinx.core.models.list.assignment import ListFighterEquipmentAssignment
+    from gyrinx.core.models.list.campaign_state import ListFighterInjury
     from gyrinx.core.models.list.equipment_set import ListFighterEquipmentSet
     from gyrinx.core.models.list.virtual import (
         VirtualListFighterEquipmentAssignment,
@@ -76,6 +79,39 @@ pylist = list
 FighterCounterDisplay = namedtuple(
     "FighterCounterDisplay", ["counter", "value", "warn"]
 )
+
+
+@dataclass(frozen=True)
+class InjuryTreatment:
+    """One item of equipment treating one injury, and how (#1027)."""
+
+    equipment: ContentEquipment
+    mode: str
+
+
+@dataclass(frozen=True)
+class InjuryDisplay:
+    """A fighter's injury alongside any gear treating it.
+
+    ``treatments`` is empty for an untreated injury, which is the common case.
+    """
+
+    injury: "ListFighterInjury"
+    treatments: pylist[InjuryTreatment]
+
+    @property
+    def is_treated(self) -> bool:
+        return bool(self.treatments)
+
+    @property
+    def treated_by(self) -> str:
+        """Comma-separated names of the treating equipment, for display."""
+        return ", ".join(str(t.equipment.name) for t in self.treatments)
+
+    @property
+    def row_span(self) -> int:
+        """Rows the injury's name cell spans: itself plus any detail rows."""
+        return 1 + int(self.is_treated) + int(bool(self.injury.notes))
 
 
 class ListFighterManager(models.Manager):
@@ -361,6 +397,14 @@ class ListFighterQuerySet(models.QuerySet):
                     ),
                 ),
                 "listfighterequipmentassignment_set__content_equipment__modifiers",
+                # Equipment-injury links (#1027) drive the treated/untreated
+                # marker and SUPPRESS handling. all_content() so a pack-owned
+                # link isn't dropped for a subscribed list — see "Content
+                # packs: archive semantics" in CLAUDE.md.
+                Prefetch(
+                    "listfighterequipmentassignment_set__content_equipment__injury_links",
+                    queryset=ContentEquipmentInjuryLink.objects.all_content(),
+                ),
                 # all_content() so pack-scoped upgrades survive this prefetch
                 # and price in recompute (#1933), matching the accessories
                 # prefetch above.
@@ -396,6 +440,13 @@ class ListFighterQuerySet(models.QuerySet):
                     queryset=ContentWeaponAccessory.objects.all_content().prefetch_related(
                         "modifiers"
                     ),
+                ),
+                # Default-assignment equipment can carry injury links too, so
+                # a fighter template that grants a bionic doesn't drop to an
+                # N+1 when the card resolves treatments.
+                Prefetch(
+                    "content_fighter__default_assignments__equipment__injury_links",
+                    queryset=ContentEquipmentInjuryLink.objects.all_content(),
                 ),
                 # Prefetch equipment list items for cost override lookups
                 "content_fighter__contentfighterequipmentlistitem_set",
@@ -1301,6 +1352,61 @@ class ListFighter(AppBase):
     def is_dead(self):
         return self.injury_state == ListFighter.DEAD
 
+    # Injuries treated by equipment (#1027)
+    #
+    # A lasting injury is a permanent note on the gang roster, so treating one
+    # never deletes the ListFighterInjury row. Which injuries count as treated
+    # is derived from the gear the fighter currently holds rather than stored:
+    # sell the bionic and the injury goes back to untreated on its own, with no
+    # cleanup path to get wrong.
+
+    @cached_property
+    def _injury_treatments(self) -> dict:
+        """Map of ``ContentInjury`` id -> the equipment treating it.
+
+        Reads the prefetched assignment/equipment chain, so this costs no
+        queries on the list view. A fighter holding two items that treat the
+        same injury (a bionic replaced by Cyberteknika in the same location,
+        say) lists both.
+        """
+        treatments: dict = {}
+        for assign in self.assignments_cached:
+            equipment = assign.equipment
+            if equipment is None:
+                continue
+            for link in equipment.injury_links.all():
+                treatments.setdefault(link.injury_id, []).append(
+                    InjuryTreatment(equipment=equipment, mode=link.mode)
+                )
+        return treatments
+
+    @cached_property
+    def _suppressed_injury_ids(self) -> set:
+        """Injuries whose modifiers must stop applying — see ``SUPPRESS``."""
+        return {
+            injury_id
+            for injury_id, treatments in self._injury_treatments.items()
+            if any(
+                t.mode == ContentEquipmentInjuryLink.Mode.SUPPRESS for t in treatments
+            )
+        }
+
+    @cached_property
+    def injuries_display(self) -> pylist["InjuryDisplay"]:
+        """This fighter's injuries paired with whatever gear treats them.
+
+        Display surfaces should read this rather than ``injuries.all`` so the
+        treated/untreated marker comes from one place, and so templates don't
+        have to do the pairing themselves.
+        """
+        return [
+            InjuryDisplay(
+                injury=injury,
+                treatments=self._injury_treatments.get(injury.injury_id, []),
+            )
+            for injury in self.injuries.all()
+        ]
+
     # Stats & rules
 
     @cached_property
@@ -1316,7 +1422,13 @@ class ListFighter(AppBase):
         # Add injury mods if in campaign mode
         injury_mods = []
         if self.list.is_campaign_mode:
+            suppressed = self._suppressed_injury_ids
             for injury in self.injuries.all():
+                # An offsetting treatment (a Trading Post bionic) leaves the
+                # injury's modifiers in place — the bionic's own +1 is what
+                # cancels them. Only a suppressing treatment drops them.
+                if injury.injury_id in suppressed:
+                    continue
                 injury_mods.extend(injury.injury.modifiers.all())
 
         # Add advancement mods for stat advancements using the mod system

@@ -39,6 +39,7 @@ from .models import (
     ContentEquipmentCategoryFighterRestriction,
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
+    ContentEquipmentInjuryLink,
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRule,
@@ -528,6 +529,21 @@ class ContentEquipmentUpgradeInline(ContentTabularInline):
         return share_field_choices(formset, "modifiers", modifier_choices)
 
 
+class ContentEquipmentInjuryLinkInline(ContentTabularInline):
+    """Equipment-injury links, editable from either end of the relation."""
+
+    model = ContentEquipmentInjuryLink
+    extra = 0
+    fields = ["equipment", "injury", "mode"]
+    verbose_name = "Injury treated"
+    verbose_name_plural = "Injuries treated"
+
+    def get_queryset(self, request):
+        # Both columns are rendered on every row, so without this the inline
+        # costs a query per link.
+        return super().get_queryset(request).select_related("equipment", "injury")
+
+
 class ContentEquipmentAdminForm(forms.ModelForm):
     """
     Custom form for equipment admin with enhanced filtering and grouping.
@@ -580,6 +596,7 @@ class ContentEquipmentAdmin(ContentAdmin, admin.ModelAdmin):
         ContentEquipmentFighterProfileInline,
         ContentEquipmentEquipmentProfileInline,
         ContentEquipmentUpgradeInline,
+        ContentEquipmentInjuryLinkInline,
     ]
 
     actions = ["clone"]
@@ -1478,7 +1495,7 @@ class ContentInjuryAdmin(ContentAdmin, admin.ModelAdmin):
     list_display = ["name", "description", "phase", "get_modifier_count"]
     readonly_fields = ["id", "created", "modified"]
 
-    inlines = [ContentModInline]
+    inlines = [ContentModInline, ContentEquipmentInjuryLinkInline]
 
     def get_modifier_count(self, obj):
         return obj.modifiers.count()

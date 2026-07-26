@@ -5,6 +5,7 @@ This module contains:
 - ContentInjuryDefaultOutcome: Enum for default fighter states after injury
 - ContentInjuryGroup: Groups of related injuries
 - ContentInjury: Individual injury definitions
+- ContentEquipmentInjuryLink: Ties equipment to the injuries it treats
 """
 
 from django.db import models
@@ -108,3 +109,73 @@ class ContentInjury(Content):
         verbose_name = "Injury"
         verbose_name_plural = "Injuries"
         ordering = ["injury_group__name", "name"]
+
+
+class ContentEquipmentInjuryLink(Content):
+    """
+    Ties an item of equipment to an injury it treats.
+
+    Necromunda has two different ways for gear to answer a lasting injury, and
+    the difference matters to the statline:
+
+    - Trading Post bionics grant a flat +1 to a characteristic, "negating part
+      or all of the effect" of the injury. The injury itself stays on the
+      roster and its modifiers stay live — the two cancel out. That is
+      ``OFFSET``, and it needs no arithmetic from us because the equipment
+      already carries its own ``ContentMod``.
+    - Van Saar Archaeo-Cyberteknika instead *replace* the injury's effects with
+      the implant's own (which are rules, not stats — immunity to Insane,
+      always-on infra-sight, and so on). Nothing offsets the penalty, so the
+      injury's modifiers have to stop applying. That is ``SUPPRESS``.
+
+    In both cases the injury is still a permanent note on the gang roster, so
+    this link never deletes a :model:`core.ListFighterInjury` — it only marks
+    it as treated, and in ``SUPPRESS`` mode drops its modifiers. Keeping the
+    row is also what makes the "bionics damaged by a fresh injury to the same
+    location" rule expressible later: it needs to know which injury a fitted
+    implant belongs to.
+    """
+
+    help_text = "Marks an item of equipment as treating a particular injury."
+
+    class Mode(models.TextChoices):
+        OFFSET = "offset", "Offset (injury effects still apply)"
+        SUPPRESS = "suppress", "Suppress (injury effects stop applying)"
+
+    equipment = models.ForeignKey(
+        "ContentEquipment",
+        on_delete=models.CASCADE,
+        related_name="injury_links",
+        help_text="The equipment that treats the injury.",
+    )
+    injury = models.ForeignKey(
+        ContentInjury,
+        on_delete=models.CASCADE,
+        related_name="treated_by",
+        help_text="The injury this equipment treats.",
+    )
+    mode = models.CharField(
+        max_length=10,
+        choices=Mode.choices,
+        default=Mode.OFFSET,
+        help_text=(
+            "Offset: the equipment's own modifiers cancel the injury, which "
+            "keeps applying (Trading Post bionics). Suppress: the injury's "
+            "modifiers stop applying entirely (Van Saar Cyberteknika)."
+        ),
+    )
+    history = HistoricalRecords()
+
+    def __str__(self):
+        return f"{self.equipment} treats {self.injury}"
+
+    class Meta:
+        verbose_name = "Equipment Injury Link"
+        verbose_name_plural = "Equipment Injury Links"
+        ordering = ["injury__name", "equipment__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["equipment", "injury"],
+                name="uniq_equipment_injury_link",
+            ),
+        ]

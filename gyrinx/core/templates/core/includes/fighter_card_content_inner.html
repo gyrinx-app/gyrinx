@@ -262,13 +262,17 @@
             </tr>
         {% endif %}
         {% comment %} Injuries (only in campaign mode) {% endcomment %}
-        {% if list.is_campaign_mode and fighter.injuries.exists %}
+        {% if list.is_campaign_mode and fighter.injuries_display %}
             <tr class="fs-7">
                 <th scope="row" colspan="{% widthratio 33 100 fighter.statline|length %}">{{ fighter.term_injury_plural }}</th>
                 <td colspan="{% widthratio 66 100 fighter.statline|length %}">
-                    {% for injury in fighter.injuries.all %}
+                    {% for entry in fighter.injuries_display %}
                         {% if not forloop.first %},{% endif %}
-                        {{ injury.injury.name }}
+                        {% if entry.is_treated %}
+                            <span class="text-secondary" title="Treated by {{ entry.treated_by }}">{{ entry.injury.injury.name }} <i class="bi-wrench-adjustable"></i></span>
+                        {% else %}
+                            {{ entry.injury.injury.name }}
+                        {% endif %}
                     {% endfor %}
                     {% if not print and not fighter.is_captured and not fighter.is_sold_to_guilders %}
                         {% if can_edit or is_arbitrator %}
