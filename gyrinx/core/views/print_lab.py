@@ -58,6 +58,8 @@ from gyrinx.core.print_cards import (
     _vehicle_stats,
     card_from_fighter,
     gang_card_from_list,
+    lore_card_from_fighter,
+    lore_card_from_list,
 )
 
 logger = logging.getLogger(__name__)
@@ -420,11 +422,13 @@ def synthetic_presets() -> "dict[str, ClassicCard | ClassicTextCard]":
                     "only that it told him to gather a gang and go back."
                 ],
                 "cc-gangsec",
+                writein=True,
             ),
             DetailGroup(
                 "Notes",
                 ["Wounded turn 3 against the Iron Skulls. Watch the leg."],
                 "cc-gangsec",
+                writein=True,
             ),
         ],
     )
@@ -517,6 +521,33 @@ def _cards_for_request(request):
         )
         if gang_card.has_content:
             cards.insert(0, gang_card)
+        return cards, None
+
+    if source == "lore":
+        lid = request.GET.get("list", "").strip()
+        if not lid:
+            return [], "Enter a list id."
+        try:
+            list_obj = List.objects.get(id=lid)
+        except Exception:
+            return [], f"No gang found for id {lid!r}."
+        # Mirrors ListLoreNotesPrintView's classic branch, minus the private
+        # notes — the lab has no viewer identity to gate them on.
+        cards = []
+        gang_card = lore_card_from_list(list_obj)
+        if gang_card.has_content:
+            cards.append(gang_card)
+        fighters = (
+            ListFighter.objects.filter(list=list_obj, archived=False)
+            .exclude(content_fighter__is_stash=True)
+            .select_related("content_fighter", "list")
+        )
+        for f in fighters:
+            card = lore_card_from_fighter(f)
+            if card.has_content:
+                cards.append(card)
+        if not cards:
+            return [], "No lore or notes written for that gang."
         return cards, None
 
     if source == "preset":

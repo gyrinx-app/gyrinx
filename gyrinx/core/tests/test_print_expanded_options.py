@@ -443,10 +443,58 @@ def test_lore_cards_flatten_rich_text(make_list, make_list_fighter):
     assert len(gang_card.detail_columns) == 1
 
     public = lore_card_from_fighter(fighter)
-    assert [g.label for g in public.sections] == ["Lore"]
+    assert [g.label for g in public.sections] == ["Lore", "Notes"]
 
     private = lore_card_from_fighter(fighter, include_private=True)
-    assert [g.label for g in private.sections] == ["Lore", "Private notes"]
+    assert [g.label for g in private.sections] == ["Lore", "Notes", "Private notes"]
+
+
+@pytest.mark.django_db
+def test_lore_plates_leave_room_to_write(make_list, make_list_fighter):
+    """Lore and Notes always get a write-in box, filled in or not."""
+    lst = make_list("Gang")
+    lst.narrative = "<p>Founded in the ash wastes.</p>"
+    lst.save()
+    fighter = make_list_fighter(lst, "Grimjaw")
+    fighter.narrative = "<p>Grew up underhive.</p>"
+    fighter.save()
+
+    for card in (lore_card_from_list(lst), lore_card_from_fighter(fighter)):
+        writeins = [g.label for g in card.sections if g.writein]
+        assert writeins == ["Lore", "Notes"]
+
+    # An empty Notes section still earns its box...
+    fighter_card = lore_card_from_fighter(fighter)
+    notes = next(g for g in fighter_card.sections if g.label == "Notes")
+    assert notes.items == []
+    assert notes.writein
+
+    # ...but a plate of nothing but empty boxes isn't worth printing.
+    blank = lore_card_from_fighter(make_list_fighter(lst, "Silent Bob"))
+    assert not blank.has_content
+
+    # The gang plate's sections are data, not write-in space.
+    gang = gang_card_from_list(
+        lst, attributes=[{"name": "Alignment", "assignments": ["Outlaw"]}]
+    )
+    assert not any(g.writein for g in gang.sections)
+
+
+@pytest.mark.django_db
+def test_lore_sheet_renders_the_write_in_boxes(
+    client, user, make_list, make_list_fighter
+):
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Grimjaw")
+    fighter.narrative = "<p>Grew up underhive.</p>"
+    fighter.save()
+    client.force_login(user)
+
+    body = client.get(_lore_url(lst, style="classic")).content.decode()
+
+    assert "cc-writein--lore" in body
+    # One per section, on the fighter plate: Lore and Notes.
+    assert body.count("cc-writein--lore") == 2
 
 
 @pytest.mark.django_db

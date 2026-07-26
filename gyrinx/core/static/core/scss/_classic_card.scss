@@ -744,6 +744,47 @@
         .cc-detail .cc-section__body {
             // Prose, not a joined list — give the lines a little more air.
             line-height: 1.25;
+            // Size to the text, and never grow — the shared rule grows the body
+            // to fill its section, which in a row (the fighter card) is
+            // invisible, but here would open a gap between the prose and its
+            // box. Shrinking is off too: it would clip the text *inside* the
+            // section, where the fit-to-box script can't see the overflow and
+            // so never shrinks the type to rescue it.
+            flex: 0 0 auto;
+        }
+
+        // Room to add notes by hand under each of Lore and Notes. The boxes
+        // absorb whatever height the prose leaves, sharing it between them, so
+        // a sparse plate gets two big boxes and a wordy one still keeps a
+        // usable strip under each section.
+        //
+        // The column wrapper must fill the detail block for that to work. It is
+        // content-height by default, and the sections below size from *its*
+        // height — leave it auto and the two collapse to nothing together,
+        // taking the prose with them.
+        .cc-detail__cols {
+            flex: 1 1 auto;
+        }
+
+        // `flex-basis: auto` (not 0) so each section still reserves room for
+        // its own text before the leftover height is split between the boxes.
+        //
+        // No `min-height: 0` here, unlike most flex items in this file: the
+        // automatic minimum is what keeps the box's floor real. Allow the
+        // section to shrink past its content and it just clips the box away
+        // silently; refuse, and a too-long section overflows the column
+        // instead, which is exactly what the fit-to-box script watches for —
+        // so the type shrinks and the box survives at its full height.
+        .cc-detail .cc-section--writein {
+            flex: 1 1 auto;
+        }
+
+        // Floor matches the fighter card's own Notes box, so however tight a
+        // plate gets, there is always the same familiar strip to write on.
+        .cc-writein--lore {
+            flex: 1 1 auto;
+            min-height: var(--cc-notes-h);
+            margin-top: 0.6mm;
         }
     }
 

@@ -88,6 +88,10 @@ class DetailGroup:
     label: str
     items: list[str] = field(default_factory=list)
     css_class: str = ""
+    # Follow this group with a blank translucent box, so the printed card has
+    # somewhere to write by hand. Used by the lore/notes plates, where the
+    # point of printing is often to add to what's there.
+    writein: bool = False
 
     @property
     def text(self) -> str:
@@ -467,7 +471,13 @@ class ClassicTextCard:
 
     @property
     def has_content(self) -> bool:
-        return bool(self.sections)
+        """Whether the card has anything written on it.
+
+        Keyed off the sections' *items*, not the sections themselves: a lore
+        plate always carries empty Lore and Notes sections for their write-in
+        boxes, and a plate that is nothing but blank boxes isn't worth printing.
+        """
+        return any(group.items for group in self.sections)
 
 
 def _section(label: str, items, css_class: str = "cc-gangsec") -> DetailGroup | None:
@@ -477,6 +487,16 @@ def _section(label: str, items, css_class: str = "cc-gangsec") -> DetailGroup | 
     if not items:
         return None
     return DetailGroup(label, items, css_class)
+
+
+def _writein_section(label: str, value) -> DetailGroup:
+    """A lore/notes section: whatever is written, plus room to write more.
+
+    Unlike :func:`_section` this never returns None — an empty section still
+    prints its label and its write-in box.
+    """
+    text = strip_tags(str(value or "")).strip()
+    return DetailGroup(label, [text] if text else [], "cc-gangsec", writein=True)
 
 
 def gang_card_from_list(
@@ -561,16 +581,15 @@ def lore_card_from_fighter(fighter, *, include_private=False) -> ClassicTextCard
     Returns a card that may have no sections; callers should check
     :attr:`ClassicTextCard.has_content`.
     """
-    sections: list[DetailGroup] = []
-    for label, value, gated in (
-        ("Lore", _get(fighter, "narrative", ""), False),
-        ("Notes", _get(fighter, "notes", ""), False),
-        ("Private notes", _get(fighter, "private_notes", ""), True),
-    ):
-        if gated and not include_private:
-            continue
-        text = strip_tags(str(value or "")).strip()
-        if section := _section(label, [text] if text else []):
+    # Lore and Notes are always present, even when empty: each is followed by a
+    # write-in box, and blank ones are the whole point on a printed card.
+    sections = [
+        _writein_section("Lore", _get(fighter, "narrative", "")),
+        _writein_section("Notes", _get(fighter, "notes", "")),
+    ]
+    if include_private:
+        private = strip_tags(str(_get(fighter, "private_notes", "") or "")).strip()
+        if section := _section("Private notes", [private] if private else []):
             sections.append(section)
 
     image_url = ""
@@ -593,14 +612,10 @@ def lore_card_from_fighter(fighter, *, include_private=False) -> ClassicTextCard
 
 def lore_card_from_list(list_obj) -> ClassicTextCard:
     """Build the gang's own lore/notes plate, opening a lore sheet."""
-    sections: list[DetailGroup] = []
-    for label, value in (
-        ("Lore", _get(list_obj, "narrative", "")),
-        ("Notes", _get(list_obj, "notes", "")),
-    ):
-        text = strip_tags(str(value or "")).strip()
-        if section := _section(label, [text] if text else []):
-            sections.append(section)
+    sections = [
+        _writein_section("Lore", _get(list_obj, "narrative", "")),
+        _writein_section("Notes", _get(list_obj, "notes", "")),
+    ]
 
     house = str(_get(_get(list_obj, "content_house_cached", None), "name", "") or "")
     return ClassicTextCard(

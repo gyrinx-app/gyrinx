@@ -48,9 +48,12 @@ Params:
                     {% for column in card.detail_columns %}
                         <div class="cc-detail__col">
                             {% for group in column %}
-                                <div class="cc-section {{ group.css_class }}">
+                                <div class="cc-section {{ group.css_class }}{% if group.writein %} cc-section--writein{% endif %}">
                                     <div class="cc-label">{{ group.label }}</div>
-                                    <div class="cc-section__body">{{ group.text }}</div>
+                                    {% if group.text %}<div class="cc-section__body">{{ group.text }}</div>{% endif %}
+                                    {% if group.writein %}
+                                        <div class="cc-writein cc-writein--lore"></div>
+                                    {% endif %}
                                 </div>
                             {% endfor %}
                         </div>
