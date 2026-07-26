@@ -215,7 +215,7 @@ class CampaignActionList(generic.ListView):
 
         # Start with all campaign actions with list and battle relationships
         actions = self.campaign.actions.select_related(
-            "user", "list", "battle"
+            "user", "list", "battle", "template_campaign"
         ).order_by("-created")
 
         # Apply text search filter if provided

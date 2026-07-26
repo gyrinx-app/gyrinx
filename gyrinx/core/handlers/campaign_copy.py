@@ -3,9 +3,11 @@
 from dataclasses import dataclass, field
 
 from django.db import transaction
+from django.db.models import Count
 
 from gyrinx.core.models.campaign import (
     Campaign,
+    CampaignAction,
     CampaignAsset,
     CampaignAssetType,
     CampaignAttributeType,
@@ -295,3 +297,152 @@ def copy_campaign_content(
                 result.packs_copied += 1
 
     return result
+
+
+DEFAULT_RESOURCE_TYPE_NAME = "Reputation"
+DEFAULT_RESOURCE_TYPE_DESCRIPTION = "Gang reputation gained during the campaign"
+
+
+@dataclass
+class TemplateApplication:
+    """Result of seeding a new campaign from a template campaign."""
+
+    copied: CopyResult
+    settings_copied: list[str] = field(default_factory=list)
+    action: "CampaignAction | None" = None
+
+
+def ensure_default_resource_type(
+    *, campaign: Campaign, user
+) -> CampaignResourceType | None:
+    """Give a campaign the default Reputation resource type unless it already has one.
+
+    Every campaign gets Reputation on creation. A campaign seeded from a template
+    may already have its own — with the template author's description and default
+    amount — in which case we leave that alone rather than adding a near-duplicate.
+
+    Returns the created resource type, or None if one already existed.
+    """
+    if campaign.resource_types.filter(name__iexact=DEFAULT_RESOURCE_TYPE_NAME).exists():
+        return None
+
+    return CampaignResourceType.objects.create(
+        campaign=campaign,
+        name=DEFAULT_RESOURCE_TYPE_NAME,
+        description=DEFAULT_RESOURCE_TYPE_DESCRIPTION,
+        default_amount=1,
+        owner=user,
+    )
+
+
+@transaction.atomic
+def apply_campaign_template(
+    *,
+    template_campaign: Campaign,
+    campaign: Campaign,
+    user,
+) -> TemplateApplication:
+    """Seed a freshly created campaign from a template campaign.
+
+    Copies everything the template has — asset types (with their assets and
+    sub-assets), resource types, attribute types and values, and content packs —
+    with no per-type selection: a brand-new campaign has nothing to conflict with.
+
+    Also carries over `default_included_crew_categories`, which shapes how crews
+    are picked and has no equivalent on the new-campaign form. `budget` is NOT
+    copied here — it is a visible field on that form, prefilled from the template,
+    so whatever the user submitted wins.
+
+    Two fields are deliberately left alone. `group_attribute_type` is an FK to
+    one of the template's own attribute types, and `default_gang_sort` can
+    encode a resource type id (`-resource:<id>`); copied verbatim, either would
+    aim the new campaign at the template's rows. Both would need remapping onto
+    the freshly-copied equivalents to mean anything here. Portable sort values
+    such as `-wealth` get dropped along with them rather than special-cased.
+    """
+    copied = copy_campaign_content(
+        source_campaign=template_campaign,
+        target_campaign=campaign,
+        user=user,
+        asset_type_ids=list(template_campaign.asset_types.values_list("id", flat=True)),
+        resource_type_ids=list(
+            template_campaign.resource_types.values_list("id", flat=True)
+        ),
+        attribute_type_ids=list(
+            template_campaign.attribute_types.values_list("id", flat=True)
+        ),
+        pack_ids=list(template_campaign.packs.values_list("id", flat=True)),
+    )
+
+    settings_copied = []
+    if template_campaign.default_included_crew_categories:
+        campaign.default_included_crew_categories = list(
+            template_campaign.default_included_crew_categories
+        )
+        campaign.save(update_fields=["default_included_crew_categories"])
+        settings_copied.append("default_included_crew_categories")
+
+    action = CampaignAction.objects.create(
+        campaign=campaign,
+        user=user,
+        owner=user,
+        template_campaign=template_campaign,
+        description=f"Campaign created from {template_campaign.name} template",
+        outcome=_describe_copy_result(copied),
+    )
+
+    return TemplateApplication(
+        copied=copied, settings_copied=settings_copied, action=action
+    )
+
+
+def _describe_copy_result(copied: CopyResult) -> str:
+    """One-line summary of a copy, for the action log."""
+    parts = []
+    for count, noun in [
+        (copied.asset_types_copied, "asset type"),
+        (copied.assets_copied, "asset"),
+        (copied.sub_assets_copied, "sub-asset"),
+        (copied.resource_types_copied, "resource type"),
+        (copied.attribute_types_copied, "attribute type"),
+        (copied.attribute_values_copied, "attribute value"),
+        (copied.packs_copied, "Content Pack"),
+    ]:
+        if count:
+            parts.append(f"{count} {noun}{'' if count == 1 else 's'}")
+
+    if not parts:
+        return "Nothing was copied — the template was empty"
+
+    return f"Copied {', '.join(parts)}"
+
+
+def describe_campaign_contents(campaign: Campaign) -> list[dict]:
+    """Summarise what `apply_campaign_template` would copy out of a campaign.
+
+    Returns groups of ``{"label": str, "names": list[str]}`` for display before
+    the user commits — so "start from this template" is not a leap of faith.
+    """
+    groups = []
+
+    asset_types = campaign.asset_types.annotate(asset_count=Count("assets"))
+    asset_names = [
+        f"{t.name_plural} ({t.asset_count})" if t.asset_count else t.name_plural
+        for t in asset_types
+    ]
+    if asset_names:
+        groups.append({"label": "Assets", "names": asset_names})
+
+    resource_names = list(campaign.resource_types.values_list("name", flat=True))
+    if resource_names:
+        groups.append({"label": "Resources", "names": resource_names})
+
+    attribute_names = list(campaign.attribute_types.values_list("name", flat=True))
+    if attribute_names:
+        groups.append({"label": "Attributes", "names": attribute_names})
+
+    pack_names = list(campaign.packs.values_list("name", flat=True))
+    if pack_names:
+        groups.append({"label": "Content Packs", "names": pack_names})
+
+    return groups

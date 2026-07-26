@@ -159,7 +159,7 @@ class CampaignDetailView(generic.DetailView):
                 models.Prefetch(
                     "actions",
                     queryset=CampaignAction.objects.select_related(
-                        "user", "list"
+                        "user", "list", "template_campaign"
                     ).order_by("-created"),
                 ),
             ),
