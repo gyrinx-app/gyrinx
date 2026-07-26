@@ -18,7 +18,11 @@ from itertools import count
 from random import Random
 from uuid import uuid4
 
-from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
+from gyrinx.core.forms.crew import (
+    CrewForm,
+    CrewLineItemForm,
+    equipment_set_field_name,
+)
 from gyrinx.core.handlers.battle import (
     battle_timeline,
     charge_crew_spending,
@@ -5982,3 +5986,71 @@ def test_timeline_never_completes_a_step_before_an_earlier_one(
     assert steps["Each gang picks a crew"]["done"] is False
     assert steps["Gangs mark themselves ready"]["done"] is False
     assert steps["Each gang picks a crew"]["current"] is True
+
+
+# --- The spending & balancing form ------------------------------------------
+
+
+@pytest.mark.django_db
+def test_free_entry_needs_no_amount(crew_setup):
+    """The unscripted path: a player picks Free, leaves the amount blank, and
+    the form accepts it. The reveal script is an enhancement, so the form has
+    to stand up without it."""
+    form = CrewLineItemForm(
+        data={"label": "Scenario favour", "cost": "", "payment": Crew.PAY_FREE}
+    )
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["cost"] == 0
+
+
+@pytest.mark.django_db
+def test_free_entry_floors_a_typed_amount(crew_setup):
+    """Both paths must agree about the same input. Without the script the
+    amount box stays visible, so a player can type into it and then pick Free;
+    with the script it is cleared. Either way, free means zero."""
+    form = CrewLineItemForm(
+        data={"label": "Scenario favour", "cost": "75", "payment": Crew.PAY_FREE}
+    )
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["cost"] == 0
+
+
+@pytest.mark.django_db
+def test_paid_entries_keep_their_amount(crew_setup):
+    """Only Free is floored — the two paid sources record what was entered."""
+    for payment in (Crew.PAY_CREDITS, Crew.PAY_ALLOWANCE):
+        form = CrewLineItemForm(
+            data={"label": "Hired gun", "cost": "75", "payment": payment}
+        )
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["cost"] == 75
+
+
+@pytest.mark.django_db
+def test_form_orders_the_paid_sources_before_free(crew_setup):
+    """Free is the exception at the end, so the choice reads "who pays … or
+    nobody does" — and the amount sits below the source it depends on."""
+    form = CrewLineItemForm()
+    assert [value for value, _ in form.fields["payment"].choices] == [
+        Crew.PAY_CREDITS,
+        Crew.PAY_ALLOWANCE,
+        Crew.PAY_FREE,
+    ]
+    assert list(form.fields) == ["label", "payment", "cost", "reason"]
+
+
+@pytest.mark.django_db
+def test_extra_form_page_carries_the_reveal_hook(client, crew_setup):
+    """The script keys off the stored value rather than a hardcoded string, so
+    the page has to hand it over."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+    body = client.get(
+        reverse("core:crew-extra-new", args=[crew.battle_id, crew.id])
+    ).content.decode()
+
+    assert f'data-free-payment="{Crew.PAY_FREE}"' in body
+    assert "js-extra-cost" in body
+    assert 'type="radio"' in body

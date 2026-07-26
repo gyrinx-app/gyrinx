@@ -17,12 +17,14 @@
             Use this to record credits spent for this battle, or as part of balancing
             mechanics such as the underdog system. Rules may vary by campaign.
         </p>
-        <form method="post" class="vstack gap-3">
+        <form method="post"
+              class="vstack gap-3 js-extra-form"
+              data-free-payment="{{ free_payment }}">
             {% csrf_token %}
             <c-errors :form="form" class="mb-0" />
             <c-form.field :field="form.label" />
-            <c-form.field :field="form.cost" />
             <c-form.choices :field="form.payment" />
+            <c-form.field :field="form.cost" class="js-extra-cost" />
             <c-form.field :field="form.reason" />
             <c-form.actions intent="save"
                             submit="Save"
@@ -30,4 +32,37 @@
                             class="hstack gap-3 align-items-center" />
         </form>
     </div>
+    <script>
+        {% comment %}
+        Progressive enhancement, and a deliberate exception to the project's
+        "no client-side form mutation" rule: this hides a field, it never swaps
+        which fields exist, which options they offer, or what validates. With
+        the script off, every field is visible and the form behaves exactly as
+        it did — the server floors a free item's cost to zero either way, so
+        both paths agree about the same input.
+{% endcomment %}
+        (function () {
+            const form = document.querySelector('.js-extra-form');
+            if (!form) return;
+            const cost = form.querySelector('.js-extra-cost');
+            const radios = form.querySelectorAll('input[name="payment"]');
+            const freeValue = form.dataset.freePayment;
+            if (!cost || !radios.length || !freeValue) return;
+
+            function update() {
+                const checked = form.querySelector('input[name="payment"]:checked');
+                const isFree = checked && checked.value === freeValue;
+                cost.classList.toggle('d-none', isFree);
+                // Clear on hide so a number the player can no longer see can't
+                // be submitted behind their back.
+                if (isFree) {
+                    const input = cost.querySelector('input');
+                    if (input) input.value = '';
+                }
+            }
+
+            radios.forEach((radio) => radio.addEventListener('change', update));
+            update();
+        }());
+    </script>
 {% endblock content %}

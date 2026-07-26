@@ -1110,9 +1110,10 @@ class CrewMember(AppBase):
 class CrewLineItem(AppBase):
     """A credit-consuming extra attached to a crew (or one of its members).
 
-    Generic on purpose: a tactics card is a crew-level item; a hired gun (later)
-    is a member plus a member-linked item. ``payment`` records how it is paid
-    for — descriptive only, never touching the gang's real credit books.
+    Generic on purpose: a tactics card is a crew-level item; a hired gun is a
+    member plus a member-linked item. ``payment`` records where the credits come
+    from, and decides whether they are real: gang credits are taken when the
+    battle starts, while balancing and free entries are only ever recorded.
     """
 
     crew = models.ForeignKey(
@@ -1141,12 +1142,15 @@ class CrewLineItem(AppBase):
         max_length=12,
         choices=Crew.PAYMENT_CHOICES,
         default=Crew.PAY_CREDITS,
-        help_text="How this is paid for (descriptive; no credits are moved).",
+        help_text=(
+            "Where the credits come from. Gang credits are charged at battle "
+            "start; balancing and free entries are recorded only."
+        ),
     )
     reason = models.CharField(
         max_length=255,
         blank=True,
-        help_text="Why, when free or from an allowance.",
+        help_text="Why, when free or from balancing.",
     )
 
     history = HistoricalRecords()

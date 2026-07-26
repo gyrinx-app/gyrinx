@@ -559,11 +559,17 @@ class CrewLoadoutsForm(forms.Form):
 
 
 class CrewLineItemForm(forms.ModelForm):
-    """Add or edit a crew's spending or balancing, with where the credits come from."""
+    """Add or edit a crew's spending or balancing, with where the credits come from.
+
+    Field order is deliberate: what it is, where the credits come from, then how
+    many. The amount follows the source because a free item does not have one —
+    the template hides it once "Free" is chosen, and this form floors it to zero
+    either way so the two agree with or without that script.
+    """
 
     class Meta:
         model = CrewLineItem
-        fields = ["label", "cost", "payment", "reason"]
+        fields = ["label", "payment", "cost", "reason"]
         labels = {
             "label": "What is it?",
             "cost": "Credits value",
@@ -575,6 +581,7 @@ class CrewLineItemForm(forms.ModelForm):
                 "Gang credits are taken from the gang when the battle starts. "
                 "Balancing and free entries are recorded but never charged."
             ),
+            "cost": "What it is worth. Leave blank for a free item.",
             "reason": "Optional — note why, when free or from balancing.",
         }
         widgets = {
@@ -584,9 +591,34 @@ class CrewLineItemForm(forms.ModelForm):
                     "placeholder": "e.g. Tactics card: Ambush",
                 }
             ),
-            "cost": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "cost": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "placeholder": "0"}
+            ),
             # Radio, not a select: three options that a player has to weigh
             # against each other, and only one of which costs them anything.
             "payment": forms.RadioSelect(attrs={"class": "form-check-input"}),
             "reason": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Group the two paid sources together and leave Free as the exception at
+        # the end, so the choice reads "who pays … or nobody does".
+        self.fields["payment"].choices = [
+            (Crew.PAY_CREDITS, "Gang credits"),
+            (Crew.PAY_ALLOWANCE, "Balancing"),
+            (Crew.PAY_FREE, "Free"),
+        ]
+        # A free item has no amount to give, so the field cannot be required.
+        self.fields["cost"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        # Free means free: zero here rather than trusting whatever was left in a
+        # box the player may not have been able to see. Without this the
+        # scripted and unscripted forms would disagree about the same input.
+        if cleaned.get("payment") == Crew.PAY_FREE:
+            cleaned["cost"] = 0
+        elif cleaned.get("cost") is None:
+            cleaned["cost"] = 0
+        return cleaned

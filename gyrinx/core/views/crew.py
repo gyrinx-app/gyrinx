@@ -3,9 +3,11 @@
 A crew is a virtual sub-gang assigned to a battle: the recipe (the scenario's
 selection method, its numbers, and the card each chosen fighter brings) while it
 is a draft, then the frozen attendees once it is locked at battle start. These
-views cover the whole lifecycle — create, edit, lock, extras, archive — but
-never write to the gang's canonical cost, credits, or audit stream. Once locked,
-a crew is a historical record and can no longer be edited.
+views cover the whole lifecycle — create, edit, lock, spending, archive. They
+never write to the gang's cost caches; the one place a crew moves real credits
+is ``handlers.battle.charge_crew_spending``, at battle start. Once locked, a
+crew's membership is a historical record, though its loadouts, stash and
+spending stay editable.
 
 The selection method is URL state (``?method=custom|random|hybrid``): the
 picker is a set of server-rendered links and the server returns the form
@@ -732,7 +734,15 @@ def crew_extra(request, battle_id, crew_id, item_id=None):
     return render(
         request,
         "core/crew/crew_extra_form.html",
-        {"form": form, "crew": crew, "battle": crew.battle, "item": item},
+        {
+            "form": form,
+            "crew": crew,
+            "battle": crew.battle,
+            "item": item,
+            # The template's reveal script compares against this rather than
+            # hardcoding the stored value.
+            "free_payment": Crew.PAY_FREE,
+        },
     )
 
 
