@@ -1347,11 +1347,27 @@ class ListFighter(AppBase):
         # packs are subscribed.
         pack_mods = list(self.list.pack_mods_for(self.content_fighter))
 
+        # The fighter's own permanent improvements — advancements and roll
+        # results — come first, so that a "set" from equipment still wins. A
+        # set discards whatever it is applied to, so with these applied last a
+        # fighter whose gear fixes a stat ('your movement is 8 inches') had the
+        # improvement stack on top of it instead of being overridden by it.
+        # Before advancements moved onto the mod system they were held in the
+        # override field, which a set discarded, so this restores that.
+        #
+        # Injuries and house rules stay after equipment, so they still modify
+        # whatever the gear set.
+        #
+        # Ordering between improve/worsen mods is almost always irrelevant, but
+        # not quite: apply() misreads a negative intermediate value as a
+        # stat-linked one, so a plain stat driven below zero mid-chain can come
+        # out formatted as "+1" rather than "1" depending on order. That is a
+        # parser bug rather than something this ordering should work around.
         return (
-            equipment_mods
-            + injury_mods
-            + advancement_mods
+            advancement_mods
             + roll_result_mods
+            + equipment_mods
+            + injury_mods
             + pack_mods
         )
 
