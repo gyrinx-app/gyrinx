@@ -26,6 +26,16 @@ in a debug view.
 
 Deliberately omitted (no region on the classic card): counters, advancement
 detail, psyker discipline metadata (see #1726 discussion).
+
+Two further plates share the same 100x110mm shape but flow labelled text
+instead of the fixed fighter regions (:class:`ClassicTextCard`, #1816):
+
+    GANG  <- the gang's identity (name, house, rating, credits) plus its
+             resources, assets, attributes and stash, so the classic sheet
+             carries the gang-level info the web sheet puts in its header and
+             side cards.
+    LORE  <- a fighter's (or the gang's) lore and notes, for the lore/notes
+             print. Rich text is flattened to plain text and shrunk to fit.
 """
 
 from __future__ import annotations
@@ -94,6 +104,31 @@ class DetailGroup:
         """
         body_lines = -(-len(self.text) // DETAIL_CHARS_PER_LINE)  # ceil
         return max(1, body_lines, len(self.label.split()))
+
+
+def balance_columns(groups: list[DetailGroup]) -> list[list[DetailGroup]]:
+    """Split ``groups`` into two balanced columns, preserving reading order.
+
+    Groups keep their reading order and are cut at one point, exactly as
+    column-major flow would: column one takes the first N, column two the rest.
+    The cut is the one that minimises the taller column, which is what
+    multicol's balancing was doing for us.
+
+    An empty column is never returned — each column is a flex item, so an empty
+    one would still claim half the width.
+    """
+    heights = [g.height for g in groups]
+    total = sum(heights)
+    best_split, best_tallest = len(groups), total
+    run = 0
+    # Prefer the largest qualifying left column on a tie, matching how
+    # column-major flow fills column one before spilling into column two.
+    for split in range(1, len(groups) + 1):
+        run += heights[split - 1]
+        tallest = max(run, total - run)
+        if tallest <= best_tallest:
+            best_split, best_tallest = split, tallest
+    return [c for c in (groups[:best_split], groups[best_split:]) if c]
 
 
 @dataclass
@@ -171,32 +206,13 @@ class ClassicCard:
         detail layout entirely. Splitting server-side renders identically on
         screen and on paper, in every engine.
 
-        Groups keep their reading order and are cut at one point, exactly as
-        column-major flow would: column one takes the first N, column two the
-        rest. The cut is the one that minimises the taller column, which is
-        what multicol's balancing was doing for us.
-
-        Blank (fillable) cards keep every group in one full-width column so
-        their write-in boxes are as wide as possible. An empty column is never
-        returned — each column is a flex item, so an empty one would still
-        claim half the width.
+        The split itself is :func:`balance_columns`. Blank (fillable) cards skip
+        it and keep every group in one full-width column, so their write-in
+        boxes are as wide as possible.
         """
-        groups = self.detail_groups
         if self.kind == "blank":
-            return [groups]
-
-        heights = [g.height for g in groups]
-        total = sum(heights)
-        best_split, best_tallest = len(groups), total
-        run = 0
-        # Prefer the largest qualifying left column on a tie, matching how
-        # column-major flow fills column one before spilling into column two.
-        for split in range(1, len(groups) + 1):
-            run += heights[split - 1]
-            tallest = max(run, total - run)
-            if tallest <= best_tallest:
-                best_split, best_tallest = split, tallest
-        return [c for c in (groups[:best_split], groups[best_split:]) if c]
+            return [self.detail_groups]
+        return balance_columns(self.detail_groups)
 
 
 def _get(obj, name, default=""):
@@ -403,6 +419,196 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
         captured=bool(_get(fighter, "is_captured", False)),
         dead=bool(_get(fighter, "is_dead", False)),
         fighter_id=str(getattr(fighter, "id", "") or ""),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Text cards — the gang plate and the lore/notes plates
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ClassicTextCard:
+    """A classic-sized plate whose body is flowing labelled text.
+
+    The fighter card's regions are fixed because it mirrors the reference
+    cards; a gang plate and a lore/notes plate have no such reference, so they
+    share one shape: nameplate, optional cog value, then labelled sections
+    flowing in the detail block. ``kind`` picks which of the two it is
+    (``"gang"`` / ``"lore"``) and is what the sheet template dispatches on.
+
+    ``columns`` is 2 for the gang plate, whose sections are short lists, and 1
+    for lore/notes, where prose reads better across the full card width.
+    """
+
+    kind: str = "gang"
+    name: str = ""
+    subtitle: str = ""
+    # Shown in the cog, like a fighter's cost — the gang's rating.
+    cost: str = ""
+    # A short label/value strip under the nameplate (credits, wealth, ...).
+    meta: list = field(default_factory=list)  # list of (label, value)
+    sections: list[DetailGroup] = field(default_factory=list)
+    image_url: str = ""
+    columns: int = 2
+
+    @property
+    def detail_columns(self) -> list[list[DetailGroup]]:
+        """Sections split into the card's detail columns.
+
+        Mirrors :attr:`ClassicCard.detail_columns` so both card shapes render
+        through the same column markup and the same fit-to-box script.
+        """
+        if not self.sections:
+            return []
+        if self.columns < 2:
+            return [self.sections]
+        return balance_columns(self.sections)
+
+    @property
+    def has_content(self) -> bool:
+        return bool(self.sections)
+
+
+def _section(label: str, items, css_class: str = "cc-gangsec") -> DetailGroup | None:
+    """A detail group, or None when there's nothing to show."""
+    items = [str(i).strip() for i in (items or [])]
+    items = [i for i in items if i]
+    if not items:
+        return None
+    return DetailGroup(label, items, css_class)
+
+
+def gang_card_from_list(
+    list_obj,
+    *,
+    resources=None,
+    held_assets=None,
+    attributes=None,
+    stash_fighter=None,
+) -> ClassicTextCard:
+    """Build the gang plate for a classic sheet.
+
+    Each section is caller-gated: the view passes only the data the print
+    config allows, so an omitted argument means "this toggle is off" and the
+    section simply doesn't appear. The card carries the gang's identity
+    (name, house, rating, credits) whenever it is rendered at all — the classic
+    sheet has no gang header to put those on.
+
+    Returns a card that may have no sections; callers should check
+    :attr:`ClassicTextCard.has_content` before adding it to a sheet.
+    """
+    sections: list[DetailGroup] = []
+
+    resource_lines = [
+        f"{_get(_get(r, 'resource_type', None), 'name', '')}: {_get(r, 'amount', '')}"
+        for r in (resources or [])
+    ]
+    if section := _section("Resources", resource_lines):
+        sections.append(section)
+
+    asset_lines = []
+    for asset in held_assets or []:
+        name = str(_get(asset, "name", "") or "").strip()
+        if not name:
+            continue
+        type_name = str(
+            _get(_get(asset, "asset_type", None), "name_singular", "") or ""
+        )
+        asset_lines.append(f"{name} ({type_name})" if type_name else name)
+    if section := _section("Assets", asset_lines):
+        sections.append(section)
+
+    # Each attribute gets its own labelled row, matching the web sheet's
+    # attribute card. Attributes with no assigned value are skipped.
+    for attribute in attributes or []:
+        if section := _section(
+            str(attribute.get("name", "")), attribute.get("assignments") or []
+        ):
+            sections.append(section)
+
+    if stash_fighter is not None:
+        stash_items = [
+            w.name for w in _weapon_rows(stash_fighter) if not w.is_secondary
+        ]
+        stash_items += _wargear_names(stash_fighter)
+        if section := _section("Stash", stash_items):
+            sections.append(section)
+
+    house = str(_get(_get(list_obj, "content_house_cached", None), "name", "") or "")
+    meta = []
+    credits = str(_get(list_obj, "credits_current_display", "") or "")
+    if credits:
+        meta.append(("Credits", credits))
+
+    return ClassicTextCard(
+        kind="gang",
+        name=str(_get(list_obj, "name", "") or ""),
+        subtitle=house,
+        cost=str(_get(list_obj, "rating_display", "") or ""),
+        meta=meta,
+        sections=sections,
+        columns=2,
+    )
+
+
+def lore_card_from_fighter(fighter, *, include_private=False) -> ClassicTextCard:
+    """Build a fighter's lore/notes plate.
+
+    Rich text is flattened to plain text: the plate's fit-to-box script shrinks
+    the type to fit, and markup would fight the fixed card height.
+
+    Returns a card that may have no sections; callers should check
+    :attr:`ClassicTextCard.has_content`.
+    """
+    sections: list[DetailGroup] = []
+    for label, value, gated in (
+        ("Lore", _get(fighter, "narrative", ""), False),
+        ("Notes", _get(fighter, "notes", ""), False),
+        ("Private notes", _get(fighter, "private_notes", ""), True),
+    ):
+        if gated and not include_private:
+            continue
+        text = strip_tags(str(value or "")).strip()
+        if section := _section(label, [text] if text else []):
+            sections.append(section)
+
+    image_url = ""
+    img = getattr(fighter, "image", None)
+    if img:
+        try:
+            image_url = img.url
+        except (ValueError, AttributeError):
+            image_url = ""
+
+    return ClassicTextCard(
+        kind="lore",
+        name=str(_get(fighter, "name", "") or ""),
+        subtitle=str(_get(fighter, "get_category_label", "") or ""),
+        sections=sections,
+        image_url=image_url,
+        columns=1,
+    )
+
+
+def lore_card_from_list(list_obj) -> ClassicTextCard:
+    """Build the gang's own lore/notes plate, opening a lore sheet."""
+    sections: list[DetailGroup] = []
+    for label, value in (
+        ("Lore", _get(list_obj, "narrative", "")),
+        ("Notes", _get(list_obj, "notes", "")),
+    ):
+        text = strip_tags(str(value or "")).strip()
+        if section := _section(label, [text] if text else []):
+            sections.append(section)
+
+    house = str(_get(_get(list_obj, "content_house_cached", None), "name", "") or "")
+    return ClassicTextCard(
+        kind="lore",
+        name=str(_get(list_obj, "name", "") or ""),
+        subtitle=house,
+        sections=sections,
+        columns=1,
     )
 
 

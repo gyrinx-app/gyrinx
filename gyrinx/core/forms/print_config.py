@@ -17,6 +17,7 @@ class PrintConfigForm(forms.ModelForm):
             "include_stash",
             "include_actions",
             "include_dead_fighters",
+            "include_xp",
             "blank_fighter_cards",
             "blank_vehicle_cards",
             "fighter_selection_mode",
@@ -34,6 +35,7 @@ class PrintConfigForm(forms.ModelForm):
             "include_dead_fighters": forms.CheckboxInput(
                 attrs={"class": "form-check-input"}
             ),
+            "include_xp": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "blank_fighter_cards": forms.NumberInput(
                 attrs={"class": "form-control", "min": "0", "max": "20"}
             ),

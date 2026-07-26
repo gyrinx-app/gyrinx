@@ -77,6 +77,11 @@ class PrintConfig(AppBase):
         help_text="Include dead fighters in the print output.",
     )
 
+    include_xp = models.BooleanField(
+        default=True,
+        help_text="Show each fighter's current XP on their card.",
+    )
+
     # Blank card options
     blank_fighter_cards = models.PositiveIntegerField(
         default=0,
@@ -132,6 +137,8 @@ class PrintConfig(AppBase):
             included.append("Actions")
         if self.include_dead_fighters:
             included.append("Dead Fighters")
+        if self.include_xp:
+            included.append("XP")
 
         # Handle fighter selection based on mode
         if self.fighter_selection_mode == self.NO_FIGHTERS:

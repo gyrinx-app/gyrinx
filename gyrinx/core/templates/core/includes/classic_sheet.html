@@ -4,7 +4,8 @@ and progressively shrinks overflowing text so long content fits the fixed-size
 cards instead of clipping. Shared by the Print Lab and the real list-print flow.
 
 Params:
-  cards      -- iterable of ClassicCard (see gyrinx.core.print_cards)
+  cards      -- iterable of ClassicCard / ClassicTextCard (see gyrinx.core.print_cards);
+                gang and lore cards render through classic_card_text.html
   theme      -- background theme key, applied uniformly to every card
   paged      -- if truthy, show the A4 page preview (2 across)
   show_grid  -- if truthy, overlay a mm alignment grid (lab tuning aid)
@@ -12,7 +13,11 @@ Params:
 {% endcomment %}
 <div class="print-sheet{% if paged %} print-sheet--paged{% endif %}">
     {% for card in cards %}
-        {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid %}
+        {% if card.kind == "gang" or card.kind == "lore" %}
+            {% include "core/includes/classic_card_text.html" with card=card theme=theme show_grid=show_grid %}
+        {% else %}
+            {% include "core/includes/classic_card.html" with card=card theme=theme show_grid=show_grid %}
+        {% endif %}
     {% endfor %}
 </div>
 {% comment %}

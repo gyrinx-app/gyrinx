@@ -1,0 +1,32 @@
+{% comment %}
+Shared tab strip for the Lore and Notes pages, plus the print entry points.
+Both pages print through the same view (#1816), which combines them.
+
+Params:
+  list   -- the List
+  active -- "lore" or "notes"; picks which tab reads as current
+{% endcomment %}
+<div class="hstack align-items-start gap-2 mb-4 flex-wrap">
+    <ul class="nav nav-tabs flex-grow-1 border-bottom-0">
+        <li class="nav-item">
+            <a href="{% url 'core:list-about' list.id %}"
+               class="nav-link{% if active == 'lore' %} active{% endif %}">Lore</a>
+        </li>
+        <li class="nav-item">
+            <a href="{% url 'core:list-notes' list.id %}"
+               class="nav-link{% if active == 'notes' %} active{% endif %}">Notes</a>
+        </li>
+    </ul>
+    <div class="hstack gap-2 flex-shrink-0">
+        <c-btn variant="outline-secondary"
+               size="sm"
+               href="{% url 'core:list-print-lore-notes' list.id %}">
+            <i class="bi-printer"></i> Print
+        </c-btn>
+        <c-btn variant="outline-secondary"
+               size="sm"
+               href="{% url 'core:list-print-lore-notes' list.id %}?style=classic">
+            <i class="bi-printer"></i> Print classic cards
+        </c-btn>
+    </div>
+</div>

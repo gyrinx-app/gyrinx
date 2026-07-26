@@ -651,22 +651,20 @@ class ListPrintView(generic.DetailView):
 
         context["fighters_with_groups"] = fighters_qs
 
-        # Attributes / assets / actions only exist on the web sheet — the classic
-        # template renders classic_cards alone, so skip their DB work entirely
-        # when the classic style is selected.
+        # Attributes and assets appear on both sheets — as side cards on the web
+        # sheet, gathered onto the gang plate on the classic one (#1816).
+        # Recent actions are web-only: the classic sheet has no card for them.
+        want_attributes = not print_config or print_config.include_attributes
+        want_assets = not print_config or print_config.include_assets
+
+        if want_attributes:
+            context["attributes"] = get_list_attributes(list_obj)
+
+        if want_assets:
+            context["campaign_resources"] = get_list_campaign_resources(list_obj)
+            context["held_assets"] = get_list_held_assets(list_obj)
+
         if not use_classic:
-            # Add attributes if configured to be included
-            if not print_config or print_config.include_attributes:
-                context["attributes"] = get_list_attributes(list_obj)
-
-            # Add assets and campaign resources if configured to be included
-            if not print_config or print_config.include_assets:
-                # Get campaign resources
-                context["campaign_resources"] = get_list_campaign_resources(list_obj)
-
-                # Get assets held by this list
-                context["held_assets"] = get_list_held_assets(list_obj)
-
             # Add recent campaign actions if configured to be included
             if not print_config or print_config.include_actions:
                 context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
@@ -681,16 +679,39 @@ class ListPrintView(generic.DetailView):
         # the configured blank cards (none without a config). Fighter cards only
         # (assets/attributes/etc. don't apply to the classic sheet).
         if use_classic:
-            from gyrinx.core.print_cards import blank_classic_card, card_from_fighter
+            from gyrinx.core.print_cards import (
+                blank_classic_card,
+                card_from_fighter,
+                gang_card_from_list,
+            )
 
-            # Fighter cards only — the stash is not a classic card (it has no
-            # statline/weapons to fill the fixed regions).
+            # The stash has no statline or weapons to fill the fighter card's
+            # fixed regions, so it isn't a card of its own — its contents go in
+            # the gang plate's Stash section instead.
             cards = []
+            stash_fighter = None
             for fighter in fighters_qs:
                 card = card_from_fighter(fighter, list_obj)
                 if card.kind == "stash":
+                    stash_fighter = fighter
                     continue
                 cards.append(card)
+
+            # Gang plate: the gang-level information the web sheet carries in
+            # its header and side cards, gathered onto one plate so the two
+            # sheets show the same things (#1816). Same toggles as the web
+            # sheet, so a config that hides assets hides them on both.
+            want_stash = not print_config or print_config.include_stash
+            gang_card = gang_card_from_list(
+                list_obj,
+                resources=context.get("campaign_resources"),
+                held_assets=context.get("held_assets"),
+                attributes=context.get("attributes"),
+                stash_fighter=stash_fighter if want_stash else None,
+            )
+            if gang_card.has_content:
+                cards.insert(0, gang_card)
+
             if print_config:
                 cards += [
                     blank_classic_card("fighter")
@@ -709,6 +730,103 @@ class ListPrintView(generic.DetailView):
         grimdark sheet."""
         if getattr(self, "use_classic", False):
             return ["core/list_print_classic.html"]
+        return [self.template_name]
+
+
+class ListLoreNotesPrintView(generic.DetailView):
+    """
+    Display a printable page of a list's lore and notes (#1816).
+
+    The fighter sheet has no room for free-form prose, so lore and notes get
+    their own printout, combining what the Lore and Notes pages show
+    separately. Offers the same two styles as the fighter sheet:
+    ``?style=classic`` tiles fixed-size plates (4 per A4), anything else
+    renders full-width rows.
+
+    Fighters with nothing written about them are left out — a printout of
+    "No lore added yet." is wasted paper.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+    ``entries``
+        Fighters with lore or notes to show, as dicts for the template.
+    ``classic_cards``
+        Classic-style plates, when ``?style=classic``.
+    ``show_private``
+        Whether private notes are included (owner only).
+
+    **Template**
+
+    :template:`core/list_print_lore_notes.html`
+    """
+
+    template_name = "core/list_print_lore_notes.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        return get_clean_list_or_404(
+            List.objects.with_related_data(), id=self.kwargs["id"]
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        list_obj = context["list"]
+
+        self.use_classic = self.request.GET.get("style") == "classic"
+
+        # Private notes are owner-only on screen, so they stay owner-only here.
+        show_private = self.request.user == list_obj.owner_cached
+        context["show_private"] = show_private
+
+        # Deliberately not with_related_data(): this page renders prose and a
+        # portrait, none of the equipment/skill/rule relations that suite is for.
+        fighters = (
+            list_obj.listfighter_set.filter(archived=False)
+            .exclude(content_fighter__is_stash=True)
+            .select_related("content_fighter")
+        )
+
+        entries = []
+        for fighter in fighters:
+            private = fighter.private_notes if show_private else ""
+            if not (fighter.narrative or fighter.notes or private):
+                continue
+            entries.append(
+                {
+                    "fighter": fighter,
+                    "narrative": fighter.narrative,
+                    "notes": fighter.notes,
+                    "private_notes": private,
+                }
+            )
+        context["entries"] = entries
+        context["has_gang_prose"] = bool(list_obj.narrative or list_obj.notes)
+
+        if self.use_classic:
+            from gyrinx.core.print_cards import (
+                lore_card_from_fighter,
+                lore_card_from_list,
+            )
+
+            cards = []
+            gang_card = lore_card_from_list(list_obj)
+            if gang_card.has_content:
+                cards.append(gang_card)
+            for entry in entries:
+                card = lore_card_from_fighter(
+                    entry["fighter"], include_private=show_private
+                )
+                if card.has_content:
+                    cards.append(card)
+            context["classic_cards"] = cards
+
+        return context
+
+    def get_template_names(self):
+        if getattr(self, "use_classic", False):
+            return ["core/list_print_lore_notes_classic.html"]
         return [self.template_name]
 
 

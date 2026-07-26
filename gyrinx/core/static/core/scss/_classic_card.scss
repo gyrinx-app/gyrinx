@@ -674,6 +674,80 @@
     }
 
     // =======================================================================
+    // Text plates (#1816) — the gang card and the lore/notes cards. Same plate,
+    // nameplate and cog as the fighter card, but none of the fixed fighter
+    // regions (condition tabs, statline, weapons), so the title band moves up
+    // and the detail block owns the rest of the card.
+    // =======================================================================
+    &.classic-card--text {
+        // No condition tabs above the title band, and no statline below it.
+        --cc-name-top: 3.5mm;
+        --cc-body-top: 17mm;
+        // These plates are mostly picture and prose, so the portrait earns more
+        // width than the fighter card's thumbnail.
+        --cc-portrait-w: 32mm;
+
+        // Starting size for the fit-to-box script: there is far more room here
+        // than on a fighter card, so short content shouldn't render tiny.
+        .cc-detail__cols {
+            font-size: 2.8mm;
+        }
+
+        // With no cog, the name reclaims the space reserved for it.
+        .cc-name--nocog {
+            padding-right: 0;
+        }
+
+        // Label/value strip under the title band (credits, on the gang plate).
+        .cc-meta {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: row;
+            gap: var(--cc-detail-gap);
+            margin-bottom: 1.4mm;
+        }
+
+        .cc-meta__item {
+            display: flex;
+            align-items: baseline;
+            gap: 1mm;
+        }
+
+        .cc-meta__val {
+            font-weight: 700;
+        }
+
+        // The portrait sits bottom-right with the prose flowing above it. A
+        // fixed height (rather than the fighter card's "as tall as the fields
+        // beside it") because there are no fields beside it here.
+        .cc-foot {
+            justify-content: flex-end;
+            height: 32mm;
+        }
+    }
+
+    // Lore/notes plates stack each label above its prose. The fighter card's
+    // label-beside-value row suits short comma-joined lists; a whole plate of
+    // prose reads better across the full width.
+    &[data-kind="lore"] {
+        .cc-detail .cc-section {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.6mm;
+            margin-bottom: 1.8mm;
+        }
+
+        .cc-detail .cc-label {
+            width: auto;
+        }
+
+        .cc-detail .cc-section__body {
+            // Prose, not a joined list — give the lines a little more air.
+            line-height: 1.25;
+        }
+    }
+
+    // =======================================================================
     // Blank (fillable) card — write-in affordances so a printed card can be
     // filled in by hand: a lighter header plate with a box for the name,
     // translucent empty weapon rows, and roomy white boxes for Skills / Rules /
