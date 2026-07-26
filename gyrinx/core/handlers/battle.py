@@ -378,10 +378,16 @@ def battle_timeline(battle: Battle) -> list:
     """
     from gyrinx.core.models.crew import Crew
 
-    crews = list(
-        Crew.objects.filter(battle=battle, archived=False).select_related("list")
-    )
     participant_count = battle.participants.count()
+    # Scoped to gangs still in the battle, like the charging path: set_participants
+    # leaves a dropped gang's crew behind, and counting it here would report a
+    # step done that isn't — including "every gang picked a crew" on a battle
+    # with no gangs at all, where an orphan crew beats a participant count of 0.
+    crews = list(
+        Crew.objects.filter(
+            battle=battle, archived=False, list__in=battle.participants.all()
+        ).select_related("list")
+    )
     state = battle.states.current
     started = state in (Battle.IN_PROGRESS, Battle.POST_BATTLE)
     ended = state == Battle.POST_BATTLE

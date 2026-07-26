@@ -6367,3 +6367,19 @@ def test_no_overspend_warning_once_the_charge_has_happened(client, crew_setup):
     client.force_login(crew_setup["user"])
     body = client.get(reverse("core:battle", args=[battle.id])).content.decode()
     assert "spending more than their gang has" not in body
+
+
+@pytest.mark.django_db
+def test_timeline_ignores_crews_of_gangs_no_longer_in_the_battle(crew_setup):
+    """set_participants leaves a dropped gang's crew behind. Counting it would
+    report a step done that isn't — and with no gangs at all, one orphan crew
+    beats a participant count of zero and marks "every gang picked a crew" done."""
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"]])
+    _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+
+    battle.set_participants([])
+    steps = {s["label"]: s for s in battle_timeline(battle)}
+
+    assert steps["Gangs join the battle"]["done"] is False
+    assert steps["Each gang picks a crew"]["done"] is False
