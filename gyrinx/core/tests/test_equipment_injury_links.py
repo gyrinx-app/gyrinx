@@ -276,13 +276,43 @@ def test_admin_pages_offer_the_link_inline(
     client.force_login(admin_user)
     ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
 
-    for url in (
-        reverse("admin:content_contentinjury_change", args=(eye_injury.id,)),
-        reverse("admin:content_contentequipment_change", args=(bionic_eye.id,)),
+    for url, label in (
+        (
+            reverse("admin:content_contentinjury_change", args=(eye_injury.id,)),
+            "Treated by equipment",
+        ),
+        (
+            reverse("admin:content_contentequipment_change", args=(bionic_eye.id,)),
+            "Injuries treated",
+        ),
     ):
         response = client.get(url)
         assert response.status_code == 200, url
-        assert "Injuries treated" in response.content.decode(), url
+        assert label in response.content.decode(), url
+
+
+@pytest.mark.django_db
+def test_admin_inline_hides_the_parent_side_of_the_link(rf, django_user_model):
+    """Only the far end is editable.
+
+    Rendering the parent FK inside its own page is redundant, and lets a link be
+    repointed at a different parent by accident.
+    """
+    from django.contrib.admin.sites import site
+
+    from gyrinx.content.admin import ContentEquipmentInjuryLinkInline
+    from gyrinx.content.models import ContentEquipment
+
+    request = rf.get("/")
+    request.user = django_user_model.objects.create_superuser("admin", "a@b.co", "pw")
+
+    for parent, expected in (
+        (ContentEquipment, ["injury", "mode"]),
+        (ContentInjury, ["equipment", "mode"]),
+    ):
+        inline = ContentEquipmentInjuryLinkInline(parent, site)
+        formset = inline.get_formset(request)
+        assert list(formset.form.base_fields.keys()) == expected, parent.__name__
 
 
 @pytest.mark.django_db

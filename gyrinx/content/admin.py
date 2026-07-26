@@ -530,16 +530,46 @@ class ContentEquipmentUpgradeInline(ContentTabularInline):
 
 
 class ContentEquipmentInjuryLinkInline(ContentTabularInline):
-    """Equipment-injury links, editable from either end of the relation."""
+    """Equipment-injury links, editable from either end of the relation.
+
+    Only the far end of the link is editable: naming the parent FK in ``fields``
+    would make Django render it, which is both redundant and a way to
+    accidentally repoint a row at a different parent from inside that parent's
+    own page.
+    """
 
     model = ContentEquipmentInjuryLink
     extra = 0
-    fields = ["equipment", "injury", "mode"]
-    # Without these, the injury page renders a <select> of every piece of
-    # equipment once per row plus the empty template form.
-    autocomplete_fields = ["equipment", "injury"]
-    verbose_name = "Injury treated"
-    verbose_name_plural = "Injuries treated"
+
+    def __init__(self, parent_model, admin_site):
+        super().__init__(parent_model, admin_site)
+        if self._is_equipment_page:
+            self.verbose_name, self.verbose_name_plural = (
+                "Injury treated",
+                "Injuries treated",
+            )
+        else:
+            self.verbose_name, self.verbose_name_plural = (
+                "Treated by",
+                "Treated by equipment",
+            )
+
+    @property
+    def _is_equipment_page(self):
+        return self.parent_model is ContentEquipment
+
+    @property
+    def _far_end(self):
+        """The side of the link that isn't the page we're already on."""
+        return "injury" if self._is_equipment_page else "equipment"
+
+    def get_fields(self, request, obj=None):
+        return [self._far_end, "mode"]
+
+    def get_autocomplete_fields(self, request):
+        # Without this the injury page renders a <select> of every piece of
+        # equipment once per row plus the empty template form.
+        return [self._far_end]
 
     def get_queryset(self, request):
         # Both columns are rendered on every row, so without this the inline
