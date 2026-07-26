@@ -8,38 +8,65 @@
     <c-back url="{{ battle_url }}" text="Back to Battle" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">End {{ battle.name }}</h1>
-        <form action="{% url 'core:battle-end' battle.id %}" method="post">
+        <form action="{% url 'core:battle-end' battle.id %}"
+              method="post"
+              class="vstack gap-3 js-end-form"
+              data-draw-value="{{ draw_value }}">
             {% csrf_token %}
-            {{ form.non_field_errors }}
-            <p>How did this battle finish?</p>
-            <div class="mb-3">
-                <div class="caps-label">{{ form.result.label }}</div>
-                {{ form.result }}
-                {% for error in form.result.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
-            </div>
-            <div class="mb-3">
-                <div class="caps-label">{{ form.winners.label }}</div>
-                {% if has_participants %}
-                    {{ form.winners }}
-                {% else %}
+            <c-errors :form="form" class="mb-0" />
+            <p class="mb-0">How did this battle finish?</p>
+            <c-form.choices :field="form.result" />
+            {% if has_participants %}
+                <c-form.choices :field="form.winners" class="js-end-winners" />
+            {% else %}
+                <div>
+                    <div class="form-label mb-1">{{ form.winners.label }}</div>
                     <p class="text-secondary fs-7 mb-0">No gangs are taking part in this battle.</p>
-                {% endif %}
-                <div class="form-text">{{ form.winners.help_text }}</div>
-                {% for error in form.winners.errors %}<div class="text-danger fs-7">{{ error }}</div>{% endfor %}
-            </div>
-            <c-note icon="warning" icon_class="text-warning">
-                <span class="fs-7">
-                    Once ended, the battle moves from <strong>In progress</strong> to
-                    <strong>Post-battle</strong>. Battle states only move forward, so this
-                    cannot be undone.
-                </span>
-            </c-note>
-            <div class="mt-3">
-                <c-btn type="submit" variant="danger">
-                    End battle
-                </c-btn>
-                <c-cancel url="{{ battle_url }}" />
-            </div>
+                </div>
+            {% endif %}
+            <c-callout variant="warning" class="mb-0">
+                Once ended, the battle moves from <strong>In progress</strong> to
+                <strong>Post-battle</strong>. Battle states only move forward, so this
+                cannot be undone.
+            </c-callout>
+            <c-form.actions intent="delete"
+                            submit="End battle"
+                            cancel="{{ battle_url }}"
+                            class="hstack gap-3 align-items-center" />
         </form>
     </div>
+    <script>
+        {% comment %}
+        Progressive enhancement only. A draw with winners is already a
+        validation error server-side, so with the script off the form still
+        refuses it — this just stops the player building an answer that was
+        never going to be accepted.
+{% endcomment %}
+        (function () {
+            const form = document.querySelector('.js-end-form');
+            if (!form) return;
+            const winners = form.querySelector('.js-end-winners');
+            const drawValue = form.dataset.drawValue;
+            if (!winners || !drawValue) return;
+            const boxes = winners.querySelectorAll('input[type="checkbox"]');
+            if (!boxes.length) return;
+
+            function update() {
+                const checked = form.querySelector('input[name="result"]:checked');
+                const isDraw = checked && checked.value === drawValue;
+                boxes.forEach((box) => {
+                    box.disabled = isDraw;
+                    // Uncheck on the way out: a disabled box submits nothing,
+                    // but leaving it ticked would say the opposite on screen.
+                    if (isDraw) box.checked = false;
+                });
+                winners.classList.toggle('opacity-50', isDraw);
+            }
+
+            form
+                .querySelectorAll('input[name="result"]')
+                .forEach((radio) => radio.addEventListener('change', update));
+            update();
+        }());
+    </script>
 {% endblock content %}

@@ -6383,3 +6383,28 @@ def test_timeline_ignores_crews_of_gangs_no_longer_in_the_battle(crew_setup):
 
     assert steps["Gangs join the battle"]["done"] is False
     assert steps["Each gang picks a crew"]["done"] is False
+
+
+@pytest.mark.django_db
+def test_end_battle_form_carries_the_draw_hook_and_still_validates(client, crew_setup):
+    """Disabling the winners on a draw is enhancement only — the server has
+    always refused that combination, and still does with the script off."""
+    from gyrinx.core.forms.battle import BattleEndForm
+
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"]])
+    battle.states.transition_to(Battle.IN_PROGRESS)
+
+    client.force_login(crew_setup["user"])
+    body = client.get(reverse("core:battle-end", args=[battle.id])).content.decode()
+    assert f'data-draw-value="{Battle.RESULT_DRAW}"' in body
+    assert "js-end-winners" in body
+    # c-form.choices owns the label, so the widget must not render one too.
+    assert body.count("One or more gangs won") == 1
+
+    form = BattleEndForm(
+        battle=battle,
+        data={"result": Battle.RESULT_DRAW, "winners": [str(crew_setup["gang"].id)]},
+    )
+    assert not form.is_valid()
+    assert "winners" in form.errors

@@ -584,6 +584,9 @@ def end_battle(request, id):
             "battle": battle,
             "form": form,
             "has_participants": battle.participants.exists(),
+            # The template's script compares against this rather than
+            # hardcoding the stored value.
+            "draw_value": Battle.RESULT_DRAW,
         },
     )
 

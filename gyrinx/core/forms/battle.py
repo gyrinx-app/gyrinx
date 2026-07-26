@@ -1,7 +1,7 @@
 from django import forms
 
 from gyrinx.content.models import ContentBattleRoleOption
-from gyrinx.core.forms import BsCheckboxSelectMultiple, BsRadioSelect
+from gyrinx.core.forms import BsRadioSelect
 from gyrinx.core.models import Battle, BattleNote
 from gyrinx.core.models.list import List
 from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
@@ -23,7 +23,9 @@ def validate_result_and_winners(result, winners, add_error):
         )
 
 
-def result_field(required_error="Choose a result before ending the battle."):
+def result_field(
+    required_error="Choose a result before ending the battle.", widget=None
+):
     """The 'how did it finish' radio, shared by the end and edit forms.
 
     The edit form passes its own ``required_error``: it records a result for a
@@ -38,7 +40,7 @@ def result_field(required_error="Choose a result before ending the battle."):
         # form-check-input is what gives the control Bootstrap's 1em box and its
         # 0.25em top margin; without it the browser default sits high against
         # the first line of the label in the widget's align-items-start row.
-        widget=BsRadioSelect(attrs={"class": "form-check-input"}),
+        widget=widget or BsRadioSelect(attrs={"class": "form-check-input"}),
         label="Result",
         error_messages={"required": required_error},
     )
@@ -151,10 +153,14 @@ class BattleEndForm(forms.Form):
     valid, never which fields are on screen. No JavaScript, no hidden fields.
     """
 
+    # Plain widgets, not the Bs* ones: this form renders through
+    # <c-form.choices>, which emits its own .form-check wrapper and label. The
+    # Bs* option templates bake a label in as well, so pairing them shows every
+    # option twice. The edit form still renders via {{ form }} and keeps Bs*.
     winners = forms.ModelMultipleChoiceField(
         queryset=List.objects.none(),
         required=False,
-        widget=BsCheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
         label="Winner(s)",
         help_text="Only gangs taking part in this battle can be selected",
     )
@@ -164,7 +170,11 @@ class BattleEndForm(forms.Form):
         self.battle = battle
         # `result` is declared here rather than as a class attribute so the
         # edit form can share the same field definition.
-        self.fields["result"] = result_field()
+        # Passed in, not assigned afterwards: a widget swapped onto a built
+        # field never receives its choices, and renders an empty control.
+        self.fields["result"] = result_field(
+            widget=forms.RadioSelect(attrs={"class": "form-check-input"})
+        )
         self.order_fields(["result", "winners"])
 
         if battle is not None:
