@@ -143,6 +143,8 @@ class ContentEquipmentInjuryLink(Content):
         SUPPRESS = "suppress", "Suppress (injury effects stop applying)"
 
     equipment = models.ForeignKey(
+        # By name: ContentEquipment lives in equipment.py, which this module is
+        # not imported by. ``injury`` below can use the class directly.
         "ContentEquipment",
         on_delete=models.CASCADE,
         related_name="injury_links",

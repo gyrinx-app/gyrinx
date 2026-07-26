@@ -86,7 +86,7 @@ class InjuryTreatment:
     """One item of equipment treating one injury, and how (#1027)."""
 
     equipment: ContentEquipment
-    mode: str
+    mode: ContentEquipmentInjuryLink.Mode
 
 
 @dataclass(frozen=True)
@@ -105,8 +105,17 @@ class InjuryDisplay:
 
     @property
     def treated_by(self) -> str:
-        """Comma-separated names of the treating equipment, for display."""
-        return ", ".join(str(t.equipment.name) for t in self.treatments)
+        """Comma-separated names of the treating equipment, for display.
+
+        De-duplicated by name: holding two of the same item is one treatment as
+        far as the reader is concerned, not "Bionic eye, Bionic eye".
+        """
+        names = []
+        for treatment in self.treatments:
+            name = str(treatment.equipment.name)
+            if name not in names:
+                names.append(name)
+        return ", ".join(names)
 
     @property
     def row_span(self) -> int:
@@ -1361,7 +1370,7 @@ class ListFighter(AppBase):
     # cleanup path to get wrong.
 
     @cached_property
-    def _injury_treatments(self) -> dict:
+    def _injury_treatments(self) -> dict[str, pylist[InjuryTreatment]]:
         """Map of ``ContentInjury`` id -> the equipment treating it.
 
         Reads the prefetched assignment/equipment chain, so this costs no
@@ -1369,7 +1378,7 @@ class ListFighter(AppBase):
         same injury (a bionic replaced by Cyberteknika in the same location,
         say) lists both.
         """
-        treatments: dict = {}
+        treatments: dict[str, pylist[InjuryTreatment]] = {}
         for assign in self.assignments_cached:
             equipment = assign.equipment
             if equipment is None:
@@ -1381,7 +1390,7 @@ class ListFighter(AppBase):
         return treatments
 
     @cached_property
-    def _suppressed_injury_ids(self) -> set:
+    def _suppressed_injury_ids(self) -> set[str]:
         """Injuries whose modifiers must stop applying — see ``SUPPRESS``."""
         return {
             injury_id
@@ -1421,9 +1430,14 @@ class ListFighter(AppBase):
 
         # Add injury mods if in campaign mode
         injury_mods = []
-        if self.list.is_campaign_mode:
+        injuries = pylist(self.injuries.all()) if self.list.is_campaign_mode else []
+        # Resolving treatments walks every assignment's equipment, so it is only
+        # worth doing for a fighter who actually has an injury to treat — most
+        # have none, and an unprefetched caller would otherwise pay a query per
+        # item for nothing.
+        if injuries:
             suppressed = self._suppressed_injury_ids
-            for injury in self.injuries.all():
+            for injury in injuries:
                 # An offsetting treatment (a Trading Post bionic) leaves the
                 # injury's modifiers in place — the bionic's own +1 is what
                 # cancels them. Only a suppressing treatment drops them.

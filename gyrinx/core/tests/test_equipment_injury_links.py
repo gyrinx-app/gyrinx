@@ -12,6 +12,8 @@ note on the gang roster.
 """
 
 import pytest
+from django.db import IntegrityError
+from django.urls import reverse
 
 from gyrinx.content.models import (
     ContentEquipmentInjuryLink,
@@ -129,9 +131,7 @@ def test_suppress_drops_injury_modifiers(injured_fighter, make_equipment, eye_in
 
 
 @pytest.mark.django_db
-def test_treatment_never_deletes_the_injury(
-    injured_fighter, bionic_eye, eye_injury, user
-):
+def test_treatment_never_deletes_the_injury(injured_fighter, bionic_eye, eye_injury):
     """The roster note survives treatment — it is only marked as treated."""
     ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
     fighter = _assign(injured_fighter, bionic_eye)
@@ -145,7 +145,7 @@ def test_treatment_never_deletes_the_injury(
 
 @pytest.mark.django_db
 def test_treatment_is_derived_so_selling_the_bionic_reverts_it(
-    injured_fighter, bionic_eye, eye_injury, user
+    injured_fighter, bionic_eye, eye_injury
 ):
     """Removing the gear puts the injury back to untreated, with no cleanup."""
     ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
@@ -159,9 +159,7 @@ def test_treatment_is_derived_so_selling_the_bionic_reverts_it(
 
 
 @pytest.mark.django_db
-def test_link_only_treats_its_own_injury(
-    injured_fighter, bionic_eye, make_equipment, user
-):
+def test_link_only_treats_its_own_injury(injured_fighter, make_equipment):
     """A bionic for a different location leaves the injury untreated."""
     hobbled = ContentInjury.objects.create(
         name="Hobbled", phase=ContentInjuryDefaultOutcome.RECOVERY
@@ -204,8 +202,6 @@ def test_one_item_can_treat_several_injuries(
 
 @pytest.mark.django_db
 def test_links_are_unique_per_equipment_and_injury(bionic_eye, eye_injury):
-    from django.db import IntegrityError
-
     ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
     with pytest.raises(IntegrityError):
         ContentEquipmentInjuryLink.objects.create(
@@ -220,8 +216,6 @@ def test_injuries_edit_page_shows_the_treatment(
     client, injured_fighter, bionic_eye, eye_injury, user
 ):
     """The edit page names the gear rather than leaving the injury bare."""
-    from django.urls import reverse
-
     ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
     fighter = _assign(injured_fighter, bionic_eye)
     client.force_login(user)
@@ -241,8 +235,6 @@ def test_injuries_edit_page_shows_the_treatment(
 def test_injuries_edit_page_leaves_untreated_injuries_unmarked(
     client, injured_fighter, user
 ):
-    from django.urls import reverse
-
     client.force_login(user)
 
     response = client.get(
@@ -263,8 +255,6 @@ def test_fighter_card_marks_a_treated_injury(
     client, injured_fighter, bionic_eye, eye_injury, user
 ):
     """The gang page card flags the injury as treated rather than dropping it."""
-    from django.urls import reverse
-
     ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
     fighter = _assign(injured_fighter, bionic_eye)
     client.force_login(user)
@@ -275,3 +265,38 @@ def test_fighter_card_marks_a_treated_injury(
     content = response.content.decode()
     assert "Eye Injury" in content
     assert "Treated by Bionic eye (mundane)" in content
+
+
+@pytest.mark.django_db
+def test_admin_pages_offer_the_link_inline(
+    client, django_user_model, bionic_eye, eye_injury
+):
+    """Links must be authorable from either end of the relation."""
+    admin_user = django_user_model.objects.create_superuser("admin", "a@b.co", "pw")
+    client.force_login(admin_user)
+    ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
+
+    for url in (
+        reverse("admin:content_contentinjury_change", args=(eye_injury.id,)),
+        reverse("admin:content_contentequipment_change", args=(bionic_eye.id,)),
+    ):
+        response = client.get(url)
+        assert response.status_code == 200, url
+        assert "Injuries treated" in response.content.decode(), url
+
+
+@pytest.mark.django_db
+def test_uninjured_fighter_never_resolves_treatments(
+    list_with_campaign, make_list_fighter, bionic_eye
+):
+    """Resolving treatments walks every assignment, so skip it with no injuries.
+
+    Asserted on the cache rather than a query count: the point is that the walk
+    doesn't happen at all, which a raw number wouldn't pin down.
+    """
+    fighter = make_list_fighter(list_with_campaign, "Healthy Fighter")
+    fighter = _assign(fighter, bionic_eye)
+
+    fighter._mods
+
+    assert "_injury_treatments" not in fighter.__dict__

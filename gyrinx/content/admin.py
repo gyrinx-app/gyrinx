@@ -535,6 +535,9 @@ class ContentEquipmentInjuryLinkInline(ContentTabularInline):
     model = ContentEquipmentInjuryLink
     extra = 0
     fields = ["equipment", "injury", "mode"]
+    # Without these, the injury page renders a <select> of every piece of
+    # equipment once per row plus the empty template form.
+    autocomplete_fields = ["equipment", "injury"]
     verbose_name = "Injury treated"
     verbose_name_plural = "Injuries treated"
 
