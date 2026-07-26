@@ -28,12 +28,12 @@
     <div class="mt-1">
         {% if parent_url %}
             <a class="icon-link linked fw-semibold" href="{{ parent_url }}">
-                <i class="bi-chevron-left"></i> {{ parent_label|default:parent }}
+                <i class="bi-chevron-left" aria-hidden="true"></i> {{ parent_label|default:parent }}
             </a>
         {% else %}
             <a class="icon-link linked fw-semibold"
                href="{% url 'core:campaign' campaign.id %}">
-                <i class="bi-chevron-left"></i> Campaign
+                <i class="bi-chevron-left" aria-hidden="true"></i> Campaign
             </a>
         {% endif %}
     </div>

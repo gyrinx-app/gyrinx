@@ -444,7 +444,10 @@ class Crew(AppBase):
         """
         if owed is None:
             owed = self.spending_total()
-        available = self.list.credits_current
+        # Floored like the charge floors it: a gang already in the red can put
+        # nothing towards this, and a negative "available" would report a
+        # shortfall larger than the crew is actually spending.
+        available = max(0, self.list.credits_current)
         if owed <= available:
             return None
         return {"owed": owed, "available": available, "short": owed - available}
@@ -956,17 +959,6 @@ class Crew(AppBase):
         if stash_total is None:
             stash_total = self.stash_lines()["total"]
         return self.rating() + stash_total + self.extras_rating()
-
-    def credits_value(self):
-        """The crew's fighter rating plus *every* extra line item and the stash
-        equipment it brings — a headline total, nothing more.
-
-        Not the quantity to compare crews by: this counts free extras and the
-        balancing allowance, neither of which belongs in a rating. Use
-        :meth:`rating_before_balancing` (or :meth:`rating_after_balancing`) for
-        that.
-        """
-        return self.rating() + self.extras_total() + self.stash_lines()["total"]
 
     def receipt(self):
         """Columnar receipt for the crew sheet, grouped into Fighters, Stash and

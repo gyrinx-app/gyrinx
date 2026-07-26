@@ -24,6 +24,8 @@ from gyrinx.core.forms.crew import (
     equipment_set_field_name,
 )
 from gyrinx.core.handlers.battle import (
+    battle_not_ready_gangs,
+    battle_start_crew_rows,
     battle_timeline,
     charge_crew_spending,
     handle_battle_end,
@@ -306,7 +308,6 @@ def test_draft_rating_sums_chosen_full_cost(crew_setup):
     # Three fighters at base 100 each, all with no equipment set (full kit).
     assert all(m.equipment_set_id is None for m in crew.members.all())
     assert crew.rating() == 300
-    assert crew.credits_value() == 300
 
 
 @pytest.mark.django_db
@@ -326,7 +327,7 @@ def test_locked_rating_uses_member_loadout(crew_setup, equipped_fighter):
 
 
 @pytest.mark.django_db
-def test_extras_and_credits_value(crew_setup):
+def test_extras_total_is_what_was_paid(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(
         battle=battle, list=gang, owner=crew_setup["user"], status=Crew.LOCKED
@@ -345,9 +346,10 @@ def test_extras_and_credits_value(crew_setup):
         owner=crew_setup["user"],
     )
 
+    # extras_total is what the gang paid, not what the extras are worth: the
+    # free hired gun's 55¢ was recorded as its value, and costs nothing.
     assert crew.rating() == 100
     assert crew.extras_total() == 75
-    assert crew.credits_value() == 175
 
 
 @pytest.mark.django_db
@@ -5965,7 +5967,7 @@ def test_ready_cannot_change_once_charged(crew_setup):
     charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
     crew.refresh_from_db()
 
-    with pytest.raises(ValidationError, match="already been charged"):
+    with pytest.raises(ValidationError, match="already started"):
         handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
 
 
@@ -6418,3 +6420,47 @@ def test_end_battle_form_opens_on_a_win(crew_setup):
 
     form = BattleEndForm(battle=crew_setup["battle"])
     assert form["result"].value() == Battle.RESULT_WINNERS
+
+
+@pytest.mark.django_db
+def test_readiness_is_blocked_once_the_battle_has_started(crew_setup):
+    """Gated on the battle having started, not merely on the charge: a battle
+    started before this feature has no charge stamp, and readiness there would
+    be a claim about a fight that already happened."""
+    gang = _credit(crew_setup["gang"], 500)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    crew.refresh_from_db()
+    assert crew.is_charged is False  # charging never ran for this battle
+
+    with pytest.raises(ValidationError, match="already started"):
+        handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+
+@pytest.mark.django_db
+def test_start_page_ignores_crews_of_dropped_gangs(crew_setup):
+    """Every path that counts crews scopes them to gangs still in the battle."""
+    gang = _credit(crew_setup["gang"], 500)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    assert len(battle_start_crew_rows(battle)) == 1
+
+    battle.set_participants([])
+    assert battle_start_crew_rows(battle) == []
+    assert battle_not_ready_gangs(battle) == []
+
+
+@pytest.mark.django_db
+def test_ready_blocker_floors_a_negative_balance(crew_setup):
+    """A gang already in the red can put nothing towards this; a negative
+    'available' would report a shortfall bigger than the crew is spending."""
+    gang = crew_setup["gang"]
+    gang.credits_current = -40
+    gang.save()
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    assert crew.ready_blocker() == {"owed": 50, "available": 0, "short": 50}

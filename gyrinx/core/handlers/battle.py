@@ -208,6 +208,22 @@ def notify_battle_participants(*, user, battle, added_lists):
     return notified
 
 
+def live_battle_crews(battle: Battle):
+    """Crews of gangs still taking part in ``battle``.
+
+    ``set_participants`` deletes the participant rows and leaves the crews
+    behind, so every path that counts, charges or lists crews has to scope them
+    this way. Doing it separately at each call site is how one of them ended up
+    charging a gang that had been dropped, and another reporting "every gang
+    picked a crew" on a battle with no gangs at all.
+    """
+    from gyrinx.core.models.crew import Crew
+
+    return Crew.objects.filter(
+        battle=battle, archived=False, list__in=battle.participants.all()
+    )
+
+
 @dataclass
 class CrewChargeResult:
     """What one crew's gang was charged when the battle started."""
@@ -238,18 +254,11 @@ def charge_crew_spending(*, user, battle: Battle) -> list:
     what it can, which is the behaviour this flow rules out. Idempotent —
     ``credits_charged_at`` means a retried transition never charges twice.
     """
-    from gyrinx.core.models.crew import Crew
 
     crews = (
-        Crew.objects.select_for_update()
-        .filter(
-            battle=battle,
-            archived=False,
-            credits_charged_at__isnull=True,
-            # A gang dropped from the battle after picking a crew must not be
-            # charged for a fight it is no longer in.
-            list__in=battle.participants.all(),
-        )
+        live_battle_crews(battle)
+        .select_for_update()
+        .filter(credits_charged_at__isnull=True)
         .select_related("list")
         # spending_total() walks the line items for every crew; without this it
         # is a query each. The prefetch runs unlocked, which is fine — the row
@@ -317,13 +326,10 @@ def charge_crew_spending(*, user, battle: Battle) -> list:
 def battle_start_crew_rows(battle: Battle) -> list:
     """One row per live crew for the start-battle confirmation: who is ready,
     and what starting the battle will take from them."""
-    from gyrinx.core.models.crew import Crew
 
     rows = []
     for crew in (
-        Crew.objects.filter(battle=battle, archived=False)
-        .select_related("list")
-        .prefetch_related("line_items")
+        live_battle_crews(battle).select_related("list").prefetch_related("line_items")
     ):
         owed = crew.spending_total()
         will_pay = min(owed, max(0, crew.list.credits_current))
@@ -349,13 +355,9 @@ def battle_not_ready_gangs(battle: Battle) -> list:
     that has not picked a crew at all. Looking only at crews that exist would
     stay silent about the second, which is the more incomplete of the two.
     """
-    from gyrinx.core.models.crew import Crew
 
     crew_by_gang = {
-        crew.list_id: crew
-        for crew in Crew.objects.filter(battle=battle, archived=False).select_related(
-            "list"
-        )
+        crew.list_id: crew for crew in live_battle_crews(battle).select_related("list")
     }
     blocking = []
     for gang in battle.participants.all():
@@ -376,18 +378,9 @@ def battle_timeline(battle: Battle) -> list:
     a step (a crew that was never marked ready, say), where the step still reads
     as outstanding rather than silently vanishing.
     """
-    from gyrinx.core.models.crew import Crew
 
     participant_count = battle.participants.count()
-    # Scoped to gangs still in the battle, like the charging path: set_participants
-    # leaves a dropped gang's crew behind, and counting it here would report a
-    # step done that isn't — including "every gang picked a crew" on a battle
-    # with no gangs at all, where an orphan crew beats a participant count of 0.
-    crews = list(
-        Crew.objects.filter(
-            battle=battle, archived=False, list__in=battle.participants.all()
-        ).select_related("list")
-    )
+    crews = list(live_battle_crews(battle).select_related("list"))
     state = battle.states.current
     started = state in (Battle.IN_PROGRESS, Battle.POST_BATTLE)
     ended = state == Battle.POST_BATTLE

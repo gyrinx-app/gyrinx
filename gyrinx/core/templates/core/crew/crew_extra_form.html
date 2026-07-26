@@ -86,14 +86,20 @@
             const freeValue = form.dataset.freePayment;
             if (!cost || !radios.length || !freeValue) return;
 
-            const rating = form.querySelector('.js-extra-rating input');
-            const costInput = cost.querySelector('input');
-
             // Most things cost what they are worth, so the price follows the
             // rating until the player says otherwise. Once they type a price of
             // their own it stops following — a tactics card is worth nothing and
             // costs 20, and re-touching the rating must not wipe that.
-            let costEdited = false;
+            const rating = form.querySelector('.js-extra-rating input');
+            const costInput = cost.querySelector('input');
+
+            // Seeded from what was saved: an entry whose price already differs
+            // from its rating said so deliberately (a tactics card is worth 0
+            // and costs 20), and changing the payment method must not resync it
+            // away. Only a fresh entry, where the two still agree, follows.
+            let costEdited = Boolean(
+                costInput && rating && costInput.value && costInput.value !== rating.value,
+            );
             if (costInput) {
                 costInput.addEventListener('input', () => {
                     costEdited = true;
