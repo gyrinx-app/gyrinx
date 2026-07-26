@@ -251,6 +251,10 @@ def charge_crew_spending(*, user, battle: Battle) -> list:
             list__in=battle.participants.all(),
         )
         .select_related("list")
+        # spending_total() walks the line items for every crew; without this it
+        # is a query each. The prefetch runs unlocked, which is fine — the row
+        # locks that make the charge idempotent are on the crew and its gang.
+        .prefetch_related("line_items")
     )
 
     results = []

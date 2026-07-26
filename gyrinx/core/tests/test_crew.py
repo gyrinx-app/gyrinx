@@ -6286,3 +6286,84 @@ def test_a_paid_entry_must_say_what_it_cost(crew_setup):
     )
     assert ok.is_valid(), ok.errors
     assert ok.cleaned_data["cost"] == 0
+
+
+@pytest.mark.django_db
+def test_charging_does_not_query_per_crew(crew_setup, make_list, make_list_fighter):
+    """Charging totals each crew's spending, which walks its line items — more
+    crews must not mean a query each."""
+
+    def build(n):
+        battle = crew_setup["battle"]
+        gangs = []
+        for i in range(n):
+            gang, fighters = _spread_gang(
+                crew_setup, make_list, make_list_fighter, f"Charge Gang {i}", 1
+            )
+            _credit(gang, 500)
+            crew = _locked_crew(crew_setup, gang, fighters[:1])
+            _extra(crew, crew_setup["user"], "Hired gun", 20, Crew.PAY_CREDITS)
+            gangs.append(gang)
+        battle.set_participants(gangs)
+        return battle
+
+    def line_item_reads(battle):
+        with CaptureQueriesContext(connection) as ctx:
+            charge_crew_spending(user=crew_setup["user"], battle=battle)
+        return [
+            q["sql"]
+            for q in ctx.captured_queries
+            if "crewlineitem" in q["sql"].lower()
+            and q["sql"].lstrip().upper().startswith("SELECT")
+        ]
+
+    # Each crew legitimately writes its own row, history, ListAction and
+    # CampaignAction, so the total grows either way. What must stay flat is the
+    # read of the line items — one prefetch, however many crews.
+    assert len(line_item_reads(build(1))) == 1
+    assert len(line_item_reads(build(4))) == 1
+
+
+@pytest.mark.django_db
+def test_pages_warn_when_a_crew_outspends_its_gang(client, crew_setup):
+    """Readiness is guarded at the moment it is set, but a gang can spend
+    elsewhere afterwards — so a crew can sit "ready" and unaffordable. Both
+    pages say so rather than the problem only surfacing as a charge shortfall."""
+    gang = _credit(crew_setup["gang"], 200)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 150, Crew.PAY_CREDITS)
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+    # The gang spends its credits elsewhere after saying it was ready.
+    _credit(gang, 50)
+
+    client.force_login(crew_setup["user"])
+    battle_body = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    assert "spending more than their gang has" in battle_body
+    assert "100¢ short" in battle_body
+
+    crew_body = client.get(
+        reverse("core:crew", args=[crew.battle_id, crew.id])
+    ).content.decode()
+    assert "100¢ short" in crew_body
+    # Worded for a crew that is already ready, not one trying to become ready.
+    assert "It was marked ready when the gang could cover it" in crew_body
+    assert "to mark the crew ready" not in crew_body
+
+
+@pytest.mark.django_db
+def test_no_overspend_warning_once_the_charge_has_happened(client, crew_setup):
+    """After the charge the balance is meant to be at zero — warning that the
+    crew is short would be describing the charge itself."""
+    gang = _credit(crew_setup["gang"], 20)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+    charge_crew_spending(user=crew_setup["user"], battle=battle)
+
+    client.force_login(crew_setup["user"])
+    body = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    assert "spending more than their gang has" not in body

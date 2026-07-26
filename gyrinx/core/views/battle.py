@@ -149,8 +149,18 @@ class BattleDetailView(generic.DetailView):
         # crews would each pay a full equipment prefetch chain — a dozen queries
         # or more apiece, on a page that shows one crew per gang.
         stash_totals = crew_stash_totals(crews)
+        # Crews whose gang can no longer cover what they are spending. Marking
+        # ready is guarded, but a gang can spend elsewhere afterwards, so a crew
+        # can sit "ready" and unaffordable. Warning beats silently un-readying
+        # them: the money is safe either way (the charge floors at zero and
+        # records the shortfall), it is the arbitrator who needs to know.
+        overspending = []
         crew_by_gang = {}
         for crew in crews:
+            if not crew.is_charged:
+                blocker = crew.ready_blocker()
+                if blocker:
+                    overspending.append({"crew": crew, **blocker})
             # The one definition of what a crew is worth right now (pending draw
             # → unknown; whole-gang draft → forecast; else its live/played
             # rating), shared with the crew-page spread so the two can't drift.
@@ -244,6 +254,7 @@ class BattleDetailView(generic.DetailView):
                     }
                 )
             groups.append({"role_option": group["role_option"], "participants": rows})
+        context["overspending_crews"] = overspending
         context["participant_groups"] = groups
         # Hide the "No role" group header when nobody has a role assigned — with
         # no roles in play it is just noise above a single list of gangs.

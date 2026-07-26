@@ -130,8 +130,13 @@
             <c-callout variant="warning" class="mb-0">
                 <strong>{{ ready_blocker.short }}¢ short.</strong>
                 This crew spends {{ ready_blocker.owed }}¢ but {{ crew.list.name }} has
-                {{ ready_blocker.available }}¢. Reduce the spending, or earn the credits,
-                to mark the crew ready.
+                {{ ready_blocker.available }}¢.
+                {% if crew.is_ready %}
+                    It was marked ready when the gang could cover it. Starting the battle
+                    will charge what the gang has and record the rest as unpaid.
+                {% else %}
+                    Reduce the spending, or earn the credits, to mark the crew ready.
+                {% endif %}
             </c-callout>
         {% endif %}
         {% if crew.credits_shortfall %}
