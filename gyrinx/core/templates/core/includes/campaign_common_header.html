@@ -25,13 +25,16 @@
             {{ current }}
         </c-breadcrumb.item>
     </c-breadcrumb>
-    {# Anchor content stays on one line: a newline here renders as a leading space before the chevron. #}
     <div class="mt-1">
         {% if parent_url %}
-            <a class="linked fw-semibold" href="{{ parent_url }}"><i class="bi-chevron-left"></i> {{ parent_label|default:parent }}</a>
+            <a class="icon-link linked fw-semibold" href="{{ parent_url }}">
+                <i class="bi-chevron-left"></i> {{ parent_label|default:parent }}
+            </a>
         {% else %}
-            <a class="linked fw-semibold"
-               href="{% url 'core:campaign' campaign.id %}"><i class="bi-chevron-left"></i> Campaign</a>
+            <a class="icon-link linked fw-semibold"
+               href="{% url 'core:campaign' campaign.id %}">
+                <i class="bi-chevron-left"></i> Campaign
+            </a>
         {% endif %}
     </div>
 </div>
