@@ -1347,10 +1347,18 @@ class ListFighter(AppBase):
         # packs are subscribed.
         pack_mods = list(self.list.pack_mods_for(self.content_fighter))
 
+        # Advancements come first so that a "set" from equipment still wins.
+        # A set discards whatever it is applied to, so ordering is only visible
+        # when one is present: with advancements last, a fighter whose gear
+        # fixes a stat ("your movement is 8\"") had their advancement stack on
+        # top of it. Before advancements moved onto the mod system they were
+        # held in the override field, which a set discarded — so this ordering
+        # is what restores that behaviour. Improve/worsen mods are additive, so
+        # their order relative to each other does not matter.
         return (
-            equipment_mods
+            advancement_mods
+            + equipment_mods
             + injury_mods
-            + advancement_mods
             + roll_result_mods
             + pack_mods
         )
