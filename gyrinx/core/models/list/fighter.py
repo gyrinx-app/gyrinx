@@ -2697,6 +2697,10 @@ class ListFighter(AppBase):
                 description=advancement.description,
                 xp_cost=advancement.xp_cost,
                 cost_increase=advancement.cost_increase,
+                # Must travel too: the stat overrides copied above already hold
+                # what a legacy advancement wrote, so letting the copy default
+                # onto the mod system would apply the same improvement twice.
+                uses_mod_system=advancement.uses_mod_system,
                 owner=target_fighter.owner,
             )
 
