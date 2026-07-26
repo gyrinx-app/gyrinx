@@ -3,7 +3,7 @@
 A :class:`Crew` is a read-model overlay on a gang for a single battle: which
 fighters attend (with which equipment set), plus credit-consuming extras
 (tactics cards, hired guns). It is deliberately NOT a second ``List``: its
-rating and credits value are computed on the fly, and it never writes to the
+rating and its spending are computed on the fly, and it never writes to the
 gang's cost caches.
 
 ONE EXCEPTION, and it is deliberate: when the battle starts, each crew's
@@ -883,7 +883,11 @@ class Crew(AppBase):
         ]
 
     def extras_total(self):
-        """Total the crew's extras cost the gang, whatever the source."""
+        """What the crew's extras cost in total, whoever footed the bill.
+
+        Balancing is not the gang's money, so this is larger than what the gang
+        actually pays — that is ``spending_total()``.
+        """
         return sum(item.cost for item in self.line_items.all())
 
     def extras_rating(self, *, exclude_balancing=False):

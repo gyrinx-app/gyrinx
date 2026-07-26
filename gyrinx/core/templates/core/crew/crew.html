@@ -23,7 +23,7 @@
                                    value="{% if crew.is_ready %}0{% else %}1{% endif %}">
                             {% if crew.is_ready %}
                                 <c-btn type="submit" variant="secondary" size="sm">
-                                    <i class="bi-arrow-counterclockwise"></i> Not ready
+                                    <i class="bi-arrow-counterclockwise" aria-hidden="true"></i> Not ready
                                 </c-btn>
                             {% elif ready_blocker %}
                                 <c-btn type="submit"
@@ -33,11 +33,11 @@
                                        bs-tooltip
                                        data-bs-toggle="tooltip"
                                        title="{{ ready_blocker.short }}¢ short of the {{ ready_blocker.owed }}¢ this crew spends.">
-                                    <i class="bi-check-lg"></i> Ready
+                                    <i class="bi-check-lg" aria-hidden="true"></i> Ready
                                 </c-btn>
                             {% else %}
                                 <c-btn type="submit" variant="success" size="sm">
-                                    <i class="bi-check-lg"></i> Ready
+                                    <i class="bi-check-lg" aria-hidden="true"></i> Ready
                                 </c-btn>
                             {% endif %}
                         </form>

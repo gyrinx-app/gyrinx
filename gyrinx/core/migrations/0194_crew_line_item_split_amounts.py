@@ -23,11 +23,17 @@ def split_amounts(apps, schema_editor):
 
 
 def unsplit_amounts(apps, schema_editor):
-    """Fold the two amounts back into one. A free entry recovers its worth from
-    rating_value, which is where it moved."""
+    """Fold the two amounts back into one.
+
+    The old single ``cost`` meant credits value, so the amount that survives is
+    the rating contribution, for every row and not just the free ones. Entries
+    created after the split whose price differs from their worth — a tactics
+    card at 0/20 — lose the price, which is the information the old shape had
+    no room for.
+    """
     for model_name in ("CrewLineItem", "HistoricalCrewLineItem"):
         model = apps.get_model("core", model_name)
-        model.objects.filter(payment="free").update(cost=models.F("rating_value"))
+        model.objects.update(cost=models.F("rating_value"))
 
 
 class Migration(migrations.Migration):
