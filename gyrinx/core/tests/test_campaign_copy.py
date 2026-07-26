@@ -1466,3 +1466,28 @@ def test_template_archived_mid_form_keeps_what_was_typed(
     assert "Hours of lore" in content
     # The form no longer points at the dead template.
     assert response.context["template_campaign"] is None
+
+
+@pytest.mark.django_db
+def test_template_lost_mid_form_still_shows_field_errors(
+    client, user, template_campaign
+):
+    """The recovery path renders validation errors as usual.
+
+    It never calls is_valid(), but rendering a bound form triggers full_clean()
+    lazily — so a bad submission still gets its field errors, on top of the
+    notice about the template.
+    """
+    client.force_login(user)
+    url = reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+    template_campaign.archived = True
+    template_campaign.save()
+
+    response = client.post(
+        url, {"name": "", "summary": "", "narrative": "", "budget": 1000}
+    )
+
+    content = response.content.decode()
+    assert "That template is no longer available" in content
+    assert "This field is required." in content
+    assert response.context["form"].errors
