@@ -6121,3 +6121,16 @@ def test_a_tactics_card_costs_credits_and_adds_no_rating(crew_setup):
     assert crew.extras_rating() == 0
     # The card is paid for but adds nothing to what the crew is worth.
     assert crew.rating_before_balancing() == 100
+
+
+@pytest.mark.django_db
+def test_new_entry_defaults_to_free_but_editing_keeps_its_own(crew_setup):
+    """Free is the common case, so it is what a player sees first. Editing must
+    not quietly rewrite an existing entry's payment to free — and the "is this
+    new?" check has to be _state.adding, because AppBase's UUID primary key is
+    populated before the row is ever saved."""
+    assert CrewLineItemForm()["payment"].value() == Crew.PAY_FREE
+
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    item = _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+    assert CrewLineItemForm(instance=item)["payment"].value() == Crew.PAY_CREDITS

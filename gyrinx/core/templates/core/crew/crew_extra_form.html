@@ -17,6 +17,42 @@
             Use this to record credits spent for this battle, or as part of balancing
             mechanics such as the underdog system. Rules may vary by campaign.
         </p>
+        <c-box compact>
+            <details>
+                <summary class="fw-semibold">How do I enter…?</summary>
+                <div class="vstack gap-2 mt-2 fs-7">
+                    <div>
+                        <div class="fw-semibold">A hired gun you were given for free</div>
+                        <div class="text-secondary">
+                            Feigned Nobility, The Hand That Feeds You, A Mysterious Stranger, Call for
+                            Aid. Put their credits value under rating — they still fight, so they still
+                            count — and choose <em>It's free</em>.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">A hired gun you paid for</div>
+                        <div class="text-secondary">
+                            Their credits value under rating, <em>Buying it with credits</em>, and the
+                            same number as the cost. It comes out of your gang when the battle starts.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Something bought with your balancing</div>
+                        <div class="text-secondary">
+                            Same again, but choose <em>Using balancing</em>. It counts towards what you
+                            field without counting towards the gap that earned you the allowance.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">A tactics card</div>
+                        <div class="text-secondary">
+                            Leave rating at 0 — rating counts fighters and their gear, not cards — and
+                            record what the card cost you.
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </c-box>
         <form method="post"
               class="vstack gap-3 js-extra-form"
               data-free-payment="{{ free_payment }}">

@@ -578,6 +578,8 @@ class CrewLineItemForm(forms.ModelForm):
             "reason": "Reason",
         }
         help_texts = {
+            # The label and placeholder already say it.
+            "label": "",
             "rating_value": (
                 "A fighter's credits value, even if you got them for nothing. "
                 "A tactics card adds nothing — rating counts fighters and their "
@@ -594,7 +596,7 @@ class CrewLineItemForm(forms.ModelForm):
             "label": forms.TextInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "e.g. Tactics Card",
+                    "placeholder": "e.g. House Agent",
                 }
             ),
             "rating_value": forms.NumberInput(
@@ -621,6 +623,19 @@ class CrewLineItemForm(forms.ModelForm):
         # a tactics card adds zero to rating.
         self.fields["cost"].required = False
         self.fields["rating_value"].required = False
+        # Free by default on a new entry. Two traps here, both silent:
+        #
+        # `_state.adding`, not `pk`: AppBase gives every row a UUID primary key
+        # with a default, so an unsaved instance already HAS a pk and a
+        # `not self.instance.pk` guard never fires.
+        #
+        # Assignment, not setdefault: ModelForm has already seeded self.initial
+        # from that instance, so the model's own PAY_CREDITS default is sitting
+        # in the dict and a setdefault would be a no-op. The model keeps that
+        # default for rows created in code; this is only about what a player
+        # sees first.
+        if self.instance._state.adding:
+            self.initial["payment"] = Crew.PAY_FREE
 
     def clean(self):
         cleaned = super().clean()
