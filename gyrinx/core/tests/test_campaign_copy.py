@@ -1391,7 +1391,7 @@ def test_new_campaign_from_template_logs_an_action(client, user, template_campai
     assert action.user == user
     assert action.outcome == (
         "Copied 1 asset type, 1 asset, 1 sub-asset, 1 resource type, "
-        "1 attribute type, 1 Content Pack"
+        "1 attribute type, 1 attribute value, 1 Content Pack"
     )
 
     # The campaign page renders the link back to the template.

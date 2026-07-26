@@ -405,6 +405,7 @@ def _describe_copy_result(copied: CopyResult) -> str:
         (copied.sub_assets_copied, "sub-asset"),
         (copied.resource_types_copied, "resource type"),
         (copied.attribute_types_copied, "attribute type"),
+        (copied.attribute_values_copied, "attribute value"),
         (copied.packs_copied, "Content Pack"),
     ]:
         if count:
