@@ -6408,3 +6408,13 @@ def test_end_battle_form_carries_the_draw_hook_and_still_validates(client, crew_
     )
     assert not form.is_valid()
     assert "winners" in form.errors
+
+
+@pytest.mark.django_db
+def test_end_battle_form_opens_on_a_win(crew_setup):
+    """Most battles have a winner, so the form opens there rather than making
+    every player state the common case — and the winners stay selectable."""
+    from gyrinx.core.forms.battle import BattleEndForm
+
+    form = BattleEndForm(battle=crew_setup["battle"])
+    assert form["result"].value() == Battle.RESULT_WINNERS

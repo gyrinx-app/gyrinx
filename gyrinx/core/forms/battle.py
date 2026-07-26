@@ -175,6 +175,10 @@ class BattleEndForm(forms.Form):
         self.fields["result"] = result_field(
             widget=forms.RadioSelect(attrs={"class": "form-check-input"})
         )
+        # Most battles have a winner, so open on that rather than making every
+        # player state the common case. A plain Form, so field.initial is read
+        # directly — no self.initial seeded from an instance to shadow it.
+        self.fields["result"].initial = Battle.RESULT_WINNERS
         self.order_fields(["result", "winners"])
 
         if battle is not None:
