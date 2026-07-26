@@ -7,6 +7,8 @@ URL-driven selection-method picker with its per-method validation, and the crew
 lifecycle views.
 """
 
+import re
+
 import pytest
 from django.apps import apps
 from django.core.exceptions import ValidationError
@@ -6437,6 +6439,82 @@ def test_readiness_is_blocked_once_the_battle_has_started(crew_setup):
 
     with pytest.raises(ValidationError, match="already started"):
         handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+
+@pytest.mark.django_db
+def test_started_battle_offers_no_ready_button(client, crew_setup):
+    """The page must not offer a control the handler would refuse. Same legacy
+    case as above: started, never charged, so ``is_charged`` alone would leave
+    the button on screen with nothing behind it."""
+    gang = _credit(crew_setup["gang"], 500)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    client.force_login(crew_setup["user"])
+
+    assert crew.readiness_open is True
+    before = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert "crew-ready" in before.content.decode() or b"Ready" in before.content
+
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    crew.refresh_from_db()
+    assert crew.is_charged is False
+    assert crew.readiness_open is False
+
+    after = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert (
+        reverse("core:crew-ready", args=[battle.id, crew.id])
+        not in after.content.decode()
+    )
+
+
+@pytest.mark.django_db
+def test_started_battle_drops_the_overspend_warning(client, crew_setup):
+    """The battle page's overspend list answers "who can't afford to start?",
+    which is not a question once the battle has started."""
+    gang = crew_setup["gang"]
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    CrewLineItem.objects.create(
+        crew=crew, label="Tactics card", cost=500, owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:battle", args=[battle.id]))
+    assert resp.context["overspending_crews"]
+
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    resp = client.get(reverse("core:battle", args=[battle.id]))
+    assert resp.context["overspending_crews"] == []
+
+
+@pytest.mark.django_db
+def test_receipt_shows_a_zero_rating_rather_than_a_blank(client, crew_setup):
+    """A tactics card is worth nothing and costs 20¢. The rating column says so
+    — a blank cell reads as "not applicable", which is a different claim."""
+    gang = crew_setup["gang"]
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    CrewLineItem.objects.create(
+        crew=crew,
+        label="Tactics card",
+        rating_value=0,
+        cost=20,
+        owner=crew_setup["user"],
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+    row = resp.context["receipt"]["extras"][0]
+    assert (row["rating"], row["credits"]) == (0, 20)
+
+    # The three amount cells of the card's own row, in order: rating, credits,
+    # balancing. Checking the page merely contains "0¢" proves nothing — a free
+    # extra and the totals print one too.
+    html = resp.content.decode()
+    tail = html[html.index("Tactics card") :]
+    cells = re.findall(r'<td class="text-end">(.*?)</td>', tail[: tail.index("</tr>")])
+    assert cells == ["0¢", "20¢", ""]
 
 
 @pytest.mark.django_db

@@ -27,7 +27,6 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
-from gyrinx.core.models.battle import Battle
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.crew import (
     Crew,
@@ -1211,11 +1210,7 @@ def handle_crew_ready(*, user, crew: Crew, ready: bool) -> Crew:
         .select_related("list", "battle")
         .get(pk=crew.pk)
     )
-    # Gate on the battle having started, not merely on the charge having run.
-    # They are the same moment now, but a battle started before this feature
-    # existed has no charge stamp, and readiness there would be a claim about a
-    # fight that already happened.
-    if crew.is_charged or crew.battle.states.current != Battle.PRE_BATTLE:
+    if not crew.readiness_open:
         raise ValidationError(
             "This battle has already started — the crew's readiness can no "
             "longer change."

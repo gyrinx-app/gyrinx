@@ -13,7 +13,7 @@
             <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center gap-2 mb-2">
                 <h1 class="h2 mb-0">{{ crew }}</h1>
                 <div class="ms-md-auto d-flex gap-1 flex-nowrap align-items-center">
-                    {% if can_manage and not crew.is_charged %}
+                    {% if can_manage and crew.readiness_open %}
                         <form method="post"
                               action="{% url 'core:crew-ready' battle.id crew.id %}"
                               class="d-inline">
@@ -126,7 +126,7 @@
                 and is kept only as a record — it can no longer be edited.
             </div>
         {% endif %}
-        {% if ready_blocker and not crew.is_charged %}
+        {% if ready_blocker and crew.readiness_open %}
             <c-callout variant="warning" class="mb-0">
                 <strong>{{ ready_blocker.short }}¢ short.</strong>
                 This crew spends {{ ready_blocker.owed }}¢ but {{ crew.list.name }} has
@@ -386,7 +386,7 @@
                                     </form>
                                 {% endif %}
                             </td>
-                            <td class="text-end">{% if e.rating %}{{ e.rating }}¢{% endif %}</td>
+                            <td class="text-end">{{ e.rating }}¢</td>
                             <td class="text-end">{% if e.credits is not None %}{{ e.credits }}¢{% endif %}</td>
                             <td class="text-end">{% if e.allowance is not None %}{{ e.allowance }}¢{% endif %}</td>
                         </tr>

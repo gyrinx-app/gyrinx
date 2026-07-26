@@ -142,7 +142,9 @@ class BattleDetailView(generic.DetailView):
         # the "add crew" affordance again rather than a stale crew sub-row.
         crews = list(
             battle.crews.filter(archived=False)
-            .select_related("list")
+            # ``battle`` for readiness_open: it reads the battle's state, and
+            # this loop asks every crew.
+            .select_related("list", "battle")
             .prefetch_related("members", "line_items")
         )
         # Every crew's brought-stash total in one load. Left to themselves the
@@ -157,7 +159,7 @@ class BattleDetailView(generic.DetailView):
         overspending = []
         crew_by_gang = {}
         for crew in crews:
-            if not crew.is_charged:
+            if crew.readiness_open:
                 blocker = crew.ready_blocker()
                 if blocker:
                     overspending.append({"crew": crew, **blocker})

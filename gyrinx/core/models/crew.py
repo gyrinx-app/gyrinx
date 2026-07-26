@@ -413,6 +413,24 @@ class Crew(AppBase):
         """Whether the battle has already taken this crew's spending."""
         return self.credits_charged_at is not None
 
+    @property
+    def readiness_open(self):
+        """Whether the crew can still be marked ready, or un-marked.
+
+        Readiness is a claim about a fight that hasn't happened yet, so it
+        closes when the battle starts. The charge stamp alone won't do as the
+        test: a battle started before crews were charged has no stamp, and
+        would go on offering a Ready button forever.
+
+        ``handlers.crew.handle_crew_ready`` enforces this. Everything that
+        decides whether to *offer* readiness — the button, the shortfall
+        warning, the battle page's overspend list — reads it from here, so the
+        screen can't offer a control that could only ever error.
+        """
+        from gyrinx.core.models.battle import Battle
+
+        return not self.is_charged and self.battle.states.current == Battle.PRE_BATTLE
+
     def credits_shortfall(self):
         """Spending the gang could not cover when the battle charged it.
 
