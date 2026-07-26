@@ -11,21 +11,6 @@
                 <span class="fs-7">This battle is archived.{% if can_unarchive %} <a href="{% url 'core:battle-archive' battle.id %}" class="linked">Unarchive it</a> to make changes.{% endif %}</span>
             </c-note>
         {% endif %}
-        {% if overspending_crews %}
-            <c-callout variant="warning" class="mb-0">
-                <strong>Some crews are spending more than their gang has.</strong>
-                <ul class="mb-0">
-                    {% for row in overspending_crews %}
-                        <li>
-                            {{ row.crew.list.name }} — spending {{ row.owed }}¢ with {{ row.available }}¢
-                            available, {{ row.short }}¢ short
-                        </li>
-                    {% endfor %}
-                </ul>
-                Starting the battle charges what each gang can cover and records the rest as
-                unpaid.
-            </c-callout>
-        {% endif %}
         <!-- Header -->
         <div class="vstack gap-0">
             <div class="caps-label">Battle</div>
@@ -230,6 +215,21 @@
                             </div>
                         {% else %}
                             <p class="text-secondary fs-7 mb-0">No gangs added yet.</p>
+                        {% endif %}
+                        {% if overspending_crews %}
+                            <c-callout variant="warning" class="mt-2 mb-0">
+                                <strong>Some crews are spending more than their gang has.</strong>
+                                <ul class="mb-0">
+                                    {% for row in overspending_crews %}
+                                        <li>
+                                            {{ row.crew.list.name }} — spending {{ row.owed }}¢ with
+                                            {{ row.available }}¢ available, {{ row.short }}¢ short
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                                Starting the battle charges what each gang can cover and records the
+                                rest as unpaid.
+                            </c-callout>
                         {% endif %}
                         {% if show_draw_note %}
                             <p class="text-secondary fs-7 mt-2 mb-0">
