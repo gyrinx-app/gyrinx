@@ -91,6 +91,42 @@ def _mfa_gate_url(request):
     return None
 
 
+def admin_second_factor_required(user) -> bool:
+    """Whether this user must prove a second factor to reach the admin."""
+    from allauth.mfa.utils import is_mfa_enabled
+
+    return (
+        admin_requires_mfa()
+        and user.is_authenticated
+        and user.is_active
+        and user.is_staff
+        and is_mfa_enabled(user)
+    )
+
+
+def is_admin_bound_request(request) -> bool:
+    """Whether this request is a step on the way into the admin.
+
+    Reads the ``next`` target, so it holds for allauth's own pages while they
+    are standing between the visitor and an admin URL.
+    """
+    if request is None:
+        return False
+
+    next_url = request.GET.get(REDIRECT_FIELD_NAME)
+    if not next_url and request.method == "POST":
+        next_url = request.POST.get(REDIRECT_FIELD_NAME)
+    if not next_url:
+        return False
+    if not url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return False
+    return next_url.startswith(reverse("admin:index"))
+
+
 def admin_gated_patterns(url_patterns):
     """Put ``url_patterns`` behind the same gate as the admin's own views.
 

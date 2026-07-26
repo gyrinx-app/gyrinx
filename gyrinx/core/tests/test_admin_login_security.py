@@ -5,6 +5,8 @@ password and nothing else, which would let a staff account with TOTP configured
 into the admin without ever being challenged.
 """
 
+from urllib.parse import unquote
+
 import pytest
 from allauth.account.models import EmailAddress
 from allauth.mfa.totp.internal import auth as totp_auth
@@ -17,6 +19,7 @@ ALLAUTH_LOGIN = "/accounts/login/"
 MFA_ACTIVATE = "/accounts/2fa/totp/activate/"
 MFA_AUTHENTICATE = "/accounts/2fa/authenticate/"
 MFA_REAUTHENTICATE = "/accounts/2fa/reauthenticate/"
+ACCOUNT_REAUTHENTICATE = "/accounts/reauthenticate/"
 
 
 @pytest.fixture
@@ -260,3 +263,66 @@ def test_admindocs_is_reachable_when_the_gate_is_satisfied(staff_user):
 @pytest.mark.django_db
 def test_admindocs_url_names_are_unchanged():
     assert reverse("django-admindocs-docroot") == "/admin/doc/"
+
+
+# ------------------------------------------------------- password is not a second factor
+
+
+@override_settings(ADMIN_REQUIRE_MFA=True)
+@pytest.mark.django_db
+def test_password_reauthentication_does_not_open_the_admin(staff_user):
+    """A password is what the session already has — it proves nothing new."""
+    enable_totp(staff_user)
+    client = Client()
+    client.force_login(staff_user)
+
+    response = client.post(
+        f"{ACCOUNT_REAUTHENTICATE}?next={ADMIN_INDEX}", {"password": "password"}
+    )
+    assert response.status_code == 302
+
+    response = client.get(ADMIN_INDEX, follow=True)
+    assert response.redirect_chain[-1][0] == f"{MFA_REAUTHENTICATE}?next={ADMIN_INDEX}"
+
+
+@override_settings(ADMIN_REQUIRE_MFA=True)
+@pytest.mark.django_db
+def test_the_challenge_page_does_not_offer_a_password_alternative(staff_user):
+    enable_totp(staff_user)
+    client = Client()
+    client.force_login(staff_user)
+
+    response = client.get(f"{MFA_REAUTHENTICATE}?next={ADMIN_INDEX}")
+
+    alternatives = response.context["reauthentication_alternatives"]
+    assert [alt["id"] for alt in alternatives] == []
+
+
+@override_settings(ADMIN_REQUIRE_MFA=True)
+@pytest.mark.django_db
+def test_going_to_password_reauthentication_by_hand_is_steered_to_the_code(staff_user):
+    enable_totp(staff_user)
+    client = Client()
+    client.force_login(staff_user)
+
+    response = client.get(f"{ACCOUNT_REAUTHENTICATE}?next={ADMIN_INDEX}")
+
+    assert response.status_code == 302
+    assert response.url.startswith(MFA_REAUTHENTICATE)
+    assert ADMIN_INDEX in unquote(response.url)
+
+
+@override_settings(ADMIN_REQUIRE_MFA=True)
+@pytest.mark.django_db
+def test_password_reauthentication_still_works_away_from_the_admin(user):
+    """Ordinary account flows keep the password option."""
+    EmailAddress.objects.create(
+        user=user, email="testuser@example.com", verified=True, primary=True
+    )
+    enable_totp(user)
+    client = Client()
+    client.force_login(user)
+
+    response = client.get(f"{ACCOUNT_REAUTHENTICATE}?next=/account/")
+
+    assert response.status_code == 200
