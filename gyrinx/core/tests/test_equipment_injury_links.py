@@ -339,3 +339,23 @@ def test_uninjured_fighter_never_resolves_treatments(
     fighter._mods
 
     assert "_injury_treatments" not in fighter.__dict__
+
+
+@pytest.mark.django_db
+def test_classic_print_card_flags_a_treated_injury(
+    injured_fighter, bionic_eye, eye_injury
+):
+    """Paper has no tooltip, so a treated injury has to say so in the text."""
+    from gyrinx.core.print_cards import card_from_fighter
+
+    ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
+    fighter = _assign(injured_fighter, bionic_eye)
+
+    assert card_from_fighter(fighter).injuries == ["Eye Injury (treated)"]
+
+
+@pytest.mark.django_db
+def test_classic_print_card_leaves_an_untreated_injury_bare(injured_fighter):
+    from gyrinx.core.print_cards import card_from_fighter
+
+    assert card_from_fighter(injured_fighter).injuries == ["Eye Injury"]
