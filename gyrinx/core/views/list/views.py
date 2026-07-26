@@ -669,6 +669,46 @@ class ListPrintView(generic.DetailView):
             if not print_config or print_config.include_actions:
                 context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
 
+        # Lore & Notes cards, printed among the fighter cards when the config
+        # asks for them (#1816) — the same content the standalone lore/notes
+        # printout carries, for anyone who would rather print one thing.
+        # Private notes are owner-only on screen, so they stay owner-only here.
+        want_lore_notes = bool(print_config and print_config.include_lore_notes)
+        show_private = self.request.user == list_obj.owner_cached
+        lore_notes_fighters = []
+        if want_lore_notes:
+            # Iterating fighters_qs here fills its result cache, which the
+            # template's own loop then reuses — no second trip to the database.
+            for fighter in fighters_qs:
+                if fighter.is_stash:
+                    continue
+                private = fighter.private_notes if show_private else ""
+                if fighter.narrative or fighter.notes or private:
+                    lore_notes_fighters.append((fighter, private))
+
+            cards = []
+            if list_obj.narrative or list_obj.notes:
+                cards.append(
+                    {
+                        "title": list_obj.name,
+                        "subtitle": list_obj.content_house_name,
+                        "narrative": list_obj.narrative,
+                        "notes": list_obj.notes,
+                        "private_notes": "",
+                    }
+                )
+            for fighter, private in lore_notes_fighters:
+                cards.append(
+                    {
+                        "title": fighter.name,
+                        "subtitle": fighter.content_fighter_cached.name,
+                        "narrative": fighter.narrative,
+                        "notes": fighter.notes,
+                        "private_notes": private,
+                    }
+                )
+            context["lore_notes_cards"] = cards
+
         # Add blank card ranges if print_config exists
         if print_config:
             context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
@@ -683,6 +723,8 @@ class ListPrintView(generic.DetailView):
                 blank_classic_card,
                 card_from_fighter,
                 gang_card_from_list,
+                lore_card_from_fighter,
+                lore_card_from_list,
             )
 
             # The stash has no statline or weapons to fill the fighter card's
@@ -711,6 +753,19 @@ class ListPrintView(generic.DetailView):
             )
             if gang_card.has_content:
                 cards.insert(0, gang_card)
+
+            # Lore & Notes plates tile onto the same sheet, after the fighter
+            # cards — they are the same size, so they simply join the flow.
+            if want_lore_notes:
+                gang_lore = lore_card_from_list(list_obj)
+                if gang_lore.has_content:
+                    cards.append(gang_lore)
+                for fighter, _private in lore_notes_fighters:
+                    lore_card = lore_card_from_fighter(
+                        fighter, include_private=show_private
+                    )
+                    if lore_card.has_content:
+                        cards.append(lore_card)
 
             if print_config:
                 cards += [

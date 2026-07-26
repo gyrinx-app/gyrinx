@@ -362,6 +362,12 @@
                 </div>
             {% endif %}
         {% endif %}
+        {% comment %} Lore & Notes cards, tiled in with the fighter cards {% endcomment %}
+        {% if print %}
+            {% for entry in lore_notes_cards %}
+                {% include "core/includes/fighter_notes_card.html" with entry=entry %}
+            {% endfor %}
+        {% endif %}
         {% comment %} Render blank fighter cards if configured {% endcomment %}
         {% if print and print_config %}
             {% for i in blank_fighter_range %}

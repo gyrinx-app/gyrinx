@@ -82,6 +82,14 @@ class PrintConfig(AppBase):
         help_text="Show each fighter's current XP on their card.",
     )
 
+    include_lore_notes = models.BooleanField(
+        default=False,
+        help_text=(
+            "Include a Lore & Notes card for the gang and for each fighter who "
+            "has either, printed alongside the Fighter cards."
+        ),
+    )
+
     # Blank card options
     blank_fighter_cards = models.PositiveIntegerField(
         default=0,
@@ -139,6 +147,8 @@ class PrintConfig(AppBase):
             included.append("Dead Fighters")
         if self.include_xp:
             included.append("XP")
+        if self.include_lore_notes:
+            included.append("Lore & Notes")
 
         # Handle fighter selection based on mode
         if self.fighter_selection_mode == self.NO_FIGHTERS:

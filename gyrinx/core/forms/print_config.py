@@ -18,6 +18,7 @@ class PrintConfigForm(forms.ModelForm):
             "include_actions",
             "include_dead_fighters",
             "include_xp",
+            "include_lore_notes",
             "blank_fighter_cards",
             "blank_vehicle_cards",
             "fighter_selection_mode",
@@ -36,6 +37,9 @@ class PrintConfigForm(forms.ModelForm):
                 attrs={"class": "form-check-input"}
             ),
             "include_xp": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "include_lore_notes": forms.CheckboxInput(
+                attrs={"class": "form-check-input"}
+            ),
             "blank_fighter_cards": forms.NumberInput(
                 attrs={"class": "form-control", "min": "0", "max": "20"}
             ),

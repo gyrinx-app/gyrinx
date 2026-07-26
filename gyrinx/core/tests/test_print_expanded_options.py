@@ -497,6 +497,129 @@ def test_lore_sheet_renders_the_write_in_boxes(
     assert body.count("cc-writein--lore") == 2
 
 
+# ---------------------------------------------------------------------------
+# Lore & Notes cards on the main print sheet
+# ---------------------------------------------------------------------------
+
+
+def _lore_config(list_obj, owner, **kwargs):
+    kwargs.setdefault("include_lore_notes", True)
+    return PrintConfig.objects.create(
+        list=list_obj, owner=owner, name="With lore", **kwargs
+    )
+
+
+@pytest.fixture
+def gang_with_prose(make_list, make_list_fighter):
+    lst = make_list("Gang")
+    lst.narrative = "<p>Founded in the ash wastes.</p>"
+    lst.save()
+    fighter = make_list_fighter(lst, "Grimjaw")
+    fighter.narrative = "<p>Grew up underhive.</p>"
+    fighter.notes = "<p>Hates rats.</p>"
+    fighter.private_notes = "<p>Actually a spy.</p>"
+    fighter.save()
+    make_list_fighter(lst, "Silent Bob")
+    return lst
+
+
+@pytest.mark.django_db
+def test_web_sheet_prints_lore_notes_cards_when_asked(client, user, gang_with_prose):
+    cfg = _lore_config(gang_with_prose, user)
+    client.force_login(user)
+
+    body = client.get(_print_url(gang_with_prose, cfg)).content.decode()
+
+    # Fighter cards and note cards, on the one sheet.
+    assert "Grew up underhive." in body
+    assert "Hates rats." in body
+    assert "Founded in the ash wastes." in body  # the gang's own card
+    assert "Grimjaw" in body
+    # A fighter with nothing written gets no note card.
+    assert body.count("Silent Bob") == 1  # their fighter card only
+
+
+@pytest.mark.django_db
+def test_web_sheet_omits_lore_notes_cards_by_default(client, user, gang_with_prose):
+    client.force_login(user)
+
+    # No config at all...
+    body = client.get(_print_url(gang_with_prose)).content.decode()
+    assert "Grew up underhive." not in body
+
+    # ...and a config that doesn't ask for them.
+    cfg = _lore_config(gang_with_prose, user, include_lore_notes=False)
+    body = client.get(_print_url(gang_with_prose, cfg)).content.decode()
+    assert "Grew up underhive." not in body
+
+
+@pytest.mark.django_db
+def test_classic_sheet_tiles_lore_plates_after_the_fighter_cards(
+    client, user, gang_with_prose
+):
+    cfg = _lore_config(gang_with_prose, user, card_style=PrintConfig.CLASSIC)
+    client.force_login(user)
+
+    body = client.get(_print_url(gang_with_prose, cfg)).content.decode()
+
+    assert 'data-kind="lore"' in body
+    assert "Grew up underhive." in body
+    # Fighter plates come first, lore plates after.
+    assert body.index('data-kind="fighter"') < body.index('data-kind="lore"')
+
+
+@pytest.mark.django_db
+def test_print_sheet_lore_cards_keep_private_notes_owner_only(
+    client, user, make_user, gang_with_prose
+):
+    cfg = _lore_config(gang_with_prose, user)
+
+    client.force_login(user)
+    assert (
+        "Actually a spy."
+        in client.get(_print_url(gang_with_prose, cfg)).content.decode()
+    )
+
+    client.force_login(make_user("nosy", "password"))
+    body = client.get(_print_url(gang_with_prose, cfg)).content.decode()
+    assert "Actually a spy." not in body
+    assert "Hates rats." in body
+
+
+@pytest.mark.django_db
+def test_lore_notes_cards_follow_the_fighter_selection(
+    client, user, gang_with_prose, make_list_fighter
+):
+    """A fighter left out of the print has no note card either."""
+    other = make_list_fighter(gang_with_prose, "Vex")
+    other.narrative = "<p>Came down from the spire.</p>"
+    other.save()
+    cfg = _lore_config(
+        gang_with_prose,
+        user,
+        fighter_selection_mode=PrintConfig.SPECIFIC_FIGHTERS,
+    )
+    cfg.included_fighters.set([other])
+    client.force_login(user)
+
+    body = client.get(_print_url(gang_with_prose, cfg)).content.decode()
+
+    assert "Came down from the spire." in body
+    assert "Grew up underhive." not in body
+
+
+@pytest.mark.django_db
+def test_card_summary_mentions_lore_notes(user, make_list):
+    lst = make_list("Gang")
+    cfg = PrintConfig.objects.create(
+        list=lst, owner=user, name="Everything", include_lore_notes=True
+    )
+    assert "Lore & Notes" in cfg.card_summary()
+
+    cfg.include_lore_notes = False
+    assert "Lore & Notes" not in cfg.card_summary()
+
+
 @pytest.mark.django_db
 def test_lore_notes_print_linked_from_the_lore_and_notes_pages(client, user, make_list):
     lst = make_list("Gang")

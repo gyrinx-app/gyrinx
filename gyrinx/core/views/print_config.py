@@ -95,6 +95,7 @@ def print_config_create(request, list_id):
             "include_actions": False,
             "include_dead_fighters": False,
             "include_xp": True,
+            "include_lore_notes": False,
         }
 
         # Don't pre-select any fighters since we default to "all fighters"

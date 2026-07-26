@@ -1,0 +1,39 @@
+{% load custom_tags %}
+{% comment %}
+A Lore & Notes card for the print sheet (#1816). Deliberately the same Bootstrap
+card shape as the fighter cards it sits among, so the two tile together in one
+grid — this carries the prose the fighter card has no room for.
+
+Params:
+  entry   -- dict of title / subtitle / narrative / notes / private_notes, built
+             by ListPrintView. Whether private notes are present is the view's
+             decision, not this template's.
+  classes -- grid column classes; defaults to the fighter card's print columns
+{% endcomment %}
+{% firstof classes 'g-col-12 g-col-sm-6 g-col-md-3 g-col-xl-2' as card_classes %}
+<div class="card {{ card_classes }} break-inside-avoid">
+    <div class="card-header p-2">
+        <h3 class="h5 mb-0">{{ entry.title }}</h3>
+        {% if entry.subtitle %}<div class="text-secondary fs-7">{{ entry.subtitle }}</div>{% endif %}
+    </div>
+    <div class="card-body p-2 vstack gap-2 fs-7">
+        {% if entry.narrative %}
+            <div>
+                <div class="caps-label">Lore</div>
+                <div class="mb-last-0">{{ entry.narrative|safe_rich_text|safe }}</div>
+            </div>
+        {% endif %}
+        {% if entry.notes %}
+            <div>
+                <div class="caps-label">Notes</div>
+                <div class="mb-last-0">{{ entry.notes|safe_rich_text|safe }}</div>
+            </div>
+        {% endif %}
+        {% if entry.private_notes %}
+            <div>
+                <div class="caps-label">Private notes</div>
+                <div class="mb-last-0">{{ entry.private_notes|safe_rich_text|safe }}</div>
+            </div>
+        {% endif %}
+    </div>
+</div>

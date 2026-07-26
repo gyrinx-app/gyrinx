@@ -64,6 +64,12 @@
                         {{ form.include_xp }}
                         <label class="form-check-label" for="{{ form.include_xp.id_for_label }}">Show XP on Fighter cards</label>
                     </div>
+                    <div class="form-check">
+                        {{ form.include_lore_notes }}
+                        <label class="form-check-label"
+                               for="{{ form.include_lore_notes.id_for_label }}">Include Lore &amp; Notes Cards</label>
+                        <div class="form-text">{{ form.include_lore_notes.help_text }}</div>
+                    </div>
                 </div>
             </div>
             <!-- Fighter Selection Section -->
