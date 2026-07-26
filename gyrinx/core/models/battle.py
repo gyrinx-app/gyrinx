@@ -222,8 +222,15 @@ class Battle(AppBase):
         BattleParticipant rows for this battle, with the gang and role option
         preloaded, ordered for display.
         """
+        # owner__profile, not just owner: the participants pane renders
+        # {% user_badge %} per row, and that tag reads the profile — one query
+        # per gang without it (see badge_tags.user_badge).
         return self.participant_entries.select_related(
-            "list", "role_option", "role_option__role"
+            "list",
+            "list__owner",
+            "list__owner__profile",
+            "role_option",
+            "role_option__role",
         )
 
     def set_participants(self, lists):

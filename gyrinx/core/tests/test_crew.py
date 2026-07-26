@@ -6134,3 +6134,45 @@ def test_new_entry_defaults_to_free_but_editing_keeps_its_own(crew_setup):
     crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
     item = _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
     assert CrewLineItemForm(instance=item)["payment"].value() == Crew.PAY_CREDITS
+
+
+@pytest.mark.django_db
+def test_battle_page_names_each_gangs_owner_without_a_query_each(
+    client, crew_setup, make_list, make_list_fighter, make_user
+):
+    """The participants pane credits each gang to its owner. The owner is
+    select_related with the participants — rendered per row, it would otherwise
+    be one query per gang."""
+    riot = crew_setup["gang"]
+    gangs = [riot]
+    for i in range(3):
+        gang, _ = _spread_gang(crew_setup, make_list, make_list_fighter, f"Gang {i}", 1)
+        gang.owner = make_user(f"player{i}", "password")
+        gang.save()
+        gangs.append(gang)
+    crew_setup["battle"].set_participants(gangs)
+
+    client.force_login(crew_setup["user"])
+    url = reverse("core:battle", args=[crew_setup["battle"].id])
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get(url)
+            assert resp.status_code == 200
+        return len(ctx), resp.content.decode()
+
+    _, body = render_query_count()
+    for gang in gangs:
+        assert reverse("core:user", args=[gang.owner.username]) in body
+
+    many = _stable_query_count(lambda: render_query_count()[0])
+
+    # Two more gangs must not mean two more owner lookups.
+    for i in range(3, 5):
+        gang, _ = _spread_gang(crew_setup, make_list, make_list_fighter, f"Gang {i}", 1)
+        gang.owner = make_user(f"player{i}", "password")
+        gang.save()
+        gangs.append(gang)
+    crew_setup["battle"].set_participants(gangs)
+
+    assert _stable_query_count(lambda: render_query_count()[0]) <= many + 2

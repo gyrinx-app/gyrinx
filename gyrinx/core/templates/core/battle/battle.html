@@ -1,5 +1,5 @@
 {% extends "core/layouts/base.html" %}
-{% load custom_tags color_tags %}
+{% load custom_tags color_tags badge_tags %}
 {% block head_title %}
     {{ battle.name }} - Battle
 {% endblock head_title %}
@@ -127,6 +127,8 @@
                                                 <tr>
                                                     <td>
                                                         <a href="{% url 'core:list' p.list.id %}" class="linked fw-semibold">{% list_with_theme p.list %}</a>
+                                                        <span class="text-secondary fs-7"><i class="bi-person"></i> <a href="{% url 'core:user' p.list.owner.username %}"
+    class="linked-secondary">{{ p.list.owner }}</a>{% user_badge p.list.owner %}</span>
                                                         {% if p.is_winner %}
                                                             <i class="bi-trophy-fill text-warning"
                                                                data-bs-toggle="tooltip"
