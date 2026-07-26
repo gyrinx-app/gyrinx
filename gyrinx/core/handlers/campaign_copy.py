@@ -7,6 +7,7 @@ from django.db.models import Count
 
 from gyrinx.core.models.campaign import (
     Campaign,
+    CampaignAction,
     CampaignAsset,
     CampaignAssetType,
     CampaignAttributeType,
@@ -308,6 +309,7 @@ class TemplateApplication:
 
     copied: CopyResult
     settings_copied: list[str] = field(default_factory=list)
+    action: "CampaignAction | None" = None
 
 
 def ensure_default_resource_type(
@@ -377,7 +379,38 @@ def apply_campaign_template(
         campaign.save(update_fields=["default_included_crew_categories"])
         settings_copied.append("default_included_crew_categories")
 
-    return TemplateApplication(copied=copied, settings_copied=settings_copied)
+    action = CampaignAction.objects.create(
+        campaign=campaign,
+        user=user,
+        owner=user,
+        template_campaign=template_campaign,
+        description=f"Campaign created from {template_campaign.name} template",
+        outcome=_describe_copy_result(copied),
+    )
+
+    return TemplateApplication(
+        copied=copied, settings_copied=settings_copied, action=action
+    )
+
+
+def _describe_copy_result(copied: CopyResult) -> str:
+    """One-line summary of a copy, for the action log."""
+    parts = []
+    for count, noun in [
+        (copied.asset_types_copied, "asset type"),
+        (copied.assets_copied, "asset"),
+        (copied.sub_assets_copied, "sub-asset"),
+        (copied.resource_types_copied, "resource type"),
+        (copied.attribute_types_copied, "attribute type"),
+        (copied.packs_copied, "Content Pack"),
+    ]:
+        if count:
+            parts.append(f"{count} {noun}{'' if count == 1 else 's'}")
+
+    if not parts:
+        return "Nothing was copied — the template was empty."
+
+    return f"Copied {', '.join(parts)}"
 
 
 def describe_campaign_contents(campaign: Campaign) -> list[dict]:

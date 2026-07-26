@@ -2,6 +2,7 @@
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -41,6 +42,7 @@ def _get_template_campaign(request):
 
 
 @login_required
+@transaction.atomic
 def new_campaign(request):
     """
     Create a new :model:`core.Campaign` owned by the current user.
@@ -109,7 +111,8 @@ def new_campaign(request):
             if applied:
                 messages.success(
                     request,
-                    _template_applied_message(template_campaign, applied),
+                    f"Created from the {template_campaign.name} template. "
+                    f"{applied.action.outcome}.",
                 )
 
             return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
@@ -132,30 +135,6 @@ def new_campaign(request):
                 else []
             ),
         },
-    )
-
-
-def _template_applied_message(template_campaign, applied):
-    """Summarise what a template brought across, for the post-creation flash."""
-    copied = applied.copied
-    parts = []
-    for count, noun in [
-        (copied.asset_types_copied, "asset type"),
-        (copied.assets_copied, "asset"),
-        (copied.sub_assets_copied, "sub-asset"),
-        (copied.resource_types_copied, "resource type"),
-        (copied.attribute_types_copied, "attribute type"),
-        (copied.packs_copied, "Content Pack"),
-    ]:
-        if count:
-            parts.append(f"{count} {noun}{'' if count == 1 else 's'}")
-
-    if not parts:
-        return f"Created from the {template_campaign.name} template."
-
-    return (
-        f"Created from the {template_campaign.name} template, "
-        f"with {', '.join(parts)} copied over."
     )
 
 

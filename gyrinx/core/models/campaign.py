@@ -543,6 +543,14 @@ class CampaignAction(AppBase):
         help_text="The battle this action is related to",
         db_index=True,
     )
+    template_campaign = models.ForeignKey(
+        "Campaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="derived_campaign_actions",
+        help_text="The template campaign this action refers to, if any",
+    )
     description = models.TextField(
         help_text="Description of the action taken",
         validators=[validators.MinLengthValidator(1)],

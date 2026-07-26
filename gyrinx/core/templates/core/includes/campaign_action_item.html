@@ -21,6 +21,13 @@
                     <i class="bi-flag"></i> {{ action.battle.mission }}
                 </a>
             {% endif %}
+            {% if action.template_campaign %}
+                •
+                <a href="{% url 'core:campaign' action.template_campaign.id %}"
+                   class="linked">
+                    <i class="bi-stars" aria-hidden="true"></i> {{ action.template_campaign.name }}
+                </a>
+            {% endif %}
         </div>
         <div class="ms-auto">
             <em>{{ action.created|timesince }} ago</em>

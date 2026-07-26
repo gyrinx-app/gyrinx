@@ -1372,3 +1372,43 @@ def test_describe_campaign_contents_summarises_a_template(template_campaign):
     assert groups["Resources"] == ["Meat"]
     assert groups["Attributes"] == ["Alliance"]
     assert groups["Content Packs"] == ["Pack Alpha"]
+
+
+@pytest.mark.django_db
+def test_new_campaign_from_template_logs_an_action(client, user, template_campaign):
+    """The action log records where the campaign came from, and links back to it."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new") + f"?template={template_campaign.id}",
+        {"name": "Logged", "summary": "", "narrative": "", "budget": 1000},
+    )
+
+    campaign = Campaign.objects.get(name="Logged")
+    action = campaign.actions.get()
+    assert action.description == "Campaign created from Ash Wastes Starter template"
+    assert action.template_campaign == template_campaign
+    assert action.user == user
+    assert action.outcome == (
+        "Copied 1 asset type, 1 asset, 1 sub-asset, 1 resource type, "
+        "1 attribute type, 1 Content Pack"
+    )
+
+    # The campaign page renders the link back to the template.
+    response = client.get(reverse("core:campaign", args=(campaign.id,)))
+    content = response.content.decode()
+    assert "Campaign created from Ash Wastes Starter template" in content
+    assert reverse("core:campaign", args=(template_campaign.id,)) in content
+
+
+@pytest.mark.django_db
+def test_new_campaign_without_template_logs_no_action(client, user):
+    """Campaigns created from scratch keep an empty action log."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaigns-new"),
+        {"name": "Unlogged", "summary": "", "narrative": "", "budget": 1500},
+    )
+
+    assert not Campaign.objects.get(name="Unlogged").actions.exists()
