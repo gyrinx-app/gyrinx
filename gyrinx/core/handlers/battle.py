@@ -382,7 +382,7 @@ def battle_timeline(battle: Battle) -> list:
         },
         {
             "label": "Play the battle",
-            "detail": "Away from Gyrinx — on the table.",
+            "detail": "Use each crew page to print fighter cards.",
             "done": ended,
         },
         {
