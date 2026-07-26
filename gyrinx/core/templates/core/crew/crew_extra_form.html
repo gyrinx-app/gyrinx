@@ -59,7 +59,7 @@
             {% csrf_token %}
             <c-errors :form="form" class="mb-0" />
             <c-form.field :field="form.label" />
-            <c-form.field :field="form.rating_value" />
+            <c-form.field :field="form.rating_value" class="js-extra-rating" />
             <c-form.choices :field="form.payment" />
             <c-form.field :field="form.cost" class="js-extra-cost" />
             <c-form.field :field="form.reason" />
@@ -86,18 +86,43 @@
             const freeValue = form.dataset.freePayment;
             if (!cost || !radios.length || !freeValue) return;
 
+            const rating = form.querySelector('.js-extra-rating input');
+            const costInput = cost.querySelector('input');
+
+            // Most things cost what they are worth, so the price follows the
+            // rating until the player says otherwise. Once they type a price of
+            // their own it stops following — a tactics card is worth nothing and
+            // costs 20, and re-touching the rating must not wipe that.
+            let costEdited = false;
+            if (costInput) {
+                costInput.addEventListener('input', () => {
+                    costEdited = true;
+                });
+            }
+
+            function syncCost() {
+                if (costEdited || !rating || !costInput) return;
+                costInput.value = rating.value;
+            }
+
             function update() {
                 const checked = form.querySelector('input[name="payment"]:checked');
                 const isFree = checked && checked.value === freeValue;
                 cost.classList.toggle('d-none', isFree);
-                // Clear on hide so a number the player can no longer see can't
-                // be submitted behind their back.
                 if (isFree) {
-                    const input = cost.querySelector('input');
-                    if (input) input.value = '';
+                    // Clear on hide so a number the player can no longer see
+                    // can't be submitted behind their back.
+                    if (costInput) costInput.value = '';
+                } else {
+                    syncCost();
                 }
             }
 
+            if (rating) rating.addEventListener('input', () => {
+                const checked = form.querySelector('input[name="payment"]:checked');
+                if (checked && checked.value === freeValue) return;
+                syncCost();
+            });
             radios.forEach((radio) => radio.addEventListener('change', update));
             update();
         }());
