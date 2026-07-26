@@ -92,20 +92,20 @@ def test_track_event_with_all_parameters(caplog_json):
     }
 
 
-def test_track_stat_config_fallback_use_case(caplog_json):
-    """Test the specific use case from ContentModStatApplyMixin."""
+def test_track_model_context_labels(caplog_json):
+    """Test an event carrying labels that identify a model and one of its fields."""
     tracker.track(
-        "stat_config_fallback_used",
+        "example_event",
         stat_name="ammo",
-        model_class="ContentModStatApply",
+        model_class="ContentModStat",
     )
 
     logs = caplog_json.get_json_logs()
     assert len(logs) == 1
     assert logs[0] == {
-        "event": "stat_config_fallback_used",
+        "event": "example_event",
         "n": 1,
-        "labels": {"stat_name": "ammo", "model_class": "ContentModStatApply"},
+        "labels": {"stat_name": "ammo", "model_class": "ContentModStat"},
     }
 
 

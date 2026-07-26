@@ -326,7 +326,7 @@ def track(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `event` | `str` | Event name (e.g., `stat_config_fallback_used`) |
+| `event` | `str` | Event name (e.g., `list_action_apply_succeeded`) |
 | `n` | `int` | Count increment. Default: `1` |
 | `value` | `Optional[float]` | Numeric value for distributions |
 | `**labels` | `Any` | Arbitrary key-value metadata |
@@ -344,11 +344,11 @@ def track(
 
 ```json
 {
-    "event": "stat_config_fallback_used",
+    "event": "list_action_apply_succeeded",
     "n": 1,
     "labels": {
-        "stat_name": "ammo",
-        "model_type": "ContentModStatApply"
+        "action_type": "advancement",
+        "list_id": "0f9c1e2a-..."
     }
 }
 ```
@@ -614,7 +614,7 @@ Query events in Cloud Logging:
 
 ```
 resource.type="cloud_run_revision"
-jsonPayload.event="stat_config_fallback_used"
+jsonPayload.event="list_action_apply_succeeded"
 ```
 
 Filter by labels:

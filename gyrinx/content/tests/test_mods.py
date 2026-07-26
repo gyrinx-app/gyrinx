@@ -1,6 +1,9 @@
+import logging
+
 import pytest
 
 from gyrinx.content.models import ContentModFighterStat, ContentModStat, ContentStat
+from gyrinx.content.models import modifier
 
 
 @pytest.mark.django_db
@@ -150,12 +153,10 @@ def test_content_stat_modifier():
 
 
 @pytest.mark.django_db
-def test_content_stat_backward_compatibility():
-    """Test that stats work correctly when ContentStat doesn't exist."""
-    # Test with a stat that doesn't have a ContentStat object
-    # Should fall back to hardcoded values
+def test_standard_stats_are_classified_from_their_definitions():
+    """The stats every environment defines behave according to those definitions."""
 
-    # Test inverted stat (weapon_skill is in inverted_stats)
+    # Inverted: improving a target roll lowers the number
     mod = ContentModStat.objects.create(
         stat="weapon_skill",
         mode="improve",
@@ -163,7 +164,7 @@ def test_content_stat_backward_compatibility():
     )
     assert mod.apply("4+") == "3+"
 
-    # Test inches stat (movement is in inch_stats)
+    # Inches: keeps its quote mark
     mod = ContentModStat.objects.create(
         stat="movement",
         mode="improve",
@@ -171,7 +172,7 @@ def test_content_stat_backward_compatibility():
     )
     assert mod.apply('4"') == '5"'
 
-    # Test modifier stat (accuracy_short is in modifier_stats)
+    # Modifier: keeps its plus prefix
     mod = ContentModStat.objects.create(
         stat="accuracy_short",
         mode="improve",
@@ -179,14 +180,87 @@ def test_content_stat_backward_compatibility():
     )
     assert mod.apply("+2") == "+3"
 
-    # Test target roll stat (ammo is in target_roll_stats)
+    # Target roll: ammo is both inverted and a target, so improving decreases it
     mod = ContentModStat.objects.create(
         stat="ammo",
         mode="improve",
         value="1",
     )
-    # ammo is both inverted and target, so improving should decrease the number
     assert mod.apply("5+") == "4+"
+
+
+@pytest.mark.django_db
+def test_stat_definition_drives_classification():
+    """Classification follows the ContentStat row, not the stat's name.
+
+    Weapon Skill is conventionally an inverted target roll. Redefining it
+    proves the behaviour is data-driven rather than baked into the code.
+    """
+    ContentStat.objects.update_or_create(
+        field_name="weapon_skill",
+        defaults={
+            "short_name": "WS",
+            "full_name": "Weapon Skill",
+            "is_inverted": False,
+            "is_inches": False,
+            "is_modifier": False,
+            "is_target": False,
+        },
+    )
+
+    mod = ContentModStat.objects.create(
+        stat="weapon_skill",
+        mode="improve",
+        value="1",
+    )
+
+    # No longer inverted, and no longer formatted as a target roll
+    assert mod.apply("4") == "5"
+
+
+@pytest.mark.django_db
+def test_undefined_stat_is_modified_without_reformatting(caplog):
+    """A stat with no definition still applies, it just gains no formatting.
+
+    Every stat a modification can name has a definition, so this is a data
+    problem rather than a supported configuration — but it must not take a
+    page down when it happens.
+    """
+    # Warnings are emitted once per stat per process, so make sure this one
+    # has not already been reported by an earlier test in the same worker.
+    modifier._undefined_stats_warned.discard("undefined_stat")
+
+    mod = ContentModStat.objects.create(
+        stat="undefined_stat",
+        mode="improve",
+        value="1",
+    )
+
+    with caplog.at_level(logging.WARNING, logger=modifier.__name__):
+        assert mod.apply("3") == "4"
+
+    assert "undefined_stat" in caplog.text
+
+    mod.mode = "worsen"
+    assert mod.apply("3") == "2"
+
+
+@pytest.mark.django_db
+def test_undefined_stat_is_only_warned_about_once(caplog):
+    """One bad stat name must not flood the logs on every render."""
+    modifier._undefined_stats_warned.discard("noisy_stat")
+
+    mod = ContentModStat.objects.create(
+        stat="noisy_stat",
+        mode="improve",
+        value="1",
+    )
+
+    with caplog.at_level(logging.WARNING, logger=modifier.__name__):
+        for _ in range(5):
+            mod.apply("3")
+
+    assert len([r for r in caplog.records if "noisy_stat" in r.getMessage()]) == 1
 
 
 @pytest.mark.django_db

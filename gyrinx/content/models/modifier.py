@@ -14,6 +14,7 @@ This module contains:
 - ContentModApplication: Pack-scoped house-rule application of a ContentMod to a target
 """
 
+import logging
 from typing import Optional
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -25,9 +26,14 @@ from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.util import ModContext
-from gyrinx.tracker import track
 
 from .base import Content
+
+logger = logging.getLogger(__name__)
+
+# Stat names already reported as having no ContentStat, so each is only
+# warned about once per process. See _get_stat_configuration.
+_undefined_stats_warned: set[str] = set()
 
 
 class ContentMod(PolymorphicModel, Content):
@@ -47,80 +53,52 @@ class ContentMod(PolymorphicModel, Content):
 
 
 class ContentModStatApplyMixin:
-    inverted_stats = [
-        "ammo",
-        "armour_piercing",
-        "weapon_skill",
-        "ballistic_skill",
-        "intelligence",
-        "leadership",
-        "cool",
-        "willpower",
-        "initiative",
-        "handling",
-        "save",
-    ]
-
-    inch_stats = ["range_short", "range_long", "movement"]
-
-    modifier_stats = ["accuracy_short", "accuracy_long", "armour_piercing"]
-
-    target_roll_stats = [
-        "ammo",
-        "weapon_skill",
-        "ballistic_skill",
-        "intelligence",
-        "leadership",
-        "cool",
-        "willpower",
-        "initiative",
-        "handling",
-        "save",
-    ]
-
     def _get_stat_configuration(self, all_stats: Optional[dict[str, dict]] = None):
         """
-        Get stat configuration from ContentStat or fallback to hardcoded values.
+        Read this modification's stat classification from its ContentStat.
         Returns a tuple of (is_inverted, is_inches, is_modifier, is_target).
+
+        A stat with no ContentStat row is treated as unclassified — the value
+        is modified but not reformatted. Every stat referenced by a
+        modification has a definition, so this is a data problem when it
+        happens rather than a supported configuration; it is logged rather
+        than raised so one bad stat name cannot take out a fighter's card.
         """
         from .statline import ContentStat
 
         # all_stats is an optimisation to reduce the N+1 query problem from
         # fetching ContentStat objects individually
-        if all_stats:
-            content_stat = all_stats.get(self.stat, {})
-            return (
-                content_stat.get("is_inverted", False),
-                content_stat.get("is_inches", False),
-                content_stat.get("is_modifier", False),
-                content_stat.get("is_target", False),
-            )
-        # Check if we have a ContentStat object with the new fields
-        try:
-            content_stat = ContentStat.objects.get(field_name=self.stat)
-            if content_stat:
-                # Use ContentStat fields if available
+        if all_stats is not None:
+            content_stat = all_stats.get(self.stat)
+            if content_stat is not None:
+                return (
+                    content_stat.get("is_inverted", False),
+                    content_stat.get("is_inches", False),
+                    content_stat.get("is_modifier", False),
+                    content_stat.get("is_target", False),
+                )
+        else:
+            content_stat = ContentStat.objects.filter(field_name=self.stat).first()
+            if content_stat is not None:
                 return (
                     content_stat.is_inverted,
                     content_stat.is_inches,
                     content_stat.is_modifier,
                     content_stat.is_target,
                 )
-        except ContentStat.DoesNotExist:
-            # Track that we're using fallback values
-            track(
-                "stat_config_fallback_used",
-                stat_name=self.stat,
-                model_class=self.__class__.__name__,
-            )
 
-        # Fallback to hardcoded values for backwards compatibility
-        return (
-            self.stat in self.inverted_stats,
-            self.stat in self.inch_stats,
-            self.stat in self.modifier_stats,
-            self.stat in self.target_roll_stats,
-        )
+        # Once per stat per process: a modification is applied for every stat
+        # of every fighter on a page, so warning each time would turn one bad
+        # stat name into hundreds of identical lines per request.
+        if self.stat not in _undefined_stats_warned:
+            _undefined_stats_warned.add(self.stat)
+            logger.warning(
+                "No ContentStat defined for stat %r on %s — "
+                "applying the modification without stat-specific formatting",
+                self.stat,
+                self.__class__.__name__,
+            )
+        return (False, False, False, False)
 
     def apply(self, input_value: str, mod_ctx: Optional[ModContext] = None) -> str:
         """
