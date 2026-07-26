@@ -27,7 +27,9 @@ def shown(fighter, stat):
 @pytest.fixture
 def wheels():
     """Equipment that fixes a fighter's movement, rather than adjusting it."""
-    category, _ = ContentEquipmentCategory.objects.get_or_create(name="Set Gear")
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Set Gear", defaults={"group": "Vehicle & Mount"}
+    )
     gear = ContentEquipment.objects.create(
         name="Ash Wheels", category=category, cost="0"
     )
