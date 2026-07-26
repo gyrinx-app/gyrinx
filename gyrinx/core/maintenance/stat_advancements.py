@@ -66,6 +66,7 @@ SITUATION_LABELS = {
     6: "duplicate improvement (partial count) — override cleared",
     7: "manual edit alongside working advancements — left alone",
     8: "stat value cannot be parsed — left alone",
+    9: "already handled by an earlier run — left alone",
 }
 
 ACTED_ON = {1, 2, 3, 5, 6}
@@ -159,7 +160,30 @@ def step(stat, value, count, mod_ctx, mode="improve"):
     return result
 
 
-def build_plan():
+def previously_handled():
+    """(fighter, stat) keys that a completed earlier run already decided.
+
+    Without this the operation is not idempotent, and destructively so. A
+    manual edit is stored one step lower so its advancement restores it — but
+    that stored value is exactly what the advancement produces from the base,
+    which is also the signature of a duplicated improvement. A second run
+    therefore reads its own repair as the bug and undoes it, discarding the
+    player's edit. The record of what was done is the only thing that tells
+    the two apart.
+    """
+    from gyrinx.core.models import Backfill
+
+    handled = set()
+    summaries = Backfill.objects.filter(
+        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+        status=Backfill.Status.DONE,
+    ).values_list("summary", flat=True)
+    for summary in summaries:
+        handled.update((summary or {}).get("acted_pairs") or [])
+    return handled
+
+
+def build_plan(skip_pairs=None):
     """Work out what should happen to every outstanding (fighter, stat) pair."""
     from gyrinx.content.models.statline import ContentStat
     from gyrinx.core.models.list import ListFighter, ListFighterStatOverride
@@ -188,6 +212,8 @@ def build_plan():
         }
     )
 
+    skip_pairs = previously_handled() if skip_pairs is None else skip_pairs
+
     plan = Plan()
     # with_related_data is essential here, not a nicety: classifying a pair
     # reads the fighter's fully resolved statline, which pulls in equipment,
@@ -213,6 +239,24 @@ def build_plan():
         for stat in STAT_FIELDS:
             counts = grouped.get((fighter.id, stat))
             if counts is None:
+                continue
+            if f"{fighter.id}:{stat}" in skip_pairs:
+                plan.changes.append(
+                    Change(
+                        fighter_id=str(fighter.id),
+                        fighter_name=fighter.name,
+                        list_id=str(fighter.list_id),
+                        list_name=fighter.list.name,
+                        owner_id=fighter.list.owner_id,
+                        stat=stat,
+                        situation=9,
+                        override_before=getattr(fighter, f"{stat}_override", None),
+                        override_after=getattr(fighter, f"{stat}_override", None),
+                        flip_advancements=False,
+                        displayed_before=displayed_by_stat.get(stat),
+                        displayed_after=displayed_by_stat.get(stat),
+                    )
+                )
                 continue
             change = _classify(
                 fighter=fighter,
@@ -316,6 +360,10 @@ class ApplyResult:
     messages_sent: int = 0
     by_situation: dict = field(default_factory=dict)
     changes: list = field(default_factory=list)
+    # Every pair acted on, so a later run can tell its own repairs apart from
+    # the bug they resemble. Not just the visible ones.
+    acted_pairs: list = field(default_factory=list)
+    backfill: object = None
 
     def as_dict(self):
         return {
@@ -324,6 +372,7 @@ class ApplyResult:
             "messages_sent": self.messages_sent,
             "by_situation": {str(k): v for k, v in self.by_situation.items()},
             "changes": self.changes,
+            "acted_pairs": self.acted_pairs,
         }
 
 
@@ -494,22 +543,29 @@ def send_messages(messages):
 
 
 def run(*, notify=True, triggered_by=None):
-    """Plan, apply, and tell the affected players. Returns an ApplyResult.
+    """Plan, apply, tell the affected players, and record what was done.
+
+    The Backfill record is written here rather than by the caller because a
+    later run reads it to recognise its own repairs. Leaving that to the
+    caller would mean a missed write silently makes the next run destructive.
 
     ``triggered_by`` is accepted for symmetry with the other maintenance
     operations; the messages are deliberately system-sent rather than
     attributed to the operator.
     """
+    from gyrinx.core.models import Backfill
+
     plan = build_plan()
     messages = build_messages(plan)
     changed = apply_plan(plan)
     sent = send_messages(messages) if notify else 0
 
-    return ApplyResult(
+    result = ApplyResult(
         changed=changed,
         visible=len(plan.visible),
         messages_sent=sent,
         by_situation=plan.by_situation(),
+        acted_pairs=[f"{c.fighter_id}:{c.stat}" for c in plan.acted_on],
         changes=[
             {
                 "list": c.list_name,
@@ -523,3 +579,10 @@ def run(*, notify=True, triggered_by=None):
             for c in plan.visible
         ],
     )
+    result.backfill = Backfill.objects.create(
+        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+        triggered_by=triggered_by,
+        status=Backfill.Status.DONE,
+        summary=result.as_dict(),
+    )
+    return result

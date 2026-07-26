@@ -5,6 +5,7 @@ import pytest
 from gyrinx.core.models import ListFighter, ListFighterAdvancement
 from gyrinx.core.models.notification import Notification
 from gyrinx.core.maintenance.stat_advancements import (
+    run,
     apply_plan,
     build_messages,
     build_plan,
@@ -300,3 +301,33 @@ def test_applying_does_not_touch_the_gang_timestamp(user, make_list, make_list_f
 
     lst.refresh_from_db()
     assert lst.modified == before
+
+
+@pytest.mark.django_db
+def test_running_twice_changes_nothing_the_second_time(
+    user, make_list, make_list_fighter
+):
+    """The back-computed value looks exactly like a duplicate improvement.
+
+    A manual edit two steps better than base is stored one step lower so the
+    advancement restores it — but that stored value is precisely what the
+    advancement produces from base, which is the duplicate signature. Without
+    a memory of what it already did, a second run undoes the first.
+    """
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Mason Shade")
+    advancement(fighter, user, "weapon_skill", uses_mod_system=False)
+    # Base 5+, one advancement gives 4+; 3+ is two steps better — a manual edit.
+    fighter.weapon_skill_override = "3+"
+    fighter.save()
+
+    before = shown(fighter, "weapon_skill")
+
+    first = run(notify=False)
+    assert first.changed == 1
+    assert shown(fighter, "weapon_skill") == before
+
+    second = run(notify=False)
+    assert second.changed == 0, "second run must be a no-op"
+    assert second.visible == 0
+    assert shown(fighter, "weapon_skill") == before

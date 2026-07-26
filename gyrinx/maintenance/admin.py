@@ -368,13 +368,11 @@ class MaintenanceAdminSite(admin.site.__class__):
         if request.method == "POST":
             notify = request.POST.get("notify") == "on"
             try:
+                # run() writes its own Backfill record: a later run reads it to
+                # recognise the repairs it already made, so that write cannot be
+                # left to the caller.
                 result = run_stat_advancements(notify=notify, triggered_by=request.user)
-                backfill = Backfill.objects.create(
-                    operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
-                    triggered_by=request.user,
-                    status=Backfill.Status.DONE,
-                    summary=result.as_dict(),
-                )
+                backfill = result.backfill
                 messages.success(
                     request,
                     f"Changed {result.changed} fighter/stat pair(s); "
