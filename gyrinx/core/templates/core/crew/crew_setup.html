@@ -10,7 +10,7 @@
         {% url 'core:battle' battle.id as parent_url %}
         {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=parent_url current="Add crew" %}
     {% endif %}
-    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+    <div class="col-12 col-lg-8 px-0 vstack gap-3">
         <div class="vstack gap-0">
             <div class="caps-label">Crew</div>
             <h1 class="h3 mb-0">{% if is_create %}Add a crew for {{ gang.name }}{% else %}{{ crew }}{% endif %}</h1>
@@ -109,10 +109,9 @@
                         {% endfor %}
                     </div>
                 {% else %}
-                    <p class="text-secondary fs-7 mb-0">
-                        <i class="bi-info-circle"></i>
+                    <c-callout variant="secondary" class="mt-3 mb-0">
                         This gang has no fighters to set eligibility for yet.
-                    </p>
+                    </c-callout>
                 {% endif %}
             </div>
             <div class="hstack gap-3 align-items-center">

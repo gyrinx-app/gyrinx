@@ -35,17 +35,15 @@
                     {% endfor %}
                 </div>
                 {% if not form.has_choices %}
-                    <div class="border rounded p-2 fs-7 text-secondary">
-                        <i class="bi-info-circle"></i>
+                    <c-callout variant="secondary" class="mt-3 mb-0">
                         No fighter in this gang has a named equipment set, so there is
                         nothing to choose — each one brings their full kit.
-                    </div>
+                    </c-callout>
                 {% endif %}
             {% else %}
-                <p class="text-secondary fs-7 mb-0">
-                    <i class="bi-info-circle"></i>
+                <c-callout variant="secondary" class="mt-3 mb-0">
                     This gang has no fighters available for a crew yet.
-                </p>
+                </c-callout>
             {% endif %}
             <div class="hstack gap-3 align-items-center">
                 <button type="submit" class="btn btn-success">Save loadouts</button>

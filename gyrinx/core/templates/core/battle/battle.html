@@ -77,9 +77,9 @@
             </div>
         </div>
         <!-- Two-column layout on wide screens -->
-        <div class="row g-4 g-lg-5">
+        <div class="row g-4">
             <!-- Participants + Related Actions -->
-            <div class="col-12 col-lg-6 vstack gap-4">
+            <div class="col-12 col-xl-6 vstack gap-4">
                 <!-- Participants (each gang's rating, with its crew inlined) -->
                 <section>
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
@@ -126,8 +126,7 @@
                                             {% for p in group.participants %}
                                                 <tr>
                                                     <td>
-                                                        <a href="{% url 'core:list' p.list.id %}"
-                                                           class="link-underline-opacity-50 link-underline-opacity-100-hover fw-semibold">{% list_with_theme p.list %}</a>
+                                                        <a href="{% url 'core:list' p.list.id %}" class="linked fw-semibold">{% list_with_theme p.list %}</a>
                                                         {% if p.is_winner %}
                                                             <i class="bi-trophy-fill text-warning"
                                                                data-bs-toggle="tooltip"
@@ -148,13 +147,13 @@
                                                 </tr>
                                                 {% if p.crew %}
                                                     <tr>
-                                                        <td class="ps-4">
+                                                        <td>
                                                             <i class="bi-arrow-return-right text-secondary"></i>
                                                             <a href="{% url 'core:crew' battle.id p.crew.crew.id %}" class="linked">{{ p.crew.crew }}</a>
                                                             <c-badge state="{{ p.crew.crew.status }}">
                                                                 {{ p.crew.crew.get_status_display }}
                                                             </c-badge>
-                                                            <span class="text-secondary fs-7 ms-1">{{ p.crew.method_label }}</span>
+                                                            <span class="text-secondary fs-7 ms-1 text-nowrap">{{ p.crew.method_label }}</span>
                                                         </td>
                                                         <td class="text-end">
                                                             {% if p.crew.pending_roll %}
@@ -195,7 +194,7 @@
                                                     </tr>
                                                 {% elif p.can_add_crew %}
                                                     <tr>
-                                                        <td colspan="5" class="ps-4">
+                                                        <td colspan="5">
                                                             <a href="{% url 'core:crew-new' battle.id %}?list={{ p.list.id }}"
                                                                class="icon-link linked fs-7">
                                                                 <i class="bi-plus-lg"></i> Add crew
@@ -240,7 +239,7 @@
                 {% endif %}
             </div>
             <!-- Battle Reports -->
-            <div class="col-12 col-lg-6">
+            <div class="col-12 col-xl-6">
                 <section>
                     <div class="d-flex justify-content-between align-items-center mb-2 bg-body-secondary rounded px-2 py-1">
                         <h2 class="h5 mb-0">Battle Reports</h2>
