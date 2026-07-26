@@ -10,11 +10,62 @@
         <h1 class="h3">Start {{ battle.name }}</h1>
         <form action="{% url 'core:battle-start' battle.id %}" method="post">
             {% csrf_token %}
-            <p>Are you sure you want to start this battle?</p>
-            <c-callout variant="warning" class="mb-0">
+            <p class="mb-0">Are you sure you want to start this battle?</p>
+            {% if crew_rows %}
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm table-borderless align-middle mb-0">
+                        <thead>
+                            <tr class="border-bottom">
+                                <th scope="col" class="caps-label">Crew</th>
+                                <th scope="col" class="caps-label">Ready</th>
+                                <th scope="col" class="caps-label text-end">Will be charged</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in crew_rows %}
+                                <tr>
+                                    <td>
+                                        {{ row.gang.name }}
+                                        <span class="d-block fs-7 text-secondary">{{ row.crew }}</span>
+                                    </td>
+                                    <td>
+                                        {% if row.is_ready %}
+                                            <c-badge variant="success">
+                                                Ready
+                                            </c-badge>
+                                        {% else %}
+                                            <c-badge variant="secondary">
+                                                Not ready
+                                            </c-badge>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {{ row.will_pay }}¢
+                                        {% if row.unpaid %}
+                                            <span class="d-block fs-7 text-danger">of {{ row.owed }}¢ — {{ row.unpaid }}¢ unpaid</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+            {% if not_ready %}
+                <c-callout variant="warning" class="mt-3 mb-0">
+                    <strong>Not everyone is ready.</strong>
+                    <ul class="mb-0">
+                        {% for row in not_ready %}<li>{{ row.gang.name }} — {{ row.reason }}</li>{% endfor %}
+                    </ul>
+                    You can start anyway; they just won't get another chance to change
+                    their crew.
+                </c-callout>
+            {% endif %}
+            <c-callout variant="warning" class="mt-3 mb-0">
                 Once started, the battle moves from <strong>Pre-battle</strong> to
-                <strong>In progress</strong>. Battle states only move forward, so this
-                cannot be undone.
+                <strong>In progress</strong>. Each crew's spending is taken from its gang's
+                credits, and crew membership is frozen. Battle states only move forward, so
+                this cannot be undone.
             </c-callout>
             <div class="mt-3">
                 <c-btn type="submit" variant="primary">

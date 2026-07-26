@@ -15,6 +15,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from gyrinx.core.handlers.crew import snapshot_played_crew_ratings
@@ -204,3 +205,203 @@ def notify_battle_participants(*, user, battle, added_lists):
             notified += 1
 
     return notified
+
+
+@dataclass
+class CrewChargeResult:
+    """What one crew's gang was charged when the battle started."""
+
+    crew: object
+    owed: int
+    charged: int
+
+    @property
+    def shortfall(self) -> int:
+        return self.owed - self.charged
+
+
+@traced("charge_crew_spending")
+@transaction.atomic
+def charge_crew_spending(*, user, battle: Battle) -> list:
+    """Take each crew's spending out of its gang's credits, once, at battle start.
+
+    Only the Spending column moves: balancing is granted to the underdog rather
+    than paid for, and free extras cost nobody anything.
+
+    A gang that cannot cover its spending is charged what it has and floored at
+    zero rather than taken negative — so the crew sheet and the ledger can
+    disagree, and :meth:`Crew.credits_shortfall` is what makes that visible
+    instead of leaving it to a campaign action nobody reads.
+
+    ``spend_credits()`` is deliberately not used: it raises rather than paying
+    what it can, which is the behaviour this flow rules out. Idempotent —
+    ``credits_charged_at`` means a retried transition never charges twice.
+    """
+    from gyrinx.core.models.crew import Crew
+
+    crews = (
+        Crew.objects.select_for_update()
+        .filter(battle=battle, archived=False, credits_charged_at__isnull=True)
+        .select_related("list")
+    )
+
+    results = []
+    for crew in crews:
+        owed = crew.spending_total()
+        # Re-read the balance per crew: two crews can belong to the same gang in
+        # principle, and an earlier charge in this loop moves the balance.
+        available = max(0, crew.list.credits_current)
+        charged = min(owed, available)
+
+        if charged:
+            crew.list.apply_credit_delta(-charged, earned_delta=0)
+
+        crew.credits_charged = charged
+        crew.credits_charged_at = timezone.now()
+        crew.save_with_user(
+            user=user, update_fields=["credits_charged", "credits_charged_at"]
+        )
+
+        if owed:
+            outcome = f"{charged}¢ charged"
+            if charged < owed:
+                outcome += f" of {owed}¢ — {owed - charged}¢ unpaid"
+            CampaignAction.objects.create(
+                user=user,
+                owner=user,
+                campaign=battle.campaign,
+                list=crew.list,
+                battle=battle,
+                description=f"Crew spending charged for {crew.list.name}",
+                outcome=outcome,
+            )
+
+        results.append(CrewChargeResult(crew=crew, owed=owed, charged=charged))
+
+    return results
+
+
+def battle_start_crew_rows(battle: Battle) -> list:
+    """One row per live crew for the start-battle confirmation: who is ready,
+    and what starting the battle will take from them."""
+    from gyrinx.core.models.crew import Crew
+
+    rows = []
+    for crew in (
+        Crew.objects.filter(battle=battle, archived=False)
+        .select_related("list")
+        .prefetch_related("line_items")
+    ):
+        owed = crew.spending_total()
+        will_pay = min(owed, max(0, crew.list.credits_current))
+        rows.append(
+            {
+                "crew": crew,
+                "gang": crew.list,
+                "is_ready": crew.is_ready,
+                "owed": owed,
+                # What the gang can actually cover right now — the charge floors
+                # at zero, so this is what it will really pay.
+                "will_pay": will_pay,
+                "unpaid": owed - will_pay,
+            }
+        )
+    return rows
+
+
+def battle_not_ready_gangs(battle: Battle) -> list:
+    """Gangs holding the battle up, as ``{gang, reason}``, for the start warning.
+
+    Covers two cases, not one: a gang whose crew is not marked ready, and a gang
+    that has not picked a crew at all. Looking only at crews that exist would
+    stay silent about the second, which is the more incomplete of the two.
+    """
+    from gyrinx.core.models.crew import Crew
+
+    crew_by_gang = {
+        crew.list_id: crew
+        for crew in Crew.objects.filter(battle=battle, archived=False).select_related(
+            "list"
+        )
+    }
+    blocking = []
+    for gang in battle.participants.all():
+        crew = crew_by_gang.get(gang.id)
+        if crew is None:
+            blocking.append({"gang": gang, "reason": "no crew picked"})
+        elif not crew.is_ready:
+            blocking.append({"gang": gang, "reason": "not marked ready"})
+    return blocking
+
+
+def battle_timeline(battle: Battle) -> list:
+    """The battle process as ordered steps, each marked done / current / to do.
+
+    Read-only: it reports where the battle has got to, it never advances
+    anything. The first step that isn't done is the current one, so the list
+    always has exactly one "you are here" — including on a battle that skipped
+    a step (a crew that was never marked ready, say), where the step still reads
+    as outstanding rather than silently vanishing.
+    """
+    from gyrinx.core.models.crew import Crew
+
+    crews = list(
+        Crew.objects.filter(battle=battle, archived=False).select_related("list")
+    )
+    participant_count = battle.participants.count()
+    state = battle.states.current
+    started = state in (Battle.IN_PROGRESS, Battle.POST_BATTLE)
+    ended = state == Battle.POST_BATTLE
+
+    # Every gang has a crew. Readiness is measured against this rather than
+    # against the crews that happen to exist: with one crew of two gangs, "all
+    # crews are ready" is true and would light up a later step than the one the
+    # battle is actually waiting on.
+    crews_complete = bool(crews) and len(crews) >= participant_count
+
+    steps = [
+        {
+            "label": "Gangs join the battle",
+            "detail": "Add the gangs taking part, and give them roles if the scenario has any.",
+            "done": participant_count > 0,
+        },
+        {
+            "label": "Each gang picks a crew",
+            "detail": "Who is eligible, who attends, what they bring from the stash, and what the gang spends.",
+            "done": crews_complete,
+        },
+        {
+            "label": "Gangs mark themselves ready",
+            "detail": "A gang can only say ready once it can cover its crew's spending.",
+            "done": crews_complete and all(c.is_ready for c in crews),
+        },
+        {
+            "label": "The battle starts",
+            "detail": "Spending is taken from each gang's credits, and crew membership is frozen.",
+            "done": started,
+        },
+        {
+            "label": "Play the battle",
+            "detail": "Away from Gyrinx — on the table.",
+            "done": ended,
+        },
+        {
+            "label": "Record the result",
+            "detail": "Who won, or that it was a draw.",
+            "done": ended and battle.result_recorded,
+        },
+        {
+            "label": "Post-battle updates",
+            "detail": "XP, injuries, captures and credits, recorded by each gang.",
+            "done": False,
+        },
+    ]
+
+    current_marked = False
+    for step in steps:
+        if not step["done"] and not current_marked:
+            step["current"] = True
+            current_marked = True
+        else:
+            step["current"] = False
+    return steps

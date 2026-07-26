@@ -1190,3 +1190,40 @@ def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
             crew=crew,
             assignment_id=aid,
         )
+
+
+@traced("handle_crew_ready")
+@transaction.atomic
+def handle_crew_ready(*, user, crew: Crew, ready: bool) -> Crew:
+    """Declare a crew ready for its battle, or withdraw that.
+
+    Readiness is the gang saying "I have finished setting up", and unlike the
+    lock it can be taken back — right up until the battle starts and takes the
+    money. The one rule is that a gang cannot declare itself ready for spending
+    it cannot cover; withdrawing is always allowed, so a gang whose balance
+    drops after saying yes is not trapped.
+    """
+    crew = Crew.objects.select_for_update().select_related("list").get(pk=crew.pk)
+    if crew.is_charged:
+        raise ValidationError(
+            "This crew has already been charged for the battle — its readiness "
+            "can no longer change."
+        )
+
+    if not ready:
+        crew.ready_at = None
+        crew.ready_by = None
+        crew.save_with_user(user=user, update_fields=["ready_at", "ready_by"])
+        return crew
+
+    blocker = crew.ready_blocker()
+    if blocker:
+        raise ValidationError(
+            f"{crew.list.name} needs {blocker['owed']}¢ to cover this crew's "
+            f"spending but has {blocker['available']}¢ — {blocker['short']}¢ short."
+        )
+
+    crew.ready_at = timezone.now()
+    crew.ready_by = user
+    crew.save_with_user(user=user, update_fields=["ready_at", "ready_by"])
+    return crew

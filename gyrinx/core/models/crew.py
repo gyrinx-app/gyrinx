@@ -2,9 +2,16 @@
 
 A :class:`Crew` is a read-model overlay on a gang for a single battle: which
 fighters attend (with which equipment set), plus credit-consuming extras
-(tactics cards, later hired guns). It is deliberately NOT a second ``List`` — it
-never writes to the gang's canonical cost caches, credits, or audit stream. Its
-rating and credits value are computed on the fly.
+(tactics cards, hired guns). It is deliberately NOT a second ``List``: its
+rating and credits value are computed on the fly, and it never writes to the
+gang's cost caches.
+
+ONE EXCEPTION, and it is deliberate: when the battle starts, each crew's
+**Spending** is taken from its gang's credits and logged as a campaign action
+(``handlers.battle.charge_crew_spending``). That is the only write a crew makes
+to canonical gang data. Everything else — the ratings, the balancing allowance,
+free extras — stays descriptive. If you are adding a crew field that moves real
+money, it belongs in that one handler, at that one moment, and nowhere else.
 
 Two concepts live here:
 
@@ -22,6 +29,7 @@ See ``.claude/notes/battle-crew-design.md`` for the full design.
 import re
 from random import Random  # nosec B311 - game dice, not crypto
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -318,6 +326,42 @@ class Crew(AppBase):
             "Blank until then, and on battles ended before snapshotting existed."
         ),
     )
+    ready_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the gang declared this crew ready. Blank until they say so, "
+            "and cleared again if they withdraw it. Deliberately separate from "
+            "status: locking freezes who is in the crew and cannot be undone, "
+            "while readiness just says the player has finished setting up."
+        ),
+    )
+    ready_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="crews_marked_ready",
+        help_text="Who declared the crew ready.",
+    )
+    credits_charged = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Credits actually taken from the gang when the battle started. May "
+            "be less than the crew's spending if the gang could not cover it — "
+            "the balance is floored at zero rather than going negative, so the "
+            "difference is a real debt the arbitrator has to settle."
+        ),
+    )
+    credits_charged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "When the battle charged this crew's spending. Also the idempotency "
+            "guard: a crew that has been charged is never charged again."
+        ),
+    )
 
     history = HistoricalRecords()
 
@@ -345,6 +389,42 @@ class Crew(AppBase):
     @property
     def is_locked(self):
         return self.status == self.LOCKED
+
+    @property
+    def is_ready(self):
+        """Whether the gang has declared this crew ready for the battle."""
+        return self.ready_at is not None
+
+    @property
+    def is_charged(self):
+        """Whether the battle has already taken this crew's spending."""
+        return self.credits_charged_at is not None
+
+    def credits_shortfall(self):
+        """Spending the gang could not cover when the battle charged it.
+
+        Zero until the crew is charged, and zero when it paid in full. The
+        charge floors the gang's balance at zero rather than taking it negative,
+        so anything left over is a real debt: the crew sheet says the gang spent
+        this much, and the ledger says it only paid part of it. Surfaced rather
+        than left to a campaign action nobody reads.
+        """
+        if self.credits_charged is None:
+            return 0
+        return max(0, self.spending_total() - self.credits_charged)
+
+    def ready_blocker(self):
+        """Why this crew can't be marked ready, or ``None`` if it can.
+
+        Only one rule today: the gang has to be able to cover what the crew
+        spends. Returns the numbers rather than a sentence so the template can
+        phrase it and the handler can reuse the same check.
+        """
+        owed = self.spending_total()
+        available = self.list.credits_current
+        if owed <= available:
+            return None
+        return {"owed": owed, "available": available, "short": owed - available}
 
     @property
     def pending_roll(self):

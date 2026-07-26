@@ -153,6 +153,7 @@
                                                             <c-badge state="{{ p.crew.crew.status }}">
                                                                 {{ p.crew.crew.get_status_display }}
                                                             </c-badge>
+                                                            {% if p.crew.is_ready %}<c-badge variant="success">Ready</c-badge>{% endif %}
                                                             <span class="text-secondary fs-7 ms-1 text-nowrap">{{ p.crew.method_label }}</span>
                                                         </td>
                                                         <td class="text-end">
@@ -283,6 +284,34 @@
                                 <i class="bi-info-circle"></i> No battle reports have been added yet.
                             </p>
                         {% endif %}
+                    </div>
+                </section>
+                <!-- How a battle runs, and where this one has got to -->
+                <section class="mt-4">
+                    <div class="mb-2 bg-body-secondary rounded px-2 py-1">
+                        <h2 class="h5 mb-0">Battle process</h2>
+                    </div>
+                    <div class="px-2">
+                        <ol class="list-unstyled vstack gap-2 mb-0">
+                            {% for step in timeline %}
+                                <li class="d-flex gap-2">
+                                    {% if step.done %}
+                                        <i class="bi-check-lg text-success" aria-hidden="true"></i>
+                                        <span class="visually-hidden">Done:</span>
+                                    {% elif step.current %}
+                                        <i class="bi-arrow-right text-primary" aria-hidden="true"></i>
+                                        <span class="visually-hidden">Current step:</span>
+                                    {% else %}
+                                        <i class="bi-dash text-secondary" aria-hidden="true"></i>
+                                        <span class="visually-hidden">To do:</span>
+                                    {% endif %}
+                                    <span>
+                                        <span class="{% if step.current %}fw-semibold{% elif not step.done %}text-secondary{% endif %}">{{ step.label }}</span>
+                                        <span class="d-block fs-7 text-secondary">{{ step.detail }}</span>
+                                    </span>
+                                </li>
+                            {% endfor %}
+                        </ol>
                     </div>
                 </section>
             </div>

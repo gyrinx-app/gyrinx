@@ -14,6 +14,10 @@ from gyrinx.core.forms.battle import (
     BattleRolesForm,
 )
 from gyrinx.core.handlers.battle import (
+    battle_start_crew_rows,
+    battle_timeline,
+    battle_not_ready_gangs,
+    charge_crew_spending,
     handle_battle_end,
     notify_battle_participants,
 )
@@ -120,6 +124,9 @@ class BattleDetailView(generic.DetailView):
         # Get associated campaign actions with related data
         context["actions"] = battle.get_actions().select_related("user", "list")
 
+        # Where the battle has got to, as ordered steps. Read-only.
+        context["timeline"] = battle_timeline(battle)
+
         # Participants grouped by role, each gang carrying its rating and its
         # crew (battle flow step 3: a virtual sub-gang per participating gang).
         self._add_participant_context(context, battle, user)
@@ -170,6 +177,7 @@ class BattleDetailView(generic.DetailView):
                 "rating_after": None if rating is None else rating + balancing,
                 "pending_roll": pending,
                 "is_forecast": is_forecast,
+                "is_ready": crew.is_ready,
                 "show_rating_note": bool(note and note["differs"]),
                 "rating_note": note,
             }
@@ -453,15 +461,37 @@ def start_battle(request, id):
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
-        return _transition_battle(
+        # Charge before the transition so a failure leaves the battle in
+        # pre-battle rather than started-but-unpaid. Both are in the same
+        # atomic block via the handler, and the charge is idempotent.
+        charges = []
+        if battle.can_start():
+            charges = charge_crew_spending(user=request.user, battle=battle)
+        response = _transition_battle(
             request, battle, Battle.IN_PROGRESS, "This battle cannot be started."
         )
+        for result in charges:
+            if result.shortfall:
+                messages.warning(
+                    request,
+                    f"{result.crew.list.name} could only cover {result.charged}¢ of "
+                    f"{result.owed}¢ — {result.shortfall}¢ is unpaid.",
+                )
+        return response
 
     if not battle.can_start():
         messages.error(request, "This battle cannot be started.")
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
-    return render(request, "core/battle/battle_start.html", {"battle": battle})
+    return render(
+        request,
+        "core/battle/battle_start.html",
+        {
+            "battle": battle,
+            "crew_rows": battle_start_crew_rows(battle),
+            "not_ready": battle_not_ready_gangs(battle),
+        },
+    )
 
 
 @login_required

@@ -41,6 +41,7 @@ from gyrinx.core.handlers.crew import (
     handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
+    handle_crew_ready,
     handle_crew_recipe_save,
     handle_crew_stash_save,
 )
@@ -341,6 +342,9 @@ def crew_detail(request, battle_id, crew_id):
             "rating_gap": rating_gap,
             "rating_before": rating_before,
             "rating_provisional": rating_provisional,
+            # None when the crew can be marked ready; otherwise the numbers
+            # behind why not, so the template can phrase it.
+            "ready_blocker": crew.ready_blocker(),
         },
     )
 
@@ -748,4 +752,35 @@ def crew_extra_delete(request, battle_id, crew_id, item_id):
         item.delete()
         messages.success(request, "Extra removed.")
 
+    return _redirect_crew(crew)
+
+
+@login_required
+@transaction.atomic
+def crew_ready(request, battle_id, crew_id):
+    """Declare a crew ready for its battle, or withdraw that.
+
+    POST-only: readiness is a state change, and a GET that flipped it would let
+    a link (or a prefetch) speak for the player.
+    """
+    crew = _get_crew(battle_id, crew_id)
+
+    if not crew.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this crew.")
+        return _redirect_crew(crew)
+
+    if request.method != "POST":
+        return _redirect_crew(crew)
+
+    ready = request.POST.get("ready") == "1"
+    try:
+        handle_crew_ready(user=request.user, crew=crew, ready=ready)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return _redirect_crew(crew)
+
+    messages.success(
+        request,
+        "Crew marked ready." if ready else "Crew is no longer marked ready.",
+    )
     return _redirect_crew(crew)
