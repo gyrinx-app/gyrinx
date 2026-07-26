@@ -5,10 +5,10 @@
 {% block content %}
     {% if crew %}
         {% url 'core:crew' battle.id crew.id as parent_url %}
-        {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url current="Set up" %}
+        {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url parent_label="Crew" current="Set up" %}
     {% else %}
         {% url 'core:battle' battle.id as parent_url %}
-        {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=parent_url current="Add crew" %}
+        {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=parent_url parent_label="Battle" current="Add crew" %}
     {% endif %}
     <div class="col-12 col-lg-8 px-0 vstack gap-3">
         <div class="vstack gap-0">

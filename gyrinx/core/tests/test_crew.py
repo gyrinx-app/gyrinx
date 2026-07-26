@@ -3675,8 +3675,10 @@ def test_crew_page_forecasts_the_whole_gang(client, crew_setup, equipped_fighter
     assert resp.context["provisional_total"] == projection["total"]
     assert card.name in content
     assert "645¢" in content
-    # Labelled as a forecast, not as the crew's rating.
-    assert "Provisional" in content
+    # Labelled as a forecast, not as the crew's rating. The figures carry the
+    # word themselves; the explanatory box that used to sit under the rows is
+    # gone, so this asserts the label rather than the prose.
+    assert ">provisional</span>" in content
     assert crew.rating() == 0
     # And the way to change it.
     assert reverse("core:crew-loadouts", args=[battle.id, crew.id]) in content

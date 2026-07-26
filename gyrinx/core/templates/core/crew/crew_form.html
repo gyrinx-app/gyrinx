@@ -4,7 +4,7 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:crew' battle.id crew.id as parent_url %}
-    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url current="Choose" %}
+    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=crew parent_url=parent_url parent_label="Crew" current="Choose" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <div class="vstack gap-0">
             <div class="caps-label">Crew</div>

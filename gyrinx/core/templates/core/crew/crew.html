@@ -5,7 +5,7 @@
 {% endblock head_title %}
 {% block content %}
     {% url 'core:battle' battle.id as battle_url %}
-    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=battle_url current=crew %}
+    {% include "core/includes/campaign_common_header.html" with campaign=battle.campaign parent=battle.name parent_url=battle_url parent_label="Battle" current=crew %}
     <div class="col-lg-12 px-0 vstack gap-4">
         <!-- Header -->
         <div class="vstack gap-0">
@@ -144,9 +144,21 @@
                                 {% endif %}
                             </div>
                         </th>
-                        <th class="caps-label text-end align-bottom">Fighters &amp; Stash</th>
-                        <th class="caps-label text-end align-bottom">Spending</th>
-                        <th class="caps-label text-end align-bottom">Balancing</th>
+                        <th class="caps-label text-end align-bottom">
+                            <span class="tooltipped"
+                                  data-bs-toggle="tooltip"
+                                  title="The fighters attending and the stash gear they bring.">Fighters &amp; Stash</span>
+                        </th>
+                        <th class="caps-label text-end align-bottom">
+                            <span class="tooltipped"
+                                  data-bs-toggle="tooltip"
+                                  title="Credits the gang paid out of its own pocket for this battle.">Spending</span>
+                        </th>
+                        <th class="caps-label text-end align-bottom">
+                            <span class="tooltipped"
+                                  data-bs-toggle="tooltip"
+                                  title="Credits from a balancing allowance, such as the underdog system. Kept out of the rating the battle page compares.">Balancing</span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
