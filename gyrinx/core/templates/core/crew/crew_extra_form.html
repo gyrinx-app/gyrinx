@@ -1,6 +1,6 @@
 {% extends "core/layouts/base.html" %}
 {% block head_title %}
-    {% if item %}Edit extra{% else %}Add extra{% endif %} - {{ crew }}
+    {% if item %}Edit{% else %}Add{% endif %} spending or balancing - {{ crew }}
 {% endblock head_title %}
 {% block content %}
     {% url 'core:crew' battle.id crew.id as crew_url %}
@@ -8,22 +8,136 @@
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
             {% if item %}
-                Edit extra
+                Edit spending or balancing
             {% else %}
-                Add an extra
+                Add spending or balancing
             {% endif %}
         </h1>
         <p class="text-secondary">
             Use this to record credits spent for this battle, or as part of balancing
             mechanics such as the underdog system. Rules may vary by campaign.
         </p>
-        <form method="post" class="vstack gap-3">
+        <c-box compact>
+            <details>
+                <summary class="fw-semibold">How do I enter…?</summary>
+                <div class="vstack gap-2 mt-2 fs-7">
+                    <div>
+                        <div class="fw-semibold">A hired gun you were given for free</div>
+                        <div class="text-secondary">
+                            Feigned Nobility, The Hand That Feeds You, A Mysterious Stranger, Call for
+                            Aid. Put their credits value under rating — they still fight, so they still
+                            count — and choose <em>It's free</em>.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">A hired gun you paid for</div>
+                        <div class="text-secondary">
+                            Their credits value under rating, <em>Buying it with credits</em>, and the
+                            same number as the cost. It comes out of your gang when the battle starts.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">Something bought with your balancing</div>
+                        <div class="text-secondary">
+                            Same again, but choose <em>Using balancing</em>. It counts towards what you
+                            field without counting towards the gap that earned you the allowance.
+                        </div>
+                    </div>
+                    <div>
+                        <div class="fw-semibold">A tactics card</div>
+                        <div class="text-secondary">
+                            Leave rating at 0 — rating counts fighters and their gear, not cards — and
+                            record what the card cost you.
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </c-box>
+        <form method="post"
+              class="vstack gap-3 js-extra-form"
+              data-free-payment="{{ free_payment }}">
             {% csrf_token %}
-            {{ form.as_div }}
+            <c-errors :form="form" class="mb-0" />
+            <c-form.field :field="form.label" />
+            <c-form.field :field="form.rating_value" class="js-extra-rating" />
+            <c-form.choices :field="form.payment" />
+            <c-form.field :field="form.cost" class="js-extra-cost" />
+            <c-form.field :field="form.reason" />
             <c-form.actions intent="save"
-                            submit="Save extra"
+                            submit="Save"
                             cancel="{{ crew_url }}"
                             class="hstack gap-3 align-items-center" />
         </form>
     </div>
+    <script>
+        {% comment %}
+        Progressive enhancement, and a deliberate exception to the project's
+        "no client-side form mutation" rule: it hides one field, never swapping
+        which fields exist, which options they offer, or what validates. A free
+        entry has no price to give — its rating is asked for separately — so the
+        box is noise. With the script off it stays visible and the server floors
+        a free entry to zero anyway, so both paths agree.
+{% endcomment %}
+        (function () {
+            const form = document.querySelector('.js-extra-form');
+            if (!form) return;
+            const cost = form.querySelector('.js-extra-cost');
+            const radios = form.querySelectorAll('input[name="payment"]');
+            const freeValue = form.dataset.freePayment;
+            if (!cost || !radios.length || !freeValue) return;
+
+            // Most things cost what they are worth, so the price follows the
+            // rating until the player says otherwise. Once they type a price of
+            // their own it stops following — a tactics card is worth nothing and
+            // costs 20, and re-touching the rating must not wipe that.
+            const rating = form.querySelector('.js-extra-rating input');
+            const costInput = cost.querySelector('input');
+
+            // Seeded from what was saved: an entry whose price already differs
+            // from its rating said so deliberately (a tactics card is worth 0
+            // and costs 20), and changing the payment method must not resync it
+            // away. Only a fresh entry, where the two still agree, follows.
+            let costEdited = Boolean(
+                costInput && rating && costInput.value && costInput.value !== rating.value,
+            );
+            if (costInput) {
+                costInput.addEventListener('input', () => {
+                    costEdited = true;
+                });
+            }
+
+            function syncCost() {
+                if (costEdited || !rating || !costInput) return;
+                costInput.value = rating.value;
+            }
+
+            // `sync` is false on the initial call. An existing entry can
+            // legitimately cost something other than its rating — a tactics
+            // card is worth 0 and costs 20 — and syncing on load would
+            // overwrite that saved figure the moment the edit page rendered,
+            // corrupting it on the next save.
+            function update(sync) {
+                const checked = form.querySelector('input[name="payment"]:checked');
+                const isFree = checked && checked.value === freeValue;
+                cost.classList.toggle('d-none', isFree);
+                if (isFree) {
+                    // Clear on hide so a number the player can no longer see
+                    // can't be submitted behind their back.
+                    if (costInput) costInput.value = '';
+                } else if (sync) {
+                    syncCost();
+                }
+            }
+
+            if (rating) rating.addEventListener('input', () => {
+                const checked = form.querySelector('input[name="payment"]:checked');
+                if (checked && checked.value === freeValue) return;
+                syncCost();
+            });
+            radios.forEach((radio) =>
+                radio.addEventListener('change', () => update(true)),
+            );
+            update(false);
+        }());
+    </script>
 {% endblock content %}

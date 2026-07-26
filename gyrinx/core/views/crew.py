@@ -3,9 +3,11 @@
 A crew is a virtual sub-gang assigned to a battle: the recipe (the scenario's
 selection method, its numbers, and the card each chosen fighter brings) while it
 is a draft, then the frozen attendees once it is locked at battle start. These
-views cover the whole lifecycle — create, edit, lock, extras, archive — but
-never write to the gang's canonical cost, credits, or audit stream. Once locked,
-a crew is a historical record and can no longer be edited.
+views cover the whole lifecycle — create, edit, lock, spending, archive. They
+never write to the gang's cost caches; the one place a crew moves real credits
+is ``handlers.battle.charge_crew_spending``, at battle start. Once locked, a
+crew's membership is a historical record, though its loadouts, stash and
+spending stay editable.
 
 The selection method is URL state (``?method=custom|random|hybrid``): the
 picker is a set of server-rendered links and the server returns the form
@@ -41,6 +43,7 @@ from gyrinx.core.handlers.crew import (
     handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
+    handle_crew_ready,
     handle_crew_recipe_save,
     handle_crew_stash_save,
 )
@@ -341,6 +344,11 @@ def crew_detail(request, battle_id, crew_id):
             "rating_gap": rating_gap,
             "rating_before": rating_before,
             "rating_provisional": rating_provisional,
+            # None when the crew can be marked ready; otherwise the numbers
+            # behind why not, so the template can phrase it.
+            # The receipt already totalled the spending; handing it over keeps
+            # this off a second walk of the line items.
+            "ready_blocker": crew.ready_blocker(owed=receipt["credits_total"]),
         },
     )
 
@@ -728,7 +736,15 @@ def crew_extra(request, battle_id, crew_id, item_id=None):
     return render(
         request,
         "core/crew/crew_extra_form.html",
-        {"form": form, "crew": crew, "battle": crew.battle, "item": item},
+        {
+            "form": form,
+            "crew": crew,
+            "battle": crew.battle,
+            "item": item,
+            # The template's reveal script compares against this rather than
+            # hardcoding the stored value.
+            "free_payment": Crew.PAY_FREE,
+        },
     )
 
 
@@ -748,4 +764,35 @@ def crew_extra_delete(request, battle_id, crew_id, item_id):
         item.delete()
         messages.success(request, "Extra removed.")
 
+    return _redirect_crew(crew)
+
+
+@login_required
+@transaction.atomic
+def crew_ready(request, battle_id, crew_id):
+    """Declare a crew ready for its battle, or withdraw that.
+
+    POST-only: readiness is a state change, and a GET that flipped it would let
+    a link (or a prefetch) speak for the player.
+    """
+    crew = _get_crew(battle_id, crew_id)
+
+    if not crew.can_manage(request.user):
+        messages.error(request, "You don't have permission to manage this crew.")
+        return _redirect_crew(crew)
+
+    if request.method != "POST":
+        return _redirect_crew(crew)
+
+    ready = request.POST.get("ready") == "1"
+    try:
+        handle_crew_ready(user=request.user, crew=crew, ready=ready)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return _redirect_crew(crew)
+
+    messages.success(
+        request,
+        "Crew marked ready." if ready else "Crew is no longer marked ready.",
+    )
     return _redirect_crew(crew)

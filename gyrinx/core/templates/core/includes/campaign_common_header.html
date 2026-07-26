@@ -1,10 +1,13 @@
 {# Campaign context header for pages nested under a campaign (e.g. a battle). #}
 {# Required params: campaign. Optional: current (label for the current page), #}
-{#   parent + parent_url (an intermediate breadcrumb crumb before current). #}
-{# Deliberately low-interaction: breadcrumb + a back link + campaign status. #}
+{#   parent + parent_url (an intermediate breadcrumb crumb before current), #}
+{#   parent_label (what the back link calls the parent — "Battle", "Crew"). #}
+{# Deliberately low-interaction: breadcrumb + a back link. #}
 {# The back link points to the immediate parent when a navigable parent_url is #}
 {# given (e.g. crew -> battle), otherwise to the campaign (e.g. battle -> #}
-{# campaign); the campaign status is shown either way. #}
+{# campaign). It names the KIND of thing it goes to, not the thing itself: the #}
+{# name is already in the breadcrumb directly above, and "Battle" is quicker to #}
+{# aim at than whatever the battle happens to be called. #}
 <div class="mb-3 pb-3 border-bottom">
     {% url 'core:campaigns' as campaigns_url %}
     <c-breadcrumb>
@@ -22,17 +25,16 @@
             {{ current }}
         </c-breadcrumb.item>
     </c-breadcrumb>
-    <div class="d-flex flex-column flex-sm-row gap-1 gap-sm-2 align-items-sm-center mt-1">
+    <div class="mt-1">
         {% if parent_url %}
-            <a class="linked fw-semibold" href="{{ parent_url }}">
-                <i class="bi-chevron-left"></i> {{ parent }}
+            <a class="icon-link linked fw-semibold" href="{{ parent_url }}">
+                <i class="bi-chevron-left" aria-hidden="true"></i> {{ parent_label|default:parent }}
             </a>
         {% else %}
-            <a class="linked fw-semibold"
+            <a class="icon-link linked fw-semibold"
                href="{% url 'core:campaign' campaign.id %}">
-                <i class="bi-chevron-left"></i> {{ campaign.name }}
+                <i class="bi-chevron-left" aria-hidden="true"></i> Campaign
             </a>
         {% endif %}
-        <span class="ms-sm-auto">{% include "core/campaign/includes/status.html" with campaign=campaign %}</span>
     </div>
 </div>

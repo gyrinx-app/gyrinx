@@ -559,28 +559,99 @@ class CrewLoadoutsForm(forms.Form):
 
 
 class CrewLineItemForm(forms.ModelForm):
-    """Add or edit a crew extra (tactics card, etc.) with its payment method."""
+    """Add or edit a crew's spending or balancing, with where the credits come from.
+
+    Field order is deliberate: what it is, where the credits come from, then how
+    many. The amount follows the source because a free item does not have one —
+    the template hides it once "Free" is chosen, and this form floors it to zero
+    either way so the two agree with or without that script.
+    """
 
     class Meta:
         model = CrewLineItem
-        fields = ["label", "cost", "payment", "reason"]
+        fields = ["label", "rating_value", "payment", "cost", "reason"]
         labels = {
-            "label": "What is it?",
-            "cost": "Credits value",
-            "payment": "Paid for with",
+            "label": "What are you adding?",
+            "rating_value": "What will it add to rating?",
+            "payment": "How are you paying for it?",
+            "cost": "What does it cost?",
             "reason": "Reason",
         }
         help_texts = {
-            "reason": "Optional — note why, when free or from an allowance.",
+            # The label and placeholder already say it.
+            "label": "",
+            "rating_value": (
+                "A fighter's credits value, even if you got them for nothing. "
+                "A tactics card adds nothing — rating counts fighters and their "
+                "gear, not cards."
+            ),
+            "payment": "",
+            "cost": (
+                "Leave blank for a free entry. Gang credits are taken from your "
+                "gang when the battle starts."
+            ),
+            "reason": "Optional — note why, when free or from balancing.",
         }
         widgets = {
             "label": forms.TextInput(
                 attrs={
                     "class": "form-control",
-                    "placeholder": "e.g. Tactics card: Ambush",
+                    "placeholder": "e.g. House Agent",
                 }
             ),
-            "cost": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "payment": forms.Select(attrs={"class": "form-select"}),
+            "rating_value": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "placeholder": "0"}
+            ),
+            "cost": forms.NumberInput(
+                attrs={"class": "form-control", "min": 0, "placeholder": "0"}
+            ),
+            # Radio, not a select: three options that a player has to weigh
+            # against each other, and only one of which costs them anything.
+            "payment": forms.RadioSelect(attrs={"class": "form-check-input"}),
             "reason": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Phrased as answers to "how are you paying for it?".
+        self.fields["payment"].choices = [
+            (Crew.PAY_FREE, "It's free"),
+            (Crew.PAY_CREDITS, "Buying it with credits"),
+            (Crew.PAY_ALLOWANCE, "Using balancing"),
+        ]
+        # Both amounts can legitimately be nothing: a free entry costs zero, and
+        # a tactics card adds zero to rating.
+        self.fields["cost"].required = False
+        self.fields["rating_value"].required = False
+        # Free by default on a new entry. Two traps here, both silent:
+        #
+        # `_state.adding`, not `pk`: AppBase gives every row a UUID primary key
+        # with a default, so an unsaved instance already HAS a pk and a
+        # `not self.instance.pk` guard never fires.
+        #
+        # Assignment, not setdefault: ModelForm has already seeded self.initial
+        # from that instance, so the model's own PAY_CREDITS default is sitting
+        # in the dict and a setdefault would be a no-op. The model keeps that
+        # default for rows created in code; this is only about what a player
+        # sees first.
+        if self.instance._state.adding:
+            self.initial["payment"] = Crew.PAY_FREE
+
+    def clean(self):
+        cleaned = super().clean()
+        payment = cleaned.get("payment")
+        # Free means free, whatever was typed in the cost box.
+        if payment == Crew.PAY_FREE:
+            cleaned["cost"] = 0
+        elif payment and cleaned.get("cost") is None:
+            # Blank would quietly save as 0, which is "free" wearing the wrong
+            # label — and with the reveal script off, blank is what you get by
+            # doing nothing.
+            self.add_error(
+                "cost",
+                "Say what it cost, or choose \u201cIt\u2019s free\u201d.",
+            )
+        for field in ("cost", "rating_value"):
+            if cleaned.get(field) is None:
+                cleaned[field] = 0
+        return cleaned

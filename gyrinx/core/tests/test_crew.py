@@ -7,6 +7,8 @@ URL-driven selection-method picker with its per-method validation, and the crew
 lifecycle views.
 """
 
+import re
+
 import pytest
 from django.apps import apps
 from django.core.exceptions import ValidationError
@@ -18,8 +20,18 @@ from itertools import count
 from random import Random
 from uuid import uuid4
 
-from gyrinx.core.forms.crew import CrewForm, equipment_set_field_name
-from gyrinx.core.handlers.battle import handle_battle_end
+from gyrinx.core.forms.crew import (
+    CrewForm,
+    CrewLineItemForm,
+    equipment_set_field_name,
+)
+from gyrinx.core.handlers.battle import (
+    battle_not_ready_gangs,
+    battle_start_crew_rows,
+    battle_timeline,
+    charge_crew_spending,
+    handle_battle_end,
+)
 from gyrinx.core.handlers.crew import (
     CREW_ALWAYS_INCLUDED,
     CREW_ELIGIBLE,
@@ -37,6 +49,7 @@ from gyrinx.core.handlers.crew import (
     handle_crew_archive,
     handle_crew_lock,
     handle_crew_loadouts_save,
+    handle_crew_ready,
     handle_crew_recipe_save,
     handle_crew_stash_save,
 )
@@ -297,7 +310,6 @@ def test_draft_rating_sums_chosen_full_cost(crew_setup):
     # Three fighters at base 100 each, all with no equipment set (full kit).
     assert all(m.equipment_set_id is None for m in crew.members.all())
     assert crew.rating() == 300
-    assert crew.credits_value() == 300
 
 
 @pytest.mark.django_db
@@ -317,7 +329,7 @@ def test_locked_rating_uses_member_loadout(crew_setup, equipped_fighter):
 
 
 @pytest.mark.django_db
-def test_extras_and_credits_value(crew_setup):
+def test_extras_total_is_what_was_paid(crew_setup):
     battle, gang = crew_setup["battle"], crew_setup["gang"]
     crew = Crew.objects.create(
         battle=battle, list=gang, owner=crew_setup["user"], status=Crew.LOCKED
@@ -336,9 +348,10 @@ def test_extras_and_credits_value(crew_setup):
         owner=crew_setup["user"],
     )
 
+    # extras_total is what the gang paid, not what the extras are worth: the
+    # free hired gun's 55¢ was recorded as its value, and costs nothing.
     assert crew.rating() == 100
     assert crew.extras_total() == 75
-    assert crew.credits_value() == 175
 
 
 @pytest.mark.django_db
@@ -350,13 +363,20 @@ def test_receipt_totals(crew_setup):
     CrewMember.objects.create(
         crew=crew, list_fighter=crew_setup["fighters"][0], owner=crew_setup["user"]
     )
-    CrewLineItem.objects.create(
-        crew=crew, label="Tactics card", cost=20, owner=crew_setup["user"]
-    )
+    # A card: costs credits, adds nothing to what the crew is worth.
     CrewLineItem.objects.create(
         crew=crew,
-        label="Free favour",
-        cost=30,
+        label="Tactics card",
+        cost=20,
+        rating_value=0,
+        owner=crew_setup["user"],
+    )
+    # A gift: costs nothing, and is worth its full value on the table.
+    CrewLineItem.objects.create(
+        crew=crew,
+        label="Free House Agent",
+        cost=0,
+        rating_value=30,
         payment=Crew.PAY_FREE,
         owner=crew_setup["user"],
     )
@@ -367,21 +387,23 @@ def test_receipt_totals(crew_setup):
     # Each attendee carries its fighter category for the bold "name · category".
     assert all(a["category"] for a in receipt["attendees"])
     assert receipt["has_extras"] is True
-    # Extras land in the column for how they're paid. A free item shows in the
-    # Spending column at 0¢ rather than in a column of its own — what the gang
-    # paid for it is nothing — so it moves no total.
+
+    # The payment columns show what was paid; a free entry shows an explicit 0¢.
     assert receipt["credits_total"] == 20
     assert receipt["allowance_total"] == 0
     by_label = {e["item"].label: e for e in receipt["extras"]}
     assert by_label["Tactics card"]["credits"] == 20
-    assert by_label["Free favour"]["credits"] == 0
+    assert by_label["Free House Agent"]["credits"] == 0
 
-    # Grand total = fighters + what was actually paid, i.e. exactly the
-    # post-balancing rating the sheet labels it as. The free item's 30¢ is not
-    # in it, which is why this is no longer credits_value().
-    assert receipt["total"] == 120
+    # The Rating column shows what each is worth — the mirror image of the above.
+    assert by_label["Tactics card"]["rating"] == 0
+    assert by_label["Free House Agent"]["rating"] == 30
+    assert receipt["extras_rating_total"] == 30
+
+    # Total = fighters + stash + what the extras are worth. The card's 20¢ was
+    # paid but buys no rating; the gift's 30¢ was free but counts.
+    assert receipt["total"] == 130
     assert receipt["total"] == crew.rating_after_balancing()
-    assert crew.credits_value() == 150
 
 
 @pytest.mark.django_db
@@ -3675,8 +3697,10 @@ def test_crew_page_forecasts_the_whole_gang(client, crew_setup, equipped_fighter
     assert resp.context["provisional_total"] == projection["total"]
     assert card.name in content
     assert "645¢" in content
-    # Labelled as a forecast, not as the crew's rating.
-    assert "Provisional" in content
+    # Labelled as a forecast, not as the crew's rating. The figures carry the
+    # word themselves; the explanatory box that used to sit under the rows is
+    # gone, so this asserts the label rather than the prose.
+    assert ">provisional</span>" in content
     assert crew.rating() == 0
     # And the way to change it.
     assert reverse("core:crew-loadouts", args=[battle.id, crew.id]) in content
@@ -5255,9 +5279,16 @@ def test_random_setup_skips_ahead_to_the_stash_tab(client, crew_setup):
 # that earned it) and free extras (they cost nobody anything).
 
 
-def _extra(crew, user, label, cost, payment):
+def _extra(crew, user, label, cost, payment, rating=None):
+    """A crew extra. ``rating`` defaults to the price — the ordinary case where
+    you pay what a thing is worth — but the two are independent."""
     return CrewLineItem.objects.create(
-        crew=crew, owner=user, label=label, cost=cost, payment=payment
+        crew=crew,
+        owner=user,
+        label=label,
+        cost=cost,
+        rating_value=cost if rating is None else rating,
+        payment=payment,
     )
 
 
@@ -5280,16 +5311,21 @@ def test_rating_before_balancing_counts_fighters_stash_and_spending(
 
 
 @pytest.mark.django_db
-def test_rating_before_balancing_excludes_balancing_and_free(crew_setup):
+def test_rating_before_balancing_excludes_only_what_balancing_bought(crew_setup):
+    """A free hired gun still fights, so it counts towards the rating the
+    underdog comparison is made on — "a Hired Gun increases the gang's Rating in
+    the same way as any other fighter". Only what the allowance paid for is held
+    back, because that is the compensation for the gap being measured."""
     crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
     _extra(crew, crew_setup["user"], "Underdog hire", 100, Crew.PAY_ALLOWANCE)
-    _extra(crew, crew_setup["user"], "Scenario gift", 50, Crew.PAY_FREE)
+    _extra(crew, crew_setup["user"], "Free House Agent", 0, Crew.PAY_FREE, rating=50)
 
-    # Neither moves the rating the underdog comparison is made on...
-    assert crew.rating_before_balancing() == 100
-    # ...but the allowance is what the post-balancing figure adds back.
+    # The free agent's 50¢ counts; the allowance's 100¢ does not, yet.
+    assert crew.rating_before_balancing() == 150
     assert crew.balancing_total() == 100
-    assert crew.rating_after_balancing() == 200
+    # It costs the gang nothing, so it never reaches the Spending column.
+    assert crew.spending_total() == 0
+    assert crew.rating_after_balancing() == 250
 
 
 @pytest.mark.django_db
@@ -5619,6 +5655,7 @@ def test_extras_can_be_added_to_a_draft_crew(client, crew_setup):
         reverse("core:crew-extra-new", args=[crew.battle_id, crew.id]),
         {
             "label": "Underdog hire",
+            "rating_value": "150",
             "cost": "150",
             "payment": Crew.PAY_ALLOWANCE,
             "reason": "",
@@ -5628,8 +5665,10 @@ def test_extras_can_be_added_to_a_draft_crew(client, crew_setup):
 
     item = CrewLineItem.objects.get(crew=crew)
     assert item.cost == 150
+    assert item.rating_value == 150
     assert crew.balancing_total() == 150
-    # Balancing stays out of the comparison rating even on a draft.
+    # What the allowance bought stays out of the comparison rating even on a
+    # draft — that gap is what earned the allowance in the first place.
     assert crew.rating_before_balancing() == 100
     assert crew.rating_after_balancing() == 250
 
@@ -5770,3 +5809,736 @@ def test_confirm_page_says_what_stays_editable(client, crew_setup):
 
     assert "the crew's membership is fixed" in body
     assert "can no longer be changed" not in body
+
+
+# --- Ready state and charging spending at battle start -----------------------
+
+
+def _credit(gang, amount):
+    """Give a gang a known credit balance."""
+    gang.credits_current = amount
+    gang.save()
+    return gang
+
+
+@pytest.mark.django_db
+def test_crew_can_be_marked_ready_and_withdrawn(crew_setup):
+    """Readiness is the gang saying it has finished setting up, and unlike the
+    lock it can be taken back."""
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    assert crew.is_ready is False
+
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+    crew.refresh_from_db()
+    assert crew.is_ready is True
+    assert crew.ready_by == crew_setup["user"]
+
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=False)
+    crew.refresh_from_db()
+    assert crew.is_ready is False
+    assert crew.ready_by is None
+
+
+@pytest.mark.django_db
+def test_crew_cannot_be_ready_without_credits_to_cover_spending(crew_setup):
+    """The one rule: a gang can't declare itself ready for money it hasn't got."""
+    gang = _credit(crew_setup["gang"], 30)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    assert crew.ready_blocker() == {"owed": 50, "available": 30, "short": 20}
+    with pytest.raises(ValidationError, match="20¢ short"):
+        handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+    crew.refresh_from_db()
+    assert crew.is_ready is False
+
+
+@pytest.mark.django_db
+def test_balancing_and_free_do_not_block_readiness(crew_setup):
+    """Only Spending is charged, so only Spending gates readiness — an allowance
+    is granted to the gang, not paid by it."""
+    gang = _credit(crew_setup["gang"], 0)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Underdog hire", 500, Crew.PAY_ALLOWANCE)
+    _extra(crew, crew_setup["user"], "Scenario favour", 500, Crew.PAY_FREE)
+
+    assert crew.ready_blocker() is None
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+    crew.refresh_from_db()
+    assert crew.is_ready is True
+
+
+@pytest.mark.django_db
+def test_a_gang_that_can_no_longer_afford_it_can_still_withdraw(crew_setup):
+    """Withdrawing is always allowed: a gang whose balance drops after saying
+    yes must not be trapped in a ready state it can't undo."""
+    gang = _credit(crew_setup["gang"], 100)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+    _credit(gang, 0)
+    crew.refresh_from_db()
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=False)
+    crew.refresh_from_db()
+    assert crew.is_ready is False
+
+
+@pytest.mark.django_db
+def test_battle_start_charges_crew_spending(crew_setup):
+    """Spending moves real credits when the battle starts — the one place a crew
+    writes to its gang's ledger."""
+    gang = _credit(crew_setup["gang"], 200)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+    _extra(crew, crew_setup["user"], "Underdog hire", 150, Crew.PAY_ALLOWANCE)
+
+    results = charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+
+    gang.refresh_from_db()
+    crew.refresh_from_db()
+    # Only the 50¢ of Spending; the 150¢ allowance is granted, not paid.
+    assert gang.credits_current == 150
+    assert crew.credits_charged == 50
+    assert crew.is_charged is True
+    assert crew.credits_shortfall() == 0
+    assert [(r.owed, r.charged) for r in results] == [(50, 50)]
+
+
+@pytest.mark.django_db
+def test_charging_is_idempotent(crew_setup):
+    """A retried transition must not take the money twice."""
+    gang = _credit(crew_setup["gang"], 200)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+    second = charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+
+    gang.refresh_from_db()
+    assert gang.credits_current == 150
+    assert second == []
+
+
+@pytest.mark.django_db
+def test_a_gang_short_at_start_pays_what_it_can(crew_setup):
+    """The balance floors at zero rather than going negative, so the remainder
+    is a real debt — surfaced via credits_shortfall rather than left buried."""
+    gang = _credit(crew_setup["gang"], 20)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    results = charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+
+    gang.refresh_from_db()
+    crew.refresh_from_db()
+    assert gang.credits_current == 0
+    assert crew.credits_charged == 20
+    assert crew.credits_shortfall() == 30
+    assert results[0].shortfall == 30
+
+
+@pytest.mark.django_db
+def test_starting_a_battle_charges_and_warns(client, crew_setup):
+    """End to end through the view: the money moves and the shortfall is said
+    out loud rather than left to a campaign action nobody reads."""
+    gang = _credit(crew_setup["gang"], 10)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    client.force_login(crew_setup["user"])
+    resp = client.post(reverse("core:battle-start", args=[battle.id]), follow=True)
+    assert resp.status_code == 200
+
+    gang.refresh_from_db()
+    crew.refresh_from_db()
+    assert gang.credits_current == 0
+    assert crew.credits_charged == 10
+    messages = [str(m) for m in resp.context["messages"]]
+    assert any("40¢ is unpaid" in m for m in messages), messages
+
+
+@pytest.mark.django_db
+def test_ready_cannot_change_once_charged(crew_setup):
+    """After the money has moved, readiness is history rather than a control."""
+    gang = _credit(crew_setup["gang"], 200)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+    crew.refresh_from_db()
+
+    with pytest.raises(ValidationError, match="already started"):
+        handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+
+@pytest.mark.django_db
+def test_battle_timeline_marks_one_current_step(client, crew_setup):
+    """The timeline always has exactly one "you are here", and it is the first
+    step that isn't done."""
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"]])
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+
+    steps = battle_timeline(battle)
+    assert sum(1 for s in steps if s["current"]) == 1
+    # Gangs joined and a crew exists, so readiness is what's outstanding.
+    assert next(s for s in steps if s["current"])["label"] == (
+        "Gangs mark themselves ready"
+    )
+
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+    steps = battle_timeline(battle)
+    assert next(s for s in steps if s["current"])["label"] == "The battle starts"
+
+    client.force_login(crew_setup["user"])
+    body = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    assert "Battle process" in body
+
+
+@pytest.mark.django_db
+def test_timeline_never_completes_a_step_before_an_earlier_one(
+    crew_setup, make_list, make_list_fighter
+):
+    """Two gangs, one crew, and that crew ready. "All crews are ready" is
+    technically true, but the battle is waiting on the other gang to pick one —
+    so the ready step must not read as done above an unfinished step."""
+    riot = crew_setup["gang"]
+    iron, _ = _spread_gang(crew_setup, make_list, make_list_fighter, "Iron Skulls", 2)
+    crew_setup["battle"].set_participants([riot, iron])
+    crew = _locked_crew(crew_setup, riot, crew_setup["fighters"][:1])
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+    steps = {s["label"]: s for s in battle_timeline(crew_setup["battle"])}
+    assert steps["Each gang picks a crew"]["done"] is False
+    assert steps["Gangs mark themselves ready"]["done"] is False
+    assert steps["Each gang picks a crew"]["current"] is True
+
+
+# --- The spending & balancing form ------------------------------------------
+
+
+@pytest.mark.django_db
+def test_free_entry_needs_no_amount(crew_setup):
+    """The unscripted path: a player picks Free, leaves the amount blank, and
+    the form accepts it. The reveal script is an enhancement, so the form has
+    to stand up without it."""
+    form = CrewLineItemForm(
+        data={"label": "Scenario favour", "cost": "", "payment": Crew.PAY_FREE}
+    )
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["cost"] == 0
+
+
+@pytest.mark.django_db
+def test_free_entry_floors_a_typed_amount(crew_setup):
+    """Both paths must agree about the same input. Without the script the
+    amount box stays visible, so a player can type into it and then pick Free;
+    with the script it is cleared. Either way, free means zero."""
+    form = CrewLineItemForm(
+        data={"label": "Scenario favour", "cost": "75", "payment": Crew.PAY_FREE}
+    )
+    assert form.is_valid(), form.errors
+    assert form.cleaned_data["cost"] == 0
+
+
+@pytest.mark.django_db
+def test_paid_entries_keep_their_amount(crew_setup):
+    """Only Free is floored — the two paid sources record what was entered."""
+    for payment in (Crew.PAY_CREDITS, Crew.PAY_ALLOWANCE):
+        form = CrewLineItemForm(
+            data={"label": "Hired gun", "cost": "75", "payment": payment}
+        )
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["cost"] == 75
+
+
+@pytest.mark.django_db
+def test_form_asks_rating_then_payment_then_price(crew_setup):
+    """Free is the exception at the end, so the choice reads "who pays … or
+    nobody does" — and the amount sits below the source it depends on."""
+    form = CrewLineItemForm()
+    assert [value for value, _ in form.fields["payment"].choices] == [
+        Crew.PAY_FREE,
+        Crew.PAY_CREDITS,
+        Crew.PAY_ALLOWANCE,
+    ]
+    assert list(form.fields) == [
+        "label",
+        "rating_value",
+        "payment",
+        "cost",
+        "reason",
+    ]
+
+
+@pytest.mark.django_db
+def test_extra_form_page_asks_both_amounts(client, crew_setup):
+    """Rating and price are asked separately, and no script hides either: an
+    entry can add nothing while costing credits, or cost nothing while adding
+    its full value."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"], list=crew_setup["gang"], owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+    body = client.get(
+        reverse("core:crew-extra-new", args=[crew.battle_id, crew.id])
+    ).content.decode()
+
+    assert "What will it add to rating?" in body
+    assert "What does it cost?" in body
+    assert 'type="radio"' in body
+    # The price is revealed only when something is being paid; the hook the
+    # script keys off has to be on the page for that to work.
+    assert "js-extra-cost" in body
+    assert f'data-free-payment="{Crew.PAY_FREE}"' in body
+
+
+@pytest.mark.django_db
+def test_a_free_entry_is_worth_something_but_costs_nothing(crew_setup):
+    """The case the rules forced: Feigned Nobility and friends hand you a
+    fighter for free. They cost nothing and are worth their full value."""
+    form = CrewLineItemForm(
+        data={
+            "label": "House Agent",
+            "rating_value": "145",
+            "cost": "999",
+            "payment": Crew.PAY_FREE,
+        }
+    )
+    assert form.is_valid(), form.errors
+    # Free means free, whatever was typed in the price box...
+    assert form.cleaned_data["cost"] == 0
+    # ...but what it brings to the table is untouched.
+    assert form.cleaned_data["rating_value"] == 145
+
+
+@pytest.mark.django_db
+def test_a_tactics_card_costs_credits_and_adds_no_rating(crew_setup):
+    """The mirror image, and why one amount could not do the job: rating counts
+    fighters and their gear, not cards."""
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Tactics Card", 20, Crew.PAY_CREDITS, rating=0)
+
+    assert crew.spending_total() == 20
+    assert crew.extras_rating() == 0
+    # The card is paid for but adds nothing to what the crew is worth.
+    assert crew.rating_before_balancing() == 100
+
+
+@pytest.mark.django_db
+def test_new_entry_defaults_to_free_but_editing_keeps_its_own(crew_setup):
+    """Free is the common case, so it is what a player sees first. Editing must
+    not quietly rewrite an existing entry's payment to free — and the "is this
+    new?" check has to be _state.adding, because AppBase's UUID primary key is
+    populated before the row is ever saved."""
+    assert CrewLineItemForm()["payment"].value() == Crew.PAY_FREE
+
+    crew = _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+    item = _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+    assert CrewLineItemForm(instance=item)["payment"].value() == Crew.PAY_CREDITS
+
+
+@pytest.mark.django_db
+def test_battle_page_names_each_gangs_owner_without_a_query_each(
+    client, crew_setup, make_list, make_list_fighter, make_user
+):
+    """The participants pane credits each gang to its owner. The owner is
+    select_related with the participants — rendered per row, it would otherwise
+    be one query per gang."""
+    riot = crew_setup["gang"]
+    gangs = [riot]
+    for i in range(3):
+        gang, _ = _spread_gang(crew_setup, make_list, make_list_fighter, f"Gang {i}", 1)
+        gang.owner = make_user(f"player{i}", "password")
+        gang.save()
+        gangs.append(gang)
+    crew_setup["battle"].set_participants(gangs)
+
+    client.force_login(crew_setup["user"])
+    url = reverse("core:battle", args=[crew_setup["battle"].id])
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            resp = client.get(url)
+            assert resp.status_code == 200
+        return len(ctx), resp.content.decode()
+
+    _, body = render_query_count()
+    for gang in gangs:
+        assert reverse("core:user", args=[gang.owner.username]) in body
+
+    many = _stable_query_count(lambda: render_query_count()[0])
+
+    # Two more gangs must not mean two more owner lookups.
+    for i in range(3, 5):
+        gang, _ = _spread_gang(crew_setup, make_list, make_list_fighter, f"Gang {i}", 1)
+        gang.owner = make_user(f"player{i}", "password")
+        gang.save()
+        gangs.append(gang)
+    crew_setup["battle"].set_participants(gangs)
+
+    assert _stable_query_count(lambda: render_query_count()[0]) <= many + 2
+
+
+@pytest.mark.django_db
+def test_forecast_crew_rates_extras_by_worth_not_by_price(crew_setup):
+    """The whole-gang forecast branch has to split rating from cost like every
+    other path. It used to add the Spending column instead, which got both cases
+    this split exists for exactly backwards: a free hired gun counted zero, and
+    a tactics card counted its price."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    assert crew.is_whole_gang
+    forecast = crew_whole_gang_projection(crew)["total"]
+
+    # Worth 150, cost nothing.
+    _extra(crew, crew_setup["user"], "Free House Agent", 0, Crew.PAY_FREE, rating=150)
+    # Cost 20, worth nothing.
+    _extra(crew, crew_setup["user"], "Tactics Card", 20, Crew.PAY_CREDITS, rating=0)
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is True
+    assert rating == forecast + 150
+
+
+@pytest.mark.django_db
+def test_charging_records_a_list_action_for_the_ledger(crew_setup):
+    """Credits never move without a ListAction: the balance sheet reconciles
+    credits_current against the anchor's credits_before plus every delta, so an
+    unpaired movement breaks that gang's ledger permanently."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+
+    gang = _credit(crew_setup["gang"], 200)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    before = gang.credits_current
+    charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+
+    action = ListAction.objects.filter(
+        list=gang, action_type=ListActionType.UPDATE_CREDITS
+    ).latest("created")
+    assert action.credits_delta == -50
+    assert action.credits_before == before
+    gang.refresh_from_db()
+    assert action.credits_before + action.credits_delta == gang.credits_current
+
+
+@pytest.mark.django_db
+def test_a_gang_dropped_from_the_battle_is_not_charged(crew_setup, make_list):
+    """A gang removed from the battle after picking a crew must not pay for a
+    fight it is no longer in."""
+    gang = _credit(crew_setup["gang"], 200)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    battle.set_participants([])
+    results = charge_crew_spending(user=crew_setup["user"], battle=battle)
+
+    gang.refresh_from_db()
+    crew.refresh_from_db()
+    assert results == []
+    assert gang.credits_current == 200
+    assert crew.is_charged is False
+
+
+@pytest.mark.django_db
+def test_battle_page_survives_a_gang_with_no_owner(client, crew_setup):
+    """Owned.owner is nullable, and the participants pane links to it — an
+    ownerless gang would raise NoReverseMatch and 500 the page."""
+    gang = crew_setup["gang"]
+    crew_setup["battle"].set_participants([gang])
+    gang.owner = None
+    gang.save()
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    assert resp.status_code == 200
+
+
+@pytest.mark.django_db
+def test_a_paid_entry_must_say_what_it_cost(crew_setup):
+    """Blank would save as 0 — "free" wearing the wrong label — and blank is
+    what doing nothing gives you when the reveal script isn't running."""
+    form = CrewLineItemForm(
+        data={
+            "label": "Hired gun",
+            "rating_value": "145",
+            "cost": "",
+            "payment": Crew.PAY_CREDITS,
+        }
+    )
+    assert not form.is_valid()
+    assert "cost" in form.errors
+
+    # Free is the one case that legitimately has nothing to give.
+    ok = CrewLineItemForm(
+        data={
+            "label": "House Agent",
+            "rating_value": "145",
+            "cost": "",
+            "payment": Crew.PAY_FREE,
+        }
+    )
+    assert ok.is_valid(), ok.errors
+    assert ok.cleaned_data["cost"] == 0
+
+
+@pytest.mark.django_db
+def test_charging_does_not_query_per_crew(crew_setup, make_list, make_list_fighter):
+    """Charging totals each crew's spending, which walks its line items — more
+    crews must not mean a query each."""
+
+    def build(n):
+        battle = crew_setup["battle"]
+        gangs = []
+        for i in range(n):
+            gang, fighters = _spread_gang(
+                crew_setup, make_list, make_list_fighter, f"Charge Gang {i}", 1
+            )
+            _credit(gang, 500)
+            crew = _locked_crew(crew_setup, gang, fighters[:1])
+            _extra(crew, crew_setup["user"], "Hired gun", 20, Crew.PAY_CREDITS)
+            gangs.append(gang)
+        battle.set_participants(gangs)
+        return battle
+
+    def line_item_reads(battle):
+        with CaptureQueriesContext(connection) as ctx:
+            charge_crew_spending(user=crew_setup["user"], battle=battle)
+        return [
+            q["sql"]
+            for q in ctx.captured_queries
+            if "crewlineitem" in q["sql"].lower()
+            and q["sql"].lstrip().upper().startswith("SELECT")
+        ]
+
+    # Each crew legitimately writes its own row, history, ListAction and
+    # CampaignAction, so the total grows either way. What must stay flat is the
+    # read of the line items — one prefetch, however many crews.
+    assert len(line_item_reads(build(1))) == 1
+    assert len(line_item_reads(build(4))) == 1
+
+
+@pytest.mark.django_db
+def test_pages_warn_when_a_crew_outspends_its_gang(client, crew_setup):
+    """Readiness is guarded at the moment it is set, but a gang can spend
+    elsewhere afterwards — so a crew can sit "ready" and unaffordable. Both
+    pages say so rather than the problem only surfacing as a charge shortfall."""
+    gang = _credit(crew_setup["gang"], 200)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 150, Crew.PAY_CREDITS)
+    handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+    # The gang spends its credits elsewhere after saying it was ready.
+    _credit(gang, 50)
+
+    client.force_login(crew_setup["user"])
+    battle_body = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    assert "spending more than their gang has" in battle_body
+    assert "100¢ short" in battle_body
+
+    crew_body = client.get(
+        reverse("core:crew", args=[crew.battle_id, crew.id])
+    ).content.decode()
+    assert "100¢ short" in crew_body
+    # Worded for a crew that is already ready, not one trying to become ready.
+    assert "It was marked ready when the gang could cover it" in crew_body
+    assert "to mark the crew ready" not in crew_body
+
+
+@pytest.mark.django_db
+def test_no_overspend_warning_once_the_charge_has_happened(client, crew_setup):
+    """After the charge the balance is meant to be at zero — warning that the
+    crew is short would be describing the charge itself."""
+    gang = _credit(crew_setup["gang"], 20)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+    charge_crew_spending(user=crew_setup["user"], battle=battle)
+
+    client.force_login(crew_setup["user"])
+    body = client.get(reverse("core:battle", args=[battle.id])).content.decode()
+    assert "spending more than their gang has" not in body
+
+
+@pytest.mark.django_db
+def test_timeline_ignores_crews_of_gangs_no_longer_in_the_battle(crew_setup):
+    """set_participants leaves a dropped gang's crew behind. Counting it would
+    report a step done that isn't — and with no gangs at all, one orphan crew
+    beats a participant count of zero and marks "every gang picked a crew" done."""
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"]])
+    _locked_crew(crew_setup, crew_setup["gang"], crew_setup["fighters"][:1])
+
+    battle.set_participants([])
+    steps = {s["label"]: s for s in battle_timeline(battle)}
+
+    assert steps["Gangs join the battle"]["done"] is False
+    assert steps["Each gang picks a crew"]["done"] is False
+
+
+@pytest.mark.django_db
+def test_end_battle_form_carries_the_draw_hook_and_still_validates(client, crew_setup):
+    """Disabling the winners on a draw is enhancement only — the server has
+    always refused that combination, and still does with the script off."""
+    from gyrinx.core.forms.battle import BattleEndForm
+
+    battle = crew_setup["battle"]
+    battle.set_participants([crew_setup["gang"]])
+    battle.states.transition_to(Battle.IN_PROGRESS)
+
+    client.force_login(crew_setup["user"])
+    body = client.get(reverse("core:battle-end", args=[battle.id])).content.decode()
+    assert f'data-draw-value="{Battle.RESULT_DRAW}"' in body
+    assert "js-end-winners" in body
+    # c-form.choices owns the label, so the widget must not render one too.
+    assert body.count("One or more gangs won") == 1
+
+    form = BattleEndForm(
+        battle=battle,
+        data={"result": Battle.RESULT_DRAW, "winners": [str(crew_setup["gang"].id)]},
+    )
+    assert not form.is_valid()
+    assert "winners" in form.errors
+
+
+@pytest.mark.django_db
+def test_end_battle_form_opens_on_a_win(crew_setup):
+    """Most battles have a winner, so the form opens there rather than making
+    every player state the common case — and the winners stay selectable."""
+    from gyrinx.core.forms.battle import BattleEndForm
+
+    form = BattleEndForm(battle=crew_setup["battle"])
+    assert form["result"].value() == Battle.RESULT_WINNERS
+
+
+@pytest.mark.django_db
+def test_readiness_is_blocked_once_the_battle_has_started(crew_setup):
+    """Gated on the battle having started, not merely on the charge: a battle
+    started before this feature has no charge stamp, and readiness there would
+    be a claim about a fight that already happened."""
+    gang = _credit(crew_setup["gang"], 500)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    crew.refresh_from_db()
+    assert crew.is_charged is False  # charging never ran for this battle
+
+    with pytest.raises(ValidationError, match="already started"):
+        handle_crew_ready(user=crew_setup["user"], crew=crew, ready=True)
+
+
+@pytest.mark.django_db
+def test_started_battle_offers_no_ready_button(client, crew_setup):
+    """The page must not offer a control the handler would refuse. Same legacy
+    case as above: started, never charged, so ``is_charged`` alone would leave
+    the button on screen with nothing behind it."""
+    gang = _credit(crew_setup["gang"], 500)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    client.force_login(crew_setup["user"])
+
+    assert crew.readiness_open is True
+    before = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert "crew-ready" in before.content.decode() or b"Ready" in before.content
+
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    crew.refresh_from_db()
+    assert crew.is_charged is False
+    assert crew.readiness_open is False
+
+    after = client.get(reverse("core:crew", args=[battle.id, crew.id]))
+    assert (
+        reverse("core:crew-ready", args=[battle.id, crew.id])
+        not in after.content.decode()
+    )
+
+
+@pytest.mark.django_db
+def test_started_battle_drops_the_overspend_warning(client, crew_setup):
+    """The battle page's overspend list answers "who can't afford to start?",
+    which is not a question once the battle has started."""
+    gang = crew_setup["gang"]
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    CrewLineItem.objects.create(
+        crew=crew, label="Tactics card", cost=500, owner=crew_setup["user"]
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:battle", args=[battle.id]))
+    assert resp.context["overspending_crews"]
+
+    battle.states.transition_to(Battle.IN_PROGRESS)
+    resp = client.get(reverse("core:battle", args=[battle.id]))
+    assert resp.context["overspending_crews"] == []
+
+
+@pytest.mark.django_db
+def test_receipt_shows_a_zero_rating_rather_than_a_blank(client, crew_setup):
+    """A tactics card is worth nothing and costs 20¢. The rating column says so
+    — a blank cell reads as "not applicable", which is a different claim."""
+    gang = crew_setup["gang"]
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    CrewLineItem.objects.create(
+        crew=crew,
+        label="Tactics card",
+        rating_value=0,
+        cost=20,
+        owner=crew_setup["user"],
+    )
+    client.force_login(crew_setup["user"])
+
+    resp = client.get(reverse("core:crew", args=[crew.battle_id, crew.id]))
+    row = resp.context["receipt"]["extras"][0]
+    assert (row["rating"], row["credits"]) == (0, 20)
+
+    # The three amount cells of the card's own row, in order: rating, credits,
+    # balancing. Checking the page merely contains "0¢" proves nothing — a free
+    # extra and the totals print one too.
+    html = resp.content.decode()
+    tail = html[html.index("Tactics card") :]
+    cells = re.findall(r'<td class="text-end">(.*?)</td>', tail[: tail.index("</tr>")])
+    assert cells == ["0¢", "20¢", ""]
+
+
+@pytest.mark.django_db
+def test_start_page_ignores_crews_of_dropped_gangs(crew_setup):
+    """Every path that counts crews scopes them to gangs still in the battle."""
+    gang = _credit(crew_setup["gang"], 500)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    assert len(battle_start_crew_rows(battle)) == 1
+
+    battle.set_participants([])
+    assert battle_start_crew_rows(battle) == []
+    assert battle_not_ready_gangs(battle) == []
+
+
+@pytest.mark.django_db
+def test_ready_blocker_floors_a_negative_balance(crew_setup):
+    """A gang already in the red can put nothing towards this; a negative
+    'available' would report a shortfall bigger than the crew is spending."""
+    gang = crew_setup["gang"]
+    gang.credits_current = -40
+    gang.save()
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    assert crew.ready_blocker() == {"owed": 50, "available": 0, "short": 50}

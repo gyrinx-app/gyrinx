@@ -14,6 +14,10 @@ from gyrinx.core.forms.battle import (
     BattleRolesForm,
 )
 from gyrinx.core.handlers.battle import (
+    battle_start_crew_rows,
+    battle_timeline,
+    battle_not_ready_gangs,
+    charge_crew_spending,
     handle_battle_end,
     notify_battle_participants,
 )
@@ -120,6 +124,9 @@ class BattleDetailView(generic.DetailView):
         # Get associated campaign actions with related data
         context["actions"] = battle.get_actions().select_related("user", "list")
 
+        # Where the battle has got to, as ordered steps. Read-only.
+        context["timeline"] = battle_timeline(battle)
+
         # Participants grouped by role, each gang carrying its rating and its
         # crew (battle flow step 3: a virtual sub-gang per participating gang).
         self._add_participant_context(context, battle, user)
@@ -135,15 +142,27 @@ class BattleDetailView(generic.DetailView):
         # the "add crew" affordance again rather than a stale crew sub-row.
         crews = list(
             battle.crews.filter(archived=False)
-            .select_related("list")
+            # ``battle`` for readiness_open: it reads the battle's state, and
+            # this loop asks every crew.
+            .select_related("list", "battle")
             .prefetch_related("members", "line_items")
         )
         # Every crew's brought-stash total in one load. Left to themselves the
         # crews would each pay a full equipment prefetch chain — a dozen queries
         # or more apiece, on a page that shows one crew per gang.
         stash_totals = crew_stash_totals(crews)
+        # Crews whose gang can no longer cover what they are spending. Marking
+        # ready is guarded, but a gang can spend elsewhere afterwards, so a crew
+        # can sit "ready" and unaffordable. Warning beats silently un-readying
+        # them: the money is safe either way (the charge floors at zero and
+        # records the shortfall), it is the arbitrator who needs to know.
+        overspending = []
         crew_by_gang = {}
         for crew in crews:
+            if crew.readiness_open:
+                blocker = crew.ready_blocker()
+                if blocker:
+                    overspending.append({"crew": crew, **blocker})
             # The one definition of what a crew is worth right now (pending draw
             # → unknown; whole-gang draft → forecast; else its live/played
             # rating), shared with the crew-page spread so the two can't drift.
@@ -170,6 +189,7 @@ class BattleDetailView(generic.DetailView):
                 "rating_after": None if rating is None else rating + balancing,
                 "pending_roll": pending,
                 "is_forecast": is_forecast,
+                "is_ready": crew.is_ready,
                 "show_rating_note": bool(note and note["differs"]),
                 "rating_note": note,
             }
@@ -236,6 +256,7 @@ class BattleDetailView(generic.DetailView):
                     }
                 )
             groups.append({"role_option": group["role_option"], "participants": rows})
+        context["overspending_crews"] = overspending
         context["participant_groups"] = groups
         # Hide the "No role" group header when nobody has a role assigned — with
         # no roles in play it is just noise above a single list of gangs.
@@ -453,15 +474,57 @@ def start_battle(request, id):
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
-        return _transition_battle(
-            request, battle, Battle.IN_PROGRESS, "This battle cannot be started."
+        # Starting and charging are one unit of work. Charging in its own
+        # transaction and then transitioning would take a gang's credits for a
+        # battle that never started — and worse, credits_charged_at would be
+        # set, so the retry that did start it would charge nobody.
+        #
+        # The transition goes first inside the block so an invalid state returns
+        # before any credits move; a failure in the charge rolls the transition
+        # back with it.
+        try:
+            with transaction.atomic():
+                battle.states.transition_to(Battle.IN_PROGRESS)
+                charges = charge_crew_spending(user=request.user, battle=battle)
+        except InvalidStateTransition:
+            messages.error(request, "This battle cannot be started.")
+            return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+        log_event(
+            user=request.user,
+            noun=EventNoun.BATTLE,
+            verb=EventVerb.UPDATE,
+            object=battle,
+            request=request,
+            action="state_changed",
+            battle_state=Battle.IN_PROGRESS,
+            battle_name=battle.name,
+            campaign_id=str(battle.campaign.id),
+            campaign_name=battle.campaign.name,
         )
+        messages.success(request, f"Battle moved to {battle.states.display}.")
+        for result in charges:
+            if result.shortfall:
+                messages.warning(
+                    request,
+                    f"{result.crew.list.name} could only cover {result.charged}¢ of "
+                    f"{result.owed}¢ — {result.shortfall}¢ is unpaid.",
+                )
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if not battle.can_start():
         messages.error(request, "This battle cannot be started.")
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
-    return render(request, "core/battle/battle_start.html", {"battle": battle})
+    return render(
+        request,
+        "core/battle/battle_start.html",
+        {
+            "battle": battle,
+            "crew_rows": battle_start_crew_rows(battle),
+            "not_ready": battle_not_ready_gangs(battle),
+        },
+    )
 
 
 @login_required
@@ -523,6 +586,9 @@ def end_battle(request, id):
             "battle": battle,
             "form": form,
             "has_participants": battle.participants.exists(),
+            # The template's script compares against this rather than
+            # hardcoding the stored value.
+            "draw_value": Battle.RESULT_DRAW,
         },
     )
 

@@ -542,10 +542,9 @@ def crew_spread_rating(
     whether that figure is provisional. Returns ``(rating, is_provisional)``.
 
     This is the crew's **pre-balancing** rating — fighters, the stash gear it
-    brings, and what the gang spent on extras (see
-    :meth:`Crew.rating_before_balancing` for why balancing and free extras stay
-    out). Callers wanting the post-balancing figure add
-    :meth:`Crew.balancing_total` on top.
+    brings, and what its extras are *worth* (see
+    :meth:`Crew.rating_before_balancing`; what an extra cost is a separate
+    figure and never enters this). Entries the allowance paid for stay out.
 
     The single definition of a crew's comparison rating, so the battle page and
     the crew-page spread can never drift — two copies of this cascade is how
@@ -576,7 +575,10 @@ def crew_spread_rating(
         stash_total = crew.stash_lines()["total"]
     if not crew.is_locked and crew.is_whole_gang and not crew.members.exists():
         forecast = crew_whole_gang_projection(crew)["total"]
-        return forecast + stash_total + crew.spending_total(), True
+        return (
+            forecast + stash_total + crew.extras_rating(exclude_balancing=True),
+            True,
+        )
     return crew.rating_before_balancing(stash_total), False
 
 
@@ -1190,3 +1192,44 @@ def handle_crew_stash_save(*, user, crew: Crew, assignment_ids) -> None:
             crew=crew,
             assignment_id=aid,
         )
+
+
+@traced("handle_crew_ready")
+@transaction.atomic
+def handle_crew_ready(*, user, crew: Crew, ready: bool) -> Crew:
+    """Declare a crew ready for its battle, or withdraw that.
+
+    Readiness is the gang saying "I have finished setting up", and unlike the
+    lock it can be taken back — right up until the battle starts and takes the
+    money. The one rule is that a gang cannot declare itself ready for spending
+    it cannot cover; withdrawing is always allowed, so a gang whose balance
+    drops after saying yes is not trapped.
+    """
+    crew = (
+        Crew.objects.select_for_update()
+        .select_related("list", "battle")
+        .get(pk=crew.pk)
+    )
+    if not crew.readiness_open:
+        raise ValidationError(
+            "This battle has already started — the crew's readiness can no "
+            "longer change."
+        )
+
+    if not ready:
+        crew.ready_at = None
+        crew.ready_by = None
+        crew.save_with_user(user=user, update_fields=["ready_at", "ready_by"])
+        return crew
+
+    blocker = crew.ready_blocker()
+    if blocker:
+        raise ValidationError(
+            f"{crew.list.name} needs {blocker['owed']}¢ to cover this crew's "
+            f"spending but has {blocker['available']}¢ — {blocker['short']}¢ short."
+        )
+
+    crew.ready_at = timezone.now()
+    crew.ready_by = user
+    crew.save_with_user(user=user, update_fields=["ready_at", "ready_by"])
+    return crew
