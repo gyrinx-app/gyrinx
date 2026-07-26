@@ -229,6 +229,8 @@ def test_injuries_edit_page_shows_the_treatment(
     assert "Treated by Bionic eye (mundane)" in content
     # The injury is still listed, and still removable by hand.
     assert "Eye Injury" in content
+    # The wrench is decorative; the name beside it carries the meaning.
+    assert '<i class="bi-wrench-adjustable" aria-hidden="true">' in content
 
 
 @pytest.mark.django_db
@@ -265,6 +267,13 @@ def test_fighter_card_marks_a_treated_injury(
     content = response.content.decode()
     assert "Eye Injury" in content
     assert "Treated by Bionic eye (mundane)" in content
+    # On the card the name is only in a tooltip, so assistive tech needs the
+    # visually-hidden label and the icon itself must stay silent.
+    assert '<i class="bi-wrench-adjustable" aria-hidden="true">' in content
+    assert (
+        '<span class="visually-hidden">— treated by Bionic eye (mundane)</span>'
+        in content
+    )
 
 
 @pytest.mark.django_db
