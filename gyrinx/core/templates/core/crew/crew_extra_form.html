@@ -1,6 +1,6 @@
 {% extends "core/layouts/base.html" %}
 {% block head_title %}
-    {% if item %}Edit extra{% else %}Add extra{% endif %} - {{ crew }}
+    {% if item %}Edit{% else %}Add{% endif %} spending or balancing - {{ crew }}
 {% endblock head_title %}
 {% block content %}
     {% url 'core:crew' battle.id crew.id as crew_url %}
@@ -8,9 +8,9 @@
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">
             {% if item %}
-                Edit extra
+                Edit spending or balancing
             {% else %}
-                Add an extra
+                Add spending or balancing
             {% endif %}
         </h1>
         <p class="text-secondary">
@@ -19,9 +19,13 @@
         </p>
         <form method="post" class="vstack gap-3">
             {% csrf_token %}
-            {{ form.as_div }}
+            <c-errors :form="form" class="mb-0" />
+            <c-form.field :field="form.label" />
+            <c-form.field :field="form.cost" />
+            <c-form.choices :field="form.payment" />
+            <c-form.field :field="form.reason" />
             <c-form.actions intent="save"
-                            submit="Save extra"
+                            submit="Save"
                             cancel="{{ crew_url }}"
                             class="hstack gap-3 align-items-center" />
         </form>

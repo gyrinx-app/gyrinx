@@ -559,7 +559,7 @@ class CrewLoadoutsForm(forms.Form):
 
 
 class CrewLineItemForm(forms.ModelForm):
-    """Add or edit a crew extra (tactics card, etc.) with its payment method."""
+    """Add or edit a crew's spending or balancing, with where the credits come from."""
 
     class Meta:
         model = CrewLineItem
@@ -567,11 +567,15 @@ class CrewLineItemForm(forms.ModelForm):
         labels = {
             "label": "What is it?",
             "cost": "Credits value",
-            "payment": "Paid for with",
+            "payment": "Where do the credits come from?",
             "reason": "Reason",
         }
         help_texts = {
-            "reason": "Optional — note why, when free or from an allowance.",
+            "payment": (
+                "Gang credits are taken from the gang when the battle starts. "
+                "Balancing and free entries are recorded but never charged."
+            ),
+            "reason": "Optional — note why, when free or from balancing.",
         }
         widgets = {
             "label": forms.TextInput(
@@ -581,6 +585,8 @@ class CrewLineItemForm(forms.ModelForm):
                 }
             ),
             "cost": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "payment": forms.Select(attrs={"class": "form-select"}),
+            # Radio, not a select: three options that a player has to weigh
+            # against each other, and only one of which costs them anything.
+            "payment": forms.RadioSelect(attrs={"class": "form-check-input"}),
             "reason": forms.TextInput(attrs={"class": "form-control"}),
         }

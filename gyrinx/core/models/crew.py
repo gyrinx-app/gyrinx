@@ -200,18 +200,20 @@ class Crew(AppBase):
         (HYBRID, "Hybrid Selection"),
     ]
 
-    # Payment / provenance for extra credit-consuming things. Descriptive only:
-    # crews never move real credits. Lives on CrewLineItem.
-    # "Allowance" is the underdog's pre-battle balancing allowance — House
-    # Patronage is only one source of it (see #1346 discussion), so the name
-    # stays source-neutral.
+    # Where an extra's credits come from. Lives on CrewLineItem, and decides
+    # which column it lands in on the crew sheet. Only PAY_CREDITS moves real
+    # money, and only at battle start (see the module docstring).
+    #
+    # The stored value stays "allowance" while the label reads "Balancing":
+    # balancing is what the column is called, and the underdog allowance is only
+    # one source of it — House Patronage is another (see #1346 discussion).
     PAY_CREDITS = "credits"
     PAY_FREE = "free"
     PAY_ALLOWANCE = "allowance"
     PAYMENT_CHOICES = [
         (PAY_CREDITS, "Gang credits"),
         (PAY_FREE, "Free"),
-        (PAY_ALLOWANCE, "Allowance"),
+        (PAY_ALLOWANCE, "Balancing"),
     ]
 
     battle = models.ForeignKey(
@@ -923,15 +925,19 @@ class Crew(AppBase):
         return self.rating() + self.extras_total() + self.stash_lines()["total"]
 
     def receipt(self):
-        """Columnar receipt for the crew page, grouped into Fighters, Stash, and
-        Extras sections. Each fighter contributes to the Rating column; each
-        extra falls in the Credits, Allowance, or Free column by how it is paid
-        for; brought stash items rate at their equipment cost. Returns the
-        grouped rows, the per-column totals (for the annotated subtotal rows),
-        the grand total (the crew's credits value), and the selection note. One
-        batch load; the extras and stash are computed live — the stash selection
-        is editable even after the lock — and only the two rating snapshots are
-        ever persisted."""
+        """Columnar receipt for the crew sheet, grouped into Fighters, Stash and
+        Spending & balancing sections.
+
+        Fighters and brought stash items land in the Fighters & Stash column;
+        each extra lands in Spending or Balancing by how it is paid for, with a
+        free extra shown in Spending at 0¢ rather than in a column of its own.
+        The grand total is what the sheet calls "Total (after balancing)" —
+        exactly :meth:`rating_after_balancing`, because free extras add nothing.
+
+        One batch load. The extras and stash are computed live (the stash
+        selection stays editable after the lock); only the two rating snapshots
+        are ever persisted.
+        """
         lines = self._attendee_lines()
         attendees = [{"rating": cost, **line} for cost, line in lines]
         # The played snapshot is the crew's rating once the battle has frozen
