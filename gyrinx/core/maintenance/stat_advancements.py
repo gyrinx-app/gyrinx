@@ -427,21 +427,30 @@ STAT_NAMES = {
 
 
 def _lines(changes):
-    """Render one bullet per change, grouped under the gang it belongs to."""
+    """Render one bullet per change, grouped under the gang it belongs to.
+
+    Gang and fighter names are user input. The notification template runs the
+    content through a sanitiser, but this builds HTML by concatenation, so
+    escape here too rather than depending on one filter at the far end.
+    """
+
+    from django.utils.html import escape
+
     by_list = {}
     for change in changes:
         by_list.setdefault(change.list_name, []).append(change)
 
     out = []
     for list_name in sorted(by_list):
-        out.append(f"<p><strong>{list_name}</strong></p><ul>")
+        out.append(f"<p><strong>{escape(list_name)}</strong></p><ul>")
         for change in sorted(
             by_list[list_name], key=lambda c: (c.fighter_name, c.stat)
         ):
             stat_name = STAT_NAMES.get(change.stat, change.stat)
             out.append(
-                f"<li>{change.fighter_name} — {stat_name} "
-                f"<strong>{change.displayed_before} → {change.displayed_after}</strong></li>"
+                f"<li>{escape(change.fighter_name)} — {escape(stat_name)} "
+                f"<strong>{escape(change.displayed_before)} → "
+                f"{escape(change.displayed_after)}</strong></li>"
             )
         out.append("</ul>")
     return "".join(out)

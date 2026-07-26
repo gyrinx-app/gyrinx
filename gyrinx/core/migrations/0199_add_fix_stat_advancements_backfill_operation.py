@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0196_convert_legacy_stat_advancements"),
+        ("core", "0198_print_config_include_lore_notes"),
     ]
 
     operations = [

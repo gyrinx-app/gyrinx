@@ -331,3 +331,21 @@ def test_running_twice_changes_nothing_the_second_time(
     assert second.changed == 0, "second run must be a no-op"
     assert second.visible == 0
     assert shown(fighter, "weapon_skill") == before
+
+
+@pytest.mark.django_db
+def test_user_supplied_names_are_escaped_in_messages(
+    user, make_list, make_list_fighter
+):
+    """Gang and fighter names are user input and go into rendered HTML."""
+    lst = make_list("<script>alert('gang')</script>")
+    fighter = make_list_fighter(lst, "<img src=x onerror=alert(1)>")
+    advancement(fighter, user, "toughness", uses_mod_system=False)
+
+    _, _, content = build_messages(build_plan())[0]
+
+    # The markup is neutered, so what remains is inert text rather than tags
+    assert "<script>" not in content
+    assert "<img" not in content
+    assert "&lt;script&gt;" in content
+    assert "&lt;img" in content
