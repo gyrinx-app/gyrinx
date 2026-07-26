@@ -6176,3 +6176,85 @@ def test_battle_page_names_each_gangs_owner_without_a_query_each(
     crew_setup["battle"].set_participants(gangs)
 
     assert _stable_query_count(lambda: render_query_count()[0]) <= many + 2
+
+
+@pytest.mark.django_db
+def test_forecast_crew_rates_extras_by_worth_not_by_price(crew_setup):
+    """The whole-gang forecast branch has to split rating from cost like every
+    other path. It used to add the Spending column instead, which got both cases
+    this split exists for exactly backwards: a free hired gun counted zero, and
+    a tactics card counted its price."""
+    crew = Crew.objects.create(
+        battle=crew_setup["battle"],
+        list=crew_setup["gang"],
+        owner=crew_setup["user"],
+        selection_method=Crew.CUSTOM,
+    )
+    assert crew.is_whole_gang
+    forecast = crew_whole_gang_projection(crew)["total"]
+
+    # Worth 150, cost nothing.
+    _extra(crew, crew_setup["user"], "Free House Agent", 0, Crew.PAY_FREE, rating=150)
+    # Cost 20, worth nothing.
+    _extra(crew, crew_setup["user"], "Tactics Card", 20, Crew.PAY_CREDITS, rating=0)
+
+    rating, provisional = crew_spread_rating(crew)
+    assert provisional is True
+    assert rating == forecast + 150
+
+
+@pytest.mark.django_db
+def test_charging_records_a_list_action_for_the_ledger(crew_setup):
+    """Credits never move without a ListAction: the balance sheet reconciles
+    credits_current against the anchor's credits_before plus every delta, so an
+    unpaired movement breaks that gang's ledger permanently."""
+    from gyrinx.core.models.action import ListAction, ListActionType
+
+    gang = _credit(crew_setup["gang"], 200)
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    before = gang.credits_current
+    charge_crew_spending(user=crew_setup["user"], battle=crew_setup["battle"])
+
+    action = ListAction.objects.filter(
+        list=gang, action_type=ListActionType.UPDATE_CREDITS
+    ).latest("created")
+    assert action.credits_delta == -50
+    assert action.credits_before == before
+    gang.refresh_from_db()
+    assert action.credits_before + action.credits_delta == gang.credits_current
+
+
+@pytest.mark.django_db
+def test_a_gang_dropped_from_the_battle_is_not_charged(crew_setup, make_list):
+    """A gang removed from the battle after picking a crew must not pay for a
+    fight it is no longer in."""
+    gang = _credit(crew_setup["gang"], 200)
+    battle = crew_setup["battle"]
+    battle.set_participants([gang])
+    crew = _locked_crew(crew_setup, gang, crew_setup["fighters"][:1])
+    _extra(crew, crew_setup["user"], "Hired gun", 50, Crew.PAY_CREDITS)
+
+    battle.set_participants([])
+    results = charge_crew_spending(user=crew_setup["user"], battle=battle)
+
+    gang.refresh_from_db()
+    crew.refresh_from_db()
+    assert results == []
+    assert gang.credits_current == 200
+    assert crew.is_charged is False
+
+
+@pytest.mark.django_db
+def test_battle_page_survives_a_gang_with_no_owner(client, crew_setup):
+    """Owned.owner is nullable, and the participants pane links to it — an
+    ownerless gang would raise NoReverseMatch and 500 the page."""
+    gang = crew_setup["gang"]
+    crew_setup["battle"].set_participants([gang])
+    gang.owner = None
+    gang.save()
+
+    client.force_login(crew_setup["user"])
+    resp = client.get(reverse("core:battle", args=[crew_setup["battle"].id]))
+    assert resp.status_code == 200

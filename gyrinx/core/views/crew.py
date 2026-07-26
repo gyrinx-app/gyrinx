@@ -346,7 +346,9 @@ def crew_detail(request, battle_id, crew_id):
             "rating_provisional": rating_provisional,
             # None when the crew can be marked ready; otherwise the numbers
             # behind why not, so the template can phrase it.
-            "ready_blocker": crew.ready_blocker(),
+            # The receipt already totalled the spending; handing it over keeps
+            # this off a second walk of the line items.
+            "ready_blocker": crew.ready_blocker(owed=receipt["credits_total"]),
         },
     )
 

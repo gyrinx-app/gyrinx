@@ -12,16 +12,22 @@ def split_amounts(apps, schema_editor):
     recorded at their worth, and the whole point of the split is that a free
     thing is worth something but costs nothing.
     """
-    CrewLineItem = apps.get_model("core", "CrewLineItem")
-    CrewLineItem.objects.update(rating_value=models.F("cost"))
-    CrewLineItem.objects.filter(payment="free").update(cost=0)
+    for model_name in ("CrewLineItem", "HistoricalCrewLineItem"):
+        # The history table gets the same treatment as the live one. Left
+        # alone, every pre-existing history row would claim the item was worth
+        # nothing, and reverting one through django-simple-history would write
+        # that zero onto the live item.
+        model = apps.get_model("core", model_name)
+        model.objects.update(rating_value=models.F("cost"))
+        model.objects.filter(payment="free").update(cost=0)
 
 
 def unsplit_amounts(apps, schema_editor):
     """Fold the two amounts back into one. A free entry recovers its worth from
     rating_value, which is where it moved."""
-    CrewLineItem = apps.get_model("core", "CrewLineItem")
-    CrewLineItem.objects.filter(payment="free").update(cost=models.F("rating_value"))
+    for model_name in ("CrewLineItem", "HistoricalCrewLineItem"):
+        model = apps.get_model("core", model_name)
+        model.objects.filter(payment="free").update(cost=models.F("rating_value"))
 
 
 class Migration(migrations.Migration):

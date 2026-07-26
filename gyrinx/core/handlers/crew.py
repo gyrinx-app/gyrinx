@@ -542,10 +542,9 @@ def crew_spread_rating(
     whether that figure is provisional. Returns ``(rating, is_provisional)``.
 
     This is the crew's **pre-balancing** rating — fighters, the stash gear it
-    brings, and what the gang spent on extras (see
-    :meth:`Crew.rating_before_balancing` for why balancing and free extras stay
-    out). Callers wanting the post-balancing figure add
-    :meth:`Crew.balancing_total` on top.
+    brings, and what its extras are *worth* (see
+    :meth:`Crew.rating_before_balancing`; what an extra cost is a separate
+    figure and never enters this). Entries the allowance paid for stay out.
 
     The single definition of a crew's comparison rating, so the battle page and
     the crew-page spread can never drift — two copies of this cascade is how
@@ -576,7 +575,10 @@ def crew_spread_rating(
         stash_total = crew.stash_lines()["total"]
     if not crew.is_locked and crew.is_whole_gang and not crew.members.exists():
         forecast = crew_whole_gang_projection(crew)["total"]
-        return forecast + stash_total + crew.spending_total(), True
+        return (
+            forecast + stash_total + crew.extras_rating(exclude_balancing=True),
+            True,
+        )
     return crew.rating_before_balancing(stash_total), False
 
 

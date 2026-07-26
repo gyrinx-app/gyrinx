@@ -20,6 +20,7 @@ from django.utils.html import format_html, format_html_join
 
 from gyrinx.core.handlers.crew import snapshot_played_crew_ratings
 from gyrinx.core.models.battle import Battle
+from gyrinx.core.models.action import ListActionType
 from gyrinx.core.models.campaign import CampaignAction
 from gyrinx.core.models.notification import NotificationType, notify
 from gyrinx.tracing import traced
@@ -241,25 +242,53 @@ def charge_crew_spending(*, user, battle: Battle) -> list:
 
     crews = (
         Crew.objects.select_for_update()
-        .filter(battle=battle, archived=False, credits_charged_at__isnull=True)
+        .filter(
+            battle=battle,
+            archived=False,
+            credits_charged_at__isnull=True,
+            # A gang dropped from the battle after picking a crew must not be
+            # charged for a fight it is no longer in.
+            list__in=battle.participants.all(),
+        )
         .select_related("list")
     )
 
     results = []
     for crew in crews:
         owed = crew.spending_total()
-        # Re-read the balance per crew: two crews can belong to the same gang in
-        # principle, and an earlier charge in this loop moves the balance.
+        # One SELECT hydrates every crew.list, so these balances are all as they
+        # stood before the loop began. That is safe only because a gang can hold
+        # at most one live crew per battle (unique_crew_per_gang_per_battle) —
+        # without that, two crews of the same gang would each charge against the
+        # same starting balance and could overdraw it.
         available = max(0, crew.list.credits_current)
         charged = min(owed, available)
 
         if charged:
+            # A ListAction pairs every credit movement in this codebase, and it
+            # is not optional bookkeeping: cost/balance_sheet.py asserts that
+            # the anchor's credits_before plus the sum of every credits_delta
+            # equals credits_current, and checks each action's before-value
+            # against the previous action's after-value. An unpaired
+            # apply_credit_delta would leave a permanent ledger mismatch and a
+            # broken chain for every gang that ever fought a battle.
+            crew.list.create_action(
+                user=user,
+                action_type=ListActionType.UPDATE_CREDITS,
+                description=f"Crew spending for {battle.name}",
+                rating_delta=0,
+                stash_delta=0,
+                credits_delta=-charged,
+                credits_before=crew.list.credits_current,
+            )
             crew.list.apply_credit_delta(-charged, earned_delta=0)
 
+        crew.credits_owed = owed
         crew.credits_charged = charged
         crew.credits_charged_at = timezone.now()
         crew.save_with_user(
-            user=user, update_fields=["credits_charged", "credits_charged_at"]
+            user=user,
+            update_fields=["credits_owed", "credits_charged", "credits_charged_at"],
         )
 
         if owed:

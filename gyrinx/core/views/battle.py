@@ -461,15 +461,35 @@ def start_battle(request, id):
         return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if request.method == "POST":
-        # Charge before the transition so a failure leaves the battle in
-        # pre-battle rather than started-but-unpaid. Both are in the same
-        # atomic block via the handler, and the charge is idempotent.
-        charges = []
-        if battle.can_start():
-            charges = charge_crew_spending(user=request.user, battle=battle)
-        response = _transition_battle(
-            request, battle, Battle.IN_PROGRESS, "This battle cannot be started."
+        # Starting and charging are one unit of work. Charging in its own
+        # transaction and then transitioning would take a gang's credits for a
+        # battle that never started — and worse, credits_charged_at would be
+        # set, so the retry that did start it would charge nobody.
+        #
+        # The transition goes first inside the block so an invalid state returns
+        # before any credits move; a failure in the charge rolls the transition
+        # back with it.
+        try:
+            with transaction.atomic():
+                battle.states.transition_to(Battle.IN_PROGRESS)
+                charges = charge_crew_spending(user=request.user, battle=battle)
+        except InvalidStateTransition:
+            messages.error(request, "This battle cannot be started.")
+            return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
+
+        log_event(
+            user=request.user,
+            noun=EventNoun.BATTLE,
+            verb=EventVerb.UPDATE,
+            object=battle,
+            request=request,
+            action="state_changed",
+            battle_state=Battle.IN_PROGRESS,
+            battle_name=battle.name,
+            campaign_id=str(battle.campaign.id),
+            campaign_name=battle.campaign.name,
         )
+        messages.success(request, f"Battle moved to {battle.states.display}.")
         for result in charges:
             if result.shortfall:
                 messages.warning(
@@ -477,7 +497,7 @@ def start_battle(request, id):
                     f"{result.crew.list.name} could only cover {result.charged}¢ of "
                     f"{result.owed}¢ — {result.shortfall}¢ is unpaid.",
                 )
-        return response
+        return HttpResponseRedirect(reverse("core:battle", args=[battle.id]))
 
     if not battle.can_start():
         messages.error(request, "This battle cannot be started.")

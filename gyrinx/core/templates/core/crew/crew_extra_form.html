@@ -105,7 +105,12 @@
                 costInput.value = rating.value;
             }
 
-            function update() {
+            // `sync` is false on the initial call. An existing entry can
+            // legitimately cost something other than its rating — a tactics
+            // card is worth 0 and costs 20 — and syncing on load would
+            // overwrite that saved figure the moment the edit page rendered,
+            // corrupting it on the next save.
+            function update(sync) {
                 const checked = form.querySelector('input[name="payment"]:checked');
                 const isFree = checked && checked.value === freeValue;
                 cost.classList.toggle('d-none', isFree);
@@ -113,7 +118,7 @@
                     // Clear on hide so a number the player can no longer see
                     // can't be submitted behind their back.
                     if (costInput) costInput.value = '';
-                } else {
+                } else if (sync) {
                     syncCost();
                 }
             }
@@ -123,8 +128,10 @@
                 if (checked && checked.value === freeValue) return;
                 syncCost();
             });
-            radios.forEach((radio) => radio.addEventListener('change', update));
-            update();
+            radios.forEach((radio) =>
+                radio.addEventListener('change', () => update(true)),
+            );
+            update(false);
         }());
     </script>
 {% endblock content %}

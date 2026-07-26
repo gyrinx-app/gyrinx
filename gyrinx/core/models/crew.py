@@ -356,6 +356,17 @@ class Crew(AppBase):
             "difference is a real debt the arbitrator has to settle."
         ),
     )
+    credits_owed = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "What the crew's spending came to when the battle charged it. "
+            "Snapshotted because the extras stay editable afterwards: the "
+            "shortfall is a fact about that moment, and recomputing it live "
+            "would invent a debt when an extra is added later, or hide a real "
+            "one when an extra is removed."
+        ),
+    )
     credits_charged_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -410,19 +421,29 @@ class Crew(AppBase):
         so anything left over is a real debt: the crew sheet says the gang spent
         this much, and the ledger says it only paid part of it. Surfaced rather
         than left to a campaign action nobody reads.
-        """
-        if self.credits_charged is None:
-            return 0
-        return max(0, self.spending_total() - self.credits_charged)
 
-    def ready_blocker(self):
+        Both halves are snapshots taken at charge time. Measuring against a live
+        ``spending_total()`` would move with edits made afterwards — adding an
+        extra would conjure a debt that was never owed, and deleting one would
+        erase a debt that was.
+        """
+        if self.credits_charged is None or self.credits_owed is None:
+            return 0
+        return max(0, self.credits_owed - self.credits_charged)
+
+    def ready_blocker(self, owed=None):
         """Why this crew can't be marked ready, or ``None`` if it can.
 
         Only one rule today: the gang has to be able to cover what the crew
         spends. Returns the numbers rather than a sentence so the template can
         phrase it and the handler can reuse the same check.
+
+        ``owed`` lets a caller that has already totalled the spending pass it in
+        — the crew sheet builds a receipt first, and recomputing here would walk
+        the line items a second time for a number it already has.
         """
-        owed = self.spending_total()
+        if owed is None:
+            owed = self.spending_total()
         available = self.list.credits_current
         if owed <= available:
             return None
@@ -955,7 +976,8 @@ class Crew(AppBase):
         each extra lands in Spending or Balancing by how it is paid for, with a
         free extra shown in Spending at 0¢ rather than in a column of its own.
         The grand total is what the sheet calls "Total (after balancing)" —
-        exactly :meth:`rating_after_balancing`, because free extras add nothing.
+        exactly :meth:`rating_after_balancing`. Both count what every extra is
+        *worth*, including the free ones, and neither counts what was paid.
 
         One batch load. The extras and stash are computed live (the stash
         selection stays editable after the lock); only the two rating snapshots

@@ -126,7 +126,7 @@
                 and is kept only as a record — it can no longer be edited.
             </div>
         {% endif %}
-        {% if ready_blocker %}
+        {% if ready_blocker and not crew.is_charged %}
             <c-callout variant="warning" class="mb-0">
                 <strong>{{ ready_blocker.short }}¢ short.</strong>
                 This crew spends {{ ready_blocker.owed }}¢ but {{ crew.list.name }} has

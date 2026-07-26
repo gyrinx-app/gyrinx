@@ -127,8 +127,11 @@
                                                 <tr>
                                                     <td>
                                                         <a href="{% url 'core:list' p.list.id %}" class="linked fw-semibold">{% list_with_theme p.list %}</a>
-                                                        <span class="text-secondary fs-7"><i class="bi-person"></i> <a href="{% url 'core:user' p.list.owner.username %}"
+                                                        {% if p.list.owner %}
+                                                            {# Owned.owner is nullable; the url tag would raise on an ownerless gang. #}
+                                                            <span class="text-secondary fs-7"><i class="bi-person"></i> <a href="{% url 'core:user' p.list.owner.username %}"
     class="linked-secondary">{{ p.list.owner }}</a>{% user_badge p.list.owner %}</span>
+                                                        {% endif %}
                                                         {% if p.is_winner %}
                                                             <i class="bi-trophy-fill text-warning"
                                                                data-bs-toggle="tooltip"
