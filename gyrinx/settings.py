@@ -113,7 +113,11 @@ INSTALLED_APPS = [
     "daphne",
     # Added so we can override templates
     "django.forms",
-    "django.contrib.admin",
+    # Replaces "django.contrib.admin": swaps in an AdminSite whose login view
+    # redirects into allauth (so admin sessions get the same 2FA challenge as
+    # app sessions) instead of rendering Django's own username/password form.
+    # See gyrinx/admin_site.py.
+    "gyrinx.admin_site.GyrinxAdminConfig",
     "django.contrib.auth",
     "polymorphic",
     "django.contrib.contenttypes",
@@ -273,6 +277,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 LOGIN_REDIRECT_URL = "/"
+# Everything that needs a login — including the Django admin — goes through
+# allauth, which applies the MFA stage.
+LOGIN_URL = "account_login"
 
 # Allauth settings
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
@@ -299,6 +306,12 @@ USERSESSIONS_TRACK_ACTIVITY = True
 # https://docs.allauth.org/en/latest/mfa/introduction.html
 MFA_TOTP_ISSUER = "Gyrinx"  # This will appear in the authenticator app
 MFA_SUPPORTED_TYPES = ["totp"]  # Only support TOTP, not SMS or recovery codes initially
+
+# Require staff to hold a second factor, and to have used it in the current
+# session, before the Django admin will let them in. Staff who fall short are
+# redirected into allauth's TOTP setup or challenge — never locked out.
+# See gyrinx/admin_site.py.
+ADMIN_REQUIRE_MFA = os.getenv("ADMIN_REQUIRE_MFA", "True") == "True"
 
 
 # Password validation

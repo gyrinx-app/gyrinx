@@ -19,8 +19,10 @@ from debug_toolbar.toolbar import debug_toolbar_urls
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.admindocs import urls as admindocs_urls
 from django.urls import include, path, re_path
 
+from gyrinx.admin_site import admin_gated_patterns
 from gyrinx.core.views import debug as debug_views
 from gyrinx.core.views import print_lab as print_lab_views
 from gyrinx.pages import views
@@ -75,7 +77,11 @@ urlpatterns = (
         path("api/", include("gyrinx.api.urls")),
         path("tasks/", include("gyrinx.tasks.urls")),
         path("accounts/", include("allauth.urls")),
-        path("admin/doc/", include("django.contrib.admindocs.urls")),
+        # admindocs decorates its views with staff_member_required, which knows
+        # nothing about the admin's 2FA gate — route it through the same check.
+        # A bare list keeps admindocs' URL names unnamespaced, as base_site.html
+        # expects.
+        path("admin/doc/", include(admin_gated_patterns(admindocs_urls.urlpatterns))),
         path("400/", views.error_400, name="error_400"),
         path("403/", views.error_403, name="error_403"),
         path("404/", views.error_404, name="error_404"),

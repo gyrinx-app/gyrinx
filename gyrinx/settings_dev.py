@@ -49,6 +49,12 @@ if "runserver" in sys.argv and not _UNDER_PYTEST:
 # Disable secure cookies for local development
 CSRF_COOKIE_SECURE = False
 
+# Local admin access doesn't demand a second factor by default — seeded dev users
+# have no authenticator. The redirect of /admin/login/ into allauth still applies.
+# Set ADMIN_REQUIRE_MFA=True to exercise the production gate locally; tests that
+# cover it use override_settings.
+ADMIN_REQUIRE_MFA = os.getenv("ADMIN_REQUIRE_MFA", "False") == "True"
+
 # Allow local hosts for development
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "testserver"]
 
