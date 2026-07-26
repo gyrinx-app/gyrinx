@@ -411,7 +411,7 @@ def _describe_copy_result(copied: CopyResult) -> str:
             parts.append(f"{count} {noun}{'' if count == 1 else 's'}")
 
     if not parts:
-        return "Nothing was copied — the template was empty."
+        return "Nothing was copied — the template was empty"
 
     return f"Copied {', '.join(parts)}"
 

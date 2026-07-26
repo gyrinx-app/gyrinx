@@ -41,6 +41,22 @@ def _get_template_campaign(request):
         raise Http404("No such template campaign.")
 
 
+def _resolve_template_campaign(request):
+    """Resolve the requested template, tolerating one that vanished mid-form.
+
+    Returns ``(template_campaign, missing)``. A bad template is a 404 on GET,
+    but on POST the user has already typed a name, summary and narrative — so
+    if the template was archived or un-flagged in the meantime we report it and
+    re-render rather than throwing their work away with an error page.
+    """
+    try:
+        return _get_template_campaign(request), False
+    except Http404:
+        if request.method != "POST":
+            raise
+        return None, True
+
+
 @login_required
 @transaction.atomic
 def new_campaign(request):
@@ -62,11 +78,18 @@ def new_campaign(request):
 
     :template:`core/campaign/campaign_new.html`
     """
-    template_campaign = _get_template_campaign(request)
+    template_campaign, template_missing = _resolve_template_campaign(request)
     error_message = None
     if request.method == "POST":
         form = NewCampaignForm(request.POST)
-        if form.is_valid():
+        if template_missing:
+            messages.error(
+                request,
+                "That template is no longer available, so nothing has been "
+                "copied. Create the Campaign as it stands, or start again from "
+                "another template.",
+            )
+        elif form.is_valid():
             campaign = form.save(commit=False)
             campaign.owner = request.user
             campaign.save()

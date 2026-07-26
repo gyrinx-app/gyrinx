@@ -1428,5 +1428,41 @@ def test_new_campaign_from_an_empty_template(client, user, make_campaign):
 
     campaign = Campaign.objects.get(name="Nothing Copied")
     action = campaign.actions.get()
-    assert action.outcome == "Nothing was copied — the template was empty."
+    assert action.outcome == "Nothing was copied — the template was empty"
     assert campaign.resource_types.get().name == "Reputation"
+
+
+@pytest.mark.django_db
+def test_template_archived_mid_form_keeps_what_was_typed(
+    client, user, template_campaign
+):
+    """Losing the template on submit reports it rather than 404ing away the form."""
+    client.force_login(user)
+    url = reverse("core:campaigns-new") + f"?template={template_campaign.id}"
+
+    # The form was loaded while the template was live...
+    assert client.get(url).status_code == 200
+
+    # ...and archived before it was submitted.
+    template_campaign.archived = True
+    template_campaign.save()
+
+    response = client.post(
+        url,
+        {
+            "name": "Half Typed",
+            "summary": "",
+            "narrative": "<p>Hours of lore</p>",
+            "budget": 1000,
+        },
+    )
+
+    assert response.status_code == 200
+    assert not Campaign.objects.filter(name="Half Typed").exists()
+
+    content = response.content.decode()
+    assert "That template is no longer available" in content
+    assert "Half Typed" in content
+    assert "Hours of lore" in content
+    # The form no longer points at the dead template.
+    assert response.context["template_campaign"] is None
