@@ -1412,3 +1412,21 @@ def test_new_campaign_without_template_logs_no_action(client, user):
     )
 
     assert not Campaign.objects.get(name="Unlogged").actions.exists()
+
+
+@pytest.mark.django_db
+def test_new_campaign_from_an_empty_template(client, user, make_campaign):
+    """A template with nothing in it still creates a campaign, and says as much."""
+    empty = make_campaign("Empty Starter", template=True)
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaigns-new") + f"?template={empty.id}",
+        {"name": "Nothing Copied", "summary": "", "narrative": "", "budget": 1500},
+    )
+    assert response.status_code == 302
+
+    campaign = Campaign.objects.get(name="Nothing Copied")
+    action = campaign.actions.get()
+    assert action.outcome == "Nothing was copied — the template was empty."
+    assert campaign.resource_types.get().name == "Reputation"

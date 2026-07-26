@@ -353,9 +353,12 @@ def apply_campaign_template(
     copied here — it is a visible field on that form, prefilled from the template,
     so whatever the user submitted wins.
 
-    Two fields are deliberately left alone: `group_attribute_type` and
-    `default_gang_sort` both hold IDs pointing at the template's own rows, and
-    copying them verbatim would aim the new campaign at the template's data.
+    Two fields are deliberately left alone. `group_attribute_type` is an FK to
+    one of the template's own attribute types, and `default_gang_sort` can
+    encode a resource type id (`-resource:<id>`); copied verbatim, either would
+    aim the new campaign at the template's rows. Both would need remapping onto
+    the freshly-copied equivalents to mean anything here. Portable sort values
+    such as `-wealth` get dropped along with them rather than special-cased.
     """
     copied = copy_campaign_content(
         source_campaign=template_campaign,
