@@ -1425,10 +1425,14 @@ class ListFighter(AppBase):
         Deliberately NOT a second ``cached_property``. Callers invalidate the
         mod cache with ``del fighter._mods`` — the idiom used throughout the
         test suite — and a separate cache would survive that and go stale.
-        Sources are stashed by ``_mods`` itself, so the two can never diverge.
+        The pairs are stashed by ``_mods`` itself, so the two can never diverge.
+
+        Returns the stored list rather than zipping on demand: ``statline``
+        asks for the sources of every stat in turn, so a rebuild here would run
+        a dozen times per fighter on the gang page.
         """
-        mods = self._mods  # populates _mod_sources as a side effect
-        return list(zip(mods, self._mod_sources))
+        self._mods  # populates _mod_pairs as a side effect
+        return self._mod_pairs
 
     @cached_property
     @traced("listfighter_mods")
@@ -1436,7 +1440,7 @@ class ListFighter(AppBase):
         """Every modification applying to this fighter, in application order.
 
         Alongside the mods it records what applied each one, in
-        ``self._mod_sources`` — read through ``_mods_with_sources``. The source
+        ``self._mod_pairs`` — read through ``_mods_with_sources``. The source
         is carried beside the modification rather than set on it: ``ContentMod``
         rows are shared library content and the same instance can be reached
         from several fighters through the prefetch cache, so writing to one
@@ -1531,7 +1535,7 @@ class ListFighter(AppBase):
             + injury_mods
             + pack_mods
         )
-        self._mod_sources = [source for _, source in pairs]
+        self._mod_pairs = pairs
         return [mod for mod, _ in pairs]
 
     @traced("listfighter_apply_mods")
