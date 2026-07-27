@@ -269,7 +269,10 @@
                     {% for entry in fighter.injuries_display %}
                         {% if not forloop.first %},{% endif %}
                         {% if entry.is_treated %}
-                            <span class="text-secondary" title="Treated by {{ entry.treated_by }}">{{ entry.injury.injury.name }}
+                            <span bs-tooltip
+                                  data-bs-toggle="tooltip"
+                                  class="tooltipped"
+                                  title="Treated by {{ entry.treated_by }}">{{ entry.injury.injury.name }}
                                 <c-icon name="wrench-adjustable" />
                                 <span class="visually-hidden">— treated by {{ entry.treated_by }}</span></span>
                         {% else %}

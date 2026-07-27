@@ -4,38 +4,45 @@
     Edit Injuries - {{ fighter.name }} - {{ list.name }}
 {% endblock head_title %}
 {% block content %}
-    {% include "core/includes/list_common_header.html" with list=list link_list="true" %}
+    {% include "core/includes/list_common_header.html" with list=list link_list="true" fighter=fighter fighter_url_name="core:list-fighter-injuries-edit" %}
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Edit {{ fighter.term_injury_plural }}: {{ fighter.name }}</h1>
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <strong>{{ fighter.term_singular }} State:</strong>
-                        <span class="badge {% if fighter.is_injured %}text-bg-warning{% elif fighter.is_dead %}text-bg-danger{% else %}text-bg-success{% endif %} ms-2">
-                            {{ fighter.get_injury_state_display }}
-                        </span>
-                    </div>
-                    <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
-                       class="btn btn-secondary btn-sm">
-                        <i class="bi-pencil"></i>
-                        Update {{ fighter.term_singular }} State
-                    </a>
+        <div class="d-flex flex-wrap gap-3 border-bottom pb-3 mb-2">
+            <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                <div class="caps-label">{{ fighter.term_singular }} state</div>
+                <div>
+                    <c-badge state="{{ fighter.injury_state }}">
+                        {{ fighter.get_injury_state_display }}
+                    </c-badge>
                 </div>
+                <a href="{% url 'core:list-fighter-state-edit' list.id fighter.id %}"
+                   class="fs-7 linked">Update state</a>
+            </div>
+            <div class="flex-grow-1 col-md-3 flex-md-grow-0">
+                <div class="caps-label">{{ fighter.term_injury_plural }}</div>
+                <div>{{ fighter.injuries_display|length }}</div>
             </div>
         </div>
-        {% if fighter.injuries_display %}
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Current {{ fighter.term_injury_plural }}</h5>
+        <section>
+            <div class="section-header mb-2">
+                <h2 class="h5 mb-0">{{ fighter.term_injury_plural }}</h2>
+                <div class="hstack gap-2 section-actions">
+                    <span>
+                        <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
+                           class="icon-link linked fs-7">
+                            <i class="bi-plus-lg"></i> Add {{ fighter.term_injury_singular }}
+                        </a>
+                    </span>
                 </div>
-                <div class="card-body mb-last-0">
-                    <table class="table table-sm table-borderless">
+            </div>
+            <div class="px-2">
+                {% if fighter.injuries_display %}
+                    <table class="table table-sm table-borderless mb-0 fs-7">
                         <thead>
                             <tr>
                                 <th>{{ fighter.term_injury_singular }}</th>
                                 <th>Received</th>
-                                <th>
+                                <th class="text-end">
                                     <span class="visually-hidden">Actions</span>
                                 </th>
                             </tr>
@@ -45,14 +52,16 @@
                                 <tr>
                                     <td rowspan="{{ entry.row_span }}">{{ entry.injury.injury.name }}</td>
                                     <td>{{ entry.injury.date_received|date:"M j, Y" }}</td>
-                                    <td>
+                                    <td class="text-end">
                                         <a href="{% url 'core:list-fighter-injury-remove' list.id fighter.id entry.injury.id %}"
-                                           class="link-danger">Remove</a>
+                                           class="link-danger icon-link">
+                                            <i class="bi-trash"></i> Remove
+                                        </a>
                                     </td>
                                 </tr>
                                 {% if entry.is_treated %}
                                     <tr>
-                                        <td colspan="2" class="ps-4 fs-7 text-secondary">
+                                        <td colspan="2" class="text-secondary">
                                             <c-icon name="wrench-adjustable" />
                                             Treated by {{ entry.treated_by }}
                                         </td>
@@ -60,7 +69,7 @@
                                 {% endif %}
                                 {% if entry.injury.notes %}
                                     <tr>
-                                        <td colspan="2" class="ps-4 fs-7 text-secondary">
+                                        <td colspan="2" class="ps-4 text-secondary">
                                             <em>{{ entry.injury.notes }}</em>
                                         </td>
                                     </tr>
@@ -68,21 +77,12 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                </div>
+                {% else %}
+                    <p class="text-secondary mb-0">{{ fighter.proximal_demonstrative }} has no {{ fighter.term_injury_plural|lower }}.</p>
+                {% endif %}
             </div>
-        {% else %}
-            <div class="alert alert-info alert-icon mb-0" role="alert">
-                <i class="bi-info-circle"></i>
-                <div>{{ fighter.proximal_demonstrative }} has no {{ fighter.term_injury_plural|lower }}.</div>
-            </div>
-        {% endif %}
-        <div>
-            <a href="{% url 'core:list-fighter-injury-add' list.id fighter.id %}"
-               class="btn btn-primary">
-                <i class="bi-plus-lg"></i> Add {{ fighter.term_injury_singular }}
-            </a>
-            <a href="{% url 'core:list' list.id %}#{{ fighter.id }}"
-               class="btn btn-link">Cancel</a>
-        </div>
+        </section>
+        <c-back url="{% url 'core:list' list.id %}#{{ fighter.id }}"
+                text="{{ list.name }}" />
     </div>
 {% endblock content %}
