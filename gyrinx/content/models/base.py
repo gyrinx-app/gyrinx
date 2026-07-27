@@ -143,3 +143,7 @@ class StatlineDisplay:
     classes: str = ""
     modded: bool = False
     highlight: bool = False
+    # What changed this stat, for the tooltip — "Eye Injury", "Bionic eye
+    # (mundane), Eye Injury". Empty when nothing did, or when the value moved
+    # through an override rather than a modification.
+    modded_by: str = ""

@@ -359,3 +359,66 @@ def test_classic_print_card_leaves_an_untreated_injury_bare(injured_fighter):
     from gyrinx.core.print_cards import card_from_fighter
 
     assert card_from_fighter(injured_fighter).injuries == ["Eye Injury"]
+
+
+def _stat_display(fighter, field_name):
+    return next(s for s in fighter.statline if s.field_name == field_name)
+
+
+@pytest.mark.django_db
+def test_statline_names_the_injury_that_changed_a_stat(injured_fighter):
+    """The tooltip should say what moved the stat, not just that something did."""
+    bs = _stat_display(injured_fighter, "ballistic_skill")
+
+    assert bs.modded
+    assert bs.modded_by == "Eye Injury"
+
+
+@pytest.mark.django_db
+def test_statline_names_every_source_in_application_order(
+    injured_fighter, bionic_eye, eye_injury
+):
+    """An offset stat is touched twice — both sources are named."""
+    ContentEquipmentInjuryLink.objects.create(equipment=bionic_eye, injury=eye_injury)
+    fighter = _assign(injured_fighter, bionic_eye)
+
+    bs = _stat_display(fighter, "ballistic_skill")
+
+    # Equipment applies before injuries, so it is named first.
+    assert bs.modded_by == "Bionic eye (mundane), Eye Injury"
+
+
+@pytest.mark.django_db
+def test_suppressed_injury_is_not_named_as_a_source(
+    injured_fighter, make_equipment, eye_injury
+):
+    """A suppressed injury no longer modifies the stat, so it isn't credited."""
+    cyberteknika = make_equipment(
+        "Ocular Cyberteknika", category="Status Items", cost=50
+    )
+    ContentEquipmentInjuryLink.objects.create(
+        equipment=cyberteknika,
+        injury=eye_injury,
+        mode=ContentEquipmentInjuryLink.Mode.SUPPRESS,
+    )
+    fighter = _assign(injured_fighter, cyberteknika)
+
+    assert "Eye Injury" not in _stat_display(fighter, "ballistic_skill").modded_by
+
+
+@pytest.mark.django_db
+def test_unmodified_stat_has_no_source(injured_fighter):
+    assert _stat_display(injured_fighter, "strength").modded_by == ""
+
+
+@pytest.mark.django_db
+def test_statline_tooltip_renders_the_source(client, injured_fighter, user):
+    """The gang page shows the specific source rather than the catch-all."""
+    client.force_login(user)
+
+    content = client.get(
+        reverse("core:list", args=(injured_fighter.list.id,))
+    ).content.decode()
+
+    assert 'title="Modified by Eye Injury"' in content
+    assert "Modified by equipment, accessories" not in content

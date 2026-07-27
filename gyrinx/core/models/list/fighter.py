@@ -1418,15 +1418,44 @@ class ListFighter(AppBase):
 
     # Stats & rules
 
+    @property
+    def _mods_with_sources(self) -> pylist[tuple]:
+        """``(mod, source)`` pairs, where source names what applied the mod.
+
+        Deliberately NOT a second ``cached_property``. Callers invalidate the
+        mod cache with ``del fighter._mods`` — the idiom used throughout the
+        test suite — and a separate cache would survive that and go stale.
+        Sources are stashed by ``_mods`` itself, so the two can never diverge.
+        """
+        mods = self._mods  # populates _mod_sources as a side effect
+        return list(zip(mods, self._mod_sources))
+
     @cached_property
     @traced("listfighter_mods")
-    def _mods(self):
+    def _mods(self) -> pylist:
+        """Every modification applying to this fighter, in application order.
+
+        Alongside the mods it records what applied each one, in
+        ``self._mod_sources`` — read through ``_mods_with_sources``. The source
+        is carried beside the modification rather than set on it: ``ContentMod``
+        rows are shared library content and the same instance can be reached
+        from several fighters through the prefetch cache, so writing to one
+        would leak a label across gangs.
+
+        Sources are what the statline tooltip shows ("Modified by Eye Injury"),
+        so they name the thing a player would recognise — the item, the injury —
+        rather than the internal model.
+        """
         from gyrinx.core.models.list.advancement import AdvancementStatMod
 
-        # Remember: virtual and needs flattening!
-        equipment_mods = [
-            mod for assign in self.assignments_cached for mod in assign.mods
-        ]
+        # Remember: virtual and needs flattening! One label per assignment
+        # rather than per mod, so gear with several modifications is resolved
+        # once.
+        equipment_mods = []
+        for assign in self.assignments_cached:
+            equipment = assign.equipment
+            label = str(equipment.name) if equipment is not None else "Equipment"
+            equipment_mods.extend((mod, label) for mod in assign.mods)
 
         # Add injury mods if in campaign mode
         injury_mods = []
@@ -1443,14 +1472,15 @@ class ListFighter(AppBase):
                 # cancels them. Only a suppressing treatment drops them.
                 if injury.injury_id in suppressed:
                     continue
-                injury_mods.extend(injury.injury.modifiers.all())
+                name = str(injury.injury.name)
+                injury_mods.extend((mod, name) for mod in injury.injury.modifiers.all())
 
         # Add advancement mods for stat advancements using the mod system
         # (not legacy override fields)
         # Note: Use .all() with Python filtering to leverage prefetched data.
         # Using .filter() would bypass the prefetch cache and cause N+1 queries.
         advancement_mods = [
-            AdvancementStatMod(adv.stat_increased)
+            (AdvancementStatMod(adv.stat_increased), "Advancement")
             for adv in self.advancements.all()
             if (
                 not adv.archived
@@ -1466,12 +1496,17 @@ class ListFighter(AppBase):
         roll_result_mods = []
         for result in self.roll_results.all():
             if not result.archived:
-                roll_result_mods.extend(result.row.modifiers.all())
+                label = str(getattr(result.row, "name", "") or "Roll result")
+                roll_result_mods.extend(
+                    (mod, label) for mod in result.row.modifiers.all()
+                )
 
         # Pack-scoped house-rule mods targeting this fighter's content_fighter
         # (e.g. "fighter X gets +1 toughness as a house rule"). Empty when no
         # packs are subscribed.
-        pack_mods = list(self.list.pack_mods_for(self.content_fighter))
+        pack_mods = [
+            (mod, "House rule") for mod in self.list.pack_mods_for(self.content_fighter)
+        ]
 
         # The fighter's own permanent improvements — advancements and roll
         # results — come first, so that a "set" from equipment still wins. A
@@ -1489,13 +1524,15 @@ class ListFighter(AppBase):
         # stat-linked one, so a plain stat driven below zero mid-chain can come
         # out formatted as "+1" rather than "1" depending on order. That is a
         # parser bug rather than something this ordering should work around.
-        return (
+        pairs = (
             advancement_mods
             + roll_result_mods
             + equipment_mods
             + injury_mods
             + pack_mods
         )
+        self._mod_sources = [source for _, source in pairs]
+        return [mod for mod, _ in pairs]
 
     @traced("listfighter_apply_mods")
     def _apply_mods(
@@ -1632,11 +1669,15 @@ class ListFighter(AppBase):
         Includes both ContentModFighterStat (from equipment/injuries) and
         AdvancementStatMod (from stat advancements using the mod system).
         """
+        return [mod for mod, _ in self._statmods_with_sources(stat)]
+
+    def _statmods_with_sources(self, stat: str) -> pylist[tuple]:
+        """``_statmods`` with each mod paired with what applied it."""
         from gyrinx.core.models.list.advancement import AdvancementStatMod
 
         return [
-            mod
-            for mod in self._mods
+            (mod, source)
+            for mod, source in self._mods_with_sources
             if isinstance(mod, (ContentModFighterStat, AdvancementStatMod))
             and mod.stat == stat
         ]
@@ -1718,15 +1759,22 @@ class ListFighter(AppBase):
                     input_value = value_override
 
             # Apply the mods
-            statmods = self._statmods(stat["field_name"])
+            statmods_with_sources = self._statmods_with_sources(stat["field_name"])
             value = self._apply_mods(
                 stat["field_name"],
                 input_value,
-                statmods,
+                [mod for mod, _ in statmods_with_sources],
                 mod_ctx,
             )
 
             modded = value != stat["value"]
+            # De-duplicated in application order: two mods from the same item
+            # name it once.
+            sources = []
+            for _, source in statmods_with_sources:
+                if source and source not in sources:
+                    sources.append(source)
+
             sd = StatlineDisplay(
                 name=stat["name"],
                 field_name=stat["field_name"],
@@ -1734,6 +1782,7 @@ class ListFighter(AppBase):
                 highlight=stat["highlight"],
                 value=value,
                 modded=modded,
+                modded_by=", ".join(sources),
             )
             stats.append(sd)
 
