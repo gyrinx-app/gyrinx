@@ -30,8 +30,11 @@ advancements and M counts live mod-system ones:
 8. The stat value cannot be parsed. Left for manual repair.
 """
 
+import contextlib
 import logging
 import re
+
+from django.db import transaction
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -67,7 +70,17 @@ SITUATION_LABELS = {
     7: "manual edit alongside working advancements — left alone",
     8: "stat value cannot be parsed — left alone",
     9: "already handled by an earlier run — left alone",
+    10: "re-resolution disagreed with the proposal — left alone",
 }
+
+# What re-resolving the fighter's card must show for a proposal to be accepted.
+# Situation 1 exists to leave the card untouched. Situation 2 normalises how the
+# value is written ("6" becomes the 6" the mod system renders), so the number
+# must hold even though the string changes. Situations 3, 5 and 6 exist to
+# correct the card, so they must actually move it.
+EXPECT_UNCHANGED = {1}
+EXPECT_SAME_NUMBER = {2}
+EXPECT_CHANGED = {3, 5, 6}
 
 ACTED_ON = {1, 2, 3, 5, 6}
 NOTIFIED = {3: GAIN, 5: LOSS, 6: LOSS}
@@ -89,6 +102,7 @@ class Change:
     flip_advancements: bool
     displayed_before: Optional[str] = None
     displayed_after: Optional[str] = None
+    archived: bool = False
 
     @property
     def acted_on(self):
@@ -96,8 +110,15 @@ class Change:
 
     @property
     def visible_to_player(self):
+        """Whether this earns the owner a message.
+
+        Archived gangs are still repaired — the data should be right if they
+        are ever restored — but nobody wants to hear about a gang they put
+        away months ago.
+        """
         return (
             self.situation in NOTIFIED
+            and not self.archived
             and self.displayed_before != self.displayed_after
             and self.displayed_after is not None
         )
@@ -124,6 +145,53 @@ class Plan:
     @property
     def visible(self):
         return [c for c in self.changes if c.visible_to_player]
+
+
+def rendered(fighter, stat):
+    """The value the fighter's card shows for this stat, resolved fresh.
+
+    Drops the cached properties first — the caller mutates the fighter in
+    memory, and a stale cache would report the value from before the change.
+    """
+    for prop in ("_mods", "_mod_pairs", "statline"):
+        fighter.__dict__.pop(prop, None)
+    for entry in fighter.statline:
+        if entry.field_name == stat:
+            return entry.value
+    return None
+
+
+@contextlib.contextmanager
+def applied_in_memory(fighter, stat, override_after, flip):
+    """Apply a proposal to the in-memory fighter, then put it back.
+
+    Nothing is saved. This exists so a proposal can be judged by what the card
+    actually renders rather than by arithmetic predicting it — every bug in
+    this work came from predicting.
+    """
+    field = f"{stat}_override"
+    original = getattr(fighter, field)
+    flipped = []
+
+    setattr(fighter, field, override_after)
+    if flip:
+        for adv in fighter.advancements.all():
+            if (
+                adv.advancement_type == "stat"
+                and adv.stat_increased == stat
+                and not adv.archived
+                and not adv.uses_mod_system
+            ):
+                adv.uses_mod_system = True
+                flipped.append(adv)
+    try:
+        yield
+    finally:
+        setattr(fighter, field, original)
+        for adv in flipped:
+            adv.uses_mod_system = False
+        for prop in ("_mods", "_mod_pairs", "statline"):
+            fighter.__dict__.pop(prop, None)
 
 
 def numeric(value):
@@ -174,10 +242,15 @@ def previously_handled():
     from gyrinx.core.models import Backfill
 
     handled = set()
-    summaries = Backfill.objects.filter(
-        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
-        status=Backfill.Status.DONE,
-    ).values_list("summary", flat=True)
+    # Every status except CANCELLED. A run that died partway still changed
+    # data, and its record is the only thing that stops the next run reading
+    # those repairs as the bug they resemble. Filtering to DONE would leave
+    # exactly the interrupted case unprotected.
+    summaries = (
+        Backfill.objects.filter(operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS)
+        .exclude(status=Backfill.Status.CANCELLED)
+        .values_list("summary", flat=True)
+    )
     for summary in summaries:
         handled.update((summary or {}).get("acted_pairs") or [])
     return handled
@@ -269,9 +342,47 @@ def build_plan(skip_pairs=None):
                 mod_ctx=mod_ctx,
             )
             if change is not None:
-                plan.changes.append(change)
+                plan.changes.append(_verify(fighter, change))
 
     return plan
+
+
+def _verify(fighter, change):
+    """Judge a proposal by re-resolving the card, not by arithmetic.
+
+    Applies it in memory and reads the stat back. Situations that exist to
+    leave the card alone must not move it; those that exist to correct it must.
+    A proposal failing its own expectation is downgraded and left alone — which
+    is how a value swallowed by a "set" from equipment, or an odd base format,
+    gets caught without having to be anticipated.
+
+    The recorded before/after are the real rendered values, so the messages
+    sent to players describe what actually happened.
+    """
+    if not change.acted_on:
+        return change
+
+    before = rendered(fighter, change.stat)
+    with applied_in_memory(
+        fighter, change.stat, change.override_after, change.flip_advancements
+    ):
+        after = rendered(fighter, change.stat)
+
+    change.displayed_before = before
+    change.displayed_after = after
+
+    unchanged = before == after
+    same_number = numeric(before) is not None and numeric(before) == numeric(after)
+    if (
+        (change.situation in EXPECT_UNCHANGED and not unchanged)
+        or (change.situation in EXPECT_SAME_NUMBER and not same_number)
+        or (change.situation in EXPECT_CHANGED and unchanged)
+    ):
+        change.situation = 10
+        change.override_after = change.override_before
+        change.flip_advancements = False
+        change.displayed_after = before
+    return change
 
 
 def _classify(
@@ -566,13 +677,11 @@ def run(*, notify=True, triggered_by=None):
 
     plan = build_plan()
     messages = build_messages(plan)
-    changed = apply_plan(plan)
-    sent = send_messages(messages) if notify else 0
 
     result = ApplyResult(
-        changed=changed,
+        changed=len(plan.acted_on),
         visible=len(plan.visible),
-        messages_sent=sent,
+        messages_sent=0,
         by_situation=plan.by_situation(),
         acted_pairs=[f"{c.fighter_id}:{c.stat}" for c in plan.acted_on],
         changes=[
@@ -588,10 +697,33 @@ def run(*, notify=True, triggered_by=None):
             for c in plan.visible
         ],
     )
-    result.backfill = Backfill.objects.create(
-        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
-        triggered_by=triggered_by,
-        status=Backfill.Status.DONE,
-        summary=result.as_dict(),
-    )
+
+    # The record goes in BEFORE the data changes, listing what is about to be
+    # touched, and both are committed together. If the process dies partway,
+    # either everything rolled back or the record survives naming every pair —
+    # never changed data with no memory of it, which is what would let a later
+    # run undo a player's edit.
+    with transaction.atomic():
+        record = Backfill.objects.create(
+            operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+            triggered_by=triggered_by,
+            status=Backfill.Status.RUNNING,
+            summary=result.as_dict(),
+        )
+        apply_plan(plan)
+        if notify:
+            # Only once the data is safely committed: nobody should be told
+            # about a change that rolled back.
+            transaction.on_commit(lambda: _deliver(record, messages))
+        record.status = Backfill.Status.DONE
+        record.save(update_fields=["status", "modified"])
+
+    result.backfill = record
     return result
+
+
+def _deliver(record, messages):
+    """Send the messages and note how many landed on the record."""
+    sent = send_messages(messages)
+    record.summary = {**(record.summary or {}), "messages_sent": sent}
+    record.save(update_fields=["summary", "modified"])

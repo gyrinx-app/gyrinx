@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0198_print_config_include_lore_notes"),
+        ("core", "0199_campaign_action_template_campaign"),
     ]
 
     operations = [

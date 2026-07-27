@@ -1,94 +1,99 @@
 # Issue #2070 — finish the stat-advancement cleanup, and tell affected players
 
-Follow-up to PR #2069 (Track B of #1861), which converted 2,306 fighter/stat pairs
-and deliberately left 155 alone. This handles the leftovers.
+Follow-up to #2069 (Track B of #1861), which converted 2,306 fighter/stat pairs and
+deliberately left 155 alone. This handles the leftovers.
 
-All counts are from production on 2026-07-26, after #2069 was deployed.
+Delivered as a Backfill triggered from the maintenance admin — the app runs on Cloud
+Run, so a management command has no way to reach production.
 
-## Deliver as a management command, not a migration
+## Revised after review — what changes from the first attempt
 
-`fix_stat_advancements`, defaulting to a dry run, with `--apply` to commit.
+The first implementation was reviewed twice and both passes found real defects. The
+revision is driven by one lesson:
 
-Reasons: this changes 46 stats that players can see and sends messages to real
-people, so it needs a reviewable dry run first. It also can't sensibly be re-run
-by a migration if something needs adjusting. #1962 set the precedent of a manually
-run estate-fix command.
+> **Every bug in this work came from computing what a value _should_ become instead of
+> applying the change and reading what it _does_ become.**
 
-## The eight situations
+That produced the wrong-arithmetic bug in 0196, the set-mode bug that inflated eleven
+production fighters, and wrong predicted before/after values feeding player messages.
+So the classification stops predicting.
 
-Keyed on (fighter, stat). "L" = live legacy advancements, "M" = live mod-system ones.
+### 1. Verify by re-resolution, not arithmetic
 
-| # | Situation | Count | Action | Notify |
+For every candidate: read the fighter's rendered stat, apply the change **in memory**,
+read it again. Convert only when the two agree — or, for the deliberate corrections,
+when they differ in exactly the expected direction. Build the player messages from
+those real before/after values rather than predicted ones.
+
+This closes the class. A `set`-mode mod, an odd base format, an unparseable value — all
+show up simply as "the rendered value moved", with no proxy left to be wrong about.
+
+### 2. Survive an interrupted run
+
+Current code applies with no transaction and writes its memory record **last**. A
+timeout mid-run leaves fighters changed and no record of them, and the next run then
+reads its own repair as the bug and destroys a player's edit — the exact failure the
+idempotency fix was for.
+
+- Create the `Backfill` with `status=RUNNING` and `acted_pairs` populated **before**
+  applying.
+- Wrap the record write and the apply in one `transaction.atomic()`.
+- Flip to `DONE` after.
+- `previously_handled()` counts every status except `CANCELLED`, not just `DONE`.
+- Send messages from `transaction.on_commit`, so nobody is told about a change that
+  rolled back.
+
+`persistent_stash.py` already does the transaction version of this; follow it.
+
+### 3. Don't run twice at once
+
+`_running_guard()` in `gyrinx/maintenance/admin.py` already exists for this. Two admins
+or a double submit currently both apply and both message — the data converges but
+players get duplicate notifications.
+
+### 4. Harden `apply()` first
+
+`gyrinx/content/models/modifier.py` throws on values it cannot parse (`+`, `7_` — both
+real in production, 22 errors a week from one row) and misreads a negative intermediate
+as a stat-linked value, so a plain stat driven below zero renders `+1` rather than `1`.
+Re-resolution leans on `apply()` harder than the old arithmetic did, so fix it first.
+
+### 5. Leave archived gangs out of the messaging
+
+`ListFighter.objects` does not filter archived, so an owner can be told about a gang
+they archived long ago. Fix the data, but keep them out of `plan.visible`.
+
+## The situations (unchanged)
+
+| # | Situation | Prod count | Action | Notify |
 |---|---|---|---|---|
-| 1 | L>0, override is a manual edit (different number) | 61 | Back-compute override, flip to mod system | No |
-| 2 | L>0, override is advancement output in old format | 2 | Clear override, flip to mod system | No |
-| 3 | L>0, no override — advancement inert | 35 | Flip to mod system | **Yes** (gain) |
-| 4 | Shadowed by `ListFighterStatOverride`, or stat absent from statline | 14 | Leave — belongs to Track C | No |
-| 5 | L=0, override numerically equals mod output — inflating | 7 | Clear override | **Yes** (loss) |
-| 6 | L=0, override matches a partial count — inflating | 4 | Clear override | **Yes** (loss) |
-| 7 | L=0, override is a genuine manual edit | 31 | Nothing — legitimate | No |
-| 8 | Base value unparseable (e.g. `7_`) | 1 | Nothing — needs manual data repair | No |
+| 1 | Manual edit — number no advancement produces | 56 | Back-compute; card unchanged | No |
+| 2 | Advancement output in the old format | 2 | Clear it; same number | No |
+| 3 | Advancement inert — bought, showing nothing | 35 | Switch on; stat gains | **Yes** |
+| 4 | Reads the other override store, or stat absent | 14 | Leave — Track C | No |
+| 5 | Duplicate improvement, format-disguised | 7 | Clear it; stat drops | **Yes** |
+| 6 | Duplicate improvement, partial count | 4 | Clear it; stat drops | **Yes** |
+| 7 | Genuine manual edit alongside working advancements | 31 | Nothing | No |
+| 8 | Value cannot be parsed | 6 | Nothing | No |
+| 9 | Already handled by an earlier run | — | Nothing | No |
 
-Groups 1–4 are what block retiring the legacy code. Groups 5–7 carry no legacy
-rows; they are data tidying.
+## Messages (agreed copy, unchanged)
 
-## Method
-
-Reuse the approach that worked in #2069: never re-derive what the legacy code
-would have written. Decide everything from what the mod system will actually
-display, computed from `fighter.content_fighter_statline` with
-`AdvancementStatMod` chained over it.
-
-**Group 1 back-compute.** Set the override to what it must be so the advancements
-restore today's displayed value: apply an `AdvancementStatMod` with `mode="worsen"`
-L times to the current override. Then **round-trip verify** — improving that
-result L times must give back the original override exactly. If it doesn't, leave
-the pair alone. This is the guard that catches formatting asymmetry.
-
-**Classifying 1 vs 2.** Compare the override to the mod-system output both as a
-string (exact) and as a number with `"` / `+` stripped. Exact match was already
-handled by #2069; same-number-different-format is group 2; neither is group 1.
-
-**Writes.** Use `ListFighter.objects.filter(pk=...).update(...)`, never `save()`.
-Saving fires post_save receivers that materialise child fighters and bump the
-parent gang's modified timestamp, which would reorder every affected player's gang
-list. Learned in #2069.
-
-**Guard everything** that touches `apply()` with `try/except (ValueError, TypeError)`
-— production holds unparseable stat values and one already crashed a migration.
-
-## Notifications
-
-One message per **owner**, not per gang and not per fighter, covering every
-affected fighter across all their gangs. Only groups 3, 5 and 6 — 46 changes.
-Use `notify(recipient=..., subject=..., content=..., notification_type=SYSTEM)`.
-Content renders through `safe_rich_text|safe`, so simple HTML is fine.
-
-Copy is in the issue thread. Rules that must survive implementation:
-
-- Losses listed before gains. Bad news first, never buried under good news.
-- Always state that rating and credits are unchanged — true in every case, and
-  it's the first thing anyone will worry about.
-- Always end with how to correct it themselves. These are judgement calls from
-  incomplete data and some will be wrong.
-- No apology, no explanation of the two storage mechanisms. Not the player's
-  problem.
+One per owner covering all their gangs; reductions before improvements; always state
+that rating and credits are unchanged; always end with how to correct it themselves.
+Escape gang and fighter names — they are user input.
 
 ## Verification
 
-1. Dry run against a template-forked local database; confirm counts and that the
-   printed before/after values are sane.
-2. Statline differential: dump every fighter's rendered stats before and after,
-   and assert **only** the 46 intended pairs moved, each by exactly one step in
-   the expected direction. Groups 1 and 2 must show a same-number result.
-3. Tests: one per situation, plus round-trip failure leaves the pair alone, plus
-   a malformed value survives, plus notification aggregation (one per owner,
-   losses before gains).
-4. Full local CI: `pytest -n auto`, ruff, djlint, prettier, migration checks, bandit.
-5. Dry run against production read-only before applying anything.
+1. Unit tests per situation, plus: interrupted run (delete the record, re-run, assert
+   the repair survives), a set-mode fighter left alone, and the concurrency guard.
+2. Local run against template-forked data; assert only intended stats move.
+3. Production dry run, read-only, before applying anything.
+4. Full local CI: pytest, ruff, djlint, prettier, migration checks, bandit.
 
 ## Not in scope
 
-- The 14 in group 4 — Track C reconciles the two override stores.
-- The 31 in group 7 — legitimate manual edits.
-- Deleting the legacy code and column — needs groups 1–4 at zero first.
+- The 14 in situation 4 — Track C reconciles the two override stores.
+- The 31 in situation 7 — legitimate manual edits.
+- Deleting the legacy code and column — needs situations 1–4 at zero.
+- A UI hint for an advancement that a `set` swallows.

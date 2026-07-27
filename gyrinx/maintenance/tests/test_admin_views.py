@@ -244,7 +244,7 @@ def test_stat_advancements_preview_changes_nothing(
 
 @pytest.mark.django_db
 def test_stat_advancements_apply_records_a_backfill(
-    make_user, make_list, make_list_fighter
+    make_user, make_list, make_list_fighter, django_capture_on_commit_callbacks
 ):
     from gyrinx.core.models import ListFighterAdvancement
     from gyrinx.core.models.notification import Notification
@@ -267,9 +267,12 @@ def test_stat_advancements_apply_records_a_backfill(
 
     client = Client()
     client.force_login(superuser)
-    response = client.post(
-        reverse("admin:maintenance_stat_advancements"), {"notify": "on"}
-    )
+    # Messages are deferred to commit, so nobody is told about a change that
+    # rolled back; the callbacks have to be run for the test to see them.
+    with django_capture_on_commit_callbacks(execute=True):
+        response = client.post(
+            reverse("admin:maintenance_stat_advancements"), {"notify": "on"}
+        )
 
     assert response.status_code == 302
     backfill = Backfill.objects.get(operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS)
@@ -277,6 +280,7 @@ def test_stat_advancements_apply_records_a_backfill(
     assert backfill.triggered_by == superuser
     assert backfill.summary["changed"] == 1
     assert backfill.summary["visible"] == 1
+    backfill.refresh_from_db()
     assert backfill.summary["messages_sent"] == 1
 
     assert not ListFighterAdvancement.objects.filter(uses_mod_system=False).exists()

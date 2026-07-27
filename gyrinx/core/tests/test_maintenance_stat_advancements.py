@@ -349,3 +349,84 @@ def test_user_supplied_names_are_escaped_in_messages(
     assert "<img" not in content
     assert "&lt;script&gt;" in content
     assert "&lt;img" in content
+
+
+@pytest.mark.django_db
+def test_an_interrupted_run_still_protects_the_repair(
+    user, make_list, make_list_fighter
+):
+    """A run that dies partway must not let the next one undo its work.
+
+    The record is written before the data changes, so even a run that never
+    reached DONE names every pair it touched. Filtering the memory to
+    successful runs would leave exactly this case unprotected.
+    """
+    from gyrinx.core.models import Backfill
+
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Typed Fighter")
+    advancement(fighter, user, "weapon_skill", uses_mod_system=False)
+    fighter.weapon_skill_override = "3+"
+    fighter.save()
+
+    before = shown(fighter, "weapon_skill")
+    run(notify=False)
+    assert shown(fighter, "weapon_skill") == before
+
+    # Simulate the process dying after the data changed: the record exists,
+    # naming what was touched, but never reached DONE.
+    Backfill.objects.filter(operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS).update(
+        status=Backfill.Status.RUNNING
+    )
+
+    second = run(notify=False)
+    assert second.changed == 0
+    assert shown(fighter, "weapon_skill") == before
+
+
+@pytest.mark.django_db
+def test_an_advancement_a_set_would_swallow_is_left_alone(
+    user, make_list, make_list_fighter
+):
+    """Re-resolution catches what arithmetic could not.
+
+    Gear that fixes a stat discards the advancement, so switching it on
+    changes nothing — and a change that does nothing should not be made, nor
+    a player told about it. No special case for "set" is needed: the card
+    simply does not move.
+    """
+    from gyrinx.content.models import (
+        ContentEquipment,
+        ContentEquipmentCategory,
+        ContentModFighterStat,
+    )
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    category, _ = ContentEquipmentCategory.objects.get_or_create(
+        name="Set Gear", defaults={"group": "Vehicle & Mount"}
+    )
+    gear = ContentEquipment.objects.create(
+        name="Ash Wheels", category=category, cost="0"
+    )
+    mod, _ = ContentModFighterStat.objects.get_or_create(
+        stat="movement", mode="set", value='8"'
+    )
+    gear.modifiers.add(mod)
+
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Ashwheel Drax")
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=fighter, content_equipment=gear
+    )
+    # An inert advancement — situation 3 would normally switch it on
+    advancement(fighter, user, "movement", uses_mod_system=False)
+
+    change = only_change(build_plan(), fighter)
+    assert change.situation == 10
+    assert not change.acted_on
+
+    run(notify=False)
+    assert shown(fighter, "movement") == '8"'
+    assert ListFighterAdvancement.objects.filter(
+        fighter=fighter, uses_mod_system=False
+    ).exists()

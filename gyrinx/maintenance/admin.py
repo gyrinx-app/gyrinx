@@ -366,6 +366,18 @@ class MaintenanceAdminSite(admin.site.__class__):
     def stat_advancements_view(self, request):
         """Preview, then run, the #2070 stat-advancement cleanup."""
         if request.method == "POST":
+            running = _running_guard(Backfill.Operation.FIX_STAT_ADVANCEMENTS)
+            if running:
+                # Idempotency keeps the data safe, but a second concurrent run
+                # would send every affected player a duplicate message.
+                messages.error(
+                    request,
+                    "A run is already in progress. Wait for it to finish, or "
+                    "mark it Failed in the Backfills admin if it died.",
+                )
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
             notify = request.POST.get("notify") == "on"
             try:
                 # run() writes its own Backfill record: a later run reads it to
