@@ -80,8 +80,9 @@ BASE_URL = "https://gyrinx.app"
 # is sized from the 2026-07-28 incident: a per-instance cap of 8 shed
 # requests with pool timeouts for ~2 minutes after a deploy, while the
 # database itself sat at 10 backends; cold instances hold connections
-# longer, so the cap needs burst headroom. min_size 2 keeps fresh
-# instances slightly warm for the post-deploy rush. Requests beyond the
+# longer, so the cap needs burst headroom. min_size stays at 1 so the
+# idle floor during a rolling deploy (both revisions' pools open at
+# once) stays small. Requests beyond the
 # cap queue for a connection for up to `timeout` seconds rather than
 # failing the database. Revisit max_size together with the worker count
 # and --max-instances — the three multiply.
@@ -92,7 +93,7 @@ DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     **DATABASES["default"].get("OPTIONS", {}),  # noqa: F405
     "pool": {
-        "min_size": 2,
+        "min_size": 1,
         "max_size": 6,
         # Fail reasonably fast when the DB is down or the pool is
         # saturated, so requests shed instead of piling up.
