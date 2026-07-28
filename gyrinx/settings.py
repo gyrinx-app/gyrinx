@@ -110,7 +110,6 @@ GYRINX_DEBUG = os.getenv("GYRINX_DEBUG", "") == "True"
 # Application definition
 
 INSTALLED_APPS = [
-    "daphne",
     # Added so we can override templates
     "django.forms",
     # Replaces "django.contrib.admin": swaps in an AdminSite whose login view

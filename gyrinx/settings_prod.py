@@ -54,32 +54,37 @@ BASE_URL = "https://gyrinx.app"
 
 # Database connection pooling (psycopg_pool via Django's `pool` option).
 #
-# Persistent connections (CONN_MAX_AGE > 0) must stay OFF here: they are
-# per-thread, and under an ASGI server (daphne) Django runs each request's
-# sync ORM work on a fresh single-use thread (ThreadSensitiveContext →
-# one ThreadPoolExecutor(max_workers=1) per request). The thread dies with
-# its connection still open — close_old_connections declines to close a
-# connection younger than the max age — so nothing is ever reused and the
-# socket lingers until cyclic GC. In production this leaked idle
-# connections until Cloud SQL's max_connections (50 on db-g1-small) was
-# exhausted, while delivering zero of the reuse it was meant to buy.
+# Persistent connections (CONN_MAX_AGE > 0) must stay OFF here. They are
+# per-thread: under the old ASGI setup (daphne) they leaked outright — a
+# fresh single-use thread per request died with its connection still open
+# until Cloud SQL's max_connections (50 on db-g1-small) was exhausted —
+# and under gunicorn's threaded workers they would mean one connection
+# per thread (workers × threads × instances = 120 potential), which the
+# 50-connection budget cannot cover either. The pool gives the reuse
+# benefit (no per-request TLS + auth handshake) with a hard per-process
+# cap instead.
 #
-# The pool gives the reuse benefit for real (no per-request TLS + auth
-# handshake) with a hard per-process cap and is safe under ASGI:
-# connections return to the pool at the end of every request regardless
-# of which thread ran it. CONN_HEALTH_CHECKS must stay True — it is what
-# makes Django pass check=ConnectionPool.check_connection, so a
-# connection dropped by the server or the Cloud SQL proxy is verified
-# (and replaced) on checkout instead of failing the request.
+# CONN_HEALTH_CHECKS must stay True — it is what makes Django pass
+# check=ConnectionPool.check_connection, so a connection dropped by the
+# server or the Cloud SQL proxy is verified (and replaced) on checkout
+# instead of failing the request.
 #
 # Sizing: Cloud Run runs at most 3 instances (--max-instances in
-# cloudbuild.yaml, one daphne process each), so max_size 8 caps steady
-# state at 24 connections — and at most
-# 48 in the worst case during a rolling deploy, when old and new
-# revisions briefly overlap and both serve traffic. That stays under the
-# 50-connection limit with room for cloudsqladmin, prodshell, and
-# deploy-time migrations. Requests beyond the cap queue for a connection
-# for up to `timeout` seconds rather than failing the database.
+# cloudbuild.yaml), each running gunicorn with 2 worker processes
+# (docker/entrypoint.sh) and one pool per process: 3 × 2 × 6 = 36
+# connections at full simultaneous demand, under the 50-connection limit
+# with room for cloudsqladmin, prodshell, and deploy-time migrations.
+# (During a rolling deploy old and new revisions briefly overlap; total
+# open connections track actual demand, which historically peaks well
+# below the combined cap.) max_size 6 per process — 12 per instance —
+# is sized from the 2026-07-28 incident: a per-instance cap of 8 shed
+# requests with pool timeouts for ~2 minutes after a deploy, while the
+# database itself sat at 10 backends; cold instances hold connections
+# longer, so the cap needs burst headroom. min_size 2 keeps fresh
+# instances slightly warm for the post-deploy rush. Requests beyond the
+# cap queue for a connection for up to `timeout` seconds rather than
+# failing the database. Revisit max_size together with the worker count
+# and --max-instances — the three multiply.
 #
 # Dev/tests intentionally keep the Django default (no pool) — short-lived
 # processes and pytest don't benefit, and the pool complicates teardown.
@@ -87,8 +92,8 @@ DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
 DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     **DATABASES["default"].get("OPTIONS", {}),  # noqa: F405
     "pool": {
-        "min_size": 1,
-        "max_size": 8,
+        "min_size": 2,
+        "max_size": 6,
         # Fail reasonably fast when the DB is down or the pool is
         # saturated, so requests shed instead of piling up.
         "timeout": 5,
