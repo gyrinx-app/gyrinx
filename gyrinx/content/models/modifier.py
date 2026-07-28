@@ -31,6 +31,18 @@ from .base import Content
 
 logger = logging.getLogger(__name__)
 
+
+def _plain_int(value):
+    """The integer a value represents, or None if it is not simply a number.
+
+    ``int()`` accepts a leading sign, so this covers "3", "-2" and "+3".
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 # Stat names already reported as having no ContentStat, so each is only
 # warned about once per process. See _get_stat_configuration.
 _undefined_stats_warned: set[str] = set()
@@ -134,6 +146,13 @@ class ContentModStatApplyMixin:
         # A developer has a problem. She uses a regex... Now she has two problems.
         if current_value in ["-", ""]:
             current_value = 0
+        elif _plain_int(current_value) is not None:
+            # A plain number, including a negative one. This has to be tested
+            # before the stat-linked branches below: "-2" contains a "-", and
+            # reading it as the "S-1" shape would set join to [""], which then
+            # forces the sign branch and renders "+1" where "1" is meant. That
+            # made the result depend on the order mods were applied in.
+            current_value = _plain_int(current_value)
         elif current_value.endswith('"'):
             # Inches
             current_value = int(current_value[:-1])

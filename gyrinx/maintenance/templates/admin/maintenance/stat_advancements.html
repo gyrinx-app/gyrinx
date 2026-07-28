@@ -1,0 +1,88 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-bottom: 1.5rem; }
+    .mt-table { width: 100%; margin-bottom: 2rem; }
+    .mt-gain { color: #2e7d32; font-weight: 600; }
+    .mt-loss { color: #c62828; font-weight: 600; }
+    .mt-note { margin: 1.5rem 0; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This is the dry-run view. Nothing has been changed. Migration
+        <code>core.0196</code> converted the fighter stats whose stored value
+        provably matched what the mod system computes; this finishes the rest.
+    </p>
+    <h2>What was found</h2>
+    <table class="mt-table">
+        <thead>
+            <tr>
+                <th>Situation</th>
+                <th>Pairs</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for situation, label, count in counts %}
+                <tr>
+                    <td>({{ situation }}) {{ label }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p>
+        <strong>{{ to_change }}</strong> fighter/stat pair{{ to_change|pluralize }} would
+        be changed. <strong>{{ visible|length }}</strong> of those change what a player
+        sees, and would send <strong>{{ message_count }}</strong> message{{ message_count|pluralize }}
+        — one per owner, covering all their gangs.
+    </p>
+    {% if visible %}
+        <h2>Changes players will see</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>Gang</th>
+                    <th>Fighter</th>
+                    <th>Stat</th>
+                    <th>Before</th>
+                    <th>After</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in visible %}
+                    <tr>
+                        <td>{{ change.list_name }}</td>
+                        <td>{{ change.fighter_name }}</td>
+                        <td>{{ change.stat }}</td>
+                        <td>{{ change.displayed_before }}</td>
+                        <td class="{% if change.direction == 'gain' %}mt-gain{% else %}mt-loss{% endif %}">{{ change.displayed_after }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    <p class="mt-note">
+        Everything else is deliberately left alone: fighters reading the other
+        override store, genuine manual edits alongside working advancements, and
+        stat values that cannot be parsed.
+    </p>
+    <form method="post">
+        {% csrf_token %}
+        <p>
+            <label>
+                <input type="checkbox" name="notify" checked>
+                Tell affected players what changed
+            </label>
+        </p>
+        <button type="submit" class="default">Apply repair</button>
+    </form>
+{% endblock content %}

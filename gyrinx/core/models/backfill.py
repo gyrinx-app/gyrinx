@@ -29,6 +29,10 @@ class Backfill(models.Model):
             "backfill_pins",
             "Backfill acquisition receipts (#1826 Phase 8)",
         )
+        FIX_STAT_ADVANCEMENTS = (
+            "fix_stat_advancements",
+            "Finish the stat-advancement cleanup (#2070)",
+        )
 
     class Status(models.TextChoices):
         # Long-running operations execute on the task runner and report

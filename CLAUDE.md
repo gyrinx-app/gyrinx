@@ -344,6 +344,15 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
 **Important:** Read-only mode is enforced — all write operations raise `RuntimeError`. Requires `gcloud` CLI,
 `cloud-sql-proxy`, and valid GCP authentication (both `gcloud auth login` and `gcloud auth application-default login`).
 
+- **One-off production data repairs run as a Backfill, not a management command.** The app runs on
+  Cloud Run, so `manage` can't be pointed at production and `prodshell` is read-only — a repair
+  written as a command has no way to be run. Put the logic in a module, add a `Backfill.Operation`
+  choice (`gyrinx/core/models/backfill.py`), and trigger it from the maintenance admin
+  (`gyrinx/maintenance/admin.py`): GET previews a dry run, POST applies and records a `Backfill`
+  row holding the outcome. Small repairs apply synchronously (see `persistent_stash_view`); long
+  ones run as the self-re-enqueueing task chain in `gyrinx/core/tasks.py`, reporting progress into
+  the same record.
+
 ## Key Models Reference
 
 **Content App (Game Data):**
