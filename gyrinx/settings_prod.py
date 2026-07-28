@@ -52,19 +52,38 @@ SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
 
-# Persistent database connections.
+# Database connection pooling (psycopg_pool via Django's `pool` option).
 #
-# Django's default (CONN_MAX_AGE=0) opens a brand-new Postgres connection on
-# every request. On Cloud SQL each connect pays TLS + auth latency (tens of ms)
-# and adds connection-churn load on the instance. Reuse connections for up to
-# 60s, with a health check at the start of each request so a connection dropped
-# by the server (or the Cloud SQL proxy) is transparently re-established rather
-# than surfacing as an error.
+# Persistent connections (CONN_MAX_AGE > 0) must stay OFF here: they are
+# per-thread, and under an ASGI server (daphne) sync ORM work runs on a
+# rotating set of executor threads, so expired connections stranded on
+# dormant threads are never reaped. In production this leaked idle
+# connections until Cloud SQL's max_connections (50 on db-g1-small) was
+# exhausted.
 #
-# Dev/tests intentionally keep the Django default (0) — short-lived processes
-# and pytest don't benefit, and persistent connections complicate test teardown.
-DATABASES["default"]["CONN_MAX_AGE"] = 60  # noqa: F405
-DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
+# The pool gives the same reuse benefit (no per-request TLS + auth
+# handshake) with a hard per-process cap and is safe under ASGI:
+# connections return to the pool at the end of every request regardless
+# of which thread ran it. CONN_HEALTH_CHECKS is unnecessary — the pool
+# checks connections on checkout.
+#
+# Sizing: Cloud Run runs at most 3 instances (one daphne process each),
+# so max_size 12 caps the app at 36 connections, leaving headroom under
+# the 50-connection limit for cloudsqladmin, prodshell, migrations at
+# deploy time, and background-task delivery. Requests beyond the cap
+# queue for a connection for up to `timeout` seconds rather than failing
+# the database.
+#
+# Dev/tests intentionally keep the Django default (no pool) — short-lived
+# processes and pytest don't benefit, and the pool complicates teardown.
+DATABASES["default"]["OPTIONS"] = {  # noqa: F405
+    **DATABASES["default"].get("OPTIONS", {}),  # noqa: F405
+    "pool": {
+        "min_size": 2,
+        "max_size": 12,
+        "timeout": 10,
+    },
+}
 
 STORAGES = {
     **STORAGES,

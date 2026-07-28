@@ -46,6 +46,15 @@ User = get_user_model()
 def normalize_sql_uuids(sql):
     """Replace UUIDs in SQL with numbered placeholders for consistent comparison."""
 
+    # psycopg 3 renders UUID params as dashless quoted literals with a cast
+    # ('0123...cdef'::uuid); rewrite them to the dashed form first so both
+    # renderings share one placeholder map.
+    def dash_uuid(match):
+        h = match.group(1)
+        return f"'{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}'::uuid"
+
+    sql = re.sub(r"'([0-9a-f]{32})'::uuid", dash_uuid, sql, flags=re.IGNORECASE)
+
     # Pattern to match UUIDs (8-4-4-4-12 format)
     uuid_pattern = r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
 
