@@ -5,11 +5,13 @@ password and nothing else, which would let a staff account with TOTP configured
 into the admin without ever being challenged.
 """
 
+import os
 from urllib.parse import unquote
 
 import pytest
 from allauth.account.models import EmailAddress
 from allauth.mfa.totp.internal import auth as totp_auth
+from django.conf import settings
 from django.test import Client, override_settings
 from django.urls import reverse
 
@@ -53,6 +55,23 @@ def pass_captcha(monkeypatch):
     monkeypatch.setattr(
         "django_recaptcha.fields.ReCaptchaField.validate", lambda self, value: True
     )
+
+
+# ------------------------------------- pytest keeps the gate off by default
+
+
+def test_pytest_detection_keeps_the_mfa_gate_off():
+    """Regression guard for settings_dev's pytest detection.
+
+    Unset, ADMIN_REQUIRE_MFA follows DEBUG — and pytest-django forces
+    DEBUG = False, so the gate would be ON for the whole suite. settings_dev
+    turns it off when it detects pytest. If that detection breaks, dozens of
+    admin tests fail with 302s to the login page; this test names the cause
+    directly.
+    """
+    if os.getenv("ADMIN_REQUIRE_MFA") is not None:
+        pytest.skip("ADMIN_REQUIRE_MFA is forced in the environment")
+    assert settings.ADMIN_REQUIRE_MFA is False
 
 
 # ------------------------------------------------------- the form is gone
