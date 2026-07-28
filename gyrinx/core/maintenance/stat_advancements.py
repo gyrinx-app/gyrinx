@@ -778,9 +778,19 @@ def run(*, notify=True, triggered_by=None):
             # identity — Change is mutable and compared by value.
             stale = {(c.fighter_id, c.stat) for c in skipped}
             delivered = [c for c in plan.visible if (c.fighter_id, c.stat) not in stale]
-            transaction.on_commit(
-                lambda: _deliver(record, build_messages_for(delivered))
-            )
+            outgoing = build_messages_for(delivered)
+
+            # Recorded before the send so that "0 sent" can be read afterwards.
+            # Without it a delivery that crashed looks exactly like having had
+            # nothing to send, and a re-run cannot tell the difference either:
+            # these pairs are already recorded as handled, so it finds nothing
+            # visible and sends nothing.
+            result.notify_requested = True
+            result.messages_expected = len(outgoing)
+            record.summary = result.as_dict()
+            record.save(update_fields=["summary", "modified"])
+
+            transaction.on_commit(lambda: _deliver(record, outgoing))
 
     record.refresh_from_db()
     result.messages_sent = (record.summary or {}).get("messages_sent", 0)
