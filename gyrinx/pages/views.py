@@ -4,11 +4,35 @@ from django.contrib.flatpages.models import FlatPage
 from django.contrib.sites.shortcuts import get_current_site
 from django.http import (
     Http404,
+    HttpResponse,
     HttpResponsePermanentRedirect,
 )
 from django.shortcuts import get_object_or_404, render
 
 from gyrinx.pages.models import FlatPageVisibility
+
+# Crawl policy. Amazonbot alone was ~70% of page traffic (2026-07-28) crawling
+# every fighter page of every public list; it feeds Amazon product answers and
+# brings no users, so it is excluded entirely. Bytespider (ByteDance) likewise.
+# For everyone else (Googlebot, bingbot, ...) the list overview pages carry the
+# search value — the per-fighter detail pages are crawl noise, so they are
+# disallowed for all agents.
+ROBOTS_TXT = """\
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: *
+Disallow: /list/*/fighter/
+Disallow: /accounts/
+Disallow: /admin/
+"""
+
+
+def robots_txt(request):
+    return HttpResponse(ROBOTS_TXT, content_type="text/plain")
 
 
 def flatpage(request, url):

@@ -73,6 +73,7 @@ _debug_urls = [
 urlpatterns = (
     debug_toolbar_urls()
     + [
+        path("robots.txt", views.robots_txt, name="robots_txt"),
         path("", include("gyrinx.core.urls")),
         path("api/", include("gyrinx.api.urls")),
         path("tasks/", include("gyrinx.tasks.urls")),
