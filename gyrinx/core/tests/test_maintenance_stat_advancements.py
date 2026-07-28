@@ -14,6 +14,35 @@ from gyrinx.core.maintenance.stat_advancements import (
 from gyrinx.models import FighterCategoryChoices
 
 
+def make_simple_content_fighter(house):
+    """A minimal content fighter for tests that cannot use the fixtures.
+
+    Transactional tests get no data from the session fixtures, so they build
+    their own.
+    """
+    from gyrinx.content.models import ContentFighter
+    from gyrinx.models import FighterCategoryChoices
+
+    return ContentFighter.objects.create(
+        type="Commit Order Fighter",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+        base_cost=50,
+        movement='4"',
+        weapon_skill="4+",
+        ballistic_skill="4+",
+        strength="3",
+        toughness="3",
+        wounds="1",
+        initiative="4+",
+        attacks="1",
+        leadership="7",
+        cool="7",
+        willpower="7",
+        intelligence="7",
+    )
+
+
 def advancement(fighter, user, stat, *, uses_mod_system):
     return ListFighterAdvancement.objects.create(
         fighter=fighter,
@@ -464,3 +493,67 @@ def test_an_edit_made_during_the_run_is_not_overwritten(
     assert ListFighterAdvancement.objects.filter(
         fighter=fighter, uses_mod_system=False
     ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_message_count_survives_the_record_being_finalised():
+    """Real commit ordering, not captured callbacks.
+
+    Delivery happens from on_commit, which fires as the write transaction
+    exits — so anything written to the summary after that block would clobber
+    the count. A test that captures the callbacks and runs them afterwards
+    reverses that ordering and cannot catch it.
+    """
+    from django.contrib.auth import get_user_model
+
+    from gyrinx.content.models import ContentHouse
+    from gyrinx.core.models.list import List
+    from gyrinx.core.models.notification import Notification
+
+    User = get_user_model()
+    owner = User.objects.create_user(username="commitorder", password="pw")
+    house = ContentHouse.objects.create(name="Commit Order House")
+    cf = make_simple_content_fighter(house)
+    lst = List.objects.create(name="Gang", owner=owner, content_house=house)
+    fighter = ListFighter.objects.create(
+        list=lst, name="Feuer", content_fighter=cf, owner=owner
+    )
+    advancement(fighter, owner, "toughness", uses_mod_system=False)
+
+    result = run(notify=True)
+
+    assert Notification.objects.filter(owner=owner).count() == 1
+    result.backfill.refresh_from_db()
+    assert result.backfill.summary["messages_sent"] == 1
+
+
+@pytest.mark.django_db
+def test_an_override_typed_during_the_run_blocks_the_advancement_flip(
+    user, make_list, make_list_fighter
+):
+    """Situation 3 changes no field, but its decision still assumed one.
+
+    The plan was built against the stat having no stored value. If someone
+    types one meanwhile, switching the advancement on regardless would move
+    their card — and the pair would be recorded as handled, so no later run
+    would revisit it.
+    """
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Erased Fighter")
+    advancement(fighter, user, "toughness", uses_mod_system=False)
+
+    plan = build_plan()
+    assert only_change(plan, fighter).situation == 3
+
+    # The player types a value after the plan was built
+    ListFighter.objects.filter(pk=fighter.pk).update(toughness_override="5")
+
+    applied, skipped = apply_plan(plan)
+
+    assert applied == []
+    assert len(skipped) == 1
+    assert ListFighterAdvancement.objects.filter(
+        fighter=fighter, uses_mod_system=False
+    ).exists()
+    fighter.refresh_from_db()
+    assert fighter.toughness_override == "5"

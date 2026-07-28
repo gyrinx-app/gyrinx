@@ -74,7 +74,9 @@ def _running_guard(operation):
 
     Idempotency makes a duplicate run harmless to the data, but it doubles
     the walk and muddles the audit trail. (If the task runner died and left
-    a stale RUNNING record, mark it Failed in the Backfills admin first.)
+    a stale RUNNING record, mark it Failed in the Backfills admin first —
+    except for the stat-advancement cleanup, which reads its own records to
+    know what it already touched and ignores only Cancelled ones.)
     """
     return (
         Backfill.objects.filter(operation=operation, status=Backfill.Status.RUNNING)
@@ -373,7 +375,9 @@ class MaintenanceAdminSite(admin.site.__class__):
                 messages.error(
                     request,
                     "A run is already in progress. Wait for it to finish, or "
-                    "mark it Failed in the Backfills admin if it died.",
+                    "if it died, mark it Cancelled in the Backfills admin — "
+                    "Cancelled is the only status this operation ignores, so "
+                    "any other would leave its pairs suppressed for good.",
                 )
                 return HttpResponseRedirect(
                     reverse("admin:maintenance_backfill_detail", args=[running.id])

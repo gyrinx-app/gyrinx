@@ -507,17 +507,23 @@ def apply_plan(plan):
 
     for change in plan.acted_on:
         field = f"{change.stat}_override"
-        if change.override_before != change.override_after:
-            # Compare-and-set: only write if the stored value is still the one
-            # the plan was built from. An UPDATE rather than save(), because
-            # saving fires receivers that materialise child fighters and bump
-            # the gang's modified timestamp, reordering the owner's gang list.
-            written = ListFighter.objects.filter(
-                pk=change.fighter_id, **{field: change.override_before}
-            ).update(**{field: change.override_after})
-            if not written:
-                skipped.append(change)
-                continue
+        # Compare-and-set, unconditionally — including where the value is not
+        # changing at all. Situation 3 only flips the advancement and leaves
+        # the field alone, but the decision was still made against the field
+        # being empty; if someone typed a value meanwhile, switching the
+        # advancement on regardless would move their card. A no-op UPDATE
+        # still reports a matched row, so the check works either way, and it
+        # takes a row lock that holds until the flip below.
+        #
+        # An UPDATE rather than save(), because saving fires receivers that
+        # materialise child fighters and bump the gang's modified timestamp,
+        # reordering the owner's gang list.
+        written = ListFighter.objects.filter(
+            pk=change.fighter_id, **{field: change.override_before}
+        ).update(**{field: change.override_after})
+        if not written:
+            skipped.append(change)
+            continue
 
         if change.flip_advancements:
             ListFighterAdvancement.objects.filter(
@@ -736,20 +742,28 @@ def run(*, notify=True, triggered_by=None):
 
     with transaction.atomic():
         applied, skipped = apply_plan(plan)
+
+        result.changed = len(applied)
+        result.skipped = len(skipped)
+        result.acted_pairs = [f"{c.fighter_id}:{c.stat}" for c in applied]
+
+        # Finalised here, before the delivery is registered. on_commit fires as
+        # this block exits, and the delivery writes the message count onto the
+        # record — so anything written to the summary afterwards would clobber
+        # it. Last writer wins, and the delivery has to be the last writer.
+        record.summary = result.as_dict()
+        record.status = Backfill.Status.DONE
+        record.save(update_fields=["summary", "status", "modified"])
+
         if notify:
             # Only once the data is committed: nobody should be told about a
-            # change that rolled back.
-            delivered = [c for c in plan.visible if c not in skipped]
+            # change that rolled back. Keyed on (fighter, stat) rather than by
+            # identity — Change is mutable and compared by value.
+            stale = {(c.fighter_id, c.stat) for c in skipped}
+            delivered = [c for c in plan.visible if (c.fighter_id, c.stat) not in stale]
             transaction.on_commit(
                 lambda: _deliver(record, build_messages_for(delivered))
             )
-
-    result.changed = len(applied)
-    result.skipped = len(skipped)
-    result.acted_pairs = [f"{c.fighter_id}:{c.stat}" for c in applied]
-    record.summary = result.as_dict()
-    record.status = Backfill.Status.DONE
-    record.save(update_fields=["summary", "status", "modified"])
 
     result.backfill = record
     return result
