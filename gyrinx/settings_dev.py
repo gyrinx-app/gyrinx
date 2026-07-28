@@ -21,7 +21,15 @@ WHITENOISE_AUTOREFRESH = True
 # every component guard in exactly the place they are supposed to catch things.
 COTTON_STRICT_COMPONENTS = True
 
-_UNDER_PYTEST = bool(os.getenv("PYTEST_CURRENT_TEST")) or "pytest" in os.getenv("_", "")
+# pytest is always imported before Django settings load when any pytest launcher
+# is driving the process (plain pytest, pytest-xdist workers, ptw, IDE runners,
+# CI shells), and never under runserver/management commands. The previous
+# environment-based detection (PYTEST_CURRENT_TEST, or "pytest" in $_) silently
+# missed under launchers that don't set $_ to the pytest binary —
+# PYTEST_CURRENT_TEST isn't set yet at settings-import time — which flipped
+# pytest-only settings (like the admin MFA gate below) to their production
+# values for the whole suite.
+_UNDER_PYTEST = "pytest" in sys.modules
 
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
 # use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.
