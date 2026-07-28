@@ -557,3 +557,53 @@ def test_an_override_typed_during_the_run_blocks_the_advancement_flip(
     ).exists()
     fighter.refresh_from_db()
     assert fighter.toughness_override == "5"
+
+
+@pytest.mark.django_db
+def test_an_advancement_archived_mid_run_leaves_the_stat_alone(
+    user, make_list, make_list_fighter
+):
+    """The conversion did not happen, so the field must not stay written.
+
+    Lowering the stored value is only correct because the advancement makes
+    the difference back up. If the advancement has gone, leaving the value
+    lowered would drop the fighter's stat a step.
+    """
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Vanishing Advancement")
+    adv = advancement(fighter, user, "weapon_skill", uses_mod_system=False)
+    fighter.weapon_skill_override = "2+"
+    fighter.save()
+
+    plan = build_plan()
+    assert only_change(plan, fighter).situation == 1
+    before = shown(fighter, "weapon_skill")
+
+    # The advancement is archived after the plan was built
+    ListFighterAdvancement.objects.filter(pk=adv.pk).update(archived=True)
+
+    applied, skipped = apply_plan(plan)
+
+    assert applied == []
+    assert len(skipped) == 1
+    fighter.refresh_from_db()
+    assert fighter.weapon_skill_override == "2+"
+    assert shown(fighter, "weapon_skill") == before
+
+
+@pytest.mark.django_db
+def test_a_summary_distinguishes_nothing_to_send_from_not_sent(
+    user, make_list, make_list_fighter
+):
+    """ "sent 0" is ambiguous unless what was asked for is recorded too."""
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Erased Fighter")
+    advancement(fighter, user, "toughness", uses_mod_system=False)
+
+    result = run(notify=False)
+    summary = result.backfill.summary
+
+    assert summary["notify_requested"] is False
+    assert summary["messages_expected"] == 0
+    # There was a visible change — it just was not going to be announced
+    assert summary["visible"] == 1

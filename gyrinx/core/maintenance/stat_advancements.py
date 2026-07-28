@@ -469,6 +469,10 @@ class ApplyResult:
     changed: int = 0
     visible: int = 0
     messages_sent: int = 0
+    # What was asked for, so a summary reading "sent 0" can be told apart from
+    # "there was nothing to send".
+    notify_requested: bool = False
+    messages_expected: int = 0
     skipped: int = 0
     by_situation: dict = field(default_factory=dict)
     changes: list = field(default_factory=list)
@@ -482,6 +486,8 @@ class ApplyResult:
             "changed": self.changed,
             "visible": self.visible,
             "messages_sent": self.messages_sent,
+            "notify_requested": self.notify_requested,
+            "messages_expected": self.messages_expected,
             "skipped_changed_by_someone_else": self.skipped,
             "by_situation": {str(k): v for k, v in self.by_situation.items()},
             "changes": self.changes,
@@ -526,13 +532,23 @@ def apply_plan(plan):
             continue
 
         if change.flip_advancements:
-            ListFighterAdvancement.objects.filter(
+            flipped = ListFighterAdvancement.objects.filter(
                 fighter_id=change.fighter_id,
                 stat_increased=change.stat,
                 advancement_type="stat",
                 archived=False,
                 uses_mod_system=False,
             ).update(uses_mod_system=True)
+            if not flipped:
+                # The advancement was archived between planning and now, so
+                # the conversion did not happen. Put the field back: leaving
+                # it written without the advancement to justify it would move
+                # the fighter's stat. Mirror of the stale-value case above.
+                ListFighter.objects.filter(pk=change.fighter_id).update(
+                    **{field: change.override_before}
+                )
+                skipped.append(change)
+                continue
 
         applied.append(change)
 
@@ -747,10 +763,11 @@ def run(*, notify=True, triggered_by=None):
         result.skipped = len(skipped)
         result.acted_pairs = [f"{c.fighter_id}:{c.stat}" for c in applied]
 
-        # Finalised here, before the delivery is registered. on_commit fires as
-        # this block exits, and the delivery writes the message count onto the
-        # record — so anything written to the summary afterwards would clobber
-        # it. Last writer wins, and the delivery has to be the last writer.
+        # INVARIANT: nothing may write to record.summary after this block
+        # exits. The delivery runs from on_commit — always after the commit,
+        # whatever order it was registered in — and writes the message count.
+        # Any later write here would clobber it, which is how the count came
+        # to read zero once already.
         record.summary = result.as_dict()
         record.status = Backfill.Status.DONE
         record.save(update_fields=["summary", "status", "modified"])
@@ -765,13 +782,26 @@ def run(*, notify=True, triggered_by=None):
                 lambda: _deliver(record, build_messages_for(delivered))
             )
 
+    record.refresh_from_db()
+    result.messages_sent = (record.summary or {}).get("messages_sent", 0)
     result.backfill = record
     return result
 
 
 def _deliver(record, messages):
-    """Send the messages and note how many landed on the record."""
+    """Send the messages and note how many landed on the record.
+
+    Written in a finally so a crash partway records what did go out. Without
+    it a failed delivery is indistinguishable from having had nothing to send,
+    and a re-run cannot recover: the pairs are already recorded as handled, so
+    it finds nothing visible and sends nothing. The list needed for a manual
+    send is in summary["changes"].
+    """
     record.refresh_from_db()
-    sent = send_messages(messages)
-    record.summary = {**(record.summary or {}), "messages_sent": sent}
-    record.save(update_fields=["summary", "modified"])
+    sent = 0
+    try:
+        sent = send_messages(messages)
+    finally:
+        record.summary = {**(record.summary or {}), "messages_sent": sent}
+        record.save(update_fields=["summary", "modified"])
+    return sent
