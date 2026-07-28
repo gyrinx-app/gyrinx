@@ -11,4 +11,4 @@ manage ensuresuperuser --no-input
 # 30s default would kill workers mid-request on slow pages.
 # The DB pool in gyrinx/settings_prod.py is sized per worker process —
 # change the worker count and the pool max_size together.
-gunicorn --bind "0.0.0.0:$PORT" --workers 2 --threads 20 --timeout 0 "gyrinx.wsgi:application"
+exec gunicorn --bind "0.0.0.0:$PORT" --workers 2 --threads 20 --timeout 0 "gyrinx.wsgi:application"
