@@ -51,7 +51,7 @@ dependencies = [
     "Pillow==12.3.0",
     "playwright==1.61.0",
     "pre-commit==4.6.0",
-    "psycopg2-binary==2.9.12",
+    "psycopg[binary,pool]==3.3.4",
     "pyasn1==0.6.4",
     "pydantic==2.13.4",
     "pydot==4.0.1",

@@ -46,6 +46,15 @@ User = get_user_model()
 def normalize_sql_uuids(sql):
     """Replace UUIDs in SQL with numbered placeholders for consistent comparison."""
 
+    # psycopg 3 renders UUID params as dashless quoted literals with a cast
+    # ('0123...cdef'::uuid); rewrite them to the dashed form first so both
+    # renderings share one placeholder map.
+    def dash_uuid(match):
+        h = match.group(1)
+        return f"'{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:]}'::uuid"
+
+    sql = re.sub(r"'([0-9a-f]{32})'::uuid", dash_uuid, sql, flags=re.IGNORECASE)
+
     # Pattern to match UUIDs (8-4-4-4-12 format)
     uuid_pattern = r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"
 
@@ -61,6 +70,19 @@ def normalize_sql_uuids(sql):
         return uuid_map[uuid]
 
     return re.sub(uuid_pattern, replace_uuid, sql, flags=re.IGNORECASE)
+
+
+def test_normalize_sql_uuids_unifies_driver_renderings():
+    # psycopg2 renders UUID params dashed; psycopg 3 renders them dashless.
+    # Both must normalize to the same placeholder or the snapshot churns on
+    # every run.
+    dashed = "SELECT 1 WHERE id = '06ac5c9e-3fd4-4fcf-ad8f-3aa872139930'::uuid"
+    dashless = "SELECT 1 WHERE id = '06ac5c9e3fd44fcfad8f3aa872139930'::uuid"
+    assert (
+        normalize_sql_uuids(dashed)
+        == normalize_sql_uuids(dashless)
+        == "SELECT 1 WHERE id = 'UUID-1'::uuid"
+    )
 
 
 def strip_sql_comments(sql):

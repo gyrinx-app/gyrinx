@@ -91,6 +91,9 @@ steps:
       - >-
         --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
       - "--region=$_DEPLOY_REGION"
+      # The DB connection pool in gyrinx/settings_prod.py is sized against
+      # this instance cap — revisit both together.
+      - "--max-instances=3"
       - "--quiet"
     id: Deploy
     entrypoint: gcloud

@@ -52,19 +52,48 @@ SECURE_HSTS_PRELOAD = False
 
 BASE_URL = "https://gyrinx.app"
 
-# Persistent database connections.
+# Database connection pooling (psycopg_pool via Django's `pool` option).
 #
-# Django's default (CONN_MAX_AGE=0) opens a brand-new Postgres connection on
-# every request. On Cloud SQL each connect pays TLS + auth latency (tens of ms)
-# and adds connection-churn load on the instance. Reuse connections for up to
-# 60s, with a health check at the start of each request so a connection dropped
-# by the server (or the Cloud SQL proxy) is transparently re-established rather
-# than surfacing as an error.
+# Persistent connections (CONN_MAX_AGE > 0) must stay OFF here: they are
+# per-thread, and under an ASGI server (daphne) Django runs each request's
+# sync ORM work on a fresh single-use thread (ThreadSensitiveContext →
+# one ThreadPoolExecutor(max_workers=1) per request). The thread dies with
+# its connection still open — close_old_connections declines to close a
+# connection younger than the max age — so nothing is ever reused and the
+# socket lingers until cyclic GC. In production this leaked idle
+# connections until Cloud SQL's max_connections (50 on db-g1-small) was
+# exhausted, while delivering zero of the reuse it was meant to buy.
 #
-# Dev/tests intentionally keep the Django default (0) — short-lived processes
-# and pytest don't benefit, and persistent connections complicate test teardown.
-DATABASES["default"]["CONN_MAX_AGE"] = 60  # noqa: F405
+# The pool gives the reuse benefit for real (no per-request TLS + auth
+# handshake) with a hard per-process cap and is safe under ASGI:
+# connections return to the pool at the end of every request regardless
+# of which thread ran it. CONN_HEALTH_CHECKS must stay True — it is what
+# makes Django pass check=ConnectionPool.check_connection, so a
+# connection dropped by the server or the Cloud SQL proxy is verified
+# (and replaced) on checkout instead of failing the request.
+#
+# Sizing: Cloud Run runs at most 3 instances (--max-instances in
+# cloudbuild.yaml, one daphne process each), so max_size 8 caps steady
+# state at 24 connections — and at most
+# 48 in the worst case during a rolling deploy, when old and new
+# revisions briefly overlap and both serve traffic. That stays under the
+# 50-connection limit with room for cloudsqladmin, prodshell, and
+# deploy-time migrations. Requests beyond the cap queue for a connection
+# for up to `timeout` seconds rather than failing the database.
+#
+# Dev/tests intentionally keep the Django default (no pool) — short-lived
+# processes and pytest don't benefit, and the pool complicates teardown.
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True  # noqa: F405
+DATABASES["default"]["OPTIONS"] = {  # noqa: F405
+    **DATABASES["default"].get("OPTIONS", {}),  # noqa: F405
+    "pool": {
+        "min_size": 1,
+        "max_size": 8,
+        # Fail reasonably fast when the DB is down or the pool is
+        # saturated, so requests shed instead of piling up.
+        "timeout": 5,
+    },
+}
 
 STORAGES = {
     **STORAGES,

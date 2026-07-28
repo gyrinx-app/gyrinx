@@ -84,6 +84,34 @@ def test_pubsub_handler_rejects_missing_data(client, bypass_oidc):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "error_message",
+    [
+        "FATAL: remaining connection slots are reserved",
+        "FATAL: too many connections for role",
+        "couldn't get a connection after 5.00 sec",
+    ],
+)
+def test_pubsub_handler_returns_429_when_db_at_capacity(
+    client, bypass_oidc, error_message
+):
+    """Postgres exhaustion and psycopg_pool checkout timeouts both nack with 429."""
+    from django.db import OperationalError
+
+    url = reverse("tasks:pubsub")
+    with patch(
+        "gyrinx.tasks.views.connection.ensure_connection",
+        side_effect=OperationalError(error_message),
+    ):
+        response = client.post(
+            url,
+            data=json.dumps(make_pubsub_message("any_task")),
+            content_type="application/json",
+        )
+    assert response.status_code == 429
+
+
+@pytest.mark.django_db
 def test_pubsub_handler_rejects_unknown_task(client, bypass_oidc):
     """Unknown task name should return 400."""
     url = reverse("tasks:pubsub")
