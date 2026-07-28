@@ -501,7 +501,7 @@ Module: `gyrinx/tracing.py`
 
 ### Initialization
 
-Tracing initializes automatically on module import. The module is imported in `gyrinx/wsgi.py` and `gyrinx/asgi.py`:
+Tracing initializes automatically on module import. The module is imported in `gyrinx/wsgi.py` (the production entrypoint — gunicorn serves WSGI) and `gyrinx/asgi.py` (kept for reversibility):
 
 ```python
 import gyrinx.tracing  # noqa: F401, E402
