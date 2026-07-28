@@ -385,12 +385,20 @@ class MaintenanceAdminSite(admin.site.__class__):
                 # left to the caller.
                 result = run_stat_advancements(notify=notify, triggered_by=request.user)
                 backfill = result.backfill
-                messages.success(
-                    request,
+                # Messages go out on commit, so the count only exists on the
+                # record once that has happened.
+                backfill.refresh_from_db()
+                sent = (backfill.summary or {}).get("messages_sent", 0)
+                note = (
                     f"Changed {result.changed} fighter/stat pair(s); "
-                    f"{result.visible} visible to players; "
-                    f"{result.messages_sent} message(s) sent.",
+                    f"{result.visible} visible to players; {sent} message(s) sent."
                 )
+                if result.skipped:
+                    note += (
+                        f" Skipped {result.skipped} pair(s) that someone edited "
+                        "while the run was in progress — re-run to pick them up."
+                    )
+                messages.success(request, note)
             except Exception as e:
                 logger.exception("Stat-advancement cleanup failed")
                 Backfill.objects.create(

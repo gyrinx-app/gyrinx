@@ -430,3 +430,37 @@ def test_an_advancement_a_set_would_swallow_is_left_alone(
     assert ListFighterAdvancement.objects.filter(
         fighter=fighter, uses_mod_system=False
     ).exists()
+
+
+@pytest.mark.django_db
+def test_an_edit_made_during_the_run_is_not_overwritten(
+    user, make_list, make_list_fighter
+):
+    """Building the plan takes long enough for a player to edit a stat.
+
+    Writing blind would overwrite that edit with a decision made about the
+    old value — losing a player's edit, which is the harm this whole
+    operation exists to undo.
+    """
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Busy Fighter")
+    advancement(fighter, user, "toughness", uses_mod_system=False)
+    fighter.toughness_override = "6"
+    fighter.save()
+
+    plan = build_plan()
+    assert plan.acted_on
+
+    # The player edits the same stat after the plan was built
+    ListFighter.objects.filter(pk=fighter.pk).update(toughness_override="9")
+
+    applied, skipped = apply_plan(plan)
+
+    assert applied == []
+    assert len(skipped) == 1
+    fighter.refresh_from_db()
+    assert fighter.toughness_override == "9"
+    # And the advancement was not flipped, so the pair stays convertible
+    assert ListFighterAdvancement.objects.filter(
+        fighter=fighter, uses_mod_system=False
+    ).exists()

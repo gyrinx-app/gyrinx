@@ -285,3 +285,34 @@ def test_stat_advancements_apply_records_a_backfill(
 
     assert not ListFighterAdvancement.objects.filter(uses_mod_system=False).exists()
     assert Notification.objects.filter(owner=lst.owner).exists()
+
+
+@pytest.mark.django_db
+def test_stat_advancements_refuses_a_second_concurrent_run(make_user):
+    """A run in progress must block another starting.
+
+    Idempotency keeps the data safe either way, but two runs would send every
+    affected player a duplicate message.
+    """
+    superuser = make_user("statsuper3", "pw")
+    superuser.is_staff = superuser.is_superuser = True
+    superuser.save()
+
+    in_progress = Backfill.objects.create(
+        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+        status=Backfill.Status.RUNNING,
+    )
+
+    client = Client()
+    client.force_login(superuser)
+    response = client.post(reverse("admin:maintenance_stat_advancements"))
+
+    assert response.status_code == 302
+    assert str(in_progress.id) in response["Location"]
+    # No second record was started
+    assert (
+        Backfill.objects.filter(
+            operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS
+        ).count()
+        == 1
+    )

@@ -469,6 +469,7 @@ class ApplyResult:
     changed: int = 0
     visible: int = 0
     messages_sent: int = 0
+    skipped: int = 0
     by_situation: dict = field(default_factory=dict)
     changes: list = field(default_factory=list)
     # Every pair acted on, so a later run can tell its own repairs apart from
@@ -481,6 +482,7 @@ class ApplyResult:
             "changed": self.changed,
             "visible": self.visible,
             "messages_sent": self.messages_sent,
+            "skipped_changed_by_someone_else": self.skipped,
             "by_situation": {str(k): v for k, v in self.by_situation.items()},
             "changes": self.changes,
             "acted_pairs": self.acted_pairs,
@@ -488,37 +490,53 @@ class ApplyResult:
 
 
 def apply_plan(plan):
-    """Write the plan's changes. Returns how many pairs were acted on."""
+    """Write the plan's changes. Returns (applied, skipped).
+
+    Each write is conditional on the value the plan was built against still
+    being there. Building the plan walks every affected fighter, which takes
+    long enough that a player can edit a stat in the meantime — and writing
+    blind would overwrite that edit with a decision made about the old value.
+    Losing a player's edit is the exact harm this operation exists to undo, so
+    a stale pair is skipped and reported rather than forced through.
+    """
     from gyrinx.core.models.list import ListFighter
     from gyrinx.core.models.list.advancement import ListFighterAdvancement
 
-    by_fighter = {}
+    applied = []
+    skipped = []
+
     for change in plan.acted_on:
-        by_fighter.setdefault(change.fighter_id, []).append(change)
+        field = f"{change.stat}_override"
+        if change.override_before != change.override_after:
+            # Compare-and-set: only write if the stored value is still the one
+            # the plan was built from. An UPDATE rather than save(), because
+            # saving fires receivers that materialise child fighters and bump
+            # the gang's modified timestamp, reordering the owner's gang list.
+            written = ListFighter.objects.filter(
+                pk=change.fighter_id, **{field: change.override_before}
+            ).update(**{field: change.override_after})
+            if not written:
+                skipped.append(change)
+                continue
 
-    for fighter_id, changes in by_fighter.items():
-        overrides = {
-            f"{c.stat}_override": c.override_after
-            for c in changes
-            if c.override_before != c.override_after
-        }
-        if overrides:
-            # An UPDATE rather than save(): saving a fighter fires receivers
-            # that materialise child fighters and bump the gang's modified
-            # timestamp, reordering every affected player's gang list.
-            ListFighter.objects.filter(pk=fighter_id).update(**overrides)
+        if change.flip_advancements:
+            ListFighterAdvancement.objects.filter(
+                fighter_id=change.fighter_id,
+                stat_increased=change.stat,
+                advancement_type="stat",
+                archived=False,
+                uses_mod_system=False,
+            ).update(uses_mod_system=True)
 
-        for change in changes:
-            if change.flip_advancements:
-                ListFighterAdvancement.objects.filter(
-                    fighter_id=fighter_id,
-                    stat_increased=change.stat,
-                    advancement_type="stat",
-                    archived=False,
-                    uses_mod_system=False,
-                ).update(uses_mod_system=True)
+        applied.append(change)
 
-    return len(plan.acted_on)
+    if skipped:
+        logger.warning(
+            "Stat cleanup skipped %d pair(s) changed by someone else mid-run: %s",
+            len(skipped),
+            ", ".join(f"{c.fighter_id}:{c.stat}" for c in skipped),
+        )
+    return applied, skipped
 
 
 STAT_NAMES = {
@@ -568,13 +586,18 @@ def _lines(changes):
 
 
 def build_messages(plan):
+    """One message per owner, for everything visible in the plan."""
+    return build_messages_for(plan.visible)
+
+
+def build_messages_for(changes):
     """One message per owner, covering every gang of theirs that changed.
 
     Losses are listed before gains: the bad news is what someone needs to see,
     and burying it under good news reads as spin.
     """
     by_owner = {}
-    for change in plan.visible:
+    for change in changes:
         if change.owner_id is not None:
             by_owner.setdefault(change.owner_id, []).append(change)
 
@@ -676,7 +699,6 @@ def run(*, notify=True, triggered_by=None):
     from gyrinx.core.models import Backfill
 
     plan = build_plan()
-    messages = build_messages(plan)
 
     result = ApplyResult(
         changed=len(plan.acted_on),
@@ -698,25 +720,36 @@ def run(*, notify=True, triggered_by=None):
         ],
     )
 
-    # The record goes in BEFORE the data changes, listing what is about to be
-    # touched, and both are committed together. If the process dies partway,
-    # either everything rolled back or the record survives naming every pair —
-    # never changed data with no memory of it, which is what would let a later
-    # run undo a player's edit.
+    # The record is created and committed on its own, BEFORE the data changes,
+    # naming every pair about to be touched. Two things depend on it being
+    # visible to other connections rather than buried inside the write
+    # transaction: the guard that stops a second run starting, and the memory
+    # that stops a later run undoing these repairs. If the process dies during
+    # the write, the data rolls back and this record remains, so those pairs
+    # are skipped next time — conservative, and never destructive.
+    record = Backfill.objects.create(
+        operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
+        triggered_by=triggered_by,
+        status=Backfill.Status.RUNNING,
+        summary=result.as_dict(),
+    )
+
     with transaction.atomic():
-        record = Backfill.objects.create(
-            operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
-            triggered_by=triggered_by,
-            status=Backfill.Status.RUNNING,
-            summary=result.as_dict(),
-        )
-        apply_plan(plan)
+        applied, skipped = apply_plan(plan)
         if notify:
-            # Only once the data is safely committed: nobody should be told
-            # about a change that rolled back.
-            transaction.on_commit(lambda: _deliver(record, messages))
-        record.status = Backfill.Status.DONE
-        record.save(update_fields=["status", "modified"])
+            # Only once the data is committed: nobody should be told about a
+            # change that rolled back.
+            delivered = [c for c in plan.visible if c not in skipped]
+            transaction.on_commit(
+                lambda: _deliver(record, build_messages_for(delivered))
+            )
+
+    result.changed = len(applied)
+    result.skipped = len(skipped)
+    result.acted_pairs = [f"{c.fighter_id}:{c.stat}" for c in applied]
+    record.summary = result.as_dict()
+    record.status = Backfill.Status.DONE
+    record.save(update_fields=["summary", "status", "modified"])
 
     result.backfill = record
     return result
@@ -724,6 +757,7 @@ def run(*, notify=True, triggered_by=None):
 
 def _deliver(record, messages):
     """Send the messages and note how many landed on the record."""
+    record.refresh_from_db()
     sent = send_messages(messages)
     record.summary = {**(record.summary or {}), "messages_sent": sent}
     record.save(update_fields=["summary", "modified"])
