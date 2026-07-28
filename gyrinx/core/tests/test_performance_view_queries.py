@@ -72,6 +72,19 @@ def normalize_sql_uuids(sql):
     return re.sub(uuid_pattern, replace_uuid, sql, flags=re.IGNORECASE)
 
 
+def test_normalize_sql_uuids_unifies_driver_renderings():
+    # psycopg2 renders UUID params dashed; psycopg 3 renders them dashless.
+    # Both must normalize to the same placeholder or the snapshot churns on
+    # every run.
+    dashed = "SELECT 1 WHERE id = '06ac5c9e-3fd4-4fcf-ad8f-3aa872139930'::uuid"
+    dashless = "SELECT 1 WHERE id = '06ac5c9e3fd44fcfad8f3aa872139930'::uuid"
+    assert (
+        normalize_sql_uuids(dashed)
+        == normalize_sql_uuids(dashless)
+        == "SELECT 1 WHERE id = 'UUID-1'::uuid"
+    )
+
+
 def strip_sql_comments(sql):
     """Strip SQL comments from the end of queries.
 

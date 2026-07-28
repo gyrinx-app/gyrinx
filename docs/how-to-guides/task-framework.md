@@ -342,6 +342,6 @@ my_task("arg1", "arg2")
 ```
 
 1. **Common failure causes**:
-   - `429`: Database connection pool exhausted (check `CONN_MAX_AGE`, connection limits)
+   - `429`: Database at capacity — the psycopg connection pool timed out waiting for a connection, or Postgres is out of connection slots (check the pool sizing in `gyrinx/settings_prod.py` and Cloud SQL connection limits)
    - `500`: Unhandled exception (check task code)
    - `400`: Message format issues (check enqueue arguments)

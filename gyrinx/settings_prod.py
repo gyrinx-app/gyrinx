@@ -72,8 +72,9 @@ BASE_URL = "https://gyrinx.app"
 # connection dropped by the server or the Cloud SQL proxy is verified
 # (and replaced) on checkout instead of failing the request.
 #
-# Sizing: the live service runs at most 3 instances (one daphne process
-# each), so max_size 8 caps steady state at 24 connections — and at most
+# Sizing: Cloud Run runs at most 3 instances (--max-instances in
+# cloudbuild.yaml, one daphne process each), so max_size 8 caps steady
+# state at 24 connections — and at most
 # 48 in the worst case during a rolling deploy, when old and new
 # revisions briefly overlap and both serve traffic. That stays under the
 # 50-connection limit with room for cloudsqladmin, prodshell, and
@@ -88,7 +89,9 @@ DATABASES["default"]["OPTIONS"] = {  # noqa: F405
     "pool": {
         "min_size": 1,
         "max_size": 8,
-        "timeout": 10,
+        # Fail reasonably fast when the DB is down or the pool is
+        # saturated, so requests shed instead of piling up.
+        "timeout": 5,
     },
 }
 

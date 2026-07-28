@@ -132,7 +132,15 @@ def pubsub_push_handler(request):
     try:
         connection.ensure_connection()
     except OperationalError as e:
-        if "connection slots" in str(e) or "too many connections" in str(e).lower():
+        # "connection slots" / "too many connections": Postgres itself is
+        # full. "couldn't get a connection": psycopg_pool exhausted its
+        # max_size and timed out waiting for a checkout.
+        msg = str(e).lower()
+        if (
+            "connection slots" in msg
+            or "too many connections" in msg
+            or "couldn't get a connection" in msg
+        ):
             logger.warning(
                 "Database connection pool exhausted, returning 429 for retry",
                 extra={"error": str(e)},
