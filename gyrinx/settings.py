@@ -169,6 +169,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
+    # Clears the thread-local the next middleware sets; must sit above it so
+    # the clear runs after the response (threads are reused under gunicorn).
+    "gyrinx.core.middleware.ClearLoggingRequestMiddleware",
     # Google Cloud Logging - must be early to capture request for trace correlation
     "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -225,6 +228,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "gyrinx.wsgi.application"
+# Inert since the move to gunicorn/WSGI (only daphne/channels read this).
+# Kept, with gyrinx/asgi.py, so reverting to ASGI stays a one-line change.
 ASGI_APPLICATION = "gyrinx.asgi.application"
 
 

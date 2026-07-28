@@ -21,6 +21,34 @@ from gyrinx.core.impersonation import (
 )
 
 
+class ClearLoggingRequestMiddleware:
+    """
+    Clear google.cloud.logging's per-thread request reference after each
+    response.
+
+    The upstream RequestMiddleware stores the request in a thread-local and
+    never removes it. Under a threaded server (gunicorn gthread) threads are
+    reused, so each pool thread would otherwise pin its most recent request —
+    user, session, any in-memory upload buffer — indefinitely, and log records
+    emitted on that thread outside a request would pick up the stale request
+    for trace correlation. Must sit above RequestMiddleware in MIDDLEWARE so
+    this clear runs after the response is fully generated.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        try:
+            return self.get_response(request)
+        finally:
+            from google.cloud.logging_v2.handlers.middleware.request import (
+                _thread_locals,
+            )
+
+            _thread_locals.request = None
+
+
 class RequestSizeExceptionMiddleware:
     """
     Middleware to catch RequestDataTooBig exceptions and return a 400 response.

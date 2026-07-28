@@ -74,9 +74,13 @@ BASE_URL = "https://gyrinx.app"
 # (docker/entrypoint.sh) and one pool per process: 3 × 2 × 6 = 36
 # connections at full simultaneous demand, under the 50-connection limit
 # with room for cloudsqladmin, prodshell, and deploy-time migrations.
-# (During a rolling deploy old and new revisions briefly overlap; total
-# open connections track actual demand, which historically peaks well
-# below the combined cap.) max_size 6 per process — 12 per instance —
+# During a rolling deploy old and new revisions overlap, so the
+# theoretical worst case is double (72) — but reaching it needs full
+# simultaneous DB-bound demand on both revisions at once, while observed
+# demand peaks near 10, and max_idle (below) shrinks grown pools within
+# a minute so a draining revision releases its connections quickly
+# rather than holding them for psycopg_pool's 10-minute default.
+# max_size 6 per process — 12 per instance —
 # is sized from the 2026-07-28 incident: a per-instance cap of 8 shed
 # requests with pool timeouts for ~2 minutes after a deploy, while the
 # database itself sat at 10 backends; cold instances hold connections
@@ -98,6 +102,10 @@ DATABASES["default"]["OPTIONS"] = {  # noqa: F405
         # Fail reasonably fast when the DB is down or the pool is
         # saturated, so requests shed instead of piling up.
         "timeout": 5,
+        # Return burst connections to Postgres within a minute of going
+        # quiet (default is 600s, which would keep a draining revision's
+        # grown pools holding slots through the whole deploy window).
+        "max_idle": 60,
     },
 }
 
