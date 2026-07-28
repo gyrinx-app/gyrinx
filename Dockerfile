@@ -47,4 +47,8 @@ COPY docker/ /app/docker/
 
 EXPOSE $PORT
 
-CMD ./docker/entrypoint.sh
+# Exec form: the script's shell becomes PID 1, so its `exec gunicorn` makes
+# gunicorn PID 1 and SIGTERM from Cloud Run reaches it for graceful shutdown.
+# (Shell form wraps the script in an outer `sh -c` that keeps PID 1 and dies
+# on SIGTERM, taking the workers down hard.)
+CMD ["./docker/entrypoint.sh"]
