@@ -352,6 +352,12 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
   row holding the outcome. Small repairs apply synchronously (see `persistent_stash_view`); long
   ones run as the self-re-enqueueing task chain in `gyrinx/core/tasks.py`, reporting progress into
   the same record.
+- **"Long" means it scales with the estate — queue it, don't run it in the request.** If the cost
+  grows with the number of lists or fighters rather than a handful of rows, use the task chain even
+  when a local dry run looks quick: local data is a fraction of production. This applies to the
+  preview as much as the apply, since both walk the same set. The stat-advancement cleanup
+  (#2070) was built synchronously against the guidance above and its preview page took over a
+  minute in production — long enough to look hung, and holding a database connection throughout.
 
 ## Key Models Reference
 
