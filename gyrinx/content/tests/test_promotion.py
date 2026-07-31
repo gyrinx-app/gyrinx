@@ -494,3 +494,76 @@ def test_promotion_targets_match_core_allowed_overrides():
     from gyrinx.core.models.list._common import ALLOWED_CATEGORY_OVERRIDES
 
     assert list(PROMOTION_TARGET_CATEGORIES) == list(ALLOWED_CATEGORY_OVERRIDES)
+
+
+# --- #1468: any-category sources + dynamic targets --------------------------------------
+
+
+def test_clean_rejects_dynamic_targets_on_relabel():
+    path = ContentPromotionPath(
+        name="Bad relabel",
+        kind=ContentPromotionPath.Kind.RELABEL,
+        from_category=FighterCategoryChoices.GANGER,
+        to_category=FighterCategoryChoices.SPECIALIST,
+        dynamic_targets_category=FighterCategoryChoices.LEADER,
+        xp_cost=0,
+    )
+    with pytest.raises(ValidationError, match="type changes"):
+        path.clean()
+
+
+def test_clean_rejects_blank_source_on_relabel():
+    """'Relabel anyone' has no meaning — blank sources are a type-change affordance."""
+    path = ContentPromotionPath(
+        name="Anyone to Specialist",
+        kind=ContentPromotionPath.Kind.RELABEL,
+        from_category="",
+        to_category=FighterCategoryChoices.SPECIALIST,
+        xp_cost=0,
+    )
+    with pytest.raises(ValidationError, match="source category"):
+        path.clean()
+
+
+def test_clean_rejects_non_overridable_dynamic_target_category():
+    path = ContentPromotionPath(
+        name="Bad dynamic",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category="",
+        dynamic_targets_category=FighterCategoryChoices.STASH,
+        xp_cost=0,
+    )
+    with pytest.raises(ValidationError, match="Dynamic target category"):
+        path.clean()
+
+
+def test_str_renders_any_for_blank_source():
+    """Catches: the admin changelist rendering '( → LEADER)' for any-category paths."""
+    path = ContentPromotionPath(
+        name="Nominate as leader",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category="",
+        to_category=FighterCategoryChoices.LEADER,
+        xp_cost=0,
+    )
+    assert str(path) == "Nominate as leader (Any → LEADER)"
+
+
+def test_leader_migration_snapshot_agrees_with_live_seed_constant():
+    """Migration 0187 inlines a frozen snapshot of LEADER_NOMINATION (no app imports).
+    The two must agree, else fresh installs (migrated) and the test suite (seeded from
+    the constant via the leader_nomination_path fixture) see different data."""
+    import importlib.util
+    import pathlib
+
+    from gyrinx.content.migrations import __path__ as migrations_path
+    from gyrinx.content.models.promotion import LEADER_NOMINATION
+
+    spec_path = pathlib.Path(migrations_path[0]) / "0187_seed_leader_nomination.py"
+    spec = importlib.util.spec_from_file_location("leader_seed_migration", spec_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    for key, frozen_value in module.SEED.items():
+        # TextChoices members compare equal to their raw string values.
+        assert LEADER_NOMINATION[key] == frozen_value, key

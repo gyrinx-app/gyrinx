@@ -5,6 +5,7 @@ from typing import Optional
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 from gyrinx.content.models import (
     ContentAdvancementAssignment,
@@ -41,11 +42,13 @@ def available_promotion_paths(fighter):
     """Promotion paths this fighter can currently be offered.
 
     The category gate applies in both source modes (see is_available_to_fighter), so it
-    is pushed into SQL; the source-fighter and house checks run on the narrowed set.
+    is pushed into SQL — blank from_category means any-category paths (e.g. 'Nominate as
+    leader'), which every fighter must see; the source-fighter, house, and trigger
+    checks run on the narrowed set.
     """
     paths = []
     for path in ContentPromotionPath.objects.filter(
-        from_category=fighter.get_category()
+        Q(from_category=fighter.get_category()) | Q(from_category="")
     ).prefetch_related("restricted_to_houses", "targets"):
         if not path.is_available_to_fighter(fighter):
             continue
@@ -511,8 +514,11 @@ class AdvancementTypeForm(forms.Form):
             if fighter and not path.is_available_to_fighter(fighter):
                 continue
             # Prefetched, so len() avoids a COUNT(*) per path. Multi-target paths can't
-            # be prefilled — the roll flow has no target-selection step.
-            if len(path.targets.all()) > 1:
+            # be prefilled — the roll flow has no target-selection step. (Dynamic
+            # targets need the fighter to resolve; without one, only explicit targets
+            # can be counted.)
+            targets = path.resolve_targets(fighter) if fighter else path.targets.all()
+            if len(targets) > 1:
                 continue
             advancement_choice = promotion_choice_key(path)
             cost_increase = path.cost_increase
@@ -737,13 +743,17 @@ class PromotionTargetSelectionForm(forms.Form):
         label="Promotion type",
     )
 
-    def __init__(self, *args, path=None, **kwargs):
+    def __init__(self, *args, path=None, fighter=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.path = path
         from gyrinx.content.models import ContentFighter
 
+        # resolve_targets covers both target modes: explicit rows, and dynamic
+        # resolution against the fighter's gang house (e.g. 'Nominate as leader').
         self.fields["target"].queryset = (
-            path.targets.all() if path else ContentFighter.objects.none()
+            path.resolve_targets(fighter)
+            if path and fighter
+            else ContentFighter.objects.none()
         )
 
 

@@ -262,7 +262,9 @@ class ListFighterAdvancement(AppBase):
                 # Only infer the target when the path has exactly one — a multi-target
                 # path with no stored choice must not resolve to an arbitrary pick.
                 # (The wizard always stores the choice; this guards programmatic writes.)
-                targets = pylist(path.targets.all())
+                # resolve_targets covers dynamically-targeted paths too (e.g. a house
+                # with a single Leader type under 'Nominate as leader').
+                targets = pylist(path.resolve_targets(self.fighter))
                 if len(targets) == 1:
                     target = targets[0]
             return ResolvedPromotion(

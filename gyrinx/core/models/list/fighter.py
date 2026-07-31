@@ -2707,6 +2707,24 @@ class ListFighter(AppBase):
         return self.is_captured or self.is_sold_to_guilders or self.is_dead
 
     @property
+    def can_be_nominated_leader(self):
+        """The per-fighter half of the 'Nominate as leader' gate (#1468).
+
+        Cheap checks only — the gang-level half (campaign mode, no living leader, a
+        LEADER_DEATH path with resolvable targets) lives in
+        ``List.leader_nomination_offer``, evaluated once per page. The wizard and
+        handler re-run the full ``is_available_to_fighter`` gate at apply time.
+        """
+        return (
+            self.promoted_content_fighter_id is None
+            and not self.is_stash
+            and not self.is_vehicle
+            and not self.is_child_fighter
+            and self.get_category() != FighterCategoryChoices.LEADER
+            and not self.should_have_zero_cost
+        )
+
+    @property
     @traced("listfighter_active_advancement_count")
     def active_advancement_count(self):
         """Return count of non-archived advancements.

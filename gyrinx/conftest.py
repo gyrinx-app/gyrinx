@@ -795,3 +795,16 @@ def default_promotions(db):
     return {
         (p.from_category, p.to_category): p for p in ContentPromotionPath.objects.all()
     }
+
+
+@pytest.fixture
+def leader_nomination_path(db):
+    """Seed the generic 'Nominate as leader' path (any category, dynamic Leader targets).
+
+    Like default_promotions, this exists because the test DB is built with
+    --nomigrations, so the deployment seed (0187) never runs in tests.
+    """
+    from gyrinx.content.models import ContentPromotionPath
+    from gyrinx.content.models.promotion import seed_leader_nomination
+
+    return seed_leader_nomination(ContentPromotionPath)
