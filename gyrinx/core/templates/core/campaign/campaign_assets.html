@@ -142,7 +142,7 @@
                                                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
                                                        class="linked-secondary fs-7">Edit</a>
                                                     ·
-                                                    <a href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}"
+                                                    <a href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
                                                        class="linked-secondary fs-7">Clone</a>
                                                     ·
                                                     <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
@@ -174,8 +174,8 @@
                                                         </li>
                                                         <li>
                                                             <a class="dropdown-item"
-                                                               href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}">
-                                                                <i class="bi-copy"></i> Clone
+                                                               href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}">
+                                                                <i class="bi-copy" aria-hidden="true"></i> Clone
                                                             </a>
                                                         </li>
                                                         <li>

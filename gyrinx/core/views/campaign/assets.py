@@ -1,5 +1,7 @@
 """Campaign asset management views."""
 
+from copy import deepcopy
+
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
 from django.http import HttpResponseRedirect
@@ -527,6 +529,10 @@ def campaign_asset_clone(request, id, asset_id):
             reverse("core:campaign-assets", args=(campaign.id,))
         )
 
+    default_url = reverse("core:campaign-assets", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+    sub_assets = list(asset.sub_assets.all())
+
     if request.method == "POST":
         form = CampaignAssetCloneForm(request.POST)
         if form.is_valid():
@@ -537,19 +543,19 @@ def campaign_asset_clone(request, id, asset_id):
                     name=form.cleaned_data["name"],
                     description=asset.description,
                     holder=None,
-                    properties=asset.properties,
+                    # Deep-copied so the clone never shares the source's dict.
+                    properties=deepcopy(asset.properties),
                 )
 
-                sub_asset_count = 0
-                for sub_asset in asset.sub_assets.all():
+                for sub_asset in sub_assets:
                     CampaignSubAsset.objects.create(
                         parent_asset=clone,
                         owner=request.user,
                         sub_asset_type=sub_asset.sub_asset_type,
                         name=sub_asset.name,
-                        properties=sub_asset.properties,
+                        properties=deepcopy(sub_asset.properties),
                     )
-                    sub_asset_count += 1
+                sub_asset_count = len(sub_assets)
 
                 if campaign.is_in_progress:
                     CampaignAction.objects.create(
@@ -585,9 +591,7 @@ def campaign_asset_clone(request, id, asset_id):
 
             messages.success(request, f"Asset '{clone.name}' created as a copy.")
 
-            return HttpResponseRedirect(
-                reverse("core:campaign-assets", args=(campaign.id,))
-            )
+            return safe_redirect(request, return_url, fallback_url=default_url)
     else:
         form = CampaignAssetCloneForm(initial={"name": asset.name})
 
@@ -598,7 +602,8 @@ def campaign_asset_clone(request, id, asset_id):
             "campaign": campaign,
             "asset": asset,
             "form": form,
-            "sub_asset_count": asset.sub_assets.count(),
+            "sub_asset_count": len(sub_assets),
+            "return_url": return_url,
         },
     )
 

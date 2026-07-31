@@ -4,8 +4,7 @@
     Clone {{ asset.name }} - {{ campaign.name }}
 {% endblock head_title %}
 {% block content %}
-    {% url 'core:campaign-assets' campaign.id as campaign_assets_url %}
-    <c-back url="{{ campaign_assets_url }}" text="Back to Assets" />
+    <c-back url="{{ return_url }}" text="Back" />
     <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
         <h1 class="h3">Clone {{ asset.name }}</h1>
         <h2 class="h5 text-secondary">{{ campaign.name }}</h2>
@@ -13,6 +12,7 @@
               method="post"
               class="vstack gap-3">
             {% csrf_token %}
+            {% return_url_field %}
             <c-callout variant="info" class="mb-0">
                 <p class="mb-0">
                     This makes a copy of the {{ asset.asset_type.name_singular|lower }} <strong>{{ asset.name }}</strong>, including its
@@ -23,9 +23,9 @@
             <c-form.field :field="form.name" />
             <div class="mt-3">
                 <c-btn variant="success" type="submit">
-                    <i class="bi-copy"></i> Clone {{ asset.asset_type.name_singular }}
+                    <i class="bi-copy" aria-hidden="true"></i> Clone {{ asset.asset_type.name_singular }}
                 </c-btn>
-                <c-cancel url="{{ campaign_assets_url }}" />
+                <c-cancel url="{{ return_url }}" />
             </div>
         </form>
     </div>

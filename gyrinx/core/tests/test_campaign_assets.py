@@ -1068,3 +1068,94 @@ def test_campaign_assets_page_offers_clone(client, user, campaign, cloneable_ass
         reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id])
         in response.content.decode()
     )
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_returns_to_detail_page(
+    client, user, campaign, cloneable_asset
+):
+    """Cloning from an asset's detail page returns there, not to the list."""
+    client.force_login(user)
+    detail_url = reverse(
+        "core:campaign-asset-detail", args=[campaign.id, cloneable_asset.id]
+    )
+
+    response = client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement", "return_url": detail_url},
+    )
+    assert response.status_code == 302
+    assert response.url == detail_url
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_no_action_outside_in_progress(
+    client, user, cloneable_asset
+):
+    """Pre-campaign gangs get the copy without an entry in the action log."""
+    campaign = cloneable_asset.asset_type.campaign
+    campaign.status = Campaign.PRE_CAMPAIGN
+    campaign.save()
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+    )
+
+    assert CampaignAsset.objects.count() == 2
+    assert not CampaignAction.objects.filter(campaign=campaign).exists()
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_rejects_empty_name(
+    client, user, campaign, cloneable_asset
+):
+    """An empty name re-renders the form and creates nothing."""
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": ""},
+    )
+    assert response.status_code == 200
+    assert CampaignAsset.objects.count() == 1
+    assert CampaignSubAsset.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_scoped_to_its_campaign(
+    client, user, make_campaign, cloneable_asset
+):
+    """An asset cannot be cloned through another campaign's URL."""
+    other_campaign = make_campaign("Other Campaign", status=Campaign.IN_PROGRESS)
+    client.force_login(user)
+
+    response = client.post(
+        reverse(
+            "core:campaign-asset-clone", args=[other_campaign.id, cloneable_asset.id]
+        ),
+        {"name": "Settlement"},
+    )
+    assert response.status_code == 404
+    assert CampaignAsset.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_does_not_share_property_dicts(
+    client, user, campaign, cloneable_asset
+):
+    """The copy owns its properties rather than aliasing the source's dict."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+    )
+
+    clone = CampaignAsset.objects.exclude(pk=cloneable_asset.pk).get()
+    clone.properties["boon"] = "changed"
+    clone.save()
+
+    cloneable_asset.refresh_from_db()
+    assert cloneable_asset.properties == {"boon": "+D6 income"}
