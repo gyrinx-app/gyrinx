@@ -878,3 +878,193 @@ def test_campaign_asset_detail_breadcrumb_includes_type():
     content = response.content.decode()
     # Appears in the caps-label heading and, now, the breadcrumb crumb.
     assert content.count("Zone") >= 2
+
+
+@pytest.fixture
+def cloneable_asset(user, campaign):
+    """An asset with a description, properties and two sub-assets."""
+    asset_type = CampaignAssetType.objects.create(
+        campaign=campaign,
+        name_singular="Territory",
+        name_plural="Territories",
+        property_schema=[{"key": "boon", "label": "Boon"}],
+        sub_asset_schema={
+            "structure": {
+                "label": "Structure",
+                "label_plural": "Structures",
+                "property_schema": [{"key": "benefit", "label": "Benefit"}],
+            }
+        },
+        owner=user,
+    )
+    asset = CampaignAsset.objects.create(
+        asset_type=asset_type,
+        name="Settlement",
+        description="<p>A shanty town.</p>",
+        properties={"boon": "+D6 income"},
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Generator Hall",
+        properties={"benefit": "Free power"},
+        owner=user,
+    )
+    CampaignSubAsset.objects.create(
+        parent_asset=asset,
+        sub_asset_type="structure",
+        name="Water Still",
+        properties={"benefit": "Clean water"},
+        owner=user,
+    )
+    return asset
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_copies_content_and_sub_assets(
+    client, user, campaign, cloneable_asset
+):
+    """Cloning under the same name leaves two identical assets side by side."""
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+    )
+    assert response.status_code == 302
+
+    assets = CampaignAsset.objects.filter(
+        asset_type=cloneable_asset.asset_type, name="Settlement"
+    )
+    assert assets.count() == 2
+
+    clone = assets.exclude(pk=cloneable_asset.pk).get()
+    assert clone.description == cloneable_asset.description
+    assert clone.properties == {"boon": "+D6 income"}
+    assert clone.owner == user
+
+    # Sub-assets are copied onto the clone, not shared with the original.
+    assert cloneable_asset.sub_assets.count() == 2
+    clone_subs = clone.sub_assets.order_by("name")
+    assert [s.name for s in clone_subs] == ["Generator Hall", "Water Still"]
+    assert [s.sub_asset_type for s in clone_subs] == ["structure", "structure"]
+    assert clone_subs[0].properties == {"benefit": "Free power"}
+    assert set(clone_subs.values_list("pk", flat=True)).isdisjoint(
+        cloneable_asset.sub_assets.values_list("pk", flat=True)
+    )
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_can_be_renamed(client, user, campaign, cloneable_asset):
+    """The name is editable at clone time."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement (North)"},
+    )
+
+    clone = CampaignAsset.objects.get(name="Settlement (North)")
+    assert clone.asset_type == cloneable_asset.asset_type
+    assert clone.sub_assets.count() == 2
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_does_not_copy_holder(
+    client, user, campaign, cloneable_asset, list_with_campaign
+):
+    """A clone starts unowned even when the original is held."""
+    cloneable_asset.holder = list_with_campaign
+    cloneable_asset.save()
+
+    client.force_login(user)
+    client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+    )
+
+    clone = CampaignAsset.objects.exclude(pk=cloneable_asset.pk).get()
+    assert clone.holder is None
+    cloneable_asset.refresh_from_db()
+    assert cloneable_asset.holder == list_with_campaign
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_get_prefills_name(
+    client, user, campaign, cloneable_asset
+):
+    """The confirmation page pre-fills the source name and mentions the sub-assets."""
+    client.force_login(user)
+
+    response = client.get(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id])
+    )
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert 'value="Settlement"' in content
+    assert "2 sub-assets" in content
+    # Nothing is created by merely viewing the page.
+    assert CampaignAsset.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_records_campaign_action(
+    client, user, campaign, cloneable_asset
+):
+    """Cloning in an in-progress campaign is recorded in the action log."""
+    client.force_login(user)
+
+    client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+    )
+
+    action = CampaignAction.objects.get(campaign=campaign)
+    assert "Settlement" in action.description
+    assert action.user == user
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_requires_admin(
+    client, make_user, campaign, cloneable_asset
+):
+    """A user who does not administer the campaign cannot clone its assets."""
+    other = make_user("intruder", "pw")
+    client.force_login(other)
+
+    response = client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+    )
+    assert response.status_code == 404
+    assert CampaignAsset.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_refused_for_archived_campaign(
+    client, user, campaign, cloneable_asset
+):
+    """Archived campaigns are read-only."""
+    campaign.archive()
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement"},
+        follow=True,
+    )
+    assert response.status_code == 200
+    assert CampaignAsset.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_campaign_assets_page_offers_clone(client, user, campaign, cloneable_asset):
+    """The assets page links to the clone action for admins."""
+    client.force_login(user)
+
+    response = client.get(reverse("core:campaign-assets", args=[campaign.id]))
+    assert (
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id])
+        in response.content.decode()
+    )

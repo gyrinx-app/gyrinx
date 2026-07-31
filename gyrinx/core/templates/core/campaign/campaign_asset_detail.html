@@ -25,6 +25,8 @@
                        class="icon-link linked"><i class="bi-arrow-left-right" aria-hidden="true"></i> Transfer</a>
                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
                        class="icon-link linked"><i class="bi-pencil" aria-hidden="true"></i> Edit</a>
+                    <a href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}"
+                       class="icon-link linked"><i class="bi-copy" aria-hidden="true"></i> Clone</a>
                 </span>
             {% endif %}
         </div>
