@@ -242,7 +242,7 @@
                                             {% if offer and fighter.can_be_nominated_leader %}
                                                 <li>
                                                     <a class="dropdown-item"
-                                                       href="{% url offer.url_name list.id fighter.id %}?{{ offer.query }}"><i class="bi-award"></i> Nominate as leader</a>
+                                                       href="{% url offer.url_name list.id fighter.id %}?{{ offer.query }}"><i class="bi-award" aria-hidden="true"></i> Nominate as leader</a>
                                                 </li>
                                             {% endif %}
                                         {% endwith %}

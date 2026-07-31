@@ -1389,3 +1389,35 @@ def test_leader_nomination_seed_shape(leader_nomination_path):
     assert path.rolls == []
     assert path.grants_skill == "none"
     assert path.timing == ContentPromotionPath.Timing.LEADER_DEATH
+
+
+@pytest.mark.django_db
+def test_nomination_hidden_for_child_fighter(
+    leaderless_gang,
+    leader_nomination_path,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    """An exotic beast (child fighter) can never be nominated, even though beasts can
+    otherwise take advancements. Catches: the any-category gate stopping at
+    stash/vehicle and letting equipment-spawned fighters through."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    beast_cf = make_content_fighter(
+        type="Gnasher",
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=leaderless_gang["ganger_cf"].house,
+        base_cost=30,
+    )
+    beast = make_list_fighter(
+        leaderless_gang["list"], "Gnasher", content_fighter=beast_cf
+    )
+    collar = make_equipment("Beast Collar", category="Status Items", cost=0)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=leaderless_gang["ganger"],
+        content_equipment=collar,
+        child_fighter=beast,
+    )
+    beast = ListFighter.objects.get(id=beast.id)
+    assert "Nominate as leader" not in _offered_path_names(beast)

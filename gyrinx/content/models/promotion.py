@@ -364,7 +364,11 @@ class ContentPromotionPath(Content):
             # sweep in non-fighters.
             if list_fighter.promoted_content_fighter_id is not None:
                 return False
-            if list_fighter.is_stash or list_fighter.is_vehicle:
+            if (
+                list_fighter.is_stash
+                or list_fighter.is_vehicle
+                or list_fighter.is_child_fighter
+            ):
                 return False
             effective_to = self.effective_to_category()
             if effective_to and list_fighter.get_category() == effective_to:
