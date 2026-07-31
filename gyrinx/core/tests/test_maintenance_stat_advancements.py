@@ -607,3 +607,34 @@ def test_a_summary_distinguishes_nothing_to_send_from_not_sent(
     assert summary["messages_expected"] == 0
     # There was a visible change — it just was not going to be announced
     assert summary["visible"] == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_summary_records_what_notification_was_asked_for():
+    """The requested count is what makes "0 sent" readable after the fact.
+
+    Testing only the notify=False case would pass against code that never
+    sets these at all, since False and 0 are their defaults.
+    """
+    from django.contrib.auth import get_user_model
+
+    from gyrinx.content.models import ContentHouse
+    from gyrinx.core.models.list import List
+
+    User = get_user_model()
+    owner = User.objects.create_user(username="intentrec", password="pw")
+    house = ContentHouse.objects.create(name="Intent House")
+    cf = make_simple_content_fighter(house)
+    lst = List.objects.create(name="Gang", owner=owner, content_house=house)
+    fighter = ListFighter.objects.create(
+        list=lst, name="Feuer", content_fighter=cf, owner=owner
+    )
+    advancement(fighter, owner, "toughness", uses_mod_system=False)
+
+    result = run(notify=True)
+    result.backfill.refresh_from_db()
+    summary = result.backfill.summary
+
+    assert summary["notify_requested"] is True
+    assert summary["messages_expected"] == 1
+    assert summary["messages_sent"] == 1
