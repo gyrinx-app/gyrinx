@@ -531,12 +531,14 @@ def campaign_asset_clone(request, id, asset_id):
 
     default_url = reverse("core:campaign-assets", args=(campaign.id,))
     return_url = get_return_url(request, default_url)
-    sub_assets = list(asset.sub_assets.all())
 
     if request.method == "POST":
         form = CampaignAssetCloneForm(request.POST)
         if form.is_valid():
             with transaction.atomic():
+                # Read inside the transaction so a concurrent sub-asset change
+                # can't be missed between counting and copying.
+                sub_assets = list(asset.sub_assets.all())
                 clone = CampaignAsset.objects.create(
                     asset_type=asset.asset_type,
                     owner=request.user,
@@ -602,7 +604,7 @@ def campaign_asset_clone(request, id, asset_id):
             "campaign": campaign,
             "asset": asset,
             "form": form,
-            "sub_asset_count": len(sub_assets),
+            "sub_asset_count": asset.sub_assets.count(),
             "return_url": return_url,
         },
     )

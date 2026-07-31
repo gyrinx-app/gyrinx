@@ -15,7 +15,7 @@
             {% return_url_field %}
             <c-callout variant="info" class="mb-0">
                 <p class="mb-0">
-                    This makes a copy of the {{ asset.asset_type.name_singular|lower }} <strong>{{ asset.name }}</strong>, including its
+                    This makes a copy of the {{ asset.asset_type.name_singular }} <strong>{{ asset.name }}</strong>, including its
                     description and properties{% if sub_asset_count %}, plus its {{ sub_asset_count }} sub-asset{{ sub_asset_count|pluralize }}{% endif %}.
                     The copy starts unowned, even if the original is held by a gang.
                 </p>
@@ -23,7 +23,8 @@
             <c-form.field :field="form.name" />
             <div class="mt-3">
                 <c-btn variant="success" type="submit">
-                    <i class="bi-copy" aria-hidden="true"></i> Clone {{ asset.asset_type.name_singular }}
+                    <c-icon name="clone" />
+                    Clone {{ asset.asset_type.name_singular }}
                 </c-btn>
                 <c-cancel url="{{ return_url }}" />
             </div>

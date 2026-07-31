@@ -1142,10 +1142,16 @@ def test_campaign_asset_clone_scoped_to_its_campaign(
 
 
 @pytest.mark.django_db
-def test_campaign_asset_clone_does_not_share_property_dicts(
+def test_campaign_asset_clone_properties_are_stored_independently(
     client, user, campaign, cloneable_asset
 ):
-    """The copy owns its properties rather than aliasing the source's dict."""
+    """Editing the copy's properties leaves the original's untouched, and vice
+    versa — for the asset and its sub-assets.
+
+    This pins the stored rows, not the in-process dicts: once a request is over
+    both sides are deserialised separately, so aliasing is unobservable from
+    here. The deepcopy in the view guards the in-request case.
+    """
     client.force_login(user)
 
     client.post(
@@ -1157,5 +1163,41 @@ def test_campaign_asset_clone_does_not_share_property_dicts(
     clone.properties["boon"] = "changed"
     clone.save()
 
+    clone_sub = clone.sub_assets.get(name="Generator Hall")
+    clone_sub.properties["benefit"] = "rewired"
+    clone_sub.save()
+
     cloneable_asset.refresh_from_db()
     assert cloneable_asset.properties == {"boon": "+D6 income"}
+    assert cloneable_asset.sub_assets.get(name="Generator Hall").properties == {
+        "benefit": "Free power"
+    }
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_rejects_offsite_return_url(
+    client, user, campaign, cloneable_asset
+):
+    """An attacker-supplied return_url falls back to the assets list."""
+    client.force_login(user)
+
+    response = client.post(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id]),
+        {"name": "Settlement", "return_url": "https://evil.example/steal"},
+    )
+    assert response.status_code == 302
+    assert response.url == reverse("core:campaign-assets", args=[campaign.id])
+
+
+@pytest.mark.django_db
+def test_campaign_asset_clone_page_requires_admin(
+    client, make_user, campaign, cloneable_asset
+):
+    """Non-admins cannot even open the clone confirmation page."""
+    other = make_user("onlooker", "pw")
+    client.force_login(other)
+
+    response = client.get(
+        reverse("core:campaign-asset-clone", args=[campaign.id, cloneable_asset.id])
+    )
+    assert response.status_code == 404

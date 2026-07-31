@@ -26,7 +26,7 @@
                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
                        class="icon-link linked"><i class="bi-pencil" aria-hidden="true"></i> Edit</a>
                     <a href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
-                       class="icon-link linked"><i class="bi-copy" aria-hidden="true"></i> Clone</a>
+                       class="icon-link linked"><c-icon name="clone" /> Clone</a>
                 </span>
             {% endif %}
         </div>
