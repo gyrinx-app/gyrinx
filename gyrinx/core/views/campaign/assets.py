@@ -1,5 +1,7 @@
 """Campaign asset management views."""
 
+from copy import deepcopy
+
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
 from django.http import HttpResponseRedirect
@@ -9,6 +11,7 @@ from django.urls import reverse
 from gyrinx import messages
 from gyrinx.core.forms.campaign import (
     AssetTransferForm,
+    CampaignAssetCloneForm,
     CampaignAssetForm,
     CampaignAssetTypeForm,
 )
@@ -17,6 +20,7 @@ from gyrinx.core.models.campaign import (
     CampaignAction,
     CampaignAsset,
     CampaignAssetType,
+    CampaignSubAsset,
 )
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
 from gyrinx.core.utils import get_return_url, safe_redirect
@@ -490,6 +494,119 @@ def campaign_asset_edit(request, id, asset_id):
         request,
         "core/campaign/campaign_asset_edit.html",
         {"form": form, "campaign": campaign, "asset": asset},
+    )
+
+
+@login_required
+def campaign_asset_clone(request, id, asset_id):
+    """
+    Clone an existing asset, including its sub-assets.
+
+    The clone copies the source asset's description, properties and sub-assets,
+    but never its holder — a fresh copy starts unowned and is then transferred.
+    Duplicate names are allowed (#2075).
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` the asset belongs to.
+    ``asset``
+        The :model:`core.CampaignAsset` being cloned.
+    ``form``
+        A CampaignAssetCloneForm for naming the copy.
+
+    **Template**
+
+    :template:`core/campaign/campaign_asset_clone.html`
+    """
+    campaign = get_campaign_admin_or_404(request, id)
+    asset = get_object_or_404(CampaignAsset, id=asset_id, asset_type__campaign=campaign)
+
+    # Prevent cloning within archived campaigns
+    if campaign.archived:
+        messages.error(request, "Cannot clone assets in archived campaigns.")
+        return HttpResponseRedirect(
+            reverse("core:campaign-assets", args=(campaign.id,))
+        )
+
+    default_url = reverse("core:campaign-assets", args=(campaign.id,))
+    return_url = get_return_url(request, default_url)
+
+    if request.method == "POST":
+        form = CampaignAssetCloneForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                # Read inside the transaction so a concurrent sub-asset change
+                # can't be missed between counting and copying.
+                sub_assets = list(asset.sub_assets.all())
+                clone = CampaignAsset.objects.create(
+                    asset_type=asset.asset_type,
+                    owner=request.user,
+                    name=form.cleaned_data["name"],
+                    description=asset.description,
+                    holder=None,
+                    # Deep-copied so the clone never shares the source's dict.
+                    properties=deepcopy(asset.properties),
+                )
+
+                for sub_asset in sub_assets:
+                    CampaignSubAsset.objects.create(
+                        parent_asset=clone,
+                        owner=request.user,
+                        sub_asset_type=sub_asset.sub_asset_type,
+                        name=sub_asset.name,
+                        properties=deepcopy(sub_asset.properties),
+                    )
+                sub_asset_count = len(sub_assets)
+
+                if campaign.is_in_progress:
+                    CampaignAction.objects.create(
+                        campaign=campaign,
+                        user=request.user,
+                        owner=request.user,
+                        description=(
+                            f"Asset Cloned: {clone.name} "
+                            f"({asset.asset_type.name_singular}) was copied from {asset.name}"
+                        ),
+                    )
+
+            log_event(
+                user=request.user,
+                noun=EventNoun.CAMPAIGN_ASSET,
+                verb=EventVerb.CLONE,
+                object=clone,
+                request=request,
+                campaign_id=str(campaign.id),
+                campaign_name=campaign.name,
+                asset_name=clone.name,
+                asset_type=asset.asset_type.name_singular,
+                source_asset_id=str(asset.id),
+                sub_assets_cloned=sub_asset_count,
+            )
+
+            track(
+                "campaign_asset_cloned",
+                campaign_id=str(campaign.id),
+                asset_type=asset.asset_type.name_singular,
+                sub_assets_cloned=sub_asset_count,
+            )
+
+            messages.success(request, f"Asset '{clone.name}' created as a copy.")
+
+            return safe_redirect(request, return_url, fallback_url=default_url)
+    else:
+        form = CampaignAssetCloneForm(initial={"name": asset.name})
+
+    return render(
+        request,
+        "core/campaign/campaign_asset_clone.html",
+        {
+            "campaign": campaign,
+            "asset": asset,
+            "form": form,
+            "sub_asset_count": asset.sub_assets.count(),
+            "return_url": return_url,
+        },
     )
 
 

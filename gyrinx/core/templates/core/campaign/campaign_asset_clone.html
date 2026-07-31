@@ -1,0 +1,33 @@
+{% extends "core/layouts/base.html" %}
+{% load custom_tags %}
+{% block head_title %}
+    Clone {{ asset.name }} - {{ campaign.name }}
+{% endblock head_title %}
+{% block content %}
+    <c-back url="{{ return_url }}" text="Back" />
+    <div class="col-12 col-md-8 col-lg-6 px-0 vstack gap-3">
+        <h1 class="h3">Clone {{ asset.name }}</h1>
+        <h2 class="h5 text-secondary">{{ campaign.name }}</h2>
+        <form action="{% url 'core:campaign-asset-clone' campaign.id asset.id %}"
+              method="post"
+              class="vstack gap-3">
+            {% csrf_token %}
+            {% return_url_field %}
+            <c-callout variant="info" class="mb-0">
+                <p class="mb-0">
+                    This makes a copy of the {{ asset.asset_type.name_singular }} <strong>{{ asset.name }}</strong>, including its
+                    description and properties{% if sub_asset_count %}, plus its {{ sub_asset_count }} sub-asset{{ sub_asset_count|pluralize }}{% endif %}.
+                    The copy starts unowned, even if the original is held by a gang.
+                </p>
+            </c-callout>
+            <c-form.field :field="form.name" />
+            <div class="mt-3">
+                <c-btn variant="success" type="submit">
+                    <c-icon name="clone" />
+                    Clone {{ asset.asset_type.name_singular }}
+                </c-btn>
+                <c-cancel url="{{ return_url }}" />
+            </div>
+        </form>
+    </div>
+{% endblock content %}

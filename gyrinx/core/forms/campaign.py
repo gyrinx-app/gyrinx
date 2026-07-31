@@ -562,6 +562,22 @@ class CampaignAssetForm(forms.ModelForm):
         return instance
 
 
+class CampaignAssetCloneForm(forms.Form):
+    """Form for cloning a campaign asset.
+
+    Only the name is editable — the clone always copies the source asset's
+    description, properties and sub-assets. Duplicate names are allowed: some
+    campaigns hand every gang an identical asset (#2075).
+    """
+
+    name = forms.CharField(
+        max_length=200,
+        label="Name",
+        help_text="The name for the copy. This can be the same as the original.",
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+
+
 class AssetTransferForm(forms.Form):
     """Form for transferring an asset to a new holder"""
 

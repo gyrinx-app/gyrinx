@@ -41,11 +41,13 @@
                             <!-- Expanded links for sm and up -->
                             <a href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}"
                                class="icon-link linked-secondary fs-7 d-none d-sm-inline">
-                                <i class="bi-pencil"></i> Edit Type
+                                <c-icon name="edit" />
+                                Edit Type
                             </a>
                             <a href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}"
                                class="icon-link link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7 d-none d-sm-inline">
-                                <i class="bi-trash"></i> Remove Type
+                                <c-icon name="delete" />
+                                Remove Type
                             </a>
                             <!-- Dropdown for mobile -->
                             <div class="dropdown d-sm-none">
@@ -62,13 +64,15 @@
                                     <li>
                                         <a class="dropdown-item"
                                            href="{% url 'core:campaign-asset-type-edit' campaign.id asset_type.id %}">
-                                            <i class="bi-pencil"></i> Edit Type
+                                            <c-icon name="edit" />
+                                            Edit Type
                                         </a>
                                     </li>
                                     <li>
                                         <a class="dropdown-item text-danger"
                                            href="{% url 'core:campaign-asset-type-remove' campaign.id asset_type.id %}">
-                                            <i class="bi-trash"></i> Remove Type
+                                            <c-icon name="delete" />
+                                            Remove Type
                                         </a>
                                     </li>
                                 </ul>
@@ -142,6 +146,9 @@
                                                     <a href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}"
                                                        class="linked-secondary fs-7">Edit</a>
                                                     ·
+                                                    <a href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}"
+                                                       class="linked-secondary fs-7">Clone</a>
+                                                    ·
                                                     <a href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}"
                                                        class="link-danger link-underline-opacity-50 link-underline-opacity-100-hover fs-7">Remove</a>
                                                 </span>
@@ -160,19 +167,29 @@
                                                         <li>
                                                             <a class="dropdown-item"
                                                                href="{% url 'core:campaign-asset-transfer' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}">
-                                                                <i class="bi-arrow-left-right"></i> Transfer
+                                                                <c-icon name="arrow-left-right" />
+                                                                Transfer
                                                             </a>
                                                         </li>
                                                         <li>
                                                             <a class="dropdown-item"
                                                                href="{% url 'core:campaign-asset-edit' campaign.id asset.id %}">
-                                                                <i class="bi-pencil"></i> Edit
+                                                                <c-icon name="edit" />
+                                                                Edit
+                                                            </a>
+                                                        </li>
+                                                        <li>
+                                                            <a class="dropdown-item"
+                                                               href="{% url 'core:campaign-asset-clone' campaign.id asset.id %}?return_url={{ request.get_full_path|urlencode }}">
+                                                                <c-icon name="clone" />
+                                                                Clone
                                                             </a>
                                                         </li>
                                                         <li>
                                                             <a class="dropdown-item text-danger"
                                                                href="{% url 'core:campaign-asset-remove' campaign.id asset.id %}">
-                                                                <i class="bi-trash"></i> Remove
+                                                                <c-icon name="delete" />
+                                                                Remove
                                                             </a>
                                                         </li>
                                                     </ul>

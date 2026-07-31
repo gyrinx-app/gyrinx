@@ -145,6 +145,11 @@ patterns = [
         name="campaign-asset-edit",
     ),
     path(
+        "campaign/<id>/assets/<asset_id>/clone",
+        campaign_assets.campaign_asset_clone,
+        name="campaign-asset-clone",
+    ),
+    path(
         "campaign/<id>/assets/<asset_id>/transfer",
         campaign_assets.campaign_asset_transfer,
         name="campaign-asset-transfer",
