@@ -864,14 +864,16 @@ class List(AppBase):
 
         if not self.is_campaign_mode:
             return None
+        # Living-leader first: it's one query and false-y for almost every gang, so
+        # the common campaign list page pays the minimum for this affordance.
+        if _gang_has_living_leader(self):
+            return None
         paths = list(
             ContentPromotionPath.objects.filter(
                 timing=ContentPromotionPath.Timing.LEADER_DEATH
             ).prefetch_related("restricted_to_houses", "targets")
         )
         if not paths:
-            return None
-        if _gang_has_living_leader(self):
             return None
         for path in paths:
             if path.source_fighter_id is not None:

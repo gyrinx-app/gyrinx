@@ -71,12 +71,18 @@ def _gang_has_living_leader(lst) -> bool:
     """
     from django.db.models import Q
 
-    leaders = lst.listfighter_set.filter(archived=False).filter(
-        Q(category_override=FighterCategoryChoices.LEADER)
-        | (
-            (Q(category_override__isnull=True) | Q(category_override=""))
-            & Q(content_fighter__category=FighterCategoryChoices.LEADER)
+    leaders = (
+        lst.listfighter_set.filter(archived=False)
+        .filter(
+            Q(category_override=FighterCategoryChoices.LEADER)
+            | (
+                (Q(category_override__isnull=True) | Q(category_override=""))
+                & Q(content_fighter__category=FighterCategoryChoices.LEADER)
+            )
         )
+        # is_captured / is_sold_to_guilders probe the capture_info reverse O2O;
+        # select it so the whole check is one query however many leaders there are.
+        .select_related("capture_info")
     )
     return any(not fighter.should_have_zero_cost for fighter in leaders)
 
