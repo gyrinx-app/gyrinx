@@ -17,7 +17,7 @@
                 <p class="mb-0">
                     This makes a copy of the {{ asset.asset_type.name_singular|lower }} <strong>{{ asset.name }}</strong>, including its
                     description and properties{% if sub_asset_count %} and its {{ sub_asset_count }} sub-asset{{ sub_asset_count|pluralize }}{% endif %}.
-                    The copy starts unowned, whoever holds the original.
+                    The copy starts unowned, even if the original is held by a gang.
                 </p>
             </c-callout>
             <c-form.field :field="form.name" />
