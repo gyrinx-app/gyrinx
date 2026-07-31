@@ -24,6 +24,10 @@ COPY pyproject.toml uv.lock /app/
 COPY scripts/ /app/scripts/
 COPY gyrinx/ /app/gyrinx/
 COPY content/ /app/content/
+# Root-level static assets (favicon.ico) served by WhiteNoise via
+# WHITENOISE_ROOT — without this the container warns "No directory at:
+# /app/static/" and /favicon.ico falls through to the page router.
+COPY static/ /app/static/
 # Set a version for setuptools-scm when .git is not available
 ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_GYRINX=1.0.0
 # --locked installs exactly what uv.lock pins and fails if the lock is stale, so

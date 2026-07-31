@@ -403,3 +403,50 @@ def test_log_event_with_x_forwarded_for():
     )
 
     assert event.ip_address == "192.168.1.100"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "user_agent",
+    [
+        "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36",
+        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)",
+        "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+    ],
+)
+def test_log_event_skips_crawler_user_agents(user_agent):
+    """Crawler requests must not be recorded as engagement events."""
+    from django.test import RequestFactory
+
+    request = RequestFactory().get("/", HTTP_USER_AGENT=user_agent)
+    result = log_event(
+        user=None, noun=EventNoun.LIST_FIGHTER, verb=EventVerb.VIEW, request=request
+    )
+    assert result is None
+    assert Event.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_log_event_records_normal_user_agents():
+    """An ordinary browser UA still produces an event."""
+    from django.test import RequestFactory
+
+    request = RequestFactory().get(
+        "/",
+        HTTP_USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15",
+    )
+    user = User.objects.create_user(username="humanuser")
+    result = log_event(
+        user=user, noun=EventNoun.LIST_FIGHTER, verb=EventVerb.VIEW, request=request
+    )
+    assert result is not None
+    assert Event.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_log_event_without_request_still_records():
+    """Internal calls that pass no request are unaffected by the bot filter."""
+    user = User.objects.create_user(username="internaluser")
+    result = log_event(user=user, noun=EventNoun.LIST, verb=EventVerb.CREATE)
+    assert result is not None

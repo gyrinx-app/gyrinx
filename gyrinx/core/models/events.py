@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from enum import Enum
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -257,6 +258,23 @@ def get_client_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
+# Matches the crawlers seen in practice (Amazonbot, Googlebot, bingbot,
+# Bytespider, Google-Read-Aloud, ...) plus the generic self-identifying
+# patterns. Deliberately broad: "bot" also matches e.g. Cubot phone UAs, but
+# losing a stray device is cheaper than counting crawlers as engagement —
+# 2026-07-28 showed crawler traffic outnumbering humans on fighter pages.
+BOT_USER_AGENT_RE = re.compile(
+    r"bot|crawler|spider|slurp|read-aloud|bingpreview|facebookexternalhit",
+    re.IGNORECASE,
+)
+
+
+def is_bot_request(request):
+    """True if the request's User-Agent identifies a crawler."""
+    user_agent = request.META.get("HTTP_USER_AGENT", "")
+    return bool(BOT_USER_AGENT_RE.search(user_agent))
+
+
 def log_event(
     user, noun, verb, object=None, request=None, ip_address=None, field=None, **context
 ):
@@ -288,6 +306,10 @@ def log_event(
         )
     """
     try:
+        # Crawlers are traffic, not engagement — don't record them as events.
+        if request is not None and is_bot_request(request):
+            return None
+
         # Extract session ID from request if available
         session_id = None
         if (
