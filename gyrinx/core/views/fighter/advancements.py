@@ -351,9 +351,13 @@ class AdvancementFlowParams(AdvancementBaseParams):
     description: Optional[str] = None
     # For multi-target promotions: the chosen target fighter type
     promotion_target_id: Optional[uuid.UUID] = None
-    # Request-scoped cache for the resolved path (False = not yet fetched) — the flow
-    # predicates each call promotion_path(), which would otherwise re-query per call.
+    # Request-scoped caches (False = not yet fetched) — the flow predicates call
+    # promotion_path()/promotion_target()/target counts several times per request,
+    # which would otherwise re-query per call. Safe because a params instance lives
+    # for one request and is always interrogated about one fighter.
     _promotion_path_cache: object = PrivateAttr(default=False)
+    _promotion_target_cache: object = PrivateAttr(default=False)
+    _promotion_target_count_cache: object = PrivateAttr(default=False)
 
     @field_validator("advancement_choice")
     @classmethod
@@ -411,7 +415,11 @@ class AdvancementFlowParams(AdvancementBaseParams):
         if not self.is_promotion_path_advancement():
             return False
         path = self.promotion_path()
-        if not path or path.resolve_targets(fighter).count() <= 1:
+        if not path:
+            return False
+        if self._promotion_target_count_cache is False:
+            self._promotion_target_count_cache = path.resolve_targets(fighter).count()
+        if self._promotion_target_count_cache <= 1:
             return False
         return self.promotion_target(fighter) is None
 
@@ -426,7 +434,13 @@ class AdvancementFlowParams(AdvancementBaseParams):
         path = self.promotion_path()
         if path is None:
             return None
-        return path.resolve_targets(fighter).filter(id=self.promotion_target_id).first()
+        if self._promotion_target_cache is False:
+            self._promotion_target_cache = (
+                path.resolve_targets(fighter)
+                .filter(id=self.promotion_target_id)
+                .first()
+            )
+        return self._promotion_target_cache
 
     def is_skill_advancement(self) -> bool:
         """

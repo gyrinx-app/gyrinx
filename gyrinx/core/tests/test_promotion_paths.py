@@ -1255,16 +1255,30 @@ def test_sole_leader_type_infers_target(
 
 
 @pytest.mark.django_db
-def test_nomination_gains_gang_leader_rule(
+def test_nomination_gains_gang_leader_rule_and_sheds_scaffolding(
     user, leaderless_gang, leader_nomination_path
 ):
-    """The 'Gang Leader' special rule arrives via the type-change pointer's rules —
-    no bespoke rule-granting code. Catches: rules resolution not following the
-    dynamically-resolved pointer."""
+    """The 'Gang Leader' special rule arrives via the type-change pointer's rules — no
+    bespoke rule-granting code — while the old type's scaffolding (Gang Fighter (X),
+    Promotion (…), flagged shed_on_promotion by migration 0188) drops away and
+    unflagged house rules are kept. Catches: rules resolution not following the
+    dynamically-resolved pointer, or the shed flag being ignored for nominations."""
     from gyrinx.content.models import ContentRule
 
     gang_leader = ContentRule.objects.create(name="Gang Leader")
     leaderless_gang["queen"].rules.set([gang_leader])
+    # Mirror the base-type ruleset of a real ganger row, flagged as 0188 flags them.
+    leaderless_gang["ganger_cf"].rules.set(
+        [
+            ContentRule.objects.create(
+                name="Gang Fighter (Ganger)", shed_on_promotion=True
+            ),
+            ContentRule.objects.create(
+                name="Promotion (Specialist)", shed_on_promotion=True
+            ),
+            ContentRule.objects.create(name="Spirit Bond"),
+        ]
+    )
 
     _promote_to(
         user,
@@ -1273,7 +1287,7 @@ def test_nomination_gains_gang_leader_rule(
         leaderless_gang["queen"],
     )
     fighter = ListFighter.objects.get(id=leaderless_gang["ganger"].id)
-    assert "Gang Leader" in {r.value for r in fighter.ruleline}
+    assert {r.value for r in fighter.ruleline} == {"Gang Leader", "Spirit Bond"}
 
 
 @pytest.mark.django_db
