@@ -880,9 +880,12 @@ class List(AppBase):
         # affordance. Stable sort keeps the (rank, name) model ordering within groups.
         paths.sort(key=lambda p: 0 if list(p.restricted_to_houses.all()) else 1)
         for path in paths:
-            if path.source_fighter_id is not None:
-                # Source-pinned paths are fighter-specific; the gang-level affordance
-                # can't evaluate them. They remain reachable through the wizard.
+            if path.source_fighter_id is not None or path.from_category:
+                # Source- or category-pinned paths are fighter-specific; the
+                # gang-level affordance is shared by every card and can't evaluate
+                # them (the per-fighter check is deliberately query-free), so a
+                # pinned path's link could land on an ineligible fighter. They
+                # remain reachable through the wizard.
                 continue
             houses = list(path.restricted_to_houses.all())
             if houses and self.content_house not in houses:
