@@ -696,8 +696,8 @@ def test_tampered_target_id_routes_back_to_chooser(
     )
     # Catches: presence-only checking letting a tampered/stale id through the confirm
     # gate to an ambiguous apply.
-    assert params.promotion_needs_target() is True
-    assert params.promotion_target() is None
+    assert params.promotion_needs_target(prospect_setup["fighter"]) is True
+    assert params.promotion_target(prospect_setup["fighter"]) is None
 
 
 @pytest.mark.django_db
@@ -925,3 +925,513 @@ def test_promotion_ruleline_prefetch_matches_query(user, prospect_setup):
     )
     fast = {r.value for r in fast_fighter.ruleline}
     assert fast == slow == {"Squat Ancestry", "Combat Chems Stash"}
+
+
+# ---------------------------------------------------------------------------
+# 'Nominate as leader' (#1468): any-category source, dynamic Leader targets,
+# LEADER_DEATH trigger gate, and the fighter-card affordance.
+# ---------------------------------------------------------------------------
+
+
+def _offered_path_names(fighter):
+    from gyrinx.core.forms.advancement import available_promotion_paths
+
+    return {p.name for p in available_promotion_paths(fighter)}
+
+
+@pytest.fixture
+def leaderless_gang(
+    campaign, make_content_fighter, make_list, make_list_fighter, content_house
+):
+    """A campaign-mode gang whose leader is dead, in a house with two Leader types."""
+    from gyrinx.core.models.list import List
+
+    queen = make_content_fighter(
+        type="Queen",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=150,
+    )
+    matriarch = make_content_fighter(
+        type="Matriarch",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=160,
+    )
+    ganger_cf = make_content_fighter(
+        type="Sisterhood Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    juve_cf = make_content_fighter(
+        type="Sisterhood Juve",
+        category=FighterCategoryChoices.JUVE,
+        house=content_house,
+        base_cost=25,
+    )
+    lst = make_list("Leaderless Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+    dead_leader = make_list_fighter(
+        lst, "Old Queen", content_fighter=queen, injury_state=ListFighter.DEAD
+    )
+    ganger = make_list_fighter(
+        lst, "Successor", content_fighter=ganger_cf, xp_current=0
+    )
+    return {
+        "list": lst,
+        "dead_leader": dead_leader,
+        "ganger": ganger,
+        "queen": queen,
+        "matriarch": matriarch,
+        "ganger_cf": ganger_cf,
+        "juve_cf": juve_cf,
+    }
+
+
+@pytest.mark.django_db
+def test_nomination_offered_to_any_category_when_leader_dead(
+    leaderless_gang, leader_nomination_path, make_list_fighter
+):
+    """Any fighter — ganger AND juve — sees the path once the leader is dead, at 0 XP
+    and 0 cost. Catches: the SQL prefilter or the availability gate dropping blank
+    from_category rows, or the seeded costs drifting."""
+    ganger = leaderless_gang["ganger"]
+    juve = make_list_fighter(
+        leaderless_gang["list"], "Junior", content_fighter=leaderless_gang["juve_cf"]
+    )
+    assert "Nominate as leader" in _offered_path_names(ganger)
+    assert "Nominate as leader" in _offered_path_names(juve)
+
+    form = AdvancementTypeForm(fighter=ganger)
+    key = f"promotion_{leader_nomination_path.id}"
+    assert key in [choice for choice, _ in form.fields["advancement_choice"].choices]
+    assert form.advancement_configs[key].xp_cost == 0
+    assert form.advancement_configs[key].cost_increase == 0
+
+
+@pytest.mark.django_db
+def test_nomination_hidden_while_leader_lives(leaderless_gang, leader_nomination_path):
+    """Catches: the LEADER_DEATH trigger degrading to always-on."""
+    dead_leader = leaderless_gang["dead_leader"]
+    dead_leader.injury_state = ListFighter.ACTIVE
+    dead_leader.save()
+    assert "Nominate as leader" not in _offered_path_names(leaderless_gang["ganger"])
+
+
+@pytest.mark.django_db
+def test_nomination_hidden_outside_campaign_mode(
+    leader_nomination_path,
+    make_content_fighter,
+    make_list,
+    make_list_fighter,
+    content_house,
+):
+    """A leaderless list-building gang must NOT see the path (campaign-only)."""
+    make_content_fighter(
+        type="Building Leader",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=150,
+    )
+    ganger_cf = make_content_fighter(
+        type="Building Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    lst = make_list("Building Gang")
+    fighter = make_list_fighter(lst, "Hopeful", content_fighter=ganger_cf)
+    assert "Nominate as leader" not in _offered_path_names(fighter)
+
+
+@pytest.mark.django_db
+def test_nomination_hidden_when_house_has_no_leader_types(
+    campaign,
+    leader_nomination_path,
+    make_content_fighter,
+    make_list,
+    make_list_fighter,
+    house,
+):
+    """A dynamic type change with nothing to become is not on offer."""
+    from gyrinx.core.models.list import List
+
+    ganger_cf = make_content_fighter(
+        type="Outcast Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+        base_cost=50,
+    )
+    lst = make_list(
+        "No Leader Types Gang",
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    fighter = make_list_fighter(lst, "Nobody", content_fighter=ganger_cf)
+    assert "Nominate as leader" not in _offered_path_names(fighter)
+
+
+@pytest.mark.django_db
+def test_nomination_hidden_for_out_of_fight_or_type_changed_fighter(
+    leaderless_gang, leader_nomination_path
+):
+    """A dead fighter can't be nominated; nor can one already holding a type change.
+    Catches: the any-category path losing its 'already taken' protection (category
+    change can't provide it here)."""
+    ganger = leaderless_gang["ganger"]
+
+    ganger.injury_state = ListFighter.DEAD
+    ganger.save()
+    assert "Nominate as leader" not in _offered_path_names(ganger)
+
+    ganger.injury_state = ListFighter.ACTIVE
+    ganger.promoted_content_fighter = leaderless_gang["queen"]
+    ganger.save()
+    ganger = ListFighter.objects.get(id=ganger.id)
+    assert "Nominate as leader" not in _offered_path_names(ganger)
+
+    # The dead leader themselves is never offered succession.
+    assert "Nominate as leader" not in _offered_path_names(
+        leaderless_gang["dead_leader"]
+    )
+
+
+@pytest.mark.django_db
+def test_dynamic_targets_resolve_to_gang_house_leaders(
+    leaderless_gang, leader_nomination_path, make_content_fighter, house
+):
+    """Resolution keys off the gang's house: both of its Leader types, and never
+    another house's."""
+    make_content_fighter(
+        type="Foreign Boss",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=100,
+    )
+    resolved = set(leader_nomination_path.resolve_targets(leaderless_gang["ganger"]))
+    assert resolved == {leaderless_gang["queen"], leaderless_gang["matriarch"]}
+
+
+@pytest.mark.django_db
+def test_nomination_apply_and_reverse_invariants(
+    user, leaderless_gang, leader_nomination_path
+):
+    """Apply: LEADER category, pointer to the chosen type, base cost and rating and XP
+    all unchanged (free, access-only). Reverse: exact symmetry. Catches: the nomination
+    bleeding into cost, or reversal leaving the pointer/category behind."""
+    ganger = leaderless_gang["ganger"]
+    lst = leaderless_gang["list"]
+    queen = leaderless_gang["queen"]
+    lst.refresh_from_db()
+    rating_before = lst.rating_current
+
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=ganger,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{leader_nomination_path.id}",
+        promotion_path=leader_nomination_path,
+        promotion_target=queen,
+    )
+
+    fighter = ListFighter.objects.get(id=ganger.id)
+    assert fighter.category_override == FighterCategoryChoices.LEADER
+    assert fighter.get_category() == FighterCategoryChoices.LEADER
+    assert fighter.promoted_content_fighter == queen
+    assert fighter._base_cost_int == 50
+    assert fighter.xp_current == 0
+    lst.refresh_from_db()
+    assert lst.rating_current == rating_before
+
+    handle_fighter_advancement_deletion(
+        user=user, fighter=fighter, advancement=result.advancement
+    )
+    fighter = ListFighter.objects.get(id=ganger.id)
+    assert fighter.category_override is None
+    assert fighter.promoted_content_fighter is None
+    assert fighter.xp_current == 0
+    lst.refresh_from_db()
+    assert lst.rating_current == rating_before
+
+
+@pytest.mark.django_db
+def test_nomination_reversal_falls_back_to_prior_promotion(
+    user, leaderless_gang, leader_nomination_path, default_promotions
+):
+    """A Specialist ganger nominated leader falls back to SPECIALIST when the
+    nomination is undone — rank 3 must not clear the whole promotion history."""
+    ganger = leaderless_gang["ganger"]
+    ganger.xp_current = 6
+    ganger.save()
+    spec_path = default_promotions[
+        (FighterCategoryChoices.GANGER, FighterCategoryChoices.SPECIALIST)
+    ]
+
+    handle_fighter_advancement(
+        user=user,
+        fighter=ganger,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=6,
+        cost_increase=20,
+        advancement_choice=f"promotion_{spec_path.id}",
+        promotion_path=spec_path,
+    )
+    fighter = ListFighter.objects.get(id=ganger.id)
+    assert fighter.get_category() == FighterCategoryChoices.SPECIALIST
+
+    nomination = handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{leader_nomination_path.id}",
+        promotion_path=leader_nomination_path,
+        promotion_target=leaderless_gang["queen"],
+    )
+    fighter = ListFighter.objects.get(id=ganger.id)
+    assert fighter.get_category() == FighterCategoryChoices.LEADER
+
+    handle_fighter_advancement_deletion(
+        user=user, fighter=fighter, advancement=nomination.advancement
+    )
+    fighter = ListFighter.objects.get(id=ganger.id)
+    # Catches: rank-driven recalc collapsing to None (or staying LEADER).
+    assert fighter.category_override == FighterCategoryChoices.SPECIALIST
+    assert fighter.promoted_content_fighter is None
+
+
+@pytest.mark.django_db
+def test_sole_leader_type_infers_target(
+    user,
+    campaign,
+    leader_nomination_path,
+    make_content_fighter,
+    make_list,
+    make_list_fighter,
+    house,
+):
+    """A house with exactly one Leader type: apply with no stored choice resolves and
+    persists that sole dynamic target. Catches: dynamic paths (empty targets M2M)
+    applying category-only and never setting the pointer."""
+    from gyrinx.core.models.list import List
+
+    boss = make_content_fighter(
+        type="Sole Boss",
+        category=FighterCategoryChoices.LEADER,
+        house=house,
+        base_cost=120,
+    )
+    ganger_cf = make_content_fighter(
+        type="Lone Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=house,
+        base_cost=45,
+    )
+    lst = make_list(
+        "Sole Leader Gang",
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    fighter = make_list_fighter(lst, "Stepper", content_fighter=ganger_cf)
+
+    result = handle_fighter_advancement(
+        user=user,
+        fighter=fighter,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+        xp_cost=0,
+        cost_increase=0,
+        advancement_choice=f"promotion_{leader_nomination_path.id}",
+        promotion_path=leader_nomination_path,
+    )
+    result.advancement.refresh_from_db()
+    fighter = ListFighter.objects.get(id=fighter.id)
+    assert fighter.promoted_content_fighter == boss
+    assert result.advancement.promotion_target == boss
+
+
+@pytest.mark.django_db
+def test_nomination_gains_gang_leader_rule_and_sheds_scaffolding(
+    user, leaderless_gang, leader_nomination_path
+):
+    """The 'Gang Leader' special rule arrives via the type-change pointer's rules — no
+    bespoke rule-granting code — while the old type's scaffolding (Gang Fighter (X),
+    Promotion (…), flagged shed_on_promotion by migration 0188) drops away and
+    unflagged house rules are kept. Catches: rules resolution not following the
+    dynamically-resolved pointer, or the shed flag being ignored for nominations."""
+    from gyrinx.content.models import ContentRule
+
+    gang_leader = ContentRule.objects.create(name="Gang Leader")
+    leaderless_gang["queen"].rules.set([gang_leader])
+    # Mirror the base-type ruleset of a real ganger row, flagged as 0188 flags them.
+    leaderless_gang["ganger_cf"].rules.set(
+        [
+            ContentRule.objects.create(
+                name="Gang Fighter (Ganger)", shed_on_promotion=True
+            ),
+            ContentRule.objects.create(
+                name="Promotion (Specialist)", shed_on_promotion=True
+            ),
+            ContentRule.objects.create(name="Spirit Bond"),
+        ]
+    )
+
+    _promote_to(
+        user,
+        leaderless_gang["ganger"],
+        leader_nomination_path,
+        leaderless_gang["queen"],
+    )
+    fighter = ListFighter.objects.get(id=leaderless_gang["ganger"].id)
+    assert {r.value for r in fighter.ruleline} == {"Gang Leader", "Spirit Bond"}
+
+
+@pytest.mark.django_db
+def test_handler_rejects_nomination_outside_campaign(
+    user,
+    leader_nomination_path,
+    make_content_fighter,
+    make_list,
+    make_list_fighter,
+    content_house,
+):
+    """A crafted confirm URL must not apply a nomination to a list-building gang."""
+    from django.core.exceptions import ValidationError
+
+    make_content_fighter(
+        type="Crafted Leader",
+        category=FighterCategoryChoices.LEADER,
+        house=content_house,
+        base_cost=150,
+    )
+    ganger_cf = make_content_fighter(
+        type="Crafted Ganger",
+        category=FighterCategoryChoices.GANGER,
+        house=content_house,
+        base_cost=50,
+    )
+    lst = make_list("Crafted Gang")
+    fighter = make_list_fighter(lst, "Chancer", content_fighter=ganger_cf)
+
+    with pytest.raises(ValidationError, match="not available"):
+        handle_fighter_advancement(
+            user=user,
+            fighter=fighter,
+            advancement_type=ListFighterAdvancement.ADVANCEMENT_PROMOTION,
+            xp_cost=0,
+            cost_increase=0,
+            advancement_choice=f"promotion_{leader_nomination_path.id}",
+            promotion_path=leader_nomination_path,
+        )
+
+
+@pytest.mark.django_db
+def test_leader_nomination_offer_and_card_property(
+    leaderless_gang, leader_nomination_path
+):
+    """The gang-level affordance points multi-target gangs at the chooser step, closes
+    while a leader lives, and the per-fighter property tracks eligibility."""
+    from gyrinx.core.models.list import List
+
+    lst = List.objects.get(id=leaderless_gang["list"].id)
+    offer = lst.leader_nomination_offer
+    assert offer is not None
+    assert offer["path"] == leader_nomination_path
+    assert offer["url_name"] == "core:list-fighter-advancement-select"
+    assert f"promotion_{leader_nomination_path.id}" in offer["query"]
+
+    assert leaderless_gang["ganger"].can_be_nominated_leader is True
+    assert leaderless_gang["dead_leader"].can_be_nominated_leader is False
+
+    # A living leader closes the offer (fresh instance: the property is cached).
+    dead_leader = leaderless_gang["dead_leader"]
+    dead_leader.injury_state = ListFighter.ACTIVE
+    dead_leader.save()
+    assert List.objects.get(id=lst.id).leader_nomination_offer is None
+
+
+@pytest.mark.django_db
+def test_nomination_wizard_end_to_end(
+    client, user, leaderless_gang, leader_nomination_path
+):
+    """Deep link → target chooser (both leader types offered) → confirm → applied.
+    The whole flow is URL-driven; this catches the wizard rejecting dynamic-target
+    paths at any of its three gates."""
+    client.force_login(user)
+    lst = leaderless_gang["list"]
+    ganger = leaderless_gang["ganger"]
+    queen = leaderless_gang["queen"]
+    params = f"advancement_choice=promotion_{leader_nomination_path.id}&xp_cost=0&cost_increase=0"
+
+    select_url = reverse(
+        "core:list-fighter-advancement-select", args=(lst.id, ganger.id)
+    )
+    response = client.get(f"{select_url}?{params}")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert "Queen" in content
+    assert "Matriarch" in content
+
+    response = client.post(f"{select_url}?{params}", {"target": str(queen.id)})
+    assert response.status_code == 302
+    confirm_url = response.url
+    assert "promotion_target_id" in confirm_url
+
+    response = client.post(confirm_url)
+    assert response.status_code == 302
+    fighter = ListFighter.objects.get(id=ganger.id)
+    assert fighter.get_category() == FighterCategoryChoices.LEADER
+    assert fighter.promoted_content_fighter == queen
+
+
+@pytest.mark.django_db
+def test_leader_nomination_seed_shape(leader_nomination_path):
+    """The seeded row IS the feature's content contract — free, skill-less, dynamic
+    Leader targets, LEADER_DEATH trigger, rank above Champion."""
+    path = leader_nomination_path
+    assert path.kind == ContentPromotionPath.Kind.TYPE_CHANGE
+    assert path.from_category == ""
+    assert path.to_category == FighterCategoryChoices.LEADER
+    assert path.dynamic_targets_category == FighterCategoryChoices.LEADER
+    assert path.rank == 3
+    assert path.xp_cost == 0
+    assert path.cost_increase == 0
+    assert path.rolls == []
+    assert path.grants_skill == "none"
+    assert path.timing == ContentPromotionPath.Timing.LEADER_DEATH
+
+
+@pytest.mark.django_db
+def test_nomination_hidden_for_child_fighter(
+    leaderless_gang,
+    leader_nomination_path,
+    make_content_fighter,
+    make_list_fighter,
+    make_equipment,
+):
+    """An exotic beast (child fighter) can never be nominated, even though beasts can
+    otherwise take advancements. Catches: the any-category gate stopping at
+    stash/vehicle and letting equipment-spawned fighters through."""
+    from gyrinx.core.models.list import ListFighterEquipmentAssignment
+
+    beast_cf = make_content_fighter(
+        type="Gnasher",
+        category=FighterCategoryChoices.EXOTIC_BEAST,
+        house=leaderless_gang["ganger_cf"].house,
+        base_cost=30,
+    )
+    beast = make_list_fighter(
+        leaderless_gang["list"], "Gnasher", content_fighter=beast_cf
+    )
+    collar = make_equipment("Beast Collar", category="Status Items", cost=0)
+    ListFighterEquipmentAssignment.objects.create(
+        list_fighter=leaderless_gang["ganger"],
+        content_equipment=collar,
+        child_fighter=beast,
+    )
+    beast = ListFighter.objects.get(id=beast.id)
+    assert "Nominate as leader" not in _offered_path_names(beast)

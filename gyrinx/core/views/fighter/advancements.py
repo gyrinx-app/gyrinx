@@ -351,9 +351,13 @@ class AdvancementFlowParams(AdvancementBaseParams):
     description: Optional[str] = None
     # For multi-target promotions: the chosen target fighter type
     promotion_target_id: Optional[uuid.UUID] = None
-    # Request-scoped cache for the resolved path (False = not yet fetched) — the flow
-    # predicates each call promotion_path(), which would otherwise re-query per call.
+    # Request-scoped caches (False = not yet fetched) — the flow predicates call
+    # promotion_path()/promotion_target()/target counts several times per request,
+    # which would otherwise re-query per call. Safe because a params instance lives
+    # for one request and is always interrogated about one fighter.
     _promotion_path_cache: object = PrivateAttr(default=False)
+    _promotion_target_cache: object = PrivateAttr(default=False)
+    _promotion_target_count_cache: object = PrivateAttr(default=False)
 
     @field_validator("advancement_choice")
     @classmethod
@@ -400,31 +404,43 @@ class AdvancementFlowParams(AdvancementBaseParams):
         path = self.promotion_path()
         return path.grants_skill if path else "none"
 
-    def promotion_needs_target(self) -> bool:
+    def promotion_needs_target(self, fighter) -> bool:
         """
         True when this promotion offers a choice of target types and no VALID choice has
         been made yet — a tampered/stale promotion_target_id that isn't one of the path's
         targets counts as no choice, so the flow routes back to the chooser rather than
-        applying an ambiguous promotion.
+        applying an ambiguous promotion. Takes the fighter because dynamically-targeted
+        paths (e.g. 'Nominate as leader') resolve their targets per gang house.
         """
         if not self.is_promotion_path_advancement():
             return False
         path = self.promotion_path()
-        if not path or path.targets.count() <= 1:
+        if not path:
             return False
-        return self.promotion_target() is None
+        if self._promotion_target_count_cache is False:
+            self._promotion_target_count_cache = path.resolve_targets(fighter).count()
+        if self._promotion_target_count_cache <= 1:
+            return False
+        return self.promotion_target(fighter) is None
 
-    def promotion_target(self):
+    def promotion_target(self, fighter):
         """
         The chosen target fighter for a multi-target promotion, validated against the
-        path's target set. Returns None when no (valid) choice has been made.
+        path's (possibly dynamically resolved) target set. Returns None when no (valid)
+        choice has been made.
         """
         if not self.is_promotion_path_advancement() or self.promotion_target_id is None:
             return None
         path = self.promotion_path()
         if path is None:
             return None
-        return path.targets.filter(id=self.promotion_target_id).first()
+        if self._promotion_target_cache is False:
+            self._promotion_target_cache = (
+                path.resolve_targets(fighter)
+                .filter(id=self.promotion_target_id)
+                .first()
+            )
+        return self._promotion_target_cache
 
     def is_skill_advancement(self) -> bool:
         """
@@ -650,7 +666,7 @@ def list_fighter_advancement_type(request, id, fighter_id):
             elif (
                 next_params.is_promotion_path_advancement()
                 and not next_params.is_skill_advancement()
-                and not next_params.promotion_needs_target()
+                and not next_params.promotion_needs_target(fighter)
             ):
                 # Skill-less, target-resolved promotions (e.g. house Juve paths) have
                 # nothing to select — go straight to confirm. Promotions needing a
@@ -739,7 +755,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
             raise ValueError(
                 "Only stat, other, random equipment, or promotion advancements allowed at the confirm stage"
             )
-        if is_skill_less_promotion and params.promotion_needs_target():
+        if is_skill_less_promotion and params.promotion_needs_target(fighter):
             raise ValueError("This promotion needs a target type to be chosen first")
 
         if params.is_stat_advancement():
@@ -839,7 +855,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                     cost_increase=params.cost_increase,
                     advancement_choice=params.advancement_choice,
                     promotion_path=params.promotion_path(),
-                    promotion_target=params.promotion_target(),
+                    promotion_target=params.promotion_target(fighter),
                     campaign_action_id=params.campaign_action_id,
                 )
         except DjangoValidationError as e:
@@ -935,7 +951,7 @@ def apply_skill_advancement(
         if params.is_promotion_path_advancement():
             advancement_type = ListFighterAdvancement.ADVANCEMENT_PROMOTION
             promotion_path = params.promotion_path()
-            promotion_target = params.promotion_target()
+            promotion_target = params.promotion_target(fighter)
         else:
             advancement_type = ListFighterAdvancement.ADVANCEMENT_SKILL
             promotion_path = None
@@ -1016,7 +1032,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
         if not (
             params.is_skill_advancement()
             or params.is_equipment_advancement()
-            or params.promotion_needs_target()
+            or params.promotion_needs_target(fighter)
         ):
             raise ValueError(
                 "Only skill, equipment, or promotion-target advancements allowed at the target stage"
@@ -1033,13 +1049,17 @@ def list_fighter_advancement_select(request, id, fighter_id):
             reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))
         )
 
-    if params.is_promotion_path_advancement() and params.promotion_needs_target():
+    if params.is_promotion_path_advancement() and params.promotion_needs_target(
+        fighter
+    ):
         # Multi-target promotion: the player chooses which type the fighter becomes
         # ("either a Forge Boss or a Stimmer as the controlling player wishes"). The
         # choice then travels in the URL like all other wizard state.
         path = params.promotion_path()
         if request.method == "POST":
-            form = PromotionTargetSelectionForm(request.POST, path=path)
+            form = PromotionTargetSelectionForm(
+                request.POST, path=path, fighter=fighter
+            )
             if form.is_valid():
                 target = form.cleaned_data["target"]
                 params.promotion_target_id = target.id
@@ -1055,7 +1075,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
                     f"{url}?{urlencode(params.model_dump(mode='json', exclude_none=True))}"
                 )
         else:
-            form = PromotionTargetSelectionForm(path=path)
+            form = PromotionTargetSelectionForm(path=path, fighter=fighter)
 
     elif params.is_equipment_advancement():
         # Handle chosen equipment advancement
@@ -1239,7 +1259,9 @@ def list_fighter_advancement_select(request, id, fighter_id):
         "current_step": 3 if is_campaign_mode else 2,
     }
 
-    if params.is_promotion_path_advancement() and params.promotion_needs_target():
+    if params.is_promotion_path_advancement() and params.promotion_needs_target(
+        fighter
+    ):
         promotion_path = params.promotion_path()
         context.update(
             {

@@ -175,8 +175,8 @@ alongside `content_fighter`/`legacy_content_fighter` (`fighter.py:313-321`). Wat
 
 ## Build sequence (#1596 closeable at Phase 2)
 
-- [ ] **Phase 0** — extract the 8-site "prefer legacy" tie-break into one helper (no behaviour
-  change, ships alone, de-risks Phase 3).
+- [x] **Phase 0** — extract the 8-site "prefer legacy" tie-break into one helper (no behaviour
+  change, ships alone, de-risks Phase 3). Shipped in PR #2019 (`92cd62c2`).
 - [x] **Phase 1** — `ContentPromotionPath` model (unified: kind/source/targets/threshold/timing)
   + frozen seed migration + admin. PR #1952.
 - [x] **Phase 2** — wire the advancement flow through `ContentPromotionPath` (forms/handler/
@@ -186,11 +186,13 @@ alongside `content_fighter`/`legacy_content_fighter` (`fighter.py:313-321`). Wat
   (RAW paths grant no skill; the SKILL type requires one); multi-target paths are gated out of
   the choices until Phase 4's target-selection step; legacy `skill_promote_*` strings resolve
   via a static map so historical rows apply/reverse without DB rows.
-- [ ] **Phase 3** — promotion access pointer on `ListFighter` (access-only: equipment
+- [x] **Phase 3** — promotion access pointer on `ListFighter` (access-only: equipment
   `legacy > promotion > base`; skills/special rules `promotion > base`; statline/cost base
-  only) + third-arm `Q()` filters + extend Phase 0 helper. Tests only, no UI.
-- [ ] **Phase 4** — target-selection wizard step + `ADVANCEMENT_PROMOTION` row + apply/reverse.
-  **Closes #1467.**
+  only) + third-arm `Q()` filters + extend Phase 0 helper. Shipped in PR #2019 (`cdf17aaa`).
+- [x] **Phase 4** — target-selection wizard step + `ADVANCEMENT_PROMOTION` row + apply/reverse.
+  **Closes #1467.** Shipped in PR #2019, hardened in `196fa96b`/`810498e9`/`5bf2edca`.
+  Follow-up PR #2023 added `ContentRule.shed_on_promotion` (promoted fighters keep their
+  own rules by default; only flagged scaffolding rules are dropped).
 - [x] **Phase 5** — promotion state survives fighter copies (folded into the Phase 3+4 PR).
   `clone()` (the seam under campaign entry AND the duplicate handler) now carries
   `category_override` + `promoted_content_fighter` — fixing the pre-existing bug where a
@@ -387,8 +389,14 @@ promotion. Ingest per-house rows keyed `source_fighter=(Specialist) row` with
 
 ### Out of scope for initial ingest
 
-Leader paths (family D / Death of a Leader — needs the conditional-target story);
-Cawdor Fanatical/Pious and GSC-generation conditional targets (player-resolved).
+~~Leader paths (family D / Death of a Leader — needs the conditional-target story)~~ —
+**built 2026-07-31 as #1468**: `dynamic_targets_category` on `ContentPromotionPath`
+resolves targets at offer time to the gang-house's fighters of that category, so ONE
+seeded generic path ("Nominate as leader", any category, timing LEADER_DEATH — now a
+hard trigger: campaign mode + no living leader) serves every house with zero per-house
+authoring. See `.claude/notes/issue-1468-nominate-leader-plan.md`.
+Still out of scope: Cawdor Fanatical/Pious and GSC-generation conditional targets
+(player-resolved).
 
 **Delivery vehicle (decided 2026-07-21): manual admin authoring.** No command execution in
 prod, so the ~55–60 rows are entered via Django admin, working from the tables above. The

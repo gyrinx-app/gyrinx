@@ -62,6 +62,31 @@ def _exclude_pack_fighters():
     )
 
 
+def _gang_has_living_leader(lst) -> bool:
+    """True if the list has a fighter who counts as a LEADER and is still in the fight.
+
+    Duck-typed over a core ``List`` (content must not import core): a leader by
+    ``category_override`` or by base type, not archived, and not dead / captured /
+    sold — the conditions under which the rules' "death of a leader" succession opens.
+    """
+    from django.db.models import Q
+
+    leaders = (
+        lst.listfighter_set.filter(archived=False)
+        .filter(
+            Q(category_override=FighterCategoryChoices.LEADER)
+            | (
+                (Q(category_override__isnull=True) | Q(category_override=""))
+                & Q(content_fighter__category=FighterCategoryChoices.LEADER)
+            )
+        )
+        # is_captured / is_sold_to_guilders probe the capture_info reverse O2O;
+        # select it so the whole check is one query however many leaders there are.
+        .select_related("capture_info")
+    )
+    return any(not fighter.should_have_zero_cost for fighter in leaders)
+
+
 class ContentPromotionPath(Content):
     """A content-authored promotion path (e.g. "Promote to Specialist").
 
@@ -104,7 +129,11 @@ class ContentPromotionPath(Content):
     from_category = models.CharField(
         max_length=50,
         choices=FighterCategoryChoices.choices,
-        help_text="The fighter category this promotion is offered to.",
+        blank=True,
+        help_text=(
+            "The fighter category this promotion is offered to. Leave blank to offer it "
+            "to fighters of any category (e.g. 'Nominate as leader')."
+        ),
     )
     source_fighter = models.ForeignKey(
         "ContentFighter",
@@ -136,6 +165,17 @@ class ContentPromotionPath(Content):
         help_text=(
             "Target types the player may choose between on a type change (e.g. Forge Boss "
             "or Stimmer). Leave empty if the target is resolved later."
+        ),
+    )
+    dynamic_targets_category = models.CharField(
+        max_length=50,
+        choices=FighterCategoryChoices.choices,
+        blank=True,
+        help_text=(
+            "For type changes with no fixed targets list: resolve the targets at offer "
+            "time to the gang-house's fighter types of this category (e.g. Leader for "
+            "'Nominate as leader'). One path then serves every house. Mutually exclusive "
+            "with explicit targets."
         ),
     )
     rank = models.PositiveIntegerField(
@@ -189,12 +229,17 @@ class ContentPromotionPath(Content):
         ordering = ["rank", "name"]
 
     def __str__(self):
+        from_part = self.from_category or "Any"
         to_part = self.to_category or "chosen type"
-        return f"{self.name} ({self.from_category} → {to_part})"
+        return f"{self.name} ({from_part} → {to_part})"
 
     def clean(self):
         super().clean()
         if self.kind == self.Kind.RELABEL:
+            if not self.from_category:
+                raise ValidationError(
+                    {"from_category": "A category relabel must name a source category."}
+                )
             if not self.to_category:
                 raise ValidationError(
                     {"to_category": "A category relabel must name a target category."}
@@ -208,6 +253,24 @@ class ContentPromotionPath(Content):
             raise ValidationError(
                 {"to_category": f"Promotion target must be one of: {allowed}."}
             )
+        if self.dynamic_targets_category:
+            if self.kind != self.Kind.TYPE_CHANGE:
+                raise ValidationError(
+                    {
+                        "dynamic_targets_category": (
+                            "Dynamic targets only apply to type changes."
+                        )
+                    }
+                )
+            if self.dynamic_targets_category not in PROMOTION_TARGET_CATEGORIES:
+                allowed = ", ".join(c.label for c in PROMOTION_TARGET_CATEGORIES)
+                raise ValidationError(
+                    {
+                        "dynamic_targets_category": (
+                            f"Dynamic target category must be one of: {allowed}."
+                        )
+                    }
+                )
         self._clean_rolls()
 
     def _clean_rolls(self):
@@ -245,6 +308,10 @@ class ContentPromotionPath(Content):
         """
         if self.to_category:
             return self.to_category
+        if target is None and self.dynamic_targets_category:
+            # Every dynamically-resolved target shares this category by construction,
+            # so it IS the effective category — no target needed to know it.
+            return self.dynamic_targets_category
         if target is None:
             # Only infer from a sole target — a multi-target path with no explicit
             # choice must not resolve to an arbitrary pick.
@@ -252,24 +319,92 @@ class ContentPromotionPath(Content):
             target = targets[0] if len(targets) == 1 else None
         return target.category if target else ""
 
-    def is_available_to_fighter(self, list_fighter) -> bool:
-        """Content-level availability gate: source match + house restriction.
+    def resolve_targets(self, list_fighter):
+        """The concrete target types this fighter may be type-changed into (a queryset).
 
-        This is *only* the content gate. Flow-level eligibility (already promoted, enough XP,
-        advancement threshold, etc.) is applied by the advancement flow in Phase 2.
+        Explicit ``targets`` rows win. Otherwise, when ``dynamic_targets_category`` is
+        set, targets resolve to the gang-house's fighter types of that category — so one
+        path (e.g. 'Nominate as leader') serves every house.
+        """
+        return self.resolve_targets_for_list(list_fighter.list)
+
+    def resolve_targets_for_list(self, lst):
+        """``resolve_targets`` keyed off the list — the resolution is per gang, not per
+        fighter, and list-level callers (the nomination affordance) have no fighter.
+
+        The dynamic lookup is a subscriber read path: it joins the list's subscribed
+        packs with archived items included, per the pack archive semantics.
+        """
+        explicit = self.targets.all()
+        if not self.dynamic_targets_category or explicit.exists():
+            return explicit
+        from .fighter import ContentFighter
+
+        # Stash types are excluded here and vehicles can't match: the dynamic category
+        # is validated against PROMOTION_TARGET_CATEGORIES, which has no VEHICLE —
+        # together satisfying the clean_target() guardrail in SQL.
+        return ContentFighter.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        ).filter(
+            house=lst.content_house,
+            category=self.dynamic_targets_category,
+            is_stash=False,
+        )
+
+    def is_available_to_fighter(self, list_fighter) -> bool:
+        """Content-level availability gate: source match, house restriction, and — for
+        leader-death paths — the trigger condition.
+
+        Flow-level eligibility (enough XP, advancement threshold, etc.) is applied by
+        the advancement flow. The LEADER_DEATH trigger lives here rather than there
+        because it is part of what the path *means* ("on the death of a leader…"), and
+        because the apply handler re-checks this method against crafted URLs.
         """
         # The category check applies to BOTH source modes: promotion changes the
         # fighter's category (via category_override), so a taken path stops matching —
         # without this, a source-pinned path would be offered again after promotion
         # (content_fighter never changes) and could be re-purchased.
-        if list_fighter.get_category() != self.from_category:
+        if self.from_category and list_fighter.get_category() != self.from_category:
             return False
+        if not self.from_category:
+            # Any-category paths can't rely on the category change for their
+            # "already taken" protection: gate on the type-change pointer instead
+            # (one active type change at a time), and never offer the path to a
+            # fighter already holding the category it leads to. "Any" also must not
+            # sweep in non-fighters.
+            if list_fighter.promoted_content_fighter_id is not None:
+                return False
+            if (
+                list_fighter.is_stash
+                or list_fighter.is_vehicle
+                or list_fighter.is_child_fighter
+            ):
+                return False
+            effective_to = self.effective_to_category()
+            if effective_to and list_fighter.get_category() == effective_to:
+                return False
         if self.source_fighter_id is not None:
             if list_fighter.content_fighter_id != self.source_fighter_id:
                 return False
         houses = list(self.restricted_to_houses.all())
         if houses and list_fighter.list.content_house not in houses:
             return False
+        if self.timing == self.Timing.LEADER_DEATH:
+            # Hard trigger, not guidance: only in campaign mode, only while the gang
+            # has no living leader to succeed, and never for a fighter who is out of
+            # the fight themselves (dead, captured, or sold).
+            lst = list_fighter.list
+            if not lst.is_campaign_mode:
+                return False
+            if list_fighter.should_have_zero_cost:
+                return False
+            if _gang_has_living_leader(lst):
+                return False
+        if self.kind == self.Kind.TYPE_CHANGE and self.dynamic_targets_category:
+            # A dynamic type change with nothing to become is not on offer (e.g. a
+            # house with no leader types).
+            if not self.resolve_targets(list_fighter).exists():
+                return False
         return True
 
 
@@ -335,3 +470,39 @@ def seed_default_promotions(model):
             to_category=entry["to_category"],
             defaults={field: entry[field] for field in _SEED_DEFAULT_FIELDS},
         )
+
+
+# Canonical values for the generic "Nominate as leader" path (#1468, the rules' "death of
+# a leader" succession): any fighter, any house, free, targets resolved dynamically to the
+# gang-house's Leader types. Kept separate from DEFAULT_PROMOTIONS so the (from, to)-keyed
+# seeding and its invariant tests stay untouched. The data migration that seeds this in
+# deployments carries its own frozen snapshot, mirroring 0181.
+LEADER_NOMINATION = {
+    "name": "Nominate as leader",
+    "kind": ContentPromotionPath.Kind.TYPE_CHANGE,
+    "from_category": "",
+    "to_category": FighterCategoryChoices.LEADER,
+    "dynamic_targets_category": FighterCategoryChoices.LEADER,
+    # Above Champion (2): on reversal of a stacked promotion history, leadership
+    # outranks everything the fighter held before.
+    "rank": 3,
+    "xp_cost": 0,
+    "cost_increase": 0,
+    "rolls": [],
+    "grants_skill": ContentPromotionPath.GRANTS_SKILL_NONE,
+    "timing": ContentPromotionPath.Timing.LEADER_DEATH,
+}
+
+
+def seed_leader_nomination(model):
+    """Create/refresh the 'Nominate as leader' path on ``model``. Idempotent."""
+    obj, _ = model.objects.update_or_create(
+        from_category=LEADER_NOMINATION["from_category"],
+        to_category=LEADER_NOMINATION["to_category"],
+        defaults={
+            field: value
+            for field, value in LEADER_NOMINATION.items()
+            if field not in ("from_category", "to_category")
+        },
+    )
+    return obj

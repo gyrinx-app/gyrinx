@@ -1152,6 +1152,16 @@ class ContentPromotionPathAdminForm(forms.ModelForm):
         # Store sorted for stable equality/display; checkboxes make dupes impossible.
         return sorted(self.cleaned_data.get("rolls") or [])
 
+    def clean(self):
+        # M2M rows can't be validated in model.clean() on unsaved instances, so the
+        # explicit-targets vs dynamic-targets exclusivity is enforced here.
+        cleaned_data = super().clean()
+        if cleaned_data.get("dynamic_targets_category") and cleaned_data.get("targets"):
+            raise forms.ValidationError(
+                "Choose either explicit targets or a dynamic target category, not both."
+            )
+        return cleaned_data
+
 
 @admin.register(ContentPromotionPath)
 class ContentPromotionPathAdmin(ContentAdmin, admin.ModelAdmin):
@@ -1180,6 +1190,7 @@ class ContentPromotionPathAdmin(ContentAdmin, admin.ModelAdmin):
                     "source_fighter",
                     "to_category",
                     "targets",
+                    "dynamic_targets_category",
                     "rank",
                 )
             },

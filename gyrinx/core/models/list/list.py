@@ -844,6 +844,76 @@ class List(AppBase):
         """
         return self.status == self.CLONING_IN_PROGRESS
 
+    @cached_property
+    def leader_nomination_offer(self):
+        """The gang-level 'Nominate as leader' affordance (#1468), or None.
+
+        Open only in campaign mode while the gang has no living leader — the rules'
+        death-of-a-leader succession. Cached per instance so every fighter card on the
+        list page shares one evaluation; the per-fighter half of the gate is the cheap
+        ``ListFighter.can_be_nominated_leader``, and the advancement flow + handler
+        re-validate everything at apply time.
+
+        Returns ``{"path", "url_name", "query"}`` — the wizard deep-link is
+        ``{% url url_name list.id fighter.id %}?query``.
+        """
+        from urllib.parse import urlencode
+
+        from gyrinx.content.models import ContentPromotionPath
+        from gyrinx.content.models.promotion import _gang_has_living_leader
+
+        if not self.is_campaign_mode:
+            return None
+        # Living-leader first: it's one query and false-y for almost every gang, so
+        # the common campaign list page pays the minimum for this affordance.
+        if _gang_has_living_leader(self):
+            return None
+        paths = list(
+            ContentPromotionPath.objects.filter(
+                timing=ContentPromotionPath.Timing.LEADER_DEATH
+            ).prefetch_related("restricted_to_houses", "targets")
+        )
+        if not paths:
+            return None
+        # Most-specific wins (mirroring the promotion-offer precedence): a
+        # house-restricted leader-death path beats the generic seeded one for the
+        # affordance. Stable sort keeps the (rank, name) model ordering within groups.
+        paths.sort(key=lambda p: 0 if list(p.restricted_to_houses.all()) else 1)
+        for path in paths:
+            if path.source_fighter_id is not None or path.from_category:
+                # Source- or category-pinned paths are fighter-specific; the
+                # gang-level affordance is shared by every card and can't evaluate
+                # them (the per-fighter check is deliberately query-free), so a
+                # pinned path's link could land on an ineligible fighter. They
+                # remain reachable through the wizard.
+                continue
+            houses = list(path.restricted_to_houses.all())
+            if houses and self.content_house not in houses:
+                continue
+            target_count = path.resolve_targets_for_list(self).count()
+            if target_count == 0:
+                continue
+            needs_step = (
+                target_count > 1
+                or path.grants_skill != ContentPromotionPath.GRANTS_SKILL_NONE
+            )
+            return {
+                "path": path,
+                "url_name": (
+                    "core:list-fighter-advancement-select"
+                    if needs_step
+                    else "core:list-fighter-advancement-confirm"
+                ),
+                "query": urlencode(
+                    {
+                        "advancement_choice": f"promotion_{path.id}",
+                        "xp_cost": path.xp_cost,
+                        "cost_increase": path.cost_increase,
+                    }
+                ),
+            }
+        return None
+
     def get_suggested_campaign_packs(self):
         """Return campaign packs not yet subscribed by this list.
 

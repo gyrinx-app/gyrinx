@@ -142,7 +142,9 @@ def handle_fighter_advancement(
         )
     if promotion_target is not None and (
         promotion_path is None
-        or not promotion_path.targets.filter(id=promotion_target.id).exists()
+        or not promotion_path.resolve_targets(fighter)
+        .filter(id=promotion_target.id)
+        .exists()
     ):
         raise ValidationError(
             "The chosen promotion target is not one of this path's targets."
