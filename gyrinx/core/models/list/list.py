@@ -875,6 +875,10 @@ class List(AppBase):
         )
         if not paths:
             return None
+        # Most-specific wins (mirroring the promotion-offer precedence): a
+        # house-restricted leader-death path beats the generic seeded one for the
+        # affordance. Stable sort keeps the (rank, name) model ordering within groups.
+        paths.sort(key=lambda p: 0 if list(p.restricted_to_houses.all()) else 1)
         for path in paths:
             if path.source_fighter_id is not None:
                 # Source-pinned paths are fighter-specific; the gang-level affordance
