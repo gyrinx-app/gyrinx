@@ -567,3 +567,17 @@ def test_leader_migration_snapshot_agrees_with_live_seed_constant():
     for key, frozen_value in module.SEED.items():
         # TextChoices members compare equal to their raw string values.
         assert LEADER_NOMINATION[key] == frozen_value, key
+
+
+def test_effective_to_category_falls_back_to_dynamic_category():
+    """A dynamic path without an explicit to_category still knows its effective
+    category — every dynamically-resolved target shares it by construction. Catches:
+    the availability guard treating such a path as category-less."""
+    path = ContentPromotionPath(
+        name="Dynamic no explicit to",
+        kind=ContentPromotionPath.Kind.TYPE_CHANGE,
+        from_category="",
+        dynamic_targets_category=FighterCategoryChoices.LEADER,
+        xp_cost=0,
+    )
+    assert path.effective_to_category() == FighterCategoryChoices.LEADER

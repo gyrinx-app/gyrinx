@@ -308,6 +308,10 @@ class ContentPromotionPath(Content):
         """
         if self.to_category:
             return self.to_category
+        if target is None and self.dynamic_targets_category:
+            # Every dynamically-resolved target shares this category by construction,
+            # so it IS the effective category — no target needed to know it.
+            return self.dynamic_targets_category
         if target is None:
             # Only infer from a sole target — a multi-target path with no explicit
             # choice must not resolve to an arbitrary pick.
