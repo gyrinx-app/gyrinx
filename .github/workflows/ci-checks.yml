@@ -1,4 +1,4 @@
-name: Format Check
+name: CI Checks
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  format-check:
+  ci-checks:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

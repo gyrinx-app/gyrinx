@@ -243,7 +243,7 @@ daphne -b 0.0.0.0 -p $PORT "gyrinx.asgi:application"
 ## 11. GitHub Actions / CI
 
 ### Workflows
-- `format-check.yml` - Runs on PRs and pushes to main; checks Python (ruff), templates (djlint), JS/CSS/JSON (prettier), Jupyter notebooks
+- `ci-checks.yml` - Runs on PRs and pushes to main; checks Python (ruff), templates (djlint), JS/CSS/JSON (prettier), Jupyter notebooks
 - `claude.yml` - Claude Code AI workflow
 - `claude-code-review.yml` - AI code review
 - `claude-code-improvement.yml` - AI improvement suggestions

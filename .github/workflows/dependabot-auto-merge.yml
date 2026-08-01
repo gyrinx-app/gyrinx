@@ -14,7 +14,7 @@ jobs:
       # Mint a token from a dedicated GitHub App so the enqueue is NOT performed
       # by GITHUB_TOKEN. Actions triggered by GITHUB_TOKEN do not spawn new
       # workflow runs, which meant the merge_group event never started the
-      # required `test` / `format-check` runs and the PR was evicted from the
+      # required `test` / `ci-checks` runs and the PR was evicted from the
       # queue after the 60-minute check timeout. An App token enqueues as a
       # distinct identity so merge_group checks run normally.
       - name: Generate app token
