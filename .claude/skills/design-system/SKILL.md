@@ -17,7 +17,7 @@ Read these files to get the full design system:
 
 !`cat docs/DESIGN-SYSTEM.md`
 
-!`cat gyrinx/core/templates/core/debug/design_system.html`
+!`cat n23/core/templates/core/debug/design_system.html`
 
 ## How to use
 

@@ -79,7 +79,7 @@ for record in history:
 
 ```python
 # All campaign history across all campaigns
-from gyrinx.core.models.campaign import Campaign
+from n23.core.models.campaign import Campaign
 all_history = Campaign.history.all()
 ```
 

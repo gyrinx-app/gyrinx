@@ -1,0 +1,345 @@
+import pytest
+from django.contrib.auth import get_user_model
+from django.test import Client
+from django.urls import reverse
+
+from n23.content.models import ContentHouse
+from n23.core.models.campaign import Campaign
+from n23.core.models.list import List
+
+User = get_user_model()
+
+
+@pytest.mark.django_db
+def test_homepage_campaign_modules():
+    """Test that the homepage shows campaign gangs and campaigns correctly."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="password")
+
+    # Create test house
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create regular lists (in list building mode)
+    regular_list1 = List.objects.create(
+        name="Regular Gang 1",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+    regular_list2 = List.objects.create(
+        name="Regular Gang 2",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    # Create a campaign
+    active_campaign = Campaign.objects.create(
+        name="Active Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+
+    # Create campaign gangs (in campaign mode)
+    campaign_gang1 = List.objects.create(
+        name="Campaign Gang 1",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=active_campaign,
+        theme_color="#FF0000",
+    )
+    campaign_gang2 = List.objects.create(
+        name="Campaign Gang 2",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=active_campaign,
+        theme_color="#00FF00",
+    )
+
+    # Create a pre-campaign that user owns
+    pre_campaign = Campaign.objects.create(
+        name="Pre Campaign", owner=user, status=Campaign.PRE_CAMPAIGN
+    )
+
+    # Create another user and their campaign where our user participates
+    other_user = User.objects.create_user(username="otheruser", password="password")
+    other_campaign = Campaign.objects.create(
+        name="Other's Campaign", owner=other_user, status=Campaign.IN_PROGRESS
+    )
+
+    # Create a gang in the other campaign
+    other_campaign_gang = List.objects.create(
+        name="Gang in Other Campaign",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=other_campaign,
+    )
+
+    # Test authenticated user view
+    client = Client()
+    client.login(username="testuser", password="password")
+    response = client.get(reverse("core:index"))
+
+    assert response.status_code == 200
+
+    # Check context variables
+    assert "lists" in response.context
+    assert "campaign_gangs" in response.context
+    assert "campaigns" in response.context
+
+    # Check regular lists
+    lists = response.context["lists"]
+    assert regular_list1 in lists
+    assert regular_list2 in lists
+    assert campaign_gang1 not in lists  # Campaign gangs should not be in regular lists
+    assert campaign_gang2 not in lists
+
+    # Check campaign gangs
+    campaign_gangs = response.context["campaign_gangs"]
+    assert campaign_gang1 in campaign_gangs
+    assert campaign_gang2 in campaign_gangs
+    assert other_campaign_gang in campaign_gangs
+    assert regular_list1 not in campaign_gangs
+
+    # Check campaigns
+    campaigns = response.context["campaigns"]
+    assert active_campaign in campaigns
+    assert pre_campaign in campaigns
+    assert other_campaign in campaigns  # User has a gang in this campaign
+
+    # Check content rendering
+    content = response.content.decode()
+
+    # Check headings
+    assert "Campaign gangs" in content
+    assert "Campaigns" in content
+    assert "Lists" in content
+    assert "Your Lists" not in content  # Should be changed to just "Lists"
+
+    # Check campaign gangs section
+    assert "Campaign Gang 1" in content
+    assert "Campaign Gang 2" in content
+    assert "Gang in Other Campaign" in content
+    assert active_campaign.name in content
+    # HTML encodes apostrophes, check for both possibilities
+    assert "Other's Campaign" in content or "Other&#x27;s Campaign" in content
+
+    # Check campaigns section
+    assert "Active Campaign" in content
+    assert "Pre Campaign" in content
+    assert "Other's Campaign" in content or "Other&#x27;s Campaign" in content
+    assert "In Progress" in content
+    assert "Pre-Campaign" in content
+
+    # Check regular lists section
+    assert "Regular Gang 1" in content
+    assert "Regular Gang 2" in content
+
+
+@pytest.mark.django_db
+def test_homepage_no_campaigns():
+    """Test homepage when user has no campaigns or campaign gangs."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="password")
+
+    # Create test house
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create only regular lists
+    List.objects.create(
+        name="Only Regular Gang",
+        owner=user,
+        content_house=house,
+        status=List.LIST_BUILDING,
+    )
+
+    client = Client()
+    client.login(username="testuser", password="password")
+    response = client.get(reverse("core:index"))
+
+    assert response.status_code == 200
+
+    content = response.content.decode()
+
+    # Check empty state messages
+    assert "You have no Campaign Gangs." in content
+    assert (
+        'You are not part of any Campaigns. <a href="/campaigns/">Create a new Campaign</a>.'
+        in content
+    )
+
+
+@pytest.mark.django_db
+def test_homepage_archived_campaigns_excluded():
+    """Test that archived campaigns and their gangs don't appear on homepage."""
+    # Create test user
+    user = User.objects.create_user(username="testuser", password="password")
+
+    # Create test house
+    house = ContentHouse.objects.create(name="Test House")
+
+    # Create an active campaign with a gang
+    active_campaign = Campaign.objects.create(
+        name="Active Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+        archived=False,
+    )
+    active_campaign_gang = List.objects.create(
+        name="Active Campaign Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=active_campaign,
+    )
+
+    # Create an archived campaign with a gang
+    archived_campaign = Campaign.objects.create(
+        name="Archived Campaign",
+        owner=user,
+        status=Campaign.IN_PROGRESS,
+        archived=True,
+    )
+    archived_campaign_gang = List.objects.create(
+        name="Archived Campaign Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=archived_campaign,
+    )
+
+    # Create another user with an archived campaign where our user participates
+    other_user = User.objects.create_user(username="otheruser", password="password")
+    other_archived_campaign = Campaign.objects.create(
+        name="Other Archived Campaign",
+        owner=other_user,
+        status=Campaign.IN_PROGRESS,
+        archived=True,
+    )
+    other_archived_gang = List.objects.create(
+        name="Gang in Other Archived Campaign",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=other_archived_campaign,
+    )
+
+    # Test authenticated user view
+    client = Client()
+    client.login(username="testuser", password="password")
+    response = client.get(reverse("core:index"))
+
+    assert response.status_code == 200
+
+    # Check context - archived campaigns should be excluded
+    campaigns = response.context["campaigns"]
+    assert active_campaign in campaigns
+    assert archived_campaign not in campaigns
+    assert other_archived_campaign not in campaigns
+
+    # Check context - gangs from archived campaigns should be excluded
+    campaign_gangs = response.context["campaign_gangs"]
+    assert active_campaign_gang in campaign_gangs
+    assert archived_campaign_gang not in campaign_gangs
+    assert other_archived_gang not in campaign_gangs
+
+    # Check content rendering
+    content = response.content.decode()
+
+    # Active campaign and gang should appear
+    assert "Active Campaign" in content
+    assert "Active Campaign Gang" in content
+
+    # Archived campaigns and gangs should not appear
+    assert "Archived Campaign" not in content
+    assert "Archived Campaign Gang" not in content
+    assert "Other Archived Campaign" not in content
+    assert "Gang in Other Archived Campaign" not in content
+
+
+@pytest.mark.django_db
+def test_homepage_search_campaign_gangs():
+    """Test that q_gangs search filters campaign gangs independently."""
+    user = User.objects.create_user(username="testuser", password="password")
+    house = ContentHouse.objects.create(name="Test House")
+    campaign = Campaign.objects.create(
+        name="Test Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+    List.objects.create(
+        name="Alpha Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+    List.objects.create(
+        name="Beta Gang",
+        owner=user,
+        content_house=house,
+        status=List.CAMPAIGN_MODE,
+        campaign=campaign,
+    )
+
+    client = Client()
+    client.login(username="testuser", password="password")
+
+    # Search should filter gangs
+    response = client.get(reverse("core:index"), {"q_gangs": "Alpha"})
+    assert response.status_code == 200
+    assert b"Alpha Gang" in response.content
+    assert b"Beta Gang" not in response.content
+
+    # Non-matching search
+    response = client.get(reverse("core:index"), {"q_gangs": "Nonexistent"})
+    assert response.status_code == 200
+    assert b"No Campaign Gangs matched your search" in response.content
+
+    # q_gangs should not affect campaigns column
+    response = client.get(reverse("core:index"), {"q_gangs": "Alpha"})
+    assert b"Test Campaign" in response.content
+
+
+@pytest.mark.django_db
+def test_homepage_search_campaigns():
+    """Test that q_campaigns search filters campaigns independently."""
+    user = User.objects.create_user(username="testuser", password="password")
+    Campaign.objects.create(
+        name="Alpha Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+    Campaign.objects.create(
+        name="Beta Campaign", owner=user, status=Campaign.IN_PROGRESS
+    )
+
+    client = Client()
+    client.login(username="testuser", password="password")
+
+    # Search should filter campaigns
+    response = client.get(reverse("core:index"), {"q_campaigns": "Alpha"})
+    assert response.status_code == 200
+    assert b"Alpha Campaign" in response.content
+    assert b"Beta Campaign" not in response.content
+
+    # Non-matching search
+    response = client.get(reverse("core:index"), {"q_campaigns": "Nonexistent"})
+    assert response.status_code == 200
+    assert b"No Campaigns matched your search" in response.content
+
+
+@pytest.mark.django_db
+def test_homepage_anonymous_user():
+    """Test that anonymous users don't see campaign modules."""
+    client = Client()
+    response = client.get(reverse("core:index"))
+
+    assert response.status_code == 200
+
+    # Anonymous users should get empty lists
+    assert response.context["lists"] == []
+    assert response.context["campaign_gangs"] == []
+    assert response.context["campaigns"] == []
+
+    content = response.content.decode()
+
+    # Should see marketing content
+    assert "Build and manage your gangs" in content

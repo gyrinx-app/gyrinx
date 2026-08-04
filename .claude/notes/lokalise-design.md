@@ -181,7 +181,7 @@ urlpatterns = [
 
 urlpatterns += i18n_patterns(
     # All user-facing URLs get language prefixes
-    path("", include("gyrinx.core.urls")),
+    path("", include("n23.core.urls")),
     path("admin/", admin.site.urls),
     # ... other app URLs
     prefix_default_language=False,  # English stays at /lists/, not /en/lists/
@@ -557,7 +557,7 @@ import lokalise
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from gyrinx.content.models import ContentFighter, ContentEquipment
+from n23.content.models import ContentFighter, ContentEquipment
 
 
 class Command(BaseCommand):

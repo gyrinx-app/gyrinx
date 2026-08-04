@@ -150,7 +150,7 @@ daphne -b 0.0.0.0 -p $PORT "gyrinx.asgi:application"
 - **Backend**: Custom `PubSubBackend` at `gyrinx.tasks.backend`
 - **Push handler**: `/tasks/pubsub/` endpoint receives push messages
 - **Per-task topics**: Each task gets its own Pub/Sub topic
-- **Topic naming**: `{env}--gyrinx.tasks--{full.module.path}` (e.g., `prod--gyrinx.tasks--gyrinx.core.tasks.refresh_list_facts`)
+- **Topic naming**: `{env}--gyrinx.tasks--{full.module.path}` (e.g., `prod--gyrinx.tasks--n23.core.tasks.refresh_list_facts`)
 - **Subscriptions**: `{topic_name}-sub` with push config pointing to service URL
 
 ### Registered Tasks

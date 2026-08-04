@@ -57,7 +57,7 @@ lapse). Two invariants live here:
 2. **Business-logic idempotency is the task's job.** The propagation tasks take a
    `select_for_update` lock on the `List` row so two concurrent duplicate deliveries
    don't double-apply. Regression coverage:
-   [`gyrinx/core/tests/test_task_chaos_concurrency.py`](../core/tests/test_task_chaos_concurrency.py).
+   [`n23/core/tests/test_task_chaos_concurrency.py`](../../n23/core/tests/test_task_chaos_concurrency.py).
 
 ## Testing
 

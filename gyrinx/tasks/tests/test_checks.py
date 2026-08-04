@@ -8,7 +8,7 @@ from gyrinx.tasks.route import TaskRoute
 
 
 # Module-level @task functions (Django requires module scope) for tests that
-# need a task in a module OTHER than gyrinx.core.tasks. Neither is in the real
+# need a task in a module OTHER than n23.core.tasks. Neither is in the real
 # registry, TASK_MODULES, or a discovered <app>.tasks module, so the live check
 # never scans this module — they're inert outside the tests that reference them.
 @task
@@ -56,18 +56,18 @@ def test_module_owning_a_registered_task_is_scanned(monkeypatch):
 
 def test_app_discovery_reaches_conventional_task_modules(monkeypatch):
     """With no explicit TASK_MODULES and no registered routes, the scan still
-    reaches gyrinx.core.tasks purely by discovering the gyrinx.core app's
+    reaches n23.core.tasks purely by discovering the n23.core app's
     conventional <app>.tasks module — this closes the new-app gap."""
     monkeypatch.setattr(checks, "TASK_MODULES", ())
 
     paths = checks._task_module_paths([])
 
-    assert "gyrinx.core.tasks" in paths
+    assert "n23.core.tasks" in paths
 
 
 def test_app_discovery_covers_edition_namespaces(monkeypatch):
     """The per-edition namespaces are first-party too. The n23 rename (#2093)
-    moves ``gyrinx.core`` to ``n23.core``; if the prefix filter still only
+    moved ``gyrinx.core`` to ``n23.core``; if the prefix filter still only
     accepted ``gyrinx.``, this scan would silently stop discovering the
     edition's task module and the #1947 guard would weaken to nothing —
     a gap that only shows up in production."""
@@ -126,9 +126,9 @@ def test_declared_tasks_attributes_tasks_to_their_own_module():
     no @task (e.g. checks.py) yields nothing, so re-exports elsewhere can't create
     phantom 'unregistered' entries."""
     assert checks._declared_tasks(("gyrinx.tasks.checks",)) == {}
-    declared = checks._declared_tasks(("gyrinx.core.tasks",))
+    declared = checks._declared_tasks(("n23.core.tasks",))
     assert "reconcile_all_lists" in declared
-    assert declared["reconcile_all_lists"] == "gyrinx.core.tasks"
+    assert declared["reconcile_all_lists"] == "n23.core.tasks"
 
 
 def test_declared_tasks_skips_unimportable_module():

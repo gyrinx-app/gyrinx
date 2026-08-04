@@ -1,0 +1,1597 @@
+"""List CRUD views."""
+
+import uuid
+from urllib.parse import urlencode
+
+from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
+from django.db import transaction
+from django.db.models import Count, Max, Q
+from django.db.models.functions import Coalesce, Lower
+from django.http import Http404, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
+from django.views import generic
+from django.views.decorators.http import require_POST
+
+from gyrinx import messages
+from n23.content.models import ContentEquipment, ContentFighter, ContentHouse
+from n23.core.context_processors import BANNER_CACHE_KEY
+from n23.core.forms.list import CloneListForm, EditListForm, NewListForm
+from n23.core.handlers.list import handle_list_clone, handle_list_creation
+from n23.core.models.list import List, ListFighter
+from n23.core.models.events import EventNoun, EventVerb, log_event
+from n23.core.utils import (
+    build_safe_url,
+    get_list_attributes,
+    get_list_campaign_resources,
+    get_list_held_assets,
+    get_list_recent_campaign_actions,
+    get_return_url,
+    safe_redirect,
+    search_queryset,
+    toggle_membership,
+)
+from n23.core.views.list.common import get_clean_list_or_404
+from gyrinx.models import is_valid_uuid
+from gyrinx.tracing import traced
+from gyrinx.tracker import track
+from n23.core.views.fighter.permissions import arbitrator_q
+
+
+class ListsListView(generic.ListView):
+    """
+    Display a list of public :model:`core.List` objects.
+
+    **Context**
+
+    ``lists``
+        A list of :model:`core.List` objects where `public=True`.
+    ``houses``
+        A list of :model:`content.ContentHouse` objects for filtering.
+
+    **Template**
+
+    :template:`core/lists.html`
+    """
+
+    template_name = "core/lists.html"
+    context_object_name = "lists"
+    paginate_by = 20
+    page_kwarg = "page"
+
+    @traced("ListsListView_get_queryset")
+    def get_queryset(self):
+        """
+        Return :model:`core.List` objects that are public and in list building mode.
+        Campaign mode lists are only visible within their campaigns.
+        Archived lists are excluded from this view unless requested.
+        """
+        queryset = List.objects.all().select_related(
+            "content_house", "owner", "owner__profile", "campaign"
+        )
+
+        # Apply "Your Lists" filter (default on if user is authenticated)
+        show_my_lists = self.request.GET.get(
+            "my", "1" if self.request.user.is_authenticated else "0"
+        )
+        if show_my_lists == "1" and self.request.user.is_authenticated:
+            queryset = queryset.filter(owner=self.request.user)
+        else:
+            # Only show public lists if not filtering by user
+            queryset = queryset.filter(public=True)
+
+        # Apply archived filter (default off)
+        show_archived = self.request.GET.get("archived", "0")
+        if show_archived == "1":
+            # Show ONLY archived lists that belong to the current user
+            if self.request.user.is_authenticated:
+                queryset = queryset.filter(archived=True, owner=self.request.user)
+            else:
+                # Non-authenticated users cannot see archived lists
+                queryset = queryset.none()
+        else:
+            # Show only non-archived lists by default
+            queryset = queryset.filter(archived=False)
+
+        # Apply type filter (lists vs gangs)
+        type_filters = self.request.GET.getlist("type")
+        if type_filters:
+            status_filters = []
+            if "list" in type_filters:
+                status_filters.append(List.LIST_BUILDING)
+            if "gang" in type_filters:
+                status_filters.append(List.CAMPAIGN_MODE)
+            if status_filters:
+                queryset = queryset.filter(status__in=status_filters)
+        else:
+            # Default to showing all
+            pass
+
+        # Apply search filter
+        search_query = self.request.GET.get("q")
+        if search_query:
+            queryset = search_queryset(
+                queryset,
+                search_query,
+                ["name", "content_house__name", "owner__username"],
+            )
+
+        # Save queryset before house filter so get_context_data can derive
+        # the house dropdown from the full set of matching lists.
+        self._queryset_before_house_filter = queryset
+
+        # Apply house filter
+        house_ids = self.request.GET.getlist("house")
+        if house_ids and not ("all" in house_ids or not house_ids[0]):
+            # Validate UUIDs to prevent SQL injection attempts
+            valid_house_ids = [h_id for h_id in house_ids if is_valid_uuid(h_id)]
+            if valid_house_ids:
+                queryset = queryset.filter(content_house_id__in=valid_house_ids)
+
+        # Star count is always available for display; sorting can use it.
+        queryset = queryset.annotate(star_count=Count("starred_by", distinct=True))
+
+        # Sorting: recently updated (default), alphabetical, or most starred.
+        sort = self.request.GET.get("sort", "recent")
+        if sort == "name":
+            queryset = queryset.order_by(Lower("name"))
+        elif sort == "stars":
+            queryset = queryset.order_by("-star_count", Lower("name"))
+        else:
+            # Most recent action, falling back to the list's own modified time.
+            queryset = queryset.annotate(
+                latest_action_at=Max("actions__created")
+            ).order_by(Coalesce("latest_action_at", "modified").desc())
+
+        return queryset
+
+    @traced("ListsListView_get_context_data")
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Derive house dropdown from lists matching current filters (excluding
+        # the house filter itself).  This uses all_content() so pack-defined
+        # houses are included whenever a user has gangs using them.
+        house_ids = self._queryset_before_house_filter.values_list(
+            "content_house_id", flat=True
+        ).distinct()
+        context["houses"] = (
+            ContentHouse.objects.all_content().filter(id__in=house_ids).order_by("name")
+        )
+
+        # Determine active tab from type filter
+        type_filters = self.request.GET.getlist("type")
+        if type_filters == ["list"]:
+            context["current_tab"] = "list"
+        elif type_filters == ["gang"]:
+            context["current_tab"] = "gang"
+        else:
+            context["current_tab"] = "all"
+
+        # Current sort, for the sort control.
+        context["current_sort"] = self.request.GET.get("sort", "recent")
+
+        # Pinned lists/gangs for the sidebar (the user's own private pins).
+        # Mirror the main queryset so the shared row partial renders identically.
+        if self.request.user.is_authenticated:
+            context["pinned_lists"] = (
+                self.request.user.pinned_lists.filter(archived=False)
+                .select_related("content_house", "owner", "owner__profile", "campaign")
+                .annotate(star_count=Count("starred_by", distinct=True))
+                .order_by("name")
+            )
+        else:
+            context["pinned_lists"] = []
+
+        return context
+
+    @traced("ListsListView_get")
+    def get(self, request, *args, **kwargs):
+        """
+        Override get to handle pagination errors.
+        If the requested page is out of bounds, redirect to page 1
+        with all other query parameters preserved.
+        """
+        try:
+            return super().get(request, *args, **kwargs)
+        except Http404:
+            # Check if this is a pagination-related 404
+            page = request.GET.get(self.page_kwarg, 1)
+            # If page is not 1, it's likely a pagination error
+            if page != "1":
+                # Build new query parameters with page=1
+                query_params = request.GET.copy()
+                query_params[self.page_kwarg] = "1"
+                # Build safe URL for redirect
+                url = build_safe_url(
+                    request,
+                    path=request.path,
+                    query_string=query_params.urlencode(),
+                )
+                # Redirect to the same URL with page=1
+                return safe_redirect(request, url, fallback_url=reverse("core:lists"))
+            # If it's already page 1, re-raise the 404
+            raise
+
+
+class ListDetailView(generic.DetailView):
+    """
+    Display a single :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+    ``recent_actions``
+        Recent campaign actions related to this list (if in campaign mode).
+    ``campaign_resources``
+        Resources held by this list in the campaign (if in campaign mode).
+    ``held_assets``
+        Assets held by this list in the campaign (if in campaign mode).
+
+    **Template**
+
+    :template:`core/list.html`
+    """
+
+    template_name = "core/list.html"
+    context_object_name = "list"
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        # A campaign-start stub still being cloned in the background (#1222) has no
+        # fighters/cost yet and isn't safely editable — its status is CLONING_IN_PROGRESS,
+        # so credit-accounting guards would treat it as list-building. Send viewers to the
+        # campaign, which renders its "Joining…" state.
+        if self.object.is_cloning:
+            messages.info(
+                request,
+                f"{self.object.name} is still joining the campaign — it'll be ready in a moment.",
+            )
+            target = (
+                reverse("core:campaign", args=(self.object.campaign_id,))
+                if self.object.campaign_id
+                else reverse("core:lists")
+            )
+            return HttpResponseRedirect(target)
+        context = self.get_context_data(object=self.object)
+        return self.render_to_response(context)
+
+    @traced("ListDetailView_get_object")
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
+
+        Fetches the list's packs first (lightweight query) so that
+        fighter prefetches can use pack-aware querysets, allowing
+        ruleline/skilline to hit the prefetch cache.
+        """
+        from n23.core.models.pack import CustomContentPack
+
+        list_id = self.kwargs["id"]
+        packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
+        return get_clean_list_or_404(
+            # owner__profile is for the breadcrumb supporter badge.
+            List.objects.with_related_data(
+                with_fighters=True, packs=packs
+            ).select_related("owner__profile"),
+            id=list_id,
+        )
+
+    @traced("ListDetailView_get_context_data")
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        list_obj = context["list"]
+
+        # Use the prefetched listfighter_set to avoid bypassing the prefetch cache.
+        # Calling .filter() on a prefetched relation triggers new DB queries, so we
+        # do all filtering in Python on the already-loaded data.
+        all_fighters = list(list_obj.listfighter_set.all())
+
+        # Equipment-set URL override (#1853): ?set_<fighter_id>=<set_id|default>
+        # shows a specific card for that fighter for a linkable/shareable view,
+        # without changing the persisted default. Applied in memory only, using
+        # the prefetched sets (no extra queries).
+        for fighter in all_fighters:
+            override = self.request.GET.get(f"set_{fighter.id}")
+            if override is None:
+                continue
+            if override in ("", "0", "default"):
+                fighter.active_equipment_set = None
+            else:
+                for equipment_set in fighter.equipment_sets.all():
+                    if str(equipment_set.id) == override:
+                        fighter.active_equipment_set = equipment_set
+                        break
+
+        # Check if the list has a stash fighter
+        context["has_stash_fighter"] = any(
+            f.content_fighter.is_stash for f in all_fighters
+        )
+
+        # If list is in campaign mode and has a campaign, fetch recent actions
+        if list_obj.is_campaign_mode and list_obj.campaign:
+            # Get recent actions for this specific list only
+            context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
+
+            # Get campaign resources held by this list
+            context["campaign_resources"] = get_list_campaign_resources(list_obj)
+
+            # Get assets held by this list
+            context["held_assets"] = get_list_held_assets(list_obj)
+
+            # Get captured fighters held by this list
+            captured_fighters = list_obj.captured_fighters.filter(
+                sold_to_guilders=False
+            ).select_related("fighter", "fighter__list")
+            context["captured_fighters"] = captured_fighters
+
+        # Get fighters with group keys for display grouping
+        # Performance: filter in Python to leverage the prefetched listfighter_set
+        fighters_with_groups = [f for f in all_fighters if not f.archived]
+        context["fighters_with_groups"] = fighters_with_groups
+        context["fighters_minimal"] = [
+            {"id": f.id, "name": f.name} for f in fighters_with_groups
+        ]
+
+        # Get pending invitation count for this list (only for owner)
+        if self.request.user.is_authenticated and list_obj.owner == self.request.user:
+            from n23.core.models.invitation import CampaignInvitation
+
+            context["pending_invitations_count"] = CampaignInvitation.objects.filter(
+                list=list_obj, status=CampaignInvitation.PENDING
+            ).count()
+
+        # Admins (superusers) may impersonate the list owner, unless already
+        # impersonating.
+        from n23.core.impersonation import can_impersonate_target
+
+        context["can_impersonate_list_owner"] = not getattr(
+            self.request, "is_impersonating", False
+        ) and can_impersonate_target(self.request.user, list_obj.owner_cached)
+
+        # Add subscribed packs
+        context["subscribed_packs"] = list_obj.packs.all().select_related("owner")
+
+        # Suggested campaign packs (for the "X suggested" indicator)
+        if self.request.user.is_authenticated and list_obj.owner == self.request.user:
+            suggested = list_obj.get_suggested_campaign_packs()
+            context["suggested_campaign_packs_count"] = suggested.count()
+
+        # Build a mapping of content IDs to pack names for visual indicators.
+        # Single query against CustomContentPackItem — no N+1.
+        subscribed_packs = list_obj.packs.all()
+        if subscribed_packs:
+            from n23.core.models.pack import CustomContentPackItem
+
+            pack_content_map = {}
+            for object_id, pname in (
+                CustomContentPackItem.objects.filter(pack__in=subscribed_packs)
+                .select_related("pack")
+                .values_list("object_id", "pack__name")
+            ):
+                pack_content_map.setdefault(object_id, []).append(pname)
+            # Stamp each fighter with the pack name(s) for the template
+            for f in all_fighters:
+                names = pack_content_map.get(f.content_fighter_id, [])
+                f.from_pack_name = ", ".join(names)
+            context["pack_content_map"] = pack_content_map
+        else:
+            for f in all_fighters:
+                f.from_pack_name = ""
+            context["pack_content_map"] = {}
+
+        # Pin/star state for the header toggle buttons.
+        context["star_count"] = list_obj.starred_by.count()
+        if self.request.user.is_authenticated:
+            context["is_pinned"] = list_obj.pinned_by.filter(
+                pk=self.request.user.pk
+            ).exists()
+            context["is_starred"] = list_obj.starred_by.filter(
+                pk=self.request.user.pk
+            ).exists()
+        else:
+            context["is_pinned"] = False
+            context["is_starred"] = False
+
+        # Notification banners for this list (scoped to the viewing recipient).
+        if self.request.user.is_authenticated:
+            from n23.core.models.notification import Notification
+
+            context["notification_banners"] = Notification.objects.banners_for(
+                self.request.user, list_=list_obj
+            )
+
+        # Whether the viewer is the campaign arbitrator (campaign owner) for a
+        # campaign-mode list. Mirrors get_list_for_edit's owner-or-arbitrator
+        # rule so arbitrator-only affordances (e.g. Post-battle updates) show
+        # in the menu even on a gang the arbitrator doesn't own.
+        context["is_campaign_arbitrator"] = bool(
+            self.request.user.is_authenticated
+            and list_obj.is_campaign_mode
+            and list_obj.campaign_id
+            and list_obj.campaign.owner_id == self.request.user.pk
+        )
+
+        return context
+
+
+class ListPerformanceView(generic.DetailView):
+    template_name = "core/list_performance.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
+        """
+        from n23.core.models.pack import CustomContentPack
+
+        list_id = self.kwargs["id"]
+        packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
+        return get_clean_list_or_404(
+            List.objects.with_related_data(with_fighters=True, packs=packs),
+            id=list_id,
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # This prevents the banner query being fired in tests
+        cache.set(BANNER_CACHE_KEY, False, None)
+
+        return context
+
+
+class ListAboutDetailView(generic.DetailView):
+    """
+    Display a narrative view of a single :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+
+    **Template**
+
+    :template:`core/list_about.html`
+    """
+
+    template_name = "core/list_about.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
+        Uses with_related_data() to optimize queries for the list_common_header.
+        """
+        return get_clean_list_or_404(
+            List.objects.with_related_data(), id=self.kwargs["id"]
+        )
+
+
+class ListNotesDetailView(generic.DetailView):
+    """
+    Display a notes view of a single :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+
+    **Template**
+
+    :template:`core/list_notes.html`
+    """
+
+    template_name = "core/list_notes.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
+        Uses with_related_data() to optimize queries for the list_common_header.
+        """
+        return get_clean_list_or_404(
+            List.objects.with_related_data(), id=self.kwargs["id"]
+        )
+
+
+class ListPrintView(generic.DetailView):
+    """
+    Display a printable view of a single :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+    ``fighters_with_groups``
+        QuerySet of :model:`core.ListFighter` objects with group keys for display grouping.
+    ``print_config``
+        The :model:`core.PrintConfig` object if a config_id is provided.
+
+    **Template**
+
+    :template:`core/list_print.html`
+    """
+
+    template_name = "core/list_print.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+
+        Uses get_clean_list_or_404 to ensure dirty lists are refreshed
+        before display (e.g., after content cost changes).
+        """
+        return get_clean_list_or_404(List, id=self.kwargs["id"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        list_obj = context["list"]
+
+        # Get print configuration if specified
+        from n23.core.models import PrintConfig
+
+        config_id = self.request.GET.get("config_id")
+        print_config = None
+
+        if config_id:
+            try:
+                print_config = PrintConfig.objects.get(
+                    id=config_id, list=list_obj, archived=False
+                )
+            except PrintConfig.DoesNotExist:
+                pass
+        else:
+            # No default config anymore - just use built-in defaults
+            print_config = None
+
+        # Stashed for get_template_names(), which runs after this method.
+        self.print_config = print_config
+        context["print_config"] = print_config
+
+        # Card style: normally part of a saved PrintConfig, but a crew print has
+        # no config, so ?style= picks it straight from the URL (the crew page's
+        # Print dropdown offers Default and Classic). An explicit param wins over
+        # the config either way; anything unrecognised falls back to the config.
+        style = self.request.GET.get("style")
+        if style in ("classic", "default"):
+            use_classic = style == "classic"
+        else:
+            use_classic = bool(
+                print_config and print_config.card_style == PrintConfig.CLASSIC
+            )
+        self.use_classic = use_classic
+
+        # A crew print (?crew=<id>) narrows the sheet to one battle crew's
+        # fighters. Scoped to this gang so it can't leak another gang's crew.
+        crew_id = self.request.GET.get("crew")
+        print_crew = None
+        if crew_id:
+            try:
+                # Fail closed on a malformed ?crew= rather than 500ing when the
+                # UUIDField filter tries to prepare a non-UUID value.
+                uuid.UUID(str(crew_id))
+            except ValueError:
+                pass
+            else:
+                from n23.core.models.crew import Crew
+
+                # An archived crew was withdrawn from the battle, so it no longer
+                # narrows a print — fall back to the whole gang.
+                print_crew = (
+                    Crew.objects.select_related("battle")
+                    .filter(id=crew_id, list=list_obj, archived=False)
+                    .first()
+                )
+        context["print_crew"] = print_crew
+
+        # Get fighters with group keys for display grouping
+        # Use with_related_data() to prefetch all equipment, profiles, and related data
+        # to avoid N+1 queries when templates access fighter properties.
+        # Thread the list's subscribed packs through so skill/rule prefetches
+        # are pack-aware and ruleline()/skilline() read from the prefetch cache
+        # instead of issuing ~6 fallback queries per fighter (this print view
+        # renders every fighter card).
+        from n23.core.models.pack import CustomContentPack
+
+        packs = list(CustomContentPack.objects.filter(subscribed_lists__id=list_obj.id))
+        fighters_qs = (
+            ListFighter.objects.with_group_keys()
+            .with_related_data(packs=packs)
+            .filter(list=list_obj, archived=False)
+        )
+
+        # Apply print config filters if available. A crew print is authoritative:
+        # the crew *is* the selection, so config/default filtering doesn't apply.
+        if print_crew is not None:
+            crew_ids = print_crew.print_fighter_ids()
+            if crew_ids is not None:
+                fighters_qs = fighters_qs.filter(id__in=crew_ids)
+        elif print_config:
+            # Handle fighter selection mode
+            if print_config.fighter_selection_mode == PrintConfig.NO_FIGHTERS:
+                # No fighters - return empty queryset
+                fighters_qs = fighters_qs.none()
+            elif print_config.fighter_selection_mode == PrintConfig.SPECIFIC_FIGHTERS:
+                # Filter by included fighters if specific ones are selected
+                if print_config.included_fighters.exists():
+                    fighters_qs = fighters_qs.filter(
+                        id__in=print_config.included_fighters.values_list(
+                            "id", flat=True
+                        )
+                    )
+                else:
+                    fighters_qs = fighters_qs.none()
+            # else: ALL_FIGHTERS - no filtering needed
+
+            # Exclude dead fighters if configured (unless mode is NO_FIGHTERS)
+            if (
+                print_config.fighter_selection_mode != PrintConfig.NO_FIGHTERS
+                and not print_config.include_dead_fighters
+            ):
+                fighters_qs = fighters_qs.exclude(injury_state=ListFighter.DEAD)
+        else:
+            # Default behavior: exclude dead fighters
+            fighters_qs = fighters_qs.exclude(injury_state=ListFighter.DEAD)
+
+        context["fighters_with_groups"] = fighters_qs
+
+        # Attributes and assets appear on both sheets — as side cards on the web
+        # sheet, gathered onto the gang plate on the classic one (#1816).
+        # Recent actions are web-only: the classic sheet has no card for them.
+        want_attributes = not print_config or print_config.include_attributes
+        want_assets = not print_config or print_config.include_assets
+
+        if want_attributes:
+            context["attributes"] = get_list_attributes(list_obj)
+
+        if want_assets:
+            context["campaign_resources"] = get_list_campaign_resources(list_obj)
+            context["held_assets"] = get_list_held_assets(list_obj)
+
+        if not use_classic:
+            # Add recent campaign actions if configured to be included
+            if not print_config or print_config.include_actions:
+                context["recent_actions"] = get_list_recent_campaign_actions(list_obj)
+
+        # Lore & Notes cards, printed among the fighter cards when the config
+        # asks for them (#1816) — the same content the standalone lore/notes
+        # printout carries, for anyone who would rather print one thing.
+        # Private notes are owner-only on screen, so they stay owner-only here.
+        want_lore_notes = bool(print_config and print_config.include_lore_notes)
+        show_private = self.request.user == list_obj.owner_cached
+        lore_notes_fighters = []
+        if want_lore_notes:
+            # Iterating fighters_qs here fills its result cache, which the
+            # template's own loop then reuses — no second trip to the database.
+            for fighter in fighters_qs:
+                if fighter.is_stash:
+                    continue
+                private = fighter.private_notes if show_private else ""
+                if fighter.narrative or fighter.notes or private:
+                    lore_notes_fighters.append((fighter, private))
+
+            cards = []
+            if list_obj.narrative or list_obj.notes:
+                cards.append(
+                    {
+                        "title": list_obj.name,
+                        "subtitle": list_obj.content_house_name,
+                        "narrative": list_obj.narrative,
+                        "notes": list_obj.notes,
+                        "private_notes": "",
+                    }
+                )
+            for fighter, private in lore_notes_fighters:
+                cards.append(
+                    {
+                        "title": fighter.name,
+                        "subtitle": fighter.content_fighter_cached.name,
+                        "narrative": fighter.narrative,
+                        "notes": fighter.notes,
+                        "private_notes": private,
+                    }
+                )
+            context["lore_notes_cards"] = cards
+
+        # Add blank card ranges if print_config exists
+        if print_config:
+            context["blank_fighter_range"] = range(print_config.blank_fighter_cards)
+            context["blank_vehicle_range"] = range(print_config.blank_vehicle_cards)
+
+        # Classic-mode cards: render the grimdark fixed-size cards instead of the
+        # web cards. Reuses the already-filtered fighter queryset, then appends
+        # the configured blank cards (none without a config). Fighter cards only
+        # (assets/attributes/etc. don't apply to the classic sheet).
+        if use_classic:
+            from n23.core.print_cards import (
+                blank_classic_card,
+                card_from_fighter,
+                gang_card_from_list,
+                lore_card_from_fighter,
+                lore_card_from_list,
+            )
+
+            # The stash has no statline or weapons to fill the fighter card's
+            # fixed regions, so it isn't a card of its own — its contents go in
+            # the gang plate's Stash section instead.
+            cards = []
+            stash_fighter = None
+            want_xp = not print_config or print_config.include_xp
+            for fighter in fighters_qs:
+                card = card_from_fighter(fighter, list_obj)
+                if card.kind == "stash":
+                    stash_fighter = fighter
+                    continue
+                # The classic card has its own XP region, filled in by the card
+                # builder. The toggle governs both sheets, so clear it here
+                # rather than leaving "hide XP" meaning "hide it on web only".
+                if not want_xp:
+                    card.xp = ""
+                cards.append(card)
+
+            # Gang plate: the gang-level information the web sheet carries in
+            # its header and side cards, gathered onto one plate so the two
+            # sheets show the same things (#1816). Same toggles as the web
+            # sheet, so a config that hides assets hides them on both.
+            want_stash = not print_config or print_config.include_stash
+            gang_card = gang_card_from_list(
+                list_obj,
+                resources=context.get("campaign_resources"),
+                held_assets=context.get("held_assets"),
+                attributes=context.get("attributes"),
+                stash_fighter=stash_fighter if want_stash else None,
+            )
+            if gang_card.has_content:
+                cards.insert(0, gang_card)
+
+            # Lore & Notes plates tile onto the same sheet, after the fighter
+            # cards — they are the same size, so they simply join the flow.
+            if want_lore_notes:
+                gang_lore = lore_card_from_list(list_obj)
+                if gang_lore.has_content:
+                    cards.append(gang_lore)
+                for fighter, _private in lore_notes_fighters:
+                    lore_card = lore_card_from_fighter(
+                        fighter, include_private=show_private
+                    )
+                    if lore_card.has_content:
+                        cards.append(lore_card)
+
+            if print_config:
+                cards += [
+                    blank_classic_card("fighter")
+                    for _ in range(print_config.blank_fighter_cards)
+                ]
+                cards += [
+                    blank_classic_card("vehicle")
+                    for _ in range(print_config.blank_vehicle_cards)
+                ]
+            context["classic_cards"] = cards
+
+        return context
+
+    def get_template_names(self):
+        """Classic style (config- or ?style=-selected) renders the fixed-size
+        grimdark sheet."""
+        if getattr(self, "use_classic", False):
+            return ["core/list_print_classic.html"]
+        return [self.template_name]
+
+
+class ListLoreNotesPrintView(generic.DetailView):
+    """
+    Display a printable page of a list's lore and notes (#1816).
+
+    The fighter sheet has no room for free-form prose, so lore and notes get
+    their own printout, combining what the Lore and Notes pages show
+    separately. Offers the same two styles as the fighter sheet:
+    ``?style=classic`` tiles fixed-size plates (4 per A4), anything else
+    renders full-width rows.
+
+    Fighters with nothing written about them are left out — a printout of
+    "No lore added yet." is wasted paper.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+    ``entries``
+        Fighters with lore or notes to show, as dicts for the template.
+    ``classic_cards``
+        Classic-style plates, when ``?style=classic``.
+    ``show_private``
+        Whether private notes are included (owner only).
+
+    **Template**
+
+    :template:`core/list_print_lore_notes.html`
+    """
+
+    template_name = "core/list_print_lore_notes.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        return get_clean_list_or_404(
+            List.objects.with_related_data(), id=self.kwargs["id"]
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        list_obj = context["list"]
+
+        self.use_classic = self.request.GET.get("style") == "classic"
+
+        # Private notes are owner-only on screen, so they stay owner-only here.
+        show_private = self.request.user == list_obj.owner_cached
+        context["show_private"] = show_private
+
+        # Deliberately not with_related_data(): this page renders prose and a
+        # portrait, none of the equipment/skill/rule relations that suite is for.
+        fighters = (
+            list_obj.listfighter_set.filter(archived=False)
+            .exclude(content_fighter__is_stash=True)
+            .select_related("content_fighter")
+        )
+
+        entries = []
+        for fighter in fighters:
+            private = fighter.private_notes if show_private else ""
+            if not (fighter.narrative or fighter.notes or private):
+                continue
+            entries.append(
+                {
+                    "fighter": fighter,
+                    "narrative": fighter.narrative,
+                    "notes": fighter.notes,
+                    "private_notes": private,
+                }
+            )
+        context["entries"] = entries
+        context["has_gang_prose"] = bool(list_obj.narrative or list_obj.notes)
+
+        if self.use_classic:
+            from n23.core.print_cards import (
+                lore_card_from_fighter,
+                lore_card_from_list,
+            )
+
+            cards = []
+            gang_card = lore_card_from_list(list_obj)
+            if gang_card.has_content:
+                cards.append(gang_card)
+            for entry in entries:
+                card = lore_card_from_fighter(
+                    entry["fighter"], include_private=show_private
+                )
+                if card.has_content:
+                    cards.append(card)
+            context["classic_cards"] = cards
+
+        return context
+
+    def get_template_names(self):
+        if getattr(self, "use_classic", False):
+            return ["core/list_print_lore_notes_classic.html"]
+        return [self.template_name]
+
+
+class ListCampaignClonesView(generic.DetailView):
+    """
+    Display the campaign clones of a :model:`core.List` object.
+
+    **Context**
+
+    ``list``
+        The requested :model:`core.List` object.
+    ``campaign_clones``
+        QuerySet of campaign mode clones of this list.
+
+    **Template**
+
+    :template:`core/list_campaign_clones.html`
+    """
+
+    template_name = "core/list_campaign_clones.html"
+    context_object_name = "list"
+
+    def get_object(self):
+        """
+        Retrieve the :model:`core.List` by its `id`.
+        """
+        return get_object_or_404(List, id=self.kwargs["id"])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get all campaign clones, not just active ones
+        context["campaign_clones"] = self.object.campaign_clones.all().select_related(
+            "campaign", "campaign__owner"
+        )
+        return context
+
+
+def _carried_list_name(raw):
+    """Normalise a quick-create list name carried through the pack-selection
+    flow: strip whitespace and cap to the model field length so it can't bloat
+    redirect URLs (risking 414s) or exceed what the form would accept anyway.
+    """
+    max_length = List._meta.get_field("name").max_length
+    return (raw or "").strip()[:max_length]
+
+
+@login_required
+def new_list(request):
+    """
+    Create a new :model:`core.List` owned by the current user.
+
+    Redirects to pack selection interstitial first unless packs have already
+    been selected (passed via query parameters) or skipped with ``skip_packs=1``.
+
+    **Context**
+
+    ``form``
+        A NewListForm for entering the name and details of the new list.
+    ``houses``
+        A queryset of :model:`content.ContentHouse` objects, possibly used in the form display.
+    ``selected_packs``
+        Queryset of selected :model:`core.CustomContentPack` objects (if any).
+
+    **Template**
+
+    :template:`core/list_new.html`
+    """
+    from n23.core.models.pack import CustomContentPack
+
+    if request.method == "POST":
+        raw_pack_ids = request.POST.getlist("packs")
+    else:
+        raw_pack_ids = request.GET.getlist("packs")
+    pack_ids = [pid for pid in raw_pack_ids if is_valid_uuid(pid)]
+
+    skip_packs = request.GET.get("skip_packs") == "1"
+
+    # Users who haven't visited the interstitial yet get redirected there.
+    # Preserve any name typed into the home-page quick-create box.
+    if request.method == "GET" and not skip_packs and not pack_ids:
+        packs_url = reverse("core:lists-new-packs")
+        name = _carried_list_name(request.GET.get("name"))
+        if name:
+            packs_url += "?" + urlencode({"name": name})
+        return HttpResponseRedirect(packs_url)
+
+    # Resolve selected packs
+    selected_packs = CustomContentPack.objects.none()
+    if pack_ids:
+        selected_packs = CustomContentPack.objects.filter(
+            id__in=pack_ids,
+            archived=False,
+        ).filter(Q(listed=True) | Q(owner=request.user))
+
+    houses = ContentHouse.objects.all()
+
+    if request.method == "POST":
+        form = NewListForm(request.POST, pack_ids=pack_ids)
+        if form.is_valid():
+            lst = form.save(commit=False)
+            lst.owner = request.user
+
+            # Call handler to handle business logic
+            result = handle_list_creation(
+                user=request.user,
+                lst=lst,
+                create_stash=form.cleaned_data.get("show_stash", True),
+            )
+
+            # Attach selected packs (re-use the already-validated queryset)
+            if selected_packs:
+                result.lst.packs.set(selected_packs)
+
+            # Log the list creation event (HTTP-specific)
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.CREATE,
+                object=result.lst,
+                request=request,
+                list_name=result.lst.name,
+                content_house=result.lst.content_house.name,
+                public=result.lst.public,
+            )
+
+            # Gang-wide-skills houses pick their ranked skill trees as the next
+            # step. Selection is optional (deferrable), so we don't force it.
+            if result.lst.content_house.gang_wide_skills:
+                return HttpResponseRedirect(
+                    reverse("core:list-skill-trees-edit", args=(result.lst.id,))
+                )
+
+            return HttpResponseRedirect(reverse("core:list", args=(result.lst.id,)))
+    else:
+        form = NewListForm(
+            initial={
+                "name": request.GET.get("name", ""),
+            },
+            pack_ids=pack_ids,
+        )
+
+    # Build "Change" URL that preserves current pack selection
+    change_packs_url = reverse("core:lists-new-packs")
+    if pack_ids:
+        change_packs_url += "?" + urlencode(
+            [("pack", pid) for pid in pack_ids], doseq=True
+        )
+
+    return render(
+        request,
+        "core/list_new.html",
+        {
+            "form": form,
+            "houses": houses,
+            "selected_packs": list(selected_packs),
+            "pack_ids": pack_ids,
+            "change_packs_url": change_packs_url,
+        },
+    )
+
+
+@login_required
+def new_list_packs(request):
+    """
+    Interstitial page for selecting content packs before creating a new list.
+
+    On POST, validates selected pack IDs and redirects to the new list form
+    with pack IDs encoded as query parameters, or ``skip_packs=1`` if none selected.
+
+    **Template**
+
+    :template:`core/list_new_packs.html`
+    """
+    from n23.core.models.pack import CustomContentPack
+
+    # All packs the user can access (for POST validation)
+    accessible_packs = CustomContentPack.objects.filter(archived=False).filter(
+        Q(listed=True) | Q(owner=request.user)
+    )
+
+    if request.method == "POST":
+        raw_ids = request.POST.getlist("pack_ids")
+        sanitised_ids = [pid for pid in raw_ids if is_valid_uuid(pid)]
+        # Validate against all accessible packs, not just the filtered view
+        valid_ids = set(
+            str(pk)
+            for pk in accessible_packs.filter(id__in=sanitised_ids).values_list(
+                "id", flat=True
+            )
+        )
+        pack_ids = [pid for pid in sanitised_ids if pid in valid_ids]
+        # Redirect with pack IDs as URL params, preserving any quick-create name
+        name = _carried_list_name(request.POST.get("name"))
+        url = reverse("core:lists-new")
+        params = (
+            [("packs", pid) for pid in pack_ids] if pack_ids else [("skip_packs", "1")]
+        )
+        if name:
+            params.append(("name", name))
+        url = f"{url}?{urlencode(params, doseq=True)}"
+        return safe_redirect(request, url, fallback_url=reverse("core:lists-new"))
+
+    # Display filtering for GET requests
+    available_packs = accessible_packs.select_related("owner")
+
+    # Pre-select packs from ?pack=<id> query params (e.g. from "Use in new List"
+    # button on a pack detail page).  Parse early so the "Your Packs Only" filter
+    # can include them.
+    preselected_pack_ids = set(request.GET.getlist("pack"))
+    valid_preselected_ids = [pid for pid in preselected_pack_ids if is_valid_uuid(pid)]
+
+    # "Your Packs Only" toggle (default on)
+    show_my_packs = request.GET.get("my", "1")
+    if show_my_packs == "1":
+        if valid_preselected_ids:
+            # Always include pre-selected packs so they remain visible even
+            # when the "Your Packs Only" filter is active.  This ensures that
+            # clicking "Use in new List" on another user's pack shows it.
+            available_packs = available_packs.filter(
+                Q(owner=request.user) | Q(id__in=valid_preselected_ids)
+            )
+        else:
+            available_packs = available_packs.filter(owner=request.user)
+
+    # Quick-create name carried through from the home-page box
+    new_list_name = _carried_list_name(request.GET.get("name"))
+
+    # Search
+    search_query = request.GET.get("q", "").strip()
+    if search_query:
+        available_packs = search_queryset(
+            available_packs, search_query, ["name", "summary", "owner__username"]
+        )
+
+    available_packs = available_packs.prefetch_related("items__content_type").order_by(
+        "name"
+    )
+
+    # Build content preview for each pack
+    from django.contrib.contenttypes.models import ContentType
+
+    house_ct = ContentType.objects.get_for_model(ContentHouse)
+    fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+    equipment_ct = ContentType.objects.get_for_model(ContentEquipment)
+
+    # Evaluate queryset so we can attach preview data to each pack
+    available_packs = list(available_packs)
+    for pack in available_packs:
+        active_items = [i for i in pack.items.all() if not i.archived]
+        counts = {}
+        object_ids_by_ct = {}
+        for item in active_items:
+            ct_id = item.content_type_id
+            counts[ct_id] = counts.get(ct_id, 0) + 1
+            object_ids_by_ct.setdefault(ct_id, []).append(item.object_id)
+
+        preview_parts = []
+        for ct, label in [
+            (house_ct, "house"),
+            (fighter_ct, "fighter"),
+            (equipment_ct, "item"),
+        ]:
+            count = counts.get(ct.id, 0)
+            if count > 0:
+                # Fetch names for this content type
+                model_class = ct.model_class()
+                ids = object_ids_by_ct[ct.id][:5]
+                names = list(
+                    model_class.objects.all_content()
+                    .filter(pk__in=ids)
+                    .values_list("type" if ct == fighter_ct else "name", flat=True)
+                )
+                suffix = f" +{count - len(names)}" if count > len(names) else ""
+                plural = label + ("s" if count != 1 else "")
+                preview_parts.append(
+                    {
+                        "label": f"{count} {plural}",
+                        "names": names,
+                        "suffix": suffix,
+                    }
+                )
+        pack.content_preview = preview_parts
+
+    return render(
+        request,
+        "core/list_new_packs.html",
+        {
+            "available_packs": available_packs,
+            "search_query": search_query,
+            "preselected_pack_ids": preselected_pack_ids,
+            "name": new_list_name,
+        },
+    )
+
+
+@login_required
+def edit_list(request, id):
+    """
+    Edit an existing :model:`core.List` owned by the current user.
+
+    **Context**
+
+    ``form``
+        A EditListForm for editing the list's details.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_edit.html`
+    """
+    list_ = get_object_or_404(List, id=id, owner=request.user)
+
+    default_url = reverse("core:list", args=(list_.id,))
+    return_url = get_return_url(request, default_url)
+
+    error_message = None
+    if request.method == "POST":
+        form = EditListForm(request.POST, instance=list_)
+        if form.is_valid():
+            updated_list = form.save(commit=False)
+            updated_list.save()
+
+            # Log the list update event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.UPDATE,
+                object=updated_list,
+                request=request,
+                list_name=updated_list.name,
+            )
+
+            return safe_redirect(request, return_url, fallback_url=default_url)
+    else:
+        form = EditListForm(instance=list_)
+
+    return render(
+        request,
+        "core/list_edit.html",
+        {
+            "form": form,
+            "error_message": error_message,
+            "return_url": return_url,
+        },
+    )
+
+
+@login_required
+def edit_list_credits(request, id):
+    """
+    Modify credits for a :model:`core.List`.
+
+    Credits can be edited in both list building and campaign mode.
+
+    **Context**
+
+    ``form``
+        An EditListCreditsForm for modifying list credits.
+    ``list``
+        The :model:`core.List` whose credits are being modified.
+
+    **Template**
+
+    :template:`core/list_credits_edit.html`
+    """
+
+    # Allow both list owner and campaign owner to modify credits
+    # Filter the queryset to include only lists owned by the user or by campaigns they own
+    from n23.core.forms.list import EditListCreditsForm
+    from n23.core.handlers.list import handle_credits_modification
+
+    lst = get_clean_list_or_404(
+        List.objects.filter(Q(owner=request.user) | arbitrator_q(request.user)),
+        id=id,
+    )
+
+    # Check permissions - must be list owner or campaign owner
+    if lst.owner != request.user:
+        if not (lst.campaign and lst.campaign.is_admin(request.user)):
+            messages.error(
+                request, "You don't have permission to modify credits for this list."
+            )
+            return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    if request.method == "POST":
+        form = EditListCreditsForm(request.POST, lst=lst)
+        if form.is_valid():
+            operation = form.cleaned_data["operation"]
+            amount = form.cleaned_data["amount"]
+            description = form.cleaned_data.get("description", "")
+
+            try:
+                result = handle_credits_modification(
+                    user=request.user,
+                    lst=lst,
+                    operation=operation,
+                    amount=amount,
+                    description=description,
+                )
+
+                # Log the credit update event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.UPDATE,
+                    object=lst,
+                    request=request,
+                    list_name=lst.name,
+                    credit_operation=operation,
+                    amount=amount,
+                    credits_current=result.credits_after,
+                    credits_earned=result.credits_earned_after,
+                    description=description,
+                )
+
+                messages.success(request, f"Credits updated for {lst.name}")
+                return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+            except ValueError as e:
+                # Handler validation errors become form errors
+                form.add_error("amount", str(e))
+    else:
+        form = EditListCreditsForm(lst=lst)
+
+    return render(
+        request,
+        "core/list_credits_edit.html",
+        {
+            "form": form,
+            "list": lst,
+        },
+    )
+
+
+@login_required
+def archive_list(request, id):
+    """
+    Archive or unarchive a :model:`core.List`.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` to be archived or unarchived.
+    ``is_in_active_campaign``
+        Boolean indicating if the list is in an active campaign.
+    ``active_campaigns``
+        List of active campaigns this list is participating in.
+
+    **Template**
+
+    :template:`core/list_archive.html`
+    """
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+
+    # Check if the list is in any active campaigns
+    active_campaigns = lst.campaigns.filter(status="in_progress")
+    is_in_active_campaign = active_campaigns.exists()
+
+    if request.method == "POST":
+        from n23.core.models.campaign import CampaignAction
+
+        with transaction.atomic():
+            if request.POST.get("archive") == "1":
+                lst.archive()
+
+                # Log the archive event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.ARCHIVE,
+                    object=lst,
+                    request=request,
+                    list_name=lst.name,
+                )
+
+                # Add campaign action log entries for active campaigns
+                for campaign in active_campaigns:
+                    CampaignAction.objects.create(
+                        campaign=campaign,
+                        user=request.user,
+                        list=lst,
+                        description=f"Gang '{lst.name}' has been archived by its owner",
+                        owner=request.user,
+                    )
+            elif lst.archived:
+                lst.unarchive()
+
+                # Log the restore event
+                log_event(
+                    user=request.user,
+                    noun=EventNoun.LIST,
+                    verb=EventVerb.RESTORE,
+                    object=lst,
+                    request=request,
+                    list_name=lst.name,
+                )
+
+                # Add campaign action log entries for active campaigns when unarchiving
+                for campaign in active_campaigns:
+                    CampaignAction.objects.create(
+                        campaign=campaign,
+                        user=request.user,
+                        list=lst,
+                        description=f"Gang '{lst.name}' has been unarchived by its owner",
+                        owner=request.user,
+                    )
+
+        return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+    return render(
+        request,
+        "core/list_archive.html",
+        {
+            "list": lst,
+            "is_in_active_campaign": is_in_active_campaign,
+            "active_campaigns": active_campaigns,
+        },
+    )
+
+
+@login_required
+def show_stash(request, id):
+    """
+    Add a stash fighter to a list if it doesn't already have one.
+
+    **Context**
+
+    ``list``
+        The :model:`core.List` to add a stash fighter to.
+    """
+    lst = get_clean_list_or_404(List, id=id, owner=request.user)
+
+    # Check if the list already has a stash fighter
+    has_stash = lst.listfighter_set.filter(content_fighter__is_stash=True).exists()
+
+    if not has_stash:
+        # Get or create a stash ContentFighter for this house
+        stash_fighter, created = ContentFighter.objects.get_or_create(
+            house=lst.content_house,
+            is_stash=True,
+            defaults={
+                "type": "Stash",
+                "category": "STASH",
+                "base_cost": 0,
+            },
+        )
+
+        # Create the stash ListFighter with correct cached values
+        ListFighter.objects.create_with_facts(
+            name="Stash",
+            content_fighter=stash_fighter,
+            list=lst,
+            owner=request.user,
+        )
+
+        messages.success(request, "Stash fighter added to the list.")
+    else:
+        messages.info(request, "This list already has a stash fighter.")
+
+    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+
+@login_required
+def refresh_list_cost(request, id):
+    """
+    Refresh the cost cache for a :model:`core.List`.
+
+    Only processes POST requests. Forces recalculation of facts via facts_from_db(),
+    then redirects back to the list detail page.
+
+    Can be accessed by either the list owner or a campaign admin (if list is in a campaign).
+    """
+    lst = get_clean_list_or_404(List, id=id)
+
+    if lst.owner != request.user and (
+        not lst.campaign or not lst.campaign.is_admin(request.user)
+    ):
+        raise Http404("List not found")
+
+    if request.method == "POST":
+        # Get old cached facts value (from DB cache)
+        old_facts = lst.facts()
+        old_wealth = old_facts.wealth if old_facts else None
+        was_dirty = old_facts is None
+
+        # Force recalculation and update DB cache
+        new_facts = lst.facts_from_db(update=True)
+
+        track(
+            "list_cost_refresh",
+            list_id=str(lst.id),
+            old_cost=old_wealth,
+            new_cost=new_facts.wealth,
+            delta=new_facts.wealth - (old_wealth or 0),
+            was_dirty=was_dirty,
+        )
+
+    return HttpResponseRedirect(reverse("core:list", args=(lst.id,)))
+
+
+@login_required
+@require_POST
+def toggle_list_pin(request, id):
+    """
+    Toggle whether the current user has pinned a :model:`core.List`.
+
+    Pins are private to each user and surface the list on their home page and
+    on the lists page sidebar. Only the list's owner may pin it. POST only;
+    redirects back to where the request came from.
+    """
+    lst = get_object_or_404(List, id=id)
+    if lst.owner != request.user:
+        raise Http404("List not found")
+    pinned = toggle_membership(lst.pinned_by, request.user)
+    track("list_pin_toggle", list_id=str(lst.id), pinned=pinned)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:list", args=(lst.id,)),
+    )
+
+
+@login_required
+@require_POST
+def toggle_list_star(request, id):
+    """
+    Toggle whether the current user has starred a :model:`core.List`.
+
+    Stars are public and counted. Any logged-in user who can see the list may
+    star it. POST only; redirects back to where the request came from.
+    """
+    lst = get_object_or_404(List, id=id)
+    starred = toggle_membership(lst.starred_by, request.user)
+    track("list_star_toggle", list_id=str(lst.id), starred=starred)
+
+    return safe_redirect(
+        request,
+        request.META.get("HTTP_REFERER"),
+        fallback_url=reverse("core:list", args=(lst.id,)),
+    )
+
+
+@login_required
+def clone_list(request, id):
+    """
+    Clone an existing :model:`core.List` owned by any user.
+
+    **Context**
+
+    ``form``
+        A CloneListForm for entering the name and details of the new list.
+    ``list``
+        The :model:`core.List` to be cloned.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/list_clone.html`
+    """
+    # You can clone a list owned by another user
+    list_ = get_object_or_404(List, id=id)
+
+    error_message = None
+    if request.method == "POST":
+        form = CloneListForm(request.POST, list_to_clone=list_)
+        if form.is_valid():
+            result = handle_list_clone(
+                user=request.user,
+                original_list=list_,
+                name=form.cleaned_data["name"],
+                owner=request.user,
+                public=form.cleaned_data["public"],
+            )
+
+            # Log the list clone event
+            log_event(
+                user=request.user,
+                noun=EventNoun.LIST,
+                verb=EventVerb.CLONE,
+                object=result.cloned_list,
+                request=request,
+                list_name=result.cloned_list.name,
+                source_list_id=str(list_.id),
+                source_list_name=list_.name,
+            )
+
+            return HttpResponseRedirect(
+                reverse("core:list", args=(result.cloned_list.id,))
+            )
+    else:
+        form = CloneListForm(
+            list_to_clone=list_,
+            initial={
+                "name": f"{list_.name} (Clone)",
+                "narrative": list_.narrative,
+                "public": list_.public,
+            },
+        )
+
+    return render(
+        request,
+        "core/list_clone.html",
+        {"form": form, "list": list_, "error_message": error_message},
+    )

@@ -32,10 +32,11 @@ TASK_MODULES = ()
 # Import prefixes we consider first-party. Auto-discovery is restricted to these
 # so a third-party app's task module can't spuriously demand entries in *our*
 # registry. ``n23.``/``n26.`` are the per-edition namespaces (#2093): the current
-# edition moves from ``gyrinx.core``/``gyrinx.content`` to ``n23.*``, and n26
-# lands alongside it. They are listed ahead of the move so the rename cannot
-# silently narrow this scan — the failure mode would be a brand-new edition app's
-# first task going unregistered, which only surfaces in production.
+# edition moved out of ``gyrinx.core``/``gyrinx.content`` to ``n23.*``, and n26
+# will land alongside it. ``gyrinx.`` stays because the platform packages
+# (tasks, api, pages, analytics, maintenance) still live there. Losing any of
+# these silently narrows the scan rather than erroring — a brand-new edition
+# app's first task would go unregistered, which only surfaces in production.
 FIRST_PARTY_PREFIXES = ("gyrinx.", "n23.", "n26.")
 
 

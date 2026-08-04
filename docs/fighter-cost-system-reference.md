@@ -323,7 +323,7 @@ lst.set_dirty(save=True)         # Only marks list dirty
 For write operations, the propagation system incrementally updates cached values rather than recalculating:
 
 ```python
-from gyrinx.core.cost.propagation import propagate_from_assignment, Delta
+from n23.core.cost.propagation import propagate_from_assignment, Delta
 
 # After adding equipment worth 10 credits
 propagate_from_assignment(assignment, Delta(delta=10, list=lst))

@@ -39,7 +39,7 @@ Chrome (or otherwise treating the server as ready), check that line appeared and
 non-empty:
 
 ```bash
-CSS=gyrinx/core/static/core/css/styles.css
+CSS=n23/core/static/core/css/styles.css
 [ -s "$CSS" ] && echo "CSS OK ($(wc -c <"$CSS") bytes)" || echo "CSS MISSING — re-run scripts/dev.sh"
 ```
 

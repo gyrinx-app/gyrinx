@@ -1,0 +1,247 @@
+"""
+Content models package.
+
+This package contains all Django models for the content app, organized
+by domain into separate modules.
+
+All models are re-exported here for backward compatibility with imports like:
+    from n23.content.models import ContentFighter
+"""
+
+# Base classes and shared utilities
+from .base import (
+    Content,
+    ContentManager,
+    ContentQuerySet,
+    RulelineDisplay,
+    StatlineDisplay,
+)
+
+# Simple domain models
+from .skill import ContentSkill, ContentSkillCategory
+from .attribute import ContentAttribute, ContentAttributeValue
+from .statline import (
+    ContentStat,
+    ContentStatline,
+    ContentStatlineStat,
+    ContentStatlineType,
+    ContentStatlineTypeStat,
+)
+from .metadata import (
+    ContentBook,
+    ContentPageRef,
+    ContentPolicy,
+    ContentRule,
+    similar,
+)
+
+# Core domain models
+from .house import ContentFighterHouseOverride, ContentHouse
+from .gang_skills import ContentHouseSkillRankAccess
+from .equipment import (
+    ContentEquipment,
+    ContentEquipmentCategory,
+    ContentEquipmentCategoryFighterRestriction,
+    ContentEquipmentEquipmentProfile,
+    ContentEquipmentFighterProfile,
+    ContentEquipmentManager,
+    ContentEquipmentQuerySet,
+    ContentEquipmentUpgrade,
+    ContentEquipmentUpgradeManager,
+    ContentEquipmentUpgradeQuerySet,
+    ContentFighterEquipmentCategoryLimit,
+)
+from .weapon import (
+    ContentWeaponAccessory,
+    ContentWeaponAccessoryManager,
+    ContentWeaponAccessoryQuerySet,
+    ContentWeaponProfile,
+    ContentWeaponProfileManager,
+    ContentWeaponProfileQuerySet,
+    ContentWeaponTrait,
+    VirtualWeaponProfile,
+)
+from .fighter import (
+    ContentFighter,
+    ContentFighterCategoryTerms,
+    ContentFighterManager,
+    ContentFighterQuerySet,
+)
+
+# Dependent domain models
+from .psyker import (
+    ContentFighterPsykerDisciplineAssignment,
+    ContentFighterPsykerPowerDefaultAssignment,
+    ContentPsykerDiscipline,
+    ContentPsykerPower,
+)
+from .modifier import (
+    ContentMod,
+    ContentModApplication,
+    ContentModFighterRule,
+    ContentModFighterSkill,
+    ContentModFighterStat,
+    ContentModPsykerDisciplineAccess,
+    ContentModSkillTreeAccess,
+    ContentModStat,
+    ContentModStatApplyMixin,
+    ContentModTrait,
+)
+from .injury import (
+    ContentEquipmentInjuryLink,
+    ContentInjury,
+    ContentInjuryDefaultOutcome,
+    ContentInjuryGroup,
+)
+from .battle import (
+    ContentBattleRole,
+    ContentBattleRoleOption,
+)
+from .counter import ContentCounter
+from .roll_table import (
+    ContentRollFlow,
+    ContentRollTable,
+    ContentRollTableRow,
+)
+
+# Assignment models
+from .equipment_list import (
+    ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListUpgrade,
+    ContentFighterEquipmentListWeaponAccessory,
+)
+from .default_assignment import ContentFighterDefaultAssignment
+from .advancement import ContentAdvancementAssignment, ContentAdvancementEquipment
+from .promotion import ContentPromotionPath
+
+# Expansion models
+from .expansion import (
+    ContentEquipmentListExpansion,
+    ContentEquipmentListExpansionItem,
+    ContentEquipmentListExpansionRule,
+    ContentEquipmentListExpansionRuleByAttribute,
+    ContentEquipmentListExpansionRuleByFighterCategory,
+    ContentEquipmentListExpansionRuleByHouse,
+    ExpansionRuleInputs,
+)
+
+# Availability preset models
+from .availability_preset import ContentAvailabilityPreset
+
+# Import signal handlers to register them
+# This must be done last to avoid circular imports
+from . import signal_handlers  # noqa: F401
+
+# Re-export FighterCategoryChoices for backward compatibility
+# (some code imports it from content.models instead of gyrinx.models)
+from gyrinx.models import FighterCategoryChoices  # noqa: F401
+
+__all__ = [
+    # Base
+    "Content",
+    "ContentManager",
+    "ContentQuerySet",
+    "RulelineDisplay",
+    "StatlineDisplay",
+    # Skills
+    "ContentSkill",
+    "ContentSkillCategory",
+    # Attributes
+    "ContentAttribute",
+    "ContentAttributeValue",
+    # Statlines
+    "ContentStat",
+    "ContentStatline",
+    "ContentStatlineStat",
+    "ContentStatlineType",
+    "ContentStatlineTypeStat",
+    # Metadata
+    "ContentBook",
+    "ContentPageRef",
+    "ContentPolicy",
+    "ContentRule",
+    "similar",
+    # Houses
+    "ContentFighterHouseOverride",
+    "ContentHouse",
+    "ContentHouseSkillRankAccess",
+    # Equipment
+    "ContentEquipment",
+    "ContentEquipmentCategory",
+    "ContentEquipmentCategoryFighterRestriction",
+    "ContentEquipmentEquipmentProfile",
+    "ContentEquipmentFighterProfile",
+    "ContentEquipmentManager",
+    "ContentEquipmentQuerySet",
+    "ContentEquipmentUpgrade",
+    "ContentEquipmentUpgradeManager",
+    "ContentEquipmentUpgradeQuerySet",
+    "ContentFighterEquipmentCategoryLimit",
+    # Weapons
+    "ContentWeaponAccessory",
+    "ContentWeaponAccessoryManager",
+    "ContentWeaponAccessoryQuerySet",
+    "ContentWeaponProfile",
+    "ContentWeaponProfileManager",
+    "ContentWeaponProfileQuerySet",
+    "ContentWeaponTrait",
+    "VirtualWeaponProfile",
+    # Fighters
+    "ContentFighter",
+    "ContentFighterCategoryTerms",
+    "ContentFighterManager",
+    "ContentFighterQuerySet",
+    # Psyker
+    "ContentFighterPsykerDisciplineAssignment",
+    "ContentFighterPsykerPowerDefaultAssignment",
+    "ContentPsykerDiscipline",
+    "ContentPsykerPower",
+    # Modifiers
+    "ContentMod",
+    "ContentModApplication",
+    "ContentModFighterRule",
+    "ContentModFighterSkill",
+    "ContentModFighterStat",
+    "ContentModPsykerDisciplineAccess",
+    "ContentModSkillTreeAccess",
+    "ContentModStat",
+    "ContentModStatApplyMixin",
+    "ContentModTrait",
+    # Injuries
+    "ContentEquipmentInjuryLink",
+    "ContentInjury",
+    "ContentInjuryDefaultOutcome",
+    "ContentInjuryGroup",
+    # Battle roles
+    "ContentBattleRole",
+    "ContentBattleRoleOption",
+    # Equipment Lists
+    "ContentFighterEquipmentListItem",
+    "ContentFighterEquipmentListUpgrade",
+    "ContentFighterEquipmentListWeaponAccessory",
+    # Default Assignments
+    "ContentFighterDefaultAssignment",
+    # Advancements
+    "ContentAdvancementAssignment",
+    "ContentAdvancementEquipment",
+    # Promotions
+    "ContentPromotionPath",
+    # Expansions
+    "ContentEquipmentListExpansion",
+    "ContentEquipmentListExpansionItem",
+    "ContentEquipmentListExpansionRule",
+    "ContentEquipmentListExpansionRuleByAttribute",
+    "ContentEquipmentListExpansionRuleByFighterCategory",
+    "ContentEquipmentListExpansionRuleByHouse",
+    "ExpansionRuleInputs",
+    # Counters
+    "ContentCounter",
+    # Roll Tables
+    "ContentRollFlow",
+    "ContentRollTable",
+    "ContentRollTableRow",
+    # Availability Presets
+    "ContentAvailabilityPreset",
+    # Re-exports from gyrinx.models for backward compatibility
+    "FighterCategoryChoices",
+]

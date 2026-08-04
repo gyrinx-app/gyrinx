@@ -223,7 +223,7 @@ def test_discord_command_stores_webhook_request(
 
     with (
         patch("gyrinx.api.views.settings") as mock_settings,
-        patch("gyrinx.core.tasks.trigger_discord_issue_action") as mock_task,
+        patch("n23.core.tasks.trigger_discord_issue_action") as mock_task,
     ):
         mock_settings.DISCORD_PUBLIC_KEY = discord_public_key
         mock_settings.DISCORD_APPLICATION_ID = "test-app-id"

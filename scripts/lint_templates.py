@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Directories to scan
 TEMPLATE_DIRS = [
-    Path("gyrinx/core/templates"),
+    Path("n23/core/templates"),
     Path("gyrinx/templates"),
     Path("gyrinx/pages/templates"),
 ]

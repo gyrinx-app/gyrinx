@@ -9,13 +9,13 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from gyrinx.content.models import (
+from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
 )
-from gyrinx.core.models import Backfill
-from gyrinx.core.models.action import ListAction, ListActionType
-from gyrinx.core.models.list import ListFighter, ListFighterEquipmentAssignment
+from n23.core.models import Backfill
+from n23.core.models.action import ListAction, ListActionType
+from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
 User = get_user_model()
 
@@ -211,7 +211,7 @@ def test_stat_advancements_preview_changes_nothing(
     make_user, make_list, make_list_fighter
 ):
     """The dry run must render the plan without writing anything."""
-    from gyrinx.core.models import ListFighterAdvancement
+    from n23.core.models import ListFighterAdvancement
 
     superuser = make_user("statsuper", "pw")
     superuser.is_staff = superuser.is_superuser = True
@@ -246,8 +246,8 @@ def test_stat_advancements_preview_changes_nothing(
 def test_stat_advancements_apply_records_a_backfill(
     make_user, make_list, make_list_fighter, django_capture_on_commit_callbacks
 ):
-    from gyrinx.core.models import ListFighterAdvancement
-    from gyrinx.core.models.notification import Notification
+    from n23.core.models import ListFighterAdvancement
+    from n23.core.models.notification import Notification
 
     superuser = make_user("statsuper2", "pw")
     superuser.is_staff = superuser.is_superuser = True

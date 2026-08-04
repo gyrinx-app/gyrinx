@@ -8,7 +8,7 @@ from pathlib import Path
 from django.db import connections
 
 from .settings import *  # noqa: F403
-from .settings import BASE_DIR, MIDDLEWARE, STORAGES
+from .settings import APP_LOGGER_ROOTS, BASE_DIR, MIDDLEWARE, STORAGES
 from .settings import LOGGING as BASE_LOGGING
 
 logger = logging.getLogger(__name__)
@@ -210,10 +210,15 @@ LOGGING = {
             "level": "DEBUG" if os.getenv("SQL_DEBUG") == "True" else "INFO",
             "propagate": False,  # don't bubble into root
         },
-        "gyrinx": {
-            "handlers": ["console"],
-            "level": os.getenv("GYRINX_LOG_LEVEL", "DEBUG").upper(),
-            "propagate": False,
+        # Mirrors the base config: one entry per first-party package root, or
+        # the edition's DEBUG output never reaches the console (see settings.py).
+        **{
+            _root: {
+                "handlers": ["console"],
+                "level": os.getenv("GYRINX_LOG_LEVEL", "DEBUG").upper(),
+                "propagate": False,
+            }
+            for _root in APP_LOGGER_ROOTS
         },
     },
 }

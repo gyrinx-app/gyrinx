@@ -23,6 +23,11 @@ ENV DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-gyrinx.settings}
 COPY pyproject.toml uv.lock /app/
 COPY scripts/ /app/scripts/
 COPY gyrinx/ /app/gyrinx/
+# The n23 edition apps (n23.core / n23.content). Copied separately because the
+# image is built from an explicit file list, not the whole tree — omit this and
+# the container starts without the edition installed, which no test catches.
+COPY n23/ /app/n23/
+# Game data files, unrelated to the n23 Python package above.
 COPY content/ /app/content/
 # Root-level static assets (favicon.ico) served by WhiteNoise via
 # WHITENOISE_ROOT — without this the container warns "No directory at:

@@ -119,6 +119,20 @@ if [ -d "$VENV_PATH" ]; then
       echo "WARNING: 'uv sync --locked' failed — .venv may not match uv.lock." >&2
       echo "         If you have edited pyproject.toml, run 'uv lock'." >&2
     fi
+
+    # `uv sync` reconciles DEPENDENCIES; it does not revisit the project's own
+    # package list. An editable install records which top-level packages existed
+    # when it was built, so adding one — as the n23 edition split did — leaves an
+    # existing venv resolving only the old set, and every `manage`/`pytest` dies
+    # with ModuleNotFoundError while `uv sync` reports everything up to date.
+    # Import from `/` so a package sitting in the CWD cannot mask the problem.
+    if ! (cd / && "$VENV_PATH/bin/python" -c "import gyrinx, n23" >/dev/null 2>&1); then
+      echo "Editable install predates a package move — reinstalling project..." >&2
+      if ! (cd "$WT_ROOT" && UV_PROJECT_ENVIRONMENT="$VENV_PATH" \
+            uv sync --locked --quiet --reinstall-package gyrinx); then
+        echo "WARNING: project reinstall failed — 'import n23' will still fail." >&2
+      fi
+    fi
   fi
   source "$VENV_PATH/bin/activate"
 else
@@ -227,8 +241,8 @@ mkdir -p "$LOG_DIR"
 # without it. `npm run watch` only rebuilds on file *changes* — it never does
 # an initial build — so without these two steps the dev server boots against
 # a missing or stale styles.css and templates render unstyled.
-CSS_FILE="${WT_ROOT}/gyrinx/core/static/core/css/styles.css"
-SCSS_DIR="${WT_ROOT}/gyrinx/core/static/core/scss"
+CSS_FILE="${WT_ROOT}/n23/core/static/core/css/styles.css"
+SCSS_DIR="${WT_ROOT}/n23/core/static/core/scss"
 
 # `npm` is needed for the install step, the one-shot CSS build, and the
 # background watcher — so fail fast up front rather than letting any of those

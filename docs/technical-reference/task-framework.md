@@ -8,7 +8,7 @@ Register tasks in `gyrinx/tasks/registry.py` using `TaskRoute`:
 
 ```python
 from gyrinx.tasks import TaskRoute
-from gyrinx.core.tasks import my_task
+from n23.core.tasks import my_task
 
 tasks = [
     TaskRoute(my_task),
@@ -31,8 +31,8 @@ tasks = [
 | Property | Type | Description |
 |----------|------|-------------|
 | `name` | `str` | Task function name (e.g., `"send_welcome_email"`) |
-| `path` | `str` | Full module path (e.g., `"gyrinx.core.tasks.send_welcome_email"`) |
-| `topic_name` | `str` | Pub/Sub topic name (e.g., `"prod--gyrinx.tasks--gyrinx.core.tasks.send_welcome_email"`) |
+| `path` | `str` | Full module path (e.g., `"n23.core.tasks.send_welcome_email"`) |
+| `topic_name` | `str` | Pub/Sub topic name (e.g., `"prod--gyrinx.tasks--n23.core.tasks.send_welcome_email"`) |
 | `scheduler_job_name` | `str` | Cloud Scheduler job name (only for scheduled tasks) |
 | `is_scheduled` | `bool` | `True` if a schedule is configured |
 
@@ -224,13 +224,13 @@ The push handler (`/tasks/pubsub/`) returns these status codes:
 
 Format: `{env}--gyrinx.tasks--{module.path.task_name}`
 
-Example: `prod--gyrinx.tasks--gyrinx.core.tasks.send_welcome_email`
+Example: `prod--gyrinx.tasks--n23.core.tasks.send_welcome_email`
 
 ### Pub/Sub Subscriptions
 
 Format: `{topic_name}-sub`
 
-Example: `prod--gyrinx.tasks--gyrinx.core.tasks.send_welcome_email-sub`
+Example: `prod--gyrinx.tasks--n23.core.tasks.send_welcome_email-sub`
 
 ### Cloud Scheduler Jobs
 

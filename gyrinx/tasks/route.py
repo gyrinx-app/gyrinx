@@ -111,7 +111,7 @@ class TaskRoute:
 
     @property
     def path(self) -> str:
-        """Full module path (e.g., 'gyrinx.core.tasks.send_welcome_email')."""
+        """Full module path (e.g., 'n23.core.tasks.send_welcome_email')."""
         func = self._underlying_func
         return f"{func.__module__}.{func.__name__}"
 
@@ -121,7 +121,7 @@ class TaskRoute:
         Pub/Sub topic name with environment prefix.
 
         Format: {env}--gyrinx.tasks--{full.module.path}
-        Example: prod--gyrinx.tasks--gyrinx.core.tasks.send_welcome_email
+        Example: prod--gyrinx.tasks--n23.core.tasks.send_welcome_email
         """
         env = getattr(settings, "TASKS_ENVIRONMENT", "dev")
         return f"{env}--gyrinx.tasks--{self.path}"

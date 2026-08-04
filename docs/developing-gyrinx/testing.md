@@ -76,7 +76,7 @@ All tests that use the database must be marked with `@pytest.mark.django_db`:
 ```python
 import pytest
 from django.contrib.auth.models import User
-from gyrinx.core.models.campaign import Campaign
+from n23.core.models.campaign import Campaign
 
 @pytest.mark.django_db
 def test_campaign_creation():

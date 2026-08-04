@@ -30,7 +30,7 @@ EXCLUDE = (
     "gyrinx/templates/cotton/",
     # The living design-system showcase: its raw class strings ARE the
     # documentation, and the page renders a table naming them.
-    "gyrinx/core/templates/core/debug/design_system.html",
+    "n23/core/templates/core/debug/design_system.html",
     # Rendered by handler500 in a degraded process; a component-resolution
     # failure here would 500 the 500 page.
     "gyrinx/templates/errors/",
@@ -39,12 +39,12 @@ EXCLUDE = (
     # Scratch templates written and deleted by the component test harnesses while
     # they run (uuid-named, so no prefix rule catches them). They deliberately
     # contain the shapes this counts, and they vanish mid-scan under pytest-xdist.
-    "gyrinx/core/templates/cotton_test/",
+    "n23/core/templates/cotton_test/",
     "gyrinx/templates/_cotton_test_host/",
     # Django admin vocabulary (form-row/submit-row/default), not Bootstrap.
     "gyrinx/templates/admin/",
-    "gyrinx/core/templates/admin/",
-    "gyrinx/content/templates/content/",
+    "n23/core/templates/admin/",
+    "n23/content/templates/content/",
     "gyrinx/maintenance/templates/admin/",
     "gyrinx/analytics/templates/analytics/admin/",
 )
@@ -61,8 +61,17 @@ PATTERNS = {
 }
 
 
+# Every tree that holds first-party templates: the platform shell plus each
+# edition package. Miss one and the ceiling silently stops policing it — the
+# counts drop below baseline and the check passes while scanning nothing.
+TEMPLATE_ROOTS = ("gyrinx", "n23")
+
+
 def templates():
-    for path in sorted((ROOT / "gyrinx").rglob("*.html")):
+    paths = []
+    for root in TEMPLATE_ROOTS:
+        paths.extend((ROOT / root).rglob("*.html"))
+    for path in sorted(paths):
         rel = path.relative_to(ROOT).as_posix()
         if not any(rel.startswith(x) or rel == x.rstrip("/") for x in EXCLUDE):
             yield rel, path

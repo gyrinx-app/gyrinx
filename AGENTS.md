@@ -2,8 +2,8 @@
 
 This repository keeps its agent instructions in **[CLAUDE.md](CLAUDE.md)**, with
 directory-specific notes in nested `CLAUDE.md` files (notably
-[gyrinx/core/templates/CLAUDE.md](gyrinx/core/templates/CLAUDE.md) for template and
-component work, and [gyrinx/core/CLAUDE.md](gyrinx/core/CLAUDE.md) for models,
+[n23/core/templates/CLAUDE.md](n23/core/templates/CLAUDE.md) for template and
+component work, and [n23/core/CLAUDE.md](n23/core/CLAUDE.md) for models,
 views and tests).
 
 Read those. This file exists only so tools that look for `AGENTS.md` find their way

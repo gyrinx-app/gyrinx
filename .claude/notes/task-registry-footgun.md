@@ -44,7 +44,7 @@ happens, not where the mistake happens" design.
 A `django.core.checks` check (registered in `gyrinx/tasks/apps.py` or similar)
 that:
 
-- imports the known task modules (`gyrinx.core.tasks`, and any future ones),
+- imports the known task modules (`n23.core.tasks`, and any future ones),
 - collects every `django.tasks.Task` instance defined there,
 - **errors** if any is missing from the registry (`gyrinx.tasks.registry`),
 - **errors** in the other direction too: a registry entry whose function has been

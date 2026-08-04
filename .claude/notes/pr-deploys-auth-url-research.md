@@ -51,7 +51,7 @@
 ### Authentication Stack
 
 - **django-allauth** handles all auth (login, signup, email verification, password reset, MFA)
-- **Custom adapter**: `gyrinx.core.adapter.CustomAccountAdapter` - controls signups and email headers
+- **Custom adapter**: `n23.core.adapter.CustomAccountAdapter` - controls signups and email headers
 - **reCAPTCHA v3** on login, signup, password reset, and username change forms
 - **MFA**: TOTP-based, via `allauth.mfa`
 - **Session tracking**: `allauth.usersessions` with `USERSESSIONS_TRACK_ACTIVITY = True`
