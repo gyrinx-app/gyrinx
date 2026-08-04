@@ -129,5 +129,5 @@ Permission checks are implemented in views and enforced at the model level:
 ## Related Documentation
 
 - [Lists](lists.md) - List system and campaign integration
-- [Models and Database](developing-gyrinx/models-and-database.md) - Data model documentation
-- [History Tracking](developing-gyrinx/history-tracking.md) - How modifications are tracked
+- [Models and Database](../developing-gyrinx/models-and-database.md) - Data model documentation
+- [History Tracking](../developing-gyrinx/history-tracking.md) - How modifications are tracked

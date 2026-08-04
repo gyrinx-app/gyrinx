@@ -1,1 +1,32 @@
 root: ./docs
+
+# Every page that moved under docs/n23/ in the edition split (#2093) kept its
+# published URL via a redirect. Without these the old links — bookmarks, Discord
+# posts, search results — 404 silently.
+redirects:
+  campaigns: n23/campaigns.md
+  content-library/advancements: n23/content-library/advancements.md
+  content-library/content-packs: n23/content-library/content-packs.md
+  content-library/equipment-and-weapons: n23/content-library/equipment-and-weapons.md
+  content-library/equipment-availability: n23/content-library/equipment-availability.md
+  content-library/equipment-list-expansions: n23/content-library/equipment-list-expansions.md
+  content-library/fighters: n23/content-library/fighters.md
+  content-library/gang-attributes: n23/content-library/gang-attributes.md
+  content-library/houses-and-factions: n23/content-library/houses-and-factions.md
+  content-library/injuries: n23/content-library/injuries.md
+  content-library/modifiers: n23/content-library/modifiers.md
+  content-library/promotions: n23/content-library/promotions.md
+  content-library: n23/content-library/README.md
+  content-library/reference-library: n23/content-library/reference-library.md
+  content-library/skills-rules-and-psyker-powers: n23/content-library/skills-rules-and-psyker-powers.md
+  content-library/stats-and-statlines: n23/content-library/stats-and-statlines.md
+  content: n23/content.md
+  fighter-cost-system-design: n23/fighter-cost-system-design.md
+  fighter-cost-system-reference: n23/fighter-cost-system-reference.md
+  how-to-guides/handler-development: n23/how-to-guides/handler-development.md
+  lists: n23/lists.md
+  manual-testing-guide: n23/manual-testing-guide.md
+  psykers: n23/psykers.md
+  technical-reference/fighter-advancements: n23/technical-reference/fighter-advancements.md
+  technical-reference/prefetching-strategy: n23/technical-reference/prefetching-strategy.md
+  technical-reference/statlines: n23/technical-reference/statlines.md
