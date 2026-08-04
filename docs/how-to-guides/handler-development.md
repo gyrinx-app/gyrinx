@@ -20,7 +20,7 @@ Handlers are functions that:
 | `Delta` | `n23/core/cost/propagation.py` | Represents a cost change to propagate |
 | `propagate_from_assignment()` | `n23/core/cost/propagation.py` | Updates assignment and fighter cache |
 | `propagate_from_fighter()` | `n23/core/cost/propagation.py` | Updates fighter cache |
-| `create_action()` | `n23/core/models/list.py` | Creates ListAction and updates list cache |
+| `create_action()` | `n23/core/models/list/list.py` | Creates ListAction and updates list cache |
 
 ---
 

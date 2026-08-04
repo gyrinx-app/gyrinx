@@ -600,7 +600,7 @@ def handle_equipment_purchase(*, user, lst, fighter, assignment):
 When a Content model's cost field changes, mark the affected tree dirty:
 
 ```python
-# n23/core/signals/content_cost.py
+# n23/content/signals.py
 
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
@@ -768,7 +768,7 @@ def campaign_detail_view(request, campaign_id):
 
 ### Phase 6: Content Signals
 
-1. Create `n23/core/signals/content_cost.py`
+1. Implemented in `n23/content/signals.py`
 2. Implement dirty marking for content changes
 3. Register signals in `apps.py`
 
@@ -844,7 +844,7 @@ facts_from_db without also propagating.
 |-----------|------|
 | Facts dataclasses | `n23/core/models/facts.py` |
 | Propagation functions | `n23/core/cost/propagation.py` |
-| List facts methods | `n23/core/models/list.py` |
+| List facts methods | `n23/core/models/list/list.py` |
 | Content signals | `n23/content/signals.py` |
 | Equipment handlers | `n23/core/handlers/equipment/` |
 | Fighter handlers | `n23/core/handlers/fighter/` |
