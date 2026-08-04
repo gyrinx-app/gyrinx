@@ -4,7 +4,7 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from n23.core.models.auth import UserProfile
+from gyrinx.accounts.models import UserProfile
 
 
 @pytest.mark.django_db

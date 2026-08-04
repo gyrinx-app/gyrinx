@@ -4,8 +4,8 @@ import pytest
 from django.urls import reverse
 
 from gyrinx.badges import HIDE_BADGE
-from n23.core.forms import BadgeSelectionForm
-from n23.core.models.auth import PatreonStatus, UserProfile
+from gyrinx.account_forms import BadgeSelectionForm
+from gyrinx.accounts.models import PatreonStatus, UserProfile
 
 BADGE_URL = reverse("core:badge-settings")
 

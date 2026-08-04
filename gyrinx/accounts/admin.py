@@ -10,7 +10,7 @@ from allauth.account.models import EmailAddress
 from allauth.account.internal.flows.email_verification import get_email_verification_url
 from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
-from n23.core.models.auth import UserProfile
+from gyrinx.accounts.models import UserProfile
 
 
 @admin.action(description="Add selected users to group")

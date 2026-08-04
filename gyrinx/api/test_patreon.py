@@ -5,7 +5,7 @@ from allauth.account.models import EmailAddress
 
 from gyrinx.api.models import WebhookRequest
 from gyrinx.api.patreon import process_patreon_webhook
-from n23.core.models.auth import PatreonStatus, UserProfile
+from gyrinx.accounts.models import PatreonStatus, UserProfile
 
 
 def _make_payload(

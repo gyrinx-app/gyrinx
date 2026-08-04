@@ -11,7 +11,7 @@ from gyrinx.badges import (
     badge_choices,
     rank_for_tier_title,
 )
-from n23.core.models.auth import PatreonStatus, UserProfile
+from gyrinx.accounts.models import PatreonStatus, UserProfile
 from n23.core.templatetags.badge_tags import badge_icon, user_badge
 
 

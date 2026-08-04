@@ -68,9 +68,13 @@ class UserProfile(Base):
         "(blank = no badge).",
     )
 
-    history = HistoricalRecords()
+    # Both tables are pinned to their original names. This model moved from the
+    # `core` app to `accounts`, and the whole point is that no table is renamed
+    # and no row is copied — 2,803 profiles stay exactly where they are.
+    history = HistoricalRecords(table_name="core_historicaluserprofile")
 
     class Meta:
+        db_table = "core_userprofile"
         verbose_name = "user profile"
         verbose_name_plural = "user profiles"
 
