@@ -34,6 +34,7 @@ Backfill record enumerates every change and is the audit trail.
 
 import logging
 import re
+import traceback
 from dataclasses import dataclass, field
 
 from django.db import IntegrityError, transaction
@@ -287,9 +288,10 @@ def _run(operation, triggered_by, plan_fn, apply_fn, summarise):
     try:
         plan = plan_fn()
         done, skipped = apply_fn(plan)
-    except Exception:
+    except Exception as e:
         record.status = Backfill.Status.FAILED
-        record.save(update_fields=["status", "modified"])
+        record.error = f"{e}\n\n{traceback.format_exc()}"
+        record.save(update_fields=["status", "error", "modified"])
         raise
     record.summary = summarise(done, skipped)
     record.status = Backfill.Status.DONE

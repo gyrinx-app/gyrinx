@@ -277,6 +277,10 @@ def test_a_failed_run_records_failed_and_raises(make_content_fighter, content_ho
 
     record = Backfill.objects.get(operation=Backfill.Operation.MATERIALISE_STATLINES)
     assert record.status == Backfill.Status.FAILED
+    # The exception and traceback are on the record, like every other
+    # maintenance operation — a bare FAILED is undiagnosable after the fact
+    assert "ContentStatlineType" in record.error
+    assert "Traceback" in record.error
 
 
 @pytest.mark.django_db
