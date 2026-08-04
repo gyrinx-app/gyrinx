@@ -5,8 +5,8 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from n23.core.models.base import AppBase
-from n23.core.models.history_aware_manager import HistoryAwareManager
+from gyrinx.base_models import AppBase
+from gyrinx.history_aware_manager import HistoryAwareManager
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

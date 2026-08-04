@@ -7,10 +7,7 @@ from n23.content.models import (
     ContentSkill,
     ContentSkillCategory,
 )
-from n23.core.models import (
-    ListFighterAdvancement,
-    ListFighterEquipmentAssignment,
-)
+from n23.core.models import ListFighterAdvancement, ListFighterEquipmentAssignment
 from n23.models import FighterCategoryChoices
 
 

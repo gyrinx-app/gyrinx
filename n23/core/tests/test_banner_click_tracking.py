@@ -4,7 +4,7 @@ from django.test import Client
 from django.urls import reverse
 
 from n23.core.models.events import Event, EventNoun, EventVerb
-from n23.core.models.site import Banner
+from gyrinx.site.models import Banner
 
 User = get_user_model()
 

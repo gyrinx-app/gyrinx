@@ -6,7 +6,7 @@ from django.db import models
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
-from .base import AppBase
+from gyrinx.base_models import AppBase
 
 
 def upload_to(instance, filename):

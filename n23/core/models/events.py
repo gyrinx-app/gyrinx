@@ -7,7 +7,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ from django.db import DatabaseError, OperationalError, InterfaceError
 from django.test import RequestFactory
 from django.core.cache import cache
 
-from n23.core.models import Banner
+from gyrinx.site.models import Banner
 from n23.core.context_processors import site_banner, BANNER_CACHE_KEY
 
 
@@ -75,7 +75,7 @@ def test_site_banner_caching(request_factory):
     request.session = {}
 
     # First call should fetch from database
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         mock_queryset = Mock()
         mock_queryset.first.return_value = banner
         mock_filter.return_value = mock_queryset
@@ -85,7 +85,7 @@ def test_site_banner_caching(request_factory):
         assert mock_filter.called  # Database was queried
 
     # Second call should use cached value
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         context2 = site_banner(request)
         assert context2["banner"] == banner
         assert not mock_filter.called  # Database was NOT queried (cache used)
@@ -100,7 +100,7 @@ def test_site_banner_handles_database_error(request_factory):
     request = request_factory.get("/")
     request.session = {}
 
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         mock_filter.side_effect = DatabaseError("Connection failed")
 
         context = site_banner(request)
@@ -117,7 +117,7 @@ def test_site_banner_handles_operational_error(request_factory):
     request = request_factory.get("/")
     request.session = {}
 
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         mock_filter.side_effect = OperationalError("Connection failed")
 
         context = site_banner(request)
@@ -134,7 +134,7 @@ def test_site_banner_handles_interface_error(request_factory):
     request = request_factory.get("/")
     request.session = {}
 
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         mock_filter.side_effect = InterfaceError("Connection failed")
 
         context = site_banner(request)
@@ -151,7 +151,7 @@ def test_site_banner_handles_does_not_exist(request_factory):
     request = request_factory.get("/")
     request.session = {}
 
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         mock_queryset = Mock()
         mock_queryset.first.side_effect = Banner.DoesNotExist()
         mock_filter.return_value = mock_queryset
@@ -170,7 +170,7 @@ def test_site_banner_handles_unexpected_exception(request_factory):
     request = request_factory.get("/")
     request.session = {}
 
-    with patch("n23.core.models.Banner.objects.filter") as mock_filter:
+    with patch("gyrinx.site.models.Banner.objects.filter") as mock_filter:
         mock_filter.side_effect = Exception("Unexpected error")
 
         context = site_banner(request)

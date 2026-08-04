@@ -97,7 +97,7 @@ class ImpersonationMiddleware:
         """Close the open log for this session and clear the overlay keys."""
         log_id = session.get(IMPERSONATE_LOG_KEY)
         if log_id:
-            from n23.core.models import ImpersonationLog
+            from gyrinx.site.models import ImpersonationLog
 
             ImpersonationLog.objects.filter(pk=log_id, ended_at__isnull=True).update(
                 ended_at=timezone.now(), ended_reason=reason

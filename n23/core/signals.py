@@ -82,7 +82,7 @@ def close_impersonation_on_logout(sender, request, user, **kwargs):
         return
     log_id = session.get(IMPERSONATE_LOG_KEY)
     if log_id:
-        from n23.core.models import ImpersonationLog
+        from gyrinx.site.models import ImpersonationLog
 
         ImpersonationLog.objects.filter(pk=log_id, ended_at__isnull=True).update(
             ended_at=timezone.now(),

@@ -5,7 +5,7 @@ from django.core import validators
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 
 logger = logging.getLogger(__name__)
 User = get_user_model()

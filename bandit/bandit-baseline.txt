@@ -1,4 +1,4 @@
-Run started:2026-08-04 22:16:35.182848+00:00
+Run started:2026-08-04 22:24:48.501976+00:00
 
 Test results:
 >> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
@@ -23,14 +23,14 @@ Test results:
    Severity: Low   Confidence: Medium
    CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
    More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
-   Location: ./gyrinx/settings.py:302:4
-301	ACCOUNT_FORMS = {
-302	    "reset_password": "gyrinx.account_forms.ResetPasswordForm",
-303	    "login": "gyrinx.account_forms.LoginForm",
-304	    "signup": "gyrinx.account_forms.SignupForm",
-305	}
-306	# Custom setting to (dis)allow signups
-307	ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+   Location: ./gyrinx/settings.py:303:4
+302	ACCOUNT_FORMS = {
+303	    "reset_password": "gyrinx.account_forms.ResetPasswordForm",
+304	    "login": "gyrinx.account_forms.LoginForm",
+305	    "signup": "gyrinx.account_forms.SignupForm",
+306	}
+307	# Custom setting to (dis)allow signups
+308	ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
 
 --------------------------------------------------
 >> Issue: [B324:hashlib] Use of weak MD5 hash for security. Consider usedforsecurity=False
@@ -340,7 +340,7 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 71196
+	Total lines of code: 71206
 	Total lines skipped (#nosec): 4
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 56
 
