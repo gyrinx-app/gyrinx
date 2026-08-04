@@ -498,6 +498,22 @@ def test_concurrent_transitions_from_the_same_status_apply_once():
     assert obj.states.history.count() == 1, "only the winning transition is recorded"
 
 
+@pytest.mark.django_db(transaction=True)
+def test_save_false_outside_a_transaction_raises():
+    """save=False hands the status write to the caller, who must be in a
+    transaction — otherwise the transition record commits while the parent row
+    still holds its old status. Make that loud rather than silent."""
+    obj = StateMachineTestModel.objects.create()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        obj.states.transition_to("RUNNING", save=False)
+
+    assert "must be called inside a transaction" in str(exc_info.value)
+    obj.refresh_from_db()
+    assert obj.status == "PENDING"
+    assert obj.states.history.count() == 0
+
+
 @pytest.mark.django_db
 def test_transition_validates_against_the_database_not_the_instance():
     """A stale instance is judged on the row's committed status, not its own.

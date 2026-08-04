@@ -337,8 +337,9 @@ class StateMachineAccessor:
         not yet saved are left alone, which is what makes ``save=False`` usable
         by callers that batch the status write in with other fields.
 
-        With ``save=False`` the caller must be inside a transaction, or the
-        lock is released before it writes the status.
+        ``save=False`` requires the caller to already be inside a transaction,
+        and raises if it is not: the transition record would otherwise commit
+        while the parent row still held its old status.
 
         Args:
             new_status: The status to transition to
@@ -350,26 +351,38 @@ class StateMachineAccessor:
 
         Raises:
             InvalidStateTransition: If the transition is not allowed
+            RuntimeError: If save=False outside a transaction
         """
         model_name = self.instance.__class__.__name__
 
-        with span(
-            "state_transition",
-            model=model_name,
-            instance_id=str(self.instance.pk),
-            to_status=new_status,
-        ) as current_span:
-            with transaction.atomic():
-                # Inside the transaction: taking the lock is part of the work
-                # this span measures, and a contended transition waits here.
-                old_status = self._locked_status()
-                if current_span is not None:
-                    current_span.set_attribute("from_status", old_status)
+        if (
+            not save
+            and not transaction.get_connection(self.instance._state.db).in_atomic_block
+        ):
+            raise RuntimeError(
+                f"{model_name}.transition_to(save=False) must be called inside a "
+                "transaction. Without one the transition record commits while the "
+                "parent row keeps its old status."
+            )
 
-                allowed = self.sm.transitions.get(old_status, [])
-                if new_status not in allowed:
-                    raise InvalidStateTransition(old_status, new_status, allowed)
+        with transaction.atomic():
+            old_status = self._locked_status()
+            allowed = self.sm.transitions.get(old_status, [])
+            if new_status not in allowed:
+                # Raised before the span opens, deliberately. A rejection is a
+                # routine outcome — a double-clicked button, the loser of a race,
+                # both of which the views turn into a flash message — and span()
+                # records exceptions, so raising inside would file every one of
+                # them as an error in the traces.
+                raise InvalidStateTransition(old_status, new_status, allowed)
 
+            with span(
+                "state_transition",
+                model=model_name,
+                instance_id=str(self.instance.pk),
+                from_status=old_status,
+                to_status=new_status,
+            ):
                 self.instance.status = new_status
 
                 if save:

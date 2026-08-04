@@ -33,11 +33,20 @@ class _Delivery:
 
 
 def _run_concurrently(target, *, n=2, timeout=15):
-    """Run ``target`` on ``n`` threads and return whatever they raised."""
+    """Run ``target`` on ``n`` threads simultaneously; return whatever they raised.
+
+    The barrier matters. Without it the threads are free to serialise, and a
+    handler that runs entirely after the other has committed re-reads the new
+    status and skips correctly whether or not it holds a lock — so the test
+    would pass on unlocked code. Releasing both threads immediately before the
+    call puts them in the handler together, which is the case being tested.
+    """
     errors = []
+    start = threading.Barrier(n, timeout=timeout)
 
     def wrapped():
         try:
+            start.wait()
             target()
         except Exception as e:  # noqa: BLE001 - surface, don't swallow
             errors.append(e)
@@ -75,9 +84,7 @@ def test_concurrent_retries_of_a_failed_execution_start_once():
     execution.mark_running()
     execution.mark_failed(error_message="transient boom")
     assert execution.status == "FAILED"
-
-    # Clear the setup's transitions so the count below is only the race.
-    TRANSITIONS.objects.all().delete()
+    before = TRANSITIONS.objects.filter(instance=execution).count()
 
     errors = _run_concurrently(
         lambda: handle_task_started(sender=None, task_result=_Delivery("dup"))
@@ -86,7 +93,8 @@ def test_concurrent_retries_of_a_failed_execution_start_once():
     assert not errors, f"delivery thread(s) raised: {errors!r}"
     execution.refresh_from_db()
     assert execution.status == "RUNNING"
-    assert TRANSITIONS.objects.count() == 1, (
+    started = TRANSITIONS.objects.filter(instance=execution).count() - before
+    assert started == 1, (
         "the second retry should have seen the first's RUNNING and skipped"
     )
 
@@ -105,10 +113,10 @@ def test_concurrent_first_deliveries_start_once():
     assert not errors, f"delivery thread(s) raised: {errors!r}"
     execution.refresh_from_db()
     assert execution.status == "RUNNING"
-    assert TRANSITIONS.objects.count() == 1
+    assert TRANSITIONS.objects.filter(instance=execution).count() == 1
 
 
-@pytest.mark.django_db(transaction=True)
+@pytest.mark.django_db
 def test_missing_execution_is_logged_not_raised():
     """An unknown task_id stays a warning even with the handler now atomic —
     a raise here 500s the prod push handler into a redelivery storm."""
