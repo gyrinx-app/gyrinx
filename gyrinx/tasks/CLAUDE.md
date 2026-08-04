@@ -53,7 +53,10 @@ lapse). Two invariants live here:
    record is reset so the fresh attempt records its own outcome. **Never** let
    `handle_task_started` mark an already-terminal execution RUNNING — that is an
    illegal state transition that raises, and via the prod push handler becomes a
-   500 → Pub/Sub redelivery storm.
+   500 → Pub/Sub redelivery storm. Both handlers are `@transaction.atomic` and
+   take a `select_for_update` lock on the execution row, because these guards are
+   check-then-act: each step they take is a legal transition on its own, so the
+   state machine's own row lock cannot catch two deliveries interleaving here.
 2. **Business-logic idempotency is the task's job.** The propagation tasks take a
    `select_for_update` lock on the `List` row so two concurrent duplicate deliveries
    don't double-apply. Regression coverage:

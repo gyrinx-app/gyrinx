@@ -32,7 +32,12 @@ from gyrinx.tracing import span
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["StateMachine", "InvalidStateTransition"]
+__all__ = ["StateMachine", "InvalidStateTransition", "STATUS_MAX_LENGTH"]
+
+# Width of the status column and of the transition table's from_status /
+# to_status. _validate_config rejects longer state values so an over-long state
+# fails at declaration time rather than at the first write.
+STATUS_MAX_LENGTH = 50
 
 
 class InvalidStateTransition(Exception):
@@ -84,6 +89,16 @@ class StateMachine:
         """Validate state machine configuration at creation time."""
         valid_states = [s[0] for s in self.states]
 
+        # Validate state values fit the status column. Checked here because the
+        # database only objects at write time, long after the declaration that
+        # caused it.
+        for state in valid_states:
+            if len(state) > STATUS_MAX_LENGTH:
+                raise ValueError(
+                    f"State '{state}' is {len(state)} characters, exceeding the "
+                    f"{STATUS_MAX_LENGTH}-character limit of the status field"
+                )
+
         # Validate initial state exists
         if self.initial not in valid_states:
             raise ValueError(
@@ -124,7 +139,7 @@ class StateMachine:
 
         # Add the status field to the model
         status_field = models.CharField(
-            max_length=50,
+            max_length=STATUS_MAX_LENGTH,
             db_index=True,
             default=self.initial,
             choices=self.states,
@@ -190,8 +205,10 @@ class StateMachine:
                 on_delete=models.CASCADE,
                 related_name="_state_transitions",
             ),
-            "from_status": models.CharField(max_length=50, blank=True, db_index=True),
-            "to_status": models.CharField(max_length=50, db_index=True),
+            "from_status": models.CharField(
+                max_length=STATUS_MAX_LENGTH, blank=True, db_index=True
+            ),
+            "to_status": models.CharField(max_length=STATUS_MAX_LENGTH, db_index=True),
             "transitioned_at": models.DateTimeField(
                 default=timezone.now, db_index=True
             ),
@@ -287,6 +304,20 @@ class StateMachineAccessor:
         """Get list of valid statuses to transition to from current status."""
         return self.sm.transitions.get(self.current, [])
 
+    def _locked_status(self) -> str:
+        """Lock the parent row and return its committed status.
+
+        The lock is held until the surrounding transaction ends, which is what
+        serialises concurrent transitions. Reads through ``_base_manager`` so a
+        model whose default manager filters rows (archived ones, say) can still
+        transition.
+        """
+        return (
+            self.instance.__class__._base_manager.select_for_update()
+            .values_list("status", flat=True)
+            .get(pk=self.instance.pk)
+        )
+
     def transition_to(
         self,
         new_status: str,
@@ -295,6 +326,19 @@ class StateMachineAccessor:
     ):
         """
         Transition to a new status with validation and history tracking.
+
+        Validation reads the status from the *locked* parent row rather than
+        from this instance, which may be stale. Two concurrent transitions
+        therefore serialise: the second one sees the first's committed status
+        and is rejected, instead of both validating against the same starting
+        status and both applying.
+
+        Note this only reads the status column — fields set on the instance but
+        not yet saved are left alone, which is what makes ``save=False`` usable
+        by callers that batch the status write in with other fields.
+
+        With ``save=False`` the caller must be inside a transaction, or the
+        lock is released before it writes the status.
 
         Args:
             new_status: The status to transition to
@@ -307,21 +351,25 @@ class StateMachineAccessor:
         Raises:
             InvalidStateTransition: If the transition is not allowed
         """
-        if not self.can_transition_to(new_status):
-            allowed = self.get_valid_transitions()
-            raise InvalidStateTransition(self.current, new_status, allowed)
-
-        old_status = self.current
         model_name = self.instance.__class__.__name__
 
         with span(
             "state_transition",
             model=model_name,
             instance_id=str(self.instance.pk),
-            from_status=old_status,
             to_status=new_status,
-        ):
+        ) as current_span:
             with transaction.atomic():
+                # Inside the transaction: taking the lock is part of the work
+                # this span measures, and a contended transition waits here.
+                old_status = self._locked_status()
+                if current_span is not None:
+                    current_span.set_attribute("from_status", old_status)
+
+                allowed = self.sm.transitions.get(old_status, [])
+                if new_status not in allowed:
+                    raise InvalidStateTransition(old_status, new_status, allowed)
+
                 self.instance.status = new_status
 
                 if save:
