@@ -24,8 +24,6 @@ def dedupe_content_rules(apps, schema_editor):
     CustomContentPackItem = apps.get_model("core", "CustomContentPackItem")
     ContentType = apps.get_model("contenttypes", "ContentType")
 
-    rule_ct = ContentType.objects.get(app_label="content", model="contentrule")
-
     dupe_groups = list(
         ContentRule.objects.values("name")
         .annotate(c=Count("id"))
@@ -36,6 +34,16 @@ def dedupe_content_rules(apps, schema_editor):
     if not dupe_groups:
         print("No duplicate ContentRule names found.")
         return
+
+    # Looked up AFTER the early return, not before it. ContentType rows are
+    # created by the post_migrate signal once the whole run finishes, so on a
+    # database being built from scratch this table is still empty while this
+    # migration executes and a hard .get() raises DoesNotExist — which broke
+    # `migrate` onto an empty database outright. There is nothing to dedupe on
+    # an empty database, so the guard above is reached first and the lookup
+    # never happens. Where there ARE duplicates the row necessarily exists, so
+    # behaviour on a populated database is unchanged.
+    rule_ct = ContentType.objects.get(app_label="content", model="contentrule")
 
     def ref_count(rule):
         return (
