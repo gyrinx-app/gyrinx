@@ -152,7 +152,7 @@ All designs start with mobile layout and scale up:
 ### File Structure
 
 ```
-gyrinx/core/static/core/scss/
+n23/core/static/core/scss/
 ├── styles.scss           # Main entry point
 ├── _variables.scss       # Custom Bootstrap variables
 ├── _components.scss      # Custom component styles
@@ -294,7 +294,7 @@ DEBUG=True  # in settings_dev.py
 ### File Organization
 
 ```
-gyrinx/core/static/core/
+n23/core/static/core/
 ├── css/
 │   └── styles.css        # Compiled from SCSS
 ├── js/

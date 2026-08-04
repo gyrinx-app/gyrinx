@@ -357,7 +357,7 @@ def track(
 
 ## Event System
 
-Module: `gyrinx/core/models/events.py`
+Module: `n23/core/models/events.py`
 
 Database-persisted event logging with structured event types.
 
@@ -637,7 +637,7 @@ jsonPayload.labels.endpoint="..."
 | `gyrinx/tracker.py` | Structured event tracking module |
 | `gyrinx/tracing.py` | OpenTelemetry tracing module |
 | `gyrinx/query.py` | SQL query capture utilities |
-| `gyrinx/core/models/events.py` | Event model and log_event function |
+| `n23/core/models/events.py` | Event model and log_event function |
 | `gyrinx/wsgi.py` | Tracing initialization for WSGI |
 | `gyrinx/asgi.py` | Tracing initialization for ASGI |
 

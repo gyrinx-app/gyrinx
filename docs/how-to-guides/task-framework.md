@@ -11,7 +11,7 @@ Practical recipes for common task operations.
 
 ### Steps
 
-1. **Define the task function** in `gyrinx/core/tasks.py`:
+1. **Define the task function** in `n23/core/tasks.py`:
 
 ```python
 from django.tasks import task

@@ -25,7 +25,7 @@ The total cost of a list is calculated by:
 Total List Cost = Sum of all fighter costs + Current credits
 ```
 
-Implementation: `List.cost_int()` in `gyrinx/core/models/list.py:137`
+Implementation: `List.cost_int()` in `n23/core/models/list/list.py`
 
 ### 2. Fighter Cost
 
@@ -35,7 +35,7 @@ Each fighter's cost is calculated as:
 Fighter Cost = Base Cost + Advancement Cost + Sum of Equipment Assignment Costs
 ```
 
-Implementation: `ListFighter.cost_int()` in `gyrinx/core/models/list.py:543`
+Implementation: `ListFighter.cost_int()` in `n23/core/models/list/fighter.py`
 
 ### 3. Base Fighter Cost
 
@@ -46,7 +46,7 @@ The base cost follows this priority hierarchy:
 3. House override: `ContentFighterHouseOverride.cost` (if exists)
 4. Content fighter: `ContentFighter.base_cost`
 
-Implementation: `ListFighter._base_cost_int` property in `gyrinx/core/models/list.py:567`
+Implementation: `ListFighter._base_cost_int` property in `n23/core/models/list/fighter.py`
 
 ### 4. Equipment Assignment Cost
 
@@ -62,7 +62,7 @@ Or if total cost override is set:
 Assignment Cost = total_cost_override
 ```
 
-Implementation: `ListFighterEquipmentAssignment.cost_int()` in `gyrinx/core/models/list.py:1333`
+Implementation: `ListFighterEquipmentAssignment.cost_int()` in `n23/core/models/list/assignment.py`
 
 ### 5. Equipment Base Cost
 
@@ -73,7 +73,7 @@ Equipment base cost priority:
 3. Fighter equipment list: `ContentFighterEquipmentListItem.cost`
 4. Base equipment: `ContentEquipment.cost`
 
-Implementation: `ListFighterEquipmentAssignment._equipment_cost_with_override()` in `gyrinx/core/models/list.py:1354`
+Implementation: `ListFighterEquipmentAssignment._equipment_cost_with_override()` in `n23/core/models/list/assignment.py`
 
 ### 6. Weapon Profile Cost
 
@@ -83,7 +83,7 @@ Profile costs follow this priority:
 2. Fighter equipment list: `ContentFighterEquipmentListItem.cost` (with weapon_profile)
 3. Base profile: `ContentWeaponProfile.cost`
 
-Implementation: `ListFighterEquipmentAssignment._profile_cost_with_override_for_profile()` in `gyrinx/core/models/list.py:1404`
+Implementation: `ListFighterEquipmentAssignment._profile_cost_with_override_for_profile()` in `n23/core/models/list/assignment.py`
 
 ### 7. Weapon Accessory Cost
 
@@ -93,7 +93,7 @@ Accessory costs follow this priority:
 2. Fighter equipment list: `ContentFighterEquipmentListWeaponAccessory.cost`
 3. Base accessory: `ContentWeaponAccessory.cost`
 
-Implementation: `ListFighterEquipmentAssignment._accessory_cost_with_override()` in `gyrinx/core/models/list.py:1469`
+Implementation: `ListFighterEquipmentAssignment._accessory_cost_with_override()` in `n23/core/models/list/assignment.py`
 
 ### 8. Equipment Upgrade Cost
 
@@ -102,7 +102,7 @@ Upgrade costs depend on the equipment's upgrade mode:
 - Multi mode: Individual upgrade cost
 - Single mode: Cumulative cost (sum of all upgrades up to selected position)
 
-Implementation: `ContentEquipmentUpgrade.cost_int()` in `gyrinx/content/models.py:1528`
+Implementation: `ContentEquipmentUpgrade.cost_int()` in `n23/content/models/equipment.py`
 
 ### 9. Campaign Advancement Cost
 
@@ -187,7 +187,7 @@ The facts system provides fast O(1) reads of cached cost values. Each cost-beari
 
 ### Facts Dataclasses
 
-Cached values are returned as immutable dataclasses (defined in `gyrinx/core/models/facts.py`):
+Cached values are returned as immutable dataclasses (defined in `n23/core/models/facts.py`):
 
 ```python
 @dataclass(frozen=True)
@@ -514,7 +514,7 @@ ContentEquipmentUpgrade:
 
 Key test files for the cost system:
 
-- `gyrinx/core/tests/test_cost_display.py` - Cost formatting tests
-- `gyrinx/core/tests/test_models_core.py` - Core cost calculation tests
-- `gyrinx/core/tests/test_assignments.py` - Equipment assignment cost tests
-- `gyrinx/content/tests/test_cost_methods.py` - Comprehensive tests for all cost mixins
+- `n23/core/tests/test_cost_display.py` - Cost formatting tests
+- `n23/core/tests/test_models_core.py` - Core cost calculation tests
+- `n23/core/tests/test_assignments.py` - Equipment assignment cost tests
+- `n23/content/tests/test_cost_methods.py` - Comprehensive tests for all cost mixins

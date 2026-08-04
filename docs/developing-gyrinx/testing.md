@@ -11,14 +11,14 @@ Gyrinx uses pytest for testing with Django integration. Tests are organized by a
 pytest
 
 # Run tests for specific app
-pytest gyrinx/core/tests/
-pytest gyrinx/content/tests/
+pytest n23/core/tests/
+pytest n23/content/tests/
 
 # Run specific test file
-pytest gyrinx/core/tests/test_models_core.py
+pytest n23/core/tests/test_models_core.py
 
 # Run specific test function
-pytest gyrinx/core/tests/test_models_core.py::test_list_creation
+pytest n23/core/tests/test_models_core.py::test_list_creation
 
 # Run with verbose output
 pytest -v

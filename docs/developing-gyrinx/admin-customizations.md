@@ -4,7 +4,7 @@ This document describes the most important Django admin customizations in Gyrinx
 
 ## Overview
 
-The content admin module (`gyrinx/content/admin.py`) contains extensive customizations to provide a better user experience for managing game content. These customizations handle complex relationships between fighters, equipment, and various game mechanics.
+The content admin module (`n23/content/admin.py`) contains extensive customizations to provide a better user experience for managing game content. These customizations handle complex relationships between fighters, equipment, and various game mechanics.
 
 ## Key Admin Customizations
 

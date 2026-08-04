@@ -265,7 +265,7 @@ Docker layer to go through.
 ptw .
 
 # Run specific test
-pytest gyrinx/core/tests/test_models_core.py::test_basic_list
+pytest n23/core/tests/test_models_core.py::test_basic_list
 
 # Run tests with pytest directly
 pytest
@@ -347,10 +347,10 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
 - **One-off production data repairs run as a Backfill, not a management command.** The app runs on
   Cloud Run, so `manage` can't be pointed at production and `prodshell` is read-only — a repair
   written as a command has no way to be run. Put the logic in a module, add a `Backfill.Operation`
-  choice (`gyrinx/core/models/backfill.py`), and trigger it from the maintenance admin
+  choice (`n23/core/models/backfill.py`), and trigger it from the maintenance admin
   (`gyrinx/maintenance/admin.py`): GET previews a dry run, POST applies and records a `Backfill`
   row holding the outcome. Small repairs apply synchronously (see `persistent_stash_view`); long
-  ones run as the self-re-enqueueing task chain in `gyrinx/core/tasks.py`, reporting progress into
+  ones run as the self-re-enqueueing task chain in `n23/core/tasks.py`, reporting progress into
   the same record.
 
 ## Key Models Reference
@@ -431,7 +431,7 @@ pack-aware content.
   `CustomContentPack` or `CustomContentPackItem`. This applies to both directions: the M2M lookup that finds *which*
   packs a list/campaign is subscribed to (e.g. `CustomContentPack.objects.filter(subscribed_lists__id=...)`), and the
   pack-item lookup that resolves content within those packs. The canonical join is `ContentQuerySet.with_packs(packs,
-  include_archived_items=True)` in `gyrinx/content/models/base.py` — subscriber paths **must** pass
+  include_archived_items=True)` in `n23/content/models/base.py` — subscriber paths **must** pass
   `include_archived_items=True`; the default excludes archived items so owner-side callers don't surface them.
 - **Pack-owner library views, gallery / featured listings, list-creation pack pickers, and campaign pack-add UIs** —
   these are pack-discovery / write paths. Filtering `archived=False` is correct here so archived packs don't appear
@@ -564,25 +564,25 @@ and override the `owner` kwarg on the factory fixtures.
 
 **Models:**
 
-- `gyrinx/content/models.py` - Game content models
-- `gyrinx/core/models/list.py` - User list/fighter models
-- `gyrinx/core/models/campaign.py` - Campaign models
+- `n23/content/models/` - Game content models
+- `n23/core/models/list/` - User list/fighter models
+- `n23/core/models/campaign.py` - Campaign models
 
 **Views:**
 
-- `gyrinx/core/views/list.py` - List/fighter views
-- `gyrinx/core/views/campaign.py` - Campaign views
-- `gyrinx/core/views/vehicle.py` - Vehicle flow
+- `n23/core/views/list/` - List/fighter views
+- `n23/core/views/campaign/` - Campaign views
+- `n23/core/views/vehicle.py` - Vehicle flow
 
 **Templates:**
 
-- `gyrinx/core/templates/core/` - Main templates
-- `gyrinx/core/templates/core/includes/` - Reusable components
+- `n23/core/templates/core/` - Main templates
+- `n23/core/templates/core/includes/` - Reusable components
 
 **Tests:**
 
-- `gyrinx/core/tests/` - Core app tests
-- `gyrinx/content/tests/` - Content app tests
+- `n23/core/tests/` - Core app tests
+- `n23/content/tests/` - Content app tests
 
 ## important-instruction-reminders
 

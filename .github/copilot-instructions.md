@@ -21,11 +21,11 @@ for the specifics.
 
 **Security.** Never apply `|safe` to user-supplied content — the project ships a
 `safe_rich_text` filter for sanitising. Always validate redirect targets from user
-input with `safe_redirect` / `get_return_url` (`gyrinx/core/utils.py`).
+input with `safe_redirect` / `get_return_url` (`n23/core/utils.py`).
 
 **The fighter list is the hot query path.** Adding a FK or M2M to `ListFighter`
 means updating `ListFighterQuerySet.with_related_data()` and the query-count
-snapshot at `gyrinx/core/tests/fixtures/performance_view_queries.json`. Missing a
+snapshot at `n23/core/tests/fixtures/performance_view_queries.json`. Missing a
 prefetch degrades silently in dev and only shows up under load.
 
 **Content packs: archive is a soft-delete for the *owner*, not a retraction.** Once
@@ -40,7 +40,7 @@ history); content models inherit `Content`. Never call `self.full_clean()` from
 no `TestCase` — and should use the fixtures in `gyrinx/conftest.py` rather than
 building users, houses, fighters or lists inline.
 
-**Don't commit generated CSS.** `gyrinx/core/static/core/css/` is built from SCSS.
+**Don't commit generated CSS.** `n23/core/static/core/css/` is built from SCSS.
 
 ## Long-term projects
 
