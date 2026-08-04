@@ -32,6 +32,12 @@ from n23.core.maintenance.stat_advancements import (
     build_plan,
     run as run_stat_advancements,
 )
+from n23.core.maintenance.statlines import (
+    build_format_plan,
+    build_statline_plan,
+    run_materialise,
+    run_normalise,
+)
 from n23.core.models import Backfill
 from n23.core.models.list import ListFighterEquipmentAssignment, PinState
 from n23.core.tasks import backfill_pins, reconcile_all_lists
@@ -122,6 +128,16 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_stat_advancements",
             ),
             path(
+                "maintenance/normalise-stat-formats/",
+                self.admin_view(_superuser_only(self.normalise_stat_formats_view)),
+                name="maintenance_normalise_stat_formats",
+            ),
+            path(
+                "maintenance/materialise-statlines/",
+                self.admin_view(_superuser_only(self.materialise_statlines_view)),
+                name="maintenance_materialise_statlines",
+            ),
+            path(
                 "maintenance/backfill/<uuid:pk>/",
                 self.admin_view(_superuser_only(self.backfill_detail_view)),
                 name="maintenance_backfill_detail",
@@ -180,6 +196,28 @@ class MaintenanceAdminSite(admin.site.__class__):
                     "advancements that were bought but showing nothing, and "
                     "remove improvements being counted twice. Notifies every "
                     "affected player once. Preview before applying."
+                ),
+            },
+            {
+                "key": Backfill.Operation.NORMALISE_STAT_FORMATS.value,
+                "name": Backfill.Operation.NORMALISE_STAT_FORMATS.label,
+                "url": reverse("admin:maintenance_normalise_stat_formats"),
+                "description": (
+                    'Add the missing + or " suffix to bare-number stat values '
+                    "on templates without a statline (a visible cosmetic "
+                    "correction). Run BEFORE materialising statlines, so they "
+                    "are built from clean values."
+                ),
+            },
+            {
+                "key": Backfill.Operation.MATERIALISE_STATLINES.value,
+                "name": Backfill.Operation.MATERIALISE_STATLINES.label,
+                "url": reverse("admin:maintenance_materialise_statlines"),
+                "description": (
+                    "Create a statline on the Fighter type for every template "
+                    "that lacks one, copying the legacy column values verbatim "
+                    "(blanks become dashes). Display-preserving; run AFTER "
+                    "normalising formats. #1861 Track C1."
                 ),
             },
         ]
@@ -434,6 +472,108 @@ class MaintenanceAdminSite(admin.site.__class__):
             "message_count": len(build_messages(plan)),
         }
         return render(request, "admin/maintenance/stat_advancements.html", ctx)
+
+    def normalise_stat_formats_view(self, request):
+        """Preview, then apply, the stat-format normalisation (#1861 C0)."""
+        if request.method == "POST":
+            running = _running_guard(Backfill.Operation.NORMALISE_STAT_FORMATS)
+            if running:
+                messages.error(request, "A run is already in progress.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            try:
+                record, applied, skipped = run_normalise(triggered_by=request.user)
+                note = f"Normalised {len(applied)} value(s)."
+                if skipped:
+                    note += (
+                        f" Skipped {len(skipped)} edited while the run was in "
+                        "progress — re-open to pick them up."
+                    )
+                messages.success(request, note)
+            except Exception as e:
+                # run_normalise already recorded the run as FAILED
+                logger.exception("Stat-format normalisation failed")
+                messages.error(request, f"Normalisation failed: {e}")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_normalise_stat_formats")
+                )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[record.id])
+            )
+
+        fixes = build_format_plan()
+        ctx = {
+            **self.each_context(request),
+            "title": "Normalise legacy stat-column formats",
+            "fixes": fixes,
+        }
+        return render(request, "admin/maintenance/normalise_stat_formats.html", ctx)
+
+    def materialise_statlines_view(self, request):
+        """Preview, then apply, the statline materialisation (#1861 C1)."""
+        if request.method == "POST":
+            running = _running_guard(Backfill.Operation.MATERIALISE_STATLINES)
+            if running:
+                messages.error(request, "A run is already in progress.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            # Run order is one-way: once a template has a statline, this tool
+            # can no longer normalise its values — a wrong order silently and
+            # permanently loses the normalisation. Refuse unless forced.
+            if build_format_plan() and request.POST.get("force") != "on":
+                messages.error(
+                    request,
+                    "Un-normalised values remain. Run the format "
+                    "normalisation first, or tick the override to copy "
+                    "them verbatim anyway.",
+                )
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_materialise_statlines")
+                )
+            try:
+                record, created, skipped = run_materialise(triggered_by=request.user)
+                note = f"Created {len(created)} statline(s)."
+                if skipped:
+                    note += (
+                        f" Skipped {len(skipped)} template(s) that gained a "
+                        "statline while the run was in progress."
+                    )
+                messages.success(request, note)
+            except Exception as e:
+                # run_materialise already recorded the run as FAILED
+                logger.exception("Statline materialisation failed")
+                messages.error(request, f"Materialisation failed: {e}")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_materialise_statlines")
+                )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[record.id])
+            )
+
+        entries = build_statline_plan()
+        remaining_formats = build_format_plan()
+        # A ListFighterStatOverride on a statline-less template is inert
+        # today, but the moment the statline exists it outranks the legacy
+        # override and the card changes. The display-preservation claim
+        # rests on this being zero; the operator must see it if not.
+        from n23.core.models.list import ListFighterStatOverride
+
+        orphan_eav = ListFighterStatOverride.objects.filter(
+            list_fighter__content_fighter__custom_statline__isnull=True
+        ).count()
+        ctx = {
+            **self.each_context(request),
+            "title": "Materialise statlines for legacy templates",
+            "entries": entries,
+            "all_blank": sum(1 for e in entries if e.blank_count == 12),
+            # Surfaced so the operator sees un-normalised values before they
+            # get copied verbatim into the new statlines.
+            "remaining_formats": remaining_formats,
+            "orphan_eav": orphan_eav,
+        }
+        return render(request, "admin/maintenance/materialise_statlines.html", ctx)
 
     def backfill_detail_view(self, request, pk):
         backfill = get_object_or_404(Backfill, pk=pk)

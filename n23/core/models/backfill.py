@@ -33,6 +33,14 @@ class Backfill(models.Model):
             "fix_stat_advancements",
             "Finish the stat-advancement cleanup (#2070)",
         )
+        NORMALISE_STAT_FORMATS = (
+            "normalise_stat_formats",
+            "Normalise legacy stat-column formats (#1861 Track C1)",
+        )
+        MATERIALISE_STATLINES = (
+            "materialise_statlines",
+            "Materialise statlines for legacy templates (#1861 Track C1)",
+        )
 
     class Status(models.TextChoices):
         # Long-running operations execute on the task runner and report
