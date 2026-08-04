@@ -215,7 +215,7 @@ steps:
         manage migrate --noinput
 
         # Check if content is already loaded
-        CONTENT_COUNT=$$(manage shell -c "from gyrinx.content.models import ContentHouse; print(ContentHouse.objects.count())")
+        CONTENT_COUNT=$$(manage shell -c "from n23.content.models import ContentHouse; print(ContentHouse.objects.count())")
         if [ "$$CONTENT_COUNT" = "0" ]; then
           echo "Loading content data from GCS..."
           gsutil cp gs://gyrinx-app-bootstrap-dump/content-latest.json /tmp/content.json
@@ -670,8 +670,8 @@ PR environments use the same `PubSubBackend` as production. Topic isolation is a
 ### Topic Naming
 
 ```
-pr-42--gyrinx.tasks--gyrinx.core.tasks.refresh_list_facts
-pr-42--gyrinx.tasks--gyrinx.core.tasks.hello_world
+pr-42--gyrinx.tasks--n23.core.tasks.refresh_list_facts
+pr-42--gyrinx.tasks--n23.core.tasks.hello_world
 ```
 
 Each PR gets its own set of topics and subscriptions, completely isolated from production and other PRs.

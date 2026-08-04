@@ -4,8 +4,8 @@ from typing import Optional
 
 from django import forms
 
-from gyrinx.content.models import ContentFighter
-from gyrinx.core.models.list import ListFighter
+from n23.content.models import ContentFighter
+from n23.core.models.list import ListFighter
 
 
 def group_select(form, field, key=lambda x: x, sort_groups_by=None):

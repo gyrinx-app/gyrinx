@@ -34,8 +34,8 @@ from typing import Optional
 
 from django.db import transaction
 
-from gyrinx.core.cost.propagation import Delta, propagate_from_assignment
-from gyrinx.core.models.action import ListAction, ListActionType
+from n23.core.cost.propagation import Delta, propagate_from_assignment
+from n23.core.models.action import ListAction, ListActionType
 from gyrinx.tracing import traced
 
 
@@ -101,7 +101,7 @@ class EquipmentPurchaseResult:
 The `Delta` dataclass represents a cost change that needs to propagate up the cache hierarchy:
 
 ```python
-from gyrinx.core.cost.propagation import Delta
+from n23.core.cost.propagation import Delta
 
 delta = Delta(
     delta=total_cost,  # The amount to add (positive) or remove (negative)
@@ -155,7 +155,7 @@ delta = Delta(delta=cost_difference, list=lst)
 Updates both the assignment and its parent fighter:
 
 ```python
-from gyrinx.core.cost.propagation import propagate_from_assignment, Delta
+from n23.core.cost.propagation import propagate_from_assignment, Delta
 
 propagate_from_assignment(assignment, Delta(delta=total_cost, list=lst))
 
@@ -171,7 +171,7 @@ propagate_from_assignment(assignment, Delta(delta=total_cost, list=lst))
 Updates only the fighter (use when assignment doesn't exist or will be deleted):
 
 ```python
-from gyrinx.core.cost.propagation import propagate_from_fighter, Delta
+from n23.core.cost.propagation import propagate_from_fighter, Delta
 
 propagate_from_fighter(fighter, Delta(delta=-equipment_cost, list=lst))
 
@@ -371,7 +371,7 @@ Handlers are designed for easy testing without HTTP machinery:
 
 ```python
 import pytest
-from gyrinx.core.handlers.equipment.sale import handle_equipment_sale
+from n23.core.handlers.equipment.sale import handle_equipment_sale
 
 @pytest.mark.django_db
 def test_equipment_sale_updates_credits(user, list_with_stash):

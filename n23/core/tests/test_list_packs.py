@@ -1,0 +1,765 @@
+"""Tests for list pack subscription functionality."""
+
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+from django.contrib.contenttypes.models import ContentType
+from django.urls import reverse
+
+from n23.content.models import ContentFighter, ContentHouse, ContentRule
+from n23.content.models.weapon import ContentWeaponTrait
+from n23.core.models.list import List
+from n23.core.models.pack import CustomContentPack, CustomContentPackItem
+from gyrinx.models import FighterCategoryChoices
+
+
+@pytest.mark.django_db
+class TestListPacksModel:
+    """Test the List.packs M2M field."""
+
+    def test_list_has_packs_field(self, make_list):
+        lst = make_list("Test List")
+        assert hasattr(lst, "packs")
+        assert lst.packs.count() == 0
+
+    def test_subscribe_pack(self, make_list, pack):
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        assert pack in lst.packs.all()
+        assert lst in pack.subscribed_lists.all()
+
+    def test_unsubscribe_pack(self, make_list, pack):
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        lst.packs.remove(pack)
+        assert pack not in lst.packs.all()
+
+    def test_multiple_packs(self, make_list, pack, cc_user):
+        lst = make_list("Test List")
+        pack2 = CustomContentPack.objects.create(
+            name="Pack 2", listed=True, owner=cc_user
+        )
+        lst.packs.add(pack, pack2)
+        assert lst.packs.count() == 2
+
+    def test_clone_copies_packs(self, make_list, pack):
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        clone = lst.clone(name="Cloned List")
+        assert pack in clone.packs.all()
+
+
+@pytest.mark.django_db
+class TestPackSubscriptionViews:
+    """Test the subscribe/unsubscribe views."""
+
+    def test_subscribe_from_pack_detail(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:pack-subscribe", args=(pack.id,))
+        response = client.post(url, {"list_id": str(lst.id)})
+        assert response.status_code == 302
+        lst.refresh_from_db()
+        assert pack in lst.packs.all()
+
+    def test_unsubscribe_from_pack_detail(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:pack-unsubscribe", args=(pack.id,))
+        response = client.post(url, {"list_id": str(lst.id)})
+        assert response.status_code == 302
+        lst.refresh_from_db()
+        assert pack not in lst.packs.all()
+
+    def test_subscribe_requires_post(self, client, cc_user, pack):
+        client.force_login(cc_user)
+        url = reverse("core:pack-subscribe", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_unsubscribe_returns_to_list(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:pack-unsubscribe", args=(pack.id,))
+        response = client.post(url, {"list_id": str(lst.id), "return_url": "list"})
+        assert response.status_code == 302
+        assert f"/list/{lst.id}/packs" in response.url
+
+
+@pytest.mark.django_db
+class TestListPacksManageView:
+    """Test the list packs management view."""
+
+    def test_manage_packs_page(self, client, cc_user, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:list-packs", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Content Packs" in response.content
+
+    def test_manage_packs_shows_subscribed(self, client, cc_user, make_list, pack):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:list-packs", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert pack.name.encode() in response.content
+
+    def test_manage_packs_add(self, client, cc_user, make_list, pack):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:list-packs", args=(lst.id,))
+        response = client.post(url, {"pack_id": str(pack.id), "action": "add"})
+        assert response.status_code == 302
+        lst.refresh_from_db()
+        assert pack in lst.packs.all()
+
+    def test_manage_packs_search(self, client, cc_user, make_list, pack):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:list-packs", args=(lst.id,))
+        response = client.get(url, {"q": "Test"})
+        assert response.status_code == 200
+        assert pack.name.encode() in response.content
+
+    def test_manage_packs_my_packs_filter(
+        self, client, cc_user, make_list, make_user, make_pack
+    ):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        my_pack = make_pack("My Pack")
+        other_user = make_user("otherpackowner", "password")
+        other_pack = make_pack("Other Pack", owner=other_user, listed=True)
+        url = reverse("core:list-packs", args=(lst.id,))
+        # Without filter: both visible
+        response = client.get(url)
+        assert my_pack.name.encode() in response.content
+        assert other_pack.name.encode() in response.content
+        # With filter: only own pack visible
+        response = client.get(url, {"my": "1"})
+        assert my_pack.name.encode() in response.content
+        assert other_pack.name.encode() not in response.content
+
+
+@pytest.mark.django_db
+class TestNewListPacksInterstitial:
+    """Test the pack selection interstitial during list creation."""
+
+    def test_cc_user_get_redirected_to_packs(self, client, cc_user, content_house):
+        """CC user visiting /lists/new GET is redirected to pack interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert response.url == reverse("core:lists-new-packs")
+
+    def test_cc_user_with_url_packs_sees_form(
+        self, client, cc_user, content_house, pack
+    ):
+        """CC user with packs in URL sees the new list form."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + f"?packs={pack.id}"
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Content Packs" in response.content
+        assert pack.name.encode() in response.content
+
+    def test_cc_user_skip_packs(self, client, cc_user, content_house):
+        """CC user with skip_packs=1 sees the form without redirect loop."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?skip_packs=1"
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_cc_user_invalid_packs_param_redirects(
+        self, client, cc_user, content_house
+    ):
+        """CC user with invalid (non-UUID) packs param is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?packs=not-a-uuid"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_cc_user_empty_packs_param_redirects(self, client, cc_user, content_house):
+        """CC user with empty packs param is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?packs="
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_cc_user_skip_packs_zero_redirects(self, client, cc_user, content_house):
+        """CC user with skip_packs=0 is redirected to interstitial."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?skip_packs=0"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/packs" in response.url
+
+    def test_user_redirected_to_packs_interstitial(
+        self, client, make_user, content_house
+    ):
+        """Any authenticated user is redirected to pack interstitial."""
+        other_user = make_user("regularuser", "password")
+        client.force_login(other_user)
+        url = reverse("core:lists-new")
+        response = client.get(url)
+        assert response.status_code == 302
+        assert response.url == reverse("core:lists-new-packs")
+
+    def test_packs_interstitial_page(self, client, cc_user, pack):
+        """Interstitial page shows available packs."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs")
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Content Packs" in response.content
+
+    def test_packs_interstitial_preselects_pack_from_query_param(
+        self, client, cc_user, pack
+    ):
+        """Visiting with ?pack=<id> pre-checks the matching pack checkbox."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs") + f"?pack={pack.id}"
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # The checkbox for this pack should be checked
+        assert f'value="{pack.id}"' in content
+        assert "checked" in content
+
+    def test_packs_interstitial_select_packs_then_create(
+        self, client, cc_user, content_house, pack
+    ):
+        """Selecting packs redirects with URL params, then creating list attaches them."""
+        client.force_login(cc_user)
+        # Step 1: Select packs on interstitial
+        url = reverse("core:lists-new-packs")
+        response = client.post(url, {"pack_ids": [str(pack.id)]})
+        assert response.status_code == 302
+        assert f"packs={pack.id}" in response.url
+
+        # Step 2: Create the list with packs in POST data
+        url = reverse("core:lists-new")
+        response = client.post(
+            url,
+            {
+                "name": "New List",
+                "content_house": content_house.id,
+                "public": True,
+                "packs": [str(pack.id)],
+            },
+        )
+        assert response.status_code == 302
+
+        # Verify list was created with packs attached
+        lst = List.objects.get(name="New List")
+        assert pack in lst.packs.all()
+
+    def test_packs_interstitial_skip(self, client, cc_user, content_house):
+        """Submitting with no packs redirects with skip_packs=1."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs")
+        response = client.post(url)
+        assert response.status_code == 302
+        assert "skip_packs=1" in response.url
+
+    def test_name_carried_to_interstitial_on_redirect(
+        self, client, cc_user, content_house
+    ):
+        """A name typed in the home-page quick-create box survives the redirect
+        to the pack interstitial (regression: name was dropped)."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + "?name=Shadowskin+Spectres"
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "name=Shadowskin+Spectres" in response.url
+
+    def test_name_rendered_on_interstitial(self, client, cc_user, content_house):
+        """The carried name is embedded in the interstitial forms so it survives
+        search submissions and the final pack selection."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs") + "?name=Shadowskin+Spectres"
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b'name="name" value="Shadowskin Spectres"' in response.content
+
+    def test_name_carried_through_pack_selection(
+        self, client, cc_user, content_house, pack
+    ):
+        """Posting the interstitial with a name carries it back to the new-list
+        form so it pre-fills the name field."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs")
+        response = client.post(
+            url, {"pack_ids": [str(pack.id)], "name": "Shadowskin Spectres"}
+        )
+        assert response.status_code == 302
+        assert "name=Shadowskin+Spectres" in response.url
+
+        # Following the redirect pre-fills the name on the new-list form
+        response = client.get(response.url)
+        assert response.status_code == 200
+        assert b'value="Shadowskin Spectres"' in response.content
+
+    def test_name_carried_through_skip_packs(self, client, cc_user, content_house):
+        """Skipping packs (no selection) still preserves the name."""
+        client.force_login(cc_user)
+        url = reverse("core:lists-new-packs")
+        response = client.post(url, {"name": "Shadowskin Spectres"})
+        assert response.status_code == 302
+        assert "skip_packs=1" in response.url
+        assert "name=Shadowskin+Spectres" in response.url
+
+    def test_carried_name_capped_to_max_length(self, client, cc_user, content_house):
+        """An over-long name is capped to List.name's max_length before being
+        placed in the redirect URL (avoids oversized URLs / invalid input)."""
+        max_length = List._meta.get_field("name").max_length
+        client.force_login(cc_user)
+        long_name = "x" * (max_length + 50)
+        url = reverse("core:lists-new-packs")
+        response = client.post(url, {"name": long_name})
+        assert response.status_code == 302
+        # The carried name in the redirect is no longer than the field allows
+        carried = parse_qs(urlparse(response.url).query).get("name", [""])[0]
+        assert len(carried) == max_length
+
+    def test_packs_interstitial_shows_other_users_preselected_pack(
+        self, client, make_user, make_pack
+    ):
+        """A pack owned by another user appears when pre-selected via ?pack=<id>.
+
+        Regression test for #1699: clicking "Use in new List" on another user's
+        pack should show it on the interstitial even though "Your Packs Only"
+        defaults to on.
+        """
+        viewer = make_user("viewer", "password")
+        pack_owner = make_user("packowner", "password")
+        other_pack = make_pack("Other Pack", owner=pack_owner, listed=True)
+
+        client.force_login(viewer)
+        url = reverse("core:lists-new-packs") + f"?pack={other_pack.id}"
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # The other user's pack must be visible and pre-checked
+        assert other_pack.name in content
+        assert f'value="{other_pack.id}"' in content
+        assert "checked" in content
+
+    def test_packs_interstitial_other_user_pack_not_shown_without_preselect(
+        self, client, make_user, make_pack
+    ):
+        """Without ?pack=<id>, another user's pack is hidden by default filter."""
+        viewer = make_user("viewer", "password")
+        pack_owner = make_user("packowner", "password")
+        other_pack = make_pack("Other Pack", owner=pack_owner, listed=True)
+
+        client.force_login(viewer)
+        url = reverse("core:lists-new-packs")
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # Without pre-selection, "Your Packs Only" hides other user's packs
+        assert other_pack.name not in content
+
+    def test_pack_house_appears_in_dropdown(self, client, cc_user, pack):
+        """Pack house appears in the House dropdown on the new list form."""
+        # Create a house that only exists inside the pack
+        pack_house = ContentHouse.objects.all_content().create(
+            name="Pack-Only House", generic=False
+        )
+        fighter = ContentFighter.objects.all_content().create(
+            type="Pack Ganger",
+            category=FighterCategoryChoices.GANGER,
+            house=pack_house,
+            base_cost=50,
+        )
+        from django.contrib.contenttypes.models import ContentType
+
+        # Add both house and fighter to the pack
+        house_ct = ContentType.objects.get_for_model(ContentHouse)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=house_ct,
+            object_id=pack_house.pk,
+            owner=pack.owner,
+        )
+        fighter_ct = ContentType.objects.get_for_model(ContentFighter)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=fighter_ct,
+            object_id=fighter.pk,
+            owner=pack.owner,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:lists-new") + f"?packs={pack.id}"
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Pack-Only House" in response.content
+        assert b"Content Pack" in response.content
+
+
+@pytest.mark.django_db
+class TestPackContentVisibility:
+    """Test that pack content is visible when a list is subscribed."""
+
+    def test_pack_fighter_not_visible_without_subscription(
+        self, pack_fighter, content_house
+    ):
+        """Pack fighter should not appear in default queryset."""
+        fighters = ContentFighter.objects.available_for_house(content_house)
+        assert pack_fighter not in fighters
+
+    def test_pack_fighter_visible_with_subscription(
+        self, make_list, pack, pack_fighter, content_house
+    ):
+        """Pack fighter should appear when list is subscribed to the pack."""
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        fighters = ContentFighter.objects.with_packs(
+            lst.packs.all()
+        ).available_for_house(content_house)
+        assert pack_fighter in fighters
+
+    def test_pack_rule_not_visible_without_subscription(self, pack_rule):
+        """Pack rule should not appear in default queryset."""
+        rules = ContentRule.objects.all()
+        assert pack_rule not in rules
+
+    def test_pack_rule_visible_with_subscription(self, make_list, pack, pack_rule):
+        """Pack rule should appear when list is subscribed to the pack."""
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        rules = ContentRule.objects.with_packs(lst.packs.all())
+        assert pack_rule in rules
+
+    def test_archived_pack_item_still_visible_to_subscriber(
+        self, make_list, pack, pack_fighter, content_house
+    ):
+        """Archiving the CustomContentPackItem must NOT hide it from subscribers (#1742).
+
+        Subscriber paths opt in with ``include_archived_items=True``.
+        """
+        item = CustomContentPackItem.objects.get(pack=pack, object_id=pack_fighter.pk)
+        item.archived = True
+        item.save()
+
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        fighters = ContentFighter.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        ).available_for_house(content_house)
+        assert pack_fighter in fighters
+
+    def test_items_in_archived_pack_still_visible_to_subscriber(
+        self, make_list, pack, pack_fighter, content_house
+    ):
+        """Archiving the pack itself must NOT hide its content from subscribers (#1742)."""
+        pack.archived = True
+        pack.save()
+
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        fighters = ContentFighter.objects.with_packs(
+            lst.packs.all(), include_archived_items=True
+        ).available_for_house(content_house)
+        assert pack_fighter in fighters
+
+    def test_list_detail_pack_content_map_includes_archived_item(
+        self, client, cc_user, make_list, pack, pack_fighter
+    ):
+        """ListDetailView's pack_content_map must include archived pack items (#1742)."""
+        item = CustomContentPackItem.objects.get(pack=pack, object_id=pack_fighter.pk)
+        item.archived = True
+        item.save()
+
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        pack_content_map = response.context["pack_content_map"]
+        assert pack_fighter.pk in pack_content_map
+        assert pack.name in pack_content_map[pack_fighter.pk]
+
+    def test_list_detail_pack_content_map_includes_items_from_archived_pack(
+        self, client, cc_user, make_list, pack, pack_fighter
+    ):
+        """An archived pack must still surface its items to subscribers (#1742)."""
+        pack.archived = True
+        pack.save()
+
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        pack_content_map = response.context["pack_content_map"]
+        assert pack_fighter.pk in pack_content_map
+        assert pack.name in pack_content_map[pack_fighter.pk]
+
+
+@pytest.mark.django_db
+class TestPackDetailViewSubscription:
+    """Test the pack detail view subscription UI."""
+
+    def test_pack_detail_shows_add_to_lists_link(
+        self, client, cc_user, pack, make_list
+    ):
+        client.force_login(cc_user)
+        make_list("Test List")
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        # "Add to…" dropdown contains a List link
+        assert b"Add to" in response.content
+        pack_lists_url = reverse("core:pack-lists", args=(pack.id,))
+        assert pack_lists_url.encode() in response.content
+
+    def test_pack_detail_shows_subscribed_badge(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Subscribed List")
+        lst.packs.add(pack)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        # Badge with count should appear in the "Add to…" dropdown
+        pack_lists_url = reverse("core:pack-lists", args=(pack.id,))
+        assert pack_lists_url.encode() in response.content
+
+
+@pytest.mark.django_db
+class TestPackListsView:
+    """Test the dedicated pack lists management page."""
+
+    def test_pack_lists_page(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        make_list("Test List")
+        url = reverse("core:pack-lists", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Test List" in response.content
+
+    def test_pack_lists_shows_subscribed(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Subscribed List")
+        lst.packs.add(pack)
+        url = reverse("core:pack-lists", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Subscribed List" in response.content
+        assert b"unsubscribe" in response.content
+
+    def test_pack_lists_shows_unsubscribed(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        make_list("Available List")
+        url = reverse("core:pack-lists", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Available List" in response.content
+        assert b"subscribe" in response.content
+
+    def test_subscribe_redirects_to_pack_lists(self, client, cc_user, pack, make_list):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:pack-subscribe", args=(pack.id,))
+        response = client.post(
+            url, {"list_id": str(lst.id), "return_url": "pack-lists"}
+        )
+        assert response.status_code == 302
+        assert f"/pack/{pack.id}/lists/" in response.url
+
+    def test_unsubscribe_redirects_to_pack_lists(
+        self, client, cc_user, pack, make_list
+    ):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:pack-unsubscribe", args=(pack.id,))
+        response = client.post(
+            url, {"list_id": str(lst.id), "return_url": "pack-lists"}
+        )
+        assert response.status_code == 302
+        assert f"/pack/{pack.id}/lists/" in response.url
+
+
+@pytest.mark.django_db
+class TestListDetailShowsPacks:
+    """Test that the list detail view shows subscribed packs."""
+
+    def test_list_detail_shows_pack_badge(self, client, cc_user, make_list, pack):
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        lst.packs.add(pack)
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Content Pack" in response.content
+
+    def test_list_detail_shows_add_pack_link_for_cc_owner(
+        self, client, cc_user, make_list
+    ):
+        """Owner sees 'Add Content Pack' when no packs."""
+        client.force_login(cc_user)
+        lst = make_list("Test List")
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Add Content Pack" in response.content
+
+    def test_list_detail_shows_add_pack_link_for_any_owner(
+        self, client, user, make_list
+    ):
+        """Any authenticated owner sees 'Add Content Pack' when no packs."""
+        client.force_login(user)
+        lst = make_list("Test List")
+        url = reverse("core:list", args=(lst.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Add Content Pack" in response.content
+
+
+@pytest.mark.django_db
+class TestPackDetailFighterDisplay:
+    """Test that pack detail page shows fighter stats, skills, rules, and equipment."""
+
+    def test_fighter_statline_shown(self, client, cc_user, pack, pack_fighter):
+        """Fighter stat values should be visible on the pack detail page."""
+        pack_fighter.movement = '5"'
+        pack_fighter.weapon_skill = "4+"
+        pack_fighter.ballistic_skill = "5+"
+        pack_fighter.strength = "3"
+        pack_fighter.toughness = "3"
+        pack_fighter.wounds = "1"
+        pack_fighter.save()
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert '5"' in content
+        assert "4+" in content
+        assert "5+" in content
+
+    def test_fighter_base_cost_shown(self, client, cc_user, pack, pack_fighter):
+        """Fighter base cost should be visible on the pack detail page."""
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        # pack_fighter has base_cost=50, rendered via {% credits %} formatter.
+        assert "50¢" in content
+
+    def test_fighter_skills_shown(
+        self, client, cc_user, pack, pack_fighter, make_content_skill
+    ):
+        """Fighter skills should be listed on the pack detail page."""
+        skill = make_content_skill("Parry", "Combat")
+        pack_fighter.skills.add(skill)
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Parry" in response.content
+
+    def test_fighter_rules_shown(self, client, cc_user, pack, pack_fighter):
+        """Fighter rules should be listed on the pack detail page."""
+        rule = ContentRule.objects.create(name="Gang Fighter (Ganger)")
+        pack_fighter.rules.add(rule)
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Gang Fighter (Ganger)" in response.content
+
+    def test_fighter_default_equipment_shown(
+        self, client, cc_user, pack, pack_fighter, make_equipment
+    ):
+        """Fighter default equipment should be listed on the pack detail page."""
+        from n23.content.models.default_assignment import (
+            ContentFighterDefaultAssignment,
+        )
+
+        gear = make_equipment("Flak Armour", category="Armour")
+        ContentFighterDefaultAssignment.objects.create(
+            fighter=pack_fighter,
+            equipment=gear,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Flak Armour" in response.content
+
+    def test_non_owner_sees_fighter_stats(self, client, make_user, pack, pack_fighter):
+        """Non-owner should also see fighter stats on the pack detail page."""
+        pack_fighter.movement = '4"'
+        pack_fighter.save()
+
+        other_user = make_user("other", "password")
+        client.force_login(other_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b'4"' in response.content
+
+
+@pytest.mark.django_db
+class TestPackDetailWeaponTraitDescriptions:
+    """Test that weapon trait descriptions are shown on the pack detail page."""
+
+    def test_weapon_trait_description_shown(self, client, cc_user, pack):
+        """Weapon trait descriptions should appear below the trait name."""
+        trait = ContentWeaponTrait.objects.create(
+            name="Blaze",
+            description="After being hit, roll a D6. On a 4+, the target is set ablaze.",
+        )
+        ct = ContentType.objects.get_for_model(ContentWeaponTrait)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ct,
+            object_id=trait.pk,
+            owner=cc_user,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Blaze" in content
+        assert "set ablaze" in content
+
+    def test_weapon_trait_without_description(self, client, cc_user, pack):
+        """Weapon traits without descriptions should still render without error."""
+        trait = ContentWeaponTrait.objects.create(
+            name="Knockback",
+            description="",
+        )
+        ct = ContentType.objects.get_for_model(ContentWeaponTrait)
+        CustomContentPackItem.objects.create(
+            pack=pack,
+            content_type=ct,
+            object_id=trait.pk,
+            owner=cc_user,
+        )
+
+        client.force_login(cc_user)
+        url = reverse("core:pack", args=(pack.id,))
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Knockback" in response.content

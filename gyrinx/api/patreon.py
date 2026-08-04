@@ -3,7 +3,7 @@ import logging
 from allauth.account.models import EmailAddress
 
 from gyrinx.badges import rank_for_tier_title
-from gyrinx.core.models.auth import PatreonStatus, UserProfile
+from n23.core.models.auth import PatreonStatus, UserProfile
 
 logger = logging.getLogger(__name__)
 

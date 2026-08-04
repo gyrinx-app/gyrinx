@@ -1,0 +1,518 @@
+"""Campaign list management views."""
+
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db import models, transaction
+from django.db.models import OuterRef, Subquery
+from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
+
+from gyrinx import messages
+from n23.core.utils import search_queryset
+from n23.core.models.campaign import (
+    Campaign,
+    CampaignAction,
+    CampaignAsset,
+)
+from n23.core.models.events import EventNoun, EventVerb, log_event
+from n23.core.models.invitation import CampaignInvitation
+from n23.core.models.list import List
+from n23.core.models.pack import CustomContentPack
+from gyrinx.tracker import track
+from n23.core.views.campaign.common import get_campaign_admin_or_404
+from n23.core.views.campaign.gang_sort import parse_gang_sort
+
+
+@login_required
+def campaign_add_lists(request, id):
+    """
+    Add lists to a campaign.
+
+    Allows the campaign owner to search for and add lists to their campaign.
+    Only available for campaigns in pre-campaign or in-progress status.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` being edited.
+    ``lists``
+        Available :model:`core.List` objects that can be added.
+    ``error_message``
+        None or a string describing a form error.
+
+    **Template**
+
+    :template:`core/campaign/campaign_add_lists.html`
+    """
+    campaign = get_campaign_admin_or_404(request, id)
+
+    # Check if campaign is in a state where lists can be added
+    if campaign.is_post_campaign:
+        messages.error(request, "Lists cannot be added to a completed campaign.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    error_message = None
+    show_pack_confirmation = False
+    pack_confirm_list = None
+    pack_confirm_packs = None
+
+    if request.method == "POST":
+        list_id = request.POST.get("list_id")
+        if list_id:
+            try:
+                list_to_add = List.objects.get(id=list_id)
+                # Check if user can add this list (either owner or public)
+                if list_to_add.owner == request.user or list_to_add.public:
+                    # Check if list is in campaign mode (cannot be cloned-from)
+                    if list_to_add.status == List.CAMPAIGN_MODE:
+                        error_message = (
+                            "Lists in campaign mode cannot be added to other campaigns."
+                        )
+                    else:
+                        is_valid, incompatible = campaign.validate_list_packs(
+                            list_to_add
+                        )
+                        if not is_valid and request.POST.get("add_packs") == "true":
+                            # User confirmed — add incompatible packs to campaign.
+                            # Enforce access rules: reject archived or unlisted packs
+                            # not owned by the current user.
+                            blocked = [
+                                p
+                                for p in incompatible
+                                if p.archived
+                                or (not p.listed and p.owner != request.user)
+                            ]
+                            if blocked:
+                                pack_names = ", ".join(p.name for p in blocked)
+                                error_message = (
+                                    f"Cannot add these Content Packs to the Campaign: {pack_names}. "
+                                    f"Remove them from the gang before adding it."
+                                )
+                            else:
+                                with transaction.atomic():
+                                    for pack in incompatible:
+                                        campaign.packs.add(pack)
+                                    is_valid = True
+                                    incompatible = []
+                        if error_message:
+                            pass  # Error already set — skip to rendering
+                        elif not is_valid:
+                            # Show inline confirmation prompt instead of error
+                            show_pack_confirmation = True
+                            pack_confirm_list = list_to_add
+                            pack_confirm_packs = incompatible
+                        else:
+                            # Check if an invitation already exists
+                            invitation, created = (
+                                CampaignInvitation.objects.get_or_create(
+                                    campaign=campaign,
+                                    list=list_to_add,
+                                    defaults={"owner": request.user},
+                                )
+                            )
+
+                            # Check for auto-accept condition (same owner)
+                            if campaign.owner == list_to_add.owner:
+                                # If invitation was declined, reset to pending so it can be accepted
+                                if invitation.is_declined:
+                                    invitation.status = CampaignInvitation.PENDING
+                                    invitation.save()  # Required to persist the status change
+
+                                # Try to accept the invitation
+                                try:
+                                    if invitation.accept():
+                                        messages.success(
+                                            request,
+                                            f"{list_to_add.name} has been added to the campaign.",
+                                        )
+
+                                        # Log the auto-accept event regardless of whether the invitation was just created
+                                        log_event(
+                                            user=request.user,
+                                            noun=EventNoun.CAMPAIGN_INVITATION,
+                                            verb=EventVerb.CREATE
+                                            if created
+                                            else EventVerb.UPDATE,
+                                            object=invitation,
+                                            request=request,
+                                            campaign_name=campaign.name,
+                                            list_invited_id=str(list_to_add.id),
+                                            list_invited_name=list_to_add.name,
+                                            list_owner=list_to_add.owner.username,
+                                            action="invitation_auto_accepted",
+                                        )
+
+                                        track(
+                                            "campaign_list_added",
+                                            campaign_id=str(campaign.id),
+                                        )
+                                    else:
+                                        # If accept() returned False, the invitation was already accepted
+                                        if (
+                                            invitation.is_accepted
+                                            and list_to_add in campaign.lists.all()
+                                        ):
+                                            messages.info(
+                                                request,
+                                                f"{list_to_add.name} is already in the campaign.",
+                                            )
+                                        else:
+                                            # Should not happen if we handled declined above, but fallback
+                                            messages.info(
+                                                request,
+                                                f"Could not add {list_to_add.name}.",
+                                            )
+                                except ValueError as e:
+                                    error_message = str(e)
+
+                            elif created:
+                                # Log the invitation creation event
+                                log_event(
+                                    user=request.user,
+                                    noun=EventNoun.CAMPAIGN_INVITATION,
+                                    verb=EventVerb.CREATE,
+                                    object=invitation,
+                                    request=request,
+                                    campaign_name=campaign.name,
+                                    list_invited_id=str(list_to_add.id),
+                                    list_invited_name=list_to_add.name,
+                                    list_owner=list_to_add.owner.username,
+                                    action="invitation_sent",
+                                )
+
+                                # Show success message
+                                messages.success(
+                                    request,
+                                    f"Invitation sent to {list_to_add.name}.",
+                                )
+                            else:
+                                # Check if the invitation is still pending
+                                if invitation.is_pending:
+                                    messages.info(
+                                        request,
+                                        f"An invitation for {list_to_add.name} is already pending.",
+                                    )
+                                elif invitation.is_accepted:
+                                    # Check if the list is actually in the campaign
+                                    if list_to_add in campaign.lists.all():
+                                        messages.info(
+                                            request,
+                                            f"{list_to_add.name} has already accepted the invitation and is in the campaign.",
+                                        )
+                                    else:
+                                        # List was removed, reset invitation to pending
+                                        invitation.status = CampaignInvitation.PENDING
+                                        invitation.save()
+                                        messages.success(
+                                            request,
+                                            f"Invitation re-sent to {list_to_add.name}.",
+                                        )
+                                elif invitation.is_declined:
+                                    # Reset declined invitation to pending
+                                    invitation.status = CampaignInvitation.PENDING
+                                    invitation.save()
+                                    messages.success(
+                                        request,
+                                        f"Invitation re-sent to {list_to_add.name}.",
+                                    )
+                            # Redirect to the same page with the search params preserved
+                            query_params = []
+                            if request.GET.get("q"):
+                                query_params.append(f"q={request.GET.get('q')}")
+                            if request.GET.get("owner"):
+                                query_params.append(f"owner={request.GET.get('owner')}")
+                            query_str = "&".join(query_params)
+                            return HttpResponseRedirect(
+                                reverse("core:campaign-add-lists", args=(campaign.id,))
+                                + (f"?{query_str}" if query_str else "")
+                            )
+                else:
+                    error_message = "You can only add your own lists or public lists."
+            except List.DoesNotExist:
+                error_message = "List not found."
+
+    # Get lists that can be added (user's own lists or public lists)
+    # Only show lists in list building mode and not archived
+    lists = List.objects.filter(
+        (models.Q(owner=request.user) | models.Q(public=True))
+        & models.Q(status=List.LIST_BUILDING)
+        & models.Q(archived=False)
+    )
+
+    # When we show the set of available lists, we want to exclude those that are already
+    # in the campaign, and those that have pending/accepted invitations.
+
+    # First, get the most recent invitation for each list to this campaign
+
+    # Subquery to get the most recent invitation's ID for each list
+    most_recent_invitation = (
+        CampaignInvitation.objects.filter(campaign=campaign, list=OuterRef("list_id"))
+        .order_by("-created")
+        .values("id")[:1]
+    )
+
+    # Get the list IDs where the most recent invitation is pending
+    pending_invitation_list_ids = CampaignInvitation.objects.filter(
+        id__in=Subquery(most_recent_invitation),
+        status=CampaignInvitation.PENDING,
+    ).values_list("list_id", flat=True)
+
+    # Exclude both pending invitations and lists that are already in the campaign
+    excluded_list_ids = list(pending_invitation_list_ids)
+
+    # If the campaign has started, exclude lists that have been cloned into it
+    if campaign.is_in_progress or campaign.is_post_campaign:
+        # The campaign lists have original_list pointing to the source lists
+        cloned_original_ids = campaign.lists.values_list("original_list_id", flat=True)
+        lists = lists.exclude(id__in=cloned_original_ids)
+    else:
+        # Pre-campaign: exclude lists that are directly added
+        lists = lists.exclude(id__in=campaign.lists.values_list("id", flat=True))
+
+    # Apply search filter if provided
+    if request.GET.get("q"):
+        lists = search_queryset(
+            lists,
+            request.GET.get("q"),
+            ["name", "content_house__name", "owner__username"],
+        )
+
+    # Filter by owner type
+    owner_filter = request.GET.get("owner", "all")
+    if owner_filter == "mine":
+        lists = lists.filter(owner=request.user)
+    elif owner_filter == "others":
+        # Only show public lists from other users
+        lists = lists.filter(public=True).exclude(owner=request.user)
+
+    # Filter by pack compatibility
+    if request.GET.get("packs") == "matching" and campaign.packs.exists():
+        campaign_pack_ids = set(campaign.packs.values_list("id", flat=True))
+        # Exclude lists that have ANY pack not in the campaign's allowed set
+        disallowed_packs = CustomContentPack.objects.exclude(id__in=campaign_pack_ids)
+        lists = lists.exclude(packs__in=disallowed_packs)
+
+    # Exclude and order by name
+    lists = (
+        lists.exclude(id__in=excluded_list_ids)
+        .select_related("content_house", "owner")
+        .prefetch_related("packs")
+        .order_by("name")
+    )
+
+    # Paginate the results
+    paginator = Paginator(lists, 20)  # Show 20 lists per page
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    # Get current campaign lists for display
+    current_lists = campaign.lists.select_related("owner", "content_house").order_by(
+        "name"
+    )
+
+    # Get pending invitations for display
+    pending_invitations = (
+        CampaignInvitation.objects.filter(
+            campaign=campaign, status=CampaignInvitation.PENDING
+        )
+        .select_related("list", "list__owner", "list__content_house")
+        .order_by("-created")
+    )
+
+    campaign_packs_qs = campaign.packs.all()
+
+    return render(
+        request,
+        "core/campaign/campaign_add_lists.html",
+        {
+            "campaign": campaign,
+            # Anyone who reaches this view passed the admin gate.
+            "is_admin": True,
+            "lists": page_obj,  # Pass the page object instead of the full queryset
+            "page_obj": page_obj,  # Also pass page_obj for pagination controls
+            "error_message": error_message,
+            "current_lists": current_lists,
+            "pending_invitations": pending_invitations,
+            "campaign_packs": campaign_packs_qs,
+            "has_campaign_packs": campaign_packs_qs.exists(),
+            "show_pack_confirmation": show_pack_confirmation,
+            "pack_confirm_list": pack_confirm_list,
+            "pack_confirm_packs": pack_confirm_packs,
+        },
+    )
+
+
+@login_required
+@transaction.atomic
+def campaign_remove_list(request, id, list_id):
+    """
+    Remove a list from a campaign.
+
+    Allows a campaign admin or the list owner to remove a list from a campaign.
+    The list is disconnected from the campaign and archived if in campaign mode.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` being edited.
+    ``list``
+        The :model:`core.List` being removed.
+
+    **Template**
+
+    :template:`core/campaign/campaign_remove_list.html`
+    """
+    campaign = get_object_or_404(Campaign, id=id)
+    list_to_remove = get_object_or_404(List, id=list_id)
+
+    # Check permissions - campaign admin or list owner can remove
+    if not campaign.is_admin(request.user) and request.user != list_to_remove.owner:
+        messages.error(
+            request, "You don't have permission to remove this list from the campaign."
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Check if the list is actually in this campaign
+    if list_to_remove not in campaign.lists.all():
+        messages.error(request, "This list is not in this campaign.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Don't allow removal from post-campaign
+    if campaign.is_post_campaign:
+        messages.error(request, "Lists cannot be removed from a completed campaign.")
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # Don't allow removing a gang that's still joining — its background clone hasn't
+    # finished, and removing a CLONING_IN_PROGRESS stub would skip the archive branch
+    # below and orphan a half-built clone (#1222).
+    if list_to_remove.is_cloning:
+        messages.error(
+            request,
+            "This gang is still joining the campaign. Please wait until it has finished joining before removing it.",
+        )
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    if request.method == "POST":
+        # Store list info for logging before removal
+        list_name = list_to_remove.name
+        list_house = (
+            list_to_remove.content_house.name if list_to_remove.content_house else ""
+        )
+        list_owner_username = list_to_remove.owner.username
+
+        # Un-assign any campaign assets held by this list
+        assets_unassigned_count = 0
+        for asset in CampaignAsset.objects.filter(
+            holder=list_to_remove, asset_type__campaign=campaign
+        ):
+            asset.holder = None
+            asset.save()
+            assets_unassigned_count += 1
+
+        # Create campaign action for list removal
+        CampaignAction.objects.create(
+            campaign=campaign,
+            user=request.user,
+            list=list_to_remove,
+            description=f"Gang '{list_name}' has been removed from the campaign by {request.user.username}",
+            owner=request.user,
+        )
+
+        # Remove the list from the campaign
+        campaign.lists.remove(list_to_remove)
+
+        # If the list is in campaign mode, archive it
+        archive_message = ""
+        if list_to_remove.status == List.CAMPAIGN_MODE:
+            list_to_remove.archived = True
+            list_to_remove.campaign = None  # Clear the campaign field
+            list_to_remove.save()
+            archive_message = " and archived"
+
+        # Log the removal event
+        log_event(
+            user=request.user,
+            noun=EventNoun.CAMPAIGN,
+            verb=EventVerb.REMOVE,
+            object=campaign,
+            request=request,
+            campaign_name=campaign.name,
+            list_removed_id=str(list_to_remove.id),
+            list_removed_name=list_name,
+            list_owner=list_owner_username,
+        )
+
+        track("campaign_list_removed", campaign_id=str(campaign.id))
+
+        # Show success message
+        house_text = f" ({list_house})" if list_house else ""
+        messages.success(
+            request,
+            f"{list_name}{house_text} has been removed from the campaign{archive_message}.",
+        )
+
+        return HttpResponseRedirect(reverse("core:campaign", args=(campaign.id,)))
+
+    # GET request - show confirmation page
+    return render(
+        request,
+        "core/campaign/campaign_remove_list.html",
+        {
+            "campaign": campaign,
+            "list": list_to_remove,
+        },
+    )
+
+
+@login_required
+def campaign_set_default_gang_sort(request, id):
+    """
+    Store the campaign's default ordering for the Gangs table (#1459).
+
+    Accepts a POST with ``sort`` — a gang sort token such as ``-wealth`` or
+    ``-resource:<resource type id>``. Anyone can reorder their own view of the
+    table with ``?sort=``; this makes the current choice the one every viewer
+    gets by default.
+
+    **Context**
+
+    ``campaign``
+        The :model:`core.Campaign` being updated.
+    """
+    campaign = get_campaign_admin_or_404(request, id)
+    redirect_url = reverse("core:campaign", args=(campaign.id,)) + "#gangs"
+
+    if campaign.archived:
+        messages.error(request, "Cannot modify an archived Campaign.")
+        return HttpResponseRedirect(redirect_url)
+
+    if request.method != "POST":
+        return HttpResponseRedirect(redirect_url)
+
+    resource_types = campaign.resource_types.all()
+    gang_sort = parse_gang_sort(request.POST.get("sort", ""), resource_types)
+    if not gang_sort:
+        messages.error(request, "That's not a sort we can save.")
+        return HttpResponseRedirect(redirect_url)
+
+    campaign.default_gang_sort = gang_sort.token
+    campaign.save_with_user(user=request.user)
+
+    log_event(
+        user=request.user,
+        noun=EventNoun.CAMPAIGN,
+        verb=EventVerb.UPDATE,
+        object=campaign,
+        request=request,
+        campaign_id=str(campaign.id),
+        campaign_name=campaign.name,
+        action="set_default_gang_sort",
+        gang_sort=gang_sort.token,
+    )
+
+    messages.success(
+        request,
+        f"Gangs now sort by {gang_sort.label} ({gang_sort.direction_label}) by default.",
+    )
+    return HttpResponseRedirect(redirect_url)

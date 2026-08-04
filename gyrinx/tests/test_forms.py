@@ -3,8 +3,8 @@
 import pytest
 from django import forms
 
-from gyrinx.content.models import ContentFighter, ContentHouse
-from gyrinx.core.forms import BsCheckboxSelectMultipleCompact
+from n23.content.models import ContentFighter, ContentHouse
+from n23.core.forms import BsCheckboxSelectMultipleCompact
 from gyrinx.forms import fighter_group_key, group_select, group_sorter
 from gyrinx.models import FighterCategoryChoices
 

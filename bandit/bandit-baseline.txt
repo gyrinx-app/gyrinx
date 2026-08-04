@@ -1,31 +1,154 @@
-Run started:2025-06-29 13:08:33.566356
+Run started:2026-08-04 14:55:55.958231+00:00
 
 Test results:
+>> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
+   Severity: Medium   Confidence: High
+   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./gyrinx/pages/templatetags/pages.py:302:11
+301	    # Mark the output as safe so Django doesn't escape the HTML
+302	    return mark_safe(str(soup))
+
+--------------------------------------------------
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./gyrinx/pages/templatetags/pages.py:302:11
+301	    # Mark the output as safe so Django doesn't escape the HTML
+302	    return mark_safe(str(soup))
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'n23.core.forms.ResetPasswordForm'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
+   Location: ./gyrinx/settings.py:301:4
+300	ACCOUNT_FORMS = {
+301	    "reset_password": "n23.core.forms.ResetPasswordForm",
+302	    "login": "n23.core.forms.LoginForm",
+303	    "signup": "n23.core.forms.SignupForm",
+304	}
+305	# Custom setting to (dis)allow signups
+306	ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+
+--------------------------------------------------
 >> Issue: [B324:hashlib] Use of weak MD5 hash for security. Consider usedforsecurity=False
    Severity: High   Confidence: High
    CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b324_hashlib.html
-   Location: ./gyrinx/content/management/utils.py:125:21
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html
+   Location: ./n23/content/management/utils.py:125:21
 124	def stable_uuid(v):
 125	    return uuid.UUID(hashlib.md5(v.encode()).hexdigest()[:32])
 126
 
 --------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
    Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/forms/advancement.py:266:31
-265	            if available_skills.exists():
-266	                random_skill = random.choice(available_skills)
-267	                self.initial["skill_id"] = random_skill.id
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./n23/core/management/commands/prodshell.py:5:0
+4	import socket
+5	import subprocess
+6	import sys
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/prodshell.py:81:17
+80	    def _check_gcloud_auth(self):
+81	        result = subprocess.run(
+82	            ["gcloud", "auth", "print-access-token"],
+83	            capture_output=True,
+84	            text=True,
+85	        )
+86	        if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/prodshell.py:102:17
+101	        """Check that Application Default Credentials are valid."""
+102	        result = subprocess.run(
+103	            ["gcloud", "auth", "application-default", "print-access-token"],
+104	            capture_output=True,
+105	            text=True,
+106	        )
+107	        if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/prodshell.py:119:17
+118	        """Fetch DB credentials from the Cloud Run service environment."""
+119	        result = subprocess.run(
+120	            [
+121	                "gcloud",
+122	                "run",
+123	                "services",
+124	                "describe",
+125	                CLOUD_RUN_SERVICE,
+126	                f"--region={GCP_REGION}",
+127	                f"--project={project}",
+128	                "--format=json",
+129	            ],
+130	            capture_output=True,
+131	            text=True,
+132	        )
+133	        if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/prodshell.py:194:17
+193	        """Fetch a secret value from Google Cloud Secret Manager."""
+194	        result = subprocess.run(
+195	            [
+196	                "gcloud",
+197	                "secrets",
+198	                "versions",
+199	                "access",
+200	                version,
+201	                f"--secret={secret_name}",
+202	                f"--project={project}",
+203	            ],
+204	            capture_output=True,
+205	            text=True,
+206	        )
+207	        if result.returncode != 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/prodshell.py:218:24
+217	        instance_connection = f"{project}:{GCP_REGION}:{CLOUD_SQL_INSTANCE}"
+218	        proxy_process = subprocess.Popen(
+219	            [
+220	                "cloud-sql-proxy",
+221	                instance_connection,
+222	                f"--port={port}",
+223	            ],
+224	            stdout=subprocess.DEVNULL,
+225	            stderr=subprocess.PIPE,
+226	        )
+227
 
 --------------------------------------------------
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_imports.html#b404-import-subprocess
-   Location: ./gyrinx/core/management/commands/update_claude_secrets.py:2:0
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./n23/core/management/commands/update_claude_secrets.py:2:0
 1	import json
 2	import subprocess
 3	from datetime import datetime
@@ -34,8 +157,8 @@ Test results:
 >> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b607_start_process_with_partial_path.html
-   Location: ./gyrinx/core/management/commands/update_claude_secrets.py:116:21
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/update_claude_secrets.py:116:21
 115	            # Use security command to get the password from keychain
 116	            result = subprocess.run(
 117	                ["security", "find-generic-password", "-s", self.KEYCHAIN_NAME, "-w"],
@@ -49,8 +172,8 @@ Test results:
 >> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b607_start_process_with_partial_path.html
-   Location: ./gyrinx/core/management/commands/update_claude_secrets.py:162:21
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/update_claude_secrets.py:162:21
 161	            # Get the remote URL
 162	            result = subprocess.run(
 163	                ["git", "remote", "get-url", "origin"],
@@ -64,8 +187,8 @@ Test results:
 >> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b607_start_process_with_partial_path.html
-   Location: ./gyrinx/core/management/commands/update_claude_secrets.py:201:25
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/update_claude_secrets.py:201:25
 200	                # The secret value is passed via stdin to avoid command line exposure
 201	                result = subprocess.run(
 202	                    ["gh", "secret", "set", secret_name, "-R", repo],
@@ -80,8 +203,8 @@ Test results:
 >> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b607_start_process_with_partial_path.html
-   Location: ./gyrinx/core/management/commands/update_claude_secrets.py:241:21
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./n23/core/management/commands/update_claude_secrets.py:241:21
 240	        try:
 241	            result = subprocess.run(
 242	                ["gh", "secret", "list", "-R", repo],
@@ -95,235 +218,105 @@ Test results:
 >> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
    Severity: Low   Confidence: High
    CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/models/campaign.py:269:33
-268	        if self.dice_count > 0:
-269	            self.dice_results = [random.randint(1, 6) for _ in range(self.dice_count)]
-270	            self.dice_total = sum(self.dice_results)
-
---------------------------------------------------
->> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
-   Severity: Medium   Confidence: High
-   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b703_django_mark_safe.html
-   Location: ./gyrinx/core/templatetags/color_tags.py:19:15
-18	    if theme_color:
-19	        return mark_safe(
-20	            f'<span class="d-inline-block rounded {extra_classes}" '
-21	            f'style="width: {size}; height: {size}; '
-22	            f"background-color: {theme_color}; "
-23	            f'border: 1px solid rgba(0,0,0,0.15);"></span>'
-24	        )
-25	    else:
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./gyrinx/core/templatetags/color_tags.py:19:15
-18	    if theme_color:
-19	        return mark_safe(
-20	            f'<span class="d-inline-block rounded {extra_classes}" '
-21	            f'style="width: {size}; height: {size}; '
-22	            f"background-color: {theme_color}; "
-23	            f'border: 1px solid rgba(0,0,0,0.15);"></span>'
-24	        )
-25	    else:
-
---------------------------------------------------
->> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
-   Severity: Medium   Confidence: High
-   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b703_django_mark_safe.html
-   Location: ./gyrinx/core/templatetags/color_tags.py:42:15
-41	        square = theme_square(list_obj, extra_classes="me-1", size=square_size)
-42	        return mark_safe(f'<span class="{extra_classes}">{square}{name}</span>')
-43	    else:
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./gyrinx/core/templatetags/color_tags.py:42:15
-41	        square = theme_square(list_obj, extra_classes="me-1", size=square_size)
-42	        return mark_safe(f'<span class="{extra_classes}">{square}{name}</span>')
-43	    else:
-
---------------------------------------------------
->> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
-   Severity: Medium   Confidence: High
-   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b703_django_mark_safe.html
-   Location: ./gyrinx/core/templatetags/color_tags.py:44:15
-43	    else:
-44	        return mark_safe(f'<span class="{extra_classes}">{name}</span>')
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./gyrinx/core/templatetags/color_tags.py:44:15
-43	    else:
-44	        return mark_safe(f'<span class="{extra_classes}">{name}</span>')
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b311-random
+   Location: ./n23/core/models/campaign.py:586:33
+585	        if self.dice_count > 0:
+586	            self.dice_results = [random.randint(1, 6) for _ in range(self.dice_count)]
+587	            self.dice_total = sum(self.dice_results)
 
 --------------------------------------------------
 >> Issue: [B324:hashlib] Use of weak SHA1 hash for security. Consider usedforsecurity=False
    Severity: High   Confidence: High
    CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b324_hashlib.html
-   Location: ./gyrinx/core/templatetags/custom_tags.py:164:24
-163
-164	    search_value_hash = hashlib.sha1(search_value.encode("utf-8")).hexdigest()
-165	    cache_key = f"ref_{search_value_hash}"
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html
+   Location: ./n23/core/templatetags/custom_tags.py:255:24
+254
+255	    search_value_hash = hashlib.sha1(search_value.encode("utf-8")).hexdigest()
+256	    cache_key = f"ref_{search_value_hash}"
 
 --------------------------------------------------
 >> Issue: [B324:hashlib] Use of weak SHA1 hash for security. Consider usedforsecurity=False
    Severity: High   Confidence: High
    CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b324_hashlib.html
-   Location: ./gyrinx/core/templatetags/custom_tags.py:170:19
-169	        kwargs["category"] = category
-170	        cat_hash = hashlib.sha1(category.encode("utf-8")).hexdigest()
-171	        cache_key += f"_{cat_hash}"
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html
+   Location: ./n23/core/templatetags/custom_tags.py:261:19
+260	        kwargs["category"] = category
+261	        cat_hash = hashlib.sha1(category.encode("utf-8")).hexdigest()
+262	        cache_key += f"_{cat_hash}"
 
 --------------------------------------------------
 >> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
    Severity: Medium   Confidence: High
    CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b703_django_mark_safe.html
-   Location: ./gyrinx/core/templatetags/custom_tags.py:204:11
-203
-204	    return mark_safe(code)
-205
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./n23/core/templatetags/custom_tags.py:294:11
+293
+294	    return mark_safe(code)
+295
 
 --------------------------------------------------
 >> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
    Severity: Medium   Confidence: High
    CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./gyrinx/core/templatetags/custom_tags.py:204:11
-203
-204	    return mark_safe(code)
-205
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./n23/core/templatetags/custom_tags.py:294:11
+293
+294	    return mark_safe(code)
+295
 
 --------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/__init__.py:131:18
-130	        dict(
-131	            dice=[randint(0, 5) % mod + 1 for _ in range(group[0])],
-132	            firepower=[randint(1, 6) for _ in range(group[1])],
-
---------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/__init__.py:132:23
-131	            dice=[randint(0, 5) % mod + 1 for _ in range(group[0])],
-132	            firepower=[randint(1, 6) for _ in range(group[1])],
-133	            injury=[randint(1, 6) for _ in range(group[2])],
-
---------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/__init__.py:133:20
-132	            firepower=[randint(1, 6) for _ in range(group[1])],
-133	            injury=[randint(1, 6) for _ in range(group[2])],
-134	            dice_n=group[0],
-
---------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/list.py:2299:24
-2298	                # Roll 2d6 and create campaign action
-2299	                dice1 = random.randint(1, 6)
-2300	                dice2 = random.randint(1, 6)
-
---------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/list.py:2300:24
-2299	                dice1 = random.randint(1, 6)
-2300	                dice2 = random.randint(1, 6)
-2301	                total = dice1 + dice2
-
---------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/list.py:2783:35
-2782	                    # Pick a random skill from the available ones
-2783	                    random_skill = random.choice(available_skills)
-2784
-
---------------------------------------------------
->> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
-   Severity: Low   Confidence: High
-   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b311-random
-   Location: ./gyrinx/core/views/list.py:3178:31
-3177	                        # Roll D6 for this item
-3178	                        roll = random.randint(1, 6)
-3179	                        dice_rolls.append(roll)
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./n23/core/templatetags/custom_tags.py:394:11
+393	def dot():
+394	    return mark_safe("&nbsp;·&nbsp;")
+395
 
 --------------------------------------------------
 >> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
    Severity: Medium   Confidence: High
    CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b703_django_mark_safe.html
-   Location: ./gyrinx/pages/templatetags/pages.py:235:11
-234	    # Mark the output as safe so Django doesn't escape the HTML
-235	    return mark_safe(str(soup))
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./n23/core/templatetags/custom_tags.py:755:11
+754
+755	    return mark_safe(cleaned)
+756
 
 --------------------------------------------------
 >> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
    Severity: Medium   Confidence: High
    CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./gyrinx/pages/templatetags/pages.py:235:11
-234	    # Mark the output as safe so Django doesn't escape the HTML
-235	    return mark_safe(str(soup))
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./n23/core/templatetags/custom_tags.py:755:11
+754
+755	    return mark_safe(cleaned)
+756
 
 --------------------------------------------------
->> Issue: [B110:try_except_pass] Try, Except, Pass detected.
-   Severity: Low   Confidence: High
-   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b110_try_except_pass.html
-   Location: ./gyrinx/pages/views.py:50:8
-49	            entry = WaitingListEntry.objects.filter(pk=wlid).first()
-50	        except Exception:
-51	            pass
-52
+>> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
+   Severity: Medium   Confidence: High
+   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./n23/core/templatetags/custom_tags.py:790:11
+789	    stripped = text.strip()
+790	    return mark_safe(stripped) if isinstance(value, SafeData) else stripped
 
 --------------------------------------------------
->> Issue: [B110:try_except_pass] Try, Except, Pass detected.
-   Severity: Low   Confidence: High
-   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b110_try_except_pass.html
-   Location: ./gyrinx/pages/views.py:93:8
-92	            entry = WaitingListEntry.objects.filter(pk=wlid).first()
-93	        except Exception:
-94	            pass
-95
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./n23/core/templatetags/custom_tags.py:790:11
+789	    stripped = text.strip()
+790	    return mark_safe(stripped) if isinstance(value, SafeData) else stripped
 
 --------------------------------------------------
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/blacklists/blacklist_imports.html#b404-import-subprocess
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
    Location: ./scripts/screenshot.py:20:0
 19	import os
 20	import subprocess
@@ -333,7 +326,7 @@ Test results:
 >> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
    Severity: Low   Confidence: High
    CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
-   More Info: https://bandit.readthedocs.io/en/1.8.5/plugins/b607_start_process_with_partial_path.html
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
    Location: ./scripts/screenshot.py:85:12
 84	        try:
 85	            subprocess.run(
@@ -347,19 +340,19 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 13662
-	Total lines skipped (#nosec): 0
-	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+	Total lines of code: 71086
+	Total lines skipped (#nosec): 4
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 56
 
 Run metrics:
 	Total issues (by severity):
 		Undefined: 0
-		Low: 18
-		Medium: 10
+		Low: 15
+		Medium: 9
 		High: 3
 	Total issues (by confidence):
 		Undefined: 0
 		Low: 0
-		Medium: 0
-		High: 31
+		Medium: 1
+		High: 26
 Files skipped (0):

@@ -7,7 +7,7 @@ They are built on `CaptureQueriesContext` and work even when `DEBUG=False`.
 
 ```python
 from gyrinx.query import capture_queries, log_query_info
-from gyrinx.core.models import MyModel
+from n23.core.models import MyModel
 
 # Capture queries executed inside the lambda
 result, info = capture_queries(lambda: MyModel.objects.filter(foo="bar").count())
@@ -72,7 +72,7 @@ This helps catch N+1 issues or overly expensive ORM patterns.
 ```python
 import pytest
 from gyrinx.query import capture_queries
-from gyrinx.core.models import MyModel
+from n23.core.models import MyModel
 
 
 @pytest.mark.django_db

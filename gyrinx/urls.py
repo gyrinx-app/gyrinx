@@ -23,8 +23,8 @@ from django.contrib.admindocs import urls as admindocs_urls
 from django.urls import include, path, re_path
 
 from gyrinx.admin_site import admin_gated_patterns
-from gyrinx.core.views import debug as debug_views
-from gyrinx.core.views import print_lab as print_lab_views
+from n23.core.views import debug as debug_views
+from n23.core.views import print_lab as print_lab_views
 from gyrinx.pages import views
 
 admin.site.site_header = "Gyrinx Admin"
@@ -74,7 +74,7 @@ urlpatterns = (
     debug_toolbar_urls()
     + [
         path("robots.txt", views.robots_txt, name="robots_txt"),
-        path("", include("gyrinx.core.urls")),
+        path("", include("n23.core.urls")),
         path("api/", include("gyrinx.api.urls")),
         path("tasks/", include("gyrinx.tasks.urls")),
         path("accounts/", include("allauth.urls")),

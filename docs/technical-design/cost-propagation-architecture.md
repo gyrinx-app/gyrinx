@@ -316,7 +316,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from gyrinx.core.models.list import (
+    from n23.core.models.list import (
         List,
         ListFighter,
         ListFighterEquipmentAssignment,
@@ -605,7 +605,7 @@ When a Content model's cost field changes, mark the affected tree dirty:
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 
-from gyrinx.content.models import ContentEquipment, ContentWeaponProfile, ...
+from n23.content.models import ContentEquipment, ContentWeaponProfile, ...
 
 
 COST_FIELDS = {
@@ -649,7 +649,7 @@ def _mark_tree_dirty(model_class, instance):
     """
     Mark all affected assignments, fighters, and lists as dirty.
     """
-    from gyrinx.core.models.list import (
+    from n23.core.models.list import (
         List, ListFighter, ListFighterEquipmentAssignment
     )
 

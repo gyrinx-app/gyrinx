@@ -10,7 +10,7 @@ Usage:
     3. Enqueue with task.enqueue(...)
 
 Example:
-    # In gyrinx/core/tasks.py
+    # In n23/core/tasks.py
     from django.tasks import task
 
     @task
@@ -20,7 +20,7 @@ Example:
 
     # In gyrinx/tasks/registry.py
     from gyrinx.tasks import TaskRoute
-    from gyrinx.core.tasks import send_welcome_email
+    from n23.core.tasks import send_welcome_email
 
     tasks = [
         TaskRoute(send_welcome_email),

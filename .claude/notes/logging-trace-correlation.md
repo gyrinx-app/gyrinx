@@ -293,7 +293,7 @@ def get_trace_context():
 # gyrinx/core/logging/formatters.py
 import json
 import logging
-from gyrinx.core.middleware.trace import get_trace_context
+from n23.core.middleware.trace import get_trace_context
 
 class GCPStructuredFormatter(logging.Formatter):
     """Format logs as structured JSON for GCP Cloud Logging"""
@@ -327,7 +327,7 @@ Then configure in settings:
 
 ```python
 MIDDLEWARE = [
-    "gyrinx.core.middleware.trace.TraceContextMiddleware",  # Add near the top
+    "n23.core.middleware.trace.TraceContextMiddleware",  # Add near the top
     # ... rest of middleware
 ]
 
@@ -336,7 +336,7 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {
         "gcp_json": {
-            "()": "gyrinx.core.logging.formatters.GCPStructuredFormatter",
+            "()": "n23.core.logging.formatters.GCPStructuredFormatter",
         },
     },
     "handlers": {

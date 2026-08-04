@@ -243,7 +243,7 @@ import json
 import logging
 from datetime import datetime
 
-from gyrinx.core.middleware.trace import get_trace_context
+from n23.core.middleware.trace import get_trace_context
 
 
 class GCPStructuredFormatter(logging.Formatter):
@@ -308,7 +308,7 @@ Modify `gyrinx/settings.py`:
 # Add middleware (near the top of MIDDLEWARE list)
 MIDDLEWARE = [
     "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
-    "gyrinx.core.middleware.trace.TraceContextMiddleware",  # Add this
+    "n23.core.middleware.trace.TraceContextMiddleware",  # Add this
     "django.middleware.security.SecurityMiddleware",
     # ... rest of middleware
 ]
@@ -320,7 +320,7 @@ if not DEBUG:
         "disable_existing_loggers": False,
         "formatters": {
             "gcp_json": {
-                "()": "gyrinx.core.logging.formatters.GCPStructuredFormatter",
+                "()": "n23.core.logging.formatters.GCPStructuredFormatter",
             },
         },
         "handlers": {

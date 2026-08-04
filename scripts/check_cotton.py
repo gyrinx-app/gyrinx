@@ -5,10 +5,13 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-TEMPLATE_ROOT = ROOT / "gyrinx"
+# Trees holding first-party templates: the platform shell and each edition
+# package. Both are scanned for call sites; omitting one makes this gate pass
+# while silently ignoring everything in it.
+TEMPLATE_ROOTS = [ROOT / "gyrinx", ROOT / "n23"]
 COTTON_DIRS = [
-    TEMPLATE_ROOT / "templates" / "cotton",
-    TEMPLATE_ROOT / "core" / "templates" / "cotton",
+    ROOT / "gyrinx" / "templates" / "cotton",
+    ROOT / "n23" / "core" / "templates" / "cotton",
 ]
 
 COMMENT = re.compile(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.S)
@@ -77,7 +80,7 @@ def line_of(src, pos):
 def main():
     problems = []
     cache = {}
-    for path in sorted(TEMPLATE_ROOT.rglob("*.html")):
+    for path in sorted(p for root in TEMPLATE_ROOTS for p in root.rglob("*.html")):
         # The component test harness writes uuid-named host templates into
         # gyrinx/templates/_cotton_test_host/ and deletes them again. They
         # deliberately contain the broken shapes these rules exist to forbid,

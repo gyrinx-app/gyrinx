@@ -5,7 +5,7 @@ Add your tasks here, similar to Django's urlpatterns.
 
 Usage:
     from gyrinx.tasks import TaskRoute
-    from gyrinx.core.tasks import send_welcome_email, generate_report
+    from n23.core.tasks import send_welcome_email, generate_report
 
     tasks = [
         TaskRoute(send_welcome_email),
@@ -28,12 +28,12 @@ def _get_tasks() -> list[TaskRoute]:
     Lazily load and cache the task list.
 
     This avoids circular imports that occur when importing task functions
-    at module level (gyrinx.core.tasks uses @task decorator from django.tasks,
+    at module level (n23.core.tasks uses @task decorator from django.tasks,
     which triggers backend loading, which imports this registry).
     """
     global _tasks
     if _tasks is None:
-        from gyrinx.core.tasks import (
+        from n23.core.tasks import (
             backfill_pins,
             complete_campaign_list_clone,
             reconcile_all_lists,

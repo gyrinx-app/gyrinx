@@ -19,7 +19,7 @@ from django.tasks import task
 @task
 def send_notification(user_id: str, message: str):
     """Send a notification to a user."""
-    from gyrinx.core.models import User
+    from n23.core.models import User
 
     user = User.objects.get(pk=user_id)
     # ... send notification logic
@@ -28,12 +28,12 @@ def send_notification(user_id: str, message: str):
 1. **Register the task** in `gyrinx/tasks/registry.py`:
 
 ```python
-from gyrinx.core.tasks import send_notification
+from n23.core.tasks import send_notification
 
 def _get_tasks() -> list[TaskRoute]:
     global _tasks
     if _tasks is None:
-        from gyrinx.core.tasks import (
+        from n23.core.tasks import (
             # ... existing imports
             send_notification,
         )
@@ -48,7 +48,7 @@ def _get_tasks() -> list[TaskRoute]:
 1. **Enqueue the task** from your application code:
 
 ```python
-from gyrinx.core.tasks import send_notification
+from n23.core.tasks import send_notification
 
 # Enqueue for async execution
 send_notification.enqueue(user_id=str(user.pk), message="Welcome!")
@@ -233,7 +233,7 @@ There is no Pub/Sub locally — the [`DatabaseBackend`](../../gyrinx/tasks/local
 Under pytest the backend is `DatabaseBackend` in `eager` mode, so `enqueue()` runs the task synchronously — no Pub/Sub, no threads, no emulator:
 
 ```python
-from gyrinx.core.tasks import refresh_list_facts
+from n23.core.tasks import refresh_list_facts
 
 # Runs synchronously and returns once the task has executed.
 refresh_list_facts.enqueue("list-uuid-here")
@@ -335,7 +335,7 @@ Set `TASKS_FAULT_SEED` to make the injected chaos reproducible, and `TASKS_WORKE
 
 ```python
 # Get the arguments from the failed message
-from gyrinx.core.tasks import my_task
+from n23.core.tasks import my_task
 
 # Call directly to see the full traceback
 my_task("arg1", "arg2")

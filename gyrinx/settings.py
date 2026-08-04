@@ -51,7 +51,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY
 SECRET_KEY = os.getenv("SECRET_KEY")
 CSRF_COOKIE_SECURE = True
-CSRF_FAILURE_VIEW = "gyrinx.core.views.csrf_failure"
+CSRF_FAILURE_VIEW = "n23.core.views.csrf_failure"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -153,8 +153,8 @@ INSTALLED_APPS = [
     # Disable Django's static file handling in favour of WhiteNoise in dev
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
-    "gyrinx.core",
-    "gyrinx.content",
+    "n23.core",
+    "n23.content",
     "gyrinx.analytics",
     # Must be loaded AFTER gyrinx.analytics so MaintenanceAdminSite extends
     # AnalyticsAdminSite (see gyrinx/maintenance/admin.py).
@@ -171,13 +171,13 @@ MIDDLEWARE = [
     "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
     # Clears the thread-local the next middleware sets; must sit above it so
     # the clear runs after the response (threads are reused under gunicorn).
-    "gyrinx.core.middleware.ClearLoggingRequestMiddleware",
+    "n23.core.middleware.ClearLoggingRequestMiddleware",
     # Google Cloud Logging - must be early to capture request for trace correlation
     "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     # Catch RequestDataTooBig early and return 400 instead of 500
-    "gyrinx.core.middleware.RequestSizeExceptionMiddleware",
+    "n23.core.middleware.RequestSizeExceptionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -190,7 +190,7 @@ MIDDLEWARE = [
     "allauth.usersessions.middleware.UserSessionsMiddleware",
     # Admin impersonation overlay — after auth/allauth (so request.user is the real
     # admin when we authorize), before simple-history (so the swap is attributed).
-    "gyrinx.core.middleware.ImpersonationMiddleware",
+    "n23.core.middleware.ImpersonationMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # CSP
@@ -208,7 +208,7 @@ TEMPLATES = [
             # Include the root templates directory where we
             # can override templates from django across all apps
             BASE_DIR / "gyrinx/templates",
-            BASE_DIR / "gyrinx/core/templates",
+            BASE_DIR / "n23/core/templates",
             BASE_DIR / "gyrinx/pages/templates",
         ],
         "APP_DIRS": True,
@@ -218,10 +218,10 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "gyrinx.core.context_processors.site_banner",
-                "gyrinx.core.context_processors.gyrinx_debug",
-                "gyrinx.core.context_processors.notifications",
-                "gyrinx.core.context_processors.impersonation",
+                "n23.core.context_processors.site_banner",
+                "n23.core.context_processors.gyrinx_debug",
+                "n23.core.context_processors.notifications",
+                "n23.core.context_processors.impersonation",
             ],
         },
     },
@@ -296,11 +296,11 @@ ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_USERNAME_BLACKLIST = ["admin", "superuser", "staff", "user", "gyrinx"]
 ACCOUNT_CHANGE_EMAIL = True
 ACCOUNT_EMAIL_UNKNOWN_ACCOUNTS = False
-ACCOUNT_ADAPTER = "gyrinx.core.adapter.CustomAccountAdapter"
+ACCOUNT_ADAPTER = "n23.core.adapter.CustomAccountAdapter"
 ACCOUNT_FORMS = {
-    "reset_password": "gyrinx.core.forms.ResetPasswordForm",
-    "login": "gyrinx.core.forms.LoginForm",
-    "signup": "gyrinx.core.forms.SignupForm",
+    "reset_password": "n23.core.forms.ResetPasswordForm",
+    "login": "n23.core.forms.LoginForm",
+    "signup": "n23.core.forms.SignupForm",
 }
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"

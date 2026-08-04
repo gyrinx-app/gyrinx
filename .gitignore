@@ -9,8 +9,8 @@ venv/
 *.egg-info/
 *.sqlite3
 css/
-gyrinx/core/static/core/css/styles.css
-gyrinx/core/static/core/css/styles.css.map
+n23/core/static/core/css/styles.css
+n23/core/static/core/css/styles.css.map
 performance_view_queries_latest.json
 dist/
 /node_modules/
