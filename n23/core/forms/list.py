@@ -953,6 +953,17 @@ class EditListFighterStatsForm(forms.Form):
             for stat_def in statline.statline_type.stats.all():
                 field_name = f"stat_{stat_def.id}"
                 initial_value = existing_overrides.get(stat_def.id, "")
+                if not initial_value:
+                    # A legacy *_override with no EAV row still drives the
+                    # card (the statline falls back to it), so it must be
+                    # visible and editable here. Saving migrates it: the
+                    # value becomes an EAV row and the legacy field is
+                    # cleared by the save path. Covers the window between
+                    # statline materialisation (#1861 C1) and the override
+                    # migration (C2).
+                    initial_value = (
+                        getattr(fighter, f"{stat_def.field_name}_override", None) or ""
+                    )
 
                 # Get the base value from ContentStatline
                 try:

@@ -519,6 +519,19 @@ class MaintenanceAdminSite(admin.site.__class__):
                 return HttpResponseRedirect(
                     reverse("admin:maintenance_backfill_detail", args=[running.id])
                 )
+            # Run order is one-way: once a template has a statline, this tool
+            # can no longer normalise its values — a wrong order silently and
+            # permanently loses the normalisation. Refuse unless forced.
+            if build_format_plan() and request.POST.get("force") != "on":
+                messages.error(
+                    request,
+                    "Un-normalised values remain. Run the format "
+                    "normalisation first, or tick the override to copy "
+                    "them verbatim anyway.",
+                )
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_materialise_statlines")
+                )
             try:
                 record, created, skipped = run_materialise(triggered_by=request.user)
                 note = f"Created {len(created)} statline(s)."
@@ -541,6 +554,15 @@ class MaintenanceAdminSite(admin.site.__class__):
 
         entries = build_statline_plan()
         remaining_formats = build_format_plan()
+        # A ListFighterStatOverride on a statline-less template is inert
+        # today, but the moment the statline exists it outranks the legacy
+        # override and the card changes. The display-preservation claim
+        # rests on this being zero; the operator must see it if not.
+        from n23.core.models.list import ListFighterStatOverride
+
+        orphan_eav = ListFighterStatOverride.objects.filter(
+            list_fighter__content_fighter__custom_statline__isnull=True
+        ).count()
         ctx = {
             **self.each_context(request),
             "title": "Materialise statlines for legacy templates",
@@ -549,6 +571,7 @@ class MaintenanceAdminSite(admin.site.__class__):
             # Surfaced so the operator sees un-normalised values before they
             # get copied verbatim into the new statlines.
             "remaining_formats": remaining_formats,
+            "orphan_eav": orphan_eav,
         }
         return render(request, "admin/maintenance/materialise_statlines.html", ctx)
 

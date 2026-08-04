@@ -192,8 +192,8 @@ def test_fighter_cards_are_unchanged_including_the_annotated_path(
         plain = ListFighter.objects.get(pk=pk)
         fast = ListFighter.objects.filter(pk=pk).with_related_data().get()
         return (
-            [(s.field_name, s.value) for s in plain.statline],
-            [(s.field_name, s.value) for s in fast.statline],
+            [(s.field_name, s.name, s.value, s.highlight) for s in plain.statline],
+            [(s.field_name, s.name, s.value, s.highlight) for s in fast.statline],
         )
 
     before_plain, before_fast = card(fighter.pk)
@@ -206,7 +206,7 @@ def test_fighter_cards_are_unchanged_including_the_annotated_path(
     assert after_fast == before_fast
     # The override survives: no EAV override row exists, so the legacy
     # field is still the fallback
-    assert ("weapon_skill", "2+") in after_plain
+    assert any(x[0] == "weapon_skill" and x[2] == "2+" for x in after_plain)
 
 
 @pytest.mark.django_db
@@ -244,7 +244,8 @@ def test_runs_record_their_outcomes(make_content_fighter, content_house, fighter
     assert record.operation == Backfill.Operation.NORMALISE_STAT_FORMATS
     assert record.status == Backfill.Status.DONE
     assert record.summary["applied"] == len(applied) >= 1
-    assert record.summary["changes"][0]["new"] == "4+"
+    ours = [c for c in record.summary["changes"] if c["stat"] == "weapon_skill"]
+    assert ours and ours[0]["new"] == "4+"
 
     record, created, _ = run_materialise()
     assert record.operation == Backfill.Operation.MATERIALISE_STATLINES
@@ -305,3 +306,107 @@ def test_runs_are_visible_as_running_while_in_flight(
     monkeypatch.setattr(mod, "apply_statline_plan", spying_apply)
     run_materialise()
     assert seen["running"] is True
+
+
+@pytest.mark.django_db
+def test_a_content_edit_between_planning_and_applying_is_not_frozen(
+    make_content_fighter, content_house, fighter_type
+):
+    """The statline outranks the columns the moment it exists, so it must be
+    written from the values at write time, not planning time."""
+    cf = make_cf(make_content_fighter, content_house)
+    entries = [e for e in build_statline_plan() if e.cf_id == str(cf.id)]
+
+    type(cf).objects.all_content().filter(pk=cf.pk).update(toughness="5")
+
+    apply_statline_plan(entries)
+    row = cf.custom_statline.stats.get(statline_type_stat__stat__field_name="toughness")
+    assert row.value == "5"
+
+
+@pytest.mark.django_db
+def test_an_oversized_value_fails_the_run_loudly(
+    make_content_fighter, content_house, fighter_type
+):
+    """Legacy columns allow 12 chars, statline rows 10 — never truncate."""
+    cf = make_cf(make_content_fighter, content_house, movement="123456789012")
+    entries = [e for e in build_statline_plan() if e.cf_id == str(cf.id)]
+
+    with pytest.raises(RuntimeError, match="max_length"):
+        apply_statline_plan(entries)
+    cf = type(cf).objects.all_content().get(pk=cf.pk)
+    assert not hasattr(cf, "custom_statline")
+
+
+@pytest.mark.django_db
+def test_an_orphan_eav_override_documents_why_the_preview_warns(
+    user, make_list, make_list_fighter, fighter_type
+):
+    """An EAV override on a statline-less template flips from inert to
+    outranking the legacy override when the statline appears. Zero such rows
+    exist in prod; the materialise preview counts them so an operator sees
+    any that appear before committing."""
+    from n23.core.models.list import ListFighterStatOverride
+
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Orphan EAV Fighter")
+    fighter.weapon_skill_override = "2+"
+    fighter.save()
+    ws = fighter_type.stats.get(stat__field_name="weapon_skill")
+    ListFighterStatOverride.objects.create(
+        list_fighter=fighter, content_stat=ws, value="6+", owner=user
+    )
+
+    assert shown(fighter, "weapon_skill") == "2+"  # EAV row inert today
+
+    run_materialise()
+
+    assert shown(fighter, "weapon_skill") == "6+"  # now it outranks
+
+
+def shown(fighter, stat):
+    from n23.core.models.list import ListFighter
+
+    fresh = ListFighter.objects.get(pk=fighter.pk)
+    for entry in fresh.statline:
+        if entry.field_name == stat:
+            return entry.value
+    raise AssertionError(f"{stat} missing")
+
+
+@pytest.mark.django_db
+def test_stats_form_shows_and_migrates_a_legacy_override(
+    client, user, make_list, make_list_fighter, fighter_type
+):
+    """C1→C2 window: the owner must be able to see AND clear their override.
+
+    Before: post-materialise the EAV form rendered empty while the card kept
+    showing the legacy value, and blanking the form did not clear it.
+    """
+    from n23.core.models.list import ListFighterStatOverride
+
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Windowed Fighter")
+    fighter.weapon_skill_override = "2+"
+    fighter.save()
+    run_materialise()
+
+    client.force_login(user)
+    url = f"/list/{lst.id}/fighter/{fighter.id}/stats"
+    response = client.get(url)
+    assert response.status_code == 200
+    ws_field = [
+        f
+        for f in response.context["form"].fields.values()
+        if getattr(f, "stat_def", None) is not None
+        and f.stat_def.field_name == "weapon_skill"
+    ]
+    assert ws_field and ws_field[0].initial == "2+"
+
+    # Saving with every field blank genuinely clears the override
+    response = client.post(url, {})
+    assert response.status_code == 302
+    fighter.refresh_from_db()
+    assert fighter.weapon_skill_override is None
+    assert not ListFighterStatOverride.objects.filter(list_fighter=fighter).exists()
+    assert shown(fighter, "weapon_skill") != "2+"

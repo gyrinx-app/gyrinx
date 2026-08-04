@@ -20,6 +20,14 @@
         values copied verbatim, blanks written as <code>-</code>. Display-preserving:
         no fighter's card should change. #1861 Track C1.
     </p>
+    {% if orphan_eav %}
+        <p class="mt-warn">
+            {{ orphan_eav }} fighter stat override{{ orphan_eav|pluralize }} exist on
+            statline-less templates. Creating those statlines will make these
+            overrides start outranking the legacy ones — <strong>those cards will
+            change</strong>. Investigate before applying.
+        </p>
+    {% endif %}
     {% if remaining_formats %}
         <p class="mt-warn">
             {{ remaining_formats|length }} un-normalised value{{ remaining_formats|length|pluralize }}
@@ -54,6 +62,15 @@
         </table>
         <form method="post">
             {% csrf_token %}
+            {% if remaining_formats %}
+                <p>
+                    <label>
+                        <input type="checkbox" name="force">
+                        Copy the {{ remaining_formats|length }} un-normalised
+                        value{{ remaining_formats|length|pluralize }} verbatim anyway
+                    </label>
+                </p>
+            {% endif %}
             <button type="submit" class="default">Create statlines</button>
         </form>
     {% else %}

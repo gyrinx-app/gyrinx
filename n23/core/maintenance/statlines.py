@@ -28,8 +28,9 @@ Display preservation is the bar, and it dictates two non-obvious choices:
   Python EAV branch, and the fast path. This also means Stash templates get
   statlines of dashes — which leaves C3/C4 with zero legacy-branch users.
 
-Writes here bypass simple-history (queryset ``update`` / bulk creates); the
-Backfill record enumerates every change and is the audit trail.
+The normalise updates and the bulk-created stat rows bypass simple-history
+(the statline creation itself does not); the Backfill record enumerates every
+change and is the audit trail.
 """
 
 import logging
@@ -58,7 +59,7 @@ STAT_FIELDS = [
 
 FIGHTER_STATLINE_TYPE = "Fighter"
 
-_BARE_INT = re.compile(r"^\d+$")
+_BARE_INT = re.compile(r"\d+", re.ASCII)
 
 
 @dataclass
@@ -83,14 +84,24 @@ class StatlineEntry:
 
 
 def _stat_flags():
+    """Classification flags for the 12 stats, failing loudly if any is missing.
+
+    A silently missing row would mean a stat is quietly never normalised —
+    the silent-no-match shape this work keeps getting burned by. all_content
+    so a pack-owned stat definition cannot vanish either.
+    """
     from n23.content.models.statline import ContentStat
 
-    return {
+    flags = {
         s["field_name"]: s
-        for s in ContentStat.objects.filter(field_name__in=STAT_FIELDS).values(
-            "field_name", "is_target", "is_inches"
-        )
+        for s in ContentStat.objects.all_content()
+        .filter(field_name__in=STAT_FIELDS)
+        .values("field_name", "is_target", "is_inches")
     }
+    missing = [s for s in STAT_FIELDS if s not in flags]
+    if missing:
+        raise RuntimeError(f"No ContentStat row for: {missing}")
+    return flags
 
 
 def _statline_less_fighters():
@@ -119,9 +130,7 @@ def build_format_plan():
             value = (getattr(cf, stat) or "").strip()
             if not _BARE_INT.fullmatch(value):
                 continue
-            f = flags.get(stat)
-            if not f:
-                continue
+            f = flags[stat]
             if f["is_target"]:
                 suffix = "+"
             elif f["is_inches"]:
@@ -235,10 +244,34 @@ def apply_statline_plan(entries):
 
     statline_type, by_field = fighter_statline_type()
 
+    from n23.content.models import ContentFighter
+
+    max_len = ContentStatlineStat._meta.get_field("value").max_length
+
     created, skipped = [], []
     for entry in entries:
         try:
             with transaction.atomic():
+                # Values are re-read here, not taken from the plan: the new
+                # statline outranks the legacy columns the moment it exists,
+                # so a content edit landing between planning and writing
+                # would otherwise be frozen at its pre-edit value — the same
+                # hazard the normalise CAS exists to prevent.
+                cf = (
+                    ContentFighter.objects.all_content()
+                    .only(*STAT_FIELDS)
+                    .get(pk=entry.cf_id)
+                )
+                fresh = {}
+                for stat in STAT_FIELDS:
+                    raw = getattr(cf, stat) or ""
+                    fresh[stat] = raw if raw.strip() else "-"
+                too_long = {s: v for s, v in fresh.items() if len(v) > max_len}
+                if too_long:
+                    raise RuntimeError(
+                        f"{entry.cf_type}: value(s) exceed "
+                        f"ContentStatlineStat.value max_length={max_len}: {too_long}"
+                    )
                 statline = ContentStatline.objects.create(
                     content_fighter_id=entry.cf_id, statline_type=statline_type
                 )
@@ -248,7 +281,7 @@ def apply_statline_plan(entries):
                         statline_type_stat=by_field[stat],
                         value=value,
                     )
-                    for stat, value in entry.values.items()
+                    for stat, value in fresh.items()
                 )
         except IntegrityError:
             # Only the expected race is skippable: a statline appearing
@@ -311,7 +344,13 @@ def run_normalise(*, triggered_by=None):
             "applied": len(applied),
             "skipped_edited_mid_run": len(skipped),
             "changes": [
-                {"type": f.cf_type, "stat": f.stat, "old": f.old, "new": f.new}
+                {
+                    "cf_id": f.cf_id,
+                    "type": f.cf_type,
+                    "stat": f.stat,
+                    "old": f.old,
+                    "new": f.new,
+                }
                 for f in applied
             ],
         },
@@ -331,7 +370,12 @@ def run_materialise(*, triggered_by=None):
             "skipped_gained_statline_mid_run": len(skipped),
             "all_blank_templates": sum(1 for e in created if e.blank_count == 12),
             "templates": [
-                {"type": e.cf_type, "house": e.house, "blank_stats": e.blank_count}
+                {
+                    "cf_id": e.cf_id,
+                    "type": e.cf_type,
+                    "house": e.house,
+                    "blank_stats": e.blank_count,
+                }
                 for e in created
             ],
         },

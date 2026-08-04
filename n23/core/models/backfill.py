@@ -35,11 +35,11 @@ class Backfill(models.Model):
         )
         NORMALISE_STAT_FORMATS = (
             "normalise_stat_formats",
-            "Normalise legacy stat-column formats (#1861 C0)",
+            "Normalise legacy stat-column formats (#1861 Track C1)",
         )
         MATERIALISE_STATLINES = (
             "materialise_statlines",
-            "Materialise statlines for legacy templates (#1861 C1)",
+            "Materialise statlines for legacy templates (#1861 Track C1)",
         )
 
     class Status(models.TextChoices):

@@ -326,12 +326,19 @@ def _fighter_statline_type():
     )
     from n23.core.maintenance.statlines import STAT_FIELDS
 
+    # Metadata mirrors content.0156 — divergent hand-mirrors are a trap for
+    # any future display assertion added in this file.
+    highlighted = {"leadership", "cool", "willpower", "intelligence"}
     statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
     for position, field_name in enumerate(STAT_FIELDS, start=1):
         ContentStatlineTypeStat.objects.get_or_create(
             statline_type=statline_type,
             stat=ContentStat.objects.get(field_name=field_name),
-            defaults={"position": position},
+            defaults={
+                "position": position,
+                "is_highlighted": field_name in highlighted,
+                "is_first_of_group": field_name == "leadership",
+            },
         )
     return statline_type
 
@@ -382,3 +389,33 @@ def test_materialise_apply_creates_statlines_and_a_record(make_user, content_fig
     assert record.summary["created"] >= 1
     content_fighter.refresh_from_db()
     assert content_fighter.custom_statline.stats.count() == 12
+
+
+@pytest.mark.django_db
+def test_materialise_refuses_out_of_order_unless_forced(make_user, content_fighter):
+    """Materialising before normalising silently loses the normalisation."""
+    from n23.content.models import ContentFighter
+
+    superuser = make_user("c1super3", "pw")
+    superuser.is_staff = superuser.is_superuser = True
+    superuser.save()
+    _fighter_statline_type()
+    ContentFighter.objects.all_content().filter(pk=content_fighter.pk).update(
+        weapon_skill="4"
+    )
+
+    client = Client()
+    client.force_login(superuser)
+    url = reverse("admin:maintenance_materialise_statlines")
+
+    response = client.post(url)
+    assert response.status_code == 302
+    assert response["Location"] == url
+    assert not Backfill.objects.filter(
+        operation=Backfill.Operation.MATERIALISE_STATLINES
+    ).exists()
+
+    response = client.post(url, {"force": "on"})
+    assert response.status_code == 302
+    record = Backfill.objects.get(operation=Backfill.Operation.MATERIALISE_STATLINES)
+    assert record.status == Backfill.Status.DONE
