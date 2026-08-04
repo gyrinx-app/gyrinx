@@ -93,7 +93,7 @@ def test_campaigns_link_visible_for_group_members(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b'href="/campaigns/"' in response.content
+    assert b'href="/n23/campaigns/"' in response.content
     assert b">Campaigns</a>" in response.content
 
 
@@ -107,7 +107,7 @@ def test_campaigns_link_visible_for_all_authenticated_users(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b'href="/campaigns/"' in response.content
+    assert b'href="/n23/campaigns/"' in response.content
     assert b">Campaigns</a>" in response.content
 
 

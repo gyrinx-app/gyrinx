@@ -24,49 +24,30 @@ from django.urls import include, path, re_path
 
 from gyrinx.admin_site import admin_gated_patterns
 from gyrinx.pages import views
-from n23.core.views import debug as debug_views
-from n23.core.views import print_lab as print_lab_views
+from gyrinx import views_debug
 
 admin.site.site_header = "Gyrinx Admin"
 
-# Debug URLs - always registered, views check DEBUG and return 404 if disabled.
-# This ensures consistent URL routing in parallel test workers where DEBUG
-# may be False at import time but True via @override_settings.
+# Platform debug URLs — always registered; the views themselves check DEBUG and
+# 404 when it is off, so routing stays identical in parallel test workers where
+# DEBUG may be False at import time but True via @override_settings.
+# The edition's debug routes (balance sheet, list actions, print lab) live under
+# /n23/_debug/ with the rest of the edition.
 _debug_urls = [
     path(
         "_debug/test-plans/",
-        debug_views.debug_test_plan_index,
+        views_debug.debug_test_plan_index,
         name="debug_test_plans",
     ),
     path(
         "_debug/test-plans/<str:filename>",
-        debug_views.debug_test_plan_detail,
+        views_debug.debug_test_plan_detail,
         name="debug_test_plan_detail",
     ),
     path(
         "_debug/design-system/",
-        debug_views.debug_design_system,
+        views_debug.debug_design_system,
         name="debug_design_system",
-    ),
-    path(
-        "_debug/list/<uuid:list_id>/actions/",
-        debug_views.debug_list_actions,
-        name="debug_list_actions",
-    ),
-    path(
-        "_debug/list/<uuid:list_id>/balance-sheet/",
-        debug_views.debug_list_balance_sheet,
-        name="debug_list_balance_sheet",
-    ),
-    path(
-        "_debug/print-lab/",
-        print_lab_views.print_lab,
-        name="debug_print_lab",
-    ),
-    path(
-        "_debug/print-lab/sheet/",
-        print_lab_views.print_lab_sheet,
-        name="debug_print_lab_sheet",
     ),
 ]
 

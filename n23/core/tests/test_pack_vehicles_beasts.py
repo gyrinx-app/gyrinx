@@ -145,13 +145,13 @@ def _step1_post(client, pack, **overrides):
         "base_cost": "150",
     }
     data.update(overrides)
-    return client.post(f"/pack/{pack.id}/add/fighter/", data)
+    return client.post(f"/n23/pack/{pack.id}/add/fighter/", data)
 
 
 def _step2_post(client, pack, params, stats=None):
     """Submit Step 2 (stats) of the pack create-fighter flow."""
     qs = "&".join(f"{k}={v}" for k, v in params.items())
-    return client.post(f"/pack/{pack.id}/add/fighter/stats/?{qs}", stats or {})
+    return client.post(f"/n23/pack/{pack.id}/add/fighter/stats/?{qs}", stats or {})
 
 
 def _create_pack_fighter_full(client, pack, *, type_, category, base_cost, house_id):
@@ -687,7 +687,7 @@ def test_default_assignment_picker_includes_pack_vehicle(
     )
     # And a regular pack ganger to be the parent
     ganger_response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Goliath Ganger",
             "category": "GANGER",
@@ -697,7 +697,7 @@ def test_default_assignment_picker_includes_pack_vehicle(
     )
     assert ganger_response.status_code == 302
     client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Goliath+Ganger&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=60",
         {},
@@ -745,7 +745,7 @@ def test_default_assignment_post_accepts_pack_vehicle(
     )
 
     client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Goliath Ganger",
             "category": "GANGER",
@@ -754,7 +754,7 @@ def test_default_assignment_post_accepts_pack_vehicle(
         },
     )
     client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Goliath+Ganger&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=60",
         {},
@@ -817,7 +817,7 @@ def test_default_vehicle_assignment_spawns_child_when_fighter_hired(
 
     # Add a custom ganger and give them a default vehicle assignment.
     client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Goliath Driver",
             "category": "GANGER",
@@ -826,7 +826,7 @@ def test_default_vehicle_assignment_spawns_child_when_fighter_hired(
         },
     )
     client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Goliath+Driver&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=60",
         {},

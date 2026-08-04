@@ -44,7 +44,7 @@ def test_customisation_link_visible_for_authenticated_users(client, user):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b'href="/packs/"' in response.content
+    assert b'href="/n23/packs/"' in response.content
     assert b">Customisation</a>" in response.content
 
 
@@ -54,7 +54,7 @@ def test_customisation_link_visible_for_anonymous(client):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert b'href="/packs/"' in response.content
+    assert b'href="/n23/packs/"' in response.content
     assert b">Customisation</a>" in response.content
 
 
@@ -64,7 +64,7 @@ def test_customisation_link_visible_for_anonymous(client):
 @pytest.mark.django_db
 def test_packs_index_loads_for_anonymous(client, pack):
     """Test that the packs index page loads for anonymous users."""
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     # Anonymous users see listed packs
     assert b"Test Pack" in response.content
@@ -74,7 +74,7 @@ def test_packs_index_loads_for_anonymous(client, pack):
 def test_packs_index_hides_unlisted_from_anonymous(client, group_user):
     """Test that anonymous users don't see unlisted packs."""
     CustomContentPack.objects.create(name="Secret Pack", listed=False, owner=group_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     assert b"Secret Pack" not in response.content
 
@@ -83,7 +83,7 @@ def test_packs_index_hides_unlisted_from_anonymous(client, group_user):
 def test_packs_index_loads(client, group_user):
     """Test that the packs index page loads."""
     client.force_login(group_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
 
 
@@ -91,7 +91,7 @@ def test_packs_index_loads(client, group_user):
 def test_packs_index_shows_own_packs(client, group_user, pack):
     """Test that the index shows the user's own packs by default."""
     client.force_login(group_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     assert b"Test Pack" in response.content
 
@@ -102,7 +102,7 @@ def test_packs_index_hides_other_users_packs(client, group_user, make_user):
     other_user = make_user("other", "password")
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
     client.force_login(group_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     assert b"Other Pack" not in response.content
 
@@ -113,7 +113,7 @@ def test_packs_index_shows_listed_packs_when_my_off(client, group_user, make_use
     other_user = make_user("other", "password")
     CustomContentPack.objects.create(name="Other Pack", listed=True, owner=other_user)
     client.force_login(group_user)
-    response = client.get("/packs/?my=0")
+    response = client.get("/n23/packs/?my=0")
     assert response.status_code == 200
     assert b"Other Pack" in response.content
 
@@ -144,7 +144,7 @@ def test_packs_index_shows_own_packs_when_my_off(client, group_user, make_user):
     )
 
     client.force_login(group_user)
-    response = client.get("/packs/?my=0")
+    response = client.get("/n23/packs/?my=0")
     assert response.status_code == 200
     # Own unlisted pack should still be visible
     assert b"My Unlisted Pack" in response.content
@@ -162,7 +162,7 @@ def test_packs_index_search(client, group_user):
     CustomContentPack.objects.create(name="Alpha Pack", owner=group_user)
     CustomContentPack.objects.create(name="Beta Pack", owner=group_user)
     client.force_login(group_user)
-    response = client.get("/packs/?q=Alpha")
+    response = client.get("/n23/packs/?q=Alpha")
     assert response.status_code == 200
     assert b"Alpha Pack" in response.content
     assert b"Beta Pack" not in response.content
@@ -183,7 +183,7 @@ def test_packs_index_shows_featured_packs(client, group_user, make_user):
         owner=other_user,
     )
     client.force_login(group_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     assert b"Featured Pack" in response.content
 
@@ -200,7 +200,7 @@ def test_packs_index_hides_featured_packs_during_search(client, group_user, make
         owner=other_user,
     )
     client.force_login(group_user)
-    response = client.get("/packs/?q=something")
+    response = client.get("/n23/packs/?q=something")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Featured" not in content or "Featured Pack" not in content
@@ -219,7 +219,7 @@ def test_featured_pack_description_falls_back_to_summary(client, group_user, mak
         owner=other_user,
     )
     client.force_login(group_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     assert b"The summary text" in response.content
 
@@ -230,7 +230,7 @@ def test_featured_pack_description_falls_back_to_summary(client, group_user, mak
 @pytest.mark.django_db
 def test_pack_detail_loads_for_anonymous(client, pack):
     """Test that the pack detail page loads for anonymous users (listed pack)."""
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Test Pack" in response.content
 
@@ -238,7 +238,7 @@ def test_pack_detail_loads_for_anonymous(client, pack):
 @pytest.mark.django_db
 def test_pack_detail_hides_buttons_for_anonymous(client, pack):
     """Test that action buttons are hidden for anonymous users."""
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Use in new List" not in response.content
     assert b"bi-pencil" not in response.content
@@ -250,7 +250,7 @@ def test_pack_detail_unlisted_returns_404_for_anonymous(client, group_user):
     unlisted = CustomContentPack.objects.create(
         name="Secret Pack", listed=False, owner=group_user
     )
-    response = client.get(f"/pack/{unlisted.id}")
+    response = client.get(f"/n23/pack/{unlisted.id}")
     assert response.status_code == 404
 
 
@@ -258,7 +258,7 @@ def test_pack_detail_unlisted_returns_404_for_anonymous(client, group_user):
 def test_pack_detail_loads(client, group_user, pack):
     """Test that the pack detail page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Test Pack" in response.content
 
@@ -267,7 +267,7 @@ def test_pack_detail_loads(client, group_user, pack):
 def test_pack_detail_shows_edit_for_owner(client, group_user, pack):
     """Test that the edit button shows for the owner."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Edit" in response.content
 
@@ -277,7 +277,7 @@ def test_pack_detail_hides_edit_for_non_owner(client, group_user, pack, make_use
     """Test that the edit button is hidden for non-owners."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"bi-pencil" not in response.content
 
@@ -286,7 +286,7 @@ def test_pack_detail_hides_edit_for_non_owner(client, group_user, pack, make_use
 def test_pack_detail_shows_content_sections(client, group_user, pack):
     """Test that the detail page shows content type sections."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Houses" in response.content
 
@@ -311,7 +311,7 @@ def test_pack_detail_hides_empty_sections_for_viewer(
     """An authenticated non-owner only sees categories with custom content."""
     viewer = make_user("viewer", "password")
     client.force_login(viewer)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     _assert_only_populated_sections(response.content)
 
@@ -319,7 +319,7 @@ def test_pack_detail_hides_empty_sections_for_viewer(
 @pytest.mark.django_db
 def test_pack_detail_hides_empty_sections_for_anonymous(client, pack, pack_rule):
     """A logged-out viewer also only sees categories with custom content."""
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     _assert_only_populated_sections(response.content)
 
@@ -330,7 +330,7 @@ def test_pack_detail_shows_empty_sections_for_owner(
 ):
     """The owner still sees every category, including empty ones."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b'<section id="rule">' in response.content
     # Empty categories remain visible to editors.
@@ -345,7 +345,7 @@ def test_unlisted_pack_visible_to_owner(client, group_user):
         name="Secret Pack", listed=False, owner=group_user
     )
     client.force_login(group_user)
-    response = client.get(f"/pack/{unlisted.id}")
+    response = client.get(f"/n23/pack/{unlisted.id}")
     assert response.status_code == 200
 
 
@@ -357,7 +357,7 @@ def test_unlisted_pack_hidden_from_others(client, group_user, make_user):
     )
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{unlisted.id}")
+    response = client.get(f"/n23/pack/{unlisted.id}")
     assert response.status_code == 404
 
 
@@ -367,7 +367,7 @@ def test_unlisted_pack_hidden_from_anonymous(client, group_user):
     unlisted = CustomContentPack.objects.create(
         name="Secret Pack", listed=False, owner=group_user
     )
-    response = client.get(f"/pack/{unlisted.id}")
+    response = client.get(f"/n23/pack/{unlisted.id}")
     assert response.status_code == 404
 
 
@@ -377,7 +377,7 @@ def test_unlisted_pack_hidden_from_anonymous(client, group_user):
 @pytest.mark.django_db
 def test_pack_create_requires_login(client):
     """Test that creating a pack requires authentication."""
-    response = client.get("/packs/new/")
+    response = client.get("/n23/packs/new/")
     assert response.status_code == 302
     assert "/accounts/" in response.url
 
@@ -386,7 +386,7 @@ def test_pack_create_requires_login(client):
 def test_pack_create_form_loads(client, group_user):
     """Test that the create form loads."""
     client.force_login(group_user)
-    response = client.get("/packs/new/")
+    response = client.get("/n23/packs/new/")
     assert response.status_code == 200
 
 
@@ -395,13 +395,13 @@ def test_pack_create_success(client, group_user):
     """Test creating a pack via POST."""
     client.force_login(group_user)
     response = client.post(
-        "/packs/new/",
+        "/n23/packs/new/",
         {"name": "New Pack", "summary": "A summary", "description": "Details"},
     )
     assert response.status_code == 302
     pack = CustomContentPack.objects.get(name="New Pack")
     assert pack.owner == group_user
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
 
 # --- Pack edit view ---
@@ -410,7 +410,7 @@ def test_pack_create_success(client, group_user):
 @pytest.mark.django_db
 def test_pack_edit_requires_login(client, pack):
     """Test that editing a pack requires authentication."""
-    response = client.get(f"/pack/{pack.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/edit/")
     assert response.status_code == 302
 
 
@@ -419,7 +419,7 @@ def test_pack_edit_requires_ownership(client, pack, make_user):
     """Test that only the owner can edit a pack."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/edit/")
     assert response.status_code == 404
 
 
@@ -427,7 +427,7 @@ def test_pack_edit_requires_ownership(client, pack, make_user):
 def test_pack_edit_form_loads(client, group_user, pack):
     """Test that the edit form loads for the owner."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/edit/")
     assert response.status_code == 200
 
 
@@ -436,7 +436,7 @@ def test_pack_edit_success(client, group_user, pack):
     """Test editing a pack via POST."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/edit/",
+        f"/n23/pack/{pack.id}/edit/",
         {"name": "Updated Pack", "summary": "Updated", "description": "Updated desc"},
     )
     assert response.status_code == 302
@@ -452,7 +452,7 @@ def test_pack_create_records_history(client, group_user):
     """Test that creating a pack via view creates a history record with the correct user."""
     client.force_login(group_user)
     response = client.post(
-        "/packs/new/",
+        "/n23/packs/new/",
         {"name": "History Test Pack", "summary": "Testing history", "description": ""},
     )
     assert response.status_code == 302
@@ -473,7 +473,7 @@ def test_pack_edit_records_history(client, group_user, pack):
     initial_count = pack.history.count()
 
     response = client.post(
-        f"/pack/{pack.id}/edit/",
+        f"/n23/pack/{pack.id}/edit/",
         {
             "name": "Updated History Pack",
             "summary": "Updated summary",
@@ -498,7 +498,7 @@ def test_pack_edit_no_change_still_records_history(client, group_user, pack):
     initial_count = pack.history.count()
 
     response = client.post(
-        f"/pack/{pack.id}/edit/",
+        f"/n23/pack/{pack.id}/edit/",
         {
             "name": pack.name,
             "summary": pack.summary,
@@ -537,7 +537,7 @@ def test_pack_item_history_tracked(group_user):
 def test_pack_detail_shows_activity_section(client, group_user, pack):
     """Test that the pack detail page includes an activity section."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Activity" in response.content
 
@@ -548,10 +548,10 @@ def test_pack_detail_shows_recent_activity(client, group_user, pack):
     client.force_login(group_user)
     # Edit the pack to create an update history record
     client.post(
-        f"/pack/{pack.id}/edit/",
+        f"/n23/pack/{pack.id}/edit/",
         {"name": "Activity Test", "summary": "", "description": ""},
     )
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Updated" in response.content
     assert b"pack" in response.content
@@ -561,7 +561,7 @@ def test_pack_detail_shows_recent_activity(client, group_user, pack):
 def test_pack_activity_page_loads(client, group_user, pack):
     """Test that the pack activity page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     assert b"Activity" in response.content
 
@@ -571,7 +571,7 @@ def test_pack_activity_page_accessible_to_authenticated_user(client, pack, make_
     """Test that the activity page is accessible to any authenticated user."""
     other_user = make_user("otheruser", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
 
 
@@ -583,7 +583,7 @@ def test_pack_activity_page_respects_visibility(client, group_user, make_user):
     )
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{unlisted.id}/activity/")
+    response = client.get(f"/n23/pack/{unlisted.id}/activity/")
     assert response.status_code == 404
 
 
@@ -598,7 +598,7 @@ def test_pack_activity_includes_item_history(client, group_user, pack):
     item.save_with_user(user=group_user)
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     # Should show pack creation and item addition with resolved name
@@ -613,7 +613,7 @@ def test_pack_activity_shows_field_changes(client, group_user, pack):
     client.force_login(group_user)
     # Edit the pack to change name and listed flag
     client.post(
-        f"/pack/{pack.id}/edit/",
+        f"/n23/pack/{pack.id}/edit/",
         {
             "name": "Renamed Pack",
             "summary": pack.summary,
@@ -621,7 +621,7 @@ def test_pack_activity_shows_field_changes(client, group_user, pack):
             "listed": "",  # unchecked = False
         },
     )
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Name set to Renamed Pack" in content
@@ -633,14 +633,14 @@ def test_pack_activity_textfield_changes_say_updated(client, group_user, pack):
     """Test that TextField changes show 'updated' without the value."""
     client.force_login(group_user)
     client.post(
-        f"/pack/{pack.id}/edit/",
+        f"/n23/pack/{pack.id}/edit/",
         {
             "name": pack.name,
             "summary": "Brand new summary",
             "description": pack.description,
         },
     )
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Summary updated" in content
@@ -652,9 +652,9 @@ def test_pack_activity_textfield_changes_say_updated(client, group_user, pack):
 def test_pack_activity_shows_view_all_link(client, group_user, pack):
     """Test that the detail page shows a 'View all' link when activity exists."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
-    assert f"/pack/{pack.id}/activity/".encode() in response.content
+    assert f"/n23/pack/{pack.id}/activity/".encode() in response.content
 
 
 # --- Pack item CRUD (Rules) ---
@@ -678,7 +678,7 @@ def pack_rule(pack, group_user):
 def test_add_rule_form_loads(client, group_user, pack):
     """Test that the add rule form page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/rule/")
+    response = client.get(f"/n23/pack/{pack.id}/add/rule/")
     assert response.status_code == 200
     assert b"Add Special Rule" in response.content
 
@@ -688,11 +688,11 @@ def test_add_rule_creates_rule_and_item(client, group_user, pack):
     """Test that submitting the add rule form creates a rule and pack item."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "My Custom Rule", "description": "Rule description"},
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     # Verify rule was created
     rule = ContentRule.objects.all_content().get(name="My Custom Rule")
@@ -710,7 +710,7 @@ def test_add_rule_save_and_add_another(client, group_user, pack):
     """Test that 'Save and Add Another' redirects back to the add form."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {
             "name": "Rule One",
             "description": "First rule",
@@ -718,7 +718,7 @@ def test_add_rule_save_and_add_another(client, group_user, pack):
         },
     )
     assert response.status_code == 302
-    assert response.url == f"/pack/{pack.id}/add/rule/"
+    assert response.url == f"/n23/pack/{pack.id}/add/rule/"
 
     # Verify the rule was still created
     rule = ContentRule.objects.all_content().get(name="Rule One")
@@ -736,7 +736,7 @@ def test_add_rule_save_and_add_another_shows_message(client, group_user, pack):
     """Test that 'Save and Add Another' displays a success message."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {
             "name": "Rule With Message",
             "description": "A rule",
@@ -756,11 +756,11 @@ def test_add_rule_normal_submit_redirects_to_pack(client, group_user, pack):
     """Test that normal submit (without save_and_add_another) goes to pack detail."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "Normal Rule", "description": "Normal"},
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
 
 @pytest.mark.django_db
@@ -768,7 +768,7 @@ def test_add_rule_requires_name(client, group_user, pack):
     """Test that the name field is required."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "", "description": "No name rule"},
     )
     assert response.status_code == 200  # Re-renders form with errors
@@ -777,7 +777,7 @@ def test_add_rule_requires_name(client, group_user, pack):
 @pytest.mark.django_db
 def test_add_rule_requires_login(client, pack):
     """Test that adding a rule requires login."""
-    response = client.get(f"/pack/{pack.id}/add/rule/")
+    response = client.get(f"/n23/pack/{pack.id}/add/rule/")
     assert response.status_code == 302
     assert "/accounts/login/" in response.url
 
@@ -787,7 +787,7 @@ def test_add_rule_requires_ownership(client, pack, make_user):
     """Test that only the pack owner can add rules."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/add/rule/")
+    response = client.get(f"/n23/pack/{pack.id}/add/rule/")
     assert response.status_code == 404
 
 
@@ -795,7 +795,7 @@ def test_add_rule_requires_ownership(client, pack, make_user):
 def test_pack_detail_shows_rules_section(client, group_user, pack):
     """Test that the pack detail page shows the Rules section."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Rules" in response.content
 
@@ -804,9 +804,9 @@ def test_pack_detail_shows_rules_section(client, group_user, pack):
 def test_pack_detail_shows_add_rule_button(client, group_user, pack):
     """Test that the pack detail shows an Add button for rules to the owner."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
-    assert f"/pack/{pack.id}/add/rule/".encode() in response.content
+    assert f"/n23/pack/{pack.id}/add/rule/".encode() in response.content
 
 
 @pytest.mark.django_db
@@ -814,16 +814,16 @@ def test_pack_detail_hides_add_button_for_non_owner(client, pack, make_user):
     """Test that the Add button is hidden for non-owners."""
     other_user = make_user("viewer", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
-    assert f"/pack/{pack.id}/add/rule/".encode() not in response.content
+    assert f"/n23/pack/{pack.id}/add/rule/".encode() not in response.content
 
 
 @pytest.mark.django_db
 def test_pack_detail_shows_rule_items(client, group_user, pack, pack_rule):
     """Test that rules added to a pack appear in the detail view."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Test Rule" in response.content
 
@@ -832,7 +832,7 @@ def test_pack_detail_shows_rule_items(client, group_user, pack, pack_rule):
 def test_edit_rule_form_loads(client, group_user, pack, pack_rule):
     """Test that the edit rule form loads with existing data."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_rule.id}/edit/")
     assert response.status_code == 200
     assert b"Edit Special Rule" in response.content
     assert b"Test Rule" in response.content
@@ -843,11 +843,11 @@ def test_edit_rule_updates_content(client, group_user, pack, pack_rule):
     """Test that submitting the edit form updates the rule."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_rule.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_rule.id}/edit/",
         {"name": "Updated Rule", "description": "Updated description"},
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     rule = ContentRule.objects.all_content().get(pk=pack_rule.object_id)
     assert rule.name == "Updated Rule"
@@ -859,7 +859,7 @@ def test_edit_rule_requires_ownership(client, pack, pack_rule, make_user):
     """Test that only the pack owner can edit rules."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_rule.id}/edit/")
     assert response.status_code == 404
 
 
@@ -867,7 +867,7 @@ def test_edit_rule_requires_ownership(client, pack, pack_rule, make_user):
 def test_delete_rule_confirmation_loads(client, group_user, pack, pack_rule):
     """Test that the delete confirmation page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 200
     assert b"Archive Special Rule" in response.content
     assert b"Test Rule" in response.content
@@ -880,9 +880,9 @@ def test_delete_rule_archives_item_and_preserves_content(
     """Test that removing a rule archives the pack item and preserves the content object."""
     rule_pk = pack_rule.object_id
     client.force_login(group_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     pack_rule.refresh_from_db()
     assert pack_rule.archived is True
@@ -896,7 +896,7 @@ def test_delete_rule_requires_ownership(client, pack, pack_rule, make_user):
     """Test that only the pack owner can delete rules."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 404
 
 
@@ -904,7 +904,7 @@ def test_delete_rule_requires_ownership(client, pack, pack_rule, make_user):
 def test_add_rule_unsupported_slug_returns_404(client, group_user, pack):
     """Test that an invalid content type slug returns 404."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/invalid/")
+    response = client.get(f"/n23/pack/{pack.id}/add/invalid/")
     assert response.status_code == 404
 
 
@@ -912,7 +912,7 @@ def test_add_rule_unsupported_slug_returns_404(client, group_user, pack):
 def test_add_house_form_loads(client, group_user, pack):
     """Test that the add house form page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/house/")
+    response = client.get(f"/n23/pack/{pack.id}/add/house/")
     assert response.status_code == 200
     assert b"Add House" in response.content
 
@@ -922,11 +922,11 @@ def test_add_house_creates_house_and_item(client, group_user, pack):
     """Test that submitting the add house form creates a house and pack item."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/house/",
+        f"/n23/pack/{pack.id}/add/house/",
         {"name": "My Custom House"},
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     house = ContentHouse.objects.all_content().get(name="My Custom House")
     ct = ContentType.objects.get_for_model(ContentHouse)
@@ -940,7 +940,7 @@ def test_add_house_requires_name(client, group_user, pack):
     """Test that the name field is required."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/house/",
+        f"/n23/pack/{pack.id}/add/house/",
         {"name": ""},
     )
     assert response.status_code == 200  # Re-renders form with errors
@@ -949,7 +949,7 @@ def test_add_house_requires_name(client, group_user, pack):
 @pytest.mark.django_db
 def test_add_house_requires_login(client, pack):
     """Test that adding a house requires login."""
-    response = client.get(f"/pack/{pack.id}/add/house/")
+    response = client.get(f"/n23/pack/{pack.id}/add/house/")
     assert response.status_code == 302
     assert "/accounts/login/" in response.url
 
@@ -959,7 +959,7 @@ def test_add_house_requires_ownership(client, pack, make_user):
     """Test that only the pack owner can add houses."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/add/house/")
+    response = client.get(f"/n23/pack/{pack.id}/add/house/")
     assert response.status_code == 404
 
 
@@ -967,9 +967,9 @@ def test_add_house_requires_ownership(client, pack, make_user):
 def test_pack_detail_shows_add_house_button(client, group_user, pack):
     """Test that the pack detail shows an Add button for houses to the owner."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
-    assert f"/pack/{pack.id}/add/house/".encode() in response.content
+    assert f"/n23/pack/{pack.id}/add/house/".encode() in response.content
 
 
 # --- Pack item CRUD (Houses) - Edit/Delete ---
@@ -991,7 +991,7 @@ def pack_house(pack, group_user):
 def test_pack_detail_shows_house_items(client, group_user, pack, pack_house):
     """Test that houses added to a pack appear in the detail view."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Test House" in response.content
 
@@ -1000,7 +1000,7 @@ def test_pack_detail_shows_house_items(client, group_user, pack, pack_house):
 def test_edit_house_form_loads(client, group_user, pack, pack_house):
     """Test that the edit house form loads with existing data."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_house.id}/edit/")
     assert response.status_code == 200
     assert b"Edit House" in response.content
     assert b"Test House" in response.content
@@ -1011,11 +1011,11 @@ def test_edit_house_updates_content(client, group_user, pack, pack_house):
     """Test that submitting the edit form updates the house."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_house.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_house.id}/edit/",
         {"name": "Updated House"},
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     house = ContentHouse.objects.all_content().get(pk=pack_house.object_id)
     assert house.name == "Updated House"
@@ -1026,7 +1026,7 @@ def test_edit_house_requires_ownership(client, pack, pack_house, make_user):
     """Test that only the pack owner can edit houses."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_house.id}/edit/")
     assert response.status_code == 404
 
 
@@ -1034,7 +1034,7 @@ def test_edit_house_requires_ownership(client, pack, pack_house, make_user):
 def test_delete_house_confirmation_loads(client, group_user, pack, pack_house):
     """Test that the delete confirmation page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_house.id}/delete/")
     assert response.status_code == 200
     assert b"Archive House" in response.content
     assert b"Test House" in response.content
@@ -1047,9 +1047,9 @@ def test_delete_house_archives_item_and_preserves_content(
     """Test that removing a house archives the pack item and preserves the content."""
     house_pk = pack_house.object_id
     client.force_login(group_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_house.id}/delete/")
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     pack_house.refresh_from_db()
     assert pack_house.archived is True
@@ -1062,7 +1062,7 @@ def test_delete_house_requires_ownership(client, pack, pack_house, make_user):
     """Test that only the pack owner can delete houses."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_house.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_house.id}/delete/")
     assert response.status_code == 404
 
 
@@ -1071,7 +1071,7 @@ def test_add_rule_tracks_history(client, group_user, pack):
     """Test that adding a rule creates history records for both item and content."""
     client.force_login(group_user)
     client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "History Rule", "description": ""},
     )
     ct = ContentType.objects.get_for_model(ContentRule)
@@ -1093,7 +1093,7 @@ def test_archive_tracks_history(client, group_user, pack, pack_rule):
     """Test that archiving a pack item creates a history record."""
     client.force_login(group_user)
     initial_count = pack_rule.history.count()
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
 
     pack_rule.refresh_from_db()
     assert pack_rule.history.count() == initial_count + 1
@@ -1107,14 +1107,14 @@ def test_restore_pack_item(client, group_user, pack, pack_rule):
     """Test that restoring an archived pack item unarchives it."""
     client.force_login(group_user)
     # Archive first
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
     pack_rule.refresh_from_db()
     assert pack_rule.archived is True
 
     # Restore
-    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/restore/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/restore/")
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     pack_rule.refresh_from_db()
     assert pack_rule.archived is False
@@ -1130,7 +1130,7 @@ def test_restore_requires_ownership(client, pack, pack_rule, make_user):
 
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/restore/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/restore/")
     assert response.status_code == 404
 
 
@@ -1138,7 +1138,7 @@ def test_restore_requires_ownership(client, pack, pack_rule, make_user):
 def test_restore_active_item_returns_404(client, group_user, pack, pack_rule):
     """Test that restoring a non-archived item returns 404."""
     client.force_login(group_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/restore/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/restore/")
     assert response.status_code == 404
 
 
@@ -1147,9 +1147,9 @@ def test_archive_already_archived_returns_404(client, group_user, pack, pack_rul
     """Test that archiving an already-archived item returns 404."""
     client.force_login(group_user)
     # Archive first
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
     # Try to archive again
-    response = client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
     assert response.status_code == 404
 
 
@@ -1160,7 +1160,7 @@ def test_restore_get_returns_404(client, group_user, pack, pack_rule):
     pack_rule.archive()
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/restore/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_rule.id}/restore/")
     assert response.status_code == 404
 
 
@@ -1169,13 +1169,13 @@ def test_pack_detail_hides_archived_from_main_list(client, group_user, pack, pac
     """Test that archived items don't appear in the main items list."""
     client.force_login(group_user)
     # Archive the rule
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
 
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     content = response.content.decode()
     # The rule name should not appear in the main list (it's in the archived section)
     # Check that the edit link is gone (main list has edit links)
-    assert f"/pack/{pack.id}/item/{pack_rule.id}/edit/" not in content
+    assert f"/n23/pack/{pack.id}/item/{pack_rule.id}/edit/" not in content
 
 
 @pytest.mark.django_db
@@ -1183,21 +1183,21 @@ def test_pack_detail_shows_archived_link_to_owner(client, group_user, pack, pack
     """Test that the archived link appears for the owner when items are archived."""
     client.force_login(group_user)
     # Archive the rule
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
 
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     content = response.content.decode()
     assert "Archived (1)" in content
-    assert f"/pack/{pack.id}/archived/rule/" in content
+    assert f"/n23/pack/{pack.id}/archived/rule/" in content
 
 
 @pytest.mark.django_db
 def test_edit_archived_item_returns_404(client, group_user, pack, pack_rule):
     """Test that editing an archived item returns 404."""
     client.force_login(group_user)
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
 
-    response = client.get(f"/pack/{pack.id}/item/{pack_rule.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_rule.id}/edit/")
     assert response.status_code == 404
 
 
@@ -1207,20 +1207,20 @@ def test_add_after_archive_creates_new_item(client, group_user, pack):
     client.force_login(group_user)
     # Create a rule
     client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "First Rule", "description": "Will be archived"},
     )
     ct = ContentType.objects.get_for_model(ContentRule)
     item = CustomContentPackItem.objects.get(pack=pack, content_type=ct)
 
     # Archive it
-    client.post(f"/pack/{pack.id}/item/{item.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{item.id}/delete/")
     item.refresh_from_db()
     assert item.archived is True
 
     # Adding a new rule creates a separate item (different content object)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "Second Rule", "description": "A new rule"},
     )
     assert response.status_code == 302
@@ -1243,11 +1243,11 @@ def test_activity_shows_content_edits(client, group_user, pack, pack_rule):
     client.force_login(group_user)
     # Edit the rule content
     client.post(
-        f"/pack/{pack.id}/item/{pack_rule.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_rule.id}/edit/",
         {"name": "Renamed Rule", "description": "Updated description"},
     )
 
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Edited item" in content
@@ -1258,9 +1258,9 @@ def test_activity_shows_content_edits(client, group_user, pack, pack_rule):
 def test_activity_shows_archive_change(client, group_user, pack, pack_rule):
     """Test that archiving a pack item shows 'Archived [item]' in activity."""
     client.force_login(group_user)
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
 
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Archived" in content
@@ -1282,7 +1282,7 @@ def test_activity_shows_weapon_profile_added(client, group_user, pack, pack_weap
     profile.save()
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Overcharge profile (Test Autopistol)" in content
@@ -1292,7 +1292,7 @@ def test_activity_shows_weapon_profile_added(client, group_user, pack, pack_weap
 def test_activity_shows_weapon_not_equipment(client, group_user, pack, pack_weapon):
     """Test that weapon items show 'Weapon' not 'Equipment' in activity."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/activity/")
+    response = client.get(f"/n23/pack/{pack.id}/activity/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Test Autopistol (Weapon)" in content
@@ -1303,9 +1303,9 @@ def test_activity_shows_weapon_not_equipment(client, group_user, pack, pack_weap
 def test_archived_items_page_loads(client, group_user, pack, pack_rule):
     """Test that the archived items page loads with archived items."""
     client.force_login(group_user)
-    client.post(f"/pack/{pack.id}/item/{pack_rule.id}/delete/")
+    client.post(f"/n23/pack/{pack.id}/item/{pack_rule.id}/delete/")
 
-    response = client.get(f"/pack/{pack.id}/archived/rule/")
+    response = client.get(f"/n23/pack/{pack.id}/archived/rule/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Archived Special Rules" in content
@@ -1321,7 +1321,7 @@ def test_archived_items_page_requires_ownership(client, pack, pack_rule, make_us
 
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/archived/rule/")
+    response = client.get(f"/n23/pack/{pack.id}/archived/rule/")
     assert response.status_code == 404
 
 
@@ -1419,7 +1419,7 @@ def pack_fighter(pack, group_user, fighter_statline_type, content_house):
 def test_add_fighter_form_loads(client, group_user, pack, fighter_statline_type):
     """Test that the add fighter form page loads (Step 1 — basic info, no stats)."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    response = client.get(f"/n23/pack/{pack.id}/add/fighter/")
     assert response.status_code == 200
     assert b"Add Fighter" in response.content
     # Stat inputs should NOT be on Step 1 (they're on Step 2 now)
@@ -1433,7 +1433,7 @@ def test_add_fighter_step1_redirects_to_step2(
     """Test that Step 1 POST redirects to Step 2 with query params."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Test Champion",
             "category": "CHAMPION",
@@ -1442,7 +1442,7 @@ def test_add_fighter_step1_redirects_to_step2(
         },
     )
     assert response.status_code == 302
-    assert f"/pack/{pack.id}/add/fighter/stats/" in response.url
+    assert f"/n23/pack/{pack.id}/add/fighter/stats/" in response.url
     assert "type=Test+Champion" in response.url
     assert "category=CHAMPION" in response.url
 
@@ -1454,7 +1454,7 @@ def test_add_fighter_step2_shows_stat_inputs(
     """Test that Step 2 shows stat inputs for the selected category."""
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Test+Champion&category=CHAMPION"
         f"&house_id={content_house.pk}&base_cost=100"
     )
@@ -1473,7 +1473,7 @@ def test_add_fighter_creates_fighter_and_statline(
     """Test that submitting Step 2 creates fighter, pack item, and statline."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Test+Champion&category=CHAMPION"
         f"&house_id={content_house.pk}&base_cost=100",
         {
@@ -1492,7 +1492,7 @@ def test_add_fighter_creates_fighter_and_statline(
         },
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     # Verify fighter was created
     fighter = ContentFighter.objects.all_content().get(type="Test Champion")
@@ -1525,7 +1525,7 @@ def test_add_fighter_with_default_stats(
     """Test that omitted stats default to '-'."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Minimal+Fighter&category=JUVE"
         f"&house_id={content_house.pk}&base_cost=25",
         {},
@@ -1550,7 +1550,7 @@ def test_add_fighter_with_house(
     """Test creating a fighter with a house assigned via two-step flow."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=House+Fighter&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=50",
         {},
@@ -1567,7 +1567,7 @@ def test_add_fighter_form_shows_rules_field(
 ):
     """Test that the rules field appears on the add fighter form."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    response = client.get(f"/n23/pack/{pack.id}/add/fighter/")
     content = response.content.decode()
     assert response.status_code == 200
     assert 'name="rules"' in content
@@ -1585,7 +1585,7 @@ def test_add_fighter_with_rules(
 
     # Step 1: POST basic info with rules selected.
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Ruled Fighter",
             "category": "GANGER",
@@ -1617,7 +1617,7 @@ def test_add_fighter_excludes_special_categories(
     companion equipment item.
     """
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/")
+    response = client.get(f"/n23/pack/{pack.id}/add/fighter/")
     content = response.content.decode()
     assert "STASH" not in content
     assert "GANG_TERRAIN" not in content
@@ -1673,7 +1673,7 @@ def test_add_fighter_statline_override(
 
     # Step 1: POST with override_statline checked and Crew selected.
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Crew Fighter",
             "category": "GANGER",
@@ -1711,7 +1711,7 @@ def test_add_fighter_default_statline_no_override(
     client.force_login(group_user)
 
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "Normal Fighter",
             "category": "GANGER",
@@ -1730,7 +1730,7 @@ def test_add_fighter_requires_type(
     """Test that the type (name) field is required."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": "",
             "category": "GANGER",
@@ -1745,7 +1745,7 @@ def test_add_fighter_requires_type(
 def test_edit_fighter_form_loads(client, group_user, pack, pack_fighter):
     """Test that the edit fighter form loads with stat values."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_fighter.id}/edit/")
     assert response.status_code == 200
     assert b"Edit Fighter" in response.content
     # Should have stat inputs
@@ -1763,7 +1763,7 @@ def test_edit_fighter_updates_fields(
     fighter = pack_fighter.content_object
 
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_fighter.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_fighter.id}/edit/",
         {
             "type": "Renamed Ganger",
             "category": "CHAMPION",
@@ -1807,7 +1807,7 @@ def test_archive_fighter_preserves_content(client, group_user, pack, pack_fighte
     client.force_login(group_user)
     fighter = pack_fighter.content_object
 
-    response = client.post(f"/pack/{pack.id}/item/{pack_fighter.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_fighter.id}/delete/")
     assert response.status_code == 302
 
     pack_fighter.refresh_from_db()
@@ -1823,7 +1823,7 @@ def test_pack_detail_shows_fighters_section(
 ):
     """Test that the pack detail page shows the Fighters section."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Fighters" in response.content
 
@@ -1832,7 +1832,7 @@ def test_pack_detail_shows_fighters_section(
 def test_pack_detail_shows_fighter(client, group_user, pack, pack_fighter):
     """Test that the pack detail page shows the fighter name."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Custom Ganger" in response.content
 
@@ -1844,7 +1844,7 @@ def test_add_fighter_auto_formats_stats(
     """Test that stat values are auto-formatted based on ContentStat config."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Format+Test+Fighter&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=50",
         {
@@ -1892,7 +1892,7 @@ def test_edit_fighter_auto_formats_stats(
     """Test that editing stats auto-formats values."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_fighter.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_fighter.id}/edit/",
         {
             "type": "Custom Ganger",
             "category": "GANGER",
@@ -1937,7 +1937,7 @@ def test_add_fighter_step2_shows_placeholders(
     """Test that Step 2 shows placeholder hints per stat."""
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Placeholder+Test&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=50"
     )
@@ -1969,7 +1969,7 @@ def test_edit_fighter_saves_pack_rules(
     # Submit the edit form with the rule selected.
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_fighter.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_fighter.id}/edit/",
         {
             "type": "Custom Ganger",
             "category": "GANGER",
@@ -2010,7 +2010,7 @@ def test_edit_fighter_form_preselects_pack_rules(
     fighter.rules.add(rule)
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_fighter.id}/edit/")
     assert response.status_code == 200
 
     # The rule should appear as a selected value in the form.
@@ -2029,7 +2029,7 @@ def test_edit_fighter_preview_card_shows_pack_rules(
     fighter.rules.add(rule)
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_fighter.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_fighter.id}/edit/")
     assert response.status_code == 200
 
     preview_rules = response.context["preview_rules"]
@@ -2135,7 +2135,7 @@ def test_can_view_returns_false_for_unlisted_pack_non_editor(
 def test_editor_can_edit_pack(client, pack_with_editor, editor_user):
     """Test that an editor can load the edit pack form."""
     client.force_login(editor_user)
-    response = client.get(f"/pack/{pack_with_editor.id}/edit/")
+    response = client.get(f"/n23/pack/{pack_with_editor.id}/edit/")
     assert response.status_code == 200
 
 
@@ -2144,7 +2144,7 @@ def test_editor_can_save_pack_edit(client, pack_with_editor, editor_user):
     """Test that an editor can save pack edits."""
     client.force_login(editor_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/edit/",
+        f"/n23/pack/{pack_with_editor.id}/edit/",
         {"name": "Editor Updated", "summary": "New summary", "description": ""},
     )
     assert response.status_code == 302
@@ -2158,7 +2158,7 @@ def test_editor_cannot_change_listed(client, pack_with_editor, editor_user):
     client.force_login(editor_user)
     # Submit with listed='' (unchecked), but field should be removed for editors
     response = client.post(
-        f"/pack/{pack_with_editor.id}/edit/",
+        f"/n23/pack/{pack_with_editor.id}/edit/",
         {"name": pack_with_editor.name, "summary": "", "description": "", "listed": ""},
     )
     assert response.status_code == 302
@@ -2172,7 +2172,7 @@ def test_editor_can_add_item(client, pack_with_editor, editor_user):
     """Test that an editor can add items to a pack."""
     client.force_login(editor_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/add/rule/",
+        f"/n23/pack/{pack_with_editor.id}/add/rule/",
         {"name": "Editor Rule", "description": "Added by editor"},
     )
     assert response.status_code == 302
@@ -2184,7 +2184,7 @@ def test_editor_can_edit_item(client, pack_with_editor, editor_user, pack_rule):
     """Test that an editor can edit items in a pack."""
     client.force_login(editor_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/item/{pack_rule.id}/edit/",
+        f"/n23/pack/{pack_with_editor.id}/item/{pack_rule.id}/edit/",
         {"name": "Editor Edited Rule", "description": "Edited by editor"},
     )
     assert response.status_code == 302
@@ -2196,7 +2196,9 @@ def test_editor_can_edit_item(client, pack_with_editor, editor_user, pack_rule):
 def test_editor_can_delete_item(client, pack_with_editor, editor_user, pack_rule):
     """Test that an editor can archive items in a pack."""
     client.force_login(editor_user)
-    response = client.post(f"/pack/{pack_with_editor.id}/item/{pack_rule.id}/delete/")
+    response = client.post(
+        f"/n23/pack/{pack_with_editor.id}/item/{pack_rule.id}/delete/"
+    )
     assert response.status_code == 302
     pack_rule.refresh_from_db()
     assert pack_rule.archived is True
@@ -2210,7 +2212,9 @@ def test_editor_can_restore_item(client, pack_with_editor, editor_user, pack_rul
     pack_rule.archive()
 
     client.force_login(editor_user)
-    response = client.post(f"/pack/{pack_with_editor.id}/item/{pack_rule.id}/restore/")
+    response = client.post(
+        f"/n23/pack/{pack_with_editor.id}/item/{pack_rule.id}/restore/"
+    )
     assert response.status_code == 302
     pack_rule.refresh_from_db()
     assert pack_rule.archived is False
@@ -2225,7 +2229,7 @@ def test_editor_can_view_archived_items(
     pack_rule.archive()
 
     client.force_login(editor_user)
-    response = client.get(f"/pack/{pack_with_editor.id}/archived/rule/")
+    response = client.get(f"/n23/pack/{pack_with_editor.id}/archived/rule/")
     assert response.status_code == 200
 
 
@@ -2246,7 +2250,7 @@ def test_editor_can_see_unlisted_pack(
     )
 
     client.force_login(editor_user)
-    response = client.get(f"/pack/{unlisted.id}")
+    response = client.get(f"/n23/pack/{unlisted.id}")
     assert response.status_code == 200
 
 
@@ -2261,7 +2265,7 @@ def test_editor_cannot_access_permissions_page(
 ):
     """Test that an editor cannot access the permissions management page."""
     client.force_login(editor_user)
-    response = client.get(f"/pack/{pack_with_editor.id}/permissions/")
+    response = client.get(f"/n23/pack/{pack_with_editor.id}/permissions/")
     assert response.status_code == 404
 
 
@@ -2273,7 +2277,7 @@ def test_pack_detail_shows_edit_button_for_editor(
 ):
     """Test that the edit button is shown for editors on the detail page."""
     client.force_login(editor_user)
-    response = client.get(f"/pack/{pack_with_editor.id}")
+    response = client.get(f"/n23/pack/{pack_with_editor.id}")
     assert response.status_code == 200
     assert b"bi-pencil" in response.content
 
@@ -2286,7 +2290,7 @@ def test_pack_detail_hides_permissions_link_for_editor(
 ):
     """Test that the permissions link is hidden for editors."""
     client.force_login(editor_user)
-    response = client.get(f"/pack/{pack_with_editor.id}")
+    response = client.get(f"/n23/pack/{pack_with_editor.id}")
     assert response.status_code == 200
     assert b"Permissions" not in response.content
 
@@ -2299,7 +2303,7 @@ def test_pack_detail_shows_permissions_link_for_owner(
 ):
     """Test that the permissions link is shown for the owner."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack_with_editor.id}")
+    response = client.get(f"/n23/pack/{pack_with_editor.id}")
     assert response.status_code == 200
     assert b"Permissions" in response.content
 
@@ -2311,7 +2315,7 @@ def test_pack_detail_shows_permissions_link_for_owner(
 def test_permissions_page_loads_for_owner(client, group_user, pack):
     """Test that the permissions page loads for the pack owner."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/permissions/")
+    response = client.get(f"/n23/pack/{pack.id}/permissions/")
     assert response.status_code == 200
     assert b"Permissions" in response.content
 
@@ -2326,7 +2330,7 @@ def test_permissions_page_404_for_non_owner(
     other = make_user("other", "password")
 
     client.force_login(other)
-    response = client.get(f"/pack/{pack.id}/permissions/")
+    response = client.get(f"/n23/pack/{pack.id}/permissions/")
     assert response.status_code == 404
 
 
@@ -2335,7 +2339,7 @@ def test_permissions_add_editor(client, group_user, pack, editor_user):
     """Test adding an editor via the permissions page."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/permissions/",
+        f"/n23/pack/{pack.id}/permissions/",
         {"action": "add", "username": "editor"},
     )
     assert response.status_code == 302
@@ -2353,7 +2357,7 @@ def test_permissions_remove_editor(
     perm = pack_with_editor.permissions.get(user=editor_user)
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/permissions/",
+        f"/n23/pack/{pack_with_editor.id}/permissions/",
         {"action": "remove", "permission_id": str(perm.id)},
     )
     assert response.status_code == 302
@@ -2365,7 +2369,7 @@ def test_permissions_add_nonexistent_user(client, group_user, pack):
     """Test that adding a nonexistent user shows an error."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/permissions/",
+        f"/n23/pack/{pack.id}/permissions/",
         {"action": "add", "username": "doesnotexist"},
     )
     assert response.status_code == 200
@@ -2382,7 +2386,7 @@ def test_permissions_add_already_editor(
     """Test that adding an existing editor shows an error."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/permissions/",
+        f"/n23/pack/{pack_with_editor.id}/permissions/",
         {"action": "add", "username": "editor"},
     )
     assert response.status_code == 200
@@ -2394,7 +2398,7 @@ def test_permissions_add_owner_as_editor(client, group_user, pack):
     """Test that adding the owner as editor shows an error."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/permissions/",
+        f"/n23/pack/{pack.id}/permissions/",
         {"action": "add", "username": group_user.username},
     )
     assert response.status_code == 200
@@ -2412,7 +2416,7 @@ def test_packs_index_shows_editor_packs(
 ):
     """Test that packs where the user is editor appear in My Packs."""
     client.force_login(editor_user)
-    response = client.get("/packs/")
+    response = client.get("/n23/packs/")
     assert response.status_code == 200
     assert b"Test Pack" in response.content
 
@@ -2447,7 +2451,7 @@ def pack_equipment(pack, group_user, equipment_category):
 def test_add_gear_form_loads(client, group_user, pack, equipment_category):
     """Test that the add gear form page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/gear/")
+    response = client.get(f"/n23/pack/{pack.id}/add/gear/")
     assert response.status_code == 200
     assert b"Add Gear" in response.content
 
@@ -2457,7 +2461,7 @@ def test_add_gear_creates_item(client, group_user, pack, equipment_category):
     """Test that submitting the add gear form creates equipment and pack item."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "Custom Armour",
             "category": str(equipment_category.pk),
@@ -2466,7 +2470,7 @@ def test_add_gear_creates_item(client, group_user, pack, equipment_category):
         },
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     equip = ContentEquipment.objects.all_content().get(name="Custom Armour")
     assert equip.cost == "25"
@@ -2484,7 +2488,7 @@ def test_add_gear_redirects_to_edit_page(client, group_user, pack, equipment_cat
     """Creating gear should redirect to its edit page so users can keep configuring it."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "Redirect Test Gear",
             "category": str(equipment_category.pk),
@@ -2498,7 +2502,7 @@ def test_add_gear_redirects_to_edit_page(client, group_user, pack, equipment_cat
     item = CustomContentPackItem.objects.get(
         pack=pack, content_type=ct, object_id=equip.pk
     )
-    assert response.url == f"/pack/{pack.id}/item/{item.id}/edit/"
+    assert response.url == f"/n23/pack/{pack.id}/item/{item.id}/edit/"
 
 
 @pytest.mark.django_db
@@ -2508,7 +2512,7 @@ def test_add_gear_save_and_add_another_returns_to_form(
     """save_and_add_another for gear should still return to the add form."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "Another Gear",
             "category": str(equipment_category.pk),
@@ -2518,7 +2522,7 @@ def test_add_gear_save_and_add_another_returns_to_form(
         },
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}/add/gear/")
+    assert response.url.startswith(f"/n23/pack/{pack.id}/add/gear/")
 
 
 @pytest.mark.django_db
@@ -2526,7 +2530,7 @@ def test_add_gear_requires_name(client, group_user, pack, equipment_category):
     """Test that the name field is required."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "",
             "category": str(equipment_category.pk),
@@ -2540,7 +2544,7 @@ def test_add_gear_requires_name(client, group_user, pack, equipment_category):
 @pytest.mark.django_db
 def test_add_gear_requires_login(client, pack):
     """Test that adding gear requires login."""
-    response = client.get(f"/pack/{pack.id}/add/gear/")
+    response = client.get(f"/n23/pack/{pack.id}/add/gear/")
     assert response.status_code == 302
     assert "/accounts/login/" in response.url
 
@@ -2550,7 +2554,7 @@ def test_add_gear_requires_ownership(client, pack, make_user):
     """Test that only pack editors can add gear."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/add/gear/")
+    response = client.get(f"/n23/pack/{pack.id}/add/gear/")
     assert response.status_code == 404
 
 
@@ -2558,7 +2562,7 @@ def test_add_gear_requires_ownership(client, pack, make_user):
 def test_edit_gear_form_loads(client, group_user, pack, pack_equipment):
     """Test that the edit gear form loads with current values."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_equipment.id}/edit/")
     assert response.status_code == 200
     assert b"Test Armour" in response.content
 
@@ -2570,7 +2574,7 @@ def test_edit_gear_updates_content(
     """Test that editing gear updates the content object."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_equipment.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_equipment.id}/edit/",
         {
             "name": "Updated Armour",
             "category": str(equipment_category.pk),
@@ -2593,7 +2597,7 @@ def test_edit_gear_without_changing_name(
     """Editing gear without changing its name should succeed."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_equipment.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_equipment.id}/edit/",
         {
             "name": "Test Armour",
             "category": str(equipment_category.pk),
@@ -2613,7 +2617,7 @@ def test_edit_gear_requires_ownership(client, pack, pack_equipment, make_user):
     """Test that only pack editors can edit gear."""
     other_user = make_user("other", "password")
     client.force_login(other_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_equipment.id}/edit/")
     assert response.status_code == 404
 
 
@@ -2621,7 +2625,7 @@ def test_edit_gear_requires_ownership(client, pack, pack_equipment, make_user):
 def test_delete_gear_confirmation_loads(client, group_user, pack, pack_equipment):
     """Test that the delete confirmation page loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_equipment.id}/delete/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_equipment.id}/delete/")
     assert response.status_code == 200
 
 
@@ -2629,7 +2633,7 @@ def test_delete_gear_confirmation_loads(client, group_user, pack, pack_equipment
 def test_delete_gear_archives_item(client, group_user, pack, pack_equipment):
     """Test that deleting archives the pack item but preserves the content."""
     client.force_login(group_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_equipment.id}/delete/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_equipment.id}/delete/")
     assert response.status_code == 302
 
     pack_equipment.refresh_from_db()
@@ -2648,7 +2652,7 @@ def test_restore_gear(client, group_user, pack, pack_equipment):
     """Test that restoring an archived gear item works."""
     pack_equipment.archive()
     client.force_login(group_user)
-    response = client.post(f"/pack/{pack.id}/item/{pack_equipment.id}/restore/")
+    response = client.post(f"/n23/pack/{pack.id}/item/{pack_equipment.id}/restore/")
     assert response.status_code == 302
 
     pack_equipment.refresh_from_db()
@@ -2659,7 +2663,7 @@ def test_restore_gear(client, group_user, pack, pack_equipment):
 def test_pack_detail_shows_gear_section(client, group_user, pack):
     """Test that the pack detail page shows the Gear section."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Gear" in response.content
 
@@ -2668,7 +2672,7 @@ def test_pack_detail_shows_gear_section(client, group_user, pack):
 def test_pack_detail_shows_gear_item(client, group_user, pack, pack_equipment):
     """Test that gear items appear in the pack detail page."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Test Armour" in response.content
 
@@ -2679,9 +2683,9 @@ def test_pack_detail_shows_add_gear_button(
 ):
     """Test that the Add button for gear is shown to editors."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
-    assert f"/pack/{pack.id}/add/gear/".encode() in response.content
+    assert f"/n23/pack/{pack.id}/add/gear/".encode() in response.content
 
 
 @pytest.mark.django_db
@@ -2689,7 +2693,7 @@ def test_editor_can_add_gear(client, pack_with_editor, editor_user, equipment_ca
     """Test that an editor can add gear to a pack."""
     client.force_login(editor_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/add/gear/",
+        f"/n23/pack/{pack_with_editor.id}/add/gear/",
         {
             "name": "Editor Gear",
             "category": str(equipment_category.pk),
@@ -2708,7 +2712,7 @@ def test_editor_can_edit_gear(
     """Test that an editor can edit gear in a pack."""
     client.force_login(editor_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/item/{pack_equipment.id}/edit/",
+        f"/n23/pack/{pack_with_editor.id}/item/{pack_equipment.id}/edit/",
         {
             "name": "Editor Updated",
             "category": str(equipment_category.pk),
@@ -2726,7 +2730,7 @@ def test_editor_can_delete_gear(client, pack_with_editor, editor_user, pack_equi
     """Test that an editor can archive gear in a pack."""
     client.force_login(editor_user)
     response = client.post(
-        f"/pack/{pack_with_editor.id}/item/{pack_equipment.id}/delete/"
+        f"/n23/pack/{pack_with_editor.id}/item/{pack_equipment.id}/delete/"
     )
     assert response.status_code == 302
     pack_equipment.refresh_from_db()
@@ -2764,7 +2768,7 @@ def test_add_gear_category_grouped(client, group_user, pack):
         name="Vehicle Wargear", defaults={"group": "Vehicle & Mount"}
     )
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/gear/")
+    response = client.get(f"/n23/pack/{pack.id}/add/gear/")
     assert response.status_code == 200
     content = response.content.decode()
     # Gear categories should be present.
@@ -2781,7 +2785,7 @@ def test_add_gear_cost_accepts_text(client, group_user, pack, equipment_category
     """Test that cost accepts non-numeric text values."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "Variable Cost Gear",
             "category": str(equipment_category.pk),
@@ -2802,7 +2806,7 @@ def test_add_house_rejects_duplicate_name(client, group_user, pack, content_hous
     """Adding a house whose name matches a base library house (case-insensitive) is rejected."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/house/",
+        f"/n23/pack/{pack.id}/add/house/",
         {"name": content_house.name.upper()},
     )
     assert response.status_code == 200
@@ -2816,7 +2820,7 @@ def test_add_fighter_rejects_duplicate_name(
     """Adding a fighter whose type matches a base library fighter (case-insensitive) is rejected."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/",
+        f"/n23/pack/{pack.id}/add/fighter/",
         {
             "type": content_fighter.type.upper(),
             "category": content_fighter.category,
@@ -2835,7 +2839,7 @@ def test_add_rule_rejects_duplicate_name(client, group_user, pack):
     rule = ContentRule.objects.create(name="Existing Rule")
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/rule/",
+        f"/n23/pack/{pack.id}/add/rule/",
         {"name": "existing rule", "description": ""},
     )
     assert response.status_code == 200
@@ -2852,7 +2856,7 @@ def test_add_gear_rejects_duplicate_name(client, group_user, pack, equipment_cat
     )
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "flak armour",
             "category": str(equipment_category.pk),
@@ -2870,7 +2874,7 @@ def test_add_gear_allows_unique_name(client, group_user, pack, equipment_categor
     """Adding gear with a name not in the base library succeeds."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/gear/",
+        f"/n23/pack/{pack.id}/add/gear/",
         {
             "name": "Totally New Gear",
             "category": str(equipment_category.pk),
@@ -2897,7 +2901,7 @@ def test_pack_gear_visible_in_fighter_gear_edit(
     fighter = make_list_fighter(lst, "Pack Tester")
 
     client.force_login(user)
-    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
+    response = client.get(f"/n23/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
     assert response.status_code == 200
     assert b"Test Armour" in response.content
 
@@ -2916,7 +2920,7 @@ def test_pack_gear_can_be_assigned_via_form(
     equipment_id = pack_equipment.object_id
     client.force_login(user)
     response = client.post(
-        f"/list/{lst.id}/fighter/{fighter.id}/gear",
+        f"/n23/list/{lst.id}/fighter/{fighter.id}/gear",
         {"content_equipment": str(equipment_id)},
     )
     # Successful assignment redirects
@@ -2946,7 +2950,7 @@ def test_pack_gear_displays_after_assignment(
     )
 
     client.force_login(user)
-    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear")
+    response = client.get(f"/n23/list/{lst.id}/fighter/{fighter.id}/gear")
     assert response.status_code == 200
     assert b"Test Armour" in response.content
 
@@ -2969,7 +2973,7 @@ def test_pack_gear_displays_on_list_detail(
     )
 
     client.force_login(user)
-    response = client.get(f"/list/{lst.id}")
+    response = client.get(f"/n23/list/{lst.id}")
     assert response.status_code == 200
     assert b"Test Armour" in response.content
 
@@ -2983,7 +2987,7 @@ def test_pack_gear_hidden_without_subscription(
     fighter = make_list_fighter(lst, "No Pack Tester")
 
     client.force_login(user)
-    response = client.get(f"/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
+    response = client.get(f"/n23/list/{lst.id}/fighter/{fighter.id}/gear?filter=all")
     assert response.status_code == 200
     assert b"Test Armour" not in response.content
 
@@ -3033,7 +3037,7 @@ def pack_weapon(pack, group_user, weapon_category):
 def test_add_weapon_form_loads(client, group_user, pack, weapon_category):
     """Test that the add weapon form page loads (single mode via query param)."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/?profile_mode=single")
     assert response.status_code == 200
     assert b"Add Weapon" in response.content
     assert b"Statline" in response.content
@@ -3048,7 +3052,7 @@ def test_add_weapon_creates_item_with_profile(
 
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon/",
+        f"/n23/pack/{pack.id}/add/weapon/",
         {
             "name": "Custom Pistol",
             "category": str(weapon_category.pk),
@@ -3065,7 +3069,7 @@ def test_add_weapon_creates_item_with_profile(
         },
     )
     assert response.status_code == 302
-    assert response.url.startswith(f"/pack/{pack.id}")
+    assert response.url.startswith(f"/n23/pack/{pack.id}")
 
     equip = ContentEquipment.objects.all_content().get(name="Custom Pistol")
     assert equip.is_weapon()
@@ -3093,7 +3097,7 @@ def test_add_weapon_redirects_to_edit_page(client, group_user, pack, weapon_cate
     """Creating a single-profile weapon should land on its edit page."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon/",
+        f"/n23/pack/{pack.id}/add/weapon/",
         {
             "name": "Redirect Weapon",
             "category": str(weapon_category.pk),
@@ -3112,7 +3116,7 @@ def test_add_weapon_redirects_to_edit_page(client, group_user, pack, weapon_cate
     item = CustomContentPackItem.objects.get(
         pack=pack, content_type=ct, object_id=equip.pk
     )
-    assert response.url == f"/pack/{pack.id}/item/{item.id}/edit/"
+    assert response.url == f"/n23/pack/{pack.id}/item/{item.id}/edit/"
 
 
 @pytest.mark.django_db
@@ -3122,7 +3126,7 @@ def test_add_multi_profile_weapon_redirects_to_edit_page(
     """Creating a multi-profile weapon should also land on its edit page."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        f"/n23/pack/{pack.id}/add/weapon/?profile_mode=multi",
         {
             "name": "Multi Profile Weapon",
             "category": str(weapon_category.pk),
@@ -3148,7 +3152,7 @@ def test_add_multi_profile_weapon_redirects_to_edit_page(
     item = CustomContentPackItem.objects.get(
         pack=pack, content_type=ct, object_id=equip.pk
     )
-    assert response.url == f"/pack/{pack.id}/item/{item.id}/edit/"
+    assert response.url == f"/n23/pack/{pack.id}/item/{item.id}/edit/"
 
 
 @pytest.mark.django_db
@@ -3161,7 +3165,7 @@ def test_add_weapon_with_traits(client, group_user, pack, weapon_category):
 
     client.force_login(group_user)
     client.post(
-        f"/pack/{pack.id}/add/weapon/",
+        f"/n23/pack/{pack.id}/add/weapon/",
         {
             "name": "Traited Pistol",
             "category": str(weapon_category.pk),
@@ -3188,7 +3192,7 @@ def test_add_weapon_with_traits(client, group_user, pack, weapon_category):
 def test_edit_weapon_form_loads(client, group_user, pack, pack_weapon):
     """Test that the edit weapon form loads with profile stats."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_weapon.id}/edit/")
     assert response.status_code == 200
     assert b"Edit Weapon" in response.content
     assert b"Statline" in response.content
@@ -3202,7 +3206,7 @@ def test_edit_weapon_updates_profile(client, group_user, pack, pack_weapon):
     equip = pack_weapon.content_object
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/edit/",
         {
             "name": equip.name,
             "category": str(equip.category.pk),
@@ -3231,7 +3235,7 @@ def test_edit_weapon_updates_profile(client, group_user, pack, pack_weapon):
 def test_pack_detail_shows_weapon_section(client, group_user, pack):
     """Test that the pack detail page shows the Weapons section."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Weapons" in response.content
 
@@ -3240,7 +3244,7 @@ def test_pack_detail_shows_weapon_section(client, group_user, pack):
 def test_pack_detail_shows_weapon_with_statline(client, group_user, pack, pack_weapon):
     """Test that the pack detail page shows weapon profile statlines."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     assert b"Test Autopistol" in response.content
     # Statline values are shown inline (no "(Standard)" label)
@@ -3255,12 +3259,12 @@ def test_add_weapon_profile(client, group_user, pack, pack_weapon):
     from n23.content.models.weapon import ContentWeaponProfile
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/add/")
     assert response.status_code == 200
 
     equip = pack_weapon.content_object
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
         {
             "name": "Overcharge",
             "cost": "10",
@@ -3293,7 +3297,7 @@ def test_add_weapon_profile_duplicate_standard(client, group_user, pack, pack_we
 
     # The pack_weapon fixture already has a standard (unnamed) profile.
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
         {
             "name": "",
             "cost": "0",
@@ -3324,7 +3328,7 @@ def test_add_weapon_profile_duplicate_named(client, group_user, pack, pack_weapo
 
     # Try to add another profile with the same name.
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
         {
             "name": "Overcharge",
             "cost": "15",
@@ -3355,7 +3359,7 @@ def test_edit_weapon_profile_rename_to_existing_name(
 
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{overcharge.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{overcharge.id}/edit/",
         {
             "name": "Burst",
             "cost": "10",
@@ -3383,7 +3387,7 @@ def test_edit_weapon_profile_rename_to_empty_with_standard(
 
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{named.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{named.id}/edit/",
         {
             "name": "",
             "cost": "0",
@@ -3405,7 +3409,7 @@ def test_add_weapon_profile_named_zero_cost_blocked_with_standard(
 
     # pack_weapon already has a standard (unnamed) profile.
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/add/",
         {
             "name": "Rapid Fire",
             "cost": "0",
@@ -3434,12 +3438,12 @@ def test_edit_weapon_profile(client, group_user, pack, pack_weapon):
 
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
     )
     assert response.status_code == 200
 
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/",
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/",
         {
             "name": "Burst",
             "cost": "10",
@@ -3468,7 +3472,7 @@ def test_edit_weapon_profile_shows_delete_for_named(
 
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
     )
     assert response.status_code == 200
     assert b"Archive profile" in response.content
@@ -3486,7 +3490,7 @@ def test_edit_weapon_profile_hides_delete_for_standard(
 
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard.id}/edit/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard.id}/edit/"
     )
     assert response.status_code == 200
     assert b"Archive profile" not in response.content
@@ -3516,13 +3520,13 @@ def test_delete_weapon_profile(client, group_user, pack, pack_weapon):
 
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
     )
     assert response.status_code == 200
     assert b"Archive profile" in response.content
 
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
     )
     assert response.status_code == 302
 
@@ -3543,13 +3547,13 @@ def test_cannot_delete_standard_weapon_profile(client, group_user, pack, pack_we
     client.force_login(group_user)
     # GET should return 404.
     response = client.get(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard_profile.id}/delete/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard_profile.id}/delete/"
     )
     assert response.status_code == 404
 
     # POST should also return 404.
     response = client.post(
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard_profile.id}/delete/"
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{standard_profile.id}/delete/"
     )
     assert response.status_code == 404
 
@@ -3576,9 +3580,13 @@ def test_archived_weapon_profiles_page_shows_archived(
 
     # Archive the profile via its delete endpoint
     client.force_login(group_user)
-    client.post(f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/")
+    client.post(
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+    )
 
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/")
+    response = client.get(
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/"
+    )
     assert response.status_code == 200
     content = response.content.decode()
     assert "Archived Weapon Profiles" in content
@@ -3590,7 +3598,9 @@ def test_archived_weapon_profiles_page_shows_archived(
 def test_archived_weapon_profiles_page_empty(client, group_user, pack, pack_weapon):
     """Test that the archived profiles page shows empty message when none archived."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/")
+    response = client.get(
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/"
+    )
     assert response.status_code == 200
     content = response.content.decode()
     assert "No archived weapon profiles" in content
@@ -3615,13 +3625,15 @@ def test_weapon_edit_shows_archived_profiles_link(
 
     # Archive the profile
     client.force_login(group_user)
-    client.post(f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/")
+    client.post(
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+    )
 
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_weapon.id}/edit/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Archived (1)" in content
-    assert f"/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/" in content
+    assert f"/n23/pack/{pack.id}/item/{pack_weapon.id}/archived-profiles/" in content
 
 
 @pytest.mark.django_db
@@ -3630,7 +3642,7 @@ def test_weapon_edit_omits_archived_link_when_none(
 ):
     """Test that weapon edit omits archived profiles link when none are archived."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_weapon.id}/edit/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Archived" not in content
@@ -3652,15 +3664,17 @@ def test_weapon_edit_shows_named_profiles_inline(client, group_user, pack, pack_
     profile_pack_item.save_with_user(user=group_user)
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_weapon.id}/edit/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Burst" in content
     assert (
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/" in content
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/edit/"
+        in content
     )
     assert (
-        f"/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/" in content
+        f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/{profile.id}/delete/"
+        in content
     )
 
 
@@ -3668,11 +3682,11 @@ def test_weapon_edit_shows_named_profiles_inline(client, group_user, pack, pack_
 def test_weapon_edit_shows_add_profile_link(client, group_user, pack, pack_weapon):
     """Test that weapon edit shows 'Add profile' link even with no named profiles."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{pack_weapon.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{pack_weapon.id}/edit/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Add profile" in content
-    assert f"/pack/{pack.id}/item/{pack_weapon.id}/profile/add/" in content
+    assert f"/n23/pack/{pack.id}/item/{pack_weapon.id}/profile/add/" in content
 
 
 @pytest.mark.django_db
@@ -3683,7 +3697,7 @@ def test_weapon_category_only_shows_weapons(client, group_user, pack, weapon_cat
     )
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/?profile_mode=single")
     assert response.status_code == 200
     # Weapon categories should appear.
     assert b"Pistols" in response.content
@@ -3697,7 +3711,7 @@ def test_weapon_shows_in_weapon_section_not_gear(
 ):
     """Test that weapons appear in the Weapons section, not Gear."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     content = response.content.decode()
 
     # Find the Weapons and Gear sections.
@@ -3720,16 +3734,16 @@ def test_weapon_shows_in_weapon_section_not_gear(
 def test_weapon_mode_select_page_loads(client, group_user, pack):
     """GET /pack/<id>/add/weapon/ redirects to mode selection."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/")
     assert response.status_code == 302
-    assert f"/pack/{pack.id}/add/weapon/mode/" in response.url
+    assert f"/n23/pack/{pack.id}/add/weapon/mode/" in response.url
 
 
 @pytest.mark.django_db
 def test_weapon_mode_select_page_renders(client, group_user, pack):
     """Mode selection page renders with both options."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/mode/")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/mode/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Single profile" in content
@@ -3744,16 +3758,16 @@ def test_weapon_invalid_profile_mode_redirects(
 ):
     """Invalid profile_mode redirects to mode selection."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=invalid")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/?profile_mode=invalid")
     assert response.status_code == 302
-    assert f"/pack/{pack.id}/add/weapon/mode/" in response.url
+    assert f"/n23/pack/{pack.id}/add/weapon/mode/" in response.url
 
 
 @pytest.mark.django_db
 def test_add_weapon_multi_mode_form_loads(client, group_user, pack, weapon_category):
     """Multi mode form loads with two profile name inputs and stat fields."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=multi")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/?profile_mode=multi")
     assert response.status_code == 200
     content = response.content.decode()
     assert 'name="wp1_name"' in content
@@ -3772,7 +3786,7 @@ def test_add_weapon_multi_creates_two_named_profiles(
 
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        f"/n23/pack/{pack.id}/add/weapon/?profile_mode=multi",
         {
             "name": "Combi-Weapon",
             "category": str(weapon_category.pk),
@@ -3821,7 +3835,7 @@ def test_add_weapon_multi_requires_profile_names(
     """Multi mode rejects submission when profile names are blank."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        f"/n23/pack/{pack.id}/add/weapon/?profile_mode=multi",
         {
             "name": "Combi-Weapon",
             "category": str(weapon_category.pk),
@@ -3846,7 +3860,7 @@ def test_add_weapon_multi_save_and_add_another(
     """'Add and create another' in weapon mode returns to mode selection."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon/?profile_mode=multi",
+        f"/n23/pack/{pack.id}/add/weapon/?profile_mode=multi",
         {
             "name": "Combi-Weapon",
             "category": str(weapon_category.pk),
@@ -3865,7 +3879,7 @@ def test_add_weapon_multi_save_and_add_another(
         },
     )
     assert response.status_code == 302
-    assert f"/pack/{pack.id}/add/weapon/mode/" in response.url
+    assert f"/n23/pack/{pack.id}/add/weapon/mode/" in response.url
 
 
 @pytest.mark.django_db
@@ -3893,7 +3907,7 @@ def test_edit_weapon_multi_profile_no_inline_stats(
         )
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{item.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{item.id}/edit/")
     assert response.status_code == 200
     content = response.content.decode()
     # Should NOT show the inline standard profile stat editor.
@@ -3931,7 +3945,7 @@ def test_cannot_archive_last_two_named_profiles(
     client.force_login(group_user)
     # Trying to delete either profile should 404.
     response = client.post(
-        f"/pack/{pack.id}/item/{item.id}/profile/{profiles[0].id}/delete/"
+        f"/n23/pack/{pack.id}/item/{item.id}/profile/{profiles[0].id}/delete/"
     )
     assert response.status_code == 404
 
@@ -3964,7 +3978,7 @@ def test_can_archive_named_profile_when_more_than_two(
     client.force_login(group_user)
     # With 3 profiles, archiving one should be allowed.
     response = client.post(
-        f"/pack/{pack.id}/item/{item.id}/profile/{profiles[0].id}/delete/"
+        f"/n23/pack/{pack.id}/item/{item.id}/profile/{profiles[0].id}/delete/"
     )
     assert response.status_code == 302
 
@@ -3977,7 +3991,7 @@ def test_pack_lists_view_renders(client, group_user, pack, content_house, make_l
     """The pack lists page renders with the user's lists."""
     client.force_login(group_user)
     make_list("Test Gang", content_house=content_house)
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     assert b"Test Gang" in response.content
     content = response.content.decode()
@@ -3991,11 +4005,11 @@ def test_pack_lists_view_shows_add_button_for_unsubscribed(
     """Unsubscribed lists show an Add button."""
     client.force_login(group_user)
     make_list("Unsubbed Gang", content_house=content_house)
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Unsubbed Gang" in content
-    assert f"/pack/{pack.id}/subscribe/" in content
+    assert f"/n23/pack/{pack.id}/subscribe/" in content
 
 
 @pytest.mark.django_db
@@ -4006,12 +4020,12 @@ def test_pack_lists_view_shows_remove_button_for_subscribed(
     client.force_login(group_user)
     lst = make_list("Subbed Gang", content_house=content_house)
     lst.packs.add(pack)
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Subbed Gang" in content
     assert "Subscribed" in content
-    assert f"/pack/{pack.id}/unsubscribe/" in content
+    assert f"/n23/pack/{pack.id}/unsubscribe/" in content
 
 
 @pytest.mark.django_db
@@ -4022,7 +4036,7 @@ def test_pack_lists_view_search_filter(
     client.force_login(group_user)
     make_list("Alpha Squad", content_house=content_house)
     make_list("Beta Team", content_house=content_house)
-    response = client.get(f"/pack/{pack.id}/lists/?q=Alpha")
+    response = client.get(f"/n23/pack/{pack.id}/lists/?q=Alpha")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Alpha Squad" in content
@@ -4044,7 +4058,7 @@ def test_pack_lists_view_type_filter_list(
     gang.campaign = campaign
     gang.save()
 
-    response = client.get(f"/pack/{pack.id}/lists/?type=list")
+    response = client.get(f"/n23/pack/{pack.id}/lists/?type=list")
     assert response.status_code == 200
     content = response.content.decode()
     assert "List Builder" in content
@@ -4065,7 +4079,7 @@ def test_pack_lists_view_type_filter_gang(
     gang.campaign = campaign
     gang.save()
 
-    response = client.get(f"/pack/{pack.id}/lists/?type=gang")
+    response = client.get(f"/n23/pack/{pack.id}/lists/?type=gang")
     assert response.status_code == 200
     content = response.content.decode()
     assert "My Gang Alpha" in content
@@ -4076,7 +4090,7 @@ def test_pack_lists_view_type_filter_gang(
 def test_pack_lists_view_tabs_present(client, group_user, pack):
     """The page renders tabs for All, Lists, and Campaign Gangs."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Lists" in content
@@ -4089,13 +4103,13 @@ def test_pack_lists_view_pagination(client, group_user, pack, content_house, mak
     client.force_login(group_user)
     for i in range(12):
         make_list(f"Gang {i:02d}", content_house=content_house)
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     # Should show pagination
     assert "Next" in content
     # Page 2 should work
-    response2 = client.get(f"/pack/{pack.id}/lists/?page=2")
+    response2 = client.get(f"/n23/pack/{pack.id}/lists/?page=2")
     assert response2.status_code == 200
 
 
@@ -4116,7 +4130,7 @@ def test_pack_lists_view_excludes_other_users(
         owner=other_user,
     )
 
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "My Gang" in content
@@ -4126,7 +4140,7 @@ def test_pack_lists_view_excludes_other_users(
 @pytest.mark.django_db
 def test_pack_lists_view_requires_login(client, pack):
     """Anonymous users are redirected to login."""
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code in (302, 404)
 
 
@@ -4134,7 +4148,7 @@ def test_pack_lists_view_requires_login(client, pack):
 def test_pack_lists_view_hides_toggles(client, group_user, pack):
     """The 'Your Lists Only', 'Archived Only', and 'Subscribed Only' toggles should not appear."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Your Lists Only" not in content
@@ -4152,7 +4166,7 @@ def test_pack_lists_view_separates_subscribed_and_available(
     subscribed.packs.add(pack)
     make_list("Unsubscribed Gang", content_house=content_house)
 
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     # Both should be visible on the page
@@ -4161,8 +4175,8 @@ def test_pack_lists_view_separates_subscribed_and_available(
     # Subscribed section should be present
     assert "Subscribed" in content
     # Subscribed list should have unsubscribe URL, available should have subscribe URL
-    assert f"/pack/{pack.id}/unsubscribe/" in content
-    assert f"/pack/{pack.id}/subscribe/" in content
+    assert f"/n23/pack/{pack.id}/unsubscribe/" in content
+    assert f"/n23/pack/{pack.id}/subscribe/" in content
 
 
 @pytest.mark.django_db
@@ -4177,14 +4191,14 @@ def test_pack_lists_view_multi_pack_subscription_not_duplicated(
     lst.packs.add(other_pack)
     make_list("Unsubscribed Gang", content_house=content_house)
 
-    response = client.get(f"/pack/{pack.id}/lists/")
+    response = client.get(f"/n23/pack/{pack.id}/lists/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "Multi-pack Gang" in content
     # Should appear only once (in Subscribed), not duplicated in Available
     assert content.count("Multi-pack Gang") == 1
-    assert f"/pack/{pack.id}/unsubscribe/" in content
-    assert f"/pack/{pack.id}/subscribe/" in content
+    assert f"/n23/pack/{pack.id}/unsubscribe/" in content
+    assert f"/n23/pack/{pack.id}/subscribe/" in content
 
 
 # --- Custom weapon traits ---
@@ -4194,7 +4208,7 @@ def test_pack_lists_view_multi_pack_subscription_not_duplicated(
 def test_add_weapon_trait_form_loads(client, group_user, pack):
     """Test that the add weapon trait form loads."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/weapon-trait/")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon-trait/")
     assert response.status_code == 200
     assert b"Add Weapon Trait" in response.content
 
@@ -4206,7 +4220,7 @@ def test_add_weapon_trait_creates_item(client, group_user, pack):
 
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Plasma", "description": "Superheated projectile."},
     )
     assert response.status_code == 302
@@ -4225,7 +4239,7 @@ def test_add_weapon_trait_rejects_duplicate_base_name(client, group_user, pack):
 
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Knockback", "description": ""},
     )
     assert response.status_code == 200
@@ -4239,13 +4253,13 @@ def test_add_weapon_trait_rejects_duplicate_within_pack(client, group_user, pack
     # Create first trait in the pack.
     client.force_login(group_user)
     client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Custom Blast", "description": ""},
     )
 
     # Try to create a second trait with the same name.
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Custom Blast", "description": ""},
     )
     assert response.status_code == 200
@@ -4262,14 +4276,14 @@ def test_different_packs_can_have_same_trait_name(client, group_user, pack):
     client.force_login(group_user)
     # Create trait in first pack.
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Volatile", "description": ""},
     )
     assert response.status_code == 302
 
     # Create same-named trait in second pack.
     response = client.post(
-        f"/pack/{pack2.id}/add/weapon-trait/",
+        f"/n23/pack/{pack2.id}/add/weapon-trait/",
         {"name": "Volatile", "description": ""},
     )
     assert response.status_code == 302
@@ -4288,13 +4302,13 @@ def test_custom_trait_visible_in_weapon_profile_form(
     base_trait = ContentWeaponTrait.objects.create(name="Knockback")
     client.force_login(group_user)
     client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Pack Trait", "description": ""},
     )
     pack_trait = ContentWeaponTrait.objects.all_content().get(name="Pack Trait")
 
     # Load the add weapon form — both traits should be in the picker.
-    response = client.get(f"/pack/{pack.id}/add/weapon/?profile_mode=single")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon/?profile_mode=single")
     content = response.content.decode()
     assert str(base_trait.pk) in content
     assert str(pack_trait.pk) in content
@@ -4306,11 +4320,11 @@ def test_pack_detail_shows_weapon_traits_section(client, group_user, pack):
 
     client.force_login(group_user)
     client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Searing", "description": ""},
     )
 
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     content = response.content.decode()
     assert "Weapon Traits" in content
     assert "Searing" in content
@@ -4327,14 +4341,14 @@ def test_custom_trait_shows_in_weapon_traitline(
 
     # Create a custom weapon trait in the pack.
     client.post(
-        f"/pack/{pack.id}/add/weapon-trait/",
+        f"/n23/pack/{pack.id}/add/weapon-trait/",
         {"name": "Jet Boost", "description": "Custom trait"},
     )
     trait = ContentWeaponTrait.objects.all_content().get(name="Jet Boost")
 
     # Create a weapon in the pack with the custom trait.
     client.post(
-        f"/pack/{pack.id}/add/weapon/",
+        f"/n23/pack/{pack.id}/add/weapon/",
         {
             "name": "Trait Gun",
             "category": str(weapon_category.pk),
@@ -4371,9 +4385,9 @@ def test_add_fighter_step2_invalid_params_redirects(
 ):
     """Accessing Step 2 without valid query params redirects to Step 1."""
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/fighter/stats/")
+    response = client.get(f"/n23/pack/{pack.id}/add/fighter/stats/")
     assert response.status_code == 302
-    assert f"/pack/{pack.id}/add/fighter/" in response.url
+    assert f"/n23/pack/{pack.id}/add/fighter/" in response.url
 
 
 @pytest.mark.django_db
@@ -4383,14 +4397,14 @@ def test_add_fighter_step2_save_and_add_another(
     """'Save and add another' from Step 2 redirects back to Step 1."""
     client.force_login(group_user)
     response = client.post(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Another+Fighter&category=GANGER"
         f"&house_id={content_house.pk}&base_cost=50"
         f"&save_and_add_another=1",
         {"save_and_add_another": "1"},
     )
     assert response.status_code == 302
-    assert f"/pack/{pack.id}/add/fighter/" in response.url
+    assert f"/n23/pack/{pack.id}/add/fighter/" in response.url
     # Fighter should have been created
     assert ContentFighter.objects.all_content().filter(type="Another Fighter").exists()
 
@@ -4437,7 +4451,7 @@ def test_add_fighter_step2_uses_category_statline(
 
     client.force_login(group_user)
     response = client.get(
-        f"/pack/{pack.id}/add/fighter/stats/"
+        f"/n23/pack/{pack.id}/add/fighter/stats/"
         f"?type=Crew+Test&category=CREW"
         f"&house_id={content_house.pk}&base_cost=30"
     )
@@ -4477,7 +4491,7 @@ def test_add_weapon_duplicate_name_integrity_error(
         lambda self: self.cleaned_data["name"],
     ):
         response = client.post(
-            f"/pack/{pack.id}/add/weapon/",
+            f"/n23/pack/{pack.id}/add/weapon/",
             {
                 "name": "Londaxi Maimer",
                 "category": str(weapon_category.pk),
@@ -4521,7 +4535,7 @@ def test_add_gear_duplicate_name_integrity_error(
         lambda self: self.cleaned_data["name"],
     ):
         response = client.post(
-            f"/pack/{pack.id}/add/gear/",
+            f"/n23/pack/{pack.id}/add/gear/",
             {
                 "name": "Duplicate Armour",
                 "category": str(equipment_category.pk),
@@ -4606,7 +4620,7 @@ def test_pack_rule_description_renders_rich_text(client, group_user, pack):
     )
 
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}")
+    response = client.get(f"/n23/pack/{pack.id}")
     assert response.status_code == 200
     content = response.content.decode()
 
@@ -4626,7 +4640,7 @@ def test_pack_rule_add_page_loads_tinymce_editor(client, group_user, pack):
     textarea.
     """
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/add/rule/")
+    response = client.get(f"/n23/pack/{pack.id}/add/rule/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "tinymce" in content.lower()
@@ -4644,7 +4658,7 @@ def test_pack_rule_edit_page_loads_tinymce_editor(client, group_user, pack):
         owner=group_user,
     )
     client.force_login(group_user)
-    response = client.get(f"/pack/{pack.id}/item/{item.id}/edit/")
+    response = client.get(f"/n23/pack/{pack.id}/item/{item.id}/edit/")
     assert response.status_code == 200
     content = response.content.decode()
     assert "tinymce" in content.lower()

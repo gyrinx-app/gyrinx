@@ -26,21 +26,21 @@ def test_list_index_view_sql_injection_protection():
     )
 
     # Test with valid UUID - should work
-    response = client.get("/lists/", {"house": str(house.id)})
+    response = client.get("/n23/lists/", {"house": str(house.id)})
     assert response.status_code == 200
     assert test_list in response.context["lists"]
 
     # Test with SQL injection attempt - should not cause error
     malicious_input = "NULL OR 1=CAST(CONCAT(CHR(73),CHR(56),CHR(111),CHR(78),CHR(58),CHR(71),CHR(54),CHR(108),CHR(50),CHR(116)) AS NUMERIC) /*' || CAST(CAST(CONCAT(CHR(73),CHR(56),CHR(111),CHR(78),CHR(58),CHR(89),CHR(56),CHR(65),CHR(55),CHR(107)) AS NUMERIC) AS TEXT) || '*/"
 
-    response = client.get("/lists/", {"house": malicious_input})
+    response = client.get("/n23/lists/", {"house": malicious_input})
     assert response.status_code == 200
     # The malicious input should be filtered out, so all lists should be shown
     assert test_list in response.context["lists"]
 
     # Test with multiple house filters including invalid ones
     response = client.get(
-        "/lists/", {"house": [str(house.id), malicious_input, "not-a-uuid"]}
+        "/n23/lists/", {"house": [str(house.id), malicious_input, "not-a-uuid"]}
     )
     assert response.status_code == 200
     # Only the valid UUID should be used for filtering
@@ -65,11 +65,11 @@ def test_list_index_view_empty_house_filter():
     )
 
     # Test with empty string
-    response = client.get("/lists/", {"house": ""})
+    response = client.get("/n23/lists/", {"house": ""})
     assert response.status_code == 200
     assert test_list in response.context["lists"]
 
     # Test with "all"
-    response = client.get("/lists/", {"house": "all"})
+    response = client.get("/n23/lists/", {"house": "all"})
     assert response.status_code == 200
     assert test_list in response.context["lists"]

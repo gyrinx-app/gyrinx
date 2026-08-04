@@ -170,7 +170,7 @@ def test_campaign_safe_html_allowed():
         <li>Numbered item 2</li>
     </ol>
     <blockquote>This is a quote</blockquote>
-    <a href="/lists/">Link to lists</a>
+    <a href="/n23/lists/">Link to lists</a>
     <hr>
     <table>
         <tr><th>Header</th><td>Data</td></tr>

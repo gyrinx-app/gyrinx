@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-08-04T22:28:15Z",
+  "generated_at": "2026-08-04T22:38:15Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -1142,7 +1142,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 90,
+      "loc": 69,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1158,6 +1158,19 @@
       "loc": 65,
       "nosec": 0,
       "skipped_tests": 0
+    },
+    "./gyrinx/views_debug.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 227,
+      "nosec": 0,
+      "skipped_tests": 1
     },
     "./gyrinx/widgets.py": {
       "CONFIDENCE.HIGH": 0,
@@ -3248,7 +3261,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 15,
+      "loc": 29,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3262,6 +3275,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 388,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./n23/core/urls/debug.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 25,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3664,9 +3690,9 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 270,
+      "loc": 48,
       "nosec": 0,
-      "skipped_tests": 1
+      "skipped_tests": 0
     },
     "./n23/core/views/dice.py": {
       "CONFIDENCE.HIGH": 0,
@@ -4249,7 +4275,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 9,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 71207,
+      "loc": 71230,
       "nosec": 4,
       "skipped_tests": 56
     }

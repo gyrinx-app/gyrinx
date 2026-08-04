@@ -243,10 +243,10 @@ def test_unsafe_href_does_not_become_a_link(render, href):
 
 
 def test_root_relative_href_links(render):
-    out = render('<c-badge href="/list/1">h</c-badge>')
+    out = render('<c-badge href="/n23/list/1">h</c-badge>')
     assert (
         out
-        == '<a href="/list/1" class="badge text-bg-secondary text-decoration-none">h</a>'
+        == '<a href="/n23/list/1" class="badge text-bg-secondary text-decoration-none">h</a>'
     )
 
 

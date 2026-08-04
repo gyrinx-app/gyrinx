@@ -327,8 +327,10 @@ def test_note_action_slot_does_not_leak_ambient_context(render):
     Context isolation is off, so an undeclared named slot resolves against the
     parent context. The c-vars default shadows it.
     """
-    out = render('<c-note icon="info">Body</c-note>', {"action": "/campaign/1/leak/"})
-    assert "/campaign/1/leak/" not in out
+    out = render(
+        '<c-note icon="info">Body</c-note>', {"action": "/n23/campaign/1/leak/"}
+    )
+    assert "/n23/campaign/1/leak/" not in out
 
 
 # --------------------------------------------------------------------------
