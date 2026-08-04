@@ -259,6 +259,7 @@ def apply_statline_plan(entries):
                 # hazard the normalise CAS exists to prevent.
                 cf = (
                     ContentFighter.objects.all_content()
+                    .select_for_update()
                     .only(*STAT_FIELDS)
                     .get(pk=entry.cf_id)
                 )

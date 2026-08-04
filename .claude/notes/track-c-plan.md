@@ -51,7 +51,7 @@ links: `c0-fix-list.md` (sent to Tom).
 - **Format-variant 162** (suffix-less `4` for `4+` etc., ~20 templates): too
   many to hand-edit; proposed as a tiny preview-first backfill adding the
   suffix the ContentStat flags dictate. Visible cosmetic correction — needs
-  Tom's go-ahead. Does not block C1 (verbatim copy preserves either form).
+  Tom's go-ahead. C1's apply refuses to run while un-normalised values remain (explicit override checkbox to copy them verbatim anyway).
 - **Blanks are the Stash templates** (~39, all-12-blank) plus ~17 BS-only
   blanks. REVISED after reading `sq_content_fighter_statline`: the annotated
   fast path drops missing rows from the card entirely, while the Python path

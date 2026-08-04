@@ -78,14 +78,14 @@ def list_fighter_stats_edit(request, id, fighter_id):
                 # legacy *_override underneath is cleared. Without this,
                 # blanking a field looks like clearing the override while the
                 # legacy value silently keeps applying via the fallback.
-                dirty = False
+                cleared_fields = []
                 for stat_def in statline.statline_type.stats.all():
                     legacy_field = f"{stat_def.field_name}_override"
                     if getattr(fighter, legacy_field, None) is not None:
                         setattr(fighter, legacy_field, None)
-                        dirty = True
-                if dirty:
-                    fighter.save()
+                        cleared_fields.append(legacy_field)
+                if cleared_fields:
+                    fighter.save(update_fields=cleared_fields)
             else:
                 # Handle legacy overrides
                 for field_name, value in form.cleaned_data.items():
