@@ -5,8 +5,9 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 
 from n23.content.models import ContentHouse
-from n23.core.models import Event, EventNoun, EventVerb, List, log_event
-from n23.core.models.events import EventField, get_client_ip
+from n23.core.models import List
+from gyrinx.analytics.models import Event, EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventField, get_client_ip
 
 
 @pytest.mark.django_db
@@ -146,7 +147,7 @@ def test_log_event_with_request_no_session():
 
 
 @pytest.mark.django_db
-@patch("n23.core.models.events.track")
+@patch("gyrinx.analytics.models.track")
 def test_event_logging_to_stream(mock_track):
     """Test that events are logged to the log stream."""
     user = User.objects.create_user(username="testuser")
@@ -275,7 +276,7 @@ def test_create_list_view_logs_event(client, user, content_house):
 
 
 @pytest.mark.django_db
-@patch("n23.core.models.events.Event.objects.create")
+@patch("gyrinx.analytics.models.Event.objects.create")
 def test_log_event_error_handling(mock_create):
     """Test that log_event handles errors gracefully."""
     user = User.objects.create_user(username="testuser")
@@ -299,8 +300,8 @@ def test_log_event_error_handling(mock_create):
 
 
 @pytest.mark.django_db
-@patch("n23.core.models.events.track")
-@patch("n23.core.models.events.logger")
+@patch("gyrinx.analytics.models.track")
+@patch("gyrinx.analytics.models.logger")
 def test_event_save_logging_error_handling(mock_logger, mock_track):
     """Test that Event.save handles logging errors gracefully."""
     user = User.objects.create_user(username="testuser")

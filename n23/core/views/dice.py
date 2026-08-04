@@ -6,7 +6,7 @@ from random import Random, randint  # nosec B311 - game dice, not crypto
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 
 # The dice configuration comes straight from the (shareable, hand-editable) URL,
 # so it is untrusted: a non-numeric value would otherwise raise (HTTP 500) and a

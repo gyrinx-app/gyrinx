@@ -20,7 +20,7 @@ from n23.core.context_processors import BANNER_CACHE_KEY
 from n23.core.forms.list import CloneListForm, EditListForm, NewListForm
 from n23.core.handlers.list import handle_list_clone, handle_list_creation
 from n23.core.models.list import List, ListFighter
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.utils import (
     build_safe_url,
     get_list_attributes,

@@ -15,7 +15,7 @@ from n23.core.models.campaign import (
     CampaignAction,
     CampaignAsset,
 )
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack

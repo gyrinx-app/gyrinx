@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils.html import format_html
 
 from gyrinx.site.models import Banner
-from n23.core.models.events import Event, EventNoun, EventVerb
+from gyrinx.analytics.models import Event, EventNoun, EventVerb
 
 
 @admin.register(Banner)

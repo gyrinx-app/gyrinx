@@ -14,7 +14,7 @@ from gyrinx import messages
 from n23.core.utils import search_queryset
 from n23.core.forms.campaign import CampaignActionForm, CampaignActionOutcomeForm
 from n23.core.models.campaign import Campaign, CampaignAction
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.utils import get_return_url, safe_redirect
 from gyrinx.models import is_int, is_valid_uuid
 from gyrinx.tracker import track

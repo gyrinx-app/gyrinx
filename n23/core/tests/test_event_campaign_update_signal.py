@@ -6,7 +6,7 @@ import pytest
 from django.utils import timezone
 
 from n23.core.models.campaign import Campaign
-from n23.core.models.events import Event, EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import Event, EventNoun, EventVerb, log_event
 
 
 @pytest.mark.django_db

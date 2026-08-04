@@ -75,7 +75,7 @@ from n23.core.forms.pack import (
     HOUSE_RULE_TARGET_CHOICES,
 )
 from n23.core.models.campaign import Campaign, CampaignContentPack
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List
 from n23.core.models.pack import (
     PACK_ATTACHMENT_MAX_PER_PACK,

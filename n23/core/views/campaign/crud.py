@@ -15,7 +15,7 @@ from n23.core.handlers.campaign_copy import (
     ensure_default_resource_type,
 )
 from n23.core.models.campaign import Campaign
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from gyrinx.tracker import track
 from n23.core.views.campaign.common import get_campaign_admin_or_404
 

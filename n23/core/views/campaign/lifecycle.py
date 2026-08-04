@@ -14,7 +14,7 @@ from n23.core.handlers.campaign_operations import (
     handle_campaign_start,
 )
 from n23.core.models.campaign import Campaign, CampaignAction
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List
 from n23.core.utils import safe_redirect, toggle_membership
 from gyrinx.tasks.groups import enqueue_in_group

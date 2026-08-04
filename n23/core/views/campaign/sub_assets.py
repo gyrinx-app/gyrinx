@@ -9,7 +9,7 @@ from django.urls import reverse
 from gyrinx import messages
 from n23.core.forms.campaign import CampaignSubAssetForm
 from n23.core.models.campaign import CampaignAsset, CampaignSubAsset
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from gyrinx.tracker import track
 from n23.core.views.campaign.common import get_campaign_admin_or_404
 

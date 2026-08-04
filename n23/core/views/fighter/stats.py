@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from n23.core.forms.list import EditListFighterStatsForm
-from n23.core.models.events import EventField, EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventField, EventNoun, EventVerb, log_event
 from n23.core.models.list import List, ListFighter, ListFighterStatOverride
 from n23.core.utils import get_return_url, safe_redirect
 from n23.core.views.list.common import get_clean_list_or_404

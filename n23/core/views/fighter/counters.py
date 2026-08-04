@@ -16,7 +16,7 @@ from n23.core.handlers.fighter import (
     handle_counter_spend,
     handle_counter_spend_removal,
 )
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import ListFighterCounter, ListFighterCounterSpend
 from n23.core.views.fighter.permissions import get_list_and_fighter
 

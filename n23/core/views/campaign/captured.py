@@ -12,7 +12,7 @@ from django.urls import reverse
 from gyrinx import messages
 from n23.core.handlers.fighter.capture import handle_fighter_return_to_owner
 from n23.core.models.campaign import Campaign
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import CapturedFighter
 from n23.core.utils import get_return_url, safe_redirect
 from gyrinx.tracker import track

@@ -51,7 +51,7 @@ from n23.core.handlers.equipment import (
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import (
     List,
     ListFighter,

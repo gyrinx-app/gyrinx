@@ -2,7 +2,7 @@
 
 The model follows the fan-out approach — one row per recipient — so read/unread,
 archive and delete state is independent per user. The ``notify*`` functions mirror
-the ergonomics of :func:`n23.core.models.events.log_event`: they are module-level
+the ergonomics of :func:`gyrinx.analytics.models.log_event`: they are module-level
 helpers that live beside the model, never raise (they log and return ``None``/``0``
 instead), and work with no request and no acting user, so background jobs and data
 migrations can call them safely.
