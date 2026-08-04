@@ -31,4 +31,4 @@ Custom statlines for vehicles:
 
 ## Model Relationships
 
-<figure><img src="../.gitbook/assets/gyrinx-statlines.png" alt="Statline model relationships diagram"><figcaption></figcaption></figure>
+<figure><img src="../../.gitbook/assets/gyrinx-statlines.png" alt="Statline model relationships diagram"><figcaption></figcaption></figure>

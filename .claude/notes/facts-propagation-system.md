@@ -1,9 +1,9 @@
 # Facts & Propagation System Architecture
 
 > **ARCHIVED**: This internal working document has been superseded by public documentation. See:
-> - [Fighter Cost System Reference](../../docs/fighter-cost-system-reference.md) - Facts API
-> - [Cost Handler Development Guide](../../docs/how-to-guides/handler-development.md) - Handler patterns
-> - [Cost Propagation Architecture](../../docs/technical-design/cost-propagation-architecture.md) - Technical details
+> - [Fighter Cost System Reference](../../docs/n23/fighter-cost-system-reference.md) - Facts API
+> - [Cost Handler Development Guide](../../docs/n23/how-to-guides/handler-development.md) - Handler patterns
+> - [Cost Propagation Architecture](../../docs/n23/technical-design/cost-propagation-architecture.md) - Technical details
 >
 > This file is kept for historical reference only.
 

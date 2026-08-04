@@ -111,5 +111,5 @@ The original list remains in "List Building" status while the clone tracks campa
 
 - [Fighter Cost System Reference](fighter-cost-system-reference.md) - Detailed cost calculation logic
 - [Fighter Cost System Design](fighter-cost-system-design.md) - Design philosophy for cost calculations
-- [Models and Database](developing-gyrinx/models-and-database.md) - Data model documentation
+- [Models and Database](../developing-gyrinx/models-and-database.md) - Data model documentation
 - [Campaigns](campaigns.md) - Campaign system documentation

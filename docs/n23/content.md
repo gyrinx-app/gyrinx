@@ -19,7 +19,7 @@ The actual content library itself is managed directly within the Django admin ap
 {% hint style="info" %}
 The size and complexity of the content library can make developing Gyrinx locally difficult because you have to set up a reasonable representation of the production content library locally.
 
-A development content fixture is available - see the [Content Data Management](./operations/content-data-management.md) guide for details.
+A development content fixture is available - see the [Content Data Management](../operations/content-data-management.md) guide for details.
 {% endhint %}
 
 ## Content Library Principles
@@ -42,4 +42,4 @@ Adding support for new content types (e.g., new gang types, equipment categories
 3. **Implementation** - Create the Django models with appropriate tests
 4. **Content Entry** - Add the actual game content via the admin interface
 
-See the [Contributing Guide](../CONTRIBUTING.md) for more details on the development process.
+See the [Contributing Guide](../../CONTRIBUTING.md) for more details on the development process.
