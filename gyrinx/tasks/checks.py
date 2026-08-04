@@ -24,10 +24,19 @@ from gyrinx.tasks.registry import get_all_tasks
 
 # Escape hatch for a task module NOT named ``<app>.tasks`` (an unconventional
 # location auto-discovery in ``_task_module_paths`` wouldn't find). Empty by
-# default: every first-party ``gyrinx.*/tasks.py`` is auto-discovered, as is any
+# default: every first-party ``<app>/tasks.py`` is auto-discovered, as is any
 # module that already owns a registered task, so listing those here would only
 # duplicate the scan.
 TASK_MODULES = ()
+
+# Import prefixes we consider first-party. Auto-discovery is restricted to these
+# so a third-party app's task module can't spuriously demand entries in *our*
+# registry. ``n23.``/``n26.`` are the per-edition namespaces (#2093): the current
+# edition moves from ``gyrinx.core``/``gyrinx.content`` to ``n23.*``, and n26
+# lands alongside it. They are listed ahead of the move so the rename cannot
+# silently narrow this scan — the failure mode would be a brand-new edition app's
+# first task going unregistered, which only surfaces in production.
+FIRST_PARTY_PREFIXES = ("gyrinx.", "n23.", "n26.")
 
 
 def _task_module_paths(routes):
@@ -36,16 +45,15 @@ def _task_module_paths(routes):
     - the explicit ``TASK_MODULES``;
     - every module that already owns a registered task (so a second task added
       beside a registered one is caught);
-    - each first-party ``gyrinx.*`` app's conventional ``<app>.tasks`` module,
-      when it exists — this closes the "brand-new app's first task, never
-      registered" gap without waiting for declaration-owned registration
-      (#1947 rec 2). Restricted to our own apps so a third-party app's task
-      module can't spuriously demand entries in *our* registry.
+    - each first-party app's conventional ``<app>.tasks`` module, when it exists
+      — this closes the "brand-new app's first task, never registered" gap
+      without waiting for declaration-owned registration (#1947 rec 2). See
+      ``FIRST_PARTY_PREFIXES`` for what counts as first-party.
     """
     paths = set(TASK_MODULES)
     paths |= {route.path.rsplit(".", 1)[0] for route in routes}
     for app_config in django_apps.get_app_configs():
-        if not app_config.name.startswith("gyrinx."):
+        if not app_config.name.startswith(FIRST_PARTY_PREFIXES):
             continue
         candidate = f"{app_config.name}.tasks"
         try:

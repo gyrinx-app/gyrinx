@@ -3,7 +3,7 @@ from django.contrib.flatpages.admin import FlatPageAdmin as BaseFlatPageAdmin
 from django.contrib.flatpages.models import FlatPage
 from django.urls import reverse
 
-from gyrinx.core.widgets import TinyMCEWithUpload
+from gyrinx.widgets import TinyMCEWithUpload
 from gyrinx.pages.models import FlatPageVisibility
 
 

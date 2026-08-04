@@ -4561,7 +4561,7 @@ def test_pack_content_forms_use_tinymce_for_description():
         ContentWeaponTraitPackForm,
         PackAttachmentForm,
     )
-    from gyrinx.core.widgets import TinyMCEWithUpload
+    from gyrinx.widgets import TinyMCEWithUpload
 
     rich_text_forms = [
         ContentRuleForm,

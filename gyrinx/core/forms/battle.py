@@ -4,7 +4,7 @@ from gyrinx.content.models import ContentBattleRoleOption
 from gyrinx.core.forms import BsRadioSelect
 from gyrinx.core.models import Battle, BattleNote
 from gyrinx.core.models.list import List
-from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
+from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 def validate_result_and_winners(result, winners, add_error):

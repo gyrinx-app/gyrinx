@@ -3,7 +3,7 @@
 import pytest
 from django.urls import reverse
 
-from gyrinx.core.badges import HIDE_BADGE
+from gyrinx.badges import HIDE_BADGE
 from gyrinx.core.forms import BadgeSelectionForm
 from gyrinx.core.models.auth import PatreonStatus, UserProfile
 

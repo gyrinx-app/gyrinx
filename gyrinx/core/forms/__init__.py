@@ -6,7 +6,7 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 from django_recaptcha.fields import ReCaptchaField, ReCaptchaV3
 
-from gyrinx.core.badges import HIDE_BADGE, badge_choices
+from gyrinx.badges import HIDE_BADGE, badge_choices
 
 
 class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):

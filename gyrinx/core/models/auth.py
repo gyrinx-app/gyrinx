@@ -4,7 +4,7 @@ from django.utils import timezone
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
-from gyrinx.core.badges import (
+from gyrinx.badges import (
     HIDE_BADGE,
     PATREON_BADGES,
     STAFF_BADGE,

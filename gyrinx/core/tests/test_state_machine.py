@@ -5,7 +5,7 @@ Tests for the StateMachine descriptor and per-model transition tables.
 import pytest
 from django.db import connection, models
 
-from gyrinx.core.models.state_machine import (
+from gyrinx.state_machine import (
     InvalidStateTransition,
     StateMachine,
 )

@@ -4,7 +4,7 @@ from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
 from gyrinx.core.models.base import AppBase
-from gyrinx.core.models.state_machine import StateMachine
+from gyrinx.state_machine import StateMachine
 
 User = get_user_model()
 

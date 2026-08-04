@@ -4,7 +4,7 @@ from django.urls import reverse
 from gyrinx.content.models import ContentBattleRole, ContentBattleRoleOption
 from gyrinx.core.models import Battle, BattleParticipant
 from gyrinx.core.models.list import List
-from gyrinx.core.models.state_machine import InvalidStateTransition
+from gyrinx.state_machine import InvalidStateTransition
 
 
 @pytest.fixture

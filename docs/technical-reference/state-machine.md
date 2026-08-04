@@ -16,7 +16,7 @@ The `StateMachine` descriptor provides:
 ### Defining a State Machine
 
 ```python
-from gyrinx.core.models.state_machine import StateMachine
+from gyrinx.state_machine import StateMachine
 from gyrinx.models import Base
 
 class Order(Base):
@@ -162,7 +162,7 @@ The dynamically created transition model (e.g., `OrderStateTransition`) has:
 Raised when attempting an invalid transition:
 
 ```python
-from gyrinx.core.models.state_machine import InvalidStateTransition
+from gyrinx.state_machine import InvalidStateTransition
 
 try:
     order.states.transition_to("DELIVERED")  # Invalid from PENDING

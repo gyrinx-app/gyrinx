@@ -17,7 +17,8 @@ from gyrinx.core.models.campaign import (
     CampaignResourceType,
     CampaignSubAsset,
 )
-from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
+from gyrinx.core.widgets import ColorRadioSelect
+from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 class NewCampaignForm(forms.ModelForm):

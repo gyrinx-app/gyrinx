@@ -9,7 +9,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
-from gyrinx.core.badges import BadgeDef, badge_by_slug
+from gyrinx.badges import BadgeDef, badge_by_slug
 
 register = template.Library()
 

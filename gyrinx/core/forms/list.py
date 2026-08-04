@@ -15,7 +15,8 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
+from gyrinx.core.widgets import ColorRadioSelect
+from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 from gyrinx.forms import (
     fighter_group_key,
     group_select,

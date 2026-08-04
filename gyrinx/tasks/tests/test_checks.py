@@ -65,6 +65,38 @@ def test_app_discovery_reaches_conventional_task_modules(monkeypatch):
     assert "gyrinx.core.tasks" in paths
 
 
+def test_app_discovery_covers_edition_namespaces(monkeypatch):
+    """The per-edition namespaces are first-party too. The n23 rename (#2093)
+    moves ``gyrinx.core`` to ``n23.core``; if the prefix filter still only
+    accepted ``gyrinx.``, this scan would silently stop discovering the
+    edition's task module and the #1947 guard would weaken to nothing —
+    a gap that only shows up in production."""
+
+    class _StubAppConfig:
+        def __init__(self, name):
+            self.name = name
+
+    monkeypatch.setattr(checks, "TASK_MODULES", ())
+    monkeypatch.setattr(
+        checks.django_apps,
+        "get_app_configs",
+        lambda: [
+            _StubAppConfig("n23.core"),
+            _StubAppConfig("n26.content"),
+            _StubAppConfig("thirdparty.app"),
+        ],
+    )
+    # Pretend every candidate resolves, so this exercises the prefix filter
+    # rather than module resolution.
+    monkeypatch.setattr(checks.importlib.util, "find_spec", lambda name: object())
+
+    paths = checks._task_module_paths([])
+
+    assert "n23.core.tasks" in paths
+    assert "n26.content.tasks" in paths
+    assert "thirdparty.app.tasks" not in paths
+
+
 def test_registry_entry_that_isnt_a_task_is_flagged(monkeypatch):
     """A TaskRoute wrapping a plain (non-@task) function reports E002."""
 
