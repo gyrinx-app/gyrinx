@@ -410,3 +410,21 @@ def test_stats_form_shows_and_migrates_a_legacy_override(
     assert fighter.weapon_skill_override is None
     assert not ListFighterStatOverride.objects.filter(list_fighter=fighter).exists()
     assert shown(fighter, "weapon_skill") != "2+"
+
+
+@pytest.mark.django_db
+def test_normalise_skips_a_template_that_gained_a_statline_mid_run(
+    make_content_fighter, content_house, fighter_type
+):
+    """The statline copied the old value; updating the dead column would
+    silently diverge from what the card now shows."""
+    cf = make_cf(make_content_fighter, content_house, weapon_skill="4")
+    fixes = [f for f in build_format_plan() if f.cf_id == str(cf.id)]
+
+    ContentStatline.objects.create(content_fighter=cf, statline_type=fighter_type)
+
+    applied, skipped = apply_format_plan(fixes)
+    assert applied == []
+    assert len(skipped) == 1
+    cf.refresh_from_db()
+    assert cf.weapon_skill == "4"

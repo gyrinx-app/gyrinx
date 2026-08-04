@@ -163,7 +163,15 @@ def apply_format_plan(fixes):
     for fix in fixes:
         written = (
             ContentFighter.objects.all_content()
-            .filter(pk=fix.cf_id, **{fix.stat: fix.old})
+            .filter(
+                pk=fix.cf_id,
+                # Still statline-less: a template that gained a statline
+                # since planning copied the old value into it, and updating
+                # the now-dead column would silently diverge from what the
+                # card shows. Skip and report instead.
+                custom_statline__isnull=True,
+                **{fix.stat: fix.old},
+            )
             .update(**{fix.stat: fix.new})
         )
         (applied if written else skipped).append(fix)
