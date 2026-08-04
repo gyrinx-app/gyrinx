@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-08-04T22:38:15Z",
+  "generated_at": "2026-08-05T06:06:09Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -596,7 +596,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 429,
+      "loc": 553,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1935,7 +1935,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 61,
+      "loc": 59,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2117,7 +2117,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 922,
+      "loc": 926,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2628,6 +2628,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./n23/core/maintenance/statlines.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 321,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./n23/core/management/commands/backfill_pins.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -2793,7 +2806,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 57,
+      "loc": 65,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3261,7 +3274,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 29,
+      "loc": 33,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3898,7 +3911,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 85,
+      "loc": 93,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4275,7 +4288,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 9,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 71230,
+      "loc": 71697,
       "nosec": 4,
       "skipped_tests": 56
     }

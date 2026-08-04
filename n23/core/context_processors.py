@@ -3,13 +3,11 @@ import logging
 from django.core.cache import cache
 from django.db import DatabaseError, InterfaceError, OperationalError
 
-from gyrinx.site.models import Banner
+from gyrinx.site.models import BANNER_CACHE_KEY, BANNER_CACHE_TIMEOUT, Banner
 
 logger = logging.getLogger(__name__)
 
 # Cache key and timeout for banner data
-BANNER_CACHE_KEY = "site_banner_live"
-BANNER_CACHE_TIMEOUT = 300  # 5 minutes
 
 
 def site_banner(request):

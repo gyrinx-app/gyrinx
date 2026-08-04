@@ -5,7 +5,8 @@ from django.test import RequestFactory
 from django.core.cache import cache
 
 from gyrinx.site.models import Banner
-from n23.core.context_processors import site_banner, BANNER_CACHE_KEY
+from gyrinx.site.models import BANNER_CACHE_KEY
+from n23.core.context_processors import site_banner
 
 
 @pytest.fixture

@@ -4,6 +4,11 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx.base_models import AppBase
 
+# Cache key/timeout for the live banner. Defined beside the model rather than in
+# the context processor that reads it, so the platform owns its own constant.
+BANNER_CACHE_KEY = "site_banner_live"
+BANNER_CACHE_TIMEOUT = 300  # 5 minutes
+
 
 class Banner(AppBase):
     """Site-wide banner shown to all users on the homepage."""
@@ -61,15 +66,11 @@ class Banner(AppBase):
             )
         super().save(*args, **kwargs)
         # Clear the banner cache when any banner is saved
-        from n23.core.context_processors import BANNER_CACHE_KEY
-
         cache.delete(BANNER_CACHE_KEY)
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
         # Clear the banner cache when any banner is deleted
-        from n23.core.context_processors import BANNER_CACHE_KEY
-
         cache.delete(BANNER_CACHE_KEY)
 
     def clean(self):

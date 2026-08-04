@@ -1,3 +1,4 @@
+from django.http import HttpResponsePermanentRedirect
 from django.urls import include, path, re_path
 from django.views.generic import RedirectView
 
@@ -37,12 +38,32 @@ edition_patterns = (
 # path, tail and query string preserved, rather than 404ing.
 LEGACY_PREFIXES = ["list", "lists", "campaign", "campaigns", "battle", "pack", "packs"]
 
+
+class _Redirect308(HttpResponsePermanentRedirect):
+    """308 rather than 301.
+
+    A 301 lets the browser re-issue the request as a GET, dropping the method
+    and body. These redirects catch every verb, so somebody who still has a
+    pre-deploy page open and submits its form would have the POST silently
+    turned into a GET and their edit lost. 308 preserves both.
+    """
+
+    status_code = 308
+
+
+class LegacyEditionRedirect(RedirectView):
+    permanent = True
+    query_string = True
+    response_class = _Redirect308
+
+    def get(self, request, *args, **kwargs):
+        return self.response_class(self.get_redirect_url(*args, **kwargs))
+
+
 legacy_redirects = [
     re_path(
         r"^(?P<rest>(?:%s)(?:/.*)?)$" % "|".join(LEGACY_PREFIXES),
-        RedirectView.as_view(
-            url=f"/{EDITION_PREFIX}%(rest)s", permanent=True, query_string=True
-        ),
+        LegacyEditionRedirect.as_view(url=f"/{EDITION_PREFIX}%(rest)s"),
     )
 ]
 
