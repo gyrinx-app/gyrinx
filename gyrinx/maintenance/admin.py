@@ -492,13 +492,8 @@ class MaintenanceAdminSite(admin.site.__class__):
                     )
                 messages.success(request, note)
             except Exception as e:
+                # run_normalise already recorded the run as FAILED
                 logger.exception("Stat-format normalisation failed")
-                Backfill.objects.create(
-                    operation=Backfill.Operation.NORMALISE_STAT_FORMATS,
-                    triggered_by=request.user,
-                    status=Backfill.Status.FAILED,
-                    error=f"{e}\n\n{traceback.format_exc()}",
-                )
                 messages.error(request, f"Normalisation failed: {e}")
                 return HttpResponseRedirect(
                     reverse("admin:maintenance_normalise_stat_formats")
@@ -534,13 +529,8 @@ class MaintenanceAdminSite(admin.site.__class__):
                     )
                 messages.success(request, note)
             except Exception as e:
+                # run_materialise already recorded the run as FAILED
                 logger.exception("Statline materialisation failed")
-                Backfill.objects.create(
-                    operation=Backfill.Operation.MATERIALISE_STATLINES,
-                    triggered_by=request.user,
-                    status=Backfill.Status.FAILED,
-                    error=f"{e}\n\n{traceback.format_exc()}",
-                )
                 messages.error(request, f"Materialisation failed: {e}")
                 return HttpResponseRedirect(
                     reverse("admin:maintenance_materialise_statlines")

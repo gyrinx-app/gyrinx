@@ -173,11 +173,15 @@ def build_statline_plan():
         values = {}
         blanks = 0
         for stat in STAT_FIELDS:
-            value = (getattr(cf, stat) or "").strip()
-            if not value:
-                value = "-"
+            raw = getattr(cf, stat) or ""
+            # Stripped only to DECIDE blankness — the stored copy is verbatim,
+            # as the docstring promises. HTML collapses whitespace, so either
+            # way the card is unchanged; the claim should still be true.
+            if not raw.strip():
+                values[stat] = "-"
                 blanks += 1
-            values[stat] = value
+            else:
+                values[stat] = raw
         entries.append(
             StatlineEntry(
                 cf_id=str(cf.id),
@@ -246,6 +250,13 @@ def apply_statline_plan(entries):
                     for stat, value in entry.values.items()
                 )
         except IntegrityError:
+            # Only the expected race is skippable: a statline appearing
+            # concurrently. Any other integrity problem must fail the run
+            # loudly rather than leave templates silently unprocessed.
+            if not ContentStatline.objects.filter(
+                content_fighter_id=entry.cf_id
+            ).exists():
+                raise
             skipped.append(entry)
             continue
         created.append(entry)
@@ -259,26 +270,42 @@ def apply_statline_plan(entries):
     return created, skipped
 
 
-def _record(operation, triggered_by, summary):
+def _run(operation, triggered_by, plan_fn, apply_fn, summarise):
+    """Record-first execution shared by both operations.
+
+    The record is created RUNNING before anything is written — that is what
+    makes the admin's concurrent-run guard real rather than decorative — and
+    flipped to DONE with the summary afterwards. A crash leaves a RUNNING
+    record for the operator to mark Failed; these operations keep no memory
+    of their own, so unlike the stat-advancement cleanup that is safe.
+    """
     from n23.core.models import Backfill
 
-    return Backfill.objects.create(
-        operation=operation,
-        triggered_by=triggered_by,
-        status=Backfill.Status.DONE,
-        summary=summary,
+    record = Backfill.objects.create(
+        operation=operation, triggered_by=triggered_by, status=Backfill.Status.RUNNING
     )
+    try:
+        plan = plan_fn()
+        done, skipped = apply_fn(plan)
+    except Exception:
+        record.status = Backfill.Status.FAILED
+        record.save(update_fields=["status", "modified"])
+        raise
+    record.summary = summarise(done, skipped)
+    record.status = Backfill.Status.DONE
+    record.save(update_fields=["summary", "status", "modified"])
+    return record, done, skipped
 
 
 def run_normalise(*, triggered_by=None):
     from n23.core.models import Backfill
 
-    fixes = build_format_plan()
-    applied, skipped = apply_format_plan(fixes)
-    record = _record(
+    return _run(
         Backfill.Operation.NORMALISE_STAT_FORMATS,
         triggered_by,
-        {
+        build_format_plan,
+        apply_format_plan,
+        lambda applied, skipped: {
             "applied": len(applied),
             "skipped_edited_mid_run": len(skipped),
             "changes": [
@@ -287,18 +314,17 @@ def run_normalise(*, triggered_by=None):
             ],
         },
     )
-    return record, applied, skipped
 
 
 def run_materialise(*, triggered_by=None):
     from n23.core.models import Backfill
 
-    entries = build_statline_plan()
-    created, skipped = apply_statline_plan(entries)
-    record = _record(
+    return _run(
         Backfill.Operation.MATERIALISE_STATLINES,
         triggered_by,
-        {
+        build_statline_plan,
+        apply_statline_plan,
+        lambda created, skipped: {
             "created": len(created),
             "skipped_gained_statline_mid_run": len(skipped),
             "all_blank_templates": sum(1 for e in created if e.blank_count == 12),
@@ -308,4 +334,3 @@ def run_materialise(*, triggered_by=None):
             ],
         },
     )
-    return record, created, skipped

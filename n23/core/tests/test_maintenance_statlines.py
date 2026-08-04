@@ -249,3 +249,55 @@ def test_runs_record_their_outcomes(make_content_fighter, content_house, fighter
     record, created, _ = run_materialise()
     assert record.operation == Backfill.Operation.MATERIALISE_STATLINES
     assert record.summary["created"] == len(created) >= 1
+
+
+@pytest.mark.django_db
+def test_values_are_copied_verbatim_including_whitespace(
+    make_content_fighter, content_house, fighter_type
+):
+    """Verbatim means verbatim: stripping is only for deciding blankness."""
+    cf = make_cf(make_content_fighter, content_house, weapon_skill="4+ ")
+
+    run_materialise()
+
+    cf = type(cf).objects.all_content().get(pk=cf.pk)
+    row = cf.custom_statline.stats.get(
+        statline_type_stat__stat__field_name="weapon_skill"
+    )
+    assert row.value == "4+ "
+
+
+@pytest.mark.django_db
+def test_a_failed_run_records_failed_and_raises(make_content_fighter, content_house):
+    """No Fighter statline type -> the run fails loudly AND leaves a record."""
+    make_cf(make_content_fighter, content_house)
+
+    with pytest.raises(RuntimeError):
+        run_materialise()
+
+    record = Backfill.objects.get(operation=Backfill.Operation.MATERIALISE_STATLINES)
+    assert record.status == Backfill.Status.FAILED
+
+
+@pytest.mark.django_db
+def test_runs_are_visible_as_running_while_in_flight(
+    make_content_fighter, content_house, fighter_type, monkeypatch
+):
+    """The record exists as RUNNING during the apply, so the guard is real."""
+    import n23.core.maintenance.statlines as mod
+
+    make_cf(make_content_fighter, content_house)
+    seen = {}
+
+    real_apply = mod.apply_statline_plan
+
+    def spying_apply(entries):
+        seen["running"] = Backfill.objects.filter(
+            operation=Backfill.Operation.MATERIALISE_STATLINES,
+            status=Backfill.Status.RUNNING,
+        ).exists()
+        return real_apply(entries)
+
+    monkeypatch.setattr(mod, "apply_statline_plan", spying_apply)
+    run_materialise()
+    assert seen["running"] is True
