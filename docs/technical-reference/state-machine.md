@@ -140,7 +140,18 @@ transition_to(
 | `metadata` | `dict` | `None` | Optional metadata to store with transition |
 | `save` | `bool` | `True` | Whether to save the model after transitioning |
 
-When `save=False`, the status is updated in memory but not persisted to the model. However, **the transition record is still created in the database**. This is useful when you need to update multiple fields atomically, but you must wrap the entire operation in `transaction.atomic()` to ensure consistency (see Patterns section below).
+When `save=False`, the status is updated in memory but not persisted to the model. However, **the transition record is still created in the database**. This is useful when you need to update multiple fields atomically, and you **must** wrap the entire operation in `transaction.atomic()` (see Patterns section below) — `transition_to` raises `RuntimeError` if you don't, since the transition record would otherwise commit while the parent row kept its old status.
+
+### Concurrency
+
+`transition_to()` takes a `SELECT … FOR UPDATE` lock on the parent row and validates against the status it reads back from that locked row, not against the status on the instance in memory — which may be stale. Concurrent transitions on one row therefore serialise: the second sees the first's committed status and is rejected with `InvalidStateTransition`, rather than both validating against the same starting status and both applying.
+
+Two consequences worth knowing:
+
+- **A stale instance is judged on the row, not on itself.** An instance loaded before someone else transitioned the row cannot transition as though nothing had changed, even single-threaded.
+- **`e.from_status` reports the committed status.** In a rejection it is the status the row actually held, which may differ from the one the caller believed it was transitioning from.
+
+Callers that pre-check the status themselves and then act on it need their own lock. The state machine can only serialise the transition; it cannot see a check-then-act sequence wrapped around it, and every individual step such a sequence takes may be a legal transition. `gyrinx/tasks/signals.py` is the worked example.
 
 ### Transition Model Fields
 
@@ -167,7 +178,7 @@ from gyrinx.state_machine import InvalidStateTransition
 try:
     order.states.transition_to("DELIVERED")  # Invalid from PENDING
 except InvalidStateTransition as e:
-    print(e.from_status)  # "PENDING"
+    print(e.from_status)  # "PENDING" — the row's committed status, not the instance's
     print(e.to_status)    # "DELIVERED"
     print(e.allowed)      # ["CONFIRMED", "CANCELLED"]
 ```
@@ -197,7 +208,19 @@ StateMachine(
     initial="A",
     transitions={"A": ["INVALID"]},  # ValueError: Transition target 'INVALID' not in states
 )
+
+# A state too long for the status column raises ValueError
+StateMachine(
+    states=[("A", "A"), ("X" * 51, "Too long")],  # ValueError: State 'XXX...' is 51 characters
+    initial="A",
+    transitions={},
+)
 ```
+
+State values must fit `STATUS_MAX_LENGTH` (50) — the width of the `status`
+column and of the transition table's `from_status` / `to_status`. Checking it
+here means an over-long state fails at declaration rather than at the first
+write, far from the mistake that caused it.
 
 ## Patterns
 

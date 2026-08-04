@@ -2,10 +2,13 @@
 Tests for the StateMachine descriptor and per-model transition tables.
 """
 
+import threading
+
 import pytest
 from django.db import connection, models
 
 from gyrinx.state_machine import (
+    STATUS_MAX_LENGTH,
     InvalidStateTransition,
     StateMachine,
 )
@@ -415,3 +418,118 @@ def test_invalid_transition_target_raises():
             transitions={"READY": ["INVALID"]},
         )
     assert "Transition target 'INVALID' not in states" in str(exc_info.value)
+
+
+def test_state_longer_than_the_status_column_raises():
+    """A state too long for the status column should be rejected at declaration.
+
+    Without this the column only objects at write time, far from the
+    declaration that caused it.
+    """
+    too_long = "X" * (STATUS_MAX_LENGTH + 1)
+    with pytest.raises(ValueError) as exc_info:
+        StateMachine(
+            states=[("READY", "Ready"), (too_long, "Too long")],
+            initial="READY",
+            transitions={"READY": [too_long]},
+        )
+    assert f"is {STATUS_MAX_LENGTH + 1} characters" in str(exc_info.value)
+
+
+def test_state_exactly_at_the_limit_is_allowed():
+    """The limit is inclusive — a state that exactly fills the column is fine."""
+    exactly = "X" * STATUS_MAX_LENGTH
+    sm = StateMachine(
+        states=[("READY", "Ready"), (exactly, "At the limit")],
+        initial="READY",
+        transitions={"READY": [exactly]},
+    )
+    assert sm.initial == "READY"
+
+
+# =============================================================================
+# Concurrency
+# =============================================================================
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_transitions_from_the_same_status_apply_once():
+    """Two simultaneous transitions from the same starting status: one wins.
+
+    Both threads hold an instance read before either transitions, which is the
+    stale-read the row lock exists to catch. Before the lock, both validated
+    against their own in-memory PENDING, both passed, and both applied — leaving
+    a last-writer-wins status and two transition records describing incompatible
+    histories. Now the second reads the first's committed status under the lock
+    and is rejected.
+    """
+    obj = StateMachineTestModel.objects.create()
+    stale_instances = [
+        StateMachineTestModel.objects.get(pk=obj.pk),
+        StateMachineTestModel.objects.get(pk=obj.pk),
+    ]
+
+    rejected = []
+
+    def transition(instance):
+        def run():
+            try:
+                instance.states.transition_to("RUNNING")
+            except InvalidStateTransition as e:
+                rejected.append(e)
+            finally:
+                # Each thread has its own connection; leaving it open strands it.
+                connection.close()
+
+        return run
+
+    threads = [threading.Thread(target=transition(i)) for i in stale_instances]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=15)
+
+    stuck = [t for t in threads if t.is_alive()]
+    assert not stuck, f"{len(stuck)} thread(s) did not finish within 15s (deadlock?)"
+
+    obj.refresh_from_db()
+    assert obj.status == "RUNNING"
+    assert len(rejected) == 1, "exactly one transition should have been rejected"
+    assert obj.states.history.count() == 1, "only the winning transition is recorded"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_save_false_outside_a_transaction_raises():
+    """save=False hands the status write to the caller, who must be in a
+    transaction — otherwise the transition record commits while the parent row
+    still holds its old status. Make that loud rather than silent."""
+    obj = StateMachineTestModel.objects.create()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        obj.states.transition_to("RUNNING", save=False)
+
+    assert "must be called inside a transaction" in str(exc_info.value)
+    obj.refresh_from_db()
+    assert obj.status == "PENDING"
+    assert obj.states.history.count() == 0
+
+
+@pytest.mark.django_db
+def test_transition_validates_against_the_database_not_the_instance():
+    """A stale instance is judged on the row's committed status, not its own.
+
+    The sequential half of the concurrency guarantee, and the cheaper test: an
+    instance holding a status the database has since moved past must not be
+    allowed to transition as though nothing had changed.
+    """
+    obj = StateMachineTestModel.objects.create()
+    stale = StateMachineTestModel.objects.get(pk=obj.pk)
+
+    obj.states.transition_to("RUNNING")
+
+    assert stale.status == "PENDING"  # stale in memory
+    with pytest.raises(InvalidStateTransition) as exc_info:
+        stale.states.transition_to("RUNNING")
+
+    # Reports the committed status, not the stale one it was asked from.
+    assert exc_info.value.from_status == "RUNNING"

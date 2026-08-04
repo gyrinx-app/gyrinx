@@ -8,6 +8,7 @@ work with any backend (ImmediateBackend, PubSubBackend, etc.).
 
 import logging
 
+from django.db import transaction
 from django.dispatch import receiver
 from django.tasks.base import TaskResultStatus
 from django.tasks.signals import task_enqueued, task_finished, task_started
@@ -55,16 +56,26 @@ def handle_task_enqueued(sender, task_result, **kwargs):
 
 @receiver(task_started)
 @traced("signal_task_started")
+@transaction.atomic
 def handle_task_started(sender, task_result, **kwargs):
     """
     Update TaskExecution to RUNNING when task starts.
+
+    Atomic, and the execution row is locked below, because everything here is
+    check-then-act: the branches read the status and then transition on the
+    strength of it. Each step they take is a legal transition on its own, so the
+    state machine's own locking cannot catch two deliveries interleaving here —
+    without the lock, two concurrent redeliveries of a FAILED execution can both
+    reset it to READY and both mark it RUNNING.
 
     Args:
         sender: The backend class executing the task
         task_result: TaskResult instance with task metadata
     """
     try:
-        execution = TaskExecution.objects.get(task_id=task_result.id)
+        execution = TaskExecution.objects.select_for_update().get(
+            task_id=task_result.id
+        )
 
         # At-least-once delivery can re-fire task_started for the same task_id.
         # Re-marking a terminal execution RUNNING is an illegal state transition
@@ -115,16 +126,25 @@ def handle_task_started(sender, task_result, **kwargs):
 
 @receiver(task_finished)
 @traced("signal_task_finished")
+@transaction.atomic
 def handle_task_finished(sender, task_result, **kwargs):
     """
     Update TaskExecution to SUCCESSFUL or FAILED when task finishes.
+
+    Locked for the same reason as task_started: the terminal-state guard below
+    is check-then-act. Two concurrent finishes that both passed it would have
+    the second raise InvalidStateTransition, now that transition_to() validates
+    against the committed row — and via the Pub/Sub push handler that raise is a
+    500, which is the redelivery storm the guard exists to prevent.
 
     Args:
         sender: The backend class that executed the task
         task_result: TaskResult instance with task metadata and results
     """
     try:
-        execution = TaskExecution.objects.get(task_id=task_result.id)
+        execution = TaskExecution.objects.select_for_update().get(
+            task_id=task_result.id
+        )
 
         # Skip if already completed (idempotency)
         if execution.status in ("SUCCESSFUL", "FAILED"):
