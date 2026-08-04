@@ -3,10 +3,11 @@
 import pytest
 from django import forms
 
-from gyrinx.forms import fighter_group_key, group_select, group_sorter
+from n23.core.forms.terms import fighter_group_key
+from gyrinx.forms import group_select, group_sorter
 from gyrinx.models import FighterCategoryChoices
 from n23.content.models import ContentFighter, ContentHouse
-from n23.core.forms import BsCheckboxSelectMultipleCompact
+from gyrinx.widgets import BsCheckboxSelectMultipleCompact
 
 
 @pytest.mark.django_db

@@ -373,7 +373,7 @@ class CampaignDetailView(generic.DetailView):
 
         # Admins (superusers) may impersonate the arbitrator (campaign owner),
         # unless already impersonating. Hidden for the owner (can't self-impersonate).
-        from n23.core.impersonation import can_impersonate_target
+        from gyrinx.impersonation import can_impersonate_target
 
         context["can_impersonate_arbitrator"] = not getattr(
             self.request, "is_impersonating", False

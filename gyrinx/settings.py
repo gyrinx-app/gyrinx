@@ -171,13 +171,13 @@ MIDDLEWARE = [
     "google.cloud.sqlcommenter.django.middleware.SqlCommenter",
     # Clears the thread-local the next middleware sets; must sit above it so
     # the clear runs after the response (threads are reused under gunicorn).
-    "n23.core.middleware.ClearLoggingRequestMiddleware",
+    "gyrinx.middleware.ClearLoggingRequestMiddleware",
     # Google Cloud Logging - must be early to capture request for trace correlation
     "google.cloud.logging_v2.handlers.middleware.RequestMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     # Catch RequestDataTooBig early and return 400 instead of 500
-    "n23.core.middleware.RequestSizeExceptionMiddleware",
+    "gyrinx.middleware.RequestSizeExceptionMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -219,9 +219,9 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "n23.core.context_processors.site_banner",
-                "n23.core.context_processors.gyrinx_debug",
+                "gyrinx.context_processors.gyrinx_debug",
                 "n23.core.context_processors.notifications",
-                "n23.core.context_processors.impersonation",
+                "gyrinx.context_processors.impersonation",
             ],
         },
     },
@@ -296,11 +296,11 @@ ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_USERNAME_BLACKLIST = ["admin", "superuser", "staff", "user", "gyrinx"]
 ACCOUNT_CHANGE_EMAIL = True
 ACCOUNT_EMAIL_UNKNOWN_ACCOUNTS = False
-ACCOUNT_ADAPTER = "n23.core.adapter.CustomAccountAdapter"
+ACCOUNT_ADAPTER = "gyrinx.adapter.CustomAccountAdapter"
 ACCOUNT_FORMS = {
-    "reset_password": "n23.core.forms.ResetPasswordForm",
-    "login": "n23.core.forms.LoginForm",
-    "signup": "n23.core.forms.SignupForm",
+    "reset_password": "gyrinx.account_forms.ResetPasswordForm",
+    "login": "gyrinx.account_forms.LoginForm",
+    "signup": "gyrinx.account_forms.SignupForm",
 }
 # Custom setting to (dis)allow signups
 ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"

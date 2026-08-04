@@ -7,8 +7,9 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.badges import HIDE_BADGE
-from n23.core.forms import BadgeSelectionForm, UsernameChangeForm
-from n23.core.impersonation import can_impersonate_target
+from n23.core.forms import BadgeSelectionForm
+from gyrinx.account_forms import UsernameChangeForm
+from gyrinx.impersonation import can_impersonate_target
 from n23.core.models.auth import UserProfile
 from n23.core.models.campaign import Campaign
 from n23.core.models.events import EventNoun, EventVerb, log_event

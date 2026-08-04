@@ -1,4 +1,6 @@
+from django import forms
 from django.conf import settings
+from django.utils.translation import gettext_lazy as _
 from tinymce.widgets import TinyMCE
 
 # Additional TinyMCE configuration for forms. The menubar is off (see
@@ -122,3 +124,34 @@ class TinyMCEWithUpload(TinyMCE):
         final_mce_attrs = {**TINYMCE_UPLOAD_CONFIG, **mce_attrs}
 
         super().__init__(attrs=attrs, mce_attrs=final_mce_attrs, **kwargs)
+
+
+# Bootstrap-styled form widgets. Their templates live in
+# gyrinx/pages/templates/pages/forms/widgets/ — platform, not edition.
+class BsCheckboxSelectMultiple(forms.CheckboxSelectMultiple):
+    template_name = "pages/forms/widgets/bs_checkbox_select.html"
+    option_template_name = "pages/forms/widgets/bs_checkbox_option.html"
+
+
+class BsCheckboxSelectMultipleCompact(forms.CheckboxSelectMultiple):
+    """Compact checkbox multi-select in a scrollable bordered box with a search filter."""
+
+    template_name = "pages/forms/widgets/bs_checkbox_select_compact.html"
+    option_template_name = "pages/forms/widgets/bs_checkbox_option_compact.html"
+
+
+class BsRadioSelect(forms.RadioSelect):
+    template_name = "pages/forms/widgets/bs_radio_select.html"
+    option_template_name = "pages/forms/widgets/bs_radio_option.html"
+
+
+class BsClearableFileInput(forms.ClearableFileInput):
+    template_name = "pages/forms/widgets/bs_clearable_file_input.html"
+    clear_checkbox_label = _("Clear image")
+    clear_checkbox_help_text = _("Check and click Save to clear the image.")
+    input_text = _("Replace image")
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["widget"]["clear_checkbox_help_text"] = self.clear_checkbox_help_text
+        return context

@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
 
-from n23.core.impersonation import (
+from gyrinx.impersonation import (
     IMPERSONATE_KEY,
     IMPERSONATE_LOG_KEY,
     IMPERSONATE_STARTED_KEY,

@@ -1,4 +1,4 @@
-Run started:2026-08-04 14:55:55.958231+00:00
+Run started:2026-08-04 22:02:35.735525+00:00
 
 Test results:
 >> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
@@ -19,15 +19,15 @@ Test results:
 302	    return mark_safe(str(soup))
 
 --------------------------------------------------
->> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'n23.core.forms.ResetPasswordForm'
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'gyrinx.account_forms.ResetPasswordForm'
    Severity: Low   Confidence: Medium
    CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
    More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
    Location: ./gyrinx/settings.py:301:4
 300	ACCOUNT_FORMS = {
-301	    "reset_password": "n23.core.forms.ResetPasswordForm",
-302	    "login": "n23.core.forms.LoginForm",
-303	    "signup": "n23.core.forms.SignupForm",
+301	    "reset_password": "gyrinx.account_forms.ResetPasswordForm",
+302	    "login": "gyrinx.account_forms.LoginForm",
+303	    "signup": "gyrinx.account_forms.SignupForm",
 304	}
 305	# Custom setting to (dis)allow signups
 306	ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
@@ -340,7 +340,7 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 71086
+	Total lines of code: 71196
 	Total lines skipped (#nosec): 4
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 56
 

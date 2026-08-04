@@ -5,7 +5,7 @@ from n23.content.models import (
     ContentFighter,
     ContentHouse,
 )
-from n23.core.forms import (
+from gyrinx.widgets import (
     BsCheckboxSelectMultiple,
     BsClearableFileInput,
     BsRadioSelect,
@@ -16,11 +16,13 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from n23.core.widgets import ColorRadioSelect
-from gyrinx.forms import (
+from n23.core.forms.terms import (
     fighter_group_key,
+    template_form_with_terms,
+)
+from gyrinx.forms import (
     group_select,
     group_sorter,
-    template_form_with_terms,
 )
 from gyrinx.models import SMART_QUOTES, FighterCategoryChoices
 from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload

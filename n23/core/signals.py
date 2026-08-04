@@ -34,7 +34,7 @@ from django.utils import timezone
 
 from n23.content.house_icons import CUSTOM_GANG_ICON_SLUG, set_house_icon
 from n23.content.models.house import ContentHouse
-from n23.core.impersonation import (
+from gyrinx.impersonation import (
     IMPERSONATE_LOG_KEY,
     IMPERSONATE_SESSION_KEYS,
 )
