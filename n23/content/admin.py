@@ -20,11 +20,8 @@ from polymorphic.admin import (
 from n23.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from n23.content.models.availability_preset import ContentAvailabilityPreset
 from gyrinx.forms import group_select
-from gyrinx.models import (
-    SMART_QUOTES,
-    FighterCategoryChoices,
-    equipment_category_groups,
-)
+from gyrinx.models import SMART_QUOTES
+from n23.models import FighterCategoryChoices, equipment_category_groups
 
 from .models import (
     ContentAdvancementAssignment,

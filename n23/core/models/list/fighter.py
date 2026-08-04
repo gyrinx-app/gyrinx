@@ -56,11 +56,8 @@ from n23.core.models.list._common import (
 )
 from n23.core.models.list.list import List
 from n23.core.models.util import ModContext
-from gyrinx.models import (
-    FighterCategoryChoices,
-    QuerySetOf,
-    format_cost_display,
-)
+from gyrinx.models import QuerySetOf
+from n23.models import FighterCategoryChoices, format_cost_display
 from gyrinx.tracing import traced
 
 if TYPE_CHECKING:

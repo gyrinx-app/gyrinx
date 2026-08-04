@@ -109,7 +109,7 @@ def test_handle_fighter_kill_with_equipment(
     lst.save()
 
     # Create stash fighter
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     # We need the make_content_fighter fixture, but we'll create a simple stash manually
     stash_type = content_fighter.__class__.objects.create(
@@ -175,7 +175,7 @@ def test_handle_fighter_kill_linked_equipment_not_duplicated(
         ContentEquipmentCategory,
         ContentEquipmentEquipmentProfile,
     )
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     lst = list_with_campaign
     stash_type = content_fighter.__class__.objects.create(
@@ -239,7 +239,7 @@ def test_handle_fighter_kill_child_fighter_not_duplicated(
         ContentEquipmentCategory,
         ContentEquipmentFighterProfile,
     )
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     lst = list_with_campaign
     stash_type = content_fighter.__class__.objects.create(
@@ -426,7 +426,7 @@ def test_handle_fighter_resurrect_validates_not_stash(
     """Test resurrection rejects stash fighters."""
     lst = list_with_campaign
 
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     stash_type = make_content_fighter(
         type="Stash",
@@ -573,7 +573,7 @@ def test_handle_fighter_resurrect_appends_reason_to_campaign_action(
 
 def _make_stash_fighter(*, user, lst, content_fighter):
     """Create a stash fighter on ``lst`` reusing the existing ContentFighter house."""
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     stash_type = content_fighter.__class__.objects.create(
         house=content_fighter.house,

@@ -2,9 +2,7 @@ import logging
 
 from django.core.exceptions import ValidationError
 
-from gyrinx.models import (
-    FighterCategoryChoices,
-)
+from n23.models import FighterCategoryChoices
 
 logger = logging.getLogger(__name__)
 pylist = list

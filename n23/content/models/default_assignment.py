@@ -10,7 +10,7 @@ from django.db import models
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import CostMixin
+from n23.models import CostMixin
 
 from .base import Content
 from .weapon import VirtualWeaponProfile

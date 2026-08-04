@@ -23,7 +23,7 @@ from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 from simpleeval import simple_eval
 
-from gyrinx.models import FighterCostMixin, format_cost_display
+from n23.models import FighterCostMixin, format_cost_display
 
 from .base import Content, ContentManager, ContentQuerySet, StatlineDisplay
 

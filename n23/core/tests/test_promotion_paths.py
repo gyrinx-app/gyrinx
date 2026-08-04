@@ -16,7 +16,7 @@ from n23.core.handlers.fighter.advancement import (
 )
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter, ListFighterAdvancement
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.fixture

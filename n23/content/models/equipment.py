@@ -22,11 +22,11 @@ from django.db.models.functions import Cast, Coalesce
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import (
+from gyrinx.models import QuerySetOf
+from n23.models import (
     CostMixin,
     FighterCategoryChoices,
     FighterCostMixin,
-    QuerySetOf,
     equipment_category_group_choices,
     format_cost_display,
 )

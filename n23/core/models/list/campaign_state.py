@@ -16,10 +16,7 @@ from n23.content.models import (
 from n23.core.models.base import AppBase
 from n23.core.models.list.fighter import ListFighter
 from n23.core.models.list.list import List
-from gyrinx.models import (
-    Archived,
-    Base,
-)
+from gyrinx.models import Archived, Base
 
 logger = logging.getLogger(__name__)
 pylist = list

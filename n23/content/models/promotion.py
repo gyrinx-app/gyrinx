@@ -22,7 +22,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 from .base import Content
 

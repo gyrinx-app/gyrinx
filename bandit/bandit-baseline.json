@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-08-04T22:02:32Z",
+  "generated_at": "2026-08-04T22:06:39Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -557,7 +557,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 225,
+      "loc": 85,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1103,7 +1103,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1391,
+      "loc": 1388,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1987,7 +1987,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 921,
+      "loc": 922,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2832,7 +2832,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 81,
+      "loc": 79,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2845,7 +2845,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 364,
+      "loc": 362,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2858,7 +2858,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 940,
+      "loc": 937,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2871,7 +2871,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 256,
+      "loc": 253,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2910,7 +2910,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2501,
+      "loc": 2498,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2923,7 +2923,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1152,
+      "loc": 1149,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2936,7 +2936,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 79,
+      "loc": 76,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2975,7 +2975,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 502,
+      "loc": 500,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4002,7 +4002,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5369,
+      "loc": 5370,
       "nosec": 0,
       "skipped_tests": 3
     },
@@ -4081,6 +4081,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 46,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./n23/models.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 154,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4210,7 +4223,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 9,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 71196,
+      "loc": 71188,
       "nosec": 4,
       "skipped_tests": 56
     }

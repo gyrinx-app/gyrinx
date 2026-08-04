@@ -31,7 +31,7 @@ def test_handle_vehicle_purchase_initializes_crew_rating_current(
     vehicle_equipment.creates_child_fighter = False  # Simple vehicle
     vehicle_equipment.save()
 
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     vehicle_fighter = make_content_fighter(
         type="Vehicle",
@@ -85,7 +85,7 @@ def test_handle_vehicle_purchase_propagates_assignment_rating_current(
     vehicle_equipment.creates_child_fighter = False
     vehicle_equipment.save()
 
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     vehicle_fighter = make_content_fighter(
         type="Vehicle",
@@ -144,7 +144,7 @@ def test_handle_vehicle_purchase_to_stash(
     vehicle_equipment.creates_child_fighter = False
     vehicle_equipment.save()
 
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     vehicle_fighter = make_content_fighter(
         type="Vehicle",
@@ -191,7 +191,7 @@ def test_handle_vehicle_purchase_child_fighter_rating_current(
     lst.save()
 
     from n23.content.models import ContentEquipmentFighterProfile
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     # Create vehicle fighter that will be auto-created as a child
     vehicle_fighter = make_content_fighter(

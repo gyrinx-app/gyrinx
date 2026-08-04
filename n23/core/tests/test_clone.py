@@ -565,7 +565,7 @@ def test_list_clone_preserves_expansion_equipment_cost(
         ContentEquipmentListExpansionRuleByAttribute,
     )
     from n23.core.models import ListAttributeAssignment
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     # Create a house
     house = make_content_house("Test House")

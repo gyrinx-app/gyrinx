@@ -24,11 +24,8 @@ from n23.content.models import (
 from n23.core.models.facts import AssignmentFacts
 from n23.core.models.history_mixin import HistoryMixin
 from n23.core.models.list._common import preferred_equipment_list_override
-from gyrinx.models import (
-    Archived,
-    Base,
-    format_cost_display,
-)
+from gyrinx.models import Archived, Base
+from n23.models import format_cost_display
 from n23.core.models.list.fighter import ListFighter
 from gyrinx.tracing import traced
 

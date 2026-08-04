@@ -28,7 +28,7 @@ from n23.core.models.list import (
     List,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.models import format_cost_display
+from n23.models import format_cost_display
 
 
 @dataclass(frozen=True)

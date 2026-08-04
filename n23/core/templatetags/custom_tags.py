@@ -19,7 +19,7 @@ from django.utils.safestring import SafeData, mark_safe
 
 from n23.content.models import ContentPageRef
 from n23.core import url
-from gyrinx.models import format_cost_display
+from n23.models import format_cost_display
 
 register = template.Library()
 

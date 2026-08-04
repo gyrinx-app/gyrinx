@@ -20,7 +20,7 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
     VirtualListFighterEquipmentAssignment,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.fixture

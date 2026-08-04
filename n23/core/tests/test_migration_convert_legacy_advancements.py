@@ -4,7 +4,7 @@ import pytest
 from django.apps import apps
 
 from n23.core.models import ListFighter, ListFighterAdvancement
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 migration = __import__(
     "n23.core.migrations.0196_convert_legacy_stat_advancements",

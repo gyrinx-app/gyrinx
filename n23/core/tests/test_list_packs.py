@@ -10,7 +10,7 @@ from n23.content.models import ContentFighter, ContentHouse, ContentRule
 from n23.content.models.weapon import ContentWeaponTrait
 from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

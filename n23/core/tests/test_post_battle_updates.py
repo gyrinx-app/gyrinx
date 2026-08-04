@@ -409,7 +409,7 @@ def test_post_battle_vehicle_state_choices(
     make_content_fighter,
     make_list_fighter,
 ):
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     client.force_login(user)
     vehicle_cf = make_content_fighter(

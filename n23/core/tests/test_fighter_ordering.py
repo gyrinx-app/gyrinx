@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from n23.content.models import ContentFighter, ContentHouse
 from n23.core.forms.list import ListFighterForm
 from n23.core.models import List, ListFighter
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

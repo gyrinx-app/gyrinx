@@ -24,7 +24,7 @@ from n23.core.models.pack import (
     CustomContentPackAttachment,
 )
 from gyrinx.forms import group_select
-from gyrinx.models import FighterCategoryChoices, equipment_category_groups
+from n23.models import FighterCategoryChoices, equipment_category_groups
 from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 

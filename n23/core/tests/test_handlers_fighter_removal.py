@@ -192,7 +192,7 @@ def test_handle_equipment_removal_stash_fighter(
     make_equipment,
 ):
     """Test removing equipment from stash fighter affects stash, not rating."""
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     lst = list_with_campaign
     lst.credits_current = 500
@@ -818,7 +818,7 @@ def test_handle_fighter_deletion_stash_fighter(
     make_content_fighter,
 ):
     """Test deleting a stash fighter affects stash, not rating."""
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     lst = list_with_campaign
     lst.credits_current = 500

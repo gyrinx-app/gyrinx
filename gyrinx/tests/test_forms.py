@@ -5,7 +5,7 @@ from django import forms
 
 from n23.core.forms.terms import fighter_group_key
 from gyrinx.forms import group_select, group_sorter
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 from n23.content.models import ContentFighter, ContentHouse
 from gyrinx.widgets import BsCheckboxSelectMultipleCompact
 

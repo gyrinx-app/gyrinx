@@ -13,7 +13,7 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterAdvancement,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 def clear_fighter_cached_properties(fighter):

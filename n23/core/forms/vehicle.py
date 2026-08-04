@@ -14,7 +14,7 @@ from n23.core.forms.list import ContentFighterChoiceField, group_select
 from n23.core.models.list import List
 from n23.core.forms.terms import fighter_group_key
 from gyrinx.forms import group_sorter
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 class VehicleEquipmentChoiceField(forms.ModelChoiceField):

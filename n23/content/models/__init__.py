@@ -133,8 +133,8 @@ from .availability_preset import ContentAvailabilityPreset
 from . import signal_handlers  # noqa: F401
 
 # Re-export FighterCategoryChoices for backward compatibility
-# (some code imports it from content.models instead of gyrinx.models)
-from gyrinx.models import FighterCategoryChoices  # noqa: F401
+# (some code imports it from content.models instead of n23.models)
+from n23.models import FighterCategoryChoices  # noqa: F401
 
 __all__ = [
     # Base

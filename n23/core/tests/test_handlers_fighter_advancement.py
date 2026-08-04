@@ -26,7 +26,7 @@ from n23.core.models.list import (
     ListFighterAdvancement,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 # --- Fixtures ---

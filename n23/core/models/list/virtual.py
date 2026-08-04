@@ -16,10 +16,8 @@ from n23.content.models import (
 )
 from n23.core.models.list.assignment import ListFighterEquipmentAssignment
 from n23.core.models.list.fighter import ListFighter
-from gyrinx.models import (
-    QuerySetOf,
-    format_cost_display,
-)
+from gyrinx.models import QuerySetOf
+from n23.models import format_cost_display
 
 if TYPE_CHECKING:
     from n23.core.models.list.psyker import ListFighterPsykerPowerAssignment

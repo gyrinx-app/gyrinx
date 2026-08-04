@@ -24,7 +24,7 @@ from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 # Re-export the local task-queue driver fixture so tests can request `task_queue`
 # to drive the durable queue in manual mode (inject duplicates/failures/drops).

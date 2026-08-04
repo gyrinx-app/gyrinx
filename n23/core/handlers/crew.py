@@ -36,7 +36,7 @@ from n23.core.models.crew import (
     roll_selection_spec,
 )
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
