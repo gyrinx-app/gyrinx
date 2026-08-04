@@ -25,8 +25,8 @@ from gyrinx.core.handlers.crew import crew_spread_rating, crew_stash_totals
 from gyrinx.core.models import Battle, Campaign, CampaignAction
 from gyrinx.core.models.crew import Crew
 from gyrinx.core.models.events import EventNoun, EventVerb, log_event
-from gyrinx.state_machine import InvalidStateTransition
 from gyrinx.core.utils import get_return_url, safe_redirect
+from gyrinx.state_machine import InvalidStateTransition
 
 
 def _top_rating(values):

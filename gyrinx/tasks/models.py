@@ -11,8 +11,8 @@ from django.db import models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from gyrinx.state_machine import StateMachine
 from gyrinx.models import Base
+from gyrinx.state_machine import StateMachine
 
 logger = logging.getLogger(__name__)
 

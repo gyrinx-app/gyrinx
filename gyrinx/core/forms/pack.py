@@ -23,9 +23,9 @@ from gyrinx.core.models.pack import (
     CustomContentPack,
     CustomContentPackAttachment,
 )
-from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 from gyrinx.forms import group_select
 from gyrinx.models import FighterCategoryChoices, equipment_category_groups
+from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 def rich_text_description_widget(height="200px"):

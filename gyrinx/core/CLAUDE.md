@@ -12,8 +12,9 @@ machines.
   `Owned`, `Archived`, `HistoryMixin`, history-aware manager. Don't subclass `models.Model`
   directly.
 - Every concrete model declares `history = HistoricalRecords()` for django-simple-history.
-- For state-bearing models (campaigns, battles), use [models/state_machine.py](models/state_machine.py)
-  rather than rolling status fields by hand.
+- For state-bearing models (campaigns, battles), use [../state_machine.py](../state_machine.py)
+  rather than rolling status fields by hand. It lives in the platform package, not in
+  core — the task framework uses it too.
 
 ### Prefetch invariant
 
