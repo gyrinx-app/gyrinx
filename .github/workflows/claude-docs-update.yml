@@ -147,11 +147,11 @@ jobs:
 
             Analyse each PR to determine if it introduced changes that affect the content library
             documentation. Look for:
-            - New or modified content models (gyrinx/content/models/*.py)
+            - New or modified content models (n23/content/models/*.py)
             - New fields added to existing content models
-            - Changed admin configuration (gyrinx/content/admin.py)
+            - Changed admin configuration (n23/content/admin.py)
             - New views, URL patterns, or templates related to content
-            - Changes to pack functionality (gyrinx/core/models/pack.py, gyrinx/core/views/pack.py)
+            - Changes to pack functionality (n23/core/models/pack.py, n23/core/views/pack.py)
             - Any other changes that affect how content is structured, administered, or used
 
             ## Step 2: Identify documentation gaps

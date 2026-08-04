@@ -17,10 +17,10 @@ Handlers are functions that:
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
-| `Delta` | `gyrinx/core/cost/propagation.py` | Represents a cost change to propagate |
-| `propagate_from_assignment()` | `gyrinx/core/cost/propagation.py` | Updates assignment and fighter cache |
-| `propagate_from_fighter()` | `gyrinx/core/cost/propagation.py` | Updates fighter cache |
-| `create_action()` | `gyrinx/core/models/list.py` | Creates ListAction and updates list cache |
+| `Delta` | `n23/core/cost/propagation.py` | Represents a cost change to propagate |
+| `propagate_from_assignment()` | `n23/core/cost/propagation.py` | Updates assignment and fighter cache |
+| `propagate_from_fighter()` | `n23/core/cost/propagation.py` | Updates fighter cache |
+| `create_action()` | `n23/core/models/list.py` | Creates ListAction and updates list cache |
 
 ---
 

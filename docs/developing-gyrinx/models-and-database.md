@@ -9,7 +9,7 @@ Gyrinx uses Django's ORM with PostgreSQL as the database. The application is str
 All application models inherit from `AppBase`, which provides:
 
 ```python
-# gyrinx/core/models/base.py
+# n23/core/models/base.py
 class AppBase(HistoryMixin, Base, Owned, Archived):
     objects = HistoryAwareManager()
 ```

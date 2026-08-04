@@ -78,7 +78,7 @@ Note that this design is not in implementation order. See Implementation Phases 
 ### 1. Facts Dataclasses
 
 ```python
-# gyrinx/core/models/facts.py
+# n23/core/models/facts.py
 
 from dataclasses import dataclass
 from typing import Optional
@@ -310,7 +310,7 @@ class List(...):
 ### 3. Write-Time Propagation
 
 ```python
-# gyrinx/core/cost/propagation.py
+# n23/core/cost/propagation.py
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -600,7 +600,7 @@ def handle_equipment_purchase(*, user, lst, fighter, assignment):
 When a Content model's cost field changes, mark the affected tree dirty:
 
 ```python
-# gyrinx/core/signals/content_cost.py
+# n23/core/signals/content_cost.py
 
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
@@ -749,14 +749,14 @@ def campaign_detail_view(request, campaign_id):
 
 ### Phase 3: Facts Interface
 
-1. Create `gyrinx/core/models/facts.py` with dataclasses
+1. Create `n23/core/models/facts.py` with dataclasses
 2. Add `facts()` and `facts_from_db()` to all three models
 3. Add `_calculate_rating()` methods (reuse existing `cost_int()` if possible)
 4. Test facts interface in isolation
 
 ### Phase 4: Propagation
 
-1. Create `gyrinx/core/cost/propagation.py`
+1. Create `n23/core/cost/propagation.py`
 2. Implement `propagate_from_assignment()` and `propagate_from_fighter()`
 3. ~~Implement `is_stash_linked()` or reuse existing logic~~ (not implemented — bucketing follows `fighter.is_stash`, matching `facts_from_db`; a routing helper existed briefly and was removed when its child-fighter branch diverged from the recompute)
 4. Test propagation logic in isolation
@@ -768,7 +768,7 @@ def campaign_detail_view(request, campaign_id):
 
 ### Phase 6: Content Signals
 
-1. Create `gyrinx/core/signals/content_cost.py`
+1. Create `n23/core/signals/content_cost.py`
 2. Implement dirty marking for content changes
 3. Register signals in `apps.py`
 
@@ -793,9 +793,9 @@ The following describes what was actually implemented, noting changes from the o
 | Phase 1: Handler Migration | **Complete** | All handlers use propagation pattern |
 | Phase 2: Data Model | **Complete** | Migration `0120_add_cached_rating_and_dirty_fields` |
 | Phase 3: Facts Interface | **Complete** | Simplified facts dataclasses |
-| Phase 4: Propagation | **Complete** | In `gyrinx/core/cost/propagation.py` |
+| Phase 4: Propagation | **Complete** | In `n23/core/cost/propagation.py` |
 | Phase 5: Handler Updates | **Complete** | All handlers call `propagate_from_*` |
-| Phase 6: Content Signals | **Complete** | In `gyrinx/content/signals.py` |
+| Phase 6: Content Signals | **Complete** | In `n23/content/signals.py` |
 | Phase 7: Batch Recalculation | **Deferred** | Using lazy evaluation instead |
 
 ### Key Changes from Original Design
@@ -842,12 +842,12 @@ facts_from_db without also propagating.
 
 | Component | File |
 |-----------|------|
-| Facts dataclasses | `gyrinx/core/models/facts.py` |
-| Propagation functions | `gyrinx/core/cost/propagation.py` |
-| List facts methods | `gyrinx/core/models/list.py` |
-| Content signals | `gyrinx/content/signals.py` |
-| Equipment handlers | `gyrinx/core/handlers/equipment/` |
-| Fighter handlers | `gyrinx/core/handlers/fighter/` |
+| Facts dataclasses | `n23/core/models/facts.py` |
+| Propagation functions | `n23/core/cost/propagation.py` |
+| List facts methods | `n23/core/models/list.py` |
+| Content signals | `n23/content/signals.py` |
+| Equipment handlers | `n23/core/handlers/equipment/` |
+| Fighter handlers | `n23/core/handlers/fighter/` |
 
 ### Debugging
 

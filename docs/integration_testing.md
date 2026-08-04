@@ -157,19 +157,19 @@ def test_search_functionality(client):
 Run all integration tests:
 
 ```bash
-pytest gyrinx/core/tests/test_integration_*.py
+pytest n23/core/tests/test_integration_*.py
 ```
 
 Run a specific test:
 
 ```bash
-pytest gyrinx/core/tests/test_integration_core_functionality.py::test_create_list_and_add_fighter
+pytest n23/core/tests/test_integration_core_functionality.py::test_create_list_and_add_fighter
 ```
 
 Run with verbose output:
 
 ```bash
-pytest -v gyrinx/core/tests/test_integration_*.py
+pytest -v n23/core/tests/test_integration_*.py
 ```
 
 ## Debugging Tips

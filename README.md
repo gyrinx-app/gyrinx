@@ -227,7 +227,7 @@ rebuilds the test DB from current model definitions on every run:
 
 ```bash
 pytest                            # full suite, parallel
-pytest gyrinx/core/tests/         # one directory
+pytest n23/core/tests/         # one directory
 pytest -k campaign                # by name
 ```
 

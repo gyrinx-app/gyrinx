@@ -75,7 +75,7 @@ For maximum performance:
 pytest -n auto --reuse-db
 
 # Run specific app tests in parallel
-pytest -n auto gyrinx/core/tests/
+pytest -n auto n23/core/tests/
 ```
 
 ## CI/CD Configuration

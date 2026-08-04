@@ -40,7 +40,7 @@ DB from current model definitions on every run.
 ```bash
 ./scripts/test.sh                  # full suite, parallel
 ./scripts/test.sh -n 0             # serial
-./scripts/test.sh gyrinx/core/     # a directory
+./scripts/test.sh n23/core/     # a directory
 ./scripts/test.sh -k campaign      # by name
 ```
 

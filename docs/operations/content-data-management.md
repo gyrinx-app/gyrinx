@@ -115,7 +115,7 @@ Re-download from the bucket. The export job creates valid JSON, so corruption us
 
 ## Technical Details
 
-The command lives at `gyrinx/core/management/commands/loaddata_overwrite.py`.
+The command lives at `n23/core/management/commands/loaddata_overwrite.py`.
 
 The command uses PostgreSQL's `TRUNCATE CASCADE` for fast deletion, but falls back to regular `DELETE` if that fails. Foreign key checks are disabled with `SET session_replication_role = 'replica'` during import.
 
