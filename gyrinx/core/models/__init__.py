@@ -18,5 +18,4 @@ from .pack import (  # noqa: F401
 )
 from .print_config import *  # noqa: F403
 from .site import *  # noqa: F403
-from .state_machine import *  # noqa: F403
 from .upload import *  # noqa: F403

@@ -2,7 +2,7 @@
 
 import pytest
 
-from gyrinx.core.badges import (
+from gyrinx.badges import (
     ALL_BADGES,
     HIDE_BADGE,
     PATREON_BADGES,

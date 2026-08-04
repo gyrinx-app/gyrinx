@@ -8,7 +8,7 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from gyrinx.core.models.state_machine import InvalidStateTransition
+from gyrinx.state_machine import InvalidStateTransition
 from gyrinx.tasks.models import TaskExecution
 
 

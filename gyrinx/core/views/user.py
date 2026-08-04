@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from gyrinx.core.badges import HIDE_BADGE
+from gyrinx.badges import HIDE_BADGE
 from gyrinx.core.forms import BadgeSelectionForm, UsernameChangeForm
 from gyrinx.core.impersonation import can_impersonate_target
 from gyrinx.core.models.auth import UserProfile

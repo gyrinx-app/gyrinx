@@ -15,7 +15,7 @@ from gyrinx.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.core.widgets import TINYMCE_EXTRA_ATTRS, ColorRadioSelect, TinyMCEWithUpload
+from gyrinx.core.widgets import ColorRadioSelect
 from gyrinx.forms import (
     fighter_group_key,
     group_select,
@@ -23,6 +23,7 @@ from gyrinx.forms import (
     template_form_with_terms,
 )
 from gyrinx.models import SMART_QUOTES, FighterCategoryChoices
+from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 class NewListForm(forms.ModelForm):

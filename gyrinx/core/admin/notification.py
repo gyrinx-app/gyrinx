@@ -14,7 +14,7 @@ from gyrinx.core.models.notification import (
     NotificationType,
     notify_many,
 )
-from gyrinx.core.widgets import TinyMCEWithUpload
+from gyrinx.widgets import TinyMCEWithUpload
 
 User = get_user_model()
 

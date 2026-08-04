@@ -6,7 +6,7 @@ from django.db import models
 from django.http import HttpResponseRedirect
 from simple_history.admin import SimpleHistoryAdmin
 
-from gyrinx.core.widgets import TinyMCEWithUpload
+from gyrinx.widgets import TinyMCEWithUpload
 
 
 class BaseAdmin(SimpleHistoryAdmin):
