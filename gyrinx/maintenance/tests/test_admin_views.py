@@ -316,3 +316,69 @@ def test_stat_advancements_refuses_a_second_concurrent_run(make_user):
         ).count()
         == 1
     )
+
+
+def _fighter_statline_type():
+    from n23.content.models.statline import (
+        ContentStat,
+        ContentStatlineType,
+        ContentStatlineTypeStat,
+    )
+    from n23.core.maintenance.statlines import STAT_FIELDS
+
+    statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
+    for position, field_name in enumerate(STAT_FIELDS, start=1):
+        ContentStatlineTypeStat.objects.get_or_create(
+            statline_type=statline_type,
+            stat=ContentStat.objects.get(field_name=field_name),
+            defaults={"position": position},
+        )
+    return statline_type
+
+
+@pytest.mark.django_db
+def test_statline_previews_write_nothing(make_user, content_fighter):
+    """Both C1 pages are dry-run on GET."""
+    from n23.content.models.statline import ContentStatline
+
+    superuser = make_user("c1super", "pw")
+    superuser.is_staff = superuser.is_superuser = True
+    superuser.save()
+    _fighter_statline_type()
+
+    client = Client()
+    client.force_login(superuser)
+    for url in (
+        "maintenance_normalise_stat_formats",
+        "maintenance_materialise_statlines",
+    ):
+        response = client.get(reverse(f"admin:{url}"))
+        assert response.status_code == 200
+
+    assert not ContentStatline.objects.filter(content_fighter=content_fighter).exists()
+    assert not Backfill.objects.filter(
+        operation__in=[
+            Backfill.Operation.NORMALISE_STAT_FORMATS,
+            Backfill.Operation.MATERIALISE_STATLINES,
+        ]
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_materialise_apply_creates_statlines_and_a_record(make_user, content_fighter):
+    superuser = make_user("c1super2", "pw")
+    superuser.is_staff = superuser.is_superuser = True
+    superuser.save()
+    _fighter_statline_type()
+
+    client = Client()
+    client.force_login(superuser)
+    response = client.post(reverse("admin:maintenance_materialise_statlines"))
+
+    assert response.status_code == 302
+    record = Backfill.objects.get(operation=Backfill.Operation.MATERIALISE_STATLINES)
+    assert record.status == Backfill.Status.DONE
+    assert record.triggered_by == superuser
+    assert record.summary["created"] >= 1
+    content_fighter.refresh_from_db()
+    assert content_fighter.custom_statline.stats.count() == 12

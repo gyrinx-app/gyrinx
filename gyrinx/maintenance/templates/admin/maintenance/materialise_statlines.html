@@ -1,0 +1,62 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-table { width: 100%; margin-bottom: 2rem; }
+    .mt-warn { color: #c62828; font-weight: 600; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This is the dry-run view. Nothing has been changed. Every template without
+        a statline gets one on the 12-stat <strong>Fighter</strong> type, column
+        values copied verbatim, blanks written as <code>-</code>. Display-preserving:
+        no fighter's card should change. #1861 Track C1.
+    </p>
+    {% if remaining_formats %}
+        <p class="mt-warn">
+            {{ remaining_formats|length }} un-normalised value{{ remaining_formats|length|pluralize }}
+            would be copied verbatim —
+            <a href="{% url 'admin:maintenance_normalise_stat_formats' %}">run the format
+                normalisation first</a> unless that is intended.
+        </p>
+    {% endif %}
+    <p>
+        <strong>{{ entries|length }}</strong> statline{{ entries|length|pluralize }} would be
+        created ({{ all_blank }} all-blank template{{ all_blank|pluralize }}, e.g. Stash,
+        becoming rows of dashes).
+    </p>
+    {% if entries %}
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>Template</th>
+                    <th>House</th>
+                    <th>Blank stats</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                    <tr>
+                        <td>{{ entry.cf_type }}</td>
+                        <td>{{ entry.house }}</td>
+                        <td>{{ entry.blank_count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="default">Create statlines</button>
+        </form>
+    {% else %}
+        <p>Every template already has a statline.</p>
+    {% endif %}
+{% endblock content %}

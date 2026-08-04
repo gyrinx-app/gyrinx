@@ -1,0 +1,55 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>.mt-table { width: 100%; margin-bottom: 2rem; }</style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This is the dry-run view. Nothing has been changed. Bare-number values on
+        target-roll and distance stats gain their missing suffix (<code>4</code> →
+        <code>4+</code>, <code>5</code> → <code>5"</code>). This is a <strong>visible</strong>
+        cosmetic correction on the affected fighters' cards. Dice expressions and
+        everything else are untouched. Run this <strong>before</strong> materialising
+        statlines.
+    </p>
+    <p>
+        <strong>{{ fixes|length }}</strong> value{{ fixes|length|pluralize }} would change.
+    </p>
+    {% if fixes %}
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>Template</th>
+                    <th>House</th>
+                    <th>Stat</th>
+                    <th>Now</th>
+                    <th>Becomes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fix in fixes %}
+                    <tr>
+                        <td>{{ fix.cf_type }}</td>
+                        <td>{{ fix.house }}</td>
+                        <td>{{ fix.stat }}</td>
+                        <td><code>{{ fix.old }}</code></td>
+                        <td><code>{{ fix.new }}</code></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="default">Apply normalisation</button>
+        </form>
+    {% else %}
+        <p>Nothing to normalise.</p>
+    {% endif %}
+{% endblock content %}
