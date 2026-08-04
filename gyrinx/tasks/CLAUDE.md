@@ -50,10 +50,12 @@ lapse). Two invariants live here:
 1. **`TaskExecution` state** ([`signals.py`](signals.py)). `SUCCESSFUL` is the only
    sticky terminal state: a redelivery of a SUCCESSFUL task re-runs the function but
    leaves the record SUCCESSFUL. A redelivery of a FAILED task is a *retry* — the
-   record is reset so the fresh attempt records its own outcome. **Never** let
-   `handle_task_started` mark an already-terminal execution RUNNING — that is an
-   illegal state transition that raises, and via the prod push handler becomes a
-   500 → Pub/Sub redelivery storm. Both handlers are `@transaction.atomic` and
+   record is reset to READY *before* it starts, so the fresh attempt records its
+   own outcome. So the two terminal states part company here: SUCCESSFUL must
+   never go straight to RUNNING, while FAILED may — but only by way of that
+   reset. **Never** let `handle_task_started` mark a terminal execution RUNNING
+   directly; that is an illegal state transition that raises, and via the prod
+   push handler becomes a 500 → Pub/Sub redelivery storm. Both handlers are `@transaction.atomic` and
    take a `select_for_update` lock on the execution row, because these guards are
    check-then-act: each step they take is a legal transition on its own, so the
    state machine's own row lock cannot catch two deliveries interleaving here.

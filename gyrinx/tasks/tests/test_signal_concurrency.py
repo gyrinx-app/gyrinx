@@ -17,19 +17,30 @@ import threading
 
 import pytest
 from django.db import connection
+from django.tasks.base import TaskResultStatus
 from django.utils import timezone
 
 from gyrinx.tasks.models import TaskExecution
-from gyrinx.tasks.signals import handle_task_started
+from gyrinx.tasks.signals import handle_task_finished, handle_task_started
 
 TRANSITIONS = TaskExecution.states.transition_model
 
 
 class _Delivery:
-    """The only thing the lifecycle handlers read off a TaskResult."""
+    """The fields the lifecycle handlers read off a TaskResult."""
 
-    def __init__(self, task_id):
+    def __init__(self, task_id, status=None, return_value=None, errors=()):
         self.id = task_id
+        self.status = status
+        self._return_value = return_value
+        self.errors = list(errors)
+
+
+class _Error:
+    """Stands in for a TaskError; the handler reads the traceback off it."""
+
+    def __init__(self, traceback):
+        self.traceback = traceback
 
 
 def _run_concurrently(target, *, n=2, timeout=15):
@@ -114,6 +125,61 @@ def test_concurrent_first_deliveries_start_once():
     execution.refresh_from_db()
     assert execution.status == "RUNNING"
     assert TRANSITIONS.objects.filter(instance=execution).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_finishes_record_one_success():
+    """Two simultaneous SUCCESSFUL finishes settle the execution once.
+
+    This is the case the finish handler's lock exists for: both deliveries pass
+    the terminal-state guard while the record is still RUNNING, and unlocked the
+    second would raise InvalidStateTransition — which through the Pub/Sub push
+    handler is a 500 and the redelivery storm the guard is there to prevent.
+    """
+    execution = _make_execution(task_id="finish-ok")
+    execution.mark_running()
+    before = TRANSITIONS.objects.filter(instance=execution).count()
+
+    delivery = _Delivery(
+        "finish-ok",
+        status=TaskResultStatus.SUCCESSFUL,
+        return_value={"ok": True},
+    )
+    errors = _run_concurrently(
+        lambda: handle_task_finished(sender=None, task_result=delivery)
+    )
+
+    assert not errors, f"delivery thread(s) raised: {errors!r}"
+    execution.refresh_from_db()
+    assert execution.status == "SUCCESSFUL"
+    assert execution.return_value == {"ok": True}
+    assert execution.finished_at is not None
+    settled = TRANSITIONS.objects.filter(instance=execution).count() - before
+    assert settled == 1, "the second finish should have seen the first and skipped"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_finishes_record_one_failure():
+    """The same guarantee for a failing task, including its error fields."""
+    execution = _make_execution(task_id="finish-bad")
+    execution.mark_running()
+    before = TRANSITIONS.objects.filter(instance=execution).count()
+
+    delivery = _Delivery(
+        "finish-bad",
+        status=TaskResultStatus.FAILED,
+        errors=[_Error('  File "t.py", line 1\nValueError: boom')],
+    )
+    errors = _run_concurrently(
+        lambda: handle_task_finished(sender=None, task_result=delivery)
+    )
+
+    assert not errors, f"delivery thread(s) raised: {errors!r}"
+    execution.refresh_from_db()
+    assert execution.status == "FAILED"
+    assert execution.error_message == "boom"
+    settled = TRANSITIONS.objects.filter(instance=execution).count() - before
+    assert settled == 1
 
 
 @pytest.mark.django_db
