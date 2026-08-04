@@ -33,7 +33,7 @@ class StateMachineTestModel(Base):
     name = models.CharField(max_length=100, default="test")
 
     class Meta:
-        app_label = "core"
+        app_label = "tasks"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -46,7 +46,7 @@ def _ensure_state_machine_test_tables(django_db_setup, django_db_blocker):
     """
     with django_db_blocker.unblock():
         table_names = connection.introspection.table_names()
-        if "core_statemachinetestmodel" not in table_names:
+        if "tasks_statemachinetestmodel" not in table_names:
             with connection.schema_editor() as schema_editor:
                 schema_editor.create_model(StateMachineTestModel)
                 schema_editor.create_model(
@@ -366,7 +366,7 @@ def test_transition_model_created():
 
     assert transition_model is not None
     assert transition_model.__name__ == "StateMachineTestModelStateTransition"
-    assert transition_model._meta.app_label == "core"
+    assert transition_model._meta.app_label == "tasks"
 
 
 @pytest.mark.django_db
