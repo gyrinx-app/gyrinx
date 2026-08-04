@@ -12,7 +12,7 @@ machines.
   `Owned`, `Archived`, `HistoryMixin`, history-aware manager. Don't subclass `models.Model`
   directly.
 - Every concrete model declares `history = HistoricalRecords()` for django-simple-history.
-- For state-bearing models (campaigns, battles), use [../state_machine.py](../state_machine.py)
+- For state-bearing models (campaigns, battles), use [gyrinx/state_machine.py](../../gyrinx/state_machine.py)
   rather than rolling status fields by hand. It lives in the platform package, not in
   core — the task framework uses it too.
 
@@ -41,7 +41,7 @@ into N+1 territory silently in dev and shows up only under load.
 
 ## Tests
 
-Use the canonical fixtures in [gyrinx/conftest.py](../conftest.py) — `user`, `make_user`,
+Use the canonical fixtures in [conftest.py](../../conftest.py) — `user`, `make_user`,
 `content_house`, `content_fighter`, `make_list`, `make_list_fighter`, `make_campaign`,
 `campaign`, `list_with_campaign`. Read the conftest before writing fixture setup inline.
 

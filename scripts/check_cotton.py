@@ -9,9 +9,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # package. Both are scanned for call sites; omitting one makes this gate pass
 # while silently ignoring everything in it.
 TEMPLATE_ROOTS = [ROOT / "gyrinx", ROOT / "n23"]
+# Only the platform tree defines components today. Listing a directory that
+# does not exist would be quietly meaningless in a file whose whole point is
+# that an empty scan root passes vacuously, so add an edition entry here only
+# when that edition actually ships components.
 COTTON_DIRS = [
     ROOT / "gyrinx" / "templates" / "cotton",
-    ROOT / "n23" / "core" / "templates" / "cotton",
 ]
 
 COMMENT = re.compile(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", re.S)

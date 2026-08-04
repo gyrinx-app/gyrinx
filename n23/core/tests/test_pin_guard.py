@@ -41,6 +41,15 @@ from pathlib import Path
 
 import n23
 
+# Scan the platform tree as well as the edition's. Restricting this to n23/
+# would leave assignment creation sites under gyrinx/ unpoliced — gyrinx/
+# maintenance/admin.py already imports ListFighterEquipmentAssignment — and it
+# would fail silently, because a root with no matches simply contributes
+# nothing. Keys are repo-root-relative so n23/core/… and a future n26/core/…
+# can never collide.
+REPO_ROOT = Path(n23.__file__).parent.parent
+SCAN_ROOTS = (REPO_ROOT / "gyrinx", REPO_ROOT / "n23")
+
 PATTERNS = {
     "instantiate": re.compile(r"(?<!\w)(?<!class )ListFighterEquipmentAssignment\("),
     "manager-create": re.compile(
@@ -63,43 +72,43 @@ PATTERNS = {
 # PINNED files must actually contain the calls their label claims: deleting
 # a pin_assignment(...) line must fail here, not silently unpin a path.
 PIN_CALL_COUNTS = {
-    "core/cost/pinning.py": 2,  # module docstring + the def itself
-    "core/handlers/equipment/purchase.py": 4,  # equipment/accessory/profile/upgrades
-    "core/handlers/fighter/kill.py": 1,  # defensive pin before clone-to-stash
-    "core/handlers/fighter/vehicle.py": 1,
-    "core/models/list/advancement.py": 1,
-    "core/models/list/fighter.py": 1,  # assign()
+    "n23/core/cost/pinning.py": 2,  # module docstring + the def itself
+    "n23/core/handlers/equipment/purchase.py": 4,  # equipment/accessory/profile/upgrades
+    "n23/core/handlers/fighter/kill.py": 1,  # defensive pin before clone-to-stash
+    "n23/core/handlers/fighter/vehicle.py": 1,
+    "n23/core/models/list/advancement.py": 1,
+    "n23/core/models/list/fighter.py": 1,  # assign()
 }
 
 # (path, pattern) -> (count, label)
 INVENTORY = {
     # Main purchase view: form creates, handle_equipment_purchase pins.
-    ("core/views/fighter/equipment.py", "instantiate"): (1, "PINNED"),
+    ("n23/core/views/fighter/equipment.py", "instantiate"): (1, "PINNED"),
     # Component purchase handlers: each add/set is followed by pin_assignment.
-    ("core/handlers/equipment/purchase.py", "m2m-write"): (3, "PINNED"),
+    ("n23/core/handlers/equipment/purchase.py", "m2m-write"): (3, "PINNED"),
     # Vehicle purchase: creates then pins.
-    ("core/handlers/fighter/vehicle.py", "manager-create"): (1, "PINNED"),
+    ("n23/core/handlers/fighter/vehicle.py", "manager-create"): (1, "PINNED"),
     # Equipment advancement: creates + sets upgrades, then pins.
-    ("core/models/list/advancement.py", "manager-create"): (1, "PINNED"),
-    ("core/models/list/advancement.py", "m2m-write"): (1, "PINNED"),
+    ("n23/core/models/list/advancement.py", "manager-create"): (1, "PINNED"),
+    ("n23/core/models/list/advancement.py", "m2m-write"): (1, "PINNED"),
     # ListFighter.assign(): instantiates + adds components, pins at the end.
     # (The m2m writes are assign()'s own adds; assign_profile is its
     # sub-step. The create_with_facts is default-kit materialisation.)
-    ("core/models/list/fighter.py", "instantiate"): (1, "PINNED"),
-    ("core/models/list/fighter.py", "m2m-write"): (1, "PINNED"),
-    ("core/models/list/fighter.py", "manager-create"): (1, "ANCHORED"),
+    ("n23/core/models/list/fighter.py", "instantiate"): (1, "PINNED"),
+    ("n23/core/models/list/fighter.py", "m2m-write"): (1, "PINNED"),
+    ("n23/core/models/list/fighter.py", "manager-create"): (1, "ANCHORED"),
     # clone(): one create + three through-row copies, receipts carried over.
     # The fourth m2m write is assign_profile (a sub-step of assign()).
-    ("core/models/list/assignment.py", "manager-create"): (1, "COPIES"),
-    ("core/models/list/assignment.py", "m2m-write"): (4, "COPIES"),
+    ("n23/core/models/list/assignment.py", "manager-create"): (1, "COPIES"),
+    ("n23/core/models/list/assignment.py", "m2m-write"): (4, "COPIES"),
     # Linked-child creation (post-save signal): structurally free.
-    ("core/models/list/signal_handlers.py", "manager-create"): (1, "ANCHORED"),
+    ("n23/core/models/list/signal_handlers.py", "manager-create"): (1, "ANCHORED"),
     # Death transfer (kill.py): as of Phase 9 it clones each item (COPIES,
     # above) and pins any straggler first (PIN_CALL_COUNTS), so it matches no
     # creation pattern here.
     # Content-side models sharing the M2M field names.
-    ("content/models/fighter.py", "m2m-write"): (2, "CONTENT"),
-    ("core/views/pack.py", "m2m-write"): (1, "CONTENT"),
+    ("n23/content/models/fighter.py", "m2m-write"): (2, "CONTENT"),
+    ("n23/core/views/pack.py", "m2m-write"): (1, "CONTENT"),
 }
 # The admin write surface (core/admin/list.py) creates assignments and
 # through rows via ModelAdmin/inline forms, which none of the source-level
@@ -110,9 +119,9 @@ INVENTORY = {
 def _scan(extra_files=None):
     """Scan non-test source for creation shapes. ``extra_files`` lets the
     guard's own negative test inject a synthetic bypassing call site."""
-    root = Path(n23.__file__).parent
     sources = {
-        path.relative_to(root).as_posix(): path.read_text()
+        path.relative_to(REPO_ROOT).as_posix(): path.read_text()
+        for root in SCAN_ROOTS
         for path in sorted(root.rglob("*.py"))
     }
     sources.update(extra_files or {})
@@ -156,9 +165,8 @@ def test_every_assignment_creation_site_is_accounted_for():
 def test_pinned_files_still_call_the_choke_point():
     """A PINNED label is a claim: the file wires pin_assignment. Deleting
     the call must fail here, not silently unpin an acquisition path."""
-    root = Path(n23.__file__).parent
     for rel, expected in PIN_CALL_COUNTS.items():
-        actual = (root / rel).read_text().count("pin_assignment(")
+        actual = (REPO_ROOT / rel).read_text().count("pin_assignment(")
         assert actual == expected, (
             f"{rel}: expected {expected} pin_assignment references, found "
             f"{actual}. If a call site moved or was removed, re-verify the "
@@ -172,7 +180,7 @@ def test_guard_detects_synthetic_bypass():
     know about must be flagged."""
     found = _scan(
         extra_files={
-            "core/rogue.py": (
+            "n23/core/rogue.py": (
                 "def rogue(fighter, equipment):\n"
                 "    return ListFighterEquipmentAssignment.objects.create(\n"
                 "        list_fighter=fighter, content_equipment=equipment\n"
@@ -180,7 +188,7 @@ def test_guard_detects_synthetic_bypass():
             )
         }
     )
-    assert found.get(("core/rogue.py", "manager-create")) == 1
+    assert found.get(("n23/core/rogue.py", "manager-create")) == 1
 
     # The wider creation shapes are matched too.
     for snippet, pattern in [

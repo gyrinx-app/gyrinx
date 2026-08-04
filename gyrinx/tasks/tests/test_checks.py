@@ -67,7 +67,7 @@ def test_app_discovery_reaches_conventional_task_modules(monkeypatch):
 
 def test_app_discovery_covers_edition_namespaces(monkeypatch):
     """The per-edition namespaces are first-party too. The n23 rename (#2093)
-    moves ``n23.core`` to ``n23.core``; if the prefix filter still only
+    moved ``gyrinx.core`` to ``n23.core``; if the prefix filter still only
     accepted ``gyrinx.``, this scan would silently stop discovering the
     edition's task module and the #1947 guard would weaken to nothing —
     a gap that only shows up in production."""

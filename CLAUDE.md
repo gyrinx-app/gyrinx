@@ -43,7 +43,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   `<c-callout variant="danger">`, `<c-form.field :field="form.name" />`. New and
   edited templates should use them. `scripts/check_raw_markup.py` holds a ceiling on
   hand-written markup and fails if it rises. See
-  [gyrinx/core/templates/CLAUDE.md](gyrinx/core/templates/CLAUDE.md) for the call-site
+  [n23/core/templates/CLAUDE.md](n23/core/templates/CLAUDE.md) for the call-site
   traps — several of them fail *silently*.
 - Mobile-first design
 - Look up model definitions before use - don't assume field names

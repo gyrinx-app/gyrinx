@@ -14,7 +14,7 @@ Working rules:
 
 - Extend `core/layouts/base.html` for full-page layouts and `core/layouts/page.html` for
   simple content pages. Don't roll a new top-level layout.
-- **Use the cotton components in [gyrinx/templates/cotton/](../../templates/cotton/)
+- **Use the cotton components in [gyrinx/templates/cotton/](../../../gyrinx/templates/cotton/)
   rather than hand-writing Bootstrap.** Read the component file first — each carries its
   props and traps in a comment block at the top.
 

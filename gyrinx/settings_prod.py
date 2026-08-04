@@ -1,7 +1,7 @@
 import os
 
 from .settings import *  # noqa: F403
-from .settings import LOGGING, STORAGES, TASKS
+from .settings import APP_LOGGER_ROOTS, LOGGING, STORAGES, TASKS
 from .storage_settings import configure_gcs_storage
 
 # Use GCP tracing in production
@@ -24,8 +24,9 @@ LOGGING["handlers"]["structured_console"] = {
 LOGGING["loggers"]["django.request"]["handlers"] = ["structured_console"]
 LOGGING["loggers"]["django.request"]["propagate"] = False
 
-LOGGING["loggers"]["gyrinx"]["handlers"] = ["structured_console"]
-LOGGING["loggers"]["gyrinx"]["propagate"] = False
+for _logger_root in APP_LOGGER_ROOTS:
+    LOGGING["loggers"][_logger_root]["handlers"] = ["structured_console"]
+    LOGGING["loggers"][_logger_root]["propagate"] = False
 
 LOGGING["root"]["handlers"] = ["structured_console"]
 

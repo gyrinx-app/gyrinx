@@ -288,7 +288,7 @@ def test_recovers_from_transient_failure(task_queue, ...):
     assert ...
 ```
 
-Worked examples: [`gyrinx/tasks/tests/test_local_backend.py`](../../gyrinx/tasks/tests/test_local_backend.py) and the concurrency chaos tests in [`gyrinx/core/tests/test_task_chaos_concurrency.py`](../../gyrinx/core/tests/test_task_chaos_concurrency.py).
+Worked examples: [`gyrinx/tasks/tests/test_local_backend.py`](../../gyrinx/tasks/tests/test_local_backend.py) and the concurrency chaos tests in [`n23/core/tests/test_task_chaos_concurrency.py`](../../n23/core/tests/test_task_chaos_concurrency.py).
 
 ## Run the Dev Server with Async Tasks and Fault Injection
 

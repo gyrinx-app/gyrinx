@@ -23,9 +23,9 @@ from django.contrib.admindocs import urls as admindocs_urls
 from django.urls import include, path, re_path
 
 from gyrinx.admin_site import admin_gated_patterns
+from gyrinx.pages import views
 from n23.core.views import debug as debug_views
 from n23.core.views import print_lab as print_lab_views
-from gyrinx.pages import views
 
 admin.site.site_header = "Gyrinx Admin"
 

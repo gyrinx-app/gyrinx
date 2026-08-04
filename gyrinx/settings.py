@@ -367,6 +367,10 @@ STORAGES = {
 # Logging
 # https://docs.djangoproject.com/en/6.0/topics/logging/
 
+# Top-level packages whose loggers are "ours": the platform shell plus each
+# edition package. Consumed by the LOGGING config below and by settings_prod.
+APP_LOGGER_ROOTS = ("gyrinx", "n23")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -403,10 +407,18 @@ LOGGING = {
             "level": "ERROR",
             "propagate": False,
         },
-        "gyrinx": {
-            "handlers": ["console"],
-            "level": os.getenv("GYRINX_LOG_LEVEL", "INFO").upper(),
-            "propagate": False,
+        # One entry per first-party top-level package. A logger inherits
+        # configuration only from an ancestor that is itself configured, so
+        # "gyrinx" does nothing for `n23.core.views` — every package root needs
+        # its own entry or the edition's logging silently falls through to root
+        # and stops responding to GYRINX_LOG_LEVEL. Add n26 here when it lands.
+        **{
+            _root: {
+                "handlers": ["console"],
+                "level": os.getenv("GYRINX_LOG_LEVEL", "INFO").upper(),
+                "propagate": False,
+            }
+            for _root in APP_LOGGER_ROOTS
         },
     },
     "root": {
