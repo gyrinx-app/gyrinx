@@ -126,7 +126,10 @@ def test_multiple_injury_modifiers_stack():
     statline = fighter.statline
     stat_dict = {stat.field_name: stat.value for stat in statline}
 
-    assert stat_dict["movement"] == "4"
+    # The bare "4" on the template is formatted into the statline on save, so
+    # the card shows inches — consistent with the '3"' asserted further down
+    # once the -1" injury lands.
+    assert stat_dict["movement"] == '4"'
     assert stat_dict["weapon_skill"] == "4+"
     assert stat_dict["ballistic_skill"] == "4+"
     assert stat_dict["leadership"] == "7+"

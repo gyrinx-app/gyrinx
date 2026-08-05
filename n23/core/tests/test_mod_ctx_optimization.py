@@ -114,9 +114,12 @@ def test_mod_ctx_statline_uses_prefetched_stats(user, content_house):
         q for q in info.queries if '"content_contentstat"' in q["sql"]
     ]
 
-    # Should have exactly one ContentStat query that fetches all stats
-    assert len(contentstat_queries) == 1, (
-        f"Expected one ContentStat query, but got {len(contentstat_queries)}"
+    # One query selects from ContentStat (the mod_ctx prefetch of all stats);
+    # two more join it to read field and short names off the statline and its
+    # type. Anything above three means a per-stat lookup has crept back in.
+    assert len(contentstat_queries) <= 3, (
+        f"Expected at most three ContentStat queries, but got "
+        f"{len(contentstat_queries)}"
     )
 
     # Verify the statline was modified correctly
@@ -349,9 +352,17 @@ def test_list_fighter_statline_query_count(user, content_house):
         1 for q in info.queries if '"content_contentstat"' in q["sql"]
     )
 
-    # We should have at most 2 ContentStat queries (the prefetch and maybe a statline check)
-    assert contentstat_queries <= 2, (
-        f"Expected at most 2 ContentStat queries, got {contentstat_queries}. "
+    # Three statements touch the ContentStat table, and only one of them
+    # selects from it: the mod_ctx prefetch. The other two are the statline's
+    # values and its type's stats, which join ContentStat for the field and
+    # short names.
+    #
+    # This used to allow two, back when the fixture fighter had no statline
+    # and so rendered from the legacy columns. Now that every fighter type
+    # gets a statline, this measures the real path — which was doing 25 until
+    # its select_related was fixed alongside this change.
+    assert contentstat_queries <= 3, (
+        f"Expected at most 3 ContentStat queries, got {contentstat_queries}. "
         f"This suggests the mod_ctx optimization is not working correctly."
     )
 

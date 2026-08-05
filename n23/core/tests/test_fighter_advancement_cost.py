@@ -1,6 +1,7 @@
 import pytest
 
 from n23.content.models import ContentFighter
+from n23.content.statlines import set_fighter_statline
 from n23.core.models.list import (
     List,
     ListFighter,
@@ -122,8 +123,6 @@ def test_fighter_cost_with_custom_statline_join_duplication(content_house):
     """
     from n23.content.models import (
         ContentStat,
-        ContentStatline,
-        ContentStatlineStat,
         ContentStatlineType,
         ContentStatlineTypeStat,
     )
@@ -163,18 +162,15 @@ def test_fighter_cost_with_custom_statline_join_duplication(content_house):
         )
 
     # Create the custom statline for the fighter template
-    custom_statline = ContentStatline.objects.create(
-        content_fighter=crew_template,
-        statline_type=statline_type,
+    # Replaces the statline the template was given on save
+    set_fighter_statline(
+        crew_template,
+        statline_type,
+        {
+            stat_type_stat.id: str(i + 1)  # Values: 1, 2, 3, 4, 5
+            for i, stat_type_stat in enumerate(statline_type.stats.all())
+        },
     )
-
-    # Add stat values to the statline
-    for i, stat_type_stat in enumerate(statline_type.stats.all()):
-        ContentStatlineStat.objects.create(
-            statline=custom_statline,
-            statline_type_stat=stat_type_stat,
-            value=str(i + 1),  # Values: 1, 2, 3, 4, 5
-        )
 
     # Create the fighter
     fighter = ListFighter.objects.create(

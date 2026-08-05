@@ -9,11 +9,10 @@ from n23.content.models.metadata import ContentRule
 from n23.content.models.weapon import ContentWeaponTrait
 from n23.content.models.statline import (
     ContentStat,
-    ContentStatline,
-    ContentStatlineStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
 )
+from n23.content.statlines import set_fighter_statline
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 
 
@@ -1403,14 +1402,9 @@ def pack_fighter(pack, group_user, fighter_statline_type, content_house):
     )
     item.save_with_user(user=group_user)
 
-    # Create statline
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter, statline_type=fighter_statline_type
-    )
-    for type_stat in fighter_statline_type.stats.all():
-        ContentStatlineStat.objects.create(
-            statline=statline, statline_type_stat=type_stat, value="-"
-        )
+    # Saving the fighter already gave it a statline; set it to the type this
+    # fixture wants, with blank values.
+    set_fighter_statline(fighter, fighter_statline_type)
 
     return item
 

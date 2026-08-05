@@ -20,7 +20,14 @@ from polymorphic.admin import (
 from n23.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from n23.content.models.availability_preset import ContentAvailabilityPreset
 from gyrinx.forms import group_select
+from django.contrib.admin.utils import flatten_fieldsets
+
 from gyrinx.models import SMART_QUOTES
+from n23.content.statlines import (
+    set_fighter_statline,
+    stat_placeholder,
+    validate_no_smart_quotes,
+)
 from n23.models import FighterCategoryChoices, equipment_category_groups
 
 from .models import (
@@ -835,8 +842,88 @@ class ContentFighterEquipmentCategoryLimitForFighterInline(ContentTabularInline)
     verbose_name_plural = "Equipment Category Limits"
 
 
+#: The 12 hardcoded stat columns on ContentFighter. Values live in the
+#: fighter's statline now; the columns survive only until #1861 drops them,
+#: and are kept off the admin form so nobody edits a dead field.
+LEGACY_STAT_COLUMNS = [
+    "movement",
+    "weapon_skill",
+    "ballistic_skill",
+    "strength",
+    "toughness",
+    "wounds",
+    "initiative",
+    "attacks",
+    "leadership",
+    "cool",
+    "willpower",
+    "intelligence",
+]
+
+
+def statline_field_name(type_stat):
+    """Form field name carrying one stat's value."""
+    return f"stat_{type_stat.id}"
+
+
+def build_statline_fields(fighter):
+    """One CharField per stat on this fighter's statline, in display order.
+
+    Returns an empty dict for a fighter that has no statline yet — which,
+    since every fighter type is given one on save, means only an unsaved one.
+    """
+    if fighter is None or fighter.pk is None:
+        return {}
+
+    statline = getattr(fighter, "custom_statline", None)
+    if statline is None:
+        return {}
+
+    values = {stat.statline_type_stat_id: stat.value for stat in statline.stats.all()}
+    fields = {}
+    for type_stat in statline.statline_type.stats.select_related("stat").order_by(
+        "position"
+    ):
+        field = forms.CharField(
+            required=False,
+            label=type_stat.full_name,
+            initial=values.get(type_stat.id, "-"),
+            widget=forms.TextInput(
+                attrs={"placeholder": stat_placeholder(type_stat.stat), "size": 6}
+            ),
+            help_text=type_stat.short_name,
+        )
+        field.type_stat = type_stat
+        fields[statline_field_name(type_stat)] = field
+    return fields
+
+
 class ContentFighterForm(forms.ModelForm):
-    pass
+    """Fighter form whose statline stat values are edited inline.
+
+    The stat fields themselves are attached by the admin's ``get_form``: the
+    set of them depends on the fighter's statline type, and the admin builds
+    its fieldsets from the form class's ``base_fields``, so adding them per
+    instance in ``__init__`` would validate but never render.
+    """
+
+    class Meta:
+        model = ContentFighter
+        exclude = LEGACY_STAT_COLUMNS
+
+    @property
+    def stat_fields(self):
+        return [name for name in self.fields if name.startswith("stat_")]
+
+    def clean(self):
+        cleaned = super().clean()
+        for name in self.stat_fields:
+            if name in cleaned:
+                try:
+                    validate_no_smart_quotes(cleaned[name])
+                except forms.ValidationError as exc:
+                    self.add_error(name, exc)
+        return cleaned
 
 
 class ContentStatlineInline(ContentStackedInline):
@@ -875,7 +962,6 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
     list_filter = ["category", "house", "psyker_disciplines__discipline"]
     autocomplete_fields = ["house"]
     inlines = [
-        ContentStatlineInline,
         # ContentFighterHouseOverrideInline,
         # ContentFighterEquipmentInline,
         # ContentFighterDefaultAssignmentInline,
@@ -884,6 +970,78 @@ class ContentFighterAdmin(ContentAdmin, admin.ModelAdmin):
         ContentFighterPsykerPowerDefaultAssignmentInline,
     ]
     actions = [copy_selected_to_house]
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        """Attach the fighter's stat fields to the form class.
+
+        Here rather than in the form's ``__init__`` because the admin derives
+        its fieldsets from ``base_fields``: instance-level fields would be
+        validated and saved but never rendered. ``super()`` builds a fresh
+        class each call, so mutating it is local to this request.
+
+        The admin then asks for those same names back in ``fields`` when it
+        rebuilds the form from its fieldsets. They are not model fields, so
+        they have to come out again before modelform_factory sees them.
+        """
+        stat_fields = build_statline_fields(obj)
+        if "fields" not in kwargs:
+            # What super() would have worked out for itself — computed here so
+            # the stat names can be taken back out before it does.
+            kwargs["fields"] = flatten_fieldsets(self.get_fieldsets(request, obj))
+        if kwargs["fields"] is not None:
+            kwargs["fields"] = [
+                name for name in kwargs["fields"] if name not in stat_fields
+            ]
+        form_class = super().get_form(request, obj, change=change, **kwargs)
+        form_class.base_fields.update(stat_fields)
+        return form_class
+
+    def get_fields(self, request, obj=None):
+        """The model fields only — the stat fields get their own fieldset.
+
+        Leaving them in here would put them in the flattened field list the
+        admin feeds back to modelform_factory, which only accepts model
+        fields.
+        """
+        stat_fields = build_statline_fields(obj)
+        return [
+            name for name in super().get_fields(request, obj) if name not in stat_fields
+        ]
+
+    def get_fieldsets(self, request, obj=None):
+        """Group the stat inputs under their own heading."""
+        fieldsets = list(super().get_fieldsets(request, obj))
+        stat_fields = build_statline_fields(obj)
+        if stat_fields:
+            fieldsets.append(("Statline", {"fields": list(stat_fields)}))
+        return fieldsets
+
+    def save_related(self, request, form, formsets, change):
+        """Write the statline values submitted alongside the fighter.
+
+        Runs after the fighter is saved so a brand-new one already has a pk to
+        hang its statline on. The statline itself is created by the post_save
+        signal; this fills in whatever the admin typed.
+        """
+        super().save_related(request, form, formsets, change)
+
+        stat_fields = getattr(form, "stat_fields", [])
+        if not stat_fields:
+            return
+
+        statline = getattr(form.instance, "custom_statline", None)
+        if statline is None:
+            return
+
+        set_fighter_statline(
+            form.instance,
+            statline.statline_type,
+            {
+                form.fields[name].type_stat.id: form.cleaned_data[name]
+                for name in stat_fields
+                if name in form.cleaned_data
+            },
+        )
 
 
 @admin.register(ContentFighterPsykerDisciplineAssignment)
