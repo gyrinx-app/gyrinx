@@ -45,9 +45,13 @@ class Backfill(models.Model):
             "materialise_statlines",
             "Materialise statlines for legacy templates (#1861 Track C1)",
         )
+        # Retired: run once in production on 2026-08-05, and its code removed
+        # with #1861 Track C4, which dropped the columns it read. The member
+        # stays so the historical record keeps rendering a name.
         MIGRATE_STAT_OVERRIDES = (
             "migrate_stat_overrides",
-            "Migrate fighter stat overrides to the override store (#1861 Track C2)",
+            "Migrate fighter stat overrides to the override store "
+            "(#1861 Track C2, retired)",
         )
 
     class Status(models.TextChoices):

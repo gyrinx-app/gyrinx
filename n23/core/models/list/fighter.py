@@ -675,44 +675,9 @@ class ListFighter(AppBase):
         help_text="Override the fighter's category without changing their type. Limited to Leader, Champion, Ganger, Juve, Prospect, and Specialist.",
     )
 
-    # Stat overrides
-
-    movement_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="M"
-    )
-    weapon_skill_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="WS"
-    )
-    ballistic_skill_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="BS"
-    )
-    strength_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="S"
-    )
-    toughness_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="T"
-    )
-    wounds_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="W"
-    )
-    initiative_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="I"
-    )
-    attacks_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="A"
-    )
-    leadership_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="Ld"
-    )
-    cool_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="Cl"
-    )
-    willpower_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="Wil"
-    )
-    intelligence_override = models.CharField(
-        max_length=12, blank=True, null=True, verbose_name="Int"
-    )
+    # Stat overrides live in ListFighterStatOverride, one row per overridden
+    # stat. The 12 `<stat>_override` columns that used to hold them were
+    # emptied by #1861 Track C2 and dropped by Track C4.
 
     # Cost
 

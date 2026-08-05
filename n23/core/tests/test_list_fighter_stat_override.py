@@ -215,39 +215,6 @@ def test_list_fighter_statline_with_overrides(
 
 
 @pytest.mark.django_db
-def test_legacy_override_columns_no_longer_reach_the_card(list_fighter):
-    """A value left in a legacy `<stat>_override` column must not display.
-
-    Track C2 emptied those columns and Track C3 stopped reading them. If the
-    fallback came back, a stale column would silently outrank the override
-    store — which is how a fighter's card could move on its own.
-    """
-    base_movement = list_fighter.content_fighter.movement
-    base_ws = list_fighter.content_fighter.weapon_skill
-
-    list_fighter.movement_override = '6"'
-    list_fighter.weapon_skill_override = "2+"
-    list_fighter.save()
-
-    # Clear cached property
-    if hasattr(list_fighter, "statline"):
-        del list_fighter.__dict__["statline"]
-
-    statline = list_fighter.statline
-
-    # Should use legacy stats (12 standard fighter stats)
-    assert len(statline) == 12
-
-    movement_stat = next(s for s in statline if s.field_name == "movement")
-    assert movement_stat.value == base_movement
-    assert not movement_stat.modded
-
-    ws_stat = next(s for s in statline if s.field_name == "weapon_skill")
-    assert ws_stat.value == base_ws
-    assert not ws_stat.modded
-
-
-@pytest.mark.django_db
 def test_stat_override_unique_constraint(list_fighter, vehicle_stats, user):
     """Test that only one override per stat per fighter is allowed."""
     # Create first override
@@ -287,12 +254,12 @@ def test_edit_fighter_stats_view_get(client, list_fighter, user):
 def test_posting_legacy_field_names_writes_nothing(
     client, list_fighter, vehicle_statline, vehicle_stats, user
 ):
-    """The stats form no longer accepts `<stat>_override` field names.
+    """A submission naming none of the form's fields must change nothing.
 
-    A crafted or stale POST naming them must be ignored outright: it must
-    neither write a column the card does not read (#1861 Track C3) nor — the
-    destructive half — wipe the overrides the fighter already has. A real
-    submission always carries the form's own fields, blank ones included.
+    Field names from the retired system are one way that happens — a stale
+    page or a bookmarked request. The danger is the destructive half: the
+    fighter's existing overrides must survive it. A real submission always
+    carries the form's own fields, blank ones included.
     """
     existing = ListFighterStatOverride.objects.create(
         list_fighter=list_fighter,
@@ -315,13 +282,9 @@ def test_posting_legacy_field_names_writes_nothing(
     response = client.post(url, data)
     assert response.status_code == 302  # Redirect after success
 
-    # Refresh from DB
-    list_fighter.refresh_from_db()
-    assert list_fighter.movement_override is None
-    assert list_fighter.weapon_skill_override is None
-    assert list_fighter.ballistic_skill_override is None
     # The fighter's real override is untouched
     assert ListFighterStatOverride.objects.filter(pk=existing.pk).exists()
+    assert ListFighterStatOverride.objects.get(pk=existing.pk).value == '10"'
 
 
 @pytest.mark.django_db
