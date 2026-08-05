@@ -32,6 +32,12 @@ from n23.core.maintenance.stat_advancements import (
     build_plan,
     run as run_stat_advancements,
 )
+from n23.core.maintenance.stat_overrides import (
+    ACTION_LABELS,
+    UNMIGRATABLE,
+    build_plan as build_override_plan,
+    run as run_migrate_overrides,
+)
 from n23.core.maintenance.statlines import (
     build_format_plan,
     build_statline_plan,
@@ -138,6 +144,11 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_materialise_statlines",
             ),
             path(
+                "maintenance/migrate-stat-overrides/",
+                self.admin_view(_superuser_only(self.migrate_stat_overrides_view)),
+                name="maintenance_migrate_stat_overrides",
+            ),
+            path(
                 "maintenance/backfill/<uuid:pk>/",
                 self.admin_view(_superuser_only(self.backfill_detail_view)),
                 name="maintenance_backfill_detail",
@@ -207,6 +218,17 @@ class MaintenanceAdminSite(admin.site.__class__):
                     "on templates without a statline (a visible cosmetic "
                     "correction). Run BEFORE materialising statlines, so they "
                     "are built from clean values."
+                ),
+            },
+            {
+                "key": Backfill.Operation.MIGRATE_STAT_OVERRIDES.value,
+                "name": Backfill.Operation.MIGRATE_STAT_OVERRIDES.label,
+                "url": reverse("admin:maintenance_migrate_stat_overrides"),
+                "description": (
+                    "Move every fighter's legacy stat override into the "
+                    "override store and clear the old column. "
+                    "Display-preserving. Run AFTER materialising statlines. "
+                    "#1861 Track C2."
                 ),
             },
             {
@@ -574,6 +596,62 @@ class MaintenanceAdminSite(admin.site.__class__):
             "orphan_eav": orphan_eav,
         }
         return render(request, "admin/maintenance/materialise_statlines.html", ctx)
+
+    def migrate_stat_overrides_view(self, request):
+        """Preview, then apply, the stat-override migration (#1861 C2)."""
+        if request.method == "POST":
+            running = _running_guard(Backfill.Operation.MIGRATE_STAT_OVERRIDES)
+            if running:
+                messages.error(request, "A run is already in progress.")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_backfill_detail", args=[running.id])
+                )
+            try:
+                record, applied, skipped = run_migrate_overrides(
+                    triggered_by=request.user
+                )
+                note = f"Migrated {len(applied)} fighter/stat pair(s)."
+                if skipped:
+                    note += (
+                        f" Skipped {len(skipped)} edited while the run was in "
+                        "progress — re-run to pick them up."
+                    )
+                messages.success(request, note)
+            except Exception as e:
+                # run_migrate_overrides already recorded the run as FAILED
+                logger.exception("Stat-override migration failed")
+                messages.error(request, f"Migration failed: {e}")
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_migrate_stat_overrides")
+                )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[record.id])
+            )
+
+        from n23.content.models import ContentFighter
+
+        plan = build_override_plan()
+        # A fighter whose template still lacks a statline reads the legacy
+        # branch, so migrating its value would hide it rather than move it.
+        # C1 drove this to zero; if it is not, C2 must not run.
+        statline_less = (
+            ContentFighter.objects.all_content()
+            .filter(custom_statline__isnull=True)
+            .count()
+        )
+        ctx = {
+            **self.each_context(request),
+            "title": "Migrate fighter stat overrides",
+            "counts": [
+                (action, ACTION_LABELS[action], count)
+                for action, count in plan.by_action().items()
+            ],
+            "writable": len(plan.writable),
+            "conflicts": plan.conflicts,
+            "unmigratable": [m for m in plan.moves if m.action == UNMIGRATABLE],
+            "statline_less": statline_less,
+        }
+        return render(request, "admin/maintenance/migrate_stat_overrides.html", ctx)
 
     def backfill_detail_view(self, request, pk):
         backfill = get_object_or_404(Backfill, pk=pk)

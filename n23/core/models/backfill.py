@@ -41,6 +41,10 @@ class Backfill(models.Model):
             "materialise_statlines",
             "Materialise statlines for legacy templates (#1861 Track C1)",
         )
+        MIGRATE_STAT_OVERRIDES = (
+            "migrate_stat_overrides",
+            "Migrate fighter stat overrides to the override store (#1861 Track C2)",
+        )
 
     class Status(models.TextChoices):
         # Long-running operations execute on the task runner and report
