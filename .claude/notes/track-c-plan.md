@@ -73,7 +73,7 @@ Backfill: create a statline on the "Fighter" type (content.0156), copying the
 once it exists, so the differential proves the copy renders identically.
 Check pack-sourced fighters resolve the new statlines.
 
-### C2 — migrate the 1,499 fighter overrides to EAV
+### C2 — migrate the fighter overrides to EAV (BUILT 2026-08-05; prod: 3,463 pairs / 1,503 fighters)
 
 Backfill, per (fighter, stat):
 
@@ -84,9 +84,17 @@ Backfill, per (fighter, stat):
   equal, report if not.
 - Stat absent from the statline type (e.g. WS on crew) → clear and report; the
   value was inert.
-- Then extend the #2070 cleanup to back-compute EAV rows, re-run it, and drive
-  the remaining legacy advancements to zero; anything unconvertible is
-  enumerated in the record, not left silent.
+**C2 tail — NOT yet built, and it must not be skipped.** The 11 shadowed legacy
+advancements resolve into a hazard after C2, not out of one. Their column is
+cleared, so the #2070 cleanup would then classify them as situation 3
+("advancement bought but showing nothing") and switch them on — improving 11
+cards by a step, on top of the EAV value. **Do not re-run the #2070 cleanup
+after C2** until it is taught to back-compute an EAV row instead of relying on
+the legacy column. Left alone they are harmless: inert before C2, inert after.
+
+**Unmigratable values die at C4.** The 12 over-length values (one junk test
+gang) stay in the legacy columns and are lost when C4 drops them. Acceptable,
+but it is a deliberate loss, not an oversight.
 
 ### C3 — code swap (after C1+C2 verified)
 
