@@ -148,6 +148,8 @@ def test_clone_child_fighter_with_xp_and_overrides(
     make_content_fighter,
     make_list_fighter,
     make_equipment,
+    make_statline,
+    make_stat_override,
 ):
     """
     Test that when cloning a list, XP and stat overrides on linked fighters are also cloned.
@@ -170,6 +172,9 @@ def test_clone_child_fighter_with_xp_and_overrides(
         house=house,
         base_cost=150,
     )
+    # Overrides are rows keyed to a statline's stats, so the beast's template
+    # needs one before it can carry any.
+    make_statline(beast_cf, name="Beast")
 
     # Create equipment that generates the beast fighter
     beast_equipment = make_equipment(
@@ -204,12 +209,15 @@ def test_clone_child_fighter_with_xp_and_overrides(
     # Set XP and stat overrides on the beast
     beast_lf.xp_current = 10
     beast_lf.xp_total = 25
-    beast_lf.movement_override = "8"
-    beast_lf.toughness_override = "5"
-    beast_lf.wounds_override = "3"
-    beast_lf.attacks_override = "4"
     beast_lf.narrative = "A fierce creature from the wastes"
     beast_lf.save()
+    for field_name, value in {
+        "movement": "8",
+        "toughness": "5",
+        "wounds": "3",
+        "attacks": "4",
+    }.items():
+        make_stat_override(beast_lf, field_name, value)
 
     # Clone the list
     cloned_list = original_list.clone(name="Cloned List")
@@ -233,10 +241,10 @@ def test_clone_child_fighter_with_xp_and_overrides(
     assert cloned_beast.xp_total == 25, (
         f"Expected cloned beast to have 25 total XP, but found {cloned_beast.xp_total}"
     )
-    assert cloned_beast.movement_override == "8"
-    assert cloned_beast.toughness_override == "5"
-    assert cloned_beast.wounds_override == "3"
-    assert cloned_beast.attacks_override == "4"
+    assert {
+        override.content_stat.field_name: override.value
+        for override in cloned_beast.stat_overrides.all()
+    } == {"movement": "8", "toughness": "5", "wounds": "3", "attacks": "4"}
     assert cloned_beast.narrative == "A fierce creature from the wastes"
 
 

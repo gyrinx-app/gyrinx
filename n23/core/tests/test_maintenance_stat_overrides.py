@@ -79,16 +79,17 @@ def test_a_legacy_override_migrates_without_changing_the_card(
     fighter.weapon_skill_override = "2+"
     fighter.save()
 
-    before = card(fighter.pk)
-    assert ("weapon_skill", "WS", "2+", False) in before
-
     assert only_move(build_plan(), fighter, "weapon_skill").action == MIGRATE
     run()
 
     fighter.refresh_from_db()
     assert fighter.weapon_skill_override is None
     assert ListFighterStatOverride.objects.get(list_fighter=fighter).value == "2+"
-    assert card(fighter.pk) == before
+    # The value now reaches the card through the override store. When this
+    # migration ran, the column reached it too and the card was unchanged
+    # across the move; Track C3 has since cut the column out entirely, so the
+    # store is the only way the value can show at all.
+    assert ("weapon_skill", "WS", "2+", False) in card(fighter.pk)
 
 
 @pytest.mark.django_db
@@ -241,7 +242,7 @@ def test_the_run_is_idempotent(user, make_list, make_list_fighter, content_fight
 def test_values_copy_verbatim_including_dice_and_garbage(
     user, make_list, make_list_fighter, content_fighter
 ):
-    """Cards show these strings as-is today, so verbatim preserves display."""
+    """Cards show these strings as-is, so copying verbatim preserves display."""
     statline_for(content_fighter)
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Odd Values Fighter")
@@ -249,7 +250,6 @@ def test_values_copy_verbatim_including_dice_and_garbage(
     fighter.toughness_override = "3banans"
     fighter.save()
 
-    before = card(fighter.pk)
     run()
 
     stored = {
@@ -257,7 +257,11 @@ def test_values_copy_verbatim_including_dice_and_garbage(
         for o in ListFighterStatOverride.objects.filter(list_fighter=fighter)
     }
     assert stored == {"movement": 'D6"', "toughness": "3banans"}
-    assert card(fighter.pk) == before
+    # Unparseable values must survive the round trip to the card untouched —
+    # no coercion, no dropping to the base value.
+    shown = {field_name: value for field_name, _, value, _ in card(fighter.pk)}
+    assert shown["movement"] == 'D6"'
+    assert shown["toughness"] == "3banans"
 
 
 @pytest.mark.django_db
@@ -289,17 +293,19 @@ def test_a_failed_run_records_the_traceback(
 def test_a_statline_less_template_is_never_touched(
     user, make_list, make_list_fighter, content_fighter
 ):
-    """Without a statline the fighter renders the LEGACY branch, so the
-    column IS the card. Clearing it would destroy the value and move the
-    stat — distinct from a stat merely absent from an existing statline."""
+    """Without a statline there is nowhere to put the value.
+
+    An override is a row keyed to one of a statline's stats, so a template
+    without one cannot hold the column's value. Clearing it anyway would
+    destroy it outright — distinct from a stat merely absent from an existing
+    statline. The column is kept so the value can still be migrated once the
+    template gains a statline.
+    """
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "No Statline Fighter")
     fighter.weapon_skill_override = "2+"
     fighter.save()
     assert not hasattr(content_fighter, "custom_statline")
-
-    before = card(fighter.pk)
-    assert ("weapon_skill", "WS", "2+", False) in before
 
     move = only_move(build_plan(), fighter, "weapon_skill")
     assert move.action == NO_STATLINE
@@ -309,7 +315,7 @@ def test_a_statline_less_template_is_never_touched(
 
     fighter.refresh_from_db()
     assert fighter.weapon_skill_override == "2+"
-    assert card(fighter.pk) == before
+    assert not ListFighterStatOverride.objects.filter(list_fighter=fighter).exists()
 
 
 @pytest.mark.django_db

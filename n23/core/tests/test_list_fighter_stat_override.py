@@ -215,9 +215,16 @@ def test_list_fighter_statline_with_overrides(
 
 
 @pytest.mark.django_db
-def test_list_fighter_statline_legacy_overrides(list_fighter):
-    """Test that ListFighter.statline() still works with legacy overrides."""
-    # Set legacy overrides
+def test_legacy_override_columns_no_longer_reach_the_card(list_fighter):
+    """A value left in a legacy `<stat>_override` column must not display.
+
+    Track C2 emptied those columns and Track C3 stopped reading them. If the
+    fallback came back, a stale column would silently outrank the override
+    store — which is how a fighter's card could move on its own.
+    """
+    base_movement = list_fighter.content_fighter.movement
+    base_ws = list_fighter.content_fighter.weapon_skill
+
     list_fighter.movement_override = '6"'
     list_fighter.weapon_skill_override = "2+"
     list_fighter.save()
@@ -231,14 +238,13 @@ def test_list_fighter_statline_legacy_overrides(list_fighter):
     # Should use legacy stats (12 standard fighter stats)
     assert len(statline) == 12
 
-    # Check overridden values
     movement_stat = next(s for s in statline if s.field_name == "movement")
-    assert movement_stat.value == '6"'
-    assert movement_stat.modded
+    assert movement_stat.value == base_movement
+    assert not movement_stat.modded
 
     ws_stat = next(s for s in statline if s.field_name == "weapon_skill")
-    assert ws_stat.value == "2+"
-    assert ws_stat.modded
+    assert ws_stat.value == base_ws
+    assert not ws_stat.modded
 
 
 @pytest.mark.django_db
@@ -278,8 +284,23 @@ def test_edit_fighter_stats_view_get(client, list_fighter, user):
 
 
 @pytest.mark.django_db
-def test_edit_fighter_stats_view_post_legacy(client, list_fighter, user):
-    """Test POST request to edit fighter stats with legacy overrides."""
+def test_posting_legacy_field_names_writes_nothing(
+    client, list_fighter, vehicle_statline, vehicle_stats, user
+):
+    """The stats form no longer accepts `<stat>_override` field names.
+
+    A crafted or stale POST naming them must be ignored outright: it must
+    neither write a column the card does not read (#1861 Track C3) nor — the
+    destructive half — wipe the overrides the fighter already has. A real
+    submission always carries the form's own fields, blank ones included.
+    """
+    existing = ListFighterStatOverride.objects.create(
+        list_fighter=list_fighter,
+        content_stat=vehicle_stats[0],
+        value='10"',
+        owner=user,
+    )
+
     client.force_login(user)
     url = reverse(
         "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
@@ -288,7 +309,7 @@ def test_edit_fighter_stats_view_post_legacy(client, list_fighter, user):
     data = {
         "movement_override": '6"',
         "weapon_skill_override": "2+",
-        "ballistic_skill_override": "",  # Empty should clear override
+        "ballistic_skill_override": "",
     }
 
     response = client.post(url, data)
@@ -296,9 +317,11 @@ def test_edit_fighter_stats_view_post_legacy(client, list_fighter, user):
 
     # Refresh from DB
     list_fighter.refresh_from_db()
-    assert list_fighter.movement_override == '6"'
-    assert list_fighter.weapon_skill_override == "2+"
+    assert list_fighter.movement_override is None
+    assert list_fighter.weapon_skill_override is None
     assert list_fighter.ballistic_skill_override is None
+    # The fighter's real override is untouched
+    assert ListFighterStatOverride.objects.filter(pk=existing.pk).exists()
 
 
 @pytest.mark.django_db
@@ -332,6 +355,78 @@ def test_edit_fighter_stats_view_post_custom_statline(
 
 
 @pytest.mark.django_db
+def test_a_partial_post_leaves_unmentioned_stats_alone(
+    client, list_fighter, vehicle_statline, vehicle_stats, user
+):
+    """Only the stats a submission carries may change.
+
+    Overrides used to be rewritten wholesale: every row deleted, then
+    recreated from what came in. A POST carrying one field would take the
+    other overrides with it.
+    """
+    kept = ListFighterStatOverride.objects.create(
+        list_fighter=list_fighter,
+        content_stat=vehicle_stats[4],
+        value="7",
+        owner=user,
+    )
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
+    )
+    response = client.post(url, {f"stat_{vehicle_stats[0].id}": '12"'})
+    assert response.status_code == 302
+
+    overrides = {
+        o.content_stat_id: o.value
+        for o in ListFighterStatOverride.objects.filter(list_fighter=list_fighter)
+    }
+    # The submitted stat is set, and the untouched one survives
+    assert overrides[vehicle_stats[0].id] == '12"'
+    assert overrides[kept.content_stat_id] == "7"
+
+
+@pytest.mark.django_db
+def test_archived_override_is_neither_shown_nor_revived_by_saving(
+    client, list_fighter, vehicle_statline, vehicle_stats, user
+):
+    """An archived override must not reach the form.
+
+    The card skips archived rows. If the form showed one, opening the page
+    and pressing Save with no edits would recreate it as a live override —
+    the view deletes and recreates from what was submitted — and the stat
+    would move on its own.
+    """
+    from n23.core.forms.list import EditListFighterStatsForm
+
+    override = ListFighterStatOverride.objects.create(
+        list_fighter=list_fighter,
+        content_stat=vehicle_stats[0],
+        value='10"',
+        owner=user,
+    )
+    override.archive()
+
+    field_name = f"stat_{vehicle_stats[0].id}"
+    form = EditListFighterStatsForm(fighter=list_fighter)
+    assert form.fields[field_name].initial == ""
+
+    # Saving that form back must not resurrect it. Posting every field blank
+    # is what a browser sends for an untouched form — empty text inputs are
+    # still submitted.
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
+    )
+    response = client.post(url, {name: "" for name in form.fields})
+    assert response.status_code == 302
+    assert not ListFighterStatOverride.objects.filter(
+        list_fighter=list_fighter, archived=False
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_edit_fighter_stats_form_initialization_with_overrides(
     list_fighter, vehicle_statline, vehicle_stats, user
 ):
@@ -349,7 +444,7 @@ def test_edit_fighter_stats_form_initialization_with_overrides(
     form = EditListFighterStatsForm(fighter=list_fighter)
 
     # Check that the form has the right fields
-    assert form.has_custom_statline
+    assert form.has_statline
     assert f"stat_{vehicle_stats[0].id}" in form.fields
 
     # Check initial value

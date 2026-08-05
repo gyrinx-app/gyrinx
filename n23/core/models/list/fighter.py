@@ -323,6 +323,8 @@ class ListFighterQuerySet(models.QuerySet):
                 ruleline/skilline can read from the prefetch cache instead
                 of issuing per-fighter queries.
         """
+        from n23.core.models.list.campaign_state import ListFighterStatOverride
+
         # When packs are provided, use pack-aware querysets for skill/rule
         # prefetches so that ruleline() and skilline() hit the cache.
         if packs is not None:
@@ -384,7 +386,15 @@ class ListFighterQuerySet(models.QuerySet):
                 *rule_prefetches,
                 "disabled_default_assignments",
                 "advancements",
-                "stat_overrides",
+                # `content_stat__stat` because reading an override's field name
+                # walks ContentStatlineTypeStat -> ContentStat; without it every
+                # override row costs two extra queries on the non-annotated path.
+                Prefetch(
+                    "stat_overrides",
+                    queryset=ListFighterStatOverride.objects.select_related(
+                        "content_stat__stat"
+                    ),
+                ),
                 Prefetch(
                     "listfighterequipmentassignment_set__content_equipment__contentweaponprofile_set",
                     queryset=ContentWeaponProfile.objects.all_content(),
@@ -1703,23 +1713,17 @@ class ListFighter(AppBase):
         """
         Get the statline for this fighter.
 
-        There are two statline systems:
-        1. one simple, legacy version that has a base list of stats on the content fighter, and `_override` fields
-           for each stat on the list fighter
-        2. a more complex, newer version that allows custom statline types to be created and assigned to content
-           fighters, with overrides stored separately, and with specific underlying stats reused across statline types
-
-        In either case, the flow goes something like this:
+        The flow is:
         1. Get the statline for the underlying content fighter
         2. Apply any overrides from the list fighter
         3. Apply any mods from the list fighter
 
-        The more complex system is, without optimisation, massively more expensive to compute.
+        Overrides live in `ListFighterStatOverride`, keyed by stat, and are
+        applied by field name to whichever statline the template renders. The
+        12 `<stat>_override` columns this used to fall back to were emptied by
+        the Track C2 migration and are no longer read (#1861).
         """
         stats = []
-
-        # Check if the fighter has a custom statline
-        has_custom_statline = hasattr(self.content_fighter_cached, "custom_statline")
 
         # Get stat overrides for this fighter
         stat_overrides = {}
@@ -1732,10 +1736,15 @@ class ListFighter(AppBase):
                 override["field_name"]: override["value"]
                 for override in self.annotated_stat_overrides
             }
-        elif has_custom_statline and self.stat_overrides.exists():
+        else:
+            # Filtered in Python, not the database: `.all()` reads the prefetch
+            # cache, and a `.filter()` here would re-query per fighter. Skipping
+            # archived rows matches what the annotated subquery selects, so the
+            # two paths cannot disagree about an archived override.
             stat_overrides = {
                 override.content_stat.field_name: override.value
                 for override in self.stat_overrides.all()
+                if not override.archived
             }
 
         # Prefetch all stats because we're going to use them later
@@ -1747,17 +1756,7 @@ class ListFighter(AppBase):
         )
 
         for stat in self.content_fighter_statline:
-            input_value = stat["value"]
-
-            # Check for overrides
-            if has_custom_statline and stat["field_name"] in stat_overrides:
-                # Use ListFighterStatOverride if we have a custom statline
-                input_value = stat_overrides[stat["field_name"]]
-            else:
-                # Fall back to legacy _override fields
-                value_override = getattr(self, f"{stat['field_name']}_override", None)
-                if value_override is not None:
-                    input_value = value_override
+            input_value = stat_overrides.get(stat["field_name"], stat["value"])
 
             # Apply the mods
             statmods_with_sources = self._statmods_with_sources(stat["field_name"])
@@ -2798,20 +2797,9 @@ class ListFighter(AppBase):
         from n23.core.models.list.campaign_state import ListFighterStatOverride
         from n23.core.models.list.psyker import ListFighterPsykerPowerAssignment
 
-        # Copy stat overrides
+        # Stat overrides are copied as ListFighterStatOverride rows further
+        # down; the 12 legacy `<stat>_override` columns are no longer read.
         target_fighter.cost_override = self.cost_override
-        target_fighter.movement_override = self.movement_override
-        target_fighter.weapon_skill_override = self.weapon_skill_override
-        target_fighter.ballistic_skill_override = self.ballistic_skill_override
-        target_fighter.strength_override = self.strength_override
-        target_fighter.toughness_override = self.toughness_override
-        target_fighter.wounds_override = self.wounds_override
-        target_fighter.initiative_override = self.initiative_override
-        target_fighter.attacks_override = self.attacks_override
-        target_fighter.leadership_override = self.leadership_override
-        target_fighter.cool_override = self.cool_override
-        target_fighter.willpower_override = self.willpower_override
-        target_fighter.intelligence_override = self.intelligence_override
 
         # Copy promotion state (category label + type-change access pointer)
         target_fighter.category_override = self.category_override
@@ -2948,18 +2936,8 @@ class ListFighter(AppBase):
             "private_notes": self.private_notes,
             "list": self.list,
             "cost_override": self.cost_override,
-            "movement_override": self.movement_override,
-            "weapon_skill_override": self.weapon_skill_override,
-            "ballistic_skill_override": self.ballistic_skill_override,
-            "strength_override": self.strength_override,
-            "toughness_override": self.toughness_override,
-            "wounds_override": self.wounds_override,
-            "initiative_override": self.initiative_override,
-            "attacks_override": self.attacks_override,
-            "leadership_override": self.leadership_override,
-            "cool_override": self.cool_override,
-            "willpower_override": self.willpower_override,
-            "intelligence_override": self.intelligence_override,
+            # Stat overrides are cloned as ListFighterStatOverride rows below;
+            # the 12 legacy `<stat>_override` columns are no longer read.
             "xp_current": self.xp_current,
             "xp_total": self.xp_total,
             **kwargs,

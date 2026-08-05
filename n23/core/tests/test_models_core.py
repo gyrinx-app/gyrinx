@@ -162,26 +162,32 @@ def test_fighter_cost_override_for_house(
 
 
 @pytest.mark.django_db
-def test_fighter_stat_override(content_fighter, make_list, make_list_fighter):
+def test_fighter_stat_override(
+    content_fighter, make_list, make_list_fighter, make_statline, make_stat_override
+):
+    make_statline(content_fighter)
     lst = make_list("Test List", content_house=content_fighter.house)
     fighter = make_list_fighter(lst, "Test Fighter", content_fighter=content_fighter)
 
     stats = [stat.value for stat in fighter.statline]
     assert stats == ['5"', "5+", "5+", "4", "3", "1", "4+", "1", "8+", "7+", "6+", "7+"]
 
-    fighter.movement_override = '6"'
-    fighter.weapon_skill_override = "6+"
-    fighter.ballistic_skill_override = "6+"
-    fighter.strength_override = "5"
-    fighter.toughness_override = "4"
-    fighter.wounds_override = "2"
-    fighter.initiative_override = "5+"
-    fighter.attacks_override = "2"
-    fighter.leadership_override = "9+"
-    fighter.cool_override = "8+"
-    fighter.willpower_override = "7+"
-    fighter.intelligence_override = "8+"
-    fighter.save()
+    overrides = {
+        "movement": '6"',
+        "weapon_skill": "6+",
+        "ballistic_skill": "6+",
+        "strength": "5",
+        "toughness": "4",
+        "wounds": "2",
+        "initiative": "5+",
+        "attacks": "2",
+        "leadership": "9+",
+        "cool": "8+",
+        "willpower": "7+",
+        "intelligence": "8+",
+    }
+    for field_name, value in overrides.items():
+        make_stat_override(fighter, field_name, value)
 
     # Caching!
     fighter = ListFighter.objects.get(pk=fighter.pk)

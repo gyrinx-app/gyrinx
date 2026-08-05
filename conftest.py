@@ -427,6 +427,103 @@ def content_fighter(content_house, make_content_fighter):
     )
 
 
+#: The stats a materialised statline carries, in card order, and which of them
+#: the card highlights / starts a group with. Mirrors what #1861 Track C1 built
+#: for every template in production.
+STATLINE_FIELDS = (
+    "movement",
+    "weapon_skill",
+    "ballistic_skill",
+    "strength",
+    "toughness",
+    "wounds",
+    "initiative",
+    "attacks",
+    "leadership",
+    "cool",
+    "willpower",
+    "intelligence",
+)
+_HIGHLIGHTED_STATS = {"leadership", "cool", "willpower", "intelligence"}
+
+
+@pytest.fixture
+def make_statline(content_stat_definitions) -> Callable[..., object]:
+    """Give a ContentFighter a statline, mirroring what Track C1 produced.
+
+    Every template in production has one, and stat overrides are rows keyed to
+    a statline's stats — so a fighter without one cannot be overridden at all.
+    Tests that exercise overrides need this.
+    """
+    from n23.content.models.statline import (
+        ContentStat,
+        ContentStatline,
+        ContentStatlineStat,
+        ContentStatlineType,
+        ContentStatlineTypeStat,
+    )
+
+    def make_statline_(content_fighter, fields=STATLINE_FIELDS, name="Fighter"):
+        # A fighter has at most one statline (OneToOne), so a second call --
+        # or a call on a fixture that already has one -- would raise
+        # IntegrityError rather than doing the obvious thing.
+        existing = getattr(content_fighter, "custom_statline", None)
+        if existing is not None:
+            return existing
+
+        statline_type, _ = ContentStatlineType.objects.get_or_create(name=name)
+        statline = ContentStatline.objects.create(
+            content_fighter=content_fighter, statline_type=statline_type
+        )
+        for position, field_name in enumerate(fields, start=1):
+            type_stat, _ = ContentStatlineTypeStat.objects.get_or_create(
+                statline_type=statline_type,
+                stat=ContentStat.objects.get(field_name=field_name),
+                defaults={
+                    "position": position,
+                    "is_highlighted": field_name in _HIGHLIGHTED_STATS,
+                    "is_first_of_group": field_name == "leadership",
+                },
+            )
+            ContentStatlineStat.objects.create(
+                statline=statline,
+                statline_type_stat=type_stat,
+                value=getattr(content_fighter, field_name) or "-",
+            )
+        return statline
+
+    return make_statline_
+
+
+@pytest.fixture
+def make_stat_override(user) -> Callable[..., object]:
+    """Override one stat on a fighter, the way the stats form does."""
+    from n23.core.models.list import ListFighterStatOverride
+
+    def make_stat_override_(fighter, field_name, value, owner=None):
+        statline = fighter.content_fighter.custom_statline
+        type_stat = statline.statline_type.stats.get(stat__field_name=field_name)
+        override, _ = ListFighterStatOverride.objects.update_or_create(
+            list_fighter=fighter,
+            content_stat=type_stat,
+            # Un-archive: reviving a soft-deleted row would otherwise leave it
+            # archived, so the override would not apply and the fixture would
+            # quietly not do what it says.
+            defaults={
+                "value": value,
+                "owner": owner or fighter.owner,
+                "archived": False,
+                "archived_at": None,
+            },
+        )
+        # The statline is a cached_property; a caller that already touched it
+        # would otherwise see the pre-override card.
+        fighter.__dict__.pop("statline", None)
+        return override
+
+    return make_stat_override_
+
+
 @pytest.fixture
 def make_list(user, content_house: ContentHouse) -> Callable[..., List]:
     def make_list_(name, **kwargs) -> List:

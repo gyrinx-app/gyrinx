@@ -145,22 +145,26 @@ def test_stat_advancement_application_movement(fighter_with_xp):
 
 
 @pytest.mark.django_db
-def test_stat_advancement_legacy_override_system(fighter_with_xp):
-    """Test that legacy advancements (uses_mod_system=False) still use override fields."""
+def test_stat_advancement_never_writes_a_legacy_override_column(fighter_with_xp):
+    """Applying a stat advancement must not touch a `<stat>_override` column.
+
+    Those columns are no longer read (#1861 Track C3), so writing one would
+    put the improvement somewhere the card cannot see it. This holds even for
+    the pre-Track-B shape that used to take that path.
+    """
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter_with_xp,
         advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
         stat_increased="weapon_skill",
         xp_cost=10,
         cost_increase=20,
-        uses_mod_system=False,  # Use legacy system
+        uses_mod_system=False,  # The pre-Track-B shape
     )
 
     advancement.apply_advancement()
     fighter_with_xp.refresh_from_db()
 
-    # With legacy system, override field SHOULD be set
-    assert fighter_with_xp.weapon_skill_override == "2+"
+    assert fighter_with_xp.weapon_skill_override is None
     assert fighter_with_xp.xp_current == 40  # 50 - 10
 
 

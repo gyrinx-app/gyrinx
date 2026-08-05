@@ -63,44 +63,42 @@ def test_fighter_clone_with_psyker_powers(
 
 @pytest.mark.django_db
 def test_fighter_clone_with_stat_overrides(
-    content_fighter, make_list, make_list_fighter
+    content_fighter, make_list, make_list_fighter, make_statline, make_stat_override
 ):
     """Test that stat overrides are properly cloned with a fighter."""
     # Create list and fighter
+    make_statline(content_fighter)
     lst = make_list("Test List")
     fighter: ListFighter = make_list_fighter(lst, "Test Fighter")
 
     # Set stat overrides
-    fighter.movement_override = "6''"
-    fighter.weapon_skill_override = "2+"
-    fighter.ballistic_skill_override = "3+"
-    fighter.strength_override = "5"
-    fighter.toughness_override = "4"
-    fighter.wounds_override = "3"
-    fighter.initiative_override = "4+"
-    fighter.attacks_override = "3"
-    fighter.leadership_override = "7"
-    fighter.cool_override = "6+"
-    fighter.willpower_override = "7+"
-    fighter.intelligence_override = "8+"
-    fighter.save()
+    overrides = {
+        "movement": "6''",
+        "weapon_skill": "2+",
+        "ballistic_skill": "3+",
+        "strength": "5",
+        "toughness": "4",
+        "wounds": "3",
+        "initiative": "4+",
+        "attacks": "3",
+        "leadership": "7",
+        "cool": "6+",
+        "willpower": "7+",
+        "intelligence": "8+",
+    }
+    for field_name, value in overrides.items():
+        make_stat_override(fighter, field_name, value)
 
     # Clone the fighter
     cloned_fighter = fighter.clone(name="Clone Fighter")
 
     # Check that stat overrides were cloned
-    assert cloned_fighter.movement_override == "6''"
-    assert cloned_fighter.weapon_skill_override == "2+"
-    assert cloned_fighter.ballistic_skill_override == "3+"
-    assert cloned_fighter.strength_override == "5"
-    assert cloned_fighter.toughness_override == "4"
-    assert cloned_fighter.wounds_override == "3"
-    assert cloned_fighter.initiative_override == "4+"
-    assert cloned_fighter.attacks_override == "3"
-    assert cloned_fighter.leadership_override == "7"
-    assert cloned_fighter.cool_override == "6+"
-    assert cloned_fighter.willpower_override == "7+"
-    assert cloned_fighter.intelligence_override == "8+"
+    assert {
+        override.content_stat.field_name: override.value
+        for override in cloned_fighter.stat_overrides.all()
+    } == overrides
+    # ...and that they reach the clone's card
+    assert [stat.value for stat in cloned_fighter.statline] == list(overrides.values())
 
 
 @pytest.mark.django_db

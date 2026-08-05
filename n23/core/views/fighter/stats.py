@@ -49,50 +49,40 @@ def list_fighter_stats_edit(request, id, fighter_id):
     if request.method == "POST":
         form = EditListFighterStatsForm(request.POST, fighter=fighter)
         if form.is_valid():
-            # Check if the fighter has a custom statline
-            has_custom_statline = hasattr(fighter.content_fighter, "custom_statline")
+            statline = getattr(fighter.content_fighter, "custom_statline", None)
 
-            if has_custom_statline:
-                # Handle custom statline overrides
-                statline = fighter.content_fighter.custom_statline
+            # Reconcile stat by stat, rather than clearing every override and
+            # rebuilding from the submission. Wholesale rewriting means any
+            # POST that omits a field silently drops that stat's override —
+            # a stale page or a partial request would take the rest of the
+            # fighter's stats with it. A field that was submitted blank is a
+            # real instruction to clear that one.
+            if statline is not None:
+                for field_name, field in form.fields.items():
+                    if field_name not in request.POST:
+                        continue
 
-                # Delete existing overrides
-                fighter.stat_overrides.all().delete()
+                    stat_def = getattr(field, "stat_def", None)
+                    if stat_def is None:
+                        continue
 
-                # Create new overrides
-                for field_name, value in form.cleaned_data.items():
-                    if field_name.startswith("stat_") and value:
-                        stat_id = field_name.replace("stat_", "")
-                        # Find the stat definition
-                        stat_def = statline.statline_type.stats.get(id=stat_id)
-
-                        # Create the override
-                        ListFighterStatOverride.objects.create(
+                    value = form.cleaned_data.get(field_name)
+                    if value:
+                        ListFighterStatOverride.objects.update_or_create(
                             list_fighter=fighter,
                             content_stat=stat_def,
-                            value=value,
-                            owner=request.user,
+                            defaults={
+                                "value": value,
+                                "owner": request.user,
+                                # An override cleared earlier and set again is
+                                # the same row; leaving it archived would store
+                                # the value without applying it.
+                                "archived": False,
+                                "archived_at": None,
+                            },
                         )
-
-                # This form is now the whole story for these stats, so any
-                # legacy *_override underneath is cleared. Without this,
-                # blanking a field looks like clearing the override while the
-                # legacy value silently keeps applying via the fallback.
-                cleared_fields = []
-                for stat_def in statline.statline_type.stats.all():
-                    legacy_field = f"{stat_def.field_name}_override"
-                    if getattr(fighter, legacy_field, None) is not None:
-                        setattr(fighter, legacy_field, None)
-                        cleared_fields.append(legacy_field)
-                if cleared_fields:
-                    fighter.save(update_fields=cleared_fields)
-            else:
-                # Handle legacy overrides
-                for field_name, value in form.cleaned_data.items():
-                    if field_name.endswith("_override"):
-                        setattr(fighter, field_name, value or None)
-
-                fighter.save()
+                    else:
+                        fighter.stat_overrides.filter(content_stat=stat_def).delete()
 
             # Log the stat update event
             log_event(
@@ -105,7 +95,7 @@ def list_fighter_stats_edit(request, id, fighter_id):
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
-                has_custom_statline=has_custom_statline,
+                has_custom_statline=statline is not None,
             )
 
             # Use safe redirect with fallback

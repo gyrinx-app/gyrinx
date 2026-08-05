@@ -321,50 +321,12 @@ class ListFighterAdvancement(AppBase):
     def apply_advancement(self):
         """Apply this advancement to the fighter."""
         if self.advancement_type == self.ADVANCEMENT_STAT and self.stat_increased:
-            # For mod-based advancements, skip setting override fields.
-            # The stat improvement will be computed via the mod system at display time.
-            if not self.uses_mod_system:
-                # Legacy behavior: Apply stat increase via override fields
-                override_field = f"{self.stat_increased}_override"
-
-                # Get the base value from content_fighter
-                base_value = getattr(self.fighter.content_fighter, self.stat_increased)
-
-                # Get current override value, defaulting to None if not set
-                current_override = getattr(self.fighter, override_field)
-
-                # Stats are stored as strings like "3+" or "4", we need to handle numeric increases
-                # For stats like WS/BS/Initiative with "+", extract the numeric part
-                if base_value and "+" in base_value:
-                    base_numeric = int(base_value.replace("+", ""))
-                    if current_override is None:
-                        # First advancement: improve by 1 (e.g., "4+" becomes "3+")
-                        new_value = f"{base_numeric - 1}+"
-                    else:
-                        # Further advancements: extract numeric from override and improve
-                        current_numeric = int(current_override.replace("+", ""))
-                        new_value = f"{current_numeric - 1}+"
-                else:
-                    # For stats without "+" (like S, T, W), just add 1
-                    try:
-                        base_numeric = (
-                            int(base_value.replace('"', "")) if base_value else 0
-                        )
-                        if current_override is None:
-                            new_value = str(base_numeric + 1)
-                        else:
-                            current_numeric = int(current_override.replace('"', ""))
-                            new_value = str(current_numeric + 1)
-                    except (ValueError, TypeError):
-                        # If we can't parse it as a number, just use the base value
-                        new_value = base_value
-
-                if '"' in base_value:
-                    # If the base value is a distance (e.g., "4\""), ensure we keep the format
-                    new_value = f'{new_value}"'
-
-                setattr(self.fighter, override_field, new_value)
-                self.fighter.save()
+            # Nothing to write: the stat improvement is computed from the mod
+            # system at display time. The legacy branch that mutated a
+            # `<stat>_override` column is gone with #1861 Track C3 — those
+            # columns are no longer read, and `uses_mod_system` defaults to
+            # True, so nothing has taken that path since Track B.
+            pass
         elif self.advancement_type == self.ADVANCEMENT_SKILL and self.skill:
             # Add skill to fighter
             self.fighter.skills.add(self.skill)

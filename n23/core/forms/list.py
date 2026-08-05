@@ -939,104 +939,55 @@ class EditListFighterStatsForm(forms.Form):
         if not fighter:
             return
 
-        # Check if the fighter has a custom statline
-        has_custom_statline = hasattr(fighter.content_fighter, "custom_statline")
-
-        if has_custom_statline:
-            # Use the custom statline approach
-            statline = fighter.content_fighter.custom_statline
-
-            # Get existing overrides
-            existing_overrides = {
-                override.content_stat.id: override.value
-                for override in fighter.stat_overrides.select_related("content_stat")
-            }
-
-            # Create fields for each stat in the statline
-            for stat_def in statline.statline_type.stats.all():
-                field_name = f"stat_{stat_def.id}"
-                initial_value = existing_overrides.get(stat_def.id, "")
-                if not initial_value:
-                    # A legacy *_override with no EAV row still drives the
-                    # card (the statline falls back to it), so it must be
-                    # visible and editable here. Saving migrates it: the
-                    # value becomes an EAV row and the legacy field is
-                    # cleared by the save path. Covers the window between
-                    # statline materialisation (#1861 C1) and the override
-                    # migration (C2).
-                    initial_value = (
-                        getattr(fighter, f"{stat_def.field_name}_override", None) or ""
-                    )
-
-                # Get the base value from ContentStatline
-                try:
-                    base_stat = statline.stats.get(statline_type_stat=stat_def)
-                    placeholder = base_stat.value
-                except Exception:
-                    placeholder = "-"
-
-                self.fields[field_name] = forms.CharField(
-                    required=False,
-                    label=stat_def.full_name,
-                    widget=forms.TextInput(
-                        attrs={
-                            "class": "form-control form-control-sm",
-                            "data-stat-id": stat_def.id,
-                            "data-short-name": stat_def.short_name,
-                        }
-                    ),
-                    initial=initial_value,
-                )
-
-                # Store metadata for template rendering
-                self.fields[field_name].stat_def = stat_def
-                self.fields[field_name].is_first_of_group = stat_def.is_first_of_group
-                self.fields[field_name].base_value = placeholder
-        else:
-            # Use legacy override fields
-            legacy_stats = [
-                ("movement", "M", "Movement"),
-                ("weapon_skill", "WS", "Weapon Skill"),
-                ("ballistic_skill", "BS", "Ballistic Skill"),
-                ("strength", "S", "Strength"),
-                ("toughness", "T", "Toughness"),
-                ("wounds", "W", "Wounds"),
-                ("initiative", "I", "Initiative"),
-                ("attacks", "A", "Attacks"),
-                ("leadership", "Ld", "Leadership"),
-                ("cool", "Cl", "Cool"),
-                ("willpower", "Wil", "Willpower"),
-                ("intelligence", "Int", "Intelligence"),
-            ]
-
-            for field_name, short_name, full_name in legacy_stats:
-                override_field = f"{field_name}_override"
-                current_value = getattr(fighter, override_field) or ""
-                base_value = getattr(fighter.content_fighter, field_name) or "-"
-
-                self.fields[override_field] = forms.CharField(
-                    required=False,
-                    label=full_name,
-                    widget=forms.TextInput(
-                        attrs={
-                            "class": "form-control form-control-sm",
-                            "data-short-name": short_name,
-                            "placeholder": "",
-                        }
-                    ),
-                    initial=current_value,
-                )
-
-                # Store metadata for template rendering
-                self.fields[override_field].is_first_of_group = field_name in [
-                    "leadership"
-                ]
-                self.fields[override_field].short_name = short_name
-                self.fields[override_field].full_name = full_name
-                self.fields[override_field].base_value = base_value
-
+        statline = getattr(fighter.content_fighter, "custom_statline", None)
         self.fighter = fighter
-        self.has_custom_statline = has_custom_statline
+        self.has_statline = statline is not None
+
+        if statline is None:
+            # Nothing to override: overrides are rows keyed to a statline's
+            # stats, so a template without one has no editable stats. Every
+            # template in production was given a statline by #1861 Track C1,
+            # so this only guards a fighter authored since.
+            return
+
+        # Get existing overrides. Archived rows are skipped to match what the
+        # card renders: showing one here would let a plain Save recreate it as
+        # a live override — the view rewrites overrides from what was
+        # submitted — and the stat would move on its own. Filtered in Python
+        # so this reads the prefetch cache rather than re-querying.
+        existing_overrides = {
+            override.content_stat_id: override.value
+            for override in fighter.stat_overrides.all()
+            if not override.archived
+        }
+
+        # Base values in one go, rather than a query per stat
+        base_values = {
+            stat.statline_type_stat_id: stat.value for stat in statline.stats.all()
+        }
+
+        # Create fields for each stat in the statline
+        for stat_def in statline.statline_type.stats.all():
+            field_name = f"stat_{stat_def.id}"
+            placeholder = base_values.get(stat_def.id, "-")
+
+            self.fields[field_name] = forms.CharField(
+                required=False,
+                label=stat_def.full_name,
+                widget=forms.TextInput(
+                    attrs={
+                        "class": "form-control form-control-sm",
+                        "data-stat-id": stat_def.id,
+                        "data-short-name": stat_def.short_name,
+                    }
+                ),
+                initial=existing_overrides.get(stat_def.id, ""),
+            )
+
+            # Store metadata for template rendering
+            self.fields[field_name].stat_def = stat_def
+            self.fields[field_name].is_first_of_group = stat_def.is_first_of_group
+            self.fields[field_name].base_value = placeholder
 
     def clean(self):
         """Validate that no smart quotes are used in stat values."""
