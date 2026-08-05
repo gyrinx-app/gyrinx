@@ -3052,7 +3052,9 @@ def test_selection_form_issues_no_per_fighter_set_query(
         ListFighterEquipmentSet.objects.create(
             list_fighter=fighter, name=f"Kit {i}", owner=fighter.owner
         )
-    assert _stable_query_count(render_query_count) == one_fighter_with_sets
+    # <= not ==: an N+1 makes this grow, which still fails. A *smaller* count
+    # is warmed caches, which is never the regression this guards against.
+    assert _stable_query_count(render_query_count) <= one_fighter_with_sets
 
 
 @pytest.mark.django_db
@@ -3730,7 +3732,9 @@ def test_crew_page_forecast_costs_no_per_fighter_query(
         ListFighterEquipmentSet.objects.create(
             list_fighter=extra, name=f"Kit {i}", owner=extra.owner
         )
-    assert _stable_query_count(render_query_count) == baseline
+    # <= not ==: an N+1 makes this grow, which still fails. A *smaller* count
+    # is warmed caches, which is never the regression this guards against.
+    assert _stable_query_count(render_query_count) <= baseline
 
 
 @pytest.mark.django_db
@@ -4508,7 +4512,9 @@ def test_battle_spread_third_gang_with_crew_adds_no_queries(
     crew_setup["battle"].set_participants([riot, iron, third])
     _pending_crew(crew_setup, third)
 
-    assert _stable_query_count(render_query_count) == two_gangs
+    # <= not ==: an N+1 makes this grow, which still fails. A *smaller* count
+    # is warmed caches, which is never the regression this guards against.
+    assert _stable_query_count(render_query_count) <= two_gangs
 
 
 # --- Crew-page rating-gap note ----------------------------------------------
@@ -4621,7 +4627,9 @@ def test_crew_page_opponent_fighter_count_does_not_raise_query_count(
     # Grow the opponent's crew; the batched opponent load must stay flat.
     add_chosen(iron_crew, iron_fighters[2:8])
 
-    assert _stable_query_count(render_query_count) == few
+    # <= not ==: an N+1 makes this grow, which still fails. A *smaller* count
+    # is warmed caches, which is never the regression this guards against.
+    assert _stable_query_count(render_query_count) <= few
 
 
 # --- Stash items -------------------------------------------------------------

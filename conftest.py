@@ -5,7 +5,7 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.db.models.signals import post_migrate
 
 from n23.content.models import (
@@ -65,6 +65,28 @@ def django_test_settings():
     settings.PASSWORD_HASHERS = [
         "django.contrib.auth.hashers.MD5PasswordHasher",
     ]
+
+
+@pytest.fixture(autouse=True)
+def clear_content_page_ref_cache():
+    """Empty the per-title page-ref cache before every test.
+
+    ``ContentPageRef.find_similar`` caches one entry per title in a process-local
+    ``LocMemCache``, and it sits in the fighter-card render path. Nothing else
+    clears it — every other autouse fixture here is session-scoped — so its
+    contents at test start depend on which tests ran earlier *in the same xdist
+    worker*, and it keeps filling while a test runs.
+
+    That makes query counts depend on worker history and on how many renders have
+    already happened, which is what made the relative query-count tests in
+    test_crew.py flaky on CI but not locally (#2114).
+
+    Only this cache is cleared. The ``default`` cache deliberately holds
+    ``BANNER_CACHE_KEY`` from ``django_test_settings`` so the banner query stays
+    out of every test's count; clearing that here would put the query back.
+    """
+    caches["content_page_ref_cache"].clear()
+    yield
 
 
 @pytest.fixture(scope="session", autouse=True)
