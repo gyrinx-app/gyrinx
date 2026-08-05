@@ -142,7 +142,7 @@ INSTALLED_APPS = [
     # Autoconfig injects the cotton template loader and the `cotton` builtin tag
     # library. It POPS APP_DIRS from TEMPLATES and substitutes an explicit
     # cached.Loader chain that still includes app_directories, so app templates
-    # and the three explicit DIRS all keep resolving.
+    # and both explicit DIRS keep resolving.
     #
     # Do NOT set COTTON_ISOLATE_BY_DEFAULT: it does not exist in 2.7.2 and fails
     # silently. Do NOT set COTTON_ENABLE_CONTEXT_ISOLATION either: on 2.7.2 it
@@ -207,10 +207,14 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            # Include the root templates directory where we
-            # can override templates from django across all apps
+            # The platform's own templates, and the place third-party templates
+            # get overridden. DIRS is searched before APP_DIRS, which is what
+            # makes gyrinx/templates/{account,allauth,mfa,usersessions}/ beat
+            # allauth's own copies — allauth is listed first in INSTALLED_APPS.
+            # Editions do NOT get a DIRS entry; their templates resolve through
+            # APP_DIRS, so nothing an edition ships can shadow a platform or
+            # third-party template by accident.
             BASE_DIR / "gyrinx/templates",
-            BASE_DIR / "n23/core/templates",
             BASE_DIR / "gyrinx/pages/templates",
         ],
         "APP_DIRS": True,

@@ -343,8 +343,8 @@ def test_check_cotton_script_passes():
 # allauth MFA). This list must not grow.
 STOCK_RENDER_SITES = {
     "gyrinx/site/templates/admin/gyrinxsite/notification/broadcast.html",
-    "n23/core/templates/mfa/recovery_codes/generate.html",
-    "n23/core/templates/mfa/totp/deactivate_form.html",
+    "gyrinx/templates/mfa/recovery_codes/generate.html",
+    "gyrinx/templates/mfa/totp/deactivate_form.html",
 }
 
 
