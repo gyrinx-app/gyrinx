@@ -1,5 +1,6 @@
 from django.urls import path
 
+import gyrinx.views_impersonation
 import n23.core.views
 
 patterns = [
@@ -18,15 +19,16 @@ patterns = [
     path("dice/", n23.core.views.dice, name="dice"),
     # Users
     path("user/<slug_or_id>", n23.core.views.user, name="user"),
-    # Impersonation (superuser only)
+    # Impersonation (superuser only). Platform views, routed here so the URLs
+    # and their `core:` names stay where they were.
     path(
         "impersonate/<int:user_id>/start",
-        n23.core.views.start_impersonation,
+        gyrinx.views_impersonation.start_impersonation,
         name="impersonate-start",
     ),
     path(
         "impersonate/stop",
-        n23.core.views.stop_impersonation,
+        gyrinx.views_impersonation.stop_impersonation,
         name="impersonate-stop",
     ),
     # TinyMCE upload

@@ -1,7 +1,7 @@
 """Admin impersonation start/stop views.
 
 See :mod:`gyrinx.impersonation` and
-:class:`n23.core.middleware.ImpersonationMiddleware` for how the overlay works.
+:class:`gyrinx.middleware.ImpersonationMiddleware` for how the overlay works.
 """
 
 from django.contrib import messages

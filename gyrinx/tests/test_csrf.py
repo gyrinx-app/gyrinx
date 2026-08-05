@@ -34,7 +34,7 @@ def test_csrf_failure_redirects_with_message(client: Client):
     # Django's test client includes CSRF tokens by default, so we use a different approach
 
     # Save the current CSRF_FAILURE_VIEW setting
-    from n23.core.views import csrf_failure
+    from gyrinx.views_csrf import csrf_failure
 
     # Create a mock request
     from django.test import RequestFactory
@@ -64,7 +64,7 @@ def test_csrf_failure_redirects_with_message(client: Client):
 def test_csrf_failure_redirects_to_home_without_referer(client: Client):
     """Test that CSRF failure redirects to home page when no referer is present."""
     from django.test import RequestFactory
-    from n23.core.views import csrf_failure
+    from gyrinx.views_csrf import csrf_failure
 
     factory = RequestFactory()
     request = factory.post("/some-url/", data={})
@@ -76,18 +76,17 @@ def test_csrf_failure_redirects_to_home_without_referer(client: Client):
 
     response = csrf_failure(request, reason="CSRF token missing")
 
-    # Should redirect to home
+    # Should redirect to the site root. Asserted literally rather than via
+    # reverse("core:index"): this is a platform view, and its fallback is the
+    # root of the site regardless of what the loaded edition routes there.
     assert response.status_code == 302
-    # Use reverse to get the actual home URL
-    from django.urls import reverse
-
-    assert response.url == reverse("core:index")
+    assert response.url == "/"
 
 
 @pytest.mark.django_db
 def test_csrf_failure_view_is_csrf_exempt():
     """Test that the CSRF failure view itself is CSRF exempt."""
-    from n23.core.views import csrf_failure
+    from gyrinx.views_csrf import csrf_failure
 
     # Check that the view has been wrapped by csrf_exempt
     # The csrf_exempt decorator adds the attribute 'csrf_exempt' to the function
@@ -98,7 +97,7 @@ def test_csrf_failure_view_is_csrf_exempt():
 def test_csrf_failure_with_malicious_referer(client: Client):
     """Test that CSRF failure rejects malicious referer URLs."""
     from django.test import RequestFactory
-    from n23.core.views import csrf_failure
+    from gyrinx.views_csrf import csrf_failure
     from django.urls import reverse
 
     factory = RequestFactory()
@@ -122,4 +121,4 @@ def test_csrf_failure_view_setting():
     from django.conf import settings
 
     assert hasattr(settings, "CSRF_FAILURE_VIEW")
-    assert settings.CSRF_FAILURE_VIEW == "n23.core.views.csrf_failure"
+    assert settings.CSRF_FAILURE_VIEW == "gyrinx.views_csrf.csrf_failure"

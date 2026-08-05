@@ -51,7 +51,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY
 SECRET_KEY = os.getenv("SECRET_KEY")
 CSRF_COOKIE_SECURE = True
-CSRF_FAILURE_VIEW = "n23.core.views.csrf_failure"
+CSRF_FAILURE_VIEW = "gyrinx.views_csrf.csrf_failure"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
@@ -192,7 +192,7 @@ MIDDLEWARE = [
     "allauth.usersessions.middleware.UserSessionsMiddleware",
     # Admin impersonation overlay — after auth/allauth (so request.user is the real
     # admin when we authorize), before simple-history (so the swap is attributed).
-    "n23.core.middleware.ImpersonationMiddleware",
+    "gyrinx.middleware.ImpersonationMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # CSP
@@ -220,7 +220,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "n23.core.context_processors.site_banner",
+                "gyrinx.context_processors.site_banner",
                 "gyrinx.context_processors.gyrinx_debug",
                 "n23.core.context_processors.notifications",
                 "gyrinx.context_processors.impersonation",

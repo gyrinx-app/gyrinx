@@ -33,6 +33,7 @@ def _get_tasks() -> list[TaskRoute]:
     """
     global _tasks
     if _tasks is None:
+        from gyrinx.api.tasks import trigger_discord_issue_action
         from n23.core.tasks import (
             backfill_pins,
             complete_campaign_list_clone,
@@ -41,7 +42,6 @@ def _get_tasks() -> list[TaskRoute]:
             propagate_content_cost_change,
             propagate_default_child_fighter_assignment,
             refresh_list_facts,
-            trigger_discord_issue_action,
         )
 
         _tasks = [

@@ -14,7 +14,7 @@ from gyrinx.impersonation import (
     can_impersonate,
     can_impersonate_target,
 )
-from n23.core.middleware import ImpersonationMiddleware
+from gyrinx.middleware import ImpersonationMiddleware
 from gyrinx.analytics.models import Event
 from gyrinx.site.models import ImpersonationLog
 
