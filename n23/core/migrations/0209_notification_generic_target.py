@@ -5,7 +5,7 @@ The FK columns stay for now: dropping them in the same deploy that adds these
 would break any instance still serving the previous revision. They go in the
 follow-up that moves the model to the platform (#2093).
 
-The indexes and the backfill are in 0208, not here. Adding a column with a
+The indexes and the backfill are in 0210, not here. Adding a column with a
 foreign key to a table that already has rows leaves pending trigger events for
 the constraint check, and Postgres refuses CREATE INDEX on the same table in the
 same transaction ("cannot CREATE INDEX ... because it has pending trigger
@@ -25,7 +25,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
-        ("core", "0206_retire_stat_advancement_cleanup"),
+        ("core", "0208_retire_statline_maintenance_operations"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

@@ -1,6 +1,6 @@
-"""Index the generic relations added in 0207, then backfill them from the old FKs.
+"""Index the generic relations added in 0209, then backfill them from the old FKs.
 
-Separate from 0207 on purpose — see that migration's docstring for why the
+Separate from 0209 on purpose — see that migration's docstring for why the
 CREATE INDEXes cannot share a transaction with the ADD COLUMNs.
 """
 
@@ -58,7 +58,7 @@ def unbackfill(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0207_notification_generic_target"),
+        ("core", "0209_notification_generic_target"),
     ]
 
     operations = [
