@@ -606,6 +606,26 @@ class MaintenanceAdminSite(admin.site.__class__):
                 return HttpResponseRedirect(
                     reverse("admin:maintenance_backfill_detail", args=[running.id])
                 )
+            # Enforced, not merely displayed: a fighter whose template has no
+            # statline renders through the legacy branch, so its column IS the
+            # card. The plan marks those "no-statline" and never writes them,
+            # but an operator should not be migrating in that state at all.
+            from n23.content.models import ContentFighter
+
+            if (
+                ContentFighter.objects.all_content()
+                .filter(custom_statline__isnull=True)
+                .exists()
+            ):
+                messages.error(
+                    request,
+                    "Some fighter templates still have no statline. Materialise "
+                    "statlines first — until then those fighters read the legacy "
+                    "column directly.",
+                )
+                return HttpResponseRedirect(
+                    reverse("admin:maintenance_migrate_stat_overrides")
+                )
             try:
                 record, applied, skipped = run_migrate_overrides(
                     triggered_by=request.user

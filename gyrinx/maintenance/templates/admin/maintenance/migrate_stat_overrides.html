@@ -87,6 +87,7 @@
         <table class="mt-table">
             <thead>
                 <tr>
+                    <th>Gang</th>
                     <th>Fighter</th>
                     <th>Stat</th>
                     <th>Value</th>
@@ -95,6 +96,7 @@
             <tbody>
                 {% for move in unmigratable %}
                     <tr>
+                        <td>{{ move.list_name }}</td>
                         <td>{{ move.fighter_name }}</td>
                         <td>{{ move.stat }}</td>
                         <td><code>{{ move.legacy_value }}</code></td>

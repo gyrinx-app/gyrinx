@@ -14,6 +14,7 @@ from n23.core.maintenance.stat_overrides import (
     DROP_REDUNDANT,
     INERT,
     MIGRATE,
+    NO_STATLINE,
     STAT_FIELDS,
     UNMIGRATABLE,
     apply_plan,
@@ -282,3 +283,103 @@ def test_a_failed_run_records_the_traceback(
     assert record.status == Backfill.Status.FAILED
     assert "kaboom" in record.error
     assert "Traceback" in record.error
+
+
+@pytest.mark.django_db
+def test_a_statline_less_template_is_never_touched(
+    user, make_list, make_list_fighter, content_fighter
+):
+    """Without a statline the fighter renders the LEGACY branch, so the
+    column IS the card. Clearing it would destroy the value and move the
+    stat — distinct from a stat merely absent from an existing statline."""
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "No Statline Fighter")
+    fighter.weapon_skill_override = "2+"
+    fighter.save()
+    assert not hasattr(content_fighter, "custom_statline")
+
+    before = card(fighter.pk)
+    assert ("weapon_skill", "WS", "2+", False) in before
+
+    move = only_move(build_plan(), fighter, "weapon_skill")
+    assert move.action == NO_STATLINE
+    assert not move.writes
+
+    run()
+
+    fighter.refresh_from_db()
+    assert fighter.weapon_skill_override == "2+"
+    assert card(fighter.pk) == before
+
+
+@pytest.mark.django_db
+def test_migrating_does_not_touch_the_gang_timestamp_or_spawn_anything(
+    user, make_list, make_list_fighter, content_fighter
+):
+    """save() fires receivers that bump every gang's modified timestamp —
+    reordering owners' gang lists — and materialise child fighter defaults.
+    A stats migration must do neither."""
+    statline_for(content_fighter)
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Quiet Fighter")
+    fighter.weapon_skill_override = "2+"
+    fighter.save()
+
+    lst.refresh_from_db()
+    before_modified = lst.modified
+    before_fighters = ListFighter.objects.count()
+
+    run()
+
+    lst.refresh_from_db()
+    assert lst.modified == before_modified
+    assert ListFighter.objects.count() == before_fighters
+
+
+@pytest.mark.django_db
+def test_a_concurrent_override_row_skips_only_that_fighter(
+    user, make_list, make_list_fighter, content_fighter
+):
+    """The owner's stats form recreates rows without touching the column, so
+    a racing edit can trip unique_together. One racing owner must not abort
+    the remaining fifteen hundred fighters."""
+    statline = statline_for(content_fighter)
+    lst = make_list("Gang")
+    racer = make_list_fighter(lst, "Racing Fighter")
+    racer.weapon_skill_override = "2+"
+    racer.save()
+    bystander = make_list_fighter(lst, "Bystander Fighter")
+    bystander.toughness_override = "5"
+    bystander.save()
+
+    plan = build_plan()
+    # A row appears for the racer between planning and applying
+    ListFighterStatOverride.objects.create(
+        list_fighter=racer,
+        content_stat=statline.statline_type.stats.get(stat__field_name="weapon_skill"),
+        value="1+",
+        owner=user,
+    )
+
+    applied, skipped = apply_plan(plan)
+
+    assert [m.fighter_id for m in applied] == [str(bystander.id)]
+    assert {m.fighter_id for m in skipped} == {str(racer.id)}
+    racer.refresh_from_db()
+    assert racer.weapon_skill_override == "2+"
+
+
+@pytest.mark.django_db
+def test_created_rows_are_owned_by_the_fighters_owner(
+    user, make_list, make_list_fighter, content_fighter
+):
+    statline_for(content_fighter)
+    lst = make_list("Gang")
+    fighter = make_list_fighter(lst, "Owned Fighter")
+    fighter.toughness_override = "5"
+    fighter.save()
+
+    run()
+
+    row = ListFighterStatOverride.objects.get(list_fighter=fighter)
+    assert row.owner_id == fighter.owner_id

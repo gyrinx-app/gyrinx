@@ -33,7 +33,7 @@ import logging
 import traceback
 from dataclasses import dataclass, field
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ DROP_REDUNDANT = "drop-redundant"
 CONFLICT = "conflict"
 INERT = "inert"
 UNMIGRATABLE = "unmigratable"
+NO_STATLINE = "no-statline"
 
 ACTION_LABELS = {
     MIGRATE: "moved to the override store",
@@ -64,9 +65,10 @@ ACTION_LABELS = {
     CONFLICT: "column cleared, override store held a different value",
     INERT: "column cleared, stat not in the fighter's statline",
     UNMIGRATABLE: "left alone, value too long for the override store",
+    NO_STATLINE: "left alone, template has no statline — the column is the card",
 }
 
-# Everything except UNMIGRATABLE clears the legacy column.
+# Everything except UNMIGRATABLE and NO_STATLINE clears the legacy column.
 CLEARS_COLUMN = {MIGRATE, DROP_REDUNDANT, CONFLICT, INERT}
 
 
@@ -74,7 +76,6 @@ CLEARS_COLUMN = {MIGRATE, DROP_REDUNDANT, CONFLICT, INERT}
 class Move:
     fighter_id: str
     fighter_name: str
-    list_id: str
     list_name: str
     owner_id: int | None
     stat: str
@@ -136,13 +137,15 @@ def build_plan():
     plan = Plan()
     for fighter in fighters.iterator(chunk_size=200):
         statline = getattr(fighter.content_fighter, "custom_statline", None)
-        # C1 gave everyone a statline; a fighter without one would fall back to
-        # the legacy branch, where migrating would hide the value entirely.
         type_stats = (
             {ts.field_name: ts for ts in statline.statline_type.stats.all()}
             if statline
             else {}
         )
+        # Read without an archived filter, unlike the annotated fast path.
+        # Deliberate: filtering would hide an archived row and let MIGRATE
+        # fire into the unique_together on (list_fighter, content_stat).
+        # Nothing in the codebase can archive one of these rows today.
         existing = {o.content_stat.field_name: o for o in fighter.stat_overrides.all()}
 
         for stat in STAT_FIELDS:
@@ -153,7 +156,13 @@ def build_plan():
             type_stat = type_stats.get(stat)
             current = existing.get(stat)
 
-            if type_stat is None:
+            if statline is None:
+                # No statline at all: this fighter renders through the LEGACY
+                # branch, so the column IS the card. Clearing it would destroy
+                # the value and move the stat. Distinct from INERT, which is a
+                # stat genuinely absent from an existing statline type.
+                action, eav_value = NO_STATLINE, None
+            elif type_stat is None:
                 action, eav_value = INERT, None
             elif current is not None:
                 action = DROP_REDUNDANT if current.value == legacy else CONFLICT
@@ -167,9 +176,10 @@ def build_plan():
                 Move(
                     fighter_id=str(fighter.id),
                     fighter_name=fighter.name,
-                    list_id=str(fighter.list_id),
                     list_name=fighter.list.name,
-                    owner_id=fighter.list.owner_id,
+                    # The fighter's own owner, matching every other creator of
+                    # these rows (clone, copy_attributes_to, the stats view).
+                    owner_id=fighter.owner_id,
                     stat=stat,
                     action=action,
                     legacy_value=legacy,
@@ -184,9 +194,16 @@ def apply_plan(plan):
     """Write the plan. Returns (applied, skipped).
 
     One transaction per fighter: an interrupted run leaves whole fighters
-    done, never a half-migrated statline. Each column clear is
-    compare-and-set on the value the plan was built from, so an owner
-    editing their stats mid-run keeps their edit and the pair is reported.
+    done, never half-migrated.
+
+    Columns are cleared with a queryset UPDATE carrying the planned value in
+    its WHERE, never ``fighter.save()``. That does two jobs at once. It is
+    the compare-and-set — a zero rowcount means the owner edited that stat
+    since planning, so their edit stands and the pair is reported. And it
+    avoids the post_save receivers, which would bump every affected gang's
+    modified timestamp (reordering 1,500 owners' gang lists) and materialise
+    child fighter defaults — a stats migration must not spawn fighters. The
+    sibling stat-advancement cleanup documents the same rule.
     """
     from n23.core.models.list import ListFighter, ListFighterStatOverride
 
@@ -198,17 +215,13 @@ def apply_plan(plan):
     for fighter_id, moves in by_fighter.items():
         try:
             with transaction.atomic():
-                # of=("self",) because the default queryset joins nullable
-                # relations, and Postgres refuses FOR UPDATE on the nullable
-                # side of an outer join. Only the fighter row needs locking.
-                fighter = ListFighter.objects.select_for_update(of=("self",)).get(
-                    pk=fighter_id
-                )
                 done = []
                 for move in moves:
                     field_name = f"{move.stat}_override"
-                    if getattr(fighter, field_name, None) != move.legacy_value:
-                        # The owner edited this stat since planning.
+                    cleared = ListFighter.objects.filter(
+                        pk=fighter_id, **{field_name: move.legacy_value}
+                    ).update(**{field_name: None})
+                    if not cleared:
                         skipped.append(move)
                         continue
                     if move.action == MIGRATE:
@@ -218,19 +231,27 @@ def apply_plan(plan):
                             value=move.legacy_value,
                             owner_id=move.owner_id,
                         )
-                    setattr(fighter, field_name, None)
                     done.append(move)
-                if done:
-                    fighter.save(update_fields=[f"{m.stat}_override" for m in done])
                 applied.extend(done)
+        except IntegrityError:
+            # A row for this (fighter, stat) appeared concurrently — the
+            # owner's stats form deletes and recreates rows without touching
+            # the column. Roll this fighter back and carry on; one racing
+            # owner must not abort the remaining fifteen hundred.
+            logger.warning(
+                "Stat-override migration skipped fighter %s: override row "
+                "created concurrently",
+                fighter_id,
+            )
+            skipped.extend(moves)
         except Exception:
             logger.exception("Stat-override migration failed for %s", fighter_id)
             raise
     if skipped:
         logger.warning(
-            "Stat-override migration skipped %d pair(s) edited mid-run: %s",
+            "Stat-override migration skipped %d pair(s) changed mid-run: %s",
             len(skipped),
-            ", ".join(f"{m.fighter_id}:{m.stat}" for m in skipped),
+            ", ".join(f"{m.fighter_id}:{m.stat}" for m in skipped[:20]),
         )
     return applied, skipped
 
@@ -244,13 +265,21 @@ def run(*, triggered_by=None):
         triggered_by=triggered_by,
         status=Backfill.Status.RUNNING,
     )
+    applied, skipped = [], []
     try:
         plan = build_plan()
         applied, skipped = apply_plan(plan)
     except Exception as e:
         record.status = Backfill.Status.FAILED
         record.error = f"{e}\n\n{traceback.format_exc()}"
-        record.save(update_fields=["status", "error", "modified"])
+        # Whatever committed before the failure is named here: per-fighter
+        # transactions mean a mid-run abort leaves real work behind, and a
+        # record saying only "failed" would hide it.
+        record.summary = {
+            "applied_before_failure": len(applied),
+            "note": "partial run; re-running is safe and re-plans from current state",
+        }
+        record.save(update_fields=["status", "error", "summary", "modified"])
         raise
 
     record.summary = {
