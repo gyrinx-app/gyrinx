@@ -1,0 +1,237 @@
+{% load static pages badge_tags %}
+{% comment %}
+    The platform's own page shell — the whole document, head to footer.
+
+    Deliberately a SIBLING of the edition's core/layouts/base.html, not a shared
+    ancestor of it. The two overlap heavily today because both are Bootstrap 5,
+    but n26 will not be, and a base that has to abstract over two CSS libraries
+    is a worse place to be than two bases that each commit to one. Divergence is
+    the point: change this file for the platform, change the edition's base for
+    the edition, and let them drift.
+
+    What it deliberately does NOT carry: the gang, campaign and customisation
+    nav, the dice roller, and anything else that only means something inside an
+    edition. Its only consumers are the account, allauth, mfa and usersessions
+    pages.
+
+    Blocks: head_title, stylesheet, body, content, extra_body, extra_script.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en"
+      data-bs-theme="{% if request.COOKIES.theme_active %}{{ request.COOKIES.theme_active }}{% else %}auto{% endif %}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Gyrinx is a free set of tools for the Necromunda community">
+        <meta name="author" content="Gyrinx">
+        <meta name="keywords" content="Necromunda, Gyrinx">
+        <meta name="application-name" content="Gyrinx" />
+        <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="apple-touch-icon-precomposed"
+              sizes="57x57"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-57x57.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="114x114"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-114x114.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="72x72"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-72x72.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="144x144"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-144x144.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="60x60"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-60x60.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="120x120"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-120x120.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="76x76"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-76x76.png' %}" />
+        <link rel="apple-touch-icon-precomposed"
+              sizes="152x152"
+              href="{% static 'core/img/brand/favicon/apple-touch-icon-152x152.png' %}" />
+        <link rel="icon"
+              type="image/png"
+              href="{% static 'core/img/brand/favicon/favicon-196x196.png' %}"
+              sizes="196x196" />
+        <link rel="icon"
+              type="image/png"
+              href="{% static 'core/img/brand/favicon/favicon-96x96.png' %}"
+              sizes="96x96" />
+        <link rel="icon"
+              type="image/png"
+              href="{% static 'core/img/brand/favicon/favicon-32x32.png' %}"
+              sizes="32x32" />
+        <link rel="icon"
+              type="image/png"
+              href="{% static 'core/img/brand/favicon/favicon-16x16.png' %}"
+              sizes="16x16" />
+        <link rel="icon"
+              type="image/png"
+              href="{% static 'core/img/brand/favicon/favicon-128x128.png' %}"
+              sizes="128x128" />
+        {# djlint:off #}
+        <title>{% spaceless %}{% block head_title %}{% endblock head_title %}{% endspaceless %} | Gyrinx</title>
+        {# djlint:on #}
+        <link rel="dns-prefetch" href="https://use.typekit.net">
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        {# bootstrap-icons is loaded only from this CDN (not a package.json dependency) — bump the version and the integrity hash together here. #}
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+              integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+"
+              crossorigin="anonymous">
+        {% comment %}
+            The compiled stylesheet, the brand images and index.js still come out
+            of the edition's static tree — the platform has no static app yet.
+        {% endcomment %}
+        {% block stylesheet %}
+            <link rel="stylesheet" href="{% static 'core/css/screen.css' %}">
+        {% endblock stylesheet %}
+        {% comment %} TODO: use tag manager env variable {% endcomment %}
+        <!-- Google Tag Manager -->
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','GTM-PFFPCMPF');
+        </script>
+        <!-- End Google Tag Manager -->
+    </head>
+    <body>
+        <!-- Google Tag Manager (noscript) -->
+        {# djlint:off #}
+        <noscript>
+            <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-PFFPCMPF"
+                    height="0"
+                    width="0"
+                    style="display:none; visibility:hidden"></iframe>
+        </noscript>
+        {# djlint:on #}
+        <!-- End Google Tag Manager (noscript) -->
+        <a class="visually-hidden-focusable" href="#content">Skip to main content</a>
+        {% include "platform/includes/site_banner.html" %}
+        <nav class="navbar bg-dark" data-bs-theme="dark">
+            <div class="container">
+                <a class="navbar-brand hstack gap-1 align-items-center"
+                   href="{% url 'core:index' %}">
+                    <img src="{% static 'core/img/brand/logo-gold-transparent-bg.svg' %}"
+                         alt="Logo"
+                         width="24"
+                         height="24"
+                         class="d-inline-block align-text-top">
+                    <span class="fs-5 ms-1 fw-normal">Gyrinx</span>
+                </a>
+                <div class="hstack gap-2 align-items-center">
+                    {% comment %}
+                        #bd-theme, #bd-theme-text, .theme-icon-active and
+                        [data-bs-theme-value] are all queried by core/js/index.js — keep
+                        these hooks in step with the edition base if either side changes
+                        them. #bd-theme-text is dereferenced without a null check, so it
+                        has to exist even though this navbar never shows the label.
+                    {% endcomment %}
+                    <div class="dropdown">
+                        <c-btn variant="link"
+                               id="bd-theme"
+                               class="nav-link py-2 px-2 dropdown-toggle d-flex align-items-center"
+                               type="button"
+                               aria-expanded="false"
+                               data-bs-toggle="dropdown"
+                               aria-label="Toggle theme (auto)">
+                            <i class="bi-circle-half theme-icon-active"></i>
+                            <span class="visually-hidden" id="bd-theme-text">Toggle theme</span>
+                        </c-btn>
+                        <ul class="dropdown-menu dropdown-menu-end"
+                            aria-labelledby="bd-theme-text">
+                            <li>
+                                <button type="button"
+                                        class="dropdown-item d-flex align-items-center active"
+                                        data-bs-theme-value="light"
+                                        aria-pressed="true">
+                                    <i class="bi-sun-fill theme-icon opacity-50 me-2"></i>
+                                    Light
+                                    <i class="bi-check2 ms-auto d-none"></i>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button"
+                                        class="dropdown-item d-flex align-items-center"
+                                        data-bs-theme-value="dark"
+                                        aria-pressed="false">
+                                    <i class="bi-moon-stars-fill theme-icon opacity-50 me-2"></i>
+                                    Dark
+                                    <i class="bi-check2 ms-auto d-none"></i>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button"
+                                        class="dropdown-item d-flex align-items-center"
+                                        data-bs-theme-value="auto"
+                                        aria-pressed="false">
+                                    <i class="bi-circle-half theme-icon opacity-50 me-2"></i>
+                                    Auto
+                                    <i class="bi-check2 ms-auto d-none"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    {% if user.is_authenticated %}
+                        <c-btn variant="outline-light" href="{% url 'core:account_home' %}">
+                            <i class="bi-gear"></i>
+                            {{ user.username }}{% user_badge user %}
+                        </c-btn>
+                    {% else %}
+                        {% url 'account_login' as login_url_ %}
+                        {% url 'account_signup' as signup_url_ %}
+                        {% if request.path != login_url_ and request.path != signup_url_ %}
+                            {% with next_param=request.get_full_path|urlencode %}
+                                <c-btn variant="outline-light" href="{{ login_url_ }}?next={{ next_param }}">
+                                    Sign In
+                                </c-btn>
+                                {% if signup_url_ %}
+                                    <c-btn variant="success" href="{{ signup_url_ }}?next={{ next_param }}">
+                                        Sign Up
+                                    </c-btn>
+                                {% endif %}
+                            {% endwith %}
+                        {% else %}
+                            <c-btn variant="outline-light" href="{{ login_url_ }}">
+                                Sign In
+                            </c-btn>
+                            {% if signup_url_ %}<c-btn variant="success" href="{{ signup_url_ }}">Sign Up</c-btn>{% endif %}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+        {% include "platform/includes/impersonation_banner.html" %}
+        {% block body %}
+            <div id="content" class="container my-3 my-md-5">
+                {% if messages %}
+                    <div>
+                        {% for message in messages %}
+                            <c-callout variant="{% if message.level_tag == 'debug' %}secondary{% elif message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}danger{% else %}info{% endif %}"
+                                       dismissible="1">{{ message }}</c-callout>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                {% block content %}
+                {% endblock content %}
+            </div>
+        {% endblock body %}
+        {% block extra_body %}
+        {% endblock extra_body %}
+        {% include "platform/includes/footer.html" %}
+        {# bootstrap JS bundle version + integrity hash are pinned here; package.json carries bootstrap "^5.3.8" for the SCSS build — keep them in sync when bumping. #}
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+                integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+                crossorigin="anonymous"></script>
+        <script type="module" src="{% static 'core/js/index.js' %}"></script>
+        {% block extra_script %}
+        {% endblock extra_script %}
+        {% if debug %}<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>{% endif %}
+    </body>
+</html>
