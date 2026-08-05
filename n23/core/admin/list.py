@@ -14,7 +14,6 @@ from n23.core.admin.filters import (
     autocomplete_filter_media,
 )
 from gyrinx.forms import group_select
-
 from ..models.list import (
     List,
     ListAttributeAssignment,

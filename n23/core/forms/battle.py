@@ -1,7 +1,7 @@
 from django import forms
 
 from n23.content.models import ContentBattleRoleOption
-from n23.core.forms import BsRadioSelect
+from gyrinx.widgets import BsRadioSelect
 from n23.core.models import Battle, BattleNote
 from n23.core.models.list import List
 from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload

@@ -4,7 +4,7 @@ import pytest
 from django.core import mail
 from django.test import RequestFactory
 
-from n23.core.adapter import CustomAccountAdapter
+from gyrinx.adapter import CustomAccountAdapter
 
 
 @pytest.mark.django_db

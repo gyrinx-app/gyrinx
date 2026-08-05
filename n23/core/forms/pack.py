@@ -18,7 +18,7 @@ from n23.content.models.weapon import (
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-from n23.core.forms import BsCheckboxSelectMultipleCompact
+from gyrinx.widgets import BsCheckboxSelectMultipleCompact
 from n23.core.models.pack import (
     CustomContentPack,
     CustomContentPackAttachment,

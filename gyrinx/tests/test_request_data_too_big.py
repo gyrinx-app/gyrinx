@@ -15,7 +15,7 @@ from django.http import HttpRequest, HttpResponse
 from django.template import TemplateDoesNotExist
 from django.test import RequestFactory, override_settings
 
-from n23.core.middleware import RequestSizeExceptionMiddleware
+from gyrinx.middleware import RequestSizeExceptionMiddleware
 
 
 def test_request_size_exception_middleware_catches_exception():
@@ -31,7 +31,7 @@ def test_request_size_exception_middleware_catches_exception():
     exception = RequestDataTooBig("Request body exceeded settings.")
 
     with patch(
-        "n23.core.middleware.render", return_value=HttpResponse("Error", status=400)
+        "gyrinx.middleware.render", return_value=HttpResponse("Error", status=400)
     ):
         response = middleware.process_exception(request, exception)
 
@@ -52,7 +52,7 @@ def test_request_size_exception_middleware_fallback():
     exception = RequestDataTooBig("Request body exceeded settings.")
 
     with patch(
-        "n23.core.middleware.render",
+        "gyrinx.middleware.render",
         side_effect=TemplateDoesNotExist("errors/error.html"),
     ):
         response = middleware.process_exception(request, exception)
@@ -137,7 +137,7 @@ def test_middleware_call_wraps_downstream_exceptions():
     # process_exception returns 400 for RequestDataTooBig
     exception = RequestDataTooBig("Request body exceeded settings.")
     with patch(
-        "n23.core.middleware.render", return_value=HttpResponse("Error", status=400)
+        "gyrinx.middleware.render", return_value=HttpResponse("Error", status=400)
     ):
         response = middleware.process_exception(request, exception)
     assert response.status_code == 400

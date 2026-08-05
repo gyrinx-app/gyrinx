@@ -1,6 +1,6 @@
 """Admin impersonation start/stop views.
 
-See :mod:`n23.core.impersonation` and
+See :mod:`gyrinx.impersonation` and
 :class:`n23.core.middleware.ImpersonationMiddleware` for how the overlay works.
 """
 
@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from n23.core.impersonation import (
+from gyrinx.impersonation import (
     IMPERSONATE_KEY,
     IMPERSONATE_LOG_KEY,
     IMPERSONATE_SESSION_KEYS,

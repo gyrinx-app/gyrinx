@@ -6,7 +6,7 @@ from n23.content.models import (
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
 )
-from n23.core.forms import BsRadioSelect
+from gyrinx.widgets import BsRadioSelect
 from n23.core.forms.list import ListFighterEquipmentAssignmentUpgradeForm
 from n23.core.models.list import ListFighterEquipmentAssignment
 

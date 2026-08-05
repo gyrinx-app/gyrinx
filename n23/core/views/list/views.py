@@ -348,7 +348,7 @@ class ListDetailView(generic.DetailView):
 
         # Admins (superusers) may impersonate the list owner, unless already
         # impersonating.
-        from n23.core.impersonation import can_impersonate_target
+        from gyrinx.impersonation import can_impersonate_target
 
         context["can_impersonate_list_owner"] = not getattr(
             self.request, "is_impersonating", False

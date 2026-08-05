@@ -4,7 +4,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 
-from n23.core.forms import BsCheckboxSelectMultiple
+from gyrinx.widgets import BsCheckboxSelectMultiple
 from n23.core.handlers.crew import TOGGLEABLE_CREW_CATEGORIES
 from n23.core.models.campaign import (
     Campaign,
