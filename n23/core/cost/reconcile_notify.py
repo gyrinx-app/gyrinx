@@ -8,7 +8,7 @@ owner** and **one per affected arbitrator**, each carrying links to every gang
 that changed.
 
 This sits on top of the #721 notification service (``notify*`` in
-``models.notification``); it stays out of that generic module so the
+``gyrinx.site.models``); it stays out of that generic module so the
 reconcile-specific copy and grouping live with the rest of the #1826 cost code.
 
 "Affected" means the list's cached totals actually *moved* — i.e. the number a
@@ -28,7 +28,7 @@ from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 
 from n23.core.models.list import List
-from n23.core.models.notification import Notification, NotificationType
+from gyrinx.site.models import Notification, NotificationType
 from n23.models import format_cost_display
 
 logger = logging.getLogger(__name__)

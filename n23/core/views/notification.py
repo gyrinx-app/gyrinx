@@ -21,7 +21,7 @@ from django.views import generic
 from django.views.decorators.http import require_POST
 
 from gyrinx.http import safe_redirect
-from n23.core.models.notification import Notification, NotificationType
+from gyrinx.site.models import Notification, NotificationType
 
 VALID_BUCKETS = {"inbox", "archived"}
 VALID_STATUSES = {"all", "unread", "read"}

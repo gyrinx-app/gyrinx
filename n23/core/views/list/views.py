@@ -397,7 +397,7 @@ class ListDetailView(generic.DetailView):
 
         # Notification banners for this list (scoped to the viewing recipient).
         if self.request.user.is_authenticated:
-            from n23.core.models.notification import Notification
+            from gyrinx.site.models import Notification
 
             context["notification_banners"] = Notification.objects.banners_for(
                 self.request.user, list_obj

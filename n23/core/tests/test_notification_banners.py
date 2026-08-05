@@ -3,7 +3,7 @@
 import pytest
 from django.urls import reverse
 
-from n23.core.models.notification import (
+from gyrinx.site.models import (
     notify_campaign_arbitrator,
     notify_list_owner,
 )

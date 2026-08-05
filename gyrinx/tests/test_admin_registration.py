@@ -11,10 +11,12 @@ from django.contrib import admin
 
 from gyrinx.accounts.models import UserProfile
 from gyrinx.analytics.models import Event
-from gyrinx.site.models import Banner, ImpersonationLog
+from gyrinx.site.models import Banner, ImpersonationLog, Notification
 
 
-@pytest.mark.parametrize("model", [Event, UserProfile, Banner, ImpersonationLog])
+@pytest.mark.parametrize(
+    "model", [Event, UserProfile, Banner, ImpersonationLog, Notification]
+)
 def test_moved_model_is_still_registered_in_admin(model):
     assert model in admin.site._registry, (
         f"{model.__name__} has no ModelAdmin. The module holding its "

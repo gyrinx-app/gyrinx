@@ -5,8 +5,8 @@ from django.contrib import admin
 from django.test import RequestFactory
 from django.urls import reverse
 
-from n23.core.admin.notification import NotificationAdmin
-from n23.core.models.notification import Notification
+from gyrinx.site.admin import NotificationAdmin
+from gyrinx.site.models import Notification
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def test_broadcast_to_all_active_users(client, superuser, make_user):
 
     client.force_login(superuser)
     resp = client.post(
-        reverse("admin:core_notification_broadcast"),
+        reverse("admin:gyrinxsite_notification_broadcast"),
         {
             "subject": "Everyone read this",
             "content": "",
@@ -58,7 +58,7 @@ def test_broadcast_as_system_has_no_sender(client, superuser, make_user):
 
     client.force_login(superuser)
     resp = client.post(
-        reverse("admin:core_notification_broadcast"),
+        reverse("admin:gyrinxsite_notification_broadcast"),
         {
             "subject": "From Gyrinx",
             "notification_type": "general",
@@ -85,7 +85,7 @@ def test_broadcast_to_campaign_participants(
 
     client.force_login(superuser)
     resp = client.post(
-        reverse("admin:core_notification_broadcast"),
+        reverse("admin:gyrinxsite_notification_broadcast"),
         {
             "subject": "Campaign notice",
             "notification_type": "campaign",
@@ -106,7 +106,7 @@ def test_broadcast_to_users_with_a_list(client, superuser, make_user, make_list)
 
     client.force_login(superuser)
     resp = client.post(
-        reverse("admin:core_notification_broadcast"),
+        reverse("admin:gyrinxsite_notification_broadcast"),
         {
             "subject": "For list owners",
             "notification_type": "general",
@@ -123,7 +123,7 @@ def test_broadcast_to_users_with_a_list(client, superuser, make_user, make_list)
 def test_broadcast_campaign_audience_requires_campaign(client, superuser):
     client.force_login(superuser)
     resp = client.post(
-        reverse("admin:core_notification_broadcast"),
+        reverse("admin:gyrinxsite_notification_broadcast"),
         {
             "subject": "Oops",
             "notification_type": "campaign",
@@ -141,5 +141,5 @@ def test_broadcast_requires_superuser(client, make_user):
     staff.is_staff = True
     staff.save()
     client.force_login(staff)
-    resp = client.get(reverse("admin:core_notification_broadcast"))
+    resp = client.get(reverse("admin:gyrinxsite_notification_broadcast"))
     assert resp.status_code == 403

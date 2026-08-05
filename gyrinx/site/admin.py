@@ -1,4 +1,10 @@
-"""Admin for notifications, including a broadcast (create-to-many) view."""
+"""Admin for notifications, including a broadcast (create-to-many) view.
+
+Banner and ImpersonationLog are still registered from ``n23.core.admin``; only
+the notification admin has been brought over so far. The "participants of a
+campaign" broadcast audience reaches into the edition for ``Campaign`` — the
+same edition-facing dependency ``gyrinx.analytics.admin`` already has.
+"""
 
 from django import forms
 from django.contrib import admin, messages
@@ -8,13 +14,13 @@ from django.db import models
 from django.shortcuts import redirect, render
 from django.urls import path
 
-from n23.core.models.campaign import Campaign
-from n23.core.models.notification import (
+from gyrinx.site.models import (
     Notification,
     NotificationType,
     notify_many,
 )
 from gyrinx.widgets import TinyMCEWithUpload
+from n23.core.models.campaign import Campaign
 
 User = get_user_model()
 
@@ -82,7 +88,7 @@ class BroadcastForm(forms.Form):
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
     form = NotificationAdminForm
-    change_list_template = "admin/core/notification/change_list.html"
+    change_list_template = "admin/gyrinxsite/notification/change_list.html"
     formfield_overrides = {models.TextField: {"widget": TinyMCEWithUpload}}
     list_display = [
         "subject",
@@ -101,7 +107,7 @@ class NotificationAdmin(admin.ModelAdmin):
         "created",
     ]
     search_fields = ["subject", "content", "owner__username"]
-    autocomplete_fields = ["owner", "sender", "related_list", "related_campaign"]
+    autocomplete_fields = ["owner", "sender"]
     readonly_fields = ["created", "modified", "read_at"]
 
     def save_model(self, request, obj, form, change):
@@ -116,7 +122,7 @@ class NotificationAdmin(admin.ModelAdmin):
             path(
                 "broadcast/",
                 self.admin_site.admin_view(self.broadcast_view),
-                name="core_notification_broadcast",
+                name="gyrinxsite_notification_broadcast",
             ),
         ]
         return custom + urls
@@ -137,7 +143,7 @@ class NotificationAdmin(admin.ModelAdmin):
                     notification_type=form.cleaned_data["notification_type"],
                 )
                 messages.success(request, f"Sent {count} notifications.")
-                return redirect("admin:core_notification_changelist")
+                return redirect("admin:gyrinxsite_notification_changelist")
         else:
             form = BroadcastForm()
 
@@ -147,4 +153,4 @@ class NotificationAdmin(admin.ModelAdmin):
             "form": form,
             "opts": self.model._meta,
         }
-        return render(request, "admin/core/notification/broadcast.html", context)
+        return render(request, "admin/gyrinxsite/notification/broadcast.html", context)

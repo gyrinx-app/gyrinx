@@ -13,7 +13,7 @@ from n23.core.models.action import ListActionType
 from n23.core.models.backfill import Backfill
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
-from n23.core.models.notification import Notification, NotificationType
+from gyrinx.site.models import Notification, NotificationType
 from n23.core.tasks import reconcile_all_lists
 from n23.core.tests.test_balance_sheet import buy_equipment, fresh, hire_fighter
 

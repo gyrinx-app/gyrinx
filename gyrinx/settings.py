@@ -222,7 +222,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "gyrinx.context_processors.site_banner",
                 "gyrinx.context_processors.gyrinx_debug",
-                "n23.core.context_processors.notifications",
+                "gyrinx.context_processors.notifications",
                 "gyrinx.context_processors.impersonation",
             ],
         },
