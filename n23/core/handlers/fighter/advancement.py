@@ -487,10 +487,18 @@ def _reverse_stat_advancement(
     and contribute no mod. Their effect was baked into a ``<stat>_override``
     column, which Track C2 turned into a plain override row and Track C3
     stopped reading. Recalculating the column here would write somewhere
-    nothing reads, so these are left alone: the preserved value stays as a
-    manual override, editable on the fighter's stats page.
+    nothing reads, so these are left alone — but the stat then stays put while
+    the XP and cost come back, which is worth saying out loud.
     """
-    return
+    if advancement.uses_mod_system:
+        return
+
+    warnings.append(
+        f"{fighter.name}'s {advancement.stat_increased.replace('_', ' ')} was "
+        "not changed: this advancement predates the current stat system, so "
+        "its improvement is held as a manual override. Edit the fighter's "
+        "stats if it should come back down."
+    )
 
 
 @traced("_reverse_skill_advancement")

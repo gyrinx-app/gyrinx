@@ -284,12 +284,23 @@ def test_edit_fighter_stats_view_get(client, list_fighter, user):
 
 
 @pytest.mark.django_db
-def test_posting_legacy_field_names_writes_nothing(client, list_fighter, user):
+def test_posting_legacy_field_names_writes_nothing(
+    client, list_fighter, vehicle_statline, vehicle_stats, user
+):
     """The stats form no longer accepts `<stat>_override` field names.
 
-    A crafted or stale POST naming them must be ignored outright rather than
-    write a column the card does not read (#1861 Track C3).
+    A crafted or stale POST naming them must be ignored outright: it must
+    neither write a column the card does not read (#1861 Track C3) nor — the
+    destructive half — wipe the overrides the fighter already has. A real
+    submission always carries the form's own fields, blank ones included.
     """
+    existing = ListFighterStatOverride.objects.create(
+        list_fighter=list_fighter,
+        content_stat=vehicle_stats[0],
+        value='10"',
+        owner=user,
+    )
+
     client.force_login(user)
     url = reverse(
         "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
@@ -309,9 +320,8 @@ def test_posting_legacy_field_names_writes_nothing(client, list_fighter, user):
     assert list_fighter.movement_override is None
     assert list_fighter.weapon_skill_override is None
     assert list_fighter.ballistic_skill_override is None
-    assert not ListFighterStatOverride.objects.filter(
-        list_fighter=list_fighter
-    ).exists()
+    # The fighter's real override is untouched
+    assert ListFighterStatOverride.objects.filter(pk=existing.pk).exists()
 
 
 @pytest.mark.django_db
@@ -369,12 +379,14 @@ def test_archived_override_is_neither_shown_nor_revived_by_saving(
     form = EditListFighterStatsForm(fighter=list_fighter)
     assert form.fields[field_name].initial == ""
 
-    # Saving that form back must not resurrect it
+    # Saving that form back must not resurrect it. Posting every field blank
+    # is what a browser sends for an untouched form — empty text inputs are
+    # still submitted.
     client.force_login(user)
     url = reverse(
         "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
     )
-    response = client.post(url, {})
+    response = client.post(url, {name: "" for name in form.fields})
     assert response.status_code == 302
     assert not ListFighterStatOverride.objects.filter(
         list_fighter=list_fighter, archived=False

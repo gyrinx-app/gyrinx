@@ -506,7 +506,15 @@ def make_stat_override(user) -> Callable[..., object]:
         override, _ = ListFighterStatOverride.objects.update_or_create(
             list_fighter=fighter,
             content_stat=type_stat,
-            defaults={"value": value, "owner": owner or fighter.owner},
+            # Un-archive: reviving a soft-deleted row would otherwise leave it
+            # archived, so the override would not apply and the fixture would
+            # quietly not do what it says.
+            defaults={
+                "value": value,
+                "owner": owner or fighter.owner,
+                "archived": False,
+                "archived_at": None,
+            },
         )
         # The statline is a cached_property; a caller that already touched it
         # would otherwise see the pre-override card.

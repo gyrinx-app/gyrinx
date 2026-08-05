@@ -51,7 +51,13 @@ def list_fighter_stats_edit(request, id, fighter_id):
         if form.is_valid():
             statline = getattr(fighter.content_fighter, "custom_statline", None)
 
-            if statline is not None:
+            # A genuine submission carries every stat field, blank ones
+            # included, so an all-blank one means "clear my overrides". A POST
+            # naming none of them is not this form — rewriting on that would
+            # silently destroy the fighter's overrides.
+            submitted_stats = any(name in request.POST for name in form.fields)
+
+            if statline is not None and submitted_stats:
                 # Delete existing overrides
                 fighter.stat_overrides.all().delete()
 

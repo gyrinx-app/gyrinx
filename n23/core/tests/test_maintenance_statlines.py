@@ -421,8 +421,12 @@ def test_stats_form_round_trips_an_override_and_ignores_the_legacy_column(
     ]
     assert ws_field and ws_field[0].initial == "2+"
 
-    # Saving with every field blank genuinely clears the override
-    response = client.post(url, {})
+    # Saving with every field blank genuinely clears the override. The blanks
+    # have to be sent: a browser submits empty text inputs, and a POST naming
+    # none of the form's fields is deliberately ignored rather than treated as
+    # "clear everything".
+    blank = {name: "" for name in response.context["form"].fields}
+    response = client.post(url, blank)
     assert response.status_code == 302
     fighter.refresh_from_db()
     assert not ListFighterStatOverride.objects.filter(list_fighter=fighter).exists()
