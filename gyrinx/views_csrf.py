@@ -1,5 +1,6 @@
+"""The CSRF failure view, wired up via ``settings.CSRF_FAILURE_VIEW``."""
+
 from django.contrib import messages
-from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
 from gyrinx.analytics.models import EventNoun, EventVerb, log_event
@@ -32,5 +33,7 @@ def csrf_failure(request, reason=""):
     # Get the referer URL to redirect back to the form
     referer = request.META.get("HTTP_REFERER")
 
-    # Use safe redirect with home page as fallback
-    return safe_redirect(request, referer, fallback_url=reverse("core:index"))
+    # Falls back to safe_redirect's default of "/" — the site root, which is what
+    # the edition's index used to resolve to anyway. A platform view should not
+    # reverse an edition URL name to find somewhere to send people.
+    return safe_redirect(request, referer)

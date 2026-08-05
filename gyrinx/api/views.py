@@ -300,7 +300,7 @@ def _handle_discord_command(interaction: dict, signature: str) -> JsonResponse:
 
     # Enqueue the background task to trigger GitHub Action
     try:
-        from n23.core.tasks import trigger_discord_issue_action
+        from gyrinx.api.tasks import trigger_discord_issue_action
 
         trigger_discord_issue_action.enqueue(
             channel_id=channel_id,

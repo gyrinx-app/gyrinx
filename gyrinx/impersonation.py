@@ -2,7 +2,7 @@
 
 Impersonation is a per-request overlay. The admin stays authenticated — the
 session's ``_auth_user_id`` is unchanged — and the target user's id is stored in
-the session. :class:`n23.core.middleware.ImpersonationMiddleware` swaps
+the session. :class:`gyrinx.middleware.ImpersonationMiddleware` swaps
 ``request.user`` for the duration of each request, so everything derived from
 ``request.user`` (history attribution, audit ledgers, permissions, templates)
 reflects the impersonated user without any per-feature changes.
