@@ -3,7 +3,7 @@
 import pytest
 
 from n23.core.models.list import List
-from n23.core.models.notification import (
+from gyrinx.site.models import (
     Notification,
     NotificationType,
     notify,
@@ -69,12 +69,13 @@ def test_notify_never_raises(user, monkeypatch):
 
 
 @pytest.mark.django_db
-def test_notify_list_owner_sets_related_list(make_list):
+def test_notify_list_owner_targets_the_list(make_list):
     lst = make_list("My Gang")
     n = notify_list_owner(lst, subject="Your gang changed")
     assert n is not None
     assert n.owner == lst.owner
-    assert n.related_list == lst
+    assert n.target == lst
+    assert n.scope is None
     assert n.notification_type == NotificationType.LIST
 
 
@@ -92,7 +93,9 @@ def test_notify_campaign_arbitrator_sets_recipient_and_campaign(campaign):
     n = notify_campaign_arbitrator(campaign, subject="A list changed")
     assert n is not None
     assert n.owner == campaign.owner
-    assert n.related_campaign == campaign
+    # With nothing more specific to point at, the campaign is the subject.
+    assert n.target == campaign
+    assert n.scope is None
     assert n.notification_type == NotificationType.CAMPAIGN
 
 
@@ -111,8 +114,9 @@ def test_notify_list_changed_notifies_owner_and_arbitrator(
     assert Notification.objects.filter(owner=user).count() == 1
     assert Notification.objects.filter(owner=arbitrator).count() == 1
     arb_note = Notification.objects.get(owner=arbitrator)
-    assert arb_note.related_campaign == camp
-    assert arb_note.related_list == lst
+    # The gang is what changed; the campaign is the context around it.
+    assert arb_note.target == lst
+    assert arb_note.scope == camp
 
 
 @pytest.mark.django_db
@@ -235,7 +239,7 @@ def test_banners_for_matches_scope_as_well_as_target(
     gang = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
 
     notify_campaign_arbitrator(
-        campaign, subject="gang changed", related_list=gang, show_as_banner=True
+        campaign, subject="gang changed", target=gang, show_as_banner=True
     )
 
     # Visible on the campaign page (matched via scope)...

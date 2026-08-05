@@ -395,7 +395,7 @@ class CampaignDetailView(generic.DetailView):
 
         # Notification banners for this campaign (scoped to the viewing recipient).
         if user.is_authenticated:
-            from n23.core.models.notification import Notification
+            from gyrinx.site.models import Notification
 
             context["notification_banners"] = Notification.objects.banners_for(
                 user, campaign

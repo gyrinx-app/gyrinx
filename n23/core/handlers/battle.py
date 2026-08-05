@@ -22,7 +22,7 @@ from n23.core.handlers.crew import snapshot_played_crew_ratings
 from n23.core.models.battle import Battle
 from n23.core.models.action import ListActionType
 from n23.core.models.campaign import CampaignAction
-from n23.core.models.notification import NotificationType, notify
+from gyrinx.site.models import NotificationType, notify
 from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
@@ -196,11 +196,11 @@ def notify_battle_participants(*, user, battle, added_lists):
             content=content,
             sender=user,
             notification_type=NotificationType.LIST,
-            # A single-gang notification links straight to that gang; a
-            # multi-gang one has no single list to point at, so it falls back to
-            # the campaign (via related_campaign) for its inbox link.
-            related_list=None if multiple else gangs[0],
-            related_campaign=campaign,
+            # A single-gang notification is about that gang, inside the campaign,
+            # and links straight to it. A multi-gang one has no single gang to
+            # point at, so the campaign itself becomes the subject.
+            target=campaign if multiple else gangs[0],
+            scope=None if multiple else campaign,
         )
         if n is not None:
             notified += 1

@@ -5,8 +5,8 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 from django.urls import reverse
 
-from n23.core.context_processors import notifications as notifications_cp
-from n23.core.models.notification import notify
+from gyrinx.context_processors import notifications as notifications_cp
+from gyrinx.site.models import notify
 
 
 @pytest.mark.django_db

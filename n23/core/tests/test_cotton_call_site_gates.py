@@ -342,7 +342,7 @@ def test_check_cotton_script_passes():
 # surfaces the migration leaves alone by design (Django-admin CSS, vendored
 # allauth MFA). This list must not grow.
 STOCK_RENDER_SITES = {
-    "n23/core/templates/admin/core/notification/broadcast.html",
+    "gyrinx/site/templates/admin/gyrinxsite/notification/broadcast.html",
     "n23/core/templates/mfa/recovery_codes/generate.html",
     "n23/core/templates/mfa/totp/deactivate_form.html",
 }

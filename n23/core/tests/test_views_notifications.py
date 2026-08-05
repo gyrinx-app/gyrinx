@@ -5,7 +5,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from n23.core.models.notification import (
+from gyrinx.site.models import (
     Notification,
     NotificationType,
     notify,
@@ -119,7 +119,7 @@ def test_notification_unread_action(client, user):
 @pytest.mark.django_db
 def test_notification_open_marks_read_and_redirects_to_target(client, user, make_list):
     lst = make_list("Gang")
-    n = notify(recipient=user, subject="x", related_list=lst)
+    n = notify(recipient=user, subject="x", target=lst)
     client.force_login(user)
     resp = client.get(reverse("core:notification-open", args=[n.id]))
     assert resp.status_code == 302

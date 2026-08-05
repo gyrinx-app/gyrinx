@@ -6,7 +6,6 @@ from .crew import *  # noqa: F403
 from .facts import *  # noqa: F403
 from .invitation import *  # noqa: F403
 from .list import *  # noqa: F403
-from .notification import *  # noqa: F403
 from .pack import (  # noqa: F401
     CustomContentPack,
     CustomContentPackAttachment,

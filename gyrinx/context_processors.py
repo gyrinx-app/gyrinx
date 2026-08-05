@@ -1,8 +1,4 @@
-"""Platform context processors.
-
-``notifications`` is still in ``n23.core.context_processors``: it counts
-``Notification`` rows, and that model has not moved to the platform yet.
-"""
+"""Platform context processors."""
 
 import logging
 
@@ -10,9 +6,38 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import DatabaseError, InterfaceError, OperationalError
 
-from gyrinx.site.models import BANNER_CACHE_KEY, BANNER_CACHE_TIMEOUT, Banner
+from gyrinx.site.models import (
+    BANNER_CACHE_KEY,
+    BANNER_CACHE_TIMEOUT,
+    Banner,
+    Notification,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def notifications(request):
+    """Add the unread notification count for the navbar badge (authenticated only).
+
+    A single COUNT backed by a partial index — cheap and always correct. We do not
+    cache it: the cache backend is per-process ``LocMemCache``, so a cached per-user
+    count couldn't be invalidated reliably across instances. Never raises — a failure
+    here must not break page rendering.
+    """
+    context = {"unread_notification_count": 0}
+    try:
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated:
+            context["unread_notification_count"] = (
+                Notification.objects.unread_count_for(user)
+            )
+    except (DatabaseError, OperationalError, InterfaceError) as e:
+        logger.warning(
+            f"Database error while counting notifications: {type(e).__name__}: {e}"
+        )
+    except Exception:
+        logger.exception("Unexpected error in notifications context processor")
+    return context
 
 
 def gyrinx_debug(request):

@@ -10,7 +10,7 @@ import pytest
 from django.urls import reverse
 
 from n23.core.models import Battle, Campaign
-from n23.core.models.notification import Notification, NotificationType
+from gyrinx.site.models import Notification, NotificationType
 
 
 def _campaign(make_campaign, owner):
@@ -54,8 +54,8 @@ def test_new_battle_notifies_each_other_owner(
         n = notes.get()
         assert n.notification_type == NotificationType.LIST
         assert n.sender == arbitrator
-        assert n.related_list == gang
-        assert n.related_campaign == campaign
+        assert n.target == gang
+        assert n.scope == campaign
         assert n.subject == "Your gang has been added to a battle"
         # Content names the gang, the battle mission and the campaign.
         assert gang.name in n.content
@@ -125,10 +125,10 @@ def test_new_battle_one_owner_two_gangs_gets_single_notification(
     assert n.subject == "Your gangs have been added to a battle"
     assert gang_1.name in n.content
     assert gang_2.name in n.content
-    # A multi-gang notification has no single gang to link to, so it falls back
-    # to the campaign for its inbox link.
-    assert n.related_list is None
-    assert n.related_campaign == campaign
+    # A multi-gang notification has no single gang to link to, so the campaign
+    # itself becomes the subject and supplies the inbox link.
+    assert n.target == campaign
+    assert n.scope is None
 
 
 @pytest.mark.django_db
@@ -170,7 +170,7 @@ def test_edit_battle_notifies_only_newly_added(
     assert Notification.objects.filter(owner=arbitrator).count() == 0
 
     n = Notification.objects.get(owner=owner_c)
-    assert n.related_list == gang_c
+    assert n.target == gang_c
     assert n.notification_type == NotificationType.LIST
 
 

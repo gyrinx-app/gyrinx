@@ -12,7 +12,7 @@
       * `{{ form.as_p }}`         -> p.html   -> does NOT reach this file.
         p.html inlines `{{ field.label_tag }}` / `{{ field }}` /
         `<span class="helptext">` itself. The three as_p sites are
-        admin/core/notification/broadcast.html (Django-admin CSS) and two
+        admin/gyrinxsite/notification/broadcast.html (Django-admin CSS) and two
         vendored allauth MFA templates — both surfaces the migration leaves
         alone by design. They keep Django's stock rendering.
         test_cotton_call_site_gates.py pins that list so it cannot grow.
