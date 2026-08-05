@@ -51,30 +51,38 @@ def list_fighter_stats_edit(request, id, fighter_id):
         if form.is_valid():
             statline = getattr(fighter.content_fighter, "custom_statline", None)
 
-            # A genuine submission carries every stat field, blank ones
-            # included, so an all-blank one means "clear my overrides". A POST
-            # naming none of them is not this form — rewriting on that would
-            # silently destroy the fighter's overrides.
-            submitted_stats = any(name in request.POST for name in form.fields)
+            # Reconcile stat by stat, rather than clearing every override and
+            # rebuilding from the submission. Wholesale rewriting means any
+            # POST that omits a field silently drops that stat's override —
+            # a stale page or a partial request would take the rest of the
+            # fighter's stats with it. A field that was submitted blank is a
+            # real instruction to clear that one.
+            if statline is not None:
+                for field_name, field in form.fields.items():
+                    if field_name not in request.POST:
+                        continue
 
-            if statline is not None and submitted_stats:
-                # Delete existing overrides
-                fighter.stat_overrides.all().delete()
+                    stat_def = getattr(field, "stat_def", None)
+                    if stat_def is None:
+                        continue
 
-                # Create new overrides
-                for field_name, value in form.cleaned_data.items():
-                    if field_name.startswith("stat_") and value:
-                        stat_id = field_name.replace("stat_", "")
-                        # Find the stat definition
-                        stat_def = statline.statline_type.stats.get(id=stat_id)
-
-                        # Create the override
-                        ListFighterStatOverride.objects.create(
+                    value = form.cleaned_data.get(field_name)
+                    if value:
+                        ListFighterStatOverride.objects.update_or_create(
                             list_fighter=fighter,
                             content_stat=stat_def,
-                            value=value,
-                            owner=request.user,
+                            defaults={
+                                "value": value,
+                                "owner": request.user,
+                                # An override cleared earlier and set again is
+                                # the same row; leaving it archived would store
+                                # the value without applying it.
+                                "archived": False,
+                                "archived_at": None,
+                            },
                         )
+                    else:
+                        fighter.stat_overrides.filter(content_stat=stat_def).delete()
 
             # Log the stat update event
             log_event(

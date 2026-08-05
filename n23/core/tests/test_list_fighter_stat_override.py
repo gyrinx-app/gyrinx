@@ -355,6 +355,39 @@ def test_edit_fighter_stats_view_post_custom_statline(
 
 
 @pytest.mark.django_db
+def test_a_partial_post_leaves_unmentioned_stats_alone(
+    client, list_fighter, vehicle_statline, vehicle_stats, user
+):
+    """Only the stats a submission carries may change.
+
+    Overrides used to be rewritten wholesale: every row deleted, then
+    recreated from what came in. A POST carrying one field would take the
+    other overrides with it.
+    """
+    kept = ListFighterStatOverride.objects.create(
+        list_fighter=list_fighter,
+        content_stat=vehicle_stats[4],
+        value="7",
+        owner=user,
+    )
+
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
+    )
+    response = client.post(url, {f"stat_{vehicle_stats[0].id}": '12"'})
+    assert response.status_code == 302
+
+    overrides = {
+        o.content_stat_id: o.value
+        for o in ListFighterStatOverride.objects.filter(list_fighter=list_fighter)
+    }
+    # The submitted stat is set, and the untouched one survives
+    assert overrides[vehicle_stats[0].id] == '12"'
+    assert overrides[kept.content_stat_id] == "7"
+
+
+@pytest.mark.django_db
 def test_archived_override_is_neither_shown_nor_revived_by_saving(
     client, list_fighter, vehicle_statline, vehicle_stats, user
 ):
