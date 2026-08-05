@@ -3,7 +3,7 @@
 Badges a user can display next to their name. These are the three Patreon
 supporter tiers plus a staff badge; eligibility is *derived* from a user's live
 state (Patreon status / ``is_staff``; see
-:class:`n23.core.models.auth.UserProfile`), not stored as a grant.
+:class:`gyrinx.accounts.models.UserProfile`), not stored as a grant.
 
 This is deliberately a small in-code registry rather than a database model: the
 tiers are fixed and their eligibility logic is computed regardless of where the

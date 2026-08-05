@@ -155,6 +155,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "n23.core",
     "n23.content",
+    "gyrinx.accounts",
     "gyrinx.analytics",
     # Must be loaded AFTER gyrinx.analytics so MaintenanceAdminSite extends
     # AnalyticsAdminSite (see gyrinx/maintenance/admin.py).

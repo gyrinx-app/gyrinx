@@ -6,12 +6,12 @@ from django.contrib.admin.sites import AdminSite
 from allauth.account.models import EmailAddress
 from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
-from n23.core.admin.auth import (
+from gyrinx.accounts.admin import (
     EmailAddressAdmin,
     UserProfileAdmin,
     show_verification_links,
 )
-from n23.core.models.auth import UserProfile
+from gyrinx.accounts.models import UserProfile
 
 
 @pytest.mark.django_db

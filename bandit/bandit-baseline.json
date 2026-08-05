@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-08-04T22:06:39Z",
+  "generated_at": "2026-08-04T22:16:32Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -154,9 +154,61 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 98,
+      "loc": 138,
       "nosec": 0,
       "skipped_tests": 1
+    },
+    "./gyrinx/accounts/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 4,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/accounts/admin.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 297,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/accounts/apps.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 5,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/accounts/models.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 126,
+      "nosec": 0,
+      "skipped_tests": 0
     },
     "./gyrinx/adapter.py": {
       "CONFIDENCE.HIGH": 0,
@@ -687,7 +739,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 343,
+      "loc": 344,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1597,7 +1649,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 11,
+      "loc": 10,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1611,19 +1663,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 43,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/admin/auth.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 297,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1909,7 +1948,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 46,
+      "loc": 5,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2637,7 +2676,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 21,
+      "loc": 20,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2651,19 +2690,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 175,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/models/auth.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 125,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4223,7 +4249,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 9,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 71188,
+      "loc": 71196,
       "nosec": 4,
       "skipped_tests": 56
     }
@@ -4266,7 +4292,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "300 ACCOUNT_FORMS = {\n301     \"reset_password\": \"gyrinx.account_forms.ResetPasswordForm\",\n302     \"login\": \"gyrinx.account_forms.LoginForm\",\n303     \"signup\": \"gyrinx.account_forms.SignupForm\",\n304 }\n305 # Custom setting to (dis)allow signups\n306 ACCOUNT_ALLOW_SIGNUPS = os.getenv(\"ACCOUNT_ALLOW_SIGNUPS\", \"True\") == \"True\"\n",
+      "code": "301 ACCOUNT_FORMS = {\n302     \"reset_password\": \"gyrinx.account_forms.ResetPasswordForm\",\n303     \"login\": \"gyrinx.account_forms.LoginForm\",\n304     \"signup\": \"gyrinx.account_forms.SignupForm\",\n305 }\n306 # Custom setting to (dis)allow signups\n307 ACCOUNT_ALLOW_SIGNUPS = os.getenv(\"ACCOUNT_ALLOW_SIGNUPS\", \"True\") == \"True\"\n",
       "col_offset": 4,
       "end_col_offset": 20,
       "filename": "./gyrinx/settings.py",
@@ -4277,8 +4303,8 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Possible hardcoded password: 'gyrinx.account_forms.ResetPasswordForm'",
-      "line_number": 301,
-      "line_range": [300, 301, 302, 303, 304],
+      "line_number": 302,
+      "line_range": [301, 302, 303, 304, 305],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
       "test_id": "B105",
       "test_name": "hardcoded_password_string"

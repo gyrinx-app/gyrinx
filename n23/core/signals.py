@@ -38,7 +38,7 @@ from gyrinx.impersonation import (
     IMPERSONATE_LOG_KEY,
     IMPERSONATE_SESSION_KEYS,
 )
-from n23.core.models.auth import UserProfile
+from gyrinx.accounts.models import UserProfile
 from n23.core.models.events import Event, EventField, EventNoun, EventVerb, log_event
 from n23.core.models.pack import CustomContentPackItem
 from gyrinx.tracing import traced
