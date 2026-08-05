@@ -101,9 +101,6 @@ def test_stat_advancement_application(fighter_with_xp):
     # Get a fresh instance to ensure cached properties are cleared
     fighter = ListFighter.objects.get(id=fighter_with_xp.id)
 
-    # With the mod system, override field should NOT be set
-    assert fighter.weapon_skill_override is None
-
     # But the advancement uses the mod system (default=True)
     assert advancement.uses_mod_system is True
 
@@ -133,9 +130,6 @@ def test_stat_advancement_application_movement(fighter_with_xp):
     # Get a fresh instance to ensure cached properties are cleared
     fighter = ListFighter.objects.get(id=fighter_with_xp.id)
 
-    # With the mod system, override field should NOT be set
-    assert fighter.movement_override is None
-
     # The statline should show the improved value via mods
     statline_dict = {stat.field_name: stat.value for stat in fighter.statline}
     assert statline_dict["movement"] == '5"'  # Improved from '4"'
@@ -145,12 +139,12 @@ def test_stat_advancement_application_movement(fighter_with_xp):
 
 
 @pytest.mark.django_db
-def test_stat_advancement_never_writes_a_legacy_override_column(fighter_with_xp):
-    """Applying a stat advancement must not touch a `<stat>_override` column.
+def test_a_pre_mod_system_stat_advancement_still_applies_cleanly(fighter_with_xp):
+    """The pre-Track-B shape must charge XP and write nothing else.
 
-    Those columns are no longer read (#1861 Track C3), so writing one would
-    put the improvement somewhere the card cannot see it. This holds even for
-    the pre-Track-B shape that used to take that path.
+    It used to mutate a `<stat>_override` column; that whole path is gone
+    (#1861 Track C3) along with the columns (Track C4). A handful of these
+    rows survive in production, so applying one must not raise.
     """
     advancement = ListFighterAdvancement.objects.create(
         fighter=fighter_with_xp,
@@ -164,8 +158,38 @@ def test_stat_advancement_never_writes_a_legacy_override_column(fighter_with_xp)
     advancement.apply_advancement()
     fighter_with_xp.refresh_from_db()
 
-    assert fighter_with_xp.weapon_skill_override is None
     assert fighter_with_xp.xp_current == 40  # 50 - 10
+    # Contributes no mod, so the card is unmoved
+    assert not fighter_with_xp.stat_overrides.exists()
+
+
+@pytest.mark.django_db
+def test_copy_attributes_to_keeps_advancements_on_the_same_system(
+    fighter_with_xp, make_list_fighter
+):
+    """Copying must not flip a pre-mod-system advancement onto the mod system.
+
+    Those advancements contribute no mod — the improvement they bought is held
+    as a plain stat override instead. Flipping one on the copy would apply the
+    improvement a second time, so the copy would drift from its original.
+    """
+    ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="weapon_skill",
+        uses_mod_system=False,
+        xp_cost=5,
+        cost_increase=5,
+    )
+
+    target = make_list_fighter(fighter_with_xp.list, "Target Fighter")
+    fighter_with_xp.copy_attributes_to(target)
+
+    copied = ListFighterAdvancement.objects.get(fighter=target)
+    assert copied.uses_mod_system is False
+    assert [s.value for s in target.statline] == [
+        s.value for s in fighter_with_xp.statline
+    ]
 
 
 @pytest.mark.django_db

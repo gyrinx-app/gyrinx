@@ -183,15 +183,9 @@ def test_fighter_cards_are_unchanged_including_the_annotated_path(
 ):
     """A real fighter's card, through both the plain property and the
     with_related_data fast path, must survive materialisation intact.
-
-    The fighter carries a legacy override that no statline can hold yet, so
-    this also pins down that materialising alone neither displays nor
-    destroys it — moving it is Track C2's job.
     """
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Carded Fighter")
-    fighter.weapon_skill_override = "2+"
-    fighter.save()
 
     def card(pk):
         plain = ListFighter.objects.get(pk=pk)
@@ -209,11 +203,6 @@ def test_fighter_cards_are_unchanged_including_the_annotated_path(
     after_plain, after_fast = card(fighter.pk)
     assert after_plain == before_plain
     assert after_fast == before_fast
-    # The column survives for Track C2 to migrate, and reaches neither card
-    # (Track C3 stopped reading it) — so materialising cannot move the stat.
-    fighter.refresh_from_db()
-    assert fighter.weapon_skill_override == "2+"
-    assert not any(x[0] == "weapon_skill" and x[2] == "2+" for x in after_plain)
 
 
 @pytest.mark.django_db
@@ -361,8 +350,6 @@ def test_an_orphan_override_row_is_never_inert(
 
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Orphan EAV Fighter")
-    fighter.weapon_skill_override = "2+"
-    fighter.save()
     ws = fighter_type.stats.get(stat__field_name="weapon_skill")
     ListFighterStatOverride.objects.create(
         list_fighter=fighter, content_stat=ws, value="6+", owner=user
@@ -399,8 +386,6 @@ def test_stats_form_round_trips_an_override_and_ignores_the_legacy_column(
 
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Windowed Fighter")
-    fighter.weapon_skill_override = "9+"  # stale column, must stay invisible
-    fighter.save()
     run_materialise()
     ws = fighter.content_fighter.custom_statline.statline_type.stats.get(
         stat__field_name="weapon_skill"
