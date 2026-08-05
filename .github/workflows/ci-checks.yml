@@ -1,8 +1,10 @@
 name: CI Checks
 
 on:
+  # No base-branch filter: stacked PRs target another feature branch, and a
+  # `branches: [main]` filter would skip them — but ci-checks is a required
+  # status check once the PR retargets to main, so it must run on every PR.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   merge_group:
