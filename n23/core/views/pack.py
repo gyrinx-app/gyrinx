@@ -25,6 +25,7 @@ from n23.content.models.attribute import ContentAttribute, ContentAttributeValue
 from n23.content.models.default_assignment import ContentFighterDefaultAssignment
 from n23.content.statlines import (
     normalize_stat_value as _normalize_stat_value,
+    set_fighter_statline,
     stat_definitions_for as _get_fighter_stat_definitions,
     stat_placeholder as _stat_placeholder,
     statline_type_for_category as _get_statline_type_for_category,
@@ -44,8 +45,6 @@ from n23.content.models.house import ContentHouse
 from n23.content.models.metadata import ContentRule
 from n23.content.models.skill import ContentSkill, ContentSkillCategory
 from n23.content.models.statline import (
-    ContentStatline,
-    ContentStatlineStat,
     ContentStatlineType,
 )
 from n23.content.models.psyker import (
@@ -1313,26 +1312,24 @@ WEAPON_PROFILE_MODES = {"single", "multi"}
 def _create_fighter_statline(
     fighter, stat_definitions, post_data, category=None, statline_type_override=None
 ):
-    """Create a ContentStatline and populate stat values from POST data."""
+    """Give the fighter a ContentStatline with stat values from POST data.
+
+    Reconciles rather than creates: the post_save on ContentFighter has
+    already given it a default statline by the time this runs, and this is
+    where the pack's explicit choice of type and values replaces it.
+    """
     if statline_type_override:
         statline_type = statline_type_override
     elif category:
         statline_type = _get_statline_type_for_category(category)
     else:
         statline_type = ContentStatlineType.objects.get(name="Fighter")
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
-    )
-    for type_stat in stat_definitions:
-        raw = post_data.get(f"stat_{type_stat.stat.field_name}", "-") or "-"
-        value = _normalize_stat_value(raw, type_stat.stat)
-        ContentStatlineStat.objects.create(
-            statline=statline,
-            statline_type_stat=type_stat,
-            value=value,
-        )
-    return statline
+
+    values = {
+        type_stat.id: post_data.get(f"stat_{type_stat.stat.field_name}", "-") or "-"
+        for type_stat in stat_definitions
+    }
+    return set_fighter_statline(fighter, statline_type, values)
 
 
 def _ensure_auto_equipment_for_fighter(fighter, pack, user):

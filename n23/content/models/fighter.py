@@ -348,12 +348,16 @@ class ContentFighter(Content):
         if not ignore_custom and hasattr(self, "custom_statline"):
             statline = self.custom_statline
             stats = []
-            # Get all stat values for this statline
+            # Get all stat values for this statline. Both loops reach through
+            # ContentStatlineTypeStat to ContentStat for the field and short
+            # names, so the chain has to be select_related in both — without
+            # it this is two queries per stat, every time a card is built off
+            # the un-annotated path.
             stat_values = {
                 stat.statline_type_stat.field_name: stat.value
-                for stat in statline.stats.select_related("statline_type_stat")
+                for stat in statline.stats.select_related("statline_type_stat__stat")
             }
-            for stat_def in statline.statline_type.stats.all():
+            for stat_def in statline.statline_type.stats.select_related("stat"):
                 value = stat_values.get(stat_def.field_name, "-")
                 stats.append(
                     {

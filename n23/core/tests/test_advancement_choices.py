@@ -3,11 +3,10 @@ import pytest
 from n23.content.models import (
     ContentFighter,
     ContentStat,
-    ContentStatline,
-    ContentStatlineStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
 )
+from n23.content.statlines import set_fighter_statline
 from n23.core.forms.advancement import AdvancementDiceChoiceForm, AdvancementTypeForm
 from n23.core.models import ListFighter
 from n23.core.views.fighter.advancements import AdvancementFlowParams
@@ -59,19 +58,13 @@ def test_advancement_type_form_with_fighter_statline(
     )
 
     # Create custom statline for the fighter
-    custom_statline = ContentStatline.objects.create(
-        content_fighter=fighter_template,
-        statline_type=vehicle_type,
-    )
-
-    # Create stat values
+    # Replaces the statline the template was given on save
     stat_values = ['8"', "12", "10", "9", "3", "6+", "5+"]
-    for stat, value in zip(type_stats, stat_values):
-        ContentStatlineStat.objects.create(
-            statline=custom_statline,
-            statline_type_stat=stat,
-            value=value,
-        )
+    set_fighter_statline(
+        fighter_template,
+        vehicle_type,
+        {stat.id: value for stat, value in zip(type_stats, stat_values)},
+    )
 
     # Create a list and fighter
     lst = make_list("Test List", content_house=content_house)
@@ -319,16 +312,8 @@ def test_advancement_choice_fallback_display(
         category="CREW",
     )
 
-    custom_statline = ContentStatline.objects.create(
-        content_fighter=fighter_template,
-        statline_type=custom_type,
-    )
-
-    ContentStatlineStat.objects.create(
-        statline=custom_statline,
-        statline_type_stat=type_stat,
-        value="1",
-    )
+    # Replaces the statline the template was given on save
+    set_fighter_statline(fighter_template, custom_type, {type_stat.id: "1"})
 
     # Create a list and list fighter
     lst = make_list("Test List", content_house=content_house)

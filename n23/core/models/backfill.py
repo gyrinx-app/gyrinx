@@ -37,13 +37,17 @@ class Backfill(models.Model):
             "fix_stat_advancements",
             "Finish the stat-advancement cleanup (#2070, retired)",
         )
+        # Both retired: run once in production on 2026-08-04, and their code
+        # removed once every fighter type was guaranteed a statline at save
+        # time — which left them with nothing to find. The members stay so the
+        # historical records keep rendering names.
         NORMALISE_STAT_FORMATS = (
             "normalise_stat_formats",
-            "Normalise legacy stat-column formats (#1861 Track C1)",
+            "Normalise legacy stat-column formats (#1861 Track C1, retired)",
         )
         MATERIALISE_STATLINES = (
             "materialise_statlines",
-            "Materialise statlines for legacy templates (#1861 Track C1)",
+            "Materialise statlines for legacy templates (#1861 Track C1, retired)",
         )
         # Retired: run once in production on 2026-08-05, and its code removed
         # with #1861 Track C4, which dropped the columns it read. The member

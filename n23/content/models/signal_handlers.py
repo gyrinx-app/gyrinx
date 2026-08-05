@@ -19,6 +19,7 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
 from n23.content.signals import MISSING, get_new_cost, get_old_cost, get_old_field
+from n23.content.statlines import set_fighter_statline, statline_type_for_category
 from n23.models import format_cost_display
 from gyrinx.tracing import traced
 
@@ -36,6 +37,7 @@ from .equipment_list import (
 from .expansion import ContentEquipmentListExpansionItem
 from .fighter import ContentFighter
 from .house import ContentFighterHouseOverride
+from .statline import ContentStatline, ContentStatlineType
 from .weapon import ContentWeaponAccessory, ContentWeaponProfile
 
 logger = logging.getLogger(__name__)
@@ -852,3 +854,52 @@ def orphan_pins_on_equipment_list_upgrade_delete(sender, instance, **kwargs):
 @traced("signal_orphan_pins_expansion_item_delete")
 def orphan_pins_on_expansion_item_delete(sender, instance, **kwargs):
     _orphan_pinned_rows(instance)
+
+
+@receiver(
+    post_save,
+    sender=ContentFighter,
+    dispatch_uid="content_fighter_ensure_statline",
+)
+@traced("signal_content_fighter_ensure_statline")
+def ensure_statline(sender, instance, created, **kwargs):
+    """Give every fighter type a statline.
+
+    Stats are read from the statline and nowhere else (#1861), so a fighter
+    type without one has no stats at all — it would render a blank card and
+    could not be given stat overrides. The pack editor and the admin both
+    create statlines on their own paths; this covers everything else,
+    including fixtures, scripts and content imports, which is what makes
+    "every fighter has a statline" an invariant rather than a convention.
+
+    Values are seeded from the legacy stat columns while they still exist, so
+    a fighter built the old way keeps its numbers.
+    """
+    if not created:
+        return
+    if ContentStatline.objects.filter(content_fighter=instance).exists():
+        return
+
+    try:
+        statline_type = statline_type_for_category(instance.category)
+    except (ContentStatlineType.DoesNotExist, ValueError):
+        # No statline type configured for this category. Deliberately loud for
+        # VEHICLE / EXOTIC_BEAST, where guessing produces nonsense companion
+        # stats — but a signal is the wrong place to raise, so leave the
+        # fighter without one and let the caller notice.
+        logger.warning(
+            "No statline type for ContentFighter %s (category %r); "
+            "created without a statline.",
+            instance.pk,
+            instance.category,
+        )
+        return
+
+    # Seed from the legacy stat columns while they still exist, so a fighter
+    # built the old way keeps its numbers.
+    values = {}
+    for type_stat in statline_type.stats.select_related("stat"):
+        raw = getattr(instance, type_stat.stat.field_name, None)
+        if raw:
+            values[type_stat.id] = raw
+    set_fighter_statline(instance, statline_type, values)

@@ -106,6 +106,61 @@ def normalize_stat_value(raw_value, content_stat):
     return value
 
 
+def set_fighter_statline(fighter, statline_type, values_by_type_stat=None):
+    """Give ``fighter`` a statline of ``statline_type`` holding these values.
+
+    The single write path for a fighter's stats, used by the admin, the pack
+    editor and the post_save that guarantees every fighter has one. It
+    reconciles rather than creates, because a fighter has at most one statline
+    (OneToOne) and more than one of those callers can run for the same
+    fighter: creating blindly raced into a unique-constraint error.
+
+    ``values_by_type_stat`` maps ContentStatlineTypeStat id to a raw value;
+    anything missing is left as it was, or written as "-" if new. Values for
+    stats outside the type are dropped, so switching type does not leave
+    orphans behind — ContentStatline.clean() requires exactly the type's set.
+    """
+    from n23.content.models.statline import ContentStatline, ContentStatlineStat
+
+    values_by_type_stat = values_by_type_stat or {}
+
+    statline, created = ContentStatline.objects.get_or_create(
+        content_fighter=fighter, defaults={"statline_type": statline_type}
+    )
+    if not created and statline.statline_type_id != statline_type.id:
+        statline.statline_type = statline_type
+        statline.save(update_fields=["statline_type"])
+
+    type_stats = list(statline_type.stats.select_related("stat"))
+    statline.stats.exclude(
+        statline_type_stat__in=[type_stat.id for type_stat in type_stats]
+    ).delete()
+
+    existing = {stat.statline_type_stat_id: stat for stat in statline.stats.all()}
+    for type_stat in type_stats:
+        if type_stat.id in values_by_type_stat:
+            value = normalize_stat_value(
+                values_by_type_stat[type_stat.id], type_stat.stat
+            )
+        elif type_stat.id in existing:
+            continue
+        else:
+            value = "-"
+        ContentStatlineStat.objects.update_or_create(
+            statline=statline,
+            statline_type_stat=type_stat,
+            defaults={"value": value},
+        )
+
+    # Point the fighter we were handed at what we just wrote. Django caches the
+    # reverse one-to-one, so a caller reading fighter.custom_statline after
+    # this — the admin does, and so does anything rendering a card — would
+    # otherwise get the statline as it was before, including its old type.
+    statline.statline_type = statline_type
+    fighter._state.fields_cache["custom_statline"] = statline
+    return statline
+
+
 def stat_placeholder(content_stat):
     """Return a placeholder example for a stat input field."""
     if content_stat.is_inches:

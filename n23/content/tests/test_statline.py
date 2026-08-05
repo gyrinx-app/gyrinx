@@ -5,11 +5,11 @@ from n23.content.models import (
     ContentFighter,
     ContentHouse,
     ContentStat,
-    ContentStatline,
     ContentStatlineStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
 )
+from n23.content.statlines import set_fighter_statline
 
 
 @pytest.mark.django_db
@@ -52,24 +52,14 @@ def test_content_statline_stat_model():
         position=2,
     )
 
-    # Create statline
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
+    # Saving the fighter already gave it a default statline, so move it onto
+    # this type and set the values in one go.
+    statline = set_fighter_statline(
+        fighter,
+        statline_type,
+        {movement_stat.id: '8"', front_stat.id: "12"},
     )
-
-    # Create stat values
-    movement_value = ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=movement_stat,
-        value='8"',
-    )
-
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=front_stat,
-        value="12",
-    )
+    movement_value = statline.stats.get(statline_type_stat=movement_stat)
 
     # Test relationships
     assert statline.stats.count() == 2
@@ -155,20 +145,13 @@ def test_content_fighter_statline_method():
         )
         type_stats.append(stat)
 
-    # Create custom statline
-    custom_statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=vehicle_type,
-    )
-
-    # Create stat values
+    # Move the fighter's statline onto the vehicle type, with these values
     stat_values = ['8"', "12", "10", "9", "3", "6+", "5+"]
-    for stat, value in zip(type_stats, stat_values):
-        ContentStatlineStat.objects.create(
-            statline=custom_statline,
-            statline_type_stat=stat,
-            value=value,
-        )
+    set_fighter_statline(
+        fighter,
+        vehicle_type,
+        {stat.id: value for stat, value in zip(type_stats, stat_values)},
+    )
 
     # Test the statline method
     statline = fighter.statline()
@@ -227,18 +210,13 @@ def test_statline_validation():
         position=2,
     )
 
-    # Create statline without all required stats
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
+    # A statline missing one of its type's stats. The normal write path always
+    # fills the whole set, so drop a row deliberately to get there — this is
+    # the shape clean() exists to catch, however it arose.
+    statline = set_fighter_statline(
+        fighter, statline_type, {statline_type.stats.first().id: "10"}
     )
-
-    # Add only one stat value
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=statline_type.stats.first(),
-        value="10",
-    )
+    statline.stats.exclude(statline_type_stat=statline_type.stats.first()).delete()
 
     # Validation should fail because stat2 is missing
     with pytest.raises(ValidationError) as exc_info:

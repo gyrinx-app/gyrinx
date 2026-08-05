@@ -170,6 +170,73 @@ def content_stat_definitions(django_db_setup, django_db_blocker):
     )
 
 
+#: The "Fighter" statline type content.0156 guarantees, in display order.
+#: field_name -> (position, is_highlighted, is_first_of_group)
+CANONICAL_FIGHTER_STATLINE = {
+    "movement": (1, False, False),
+    "weapon_skill": (2, False, False),
+    "ballistic_skill": (3, False, False),
+    "strength": (4, False, False),
+    "toughness": (5, False, False),
+    "wounds": (6, False, False),
+    "initiative": (7, False, False),
+    "attacks": (8, False, False),
+    "leadership": (9, True, True),
+    "cool": (10, True, False),
+    "willpower": (11, True, False),
+    "intelligence": (12, True, False),
+}
+
+
+def _seed_fighter_statline_type(**kwargs):
+    """Create the standard "Fighter" statline type and its stats."""
+    from n23.content.models.statline import (
+        ContentStat,
+        ContentStatlineType,
+        ContentStatlineTypeStat,
+    )
+
+    statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
+    for field_name, (
+        position,
+        highlighted,
+        first_of_group,
+    ) in CANONICAL_FIGHTER_STATLINE.items():
+        stat = ContentStat.objects.filter(field_name=field_name).first()
+        if stat is None:
+            continue
+        ContentStatlineTypeStat.objects.get_or_create(
+            statline_type=statline_type,
+            stat=stat,
+            defaults={
+                "position": position,
+                "is_highlighted": highlighted,
+                "is_first_of_group": first_of_group,
+            },
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fighter_statline_type_definition(content_stat_definitions, django_db_blocker):
+    """Seed the "Fighter" statline type the data migration guarantees.
+
+    Every fighter type gets a statline on save, resolved from its category and
+    falling back to "Fighter". Without this row that lookup fails, so no test
+    fighter would have a statline at all — and the suite would be exercising
+    an arrangement that no real environment has. Re-seeded from post_migrate
+    for the same reason as the stat definitions: a transactional test
+    truncates the table on teardown.
+    """
+    with django_db_blocker.unblock():
+        _seed_fighter_statline_type()
+
+    post_migrate.connect(
+        _seed_fighter_statline_type,
+        sender=apps.get_app_config("content"),
+        dispatch_uid="tests.seed_fighter_statline_type",
+    )
+
+
 @pytest.fixture(scope="session")
 def content_books(django_db_setup, django_db_blocker):
     """Create ContentBook objects needed for tests."""

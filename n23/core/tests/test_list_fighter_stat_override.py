@@ -10,11 +10,10 @@ from n23.content.models import (
     ContentFighter,
     ContentHouse,
     ContentStat,
-    ContentStatline,
-    ContentStatlineStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
 )
+from n23.content.statlines import set_fighter_statline
 from n23.core.models import List, ListFighter, ListFighterStatOverride
 
 User = get_user_model()
@@ -131,22 +130,17 @@ def vehicle_stats(db, vehicle_statline_type):
 
 @pytest.fixture
 def vehicle_statline(db, content_fighter, vehicle_statline_type, vehicle_stats):
-    """Create a vehicle statline for the content fighter."""
-    statline = ContentStatline.objects.create(
-        content_fighter=content_fighter,
-        statline_type=vehicle_statline_type,
-    )
+    """Move the content fighter's statline onto the vehicle type.
 
-    # Add stat values
+    Every fighter type is given a statline when it is saved, so this replaces
+    that default rather than adding a second one.
+    """
     stat_values = ['8"', "6", "5", "4", "3", "4+", "6+", "Slow"]
-    for stat_def, value in zip(vehicle_stats, stat_values):
-        ContentStatlineStat.objects.create(
-            statline=statline,
-            statline_type_stat=stat_def,
-            value=value,
-        )
-
-    return statline
+    return set_fighter_statline(
+        content_fighter,
+        vehicle_statline_type,
+        {stat_def.id: value for stat_def, value in zip(vehicle_stats, stat_values)},
+    )
 
 
 @pytest.mark.django_db
@@ -415,7 +409,13 @@ def test_edit_fighter_stats_form_initialization_with_overrides(
 
 
 @pytest.mark.django_db
-def test_statline_annotation_with_legacy_statline(list_obj):
+def test_a_plain_fighter_type_is_given_a_statline_on_save(list_obj):
+    """Every fighter type gets a statline, whoever created it.
+
+    Nothing here asks for one — no admin, no pack editor — so this pins the
+    save-time guarantee that lets the card read statlines and nothing else.
+    The values come from the stat columns, formatted on the way in.
+    """
     fighter = ContentFighter.objects.create(
         type="Test Fighter",
         house=list_obj.content_house,
@@ -443,7 +443,15 @@ def test_statline_annotation_with_legacy_statline(list_obj):
     # ... then refetch with all related data
     lf = ListFighter.objects.with_related_data().get(id=lf.id)
 
-    assert lf.annotated_content_fighter_statline is None
+    annotated = lf.annotated_content_fighter_statline
+    assert annotated is not None
+    shown = {entry["field_name"]: entry["value"] for entry in annotated}
+    assert len(shown) == 12
+    # Bare numbers gain their suffix on the way in: inches for movement,
+    # a target roll for weapon skill, neither for strength.
+    assert shown["movement"] == '1"'
+    assert shown["weapon_skill"] == "1+"
+    assert shown["strength"] == "1"
 
 
 @pytest.mark.django_db
@@ -483,24 +491,9 @@ def test_statline_annotation_with_custom_statline(list_obj):
         position=2,
     )
 
-    # Create statline without all required stats
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
-    )
-
-    # Add some values
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=s1,
-        value="1",
-    )
-
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=s2,
-        value="2",
-    )
+    # The fighter already has a default statline; move it onto this
+    # type with these values.
+    set_fighter_statline(fighter, statline_type, {s1.id: "1", s2.id: "2"})
 
     # Make a ListFighter from the ContentFighter
     lf = ListFighter.objects.create(
@@ -566,24 +559,9 @@ def test_statline_override_annotation_with_custom_statline(list_obj):
         position=2,
     )
 
-    # Create statline without all required stats
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
-    )
-
-    # Add some values
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=s1,
-        value="1",
-    )
-
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=s2,
-        value="2",
-    )
+    # The fighter already has a default statline; move it onto this
+    # type with these values.
+    set_fighter_statline(fighter, statline_type, {s1.id: "1", s2.id: "2"})
 
     # Make a ListFighter from the ContentFighter
     lf = ListFighter.objects.create(
@@ -651,24 +629,9 @@ def test_with_related_data_returns_single_fighter_with_stat_overrides(list_obj):
         position=2,
     )
 
-    # Create statline
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
-    )
-
-    # Add stat values
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=s1,
-        value="1",
-    )
-
-    ContentStatlineStat.objects.create(
-        statline=statline,
-        statline_type_stat=s2,
-        value="2",
-    )
+    # The fighter already has a default statline; move it onto this type with
+    # these values.
+    set_fighter_statline(fighter, statline_type, {s1.id: "1", s2.id: "2"})
 
     # Create ListFighter
     lf = ListFighter.objects.create(

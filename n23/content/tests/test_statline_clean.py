@@ -65,8 +65,14 @@ def test_content_statline_clean_during_creation():
     except ValidationError:
         pytest.fail("clean() raised ValidationError during creation")
 
-    # Save the statline
-    statline.save()
+    # Saving the fighter already gave it a statline, so adopt that row rather
+    # than inserting a second one (the FK is one-to-one). Fetched rather than
+    # read off `fighter`: constructing the unsaved ContentStatline above put
+    # itself in the fighter's cached relation.
+    statline = ContentStatline.objects.get(content_fighter=fighter)
+    statline.statline_type = statline_type
+    statline.save(update_fields=["statline_type"])
+    statline.stats.all().delete()
 
     # Now test that validation works after the object is saved
     # The statline exists but has no stats yet
@@ -117,11 +123,11 @@ def test_content_statline_clean_with_no_stats():
         name="BasicStatline",
     )
 
-    # Create a statline
-    statline = ContentStatline.objects.create(
-        content_fighter=fighter,
-        statline_type=statline_type,
-    )
+    # Point the fighter's statline at the empty type
+    statline = fighter.custom_statline
+    statline.statline_type = statline_type
+    statline.save(update_fields=["statline_type"])
+    statline.stats.all().delete()
 
     # Even though the statline exists and has no stats,
     # clean should not raise an error if no stats exist at all
