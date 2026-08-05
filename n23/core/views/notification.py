@@ -68,8 +68,14 @@ class NotificationInboxView(LoginRequiredMixin, generic.ListView):
     paginate_by = 25
 
     def get_queryset(self):
-        qs = Notification.objects.for_recipient(self.request.user).select_related(
-            "related_list", "related_campaign", "sender"
+        # `target` / `scope` are prefetched, not select_related: they are generic
+        # relations, so Django batches them one query per content type. Without
+        # this, `target_url` dereferences each row's target individually and the
+        # inbox issues a query per notification.
+        qs = (
+            Notification.objects.for_recipient(self.request.user)
+            .select_related("sender")
+            .prefetch_related("target", "scope")
         )
         qs, self._resolved_filters = apply_inbox_filters(qs, self.request.GET)
         return qs.order_by("-created")

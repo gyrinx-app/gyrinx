@@ -70,20 +70,15 @@ class NotificationQuerySet(models.QuerySet):
         (``target`` the gang, ``scope`` the campaign) banners on both pages — which
         is what the two fixed FKs used to give us.
         """
+        content_type = ContentType.objects.get_for_model(obj)
         return (
             self.for_recipient(user)
             .active()
             .unread()
             .filter(show_as_banner=True)
             .filter(
-                Q(
-                    target_content_type=ContentType.objects.get_for_model(obj),
-                    target_object_id=obj.pk,
-                )
-                | Q(
-                    scope_content_type=ContentType.objects.get_for_model(obj),
-                    scope_object_id=obj.pk,
-                )
+                Q(target_content_type=content_type, target_object_id=obj.pk)
+                | Q(scope_content_type=content_type, scope_object_id=obj.pk)
             )
             .select_related("sender")
         )
