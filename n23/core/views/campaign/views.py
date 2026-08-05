@@ -398,7 +398,7 @@ class CampaignDetailView(generic.DetailView):
             from n23.core.models.notification import Notification
 
             context["notification_banners"] = Notification.objects.banners_for(
-                user, campaign=campaign
+                user, campaign
             )
 
         return context

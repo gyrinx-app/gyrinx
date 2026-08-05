@@ -11,9 +11,10 @@ migrations can call them safely.
 import logging
 from itertools import islice
 
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Q
-from django.urls import reverse
 from django.utils import timezone
 
 from gyrinx.base_models import AppBase
@@ -62,20 +63,25 @@ class NotificationQuerySet(models.QuerySet):
         """Cheap COUNT for the navbar badge (backed by a partial index)."""
         return self.for_recipient(user).active().unread().count()
 
-    def banners_for(self, user, *, list_=None, campaign=None):
-        """Active, unread, banner-flagged notifications for an object's page."""
-        qs = (
+    def banners_for(self, user, obj):
+        """Active, unread, banner-flagged notifications to show on ``obj``'s page.
+
+        Matches either relation, so a notification about a gang *within* a campaign
+        (``target`` the gang, ``scope`` the campaign) banners on both pages — which
+        is what the two fixed FKs used to give us.
+        """
+        content_type = ContentType.objects.get_for_model(obj)
+        return (
             self.for_recipient(user)
             .active()
             .unread()
             .filter(show_as_banner=True)
+            .filter(
+                Q(target_content_type=content_type, target_object_id=obj.pk)
+                | Q(scope_content_type=content_type, scope_object_id=obj.pk)
+            )
             .select_related("sender")
         )
-        if list_ is not None:
-            qs = qs.filter(related_list=list_)
-        if campaign is not None:
-            qs = qs.filter(related_campaign=campaign)
-        return qs
 
 
 class NotificationManager(HistoryAwareManager):
@@ -125,7 +131,39 @@ class Notification(AppBase):
         help_text="Soft-delete timestamp. Deleted rows disappear from every inbox view.",
     )
 
-    # Fixed relations. SET_NULL so the inbox text survives object deletion.
+    # What the notification is about, and the wider context it belongs to, as
+    # generic relations: `target` is the subject (a gang, say) and `scope` is the
+    # container it sits in (that gang's campaign). Either may be null.
+    #
+    # Generic rather than fixed FKs because this model is on its way to the
+    # platform, which cannot hold a ForeignKey to an edition table — see #2093.
+    # Deletion leaves a dangling id rather than nulling the column, which is the
+    # same end state the old SET_NULL gave us (the inbox text survives, the link
+    # stops resolving); primary keys are UUIDs, so a dangling id can never be
+    # recycled onto some other object.
+    target_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_targets",
+    )
+    target_object_id = models.UUIDField(null=True, blank=True)
+    target = GenericForeignKey("target_content_type", "target_object_id")
+
+    scope_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_scopes",
+    )
+    scope_object_id = models.UUIDField(null=True, blank=True)
+    scope = GenericForeignKey("scope_content_type", "scope_object_id")
+
+    # Superseded by target/scope above; retained so a deploy can roll back and so
+    # instances still running the previous revision keep working. Dropped in the
+    # follow-up that moves this model to the platform.
     related_list = models.ForeignKey(
         "core.List",
         on_delete=models.SET_NULL,
@@ -172,14 +210,15 @@ class Notification(AppBase):
             ),
             # Inbox listing (recipient, newest first).
             models.Index(fields=["owner", "-created"], name="notif_inbox_idx"),
-            # Banner surfaces.
+            # Banner surfaces, one index per generic relation. banners_for() ORs
+            # the two, which Postgres can satisfy as a bitmap OR over both.
             models.Index(
-                fields=["related_list", "show_as_banner"],
-                name="notif_banner_list_idx",
+                fields=["target_content_type", "target_object_id", "show_as_banner"],
+                name="notif_banner_target_idx",
             ),
             models.Index(
-                fields=["related_campaign", "show_as_banner"],
-                name="notif_banner_camp_idx",
+                fields=["scope_content_type", "scope_object_id", "show_as_banner"],
+                name="notif_banner_scope_idx",
             ),
         ]
 
@@ -201,11 +240,19 @@ class Notification(AppBase):
 
     @property
     def target_url(self):
-        """URL of the related object, if any, for the inbox row title link."""
-        if self.related_list_id is not None:
-            return reverse("core:list", args=[self.related_list_id])
-        if self.related_campaign_id is not None:
-            return reverse("core:campaign", args=[self.related_campaign_id])
+        """URL of the related object, if any, for the inbox row title link.
+
+        Asks the object where it lives rather than reversing a URL name here, so
+        this works for anything a future edition might point a notification at.
+        Returns "" when there is no target, when the target has been deleted, or
+        when its model does not define ``get_absolute_url``.
+        """
+        for obj in (self.target, self.scope):
+            if obj is None:
+                continue
+            getter = getattr(obj, "get_absolute_url", None)
+            if getter is not None:
+                return getter()
         return ""
 
     @property
@@ -277,6 +324,11 @@ def notify(
         if recipient is None:
             logger.warning("notify() called with no recipient; skipping")
             return None
+        # The gang is the subject when there is one, and its campaign is then the
+        # surrounding scope; a campaign-only notification is its own subject.
+        # These kwargs become `target=` / `scope=` once the FK columns are dropped.
+        target = related_list if related_list is not None else related_campaign
+        scope = related_campaign if related_list is not None else None
         return Notification.objects.create_with_user(
             user=sender,  # history user (no-op — no history table); harmless
             owner=recipient,  # AppBase owner == recipient
@@ -284,6 +336,10 @@ def notify(
             subject=subject,
             content=content,
             notification_type=notification_type,
+            target=target,
+            scope=scope,
+            # Written alongside the generic relations so the previous revision
+            # keeps reading them during a rollout or rollback.
             related_list=related_list,
             related_campaign=related_campaign,
             show_as_banner=show_as_banner,

@@ -400,7 +400,7 @@ class ListDetailView(generic.DetailView):
             from n23.core.models.notification import Notification
 
             context["notification_banners"] = Notification.objects.banners_for(
-                self.request.user, list_=list_obj
+                self.request.user, list_obj
             )
 
         # Whether the viewer is the campaign arbitrator (campaign owner) for a

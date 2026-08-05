@@ -1,6 +1,8 @@
 """Tests for the notification inbox views and actions."""
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from n23.core.models.notification import (
@@ -282,3 +284,35 @@ def test_bulk_ignores_malformed_ids(client, user):
     assert resp.status_code == 302
     a.refresh_from_db()
     assert a.archived is True
+
+
+@pytest.mark.django_db
+def test_inbox_does_not_query_per_notification_target(client, user, make_list):
+    """Rendering the inbox must not scale queries with the number of targets.
+
+    ``target_url`` dereferences the ``target`` / ``scope`` generic relations, so
+    without prefetching them the inbox issues a query per row. The FK-era
+    ``select_related`` did not cover this — the fixed relations it prefetched are
+    no longer what the template reads.
+    """
+    client.force_login(user)
+
+    def render_query_count():
+        with CaptureQueriesContext(connection) as ctx:
+            response = client.get(reverse("core:notifications"))
+            assert response.status_code == 200
+        return len(ctx.captured_queries)
+
+    for i in range(3):
+        notify_list_owner(make_list(f"Gang {i}"), subject=f"About gang {i}")
+    few = render_query_count()
+
+    for i in range(6):
+        notify_list_owner(make_list(f"Extra {i}"), subject=f"About extra {i}")
+    many = render_query_count()
+
+    # Prefetching is per content type, not per row, so tripling the rows must not
+    # add a query each. A small constant is allowed for pagination/count drift.
+    assert many <= few + 2, (
+        f"inbox queries scale with notification count: {few} -> {many}"
+    )
