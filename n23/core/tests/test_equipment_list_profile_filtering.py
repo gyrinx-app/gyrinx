@@ -6,7 +6,6 @@ from django.urls import reverse
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentWeaponProfile,
@@ -17,7 +16,7 @@ User = get_user_model()
 
 
 @pytest.mark.django_db
-def test_weapon_profiles_filtered_with_equipment_list():
+def test_weapon_profiles_filtered_with_equipment_list(make_content_fighter):
     """Test that weapon profiles are filtered when equipment list filter is active"""
     # Create test data
     user = User.objects.create_user(
@@ -52,7 +51,7 @@ def test_weapon_profiles_filtered_with_equipment_list():
     )
 
     # Create a fighter type
-    fighter_type = ContentFighter.objects.create(
+    fighter_type = make_content_fighter(
         house=house,
         type="Test Profile Filter Fighter",
         category="GANGER",

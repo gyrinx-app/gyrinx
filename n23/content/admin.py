@@ -842,25 +842,6 @@ class ContentFighterEquipmentCategoryLimitForFighterInline(ContentTabularInline)
     verbose_name_plural = "Equipment Category Limits"
 
 
-#: The 12 hardcoded stat columns on ContentFighter. Values live in the
-#: fighter's statline now; the columns survive only until #1861 drops them,
-#: and are kept off the admin form so nobody edits a dead field.
-LEGACY_STAT_COLUMNS = [
-    "movement",
-    "weapon_skill",
-    "ballistic_skill",
-    "strength",
-    "toughness",
-    "wounds",
-    "initiative",
-    "attacks",
-    "leadership",
-    "cool",
-    "willpower",
-    "intelligence",
-]
-
-
 def statline_field_name(type_stat):
     """Form field name carrying one stat's value."""
     return f"stat_{type_stat.id}"
@@ -909,7 +890,7 @@ class ContentFighterForm(forms.ModelForm):
 
     class Meta:
         model = ContentFighter
-        exclude = LEGACY_STAT_COLUMNS
+        fields = "__all__"
 
     @property
     def stat_fields(self):

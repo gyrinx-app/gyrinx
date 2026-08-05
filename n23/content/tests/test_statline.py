@@ -23,8 +23,10 @@ def test_content_statline_stat_model():
         category="LEADER",  # Add required category
     )
 
-    # Create statline type
-    statline_type = ContentStatlineType.objects.create(name="Vehicle")
+    # Create statline type. Not called "Vehicle": the canonical types exist
+    # already and the name is unique, and this one deliberately carries only
+    # two stats so the counts below stay readable.
+    statline_type = ContentStatlineType.objects.create(name="Two-Stat Vehicle")
 
     # Create stat definitions
     movement_stat_def, _ = ContentStat.objects.get_or_create(
@@ -69,7 +71,9 @@ def test_content_statline_stat_model():
 
     # Test string representation
     assert str(movement_value) == 'M: 8"'
-    assert str(statline) == "Test House Test Fighter (Leader) - Vehicle Statline"
+    assert (
+        str(statline) == "Test House Test Fighter (Leader) - Two-Stat Vehicle Statline"
+    )
 
     # Test unique together constraint
     with pytest.raises(Exception):  # IntegrityError
@@ -89,22 +93,12 @@ def test_content_fighter_statline_method():
         type="Test Vehicle",
         house=house,
         category="CREW",  # Add required category
-        movement=0,  # Default values for legacy fields
-        weapon_skill=0,
-        ballistic_skill=0,
-        strength=0,
-        toughness=0,
-        wounds=0,
-        initiative=0,
-        attacks=0,
-        leadership=0,
-        cool=0,
-        willpower=0,
-        intelligence=0,
     )
 
-    # Create vehicle statline type
-    vehicle_type = ContentStatlineType.objects.create(name="Vehicle")
+    # Create vehicle statline type. Not called "Vehicle": the canonical types
+    # exist already and the name is unique. This one is shaped for the
+    # display assertions below rather than mirroring production.
+    vehicle_type = ContentStatlineType.objects.create(name="Test Vehicle Type")
 
     # Create stats for vehicle
     stats_data = [

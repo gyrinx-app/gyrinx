@@ -13,7 +13,6 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
 from n23.content.models import (
-    ContentFighter,
     ContentHouse,
     ContentRule,
     ContentSkill,
@@ -35,7 +34,7 @@ def _add_to_pack(pack, content_obj):
 
 
 @pytest.fixture
-def pack_query_test_data(db):
+def pack_query_test_data(db, make_content_fighter):
     """Set up test data with pack content for query counting."""
     user = User.objects.create_user(username="packtest", password="testpass")
 
@@ -63,7 +62,7 @@ def pack_query_test_data(db):
     _add_to_pack(pack, pack_skill1)
 
     # Create fighter template with both base and pack rules/skills
-    fighter_template = ContentFighter.objects.create(
+    fighter_template = make_content_fighter(
         type="Ganger",
         house=house,
         category=FighterCategoryChoices.GANGER,

@@ -5,16 +5,16 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
 
-from n23.content.models import ContentFighter, ContentHouse
+from n23.content.models import ContentHouse
 from n23.core.forms.list import EditFighterXPForm
 from n23.core.models import CampaignAction, List, ListFighter
 from n23.core.models.campaign import Campaign
 
 
 @pytest.fixture
-def content_fighter(content_house):
+def content_fighter(content_house, make_content_fighter):
     """Create a test content fighter."""
-    return ContentFighter.objects.create(
+    return make_content_fighter(
         type="Test Fighter",
         house=content_house,
         category="GANGER",
@@ -151,12 +151,12 @@ def test_edit_fighter_xp_view_requires_ownership(list_with_fighter):
 
 
 @pytest.mark.django_db
-def test_edit_fighter_xp_view_works_in_any_mode():
+def test_edit_fighter_xp_view_works_in_any_mode(make_content_fighter):
     """Test that edit_fighter_xp view works in any list mode."""
     # Create a list in basic mode
     owner = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="House")
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Fighter",
         house=house,
         category="GANGER",
@@ -453,11 +453,11 @@ def test_fighter_card_shows_xp_in_campaign_mode(list_with_fighter):
 
 
 @pytest.mark.django_db
-def test_fighter_card_shows_xp_in_basic_mode():
+def test_fighter_card_shows_xp_in_basic_mode(make_content_fighter):
     """Test that fighter card shows XP in basic mode."""
     owner = User.objects.create_user(username="testuser", password="password")
     house = ContentHouse.objects.create(name="House")
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Fighter",
         house=house,
         category="GANGER",
@@ -597,7 +597,7 @@ def test_archived_fighter_cannot_edit_xp(list_with_fighter):
 
 
 @pytest.mark.django_db
-def test_campaign_owner_can_edit_fighter_xp():
+def test_campaign_owner_can_edit_fighter_xp(make_content_fighter):
     """Test that campaign owner can edit XP for fighters in their campaign."""
     campaign_owner = User.objects.create_user(
         username="campaign_owner", password="password"
@@ -605,7 +605,7 @@ def test_campaign_owner_can_edit_fighter_xp():
     list_owner = User.objects.create_user(username="list_owner", password="password")
 
     house = ContentHouse.objects.create(name="Test House")
-    cf = ContentFighter.objects.create(
+    cf = make_content_fighter(
         type="Fighter",
         house=house,
         category="GANGER",
@@ -655,7 +655,7 @@ def test_campaign_owner_can_edit_fighter_xp():
 
 
 @pytest.mark.django_db
-def test_campaign_owner_can_access_xp_edit_view():
+def test_campaign_owner_can_access_xp_edit_view(make_content_fighter):
     """Test that campaign owner can access the XP edit view."""
     campaign_owner = User.objects.create_user(
         username="campaign_owner", password="password"
@@ -663,7 +663,7 @@ def test_campaign_owner_can_access_xp_edit_view():
     list_owner = User.objects.create_user(username="list_owner", password="password")
 
     house = ContentHouse.objects.create(name="Test House")
-    cf = ContentFighter.objects.create(
+    cf = make_content_fighter(
         type="Fighter",
         house=house,
         category="GANGER",
@@ -707,7 +707,7 @@ def test_campaign_owner_can_access_xp_edit_view():
 
 
 @pytest.mark.django_db
-def test_non_owner_cannot_edit_fighter_xp():
+def test_non_owner_cannot_edit_fighter_xp(make_content_fighter):
     """Test that users who are neither list nor campaign owner cannot edit XP."""
     campaign_owner = User.objects.create_user(
         username="campaign_owner", password="password"
@@ -716,7 +716,7 @@ def test_non_owner_cannot_edit_fighter_xp():
     User.objects.create_user(username="unrelated_user", password="password")
 
     house = ContentHouse.objects.create(name="Test House")
-    cf = ContentFighter.objects.create(
+    cf = make_content_fighter(
         type="Fighter",
         house=house,
         category="GANGER",

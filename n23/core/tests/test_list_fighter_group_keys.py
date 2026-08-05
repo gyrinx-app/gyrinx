@@ -14,7 +14,7 @@ User = get_user_model()
 
 
 @pytest.mark.django_db
-def test_vehicle_and_crew_have_same_group_key():
+def test_vehicle_and_crew_have_same_group_key(make_content_fighter):
     """Test that vehicles and their crew have the same group key (the crew member's ID)."""
     # Create a user and house
     user = User.objects.create_user("testuser", password="testpass")
@@ -28,7 +28,7 @@ def test_vehicle_and_crew_have_same_group_key():
     )
 
     # Create a regular fighter (who will be the crew)
-    crew_cf = ContentFighter.objects.create(
+    crew_cf = make_content_fighter(
         type="Ganger",
         category=FighterCategoryChoices.GANGER,
         base_cost=50,
@@ -57,23 +57,15 @@ def test_vehicle_and_crew_have_same_group_key():
         name="Vehicle Equipment",
         cost=100,
     )
-    vehicle_cf = ContentFighter.objects.create(
+    # A vehicle's statline holds movement, armour facings, hull points,
+    # handling and save — not the fighter stats — so only movement is set
+    # here. None of them matter to grouping.
+    vehicle_cf = make_content_fighter(
         type="Vehicle",
         category=FighterCategoryChoices.VEHICLE,
         base_cost=0,  # Vehicles don't have base cost
         house=house,
         movement='7"',
-        weapon_skill="5+",
-        ballistic_skill="4+",
-        strength="5",
-        toughness="5",
-        wounds="3",
-        initiative="5+",
-        attacks="*",
-        leadership="7+",
-        cool="7+",
-        willpower="8+",
-        intelligence="8+",
     )
     ContentEquipmentFighterProfile.objects.create(
         equipment=vehicle_ce,
@@ -105,7 +97,7 @@ def test_vehicle_and_crew_have_same_group_key():
 
 
 @pytest.mark.django_db
-def test_regular_fighters_have_unique_group_keys():
+def test_regular_fighters_have_unique_group_keys(make_content_fighter):
     """Test that regular fighters (non-vehicles, non-crew) have unique group keys."""
     # Create a user and house
     user = User.objects.create_user("testuser2", password="testpass")
@@ -119,7 +111,7 @@ def test_regular_fighters_have_unique_group_keys():
     )
 
     # Create two regular fighters
-    cf1 = ContentFighter.objects.create(
+    cf1 = make_content_fighter(
         type="Ganger",
         category=FighterCategoryChoices.GANGER,
         base_cost=50,
@@ -143,7 +135,7 @@ def test_regular_fighters_have_unique_group_keys():
         content_fighter=cf1,
     )
 
-    cf2 = ContentFighter.objects.create(
+    cf2 = make_content_fighter(
         type="Champion",
         category=FighterCategoryChoices.CHAMPION,
         base_cost=100,
@@ -180,7 +172,9 @@ def test_regular_fighters_have_unique_group_keys():
 
 
 @pytest.mark.django_db
-def test_list_view_includes_fighters_with_groups(client, django_user_model):
+def test_list_view_includes_fighters_with_groups(
+    client, django_user_model, make_content_fighter
+):
     """Test that the list view includes fighters_with_groups in context."""
     # Create a user and log in
     user = django_user_model.objects.create_user("testuser3", password="testpass")
@@ -195,7 +189,7 @@ def test_list_view_includes_fighters_with_groups(client, django_user_model):
     )
 
     # Create a fighter
-    cf = ContentFighter.objects.create(
+    cf = make_content_fighter(
         type="Ganger",
         category=FighterCategoryChoices.GANGER,
         base_cost=50,
@@ -235,7 +229,7 @@ def test_list_view_includes_fighters_with_groups(client, django_user_model):
 
 
 @pytest.mark.django_db
-def test_stash_vehicles_have_unique_group_keys():
+def test_stash_vehicles_have_unique_group_keys(make_content_fighter):
     """Test that vehicles linked to the stash have their own ID as group key (not grouped with stash)."""
     # Create a user and house
     user = User.objects.create_user("testuser4", password="testpass")
@@ -268,23 +262,14 @@ def test_stash_vehicles_have_unique_group_keys():
         name="Vehicle Equipment 1",
         cost=100,
     )
-    vehicle1_cf = ContentFighter.objects.create(
+    # Only movement is shared between the fighter and vehicle statlines; the
+    # rest of a vehicle's stats are irrelevant to grouping.
+    vehicle1_cf = make_content_fighter(
         type="Vehicle 1",
         category=FighterCategoryChoices.VEHICLE,
         base_cost=0,
         house=house,
         movement='7"',
-        weapon_skill="5+",
-        ballistic_skill="4+",
-        strength="5",
-        toughness="5",
-        wounds="3",
-        initiative="5+",
-        attacks="*",
-        leadership="7+",
-        cool="7+",
-        willpower="8+",
-        intelligence="8+",
     )
     ContentEquipmentFighterProfile.objects.create(
         equipment=vehicle1_ce,
@@ -295,23 +280,12 @@ def test_stash_vehicles_have_unique_group_keys():
         name="Vehicle Equipment 2",
         cost=150,
     )
-    vehicle2_cf = ContentFighter.objects.create(
+    vehicle2_cf = make_content_fighter(
         type="Vehicle 2",
         category=FighterCategoryChoices.VEHICLE,
         base_cost=0,
         house=house,
         movement='8"',
-        weapon_skill="5+",
-        ballistic_skill="4+",
-        strength="5",
-        toughness="5",
-        wounds="3",
-        initiative="5+",
-        attacks="*",
-        leadership="7+",
-        cool="7+",
-        willpower="8+",
-        intelligence="8+",
     )
     ContentEquipmentFighterProfile.objects.create(
         equipment=vehicle2_ce,

@@ -73,10 +73,16 @@ def _stat(fighter, field_name):
     return next(s for s in fighter.statline if s.field_name == field_name).value
 
 
+def _content_stat(content_fighter, field_name):
+    """The printed value of a stat, read from the fighter type's statline."""
+    stats = {s["field_name"]: s["value"] for s in content_fighter.statline()}
+    return stats[field_name]
+
+
 @pytest.mark.django_db
 def test_untreated_injury_applies_its_modifiers(injured_fighter, content_fighter):
     """Baseline: with no bionic, the injury worsens Ballistic Skill."""
-    assert content_fighter.ballistic_skill == "5+"
+    assert _content_stat(content_fighter, "ballistic_skill") == "5+"
     assert _stat(injured_fighter, "ballistic_skill") == "6+"
 
     entry = injured_fighter.injuries_display[0]

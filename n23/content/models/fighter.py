@@ -7,6 +7,8 @@ This module contains:
 - ContentFighterCategoryTerms: Custom terminology for fighter types
 """
 
+import logging
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Case, Q, When
@@ -18,6 +20,8 @@ from simple_history.models import HistoricalRecords
 from n23.models import FighterCategoryChoices
 
 from .base import Content, ContentManager, ContentQuerySet
+
+logger = logging.getLogger(__name__)
 
 
 class ContentFighterManager(ContentManager):
@@ -189,42 +193,9 @@ class ContentFighter(Content):
     rules = models.ManyToManyField("ContentRule", blank=True)
     base_cost = models.IntegerField(default=0)
 
-    movement = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="M"
-    )
-    weapon_skill = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="WS"
-    )
-    ballistic_skill = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="BS"
-    )
-    strength = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="S"
-    )
-    toughness = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="T"
-    )
-    wounds = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="W"
-    )
-    initiative = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="I"
-    )
-    attacks = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="A"
-    )
-    leadership = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="Ld"
-    )
-    cool = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="Cl"
-    )
-    willpower = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="Wil"
-    )
-    intelligence = models.CharField(
-        max_length=12, blank=True, null=False, default="", verbose_name="Int"
-    )
+    # Stats live in the fighter's ContentStatline, one row per stat, which
+    # lets a vehicle or crew carry a different set from a ganger. The 12
+    # hardcoded columns that used to hold them were dropped by #1861.
 
     # Policy
 
@@ -336,76 +307,48 @@ class ContentFighter(Content):
 
         bulk_mark_fighters_dirty(fighters)
 
-    def statline(self, ignore_custom=False):
+    def statline(self):
         """
         Returns a list of dictionaries describing the fighter's core stats,
-        with additional styling indicators. Prefers custom statline if available.
+        with additional styling indicators, read from the fighter's statline.
 
         Performance: Note that this method is expensive and is entirely skipped if the statline is prefecthed
         by ListFighter with_related_data.
         """
-        # Check for custom statline first
-        if not ignore_custom and hasattr(self, "custom_statline"):
-            statline = self.custom_statline
-            stats = []
-            # Get all stat values for this statline. Both loops reach through
-            # ContentStatlineTypeStat to ContentStat for the field and short
-            # names, so the chain has to be select_related in both — without
-            # it this is two queries per stat, every time a card is built off
-            # the un-annotated path.
-            stat_values = {
-                stat.statline_type_stat.field_name: stat.value
-                for stat in statline.stats.select_related("statline_type_stat__stat")
-            }
-            for stat_def in statline.statline_type.stats.select_related("stat"):
-                value = stat_values.get(stat_def.field_name, "-")
-                stats.append(
-                    {
-                        "field_name": stat_def.field_name,
-                        "name": stat_def.short_name,
-                        "value": value,
-                        "highlight": stat_def.is_highlighted,
-                        "first_of_group": stat_def.is_first_of_group,
-                    }
-                )
-            return stats
+        statline = getattr(self, "custom_statline", None)
+        if statline is None:
+            # Every fighter is given one on save, so this means the save-time
+            # guarantee did not fire — most likely no statline type is
+            # configured for its category. Render nothing rather than invent
+            # stats, and say so.
+            logger.warning(
+                "ContentFighter %s (%r) has no statline; rendering no stats.",
+                self.pk,
+                self.category,
+            )
+            return []
 
-        # Fall back to legacy hardcoded stats
-        return self._legacy_statline()
-
-    def _legacy_statline(self):
-        """
-        Returns the hardcoded statline for backward compatibility.
-        """
-        stats = [
-            (f, self._meta.get_field(f))
-            for f in [
-                "movement",
-                "weapon_skill",
-                "ballistic_skill",
-                "strength",
-                "toughness",
-                "wounds",
-                "initiative",
-                "attacks",
-                "leadership",
-                "cool",
-                "willpower",
-                "intelligence",
-            ]
-        ]
-        return [
-            {
-                "field_name": f,
-                "name": field.verbose_name,
-                "value": getattr(self, field.name) or "-",
-                "highlight": bool(
-                    field.name in ["leadership", "cool", "willpower", "intelligence"]
-                ),
-                "first_of_group": field.name in ["leadership"],
-            }
-            for f, field in stats
-        ]
+        stats = []
+        # Get all stat values for this statline. Both loops reach through
+        # ContentStatlineTypeStat to ContentStat for the field and short
+        # names, so the chain has to be select_related in both — without it
+        # this is two queries per stat, every time a card is built off the
+        # un-annotated path.
+        stat_values = {
+            stat.statline_type_stat.field_name: stat.value
+            for stat in statline.stats.select_related("statline_type_stat__stat")
+        }
+        for stat_def in statline.statline_type.stats.select_related("stat"):
+            stats.append(
+                {
+                    "field_name": stat_def.field_name,
+                    "name": stat_def.short_name,
+                    "value": stat_values.get(stat_def.field_name, "-"),
+                    "highlight": stat_def.is_highlighted,
+                    "first_of_group": stat_def.is_first_of_group,
+                }
+            )
+        return stats
 
     def ruleline(self) -> list[str]:
         """
@@ -427,6 +370,8 @@ class ContentFighter(Content):
         )
 
     def copy_to_house(self, house):
+        from n23.content.statlines import set_fighter_statline
+
         from .default_assignment import ContentFighterDefaultAssignment
         from .equipment_list import (
             ContentFighterEquipmentListItem,
@@ -451,11 +396,32 @@ class ContentFighter(Content):
             fighter=self
         )
 
+        # Read the statline off the source before it stops being ours. Stats
+        # used to be columns on this row and rode along with the duplicate for
+        # free; now they are rows keyed to the fighter, so saving the copy
+        # gives it a fresh empty statline that has to be filled in below.
+        source_statline = getattr(self, "custom_statline", None)
+        statline_type = source_statline.statline_type if source_statline else None
+        stat_values = (
+            {
+                stat.statline_type_stat_id: stat.value
+                for stat in source_statline.stats.all()
+            }
+            if source_statline
+            else {}
+        )
+
         # Copy the fighter
         self.pk = None
         self.house = house
+        # The statline is a reverse one-to-one cached on the instance; left in
+        # place it would point the copy at the original's row.
+        self._state.fields_cache.pop("custom_statline", None)
         self.save()
         fighter_id = self.pk
+
+        if statline_type is not None:
+            set_fighter_statline(self, statline_type, stat_values)
 
         self.skills.set(skills)
         self.primary_skill_categories.set(primary_skill_categories)

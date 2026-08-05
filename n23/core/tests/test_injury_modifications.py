@@ -14,6 +14,7 @@ from n23.content.models import (
     ContentSkillCategory,
     ContentStat,
 )
+from n23.content.statlines import set_fighter_stats
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter, ListFighterInjury
 from n23.models import FighterCategoryChoices
@@ -29,19 +30,24 @@ def create_base_test_data():
         category=FighterCategoryChoices.GANGER,
         house=house,
         base_cost=100,
-        # Base stats
-        movement="5",
-        weapon_skill="4+",
-        ballistic_skill="4+",
-        strength="3",
-        toughness="3",
-        wounds="1",
-        initiative="4+",
-        attacks="1",
-        leadership="7+",
-        cool="7+",
-        willpower="7+",
-        intelligence="7+",
+    )
+    # Base stats live in the fighter's statline, not on the fighter itself.
+    set_fighter_stats(
+        content_fighter,
+        {
+            "movement": "5",
+            "weapon_skill": "4+",
+            "ballistic_skill": "4+",
+            "strength": "3",
+            "toughness": "3",
+            "wounds": "1",
+            "initiative": "4+",
+            "attacks": "1",
+            "leadership": "7+",
+            "cool": "7+",
+            "willpower": "7+",
+            "intelligence": "7+",
+        },
     )
 
     campaign = Campaign.objects.create(

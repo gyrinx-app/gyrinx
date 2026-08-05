@@ -32,9 +32,9 @@ def house(db):
 
 
 @pytest.fixture
-def content_fighter(db, house):
+def content_fighter(db, house, make_content_fighter):
     """Create a test content fighter."""
-    return ContentFighter.objects.create(
+    return make_content_fighter(
         type="Test Fighter",
         house=house,
         category="leader",
@@ -77,9 +77,13 @@ def list_fighter(db, list_obj, content_fighter, user):
 
 @pytest.fixture
 def vehicle_statline_type(db):
-    """Create a vehicle statline type."""
+    """Create a vehicle statline type.
+
+    Not called "Vehicle": the canonical statline types are seeded for every
+    test and the name is unique. This one carries its own made-up stats.
+    """
     return ContentStatlineType.objects.create(
-        name="Vehicle",
+        name="Test Vehicle Type",
     )
 
 
@@ -409,17 +413,21 @@ def test_edit_fighter_stats_form_initialization_with_overrides(
 
 
 @pytest.mark.django_db
-def test_a_plain_fighter_type_is_given_a_statline_on_save(list_obj):
+def test_a_plain_fighter_type_is_given_a_statline_on_save(
+    list_obj, make_content_fighter
+):
     """Every fighter type gets a statline, whoever created it.
 
     Nothing here asks for one — no admin, no pack editor — so this pins the
     save-time guarantee that lets the card read statlines and nothing else.
-    The values come from the stat columns, formatted on the way in.
+    Setting the stats can then only write into that statline, and the values
+    are formatted on the way in.
     """
-    fighter = ContentFighter.objects.create(
+    fighter = make_content_fighter(
         type="Test Fighter",
         house=list_obj.content_house,
         category="GANGER",
+        base_cost=0,
         movement="1",
         weapon_skill="1",
         ballistic_skill="1",

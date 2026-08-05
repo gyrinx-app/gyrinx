@@ -4408,9 +4408,19 @@ def test_get_statline_type_for_category_fallback(fighter_statline_type):
     """_get_statline_type_for_category falls back to Fighter for unmapped categories."""
     from n23.core.views.pack import _get_statline_type_for_category
 
-    # CREW is not in the default_for_categories for Fighter (as per the plan)
-    result = _get_statline_type_for_category("CREW")
+    # STASH is claimed by no statline type — not by Fighter, and not by the
+    # Crew or Vehicle types either — so it takes the fallback. (CREW no longer
+    # does: it has a Crew statline type of its own.)
+    result = _get_statline_type_for_category("STASH")
     assert result.name == "Fighter"
+
+
+@pytest.mark.django_db
+def test_get_statline_type_for_category_crew(fighter_statline_type):
+    """CREW takes the Crew statline type rather than the Fighter fallback."""
+    from n23.core.views.pack import _get_statline_type_for_category
+
+    assert _get_statline_type_for_category("CREW").name == "Crew"
 
 
 @pytest.mark.django_db
@@ -4430,18 +4440,16 @@ def test_add_fighter_step2_uses_category_statline(
     client, group_user, pack, content_house, fighter_statline_type
 ):
     """Step 2 shows the correct stats for a category with a different statline type."""
-    # Create a custom statline type with fewer stats for CREW.
-    crew_type = ContentStatlineType.objects.create(
-        name="Crew Test Type", default_for_categories="CREW"
+    # CREW has a statline type of its own, carrying far fewer stats than
+    # Fighter — no Movement among them. A second type claiming CREW would be
+    # ambiguous, so use the real one rather than inventing another.
+    crew_fields = set(
+        ContentStatlineType.objects.get(name="Crew").stats.values_list(
+            "stat__field_name", flat=True
+        )
     )
-    bs_stat = ContentStat.objects.get(field_name="ballistic_skill")
-    ld_stat = ContentStat.objects.get(field_name="leadership")
-    ContentStatlineTypeStat.objects.create(
-        statline_type=crew_type, stat=bs_stat, position=1
-    )
-    ContentStatlineTypeStat.objects.create(
-        statline_type=crew_type, stat=ld_stat, position=2
-    )
+    assert {"ballistic_skill", "leadership"} <= crew_fields
+    assert "movement" not in crew_fields
 
     client.force_login(group_user)
     response = client.get(

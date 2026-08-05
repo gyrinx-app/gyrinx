@@ -6,7 +6,6 @@ from django.core.exceptions import ValidationError
 from django.urls import reverse
 
 from n23.content.models import (
-    ContentFighter,
     ContentSkill,
     ContentSkillCategory,
 )
@@ -17,8 +16,8 @@ User = get_user_model()
 
 
 @pytest.fixture
-def content_fighter(house):
-    return ContentFighter.objects.create(
+def content_fighter(house, make_content_fighter):
+    return make_content_fighter(
         type="Test Fighter Type",
         house=house,
         movement='4"',
@@ -371,9 +370,9 @@ def test_advancement_clean_validation(fighter_with_xp):
 
 
 @pytest.fixture
-def specialist_fighter(list_with_campaign, house):
+def specialist_fighter(list_with_campaign, house, make_content_fighter):
     """Create a specialist fighter for testing."""
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Specialist Fighter",
         house=house,
         movement='4"',
@@ -401,9 +400,9 @@ def specialist_fighter(list_with_campaign, house):
 
 
 @pytest.fixture
-def champion_fighter(list_with_campaign, house):
+def champion_fighter(list_with_campaign, house, make_content_fighter):
     """Create a champion fighter for testing."""
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Champion Fighter",
         house=house,
         movement='4"',
@@ -580,9 +579,9 @@ def test_champion_cannot_see_promotion_options(client, user, champion_fighter):
 
 
 @pytest.fixture
-def exotic_beast_fighter(list_with_campaign, house):
+def exotic_beast_fighter(list_with_campaign, house, make_content_fighter):
     """Create an exotic beast fighter for testing."""
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Exotic Beast Fighter",
         house=house,
         movement='6"',
