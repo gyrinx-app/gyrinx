@@ -5,10 +5,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views import generic
 
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.http import safe_redirect
 from n23.core.forms.print_config import PrintConfigForm
 from n23.core.models import List, PrintConfig
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
-from n23.core.utils import safe_redirect
 
 
 class PrintConfigIndexView(generic.ListView):

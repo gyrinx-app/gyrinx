@@ -8,10 +8,10 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
-from n23.core.forms.attribute import ListAttributeForm
 from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.http import get_return_url, safe_redirect
+from n23.core.forms.attribute import ListAttributeForm
 from n23.core.models.list import List
-from n23.core.utils import get_return_url, safe_redirect
 from n23.core.views.list.common import get_clean_list_or_404
 
 

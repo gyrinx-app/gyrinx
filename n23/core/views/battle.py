@@ -7,6 +7,9 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
 
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.http import get_return_url, safe_redirect
+from gyrinx.state_machine import InvalidStateTransition
 from n23.core.forms.battle import (
     BattleEndForm,
     BattleForm,
@@ -14,9 +17,9 @@ from n23.core.forms.battle import (
     BattleRolesForm,
 )
 from n23.core.handlers.battle import (
+    battle_not_ready_gangs,
     battle_start_crew_rows,
     battle_timeline,
-    battle_not_ready_gangs,
     charge_crew_spending,
     handle_battle_end,
     notify_battle_participants,
@@ -24,9 +27,6 @@ from n23.core.handlers.battle import (
 from n23.core.handlers.crew import crew_spread_rating, crew_stash_totals
 from n23.core.models import Battle, Campaign, CampaignAction
 from n23.core.models.crew import Crew
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
-from n23.core.utils import get_return_url, safe_redirect
-from gyrinx.state_machine import InvalidStateTransition
 
 
 def _top_rating(values):

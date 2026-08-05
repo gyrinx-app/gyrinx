@@ -36,8 +36,12 @@ into N+1 territory silently in dev and shows up only under load.
   a helper: `get_list_and_fighter()` in [views/fighter/permissions.py](views/fighter/permissions.py).
   Prefer it for new code. Older modules (`state.py`, `xp.py`) still inline the `Q()` and may
   be migrated when touched.
-- Validate redirect targets with `safe_redirect` from [n23/core/utils.py](utils.py) whenever
-  a `next=` or similar comes from user input.
+- Validate redirect targets with `safe_redirect` from [gyrinx/http.py](../../gyrinx/http.py)
+  whenever a `next=` or similar comes from user input. That module also holds
+  `build_safe_url` and `get_return_url`; the model-agnostic queryset helpers
+  (`search_queryset`, `toggle_membership`) live in
+  [gyrinx/querysets.py](../../gyrinx/querysets.py). What stays in [utils.py](utils.py)
+  is the edition's own list query helpers.
 
 ## Tests
 
