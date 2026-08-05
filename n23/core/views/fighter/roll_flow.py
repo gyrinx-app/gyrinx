@@ -24,7 +24,7 @@ from n23.core.handlers.fighter import (
     handle_roll_result_deletion,
 )
 from n23.core.models.campaign import CampaignAction
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import ListFighterRollResult
 from n23.core.views.fighter.permissions import get_list_and_fighter
 

@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from gyrinx.site.models import Banner
 
 logger = logging.getLogger(__name__)

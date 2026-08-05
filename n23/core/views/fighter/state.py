@@ -12,7 +12,7 @@ from django.urls import reverse
 from gyrinx import messages
 from n23.core.forms.list import AddInjuryForm, EditFighterStateForm
 from n23.core.handlers.fighter import handle_fighter_resurrect
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List, ListFighter, ListFighterInjury
 from n23.core.views.list.common import get_clean_list_or_404
 from n23.core.views.fighter.permissions import arbitrator_q

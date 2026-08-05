@@ -18,7 +18,7 @@ from django.contrib.auth.signals import user_logged_out
 from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory
 
-from n23.core.models.events import Event, EventField, EventNoun, EventVerb
+from gyrinx.analytics.models import Event, EventField, EventNoun, EventVerb
 
 User = get_user_model()
 

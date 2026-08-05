@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from n23.core.models.events import Event, EventNoun, EventVerb
+from gyrinx.analytics.models import Event, EventNoun, EventVerb
 from gyrinx.site.models import Banner
 
 User = get_user_model()

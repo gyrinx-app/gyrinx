@@ -24,7 +24,7 @@ from n23.core.handlers.battle import (
 from n23.core.handlers.crew import crew_spread_rating, crew_stash_totals
 from n23.core.models import Battle, Campaign, CampaignAction
 from n23.core.models.crew import Crew
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.utils import get_return_url, safe_redirect
 from gyrinx.state_machine import InvalidStateTransition
 

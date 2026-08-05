@@ -90,7 +90,7 @@ class ImpersonationLog(AppBase):
     the session stops (manually, on logout, on timeout, or when it is revoked
     automatically because the admin lost privileges or the target went away).
 
-    This is an append-only audit log — like :class:`~n23.core.models.events.Event`
+    This is an append-only audit log — like :class:`~gyrinx.analytics.models.Event`
     it does not declare ``HistoricalRecords``.
     """
 

@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-08-04T22:24:45Z",
+  "generated_at": "2026-08-04T22:28:15Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -271,7 +271,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 217,
+      "loc": 218,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -297,7 +297,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 0,
+      "loc": 257,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2754,7 +2754,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 18,
+      "loc": 17,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2822,19 +2822,6 @@
       "loc": 1057,
       "nosec": 0,
       "skipped_tests": 1
-    },
-    "./n23/core/models/events.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 256,
-      "nosec": 0,
-      "skipped_tests": 0
     },
     "./n23/core/models/facts.py": {
       "CONFIDENCE.HIGH": 0,
@@ -4262,7 +4249,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 9,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 71206,
+      "loc": 71207,
       "nosec": 4,
       "skipped_tests": 56
     }

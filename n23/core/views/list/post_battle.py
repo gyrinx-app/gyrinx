@@ -26,7 +26,7 @@ from n23.core.models.campaign import (
     CampaignAsset,
     CampaignListResource,
 )
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List, ListFighter
 from n23.core.views.fighter.permissions import get_list_for_edit
 

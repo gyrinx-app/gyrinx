@@ -12,7 +12,7 @@ from gyrinx.account_forms import UsernameChangeForm
 from gyrinx.impersonation import can_impersonate_target
 from gyrinx.accounts.models import UserProfile
 from n23.core.models.campaign import Campaign
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack
 

@@ -10,7 +10,7 @@ from n23.content.models import (
     ContentPsykerPower,
 )
 from n23.core.utils import search_queryset
-from n23.core.models.events import EventVerb
+from gyrinx.analytics.models import EventVerb
 from n23.core.models.list import ListFighterPsykerPowerAssignment
 
 

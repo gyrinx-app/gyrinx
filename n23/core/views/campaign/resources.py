@@ -16,7 +16,7 @@ from n23.core.models.campaign import (
     CampaignListResource,
     CampaignResourceType,
 )
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.utils import get_return_url, safe_redirect
 from n23.core.views.campaign.common import (
     ensure_campaign_list_resources,

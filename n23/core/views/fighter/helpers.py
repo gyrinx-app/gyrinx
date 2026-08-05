@@ -12,7 +12,7 @@ from n23.content.models import (
     ContentPsykerDiscipline,
     ContentPsykerPower,
 )
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import (
     List,
     ListFighter,

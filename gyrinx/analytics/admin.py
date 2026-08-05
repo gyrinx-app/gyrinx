@@ -11,7 +11,9 @@ from django.shortcuts import render
 from django.urls import path
 from django.utils import timezone
 
-from n23.core.models import Campaign, Event, List, ListFighter
+from n23.core.models import Campaign, List, ListFighter
+
+from gyrinx.analytics.models import Event
 
 User = get_user_model()
 logger = logging.getLogger(__name__)

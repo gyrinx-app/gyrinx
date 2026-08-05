@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from n23.core.admin.base import BaseAdmin
-from n23.core.models.events import Event
+from gyrinx.analytics.models import Event
 
 
 @admin.register(Event)

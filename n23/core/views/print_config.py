@@ -7,7 +7,7 @@ from django.views import generic
 
 from n23.core.forms.print_config import PrintConfigForm
 from n23.core.models import List, PrintConfig
-from n23.core.models.events import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.utils import safe_redirect
 
 
