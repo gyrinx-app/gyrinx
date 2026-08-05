@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.contenttypes.models import ContentType
 from django.utils.html import format_html
 
-from n23.core.models import Banner
+from gyrinx.site.models import Banner
 from n23.core.models.events import Event, EventNoun, EventVerb
 
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from n23.core.models import ImpersonationLog
+from gyrinx.site.models import ImpersonationLog
 
 
 @admin.register(ImpersonationLog)

@@ -48,7 +48,7 @@ from n23.content.models import (
     RulelineDisplay,
     StatlineDisplay,
 )
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 from n23.core.models.facts import FighterFacts
 from n23.core.models.list._common import (
     ALLOWED_CATEGORY_OVERRIDES,

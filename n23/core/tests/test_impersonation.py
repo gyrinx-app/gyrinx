@@ -15,7 +15,8 @@ from gyrinx.impersonation import (
     can_impersonate_target,
 )
 from n23.core.middleware import ImpersonationMiddleware
-from n23.core.models import Event, ImpersonationLog
+from n23.core.models import Event
+from gyrinx.site.models import ImpersonationLog
 
 
 @pytest.fixture

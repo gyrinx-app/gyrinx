@@ -7,7 +7,7 @@ from django.core import validators
 from django.db import models, transaction
 from simple_history.models import HistoricalRecords
 
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 from n23.core.validators import HTMLTextMaxLengthValidator
 
 logger = logging.getLogger(__name__)

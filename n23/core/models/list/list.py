@@ -24,10 +24,10 @@ from n23.content.models import (
     ContentHouse,
 )
 from n23.core.models.action import ListAction
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 from n23.core.models.campaign import Campaign
 from n23.core.models.facts import ListFacts
-from n23.core.models.history_aware_manager import HistoryAwareManager
+from gyrinx.history_aware_manager import HistoryAwareManager
 from n23.core.tasks import (
     refresh_list_facts,
 )

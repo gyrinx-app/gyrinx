@@ -3,7 +3,7 @@ import logging
 from django.core.cache import cache
 from django.db import DatabaseError, InterfaceError, OperationalError
 
-from n23.core.models import Banner
+from gyrinx.site.models import Banner
 
 logger = logging.getLogger(__name__)
 

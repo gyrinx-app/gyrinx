@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from n23.core.models.events import EventNoun, EventVerb, log_event
-from n23.core.models.site import Banner
+from gyrinx.site.models import Banner
 
 logger = logging.getLogger(__name__)
 

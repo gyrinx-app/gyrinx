@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
-from .base import AppBase
+from gyrinx.base_models import AppBase
 from .upload import upload_to
 
 

@@ -12,7 +12,7 @@ from n23.content.models import (
     ContentPromotionPath,
     ContentSkill,
 )
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 from n23.core.models.list.assignment import ListFighterEquipmentAssignment
 from n23.core.models.list.fighter import ListFighter
 from n23.models import FighterCategoryChoices

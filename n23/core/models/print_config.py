@@ -4,7 +4,7 @@ from django.db import models
 from django.utils.translation import ngettext
 from simple_history.models import HistoricalRecords
 
-from n23.core.models.base import AppBase
+from gyrinx.base_models import AppBase
 
 
 class PrintConfig(AppBase):
