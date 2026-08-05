@@ -17,8 +17,10 @@ def test_advancement_type_form_with_fighter_statline(
     user, content_house, make_list, make_list_fighter
 ):
     """Test that advancement choices are correctly generated based on fighter's statline."""
-    # Create a custom statline type
-    vehicle_type = ContentStatlineType.objects.create(name="Vehicle")
+    # Create a custom statline type. Deliberately not named "Vehicle": that
+    # name belongs to the canonical statline type every environment has, and
+    # this test wants a type whose stats are its own.
+    vehicle_type = ContentStatlineType.objects.create(name="Test Vehicle")
 
     # Create stat definitions for vehicle
     stats_data = [

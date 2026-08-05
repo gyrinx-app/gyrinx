@@ -2,7 +2,6 @@ import pytest
 from django.contrib.auth.models import User
 
 from n23.content.models import (
-    ContentFighter,
     ContentHouse,
     ContentInjury,
     ContentInjuryDefaultOutcome,
@@ -14,13 +13,13 @@ from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db
-def test_multiple_injury_modifiers_stack():
+def test_multiple_injury_modifiers_stack(make_content_fighter):
     """Test that multiple injuries with stat modifiers all apply correctly."""
     # Create test data
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Test Fighter",
         category=FighterCategoryChoices.GANGER,
         house=house,
@@ -243,13 +242,13 @@ def test_multiple_injury_modifiers_stack():
 
 
 @pytest.mark.django_db
-def test_injury_modifiers_only_apply_in_campaign_mode():
+def test_injury_modifiers_only_apply_in_campaign_mode(make_content_fighter):
     """Test that injury modifiers only apply when list is in campaign mode."""
     # Create test data
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Test Fighter",
         category=FighterCategoryChoices.GANGER,
         house=house,
@@ -313,13 +312,13 @@ def test_injury_modifiers_only_apply_in_campaign_mode():
 
 
 @pytest.mark.django_db
-def test_injury_modifiers_removed_when_injury_removed():
+def test_injury_modifiers_removed_when_injury_removed(make_content_fighter):
     """Test that modifiers are removed when injuries are removed."""
     # Create test data
     user = User.objects.create_user(username="testuser", password="testpass")
     house = ContentHouse.objects.create(name="Test House")
 
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Test Fighter",
         category=FighterCategoryChoices.GANGER,
         house=house,

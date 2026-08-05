@@ -6,7 +6,6 @@ from django.urls import reverse
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentFighterEquipmentListItem,
     ContentHouse,
     FighterCategoryChoices,
@@ -15,7 +14,7 @@ from n23.core.models import List, ListFighter
 
 
 @pytest.mark.django_db
-def test_illegal_equipment_visible_with_equipment_list_filter():
+def test_illegal_equipment_visible_with_equipment_list_filter(make_content_fighter):
     """Test that illegal equipment on fighter's equipment list is visible when equipment list filter is active."""
     # Create user
     user = User.objects.create_user(username="test_illegal_user", password="testpass")
@@ -30,7 +29,7 @@ def test_illegal_equipment_visible_with_equipment_list_filter():
     )
 
     # Create content fighter (Badzone Captain)
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         house=house,
         type="Badzone Captain",
         category=FighterCategoryChoices.LEADER,
@@ -126,7 +125,7 @@ def test_illegal_equipment_visible_with_equipment_list_filter():
 
 
 @pytest.mark.django_db
-def test_availability_filters_disabled_state():
+def test_availability_filters_disabled_state(make_content_fighter):
     """Test that availability filters show disabled state when equipment list is toggled."""
     # Create user
     user = User.objects.create_user(username="test_disabled_user", password="testpass")
@@ -134,7 +133,7 @@ def test_availability_filters_disabled_state():
     # Create minimal test data
     house = ContentHouse.objects.create(name="Test House", generic=True)
 
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         house=house,
         type="Test Fighter",
         category=FighterCategoryChoices.GANGER,

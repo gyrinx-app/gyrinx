@@ -12,7 +12,6 @@ from urllib.parse import urlparse, parse_qs
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentWeaponProfile,
@@ -61,9 +60,9 @@ def ancestry_category_restricted(ancestry_category, squat_house):
 
 
 @pytest.fixture
-def squat_charter_master(squat_house):
+def squat_charter_master(squat_house, make_content_fighter):
     """A squat fighter type whose equipment list includes ancestry items."""
-    return ContentFighter.objects.create(
+    return make_content_fighter(
         type="Squat Charter Master",
         category=FighterCategoryChoices.LEADER,
         house=squat_house,
@@ -84,9 +83,9 @@ def squat_charter_master(squat_house):
 
 
 @pytest.fixture
-def venator_hunt_leader(venator_house):
+def venator_hunt_leader(venator_house, make_content_fighter):
     """A venator fighter type."""
-    return ContentFighter.objects.create(
+    return make_content_fighter(
         type="Venator Hunt Leader",
         category=FighterCategoryChoices.LEADER,
         house=venator_house,
@@ -552,6 +551,7 @@ def test_non_can_buy_any_house_restricted_category_redirect(
     gear_category,
     make_list,
     make_content_house,
+    make_content_fighter,
 ):
     """
     For a non-can_buy_any house with legacy fighters that bring in
@@ -562,7 +562,7 @@ def test_non_can_buy_any_house_restricted_category_redirect(
     other_house = make_content_house("Other House")
 
     # Create a fighter for this house
-    other_fighter = ContentFighter.objects.create(
+    other_fighter = make_content_fighter(
         type="Other Fighter",
         category=FighterCategoryChoices.LEADER,
         house=other_house,

@@ -8,7 +8,6 @@ from django.urls import reverse
 
 from n23.content.models import (
     ContentAvailabilityPreset,
-    ContentFighter,
     ContentHouse,
 )
 from n23.core.models.list import List, ListFighter
@@ -30,9 +29,9 @@ def other_house():
 
 
 @pytest.fixture
-def leader_fighter(house):
+def leader_fighter(house, make_content_fighter):
     """Create a leader fighter."""
-    return ContentFighter.objects.create(
+    return make_content_fighter(
         type="Test Leader",
         house=house,
         category=FighterCategoryChoices.LEADER,
@@ -53,9 +52,9 @@ def leader_fighter(house):
 
 
 @pytest.fixture
-def champion_fighter(house):
+def champion_fighter(house, make_content_fighter):
     """Create a champion fighter."""
-    return ContentFighter.objects.create(
+    return make_content_fighter(
         type="Test Champion",
         house=house,
         category=FighterCategoryChoices.CHAMPION,
@@ -501,7 +500,9 @@ class TestFighterCanBuyAny:
         assert "al=R" in response.url
         assert "mal=11" in response.url
 
-    def test_fighter_can_buy_any_false_no_redirect(self, leader_fighter):
+    def test_fighter_can_buy_any_false_no_redirect(
+        self, leader_fighter, make_content_fighter
+    ):
         """When preset has fighter_can_buy_any=False and house can_buy_any=False, no redirect occurs."""
         # Create house without can_buy_any
         house_no_buy = ContentHouse.objects.create(
@@ -518,7 +519,7 @@ class TestFighterCanBuyAny:
         )
 
         # Create leader fighter for this house
-        leader = ContentFighter.objects.create(
+        leader = make_content_fighter(
             type="No Buy Leader",
             house=house_no_buy,
             category=FighterCategoryChoices.LEADER,

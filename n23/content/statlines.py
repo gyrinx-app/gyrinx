@@ -161,6 +161,33 @@ def set_fighter_statline(fighter, statline_type, values_by_type_stat=None):
     return statline
 
 
+def set_fighter_stats(fighter, stat_values):
+    """Set some of a fighter's stats by stat name, e.g. ``{"movement": '5"'}``.
+
+    A convenience over `set_fighter_statline` for callers that think in stat
+    names rather than statline-type rows. Stats the fighter's statline does
+    not have are ignored; the ones it has and you did not mention keep their
+    current values.
+    """
+    statline = getattr(fighter, "custom_statline", None)
+    if statline is None:
+        return None
+
+    by_field_name = {
+        type_stat.stat.field_name: type_stat
+        for type_stat in statline.statline_type.stats.select_related("stat")
+    }
+    return set_fighter_statline(
+        fighter,
+        statline.statline_type,
+        {
+            by_field_name[field_name].id: value
+            for field_name, value in stat_values.items()
+            if field_name in by_field_name
+        },
+    )
+
+
 def stat_placeholder(content_stat):
     """Return a placeholder example for a stat input field."""
     if content_stat.is_inches:

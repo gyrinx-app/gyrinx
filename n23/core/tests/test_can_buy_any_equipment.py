@@ -6,7 +6,6 @@ from django.urls import reverse
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentFighterEquipmentListItem,
     ContentHouse,
     ContentWeaponProfile,
@@ -18,7 +17,7 @@ User = get_user_model()
 
 
 @pytest.mark.django_db
-def test_can_buy_any_redirects_to_all_filter():
+def test_can_buy_any_redirects_to_all_filter(make_content_fighter):
     """Test that when can_buy_any is True, the equipment view redirects to filter=all by default."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser", password="password")
@@ -27,7 +26,7 @@ def test_can_buy_any_redirects_to_all_filter():
     venator_house = ContentHouse.objects.create(name="House Venator", can_buy_any=True)
 
     # Create a fighter for the house
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Venator Hunt-Champion",
         house=venator_house,
         category=FighterCategoryChoices.CHAMPION,
@@ -86,7 +85,9 @@ def test_can_buy_any_redirects_to_all_filter():
 
 
 @pytest.mark.django_db
-def test_can_buy_any_includes_equipment_list_items_with_all_filter():
+def test_can_buy_any_includes_equipment_list_items_with_all_filter(
+    make_content_fighter,
+):
     """Test that when can_buy_any is True and filter=all, both Trading Post and equipment list items are shown."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser2", password="password")
@@ -147,7 +148,7 @@ def test_can_buy_any_includes_equipment_list_items_with_all_filter():
     )
 
     # Create a fighter
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Venator Hunt-Champion",
         house=venator_house,
         category=FighterCategoryChoices.CHAMPION,
@@ -222,7 +223,7 @@ def test_can_buy_any_includes_equipment_list_items_with_all_filter():
 
 
 @pytest.mark.django_db
-def test_normal_house_defaults_to_equipment_list():
+def test_normal_house_defaults_to_equipment_list(make_content_fighter):
     """Test that normal houses (can_buy_any=False) still default to equipment list filter."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser3", password="password")
@@ -231,7 +232,7 @@ def test_normal_house_defaults_to_equipment_list():
     normal_house = ContentHouse.objects.create(name="House Goliath", can_buy_any=False)
 
     # Create a fighter
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Goliath Champion",
         house=normal_house,
         category=FighterCategoryChoices.CHAMPION,
@@ -278,7 +279,7 @@ def test_normal_house_defaults_to_equipment_list():
 
 
 @pytest.mark.django_db
-def test_can_buy_any_no_duplicates_in_equipment_list():
+def test_can_buy_any_no_duplicates_in_equipment_list(make_content_fighter):
     """Test that equipment appears only once when it's in both Trading Post and equipment list."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser4", password="password")
@@ -307,7 +308,7 @@ def test_can_buy_any_no_duplicates_in_equipment_list():
     )
 
     # Create a fighter
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Venator Hunter",
         house=venator_house,
         category=FighterCategoryChoices.GANGER,
@@ -367,7 +368,7 @@ def test_can_buy_any_no_duplicates_in_equipment_list():
 
 
 @pytest.mark.django_db
-def test_can_buy_any_explicit_filter_parameter():
+def test_can_buy_any_explicit_filter_parameter(make_content_fighter):
     """Test that explicit filter parameter is respected even with can_buy_any=True."""
     # Create a user and houses
     user = User.objects.create_user(username="testuser5", password="password")
@@ -410,7 +411,7 @@ def test_can_buy_any_explicit_filter_parameter():
     )
 
     # Create a fighter
-    content_fighter = ContentFighter.objects.create(
+    content_fighter = make_content_fighter(
         type="Venator Hunter",
         house=venator_house,
         category=FighterCategoryChoices.GANGER,

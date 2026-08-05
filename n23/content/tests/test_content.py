@@ -59,15 +59,16 @@ def test_fighter_cost_for_house():
 
 
 @pytest.mark.django_db
-def test_fighter_stats():
+def test_fighter_stats(make_content_fighter):
     category = FighterCategoryChoices.JUVE
     house = ContentHouse.objects.create(
         name="Squat Prospectors",
     )
-    fighter = ContentFighter.objects.create(
+    fighter = make_content_fighter(
         type="Prospector Digger",
         category=category,
         house=house,
+        base_cost=0,
         movement='5"',
         weapon_skill="5+",
         ballistic_skill="5+",

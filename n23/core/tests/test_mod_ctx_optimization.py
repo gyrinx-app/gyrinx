@@ -3,7 +3,6 @@ import pytest
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentModFighterStat,
     ContentStat,
 )
@@ -14,7 +13,9 @@ from gyrinx.query import capture_queries
 
 
 @pytest.mark.django_db
-def test_mod_ctx_statline_uses_prefetched_stats(user, content_house):
+def test_mod_ctx_statline_uses_prefetched_stats(
+    user, content_house, make_content_fighter
+):
     """Test that statline generation uses prefetched ContentStats via ModContext."""
     # Ensure we have the ContentStats we need
     ContentStat.objects.get_or_create(
@@ -37,7 +38,7 @@ def test_mod_ctx_statline_uses_prefetched_stats(user, content_house):
     )
 
     # Create a fighter with some equipment that applies mods
-    fighter = ContentFighter.objects.create(
+    fighter = make_content_fighter(
         type="Test Leader",
         house=content_house,
         category=FighterCategoryChoices.LEADER,
@@ -229,7 +230,7 @@ def test_mod_ctx_with_missing_stat():
 
 
 @pytest.mark.django_db
-def test_list_fighter_statline_query_count(user, content_house):
+def test_list_fighter_statline_query_count(user, content_house, make_content_fighter):
     """Test the overall query count for ListFighter.statline with multiple mods."""
     # Create multiple ContentStats
     stats_to_create = [
@@ -268,7 +269,7 @@ def test_list_fighter_statline_query_count(user, content_house):
         )
 
     # Create a fighter
-    fighter = ContentFighter.objects.create(
+    fighter = make_content_fighter(
         type="Test Leader",
         house=content_house,
         category=FighterCategoryChoices.LEADER,

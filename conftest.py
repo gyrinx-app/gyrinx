@@ -19,6 +19,7 @@ from n23.content.models import (
     ContentWeaponProfile,
 )
 from n23.content.models.skill import ContentSkill, ContentSkillCategory
+from n23.content.statlines import set_fighter_stats
 from gyrinx.site.models import BANNER_CACHE_KEY
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import Campaign
@@ -210,32 +211,99 @@ CANONICAL_FIGHTER_STATLINE = {
 }
 
 
+#: Which categories each statline type is the default for, mirroring
+#: production. This is what decides whether a vehicle gets vehicle stats, so
+#: without it tests would give every fighter the same twelve.
+CANONICAL_STATLINE_TYPES = {
+    "Fighter": {
+        "categories": [
+            "LEADER",
+            "CHAMPION",
+            "GANGER",
+            "JUVE",
+            "EXOTIC_BEAST",
+            "HANGER_ON",
+            "BRUTE",
+            "HIRED_GUN",
+            "BOUNTY_HUNTER",
+            "HOUSE_AGENT",
+            "HIVE_SCUM",
+            "DRAMATIS_PERSONAE",
+            "PROSPECT",
+            "SPECIALIST",
+            "ALLY",
+        ],
+        "stats": list(CANONICAL_FIGHTER_STATLINE),
+    },
+    "Crew": {
+        "categories": ["CREW"],
+        "stats": [
+            "ballistic_skill",
+            "leadership",
+            "cool",
+            "willpower",
+            "intelligence",
+        ],
+    },
+    "Vehicle": {
+        "categories": ["VEHICLE"],
+        "stats": [
+            "movement",
+            "front",
+            "side",
+            "rear",
+            "hull_points",
+            "handling",
+            "save",
+        ],
+    },
+}
+
+#: Stats the vehicle statline needs that the fighter one does not.
+_EXTRA_VEHICLE_STATS = {
+    "front": ("Fr", "Front"),
+    "side": ("Sd", "Side"),
+    "rear": ("Rr", "Rear"),
+    "hull_points": ("HP", "Hull Points"),
+}
+
+
 def _seed_fighter_statline_type(**kwargs):
-    """Create the standard "Fighter" statline type and its stats."""
+    """Create the statline types real environments are guaranteed to have."""
     from n23.content.models.statline import (
         ContentStat,
         ContentStatlineType,
         ContentStatlineTypeStat,
     )
 
-    statline_type, _ = ContentStatlineType.objects.get_or_create(name="Fighter")
-    for field_name, (
-        position,
-        highlighted,
-        first_of_group,
-    ) in CANONICAL_FIGHTER_STATLINE.items():
-        stat = ContentStat.objects.filter(field_name=field_name).first()
-        if stat is None:
-            continue
-        ContentStatlineTypeStat.objects.get_or_create(
-            statline_type=statline_type,
-            stat=stat,
-            defaults={
-                "position": position,
-                "is_highlighted": highlighted,
-                "is_first_of_group": first_of_group,
-            },
+    for field_name, (short_name, full_name) in _EXTRA_VEHICLE_STATS.items():
+        ContentStat.objects.get_or_create(
+            field_name=field_name,
+            defaults={"short_name": short_name, "full_name": full_name},
         )
+
+    for type_name, spec in CANONICAL_STATLINE_TYPES.items():
+        statline_type, _ = ContentStatlineType.objects.get_or_create(name=type_name)
+        if set(statline_type.default_for_categories or []) != set(spec["categories"]):
+            statline_type.default_for_categories = spec["categories"]
+            statline_type.save(update_fields=["default_for_categories"])
+
+        for position, field_name in enumerate(spec["stats"], start=1):
+            stat = ContentStat.objects.filter(field_name=field_name).first()
+            if stat is None:
+                continue
+            _, highlighted, first_of_group = CANONICAL_FIGHTER_STATLINE.get(
+                field_name, (position, False, False)
+            )
+            ContentStatlineTypeStat.objects.get_or_create(
+                statline_type=statline_type,
+                stat=stat,
+                defaults={
+                    "position": position,
+                    "is_highlighted": highlighted,
+                    "is_first_of_group": first_of_group,
+                },
+            )
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -429,6 +497,13 @@ def content_house(make_content_house) -> ContentHouse:
 
 @pytest.fixture
 def make_content_fighter() -> Callable[[str, str, int], ContentFighter]:
+    """Factory for ContentFighter, accepting stat values as keyword arguments.
+
+    Stats are not columns on the fighter any more (#1861) — they live in its
+    statline. Passing `movement='5"'` here still works and writes there, so
+    tests can describe a fighter's stats in one call.
+    """
+
     def make_content_fighter_(
         type: str,
         category: FighterCategoryChoices,
@@ -436,13 +511,21 @@ def make_content_fighter() -> Callable[[str, str, int], ContentFighter]:
         base_cost: int,
         **kwargs,
     ) -> ContentFighter:
-        return ContentFighter.objects.create(
+        stat_values = {
+            field_name: kwargs.pop(field_name)
+            for field_name in list(kwargs)
+            if field_name in CANONICAL_FIGHTER_STATLINE
+        }
+        fighter = ContentFighter.objects.create(
             type=type,
             category=category,
             house=house,
             base_cost=base_cost,
             **kwargs,
         )
+        if stat_values:
+            set_fighter_stats(fighter, stat_values)
+        return fighter
 
     return make_content_fighter_
 

@@ -24,9 +24,10 @@ def test_content_statline_clean_during_creation():
         base_cost=100,
     )
 
-    # Create a statline type with required stats
+    # Create a statline type with required stats. Not called "Vehicle": the
+    # canonical types are seeded already and the name is unique.
     statline_type = ContentStatlineType.objects.create(
-        name="Vehicle",
+        name="Two-Stat Vehicle",
     )
 
     # Create stat definitions

@@ -867,15 +867,21 @@ def ensure_statline(sender, instance, created, **kwargs):
 
     Stats are read from the statline and nowhere else (#1861), so a fighter
     type without one has no stats at all — it would render a blank card and
-    could not be given stat overrides. The pack editor and the admin both
-    create statlines on their own paths; this covers everything else,
-    including fixtures, scripts and content imports, which is what makes
-    "every fighter has a statline" an invariant rather than a convention.
+    could not be given stat overrides. The pack editor and the admin create
+    statlines on their own paths; this covers everything else — scripts,
+    shell work, tests — which is what makes "every fighter has a statline" an
+    invariant rather than a convention.
 
-    Values are seeded from the legacy stat columns while they still exist, so
-    a fighter built the old way keeps its numbers.
+    The new statline is empty. There is nowhere for values to come from at
+    this point, so they are filled in afterwards: by the pack editor from its
+    form, by the admin from its stat grid, or by hand.
     """
     if not created:
+        return
+    # Fixture loads (loaddata / the content sync) carry their own statline
+    # rows and may insert them after the fighter, so creating one here would
+    # collide with what is about to arrive.
+    if kwargs.get("raw"):
         return
     if ContentStatline.objects.filter(content_fighter=instance).exists():
         return
@@ -895,11 +901,7 @@ def ensure_statline(sender, instance, created, **kwargs):
         )
         return
 
-    # Seed from the legacy stat columns while they still exist, so a fighter
-    # built the old way keeps its numbers.
-    values = {}
-    for type_stat in statline_type.stats.select_related("stat"):
-        raw = getattr(instance, type_stat.stat.field_name, None)
-        if raw:
-            values[type_stat.id] = raw
-    set_fighter_statline(instance, statline_type, values)
+    # Dashes throughout: there is nowhere else for the values to come from
+    # now, so a newly created fighter type gets an empty statline and its
+    # stats are filled in on the fighter's admin page.
+    set_fighter_statline(instance, statline_type)

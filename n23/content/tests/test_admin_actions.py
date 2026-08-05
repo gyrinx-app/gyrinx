@@ -626,3 +626,28 @@ def test_fighter_display_tolerates_dangling_house(make_content_fighter, content_
 
     assert "Drifter" in str(fighter)
     assert fighter_house_name(fighter) == "No House"
+
+
+@pytest.mark.django_db
+def test_copy_to_house_carries_the_fighters_stats(test_fighters, test_houses):
+    """A copied fighter type must keep its stats.
+
+    They used to ride along for free as columns on the row being duplicated.
+    Now they are rows in a separate statline, so the copy has to bring them
+    across deliberately — otherwise the new fighter comes out all dashes and
+    nothing says so (#1861).
+    """
+    from n23.content.statlines import set_fighter_stats
+
+    fighter1, _, _ = test_fighters
+    _, house2, _ = test_houses
+    set_fighter_stats(
+        fighter1, {"movement": '5"', "weapon_skill": "3+", "strength": "4"}
+    )
+
+    copied = fighter1.copy_to_house(house2)
+
+    stats = {s["field_name"]: s["value"] for s in copied.statline()}
+    assert stats["movement"] == '5"'
+    assert stats["weapon_skill"] == "3+"
+    assert stats["strength"] == "4"

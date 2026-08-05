@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from n23.content.models import ContentFighter, ContentHouse, ContentRule
 from n23.content.models.weapon import ContentWeaponTrait
+from n23.content.statlines import set_fighter_stats
 from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 from n23.models import FighterCategoryChoices
@@ -634,13 +635,17 @@ class TestPackDetailFighterDisplay:
 
     def test_fighter_statline_shown(self, client, cc_user, pack, pack_fighter):
         """Fighter stat values should be visible on the pack detail page."""
-        pack_fighter.movement = '5"'
-        pack_fighter.weapon_skill = "4+"
-        pack_fighter.ballistic_skill = "5+"
-        pack_fighter.strength = "3"
-        pack_fighter.toughness = "3"
-        pack_fighter.wounds = "1"
-        pack_fighter.save()
+        set_fighter_stats(
+            pack_fighter,
+            {
+                "movement": '5"',
+                "weapon_skill": "4+",
+                "ballistic_skill": "5+",
+                "strength": "3",
+                "toughness": "3",
+                "wounds": "1",
+            },
+        )
 
         client.force_login(cc_user)
         url = reverse("core:pack", args=(pack.id,))

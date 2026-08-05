@@ -5,7 +5,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 
-from n23.content.admin import LEGACY_STAT_COLUMNS, ContentFighterAdmin
+from n23.content.admin import ContentFighterAdmin
 from n23.content.models import (
     ContentFighter,
     ContentHouse,
@@ -22,8 +22,8 @@ def house(db):
 
 
 @pytest.fixture
-def fighter(db, house):
-    return ContentFighter.objects.create(
+def fighter(db, house, make_content_fighter):
+    return make_content_fighter(
         type="Statline Ganger",
         category="GANGER",
         house=house,
@@ -90,10 +90,17 @@ def test_saving_a_fighter_type_gives_it_a_statline(house):
     assert statline.statline_type.name == "Fighter"
     # Every stat of the type gets a row, so the card can never be ragged
     assert statline.stats.count() == statline.statline_type.stats.count()
+    # ...and every one is a dash: there is nowhere for values to come from at
+    # creation any more, so they are filled in afterwards.
+    assert {stat.value for stat in statline.stats.all()} == {"-"}
 
 
 @pytest.mark.django_db
-def test_the_statline_is_seeded_from_the_stat_columns(fighter):
+def test_the_stats_a_fighter_is_given_land_in_its_statline(fighter):
+    """The stat columns are gone, so the statline is the only place the
+    values a fighter was created with can be. It is of the type its category
+    calls for, and it holds those values."""
+    assert fighter.custom_statline.statline_type.name == "Fighter"
     values = {
         stat.statline_type_stat.field_name: stat.value
         for stat in fighter.custom_statline.stats.select_related(
@@ -115,11 +122,15 @@ def test_the_form_offers_one_field_per_stat_seeded_with_its_value(fighter):
 
 
 @pytest.mark.django_db
-def test_the_legacy_stat_columns_are_not_on_the_form(fighter):
-    """They are no longer read, so offering them would be a trap."""
+def test_the_form_carries_no_bare_stat_name_fields(fighter):
+    """Stats reach the form as statline fields, never as model columns.
+
+    The 12 columns they used to live in are gone; a field named plainly after
+    a stat would mean something had put them back.
+    """
     form = admin_form(fighter)
-    for column in LEGACY_STAT_COLUMNS:
-        assert column not in form.fields
+    for name in ("movement", "weapon_skill", "toughness", "intelligence"):
+        assert name not in form.fields
 
 
 @pytest.mark.django_db

@@ -1767,11 +1767,7 @@ class ListFighter(AppBase):
                 hasattr(self, "annotated_content_fighter_statline")
                 and self.annotated_content_fighter_statline is not None
             )
-            # Performance: we don't want to repeat look-for the custom statline, so we force-skip
-            # this check on the fallback call.
-            else self.content_fighter_cached.statline(
-                ignore_custom=hasattr(self, "annotated_content_fighter_statline")
-            )
+            else self.content_fighter_cached.statline()
         )
 
         return [

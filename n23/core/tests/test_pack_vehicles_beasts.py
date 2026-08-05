@@ -266,7 +266,13 @@ def test_create_vehicle_fails_if_no_statline_type_exists(
     That's a loud failure mode, which is fine for correctness; the UX
     gap (form-level error) is a separate follow-up.
     """
-    # Deliberately do NOT include vehicle_statline_type fixture.
+    # Deliberately do NOT include the vehicle_statline_type fixture — and
+    # take away the canonical Vehicle type that every test is seeded with,
+    # which is the only other thing that claims the category.
+    ContentStatlineType.objects.filter(
+        default_for_categories__contains="VEHICLE"
+    ).delete()
+
     client.force_login(user)
     _step1_post(
         client,

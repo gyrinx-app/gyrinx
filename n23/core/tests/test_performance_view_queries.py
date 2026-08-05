@@ -18,7 +18,6 @@ from n23.content.models import (
     ContentAttributeValue,
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
     ContentHouse,
     ContentModFighterStat,
     ContentStat,
@@ -97,7 +96,7 @@ def strip_sql_comments(sql):
 
 
 @pytest.fixture
-def performance_test_data(db):
+def performance_test_data(db, make_content_fighter):
     """Set up test data for performance testing."""
     # Note: ContentType cache for polymorphic models is warmed by the warm_contenttype_cache fixture
 
@@ -221,7 +220,7 @@ def performance_test_data(db):
     equipment4.modifiers.set([mod_mv])
 
     # Create fighter template
-    fighter_template = ContentFighter.objects.create(
+    fighter_template = make_content_fighter(
         type="Ganger",
         house=house,
         category=FighterCategoryChoices.GANGER,
