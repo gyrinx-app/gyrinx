@@ -49,13 +49,9 @@ def list_fighter_stats_edit(request, id, fighter_id):
     if request.method == "POST":
         form = EditListFighterStatsForm(request.POST, fighter=fighter)
         if form.is_valid():
-            # Check if the fighter has a custom statline
-            has_custom_statline = hasattr(fighter.content_fighter, "custom_statline")
+            statline = getattr(fighter.content_fighter, "custom_statline", None)
 
-            if has_custom_statline:
-                # Handle custom statline overrides
-                statline = fighter.content_fighter.custom_statline
-
+            if statline is not None:
                 # Delete existing overrides
                 fighter.stat_overrides.all().delete()
 
@@ -74,26 +70,6 @@ def list_fighter_stats_edit(request, id, fighter_id):
                             owner=request.user,
                         )
 
-                # This form is now the whole story for these stats, so any
-                # legacy *_override underneath is cleared. Without this,
-                # blanking a field looks like clearing the override while the
-                # legacy value silently keeps applying via the fallback.
-                cleared_fields = []
-                for stat_def in statline.statline_type.stats.all():
-                    legacy_field = f"{stat_def.field_name}_override"
-                    if getattr(fighter, legacy_field, None) is not None:
-                        setattr(fighter, legacy_field, None)
-                        cleared_fields.append(legacy_field)
-                if cleared_fields:
-                    fighter.save(update_fields=cleared_fields)
-            else:
-                # Handle legacy overrides
-                for field_name, value in form.cleaned_data.items():
-                    if field_name.endswith("_override"):
-                        setattr(fighter, field_name, value or None)
-
-                fighter.save()
-
             # Log the stat update event
             log_event(
                 user=request.user,
@@ -105,7 +81,7 @@ def list_fighter_stats_edit(request, id, fighter_id):
                 fighter_name=fighter.name,
                 list_id=str(lst.id),
                 list_name=lst.name,
-                has_custom_statline=has_custom_statline,
+                has_custom_statline=statline is not None,
             )
 
             # Use safe redirect with fallback

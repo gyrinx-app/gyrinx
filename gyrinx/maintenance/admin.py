@@ -26,12 +26,6 @@ from n23.core.maintenance.persistent_stash import (
     apply as apply_persistent_stash,
     find_candidates as find_persistent_stash_candidates,
 )
-from n23.core.maintenance.stat_advancements import (
-    SITUATION_LABELS,
-    build_messages,
-    build_plan,
-    run as run_stat_advancements,
-)
 from n23.core.maintenance.stat_overrides import (
     ACTION_LABELS,
     UNMIGRATABLE,
@@ -129,11 +123,6 @@ class MaintenanceAdminSite(admin.site.__class__):
                 name="maintenance_backfill_pins",
             ),
             path(
-                "maintenance/stat-advancements/",
-                self.admin_view(_superuser_only(self.stat_advancements_view)),
-                name="maintenance_stat_advancements",
-            ),
-            path(
                 "maintenance/normalise-stat-formats/",
                 self.admin_view(_superuser_only(self.normalise_stat_formats_view)),
                 name="maintenance_normalise_stat_formats",
@@ -195,18 +184,6 @@ class MaintenanceAdminSite(admin.site.__class__):
                     "Write acquisition receipts onto every legacy assignment "
                     "via the pinning choke point. Idempotent, resumable, "
                     "value-neutral. Run AFTER reconcile, in a quiet window."
-                ),
-            },
-            {
-                "key": Backfill.Operation.FIX_STAT_ADVANCEMENTS.value,
-                "name": Backfill.Operation.FIX_STAT_ADVANCEMENTS.label,
-                "url": reverse("admin:maintenance_stat_advancements"),
-                "description": (
-                    "Finish moving stat advancements onto the mod system: "
-                    "back-compute manual edits so cards do not move, switch on "
-                    "advancements that were bought but showing nothing, and "
-                    "remove improvements being counted twice. Notifies every "
-                    "affected player once. Preview before applying."
                 ),
             },
             {
@@ -424,76 +401,6 @@ class MaintenanceAdminSite(admin.site.__class__):
             "apply_url": reverse("admin:maintenance_backfill_pins"),
         }
         return render(request, "admin/maintenance/backfill_pins.html", ctx)
-
-    def stat_advancements_view(self, request):
-        """Preview, then run, the #2070 stat-advancement cleanup."""
-        if request.method == "POST":
-            running = _running_guard(Backfill.Operation.FIX_STAT_ADVANCEMENTS)
-            if running:
-                # Idempotency keeps the data safe, but a second concurrent run
-                # would send every affected player a duplicate message.
-                messages.error(
-                    request,
-                    "A run is already in progress. Wait for it to finish, or "
-                    "if it died, mark it Cancelled in the Backfills admin — "
-                    "Cancelled is the only status this operation ignores, so "
-                    "any other would leave its pairs suppressed for good.",
-                )
-                return HttpResponseRedirect(
-                    reverse("admin:maintenance_backfill_detail", args=[running.id])
-                )
-            notify = request.POST.get("notify") == "on"
-            try:
-                # run() writes its own Backfill record: a later run reads it to
-                # recognise the repairs it already made, so that write cannot be
-                # left to the caller.
-                result = run_stat_advancements(notify=notify, triggered_by=request.user)
-                backfill = result.backfill
-                # Messages go out on commit, so the count only exists on the
-                # record once that has happened.
-                backfill.refresh_from_db()
-                sent = (backfill.summary or {}).get("messages_sent", 0)
-                note = (
-                    f"Changed {result.changed} fighter/stat pair(s); "
-                    f"{result.visible} visible to players; {sent} message(s) sent."
-                )
-                if result.skipped:
-                    note += (
-                        f" Skipped {result.skipped} pair(s) that someone edited "
-                        "while the run was in progress — re-run to pick them up."
-                    )
-                messages.success(request, note)
-            except Exception as e:
-                logger.exception("Stat-advancement cleanup failed")
-                Backfill.objects.create(
-                    operation=Backfill.Operation.FIX_STAT_ADVANCEMENTS,
-                    triggered_by=request.user,
-                    status=Backfill.Status.FAILED,
-                    error=f"{e}\n\n{traceback.format_exc()}",
-                )
-                messages.error(request, f"Cleanup failed: {e}")
-                return HttpResponseRedirect(
-                    reverse("admin:maintenance_stat_advancements")
-                )
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_backfill_detail", args=[backfill.id])
-            )
-
-        plan = build_plan()
-        ctx = {
-            **self.each_context(request),
-            "title": "Finish the stat-advancement cleanup",
-            "counts": [
-                (situation, SITUATION_LABELS[situation], count)
-                for situation, count in plan.by_situation().items()
-            ],
-            "to_change": len(plan.acted_on),
-            "visible": sorted(
-                plan.visible, key=lambda c: (c.list_name, c.fighter_name)
-            ),
-            "message_count": len(build_messages(plan)),
-        }
-        return render(request, "admin/maintenance/stat_advancements.html", ctx)
 
     def normalise_stat_formats_view(self, request):
         """Preview, then apply, the stat-format normalisation (#1861 C0)."""

@@ -29,9 +29,13 @@ class Backfill(models.Model):
             "backfill_pins",
             "Backfill acquisition receipts (#1826 Phase 8)",
         )
+        # Retired: run once in production on 2026-08-04 and its code removed
+        # with #1861 Track C3. The member stays so the historical records keep
+        # rendering a name rather than a bare slug; re-running it now would
+        # switch on advancements that C2 deliberately left shadowed.
         FIX_STAT_ADVANCEMENTS = (
             "fix_stat_advancements",
-            "Finish the stat-advancement cleanup (#2070)",
+            "Finish the stat-advancement cleanup (#2070, retired)",
         )
         NORMALISE_STAT_FORMATS = (
             "normalise_stat_formats",

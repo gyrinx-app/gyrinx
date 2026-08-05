@@ -32,13 +32,7 @@
                                 {% for field in form %}
                                     <tr class="align-middle {% if field.field.is_first_of_group %}border-top{% endif %}">
                                         <td>{{ field.label }}</td>
-                                        <td>
-                                            {% if form.has_custom_statline %}
-                                                {{ field.field.stat_def.short_name }}
-                                            {% else %}
-                                                {{ field.field.short_name }}
-                                            {% endif %}
-                                        </td>
+                                        <td>{{ field.field.stat_def.short_name }}</td>
                                         <td class="text-secondary">{{ field.field.base_value }}</td>
                                         <td>
                                             {{ field }}

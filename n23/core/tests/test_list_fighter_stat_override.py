@@ -215,9 +215,16 @@ def test_list_fighter_statline_with_overrides(
 
 
 @pytest.mark.django_db
-def test_list_fighter_statline_legacy_overrides(list_fighter):
-    """Test that ListFighter.statline() still works with legacy overrides."""
-    # Set legacy overrides
+def test_legacy_override_columns_no_longer_reach_the_card(list_fighter):
+    """A value left in a legacy `<stat>_override` column must not display.
+
+    Track C2 emptied those columns and Track C3 stopped reading them. If the
+    fallback came back, a stale column would silently outrank the override
+    store — which is how a fighter's card could move on its own.
+    """
+    base_movement = list_fighter.content_fighter.movement
+    base_ws = list_fighter.content_fighter.weapon_skill
+
     list_fighter.movement_override = '6"'
     list_fighter.weapon_skill_override = "2+"
     list_fighter.save()
@@ -231,14 +238,13 @@ def test_list_fighter_statline_legacy_overrides(list_fighter):
     # Should use legacy stats (12 standard fighter stats)
     assert len(statline) == 12
 
-    # Check overridden values
     movement_stat = next(s for s in statline if s.field_name == "movement")
-    assert movement_stat.value == '6"'
-    assert movement_stat.modded
+    assert movement_stat.value == base_movement
+    assert not movement_stat.modded
 
     ws_stat = next(s for s in statline if s.field_name == "weapon_skill")
-    assert ws_stat.value == "2+"
-    assert ws_stat.modded
+    assert ws_stat.value == base_ws
+    assert not ws_stat.modded
 
 
 @pytest.mark.django_db
@@ -278,8 +284,12 @@ def test_edit_fighter_stats_view_get(client, list_fighter, user):
 
 
 @pytest.mark.django_db
-def test_edit_fighter_stats_view_post_legacy(client, list_fighter, user):
-    """Test POST request to edit fighter stats with legacy overrides."""
+def test_posting_legacy_field_names_writes_nothing(client, list_fighter, user):
+    """The stats form no longer accepts `<stat>_override` field names.
+
+    A crafted or stale POST naming them must be ignored outright rather than
+    write a column the card does not read (#1861 Track C3).
+    """
     client.force_login(user)
     url = reverse(
         "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
@@ -288,7 +298,7 @@ def test_edit_fighter_stats_view_post_legacy(client, list_fighter, user):
     data = {
         "movement_override": '6"',
         "weapon_skill_override": "2+",
-        "ballistic_skill_override": "",  # Empty should clear override
+        "ballistic_skill_override": "",
     }
 
     response = client.post(url, data)
@@ -296,9 +306,12 @@ def test_edit_fighter_stats_view_post_legacy(client, list_fighter, user):
 
     # Refresh from DB
     list_fighter.refresh_from_db()
-    assert list_fighter.movement_override == '6"'
-    assert list_fighter.weapon_skill_override == "2+"
+    assert list_fighter.movement_override is None
+    assert list_fighter.weapon_skill_override is None
     assert list_fighter.ballistic_skill_override is None
+    assert not ListFighterStatOverride.objects.filter(
+        list_fighter=list_fighter
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -349,7 +362,7 @@ def test_edit_fighter_stats_form_initialization_with_overrides(
     form = EditListFighterStatsForm(fighter=list_fighter)
 
     # Check that the form has the right fields
-    assert form.has_custom_statline
+    assert form.has_statline
     assert f"stat_{vehicle_stats[0].id}" in form.fields
 
     # Check initial value

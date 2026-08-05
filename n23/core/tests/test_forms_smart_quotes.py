@@ -7,118 +7,119 @@ from n23.core.models import List, ListFighter
 from gyrinx.models import SMART_QUOTES
 
 
-@pytest.mark.django_db
-def test_edit_list_fighter_stats_form_rejects_smart_quotes(
-    user, content_fighter, house
-):
-    """Test that EditListFighterStatsForm rejects smart quotes in stat override fields."""
-    # Create a list and fighter
+@pytest.fixture
+def fighter_with_statline(user, content_fighter, house, make_statline):
+    """A fighter whose template has a statline, so the stats form has fields.
+
+    Overrides are rows keyed to a statline's stats (#1861 Track C2), so a
+    template without one gives the form nothing to validate.
+    """
+    make_statline(content_fighter)
     lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
+    return ListFighter.objects.create(
         list=lst,
         content_fighter=content_fighter,
         name="Test Fighter",
     )
 
-    # Test with left double smart quote in movement_override
+
+def field_for(fighter, field_name):
+    """The stats form's field name for one stat, e.g. "stat_<uuid>"."""
+    type_stat = fighter.content_fighter.custom_statline.statline_type.stats.get(
+        stat__field_name=field_name
+    )
+    return f"stat_{type_stat.id}"
+
+
+@pytest.mark.django_db
+def test_edit_list_fighter_stats_form_rejects_smart_quotes(fighter_with_statline):
+    """Test that EditListFighterStatsForm rejects smart quotes in stat fields."""
+    fighter = fighter_with_statline
+    movement = field_for(fighter, "movement")
+
+    # Test with left double smart quote in movement
     form_data = {
-        "movement_override": f"6{SMART_QUOTES['LEFT_DOUBLE']}",  # Smart quote (left double)
-        "weapon_skill_override": "3+",
-        "ballistic_skill_override": "4+",
-        "strength_override": "3",
-        "toughness_override": "3",
-        "wounds_override": "1",
-        "initiative_override": "4",
-        "attacks_override": "1",
-        "leadership_override": "7",
-        "cool_override": "7",
-        "willpower_override": "7",
-        "intelligence_override": "7",
+        movement: f"6{SMART_QUOTES['LEFT_DOUBLE']}",  # Smart quote (left double)
+        field_for(fighter, "weapon_skill"): "3+",
+        field_for(fighter, "ballistic_skill"): "4+",
+        field_for(fighter, "strength"): "3",
+        field_for(fighter, "toughness"): "3",
+        field_for(fighter, "wounds"): "1",
+        field_for(fighter, "initiative"): "4",
+        field_for(fighter, "attacks"): "1",
+        field_for(fighter, "leadership"): "7",
+        field_for(fighter, "cool"): "7",
+        field_for(fighter, "willpower"): "7",
+        field_for(fighter, "intelligence"): "7",
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
     assert not form.is_valid()
-    assert "movement_override" in form.errors
-    assert "Smart quotes are not allowed" in str(form.errors["movement_override"])
+    assert movement in form.errors
+    assert "Smart quotes are not allowed" in str(form.errors[movement])
 
 
 @pytest.mark.django_db
 def test_edit_list_fighter_stats_form_rejects_various_smart_quotes(
-    user, content_fighter, house
+    fighter_with_statline,
 ):
     """Test that form rejects all types of smart quotes."""
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        list=lst,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-    )
+    fighter = fighter_with_statline
+    movement = field_for(fighter, "movement")
 
     # Test different smart quote types
     smart_quotes_to_test = SMART_QUOTES.values()
 
     for smart_quote in smart_quotes_to_test:
         form_data = {
-            "movement_override": f"6{smart_quote}",
+            movement: f"6{smart_quote}",
         }
         form = EditListFighterStatsForm(data=form_data, fighter=fighter)
         assert not form.is_valid()
-        assert "movement_override" in form.errors
-        assert "Smart quotes are not allowed" in str(form.errors["movement_override"])
+        assert movement in form.errors
+        assert "Smart quotes are not allowed" in str(form.errors[movement])
 
 
 @pytest.mark.django_db
-def test_edit_list_fighter_stats_form_accepts_simple_quotes(
-    user, content_fighter, house
-):
+def test_edit_list_fighter_stats_form_accepts_simple_quotes(fighter_with_statline):
     """Test that EditListFighterStatsForm accepts simple quotes."""
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        list=lst,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-    )
+    fighter = fighter_with_statline
+    movement = field_for(fighter, "movement")
+    weapon_skill = field_for(fighter, "weapon_skill")
 
     form_data = {
-        "movement_override": '6"',  # Simple double quote
-        "weapon_skill_override": "3'",  # Simple single quote
+        movement: '6"',  # Simple double quote
+        weapon_skill: "3'",  # Simple single quote
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
     form.is_valid()
     # Should not have smart quote errors
-    for field_name in ["movement_override", "weapon_skill_override"]:
+    for field_name in [movement, weapon_skill]:
         if field_name in form.errors:
             assert "Smart quotes" not in str(form.errors[field_name])
 
 
 @pytest.mark.django_db
-def test_edit_list_fighter_stats_form_checks_all_override_fields(
-    user, content_fighter, house
-):
-    """Test that all stat override fields are checked for smart quotes."""
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        list=lst,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-    )
+def test_edit_list_fighter_stats_form_checks_all_stat_fields(fighter_with_statline):
+    """Test that every stat field is checked for smart quotes."""
+    fighter = fighter_with_statline
 
-    # List of fields that should be checked
-    fields_to_check = [
-        "movement_override",
-        "weapon_skill_override",
-        "ballistic_skill_override",
-        "strength_override",
-        "toughness_override",
-        "wounds_override",
-        "initiative_override",
-        "attacks_override",
-        "leadership_override",
-        "cool_override",
-        "willpower_override",
-        "intelligence_override",
+    stats_to_check = [
+        "movement",
+        "weapon_skill",
+        "ballistic_skill",
+        "strength",
+        "toughness",
+        "wounds",
+        "initiative",
+        "attacks",
+        "leadership",
+        "cool",
+        "willpower",
+        "intelligence",
     ]
 
-    for field_name in fields_to_check:
+    for stat in stats_to_check:
+        field_name = field_for(fighter, stat)
         form_data = {
             field_name: f"{SMART_QUOTES['LEFT_DOUBLE']}test{SMART_QUOTES['RIGHT_DOUBLE']}"
         }  # Using smart quotes
@@ -130,30 +131,25 @@ def test_edit_list_fighter_stats_form_checks_all_override_fields(
 
 @pytest.mark.django_db
 def test_edit_list_fighter_stats_form_handles_non_string_values(
-    user, content_fighter, house
+    fighter_with_statline,
 ):
     """Test that form handles non-string values without crashing."""
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        list=lst,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-    )
+    fighter = fighter_with_statline
 
     # Test with None values
     form_data = {
-        "movement_override": None,
-        "weapon_skill_override": None,
-        "strength_override": None,
+        field_for(fighter, "movement"): None,
+        field_for(fighter, "weapon_skill"): None,
+        field_for(fighter, "strength"): None,
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
     form.is_valid()  # Should not raise TypeError
 
     # Test with integer values (though form fields usually convert to string)
     form_data = {
-        "movement_override": 6,
-        "wounds_override": 1,
-        "attacks_override": 2,
+        field_for(fighter, "movement"): 6,
+        field_for(fighter, "wounds"): 1,
+        field_for(fighter, "attacks"): 2,
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
     form.is_valid()  # Should not raise TypeError
@@ -161,46 +157,43 @@ def test_edit_list_fighter_stats_form_handles_non_string_values(
 
 @pytest.mark.django_db
 def test_edit_list_fighter_stats_form_shows_user_friendly_field_names(
-    user, content_fighter, house
+    fighter_with_statline,
 ):
     """Test that error messages use user-friendly field names when available."""
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        list=lst,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-    )
+    fighter = fighter_with_statline
+    movement = field_for(fighter, "movement")
 
     form_data = {
-        "movement_override": f"{SMART_QUOTES['LEFT_DOUBLE']}6{SMART_QUOTES['RIGHT_DOUBLE']}",  # Smart quotes
+        movement: f"{SMART_QUOTES['LEFT_DOUBLE']}6{SMART_QUOTES['RIGHT_DOUBLE']}",  # Smart quotes
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
     assert not form.is_valid()
     # Check that the error message is associated with the correct field
-    assert "movement_override" in form.errors
+    assert movement in form.errors
+    # The message names the stat, not the opaque field id
+    assert "Movement" in str(form.errors[movement])
 
 
 @pytest.mark.django_db
-def test_edit_list_fighter_stats_form_with_mixed_content(user, content_fighter, house):
+def test_edit_list_fighter_stats_form_with_mixed_content(fighter_with_statline):
     """Test form with mix of valid and invalid values."""
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        list=lst,
-        content_fighter=content_fighter,
-        name="Test Fighter",
-    )
+    fighter = fighter_with_statline
+    movement = field_for(fighter, "movement")
+    weapon_skill = field_for(fighter, "weapon_skill")
+    ballistic_skill = field_for(fighter, "ballistic_skill")
+    strength = field_for(fighter, "strength")
 
     form_data = {
-        "movement_override": '6"',  # Simple quote - valid
-        "weapon_skill_override": "3+",  # Valid
-        "ballistic_skill_override": f"{SMART_QUOTES['LEFT_DOUBLE']}4+{SMART_QUOTES['RIGHT_DOUBLE']}",  # Smart quotes - invalid
-        "strength_override": "3",  # Valid
+        movement: '6"',  # Simple quote - valid
+        weapon_skill: "3+",  # Valid
+        ballistic_skill: f"{SMART_QUOTES['LEFT_DOUBLE']}4+{SMART_QUOTES['RIGHT_DOUBLE']}",  # Smart quotes - invalid
+        strength: "3",  # Valid
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
     assert not form.is_valid()
     # Should have errors for fields with smart quotes
-    assert "ballistic_skill_override" in form.errors
+    assert ballistic_skill in form.errors
     # Should not have errors for valid fields
-    assert "movement_override" not in form.errors
-    assert "weapon_skill_override" not in form.errors
-    assert "strength_override" not in form.errors
+    assert movement not in form.errors
+    assert weapon_skill not in form.errors
+    assert strength not in form.errors

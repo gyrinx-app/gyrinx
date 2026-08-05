@@ -84,10 +84,16 @@ def test_legacy_value_written_from_a_differently_shaped_base_is_left_alone(
 
 
 @pytest.mark.django_db
-def test_convert_leaves_the_displayed_statline_untouched(
+def test_convert_reproduces_the_stored_value_from_the_mod_system(
     user, make_list, make_list_fighter
 ):
-    """Converting legacy advancements must not move the fighter's stats."""
+    """The value the legacy column held must be what the mods now compute.
+
+    When this migration ran, that was the display-preservation guarantee. The
+    card no longer reads legacy columns at all (#1861 Track C3), so the claim
+    is now about the arithmetic agreeing rather than about pixels: convert
+    clears the column and the advancements alone reproduce the value.
+    """
     lst = make_list("Test List")
     fighter = make_list_fighter(lst, "Legacy Fighter")
 
@@ -97,8 +103,6 @@ def test_convert_leaves_the_displayed_statline_untouched(
     fighter.weapon_skill_override = "3+"
     fighter.save()
 
-    assert stat_value(fighter, "weapon_skill") == "3+"
-
     migration.convert(apps, None)
 
     fighter.refresh_from_db()
@@ -106,7 +110,7 @@ def test_convert_leaves_the_displayed_statline_untouched(
     assert not ListFighterAdvancement.objects.filter(
         fighter=fighter, uses_mod_system=False
     ).exists()
-    # Same value, now computed from the advancements rather than stored
+    # The value the column used to hold, now computed from the advancements
     assert stat_value(fighter, "weapon_skill") == "3+"
 
 
@@ -122,9 +126,11 @@ def test_repair_drops_a_double_counted_improvement(user, make_list, make_list_fi
     fighter.ballistic_skill_override = "4+"
     fighter.save()
 
-    # Base is 5+ and one advancement was taken, so 4+ is correct — but the
-    # override and the mod both apply, so the fighter shows 3+.
-    assert stat_value(fighter, "ballistic_skill") == "3+"
+    # Base is 5+ and one advancement was taken, so 4+ is correct. The column
+    # duplicating it used to double-apply and show 3+; since Track C3 nothing
+    # reads it, so the card is already right — convert clears the row so the
+    # duplicate cannot come back.
+    assert stat_value(fighter, "ballistic_skill") == "4+"
 
     migration.convert(apps, None)
 
@@ -152,7 +158,9 @@ def test_manual_stat_edits_are_left_alone(user, make_list, make_list_fighter):
     assert ListFighterAdvancement.objects.filter(
         fighter=fighter, uses_mod_system=False
     ).exists()
-    assert stat_value(fighter, "weapon_skill") == "2+"
+    # The column survives untouched, though since Track C3 the card no longer
+    # reads it — Track C2 moved these values into the override store.
+    assert stat_value(fighter, "weapon_skill") == "5+"
 
 
 @pytest.mark.django_db

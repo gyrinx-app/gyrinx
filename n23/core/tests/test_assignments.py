@@ -689,8 +689,15 @@ def test_upgrade_fighter_stat_mod(
 
 @pytest.mark.django_db
 def test_equipment_fighter_stat_mod(
-    content_fighter, make_list, make_list_fighter, make_equipment, make_weapon_profile
+    content_fighter,
+    make_list,
+    make_list_fighter,
+    make_equipment,
+    make_weapon_profile,
+    make_statline,
+    make_stat_override,
 ):
+    make_statline(content_fighter)
     r_rm, _ = ContentRule.objects.get_or_create(name="Remove Me")
     r_add, _ = ContentRule.objects.get_or_create(name="Add Me")
     spoon = make_equipment("Spoon")
@@ -739,8 +746,7 @@ def test_equipment_fighter_stat_mod(
 
     # Check that mods are applied after the list fighter stat override
 
-    fighter.movement_override = '12"'
-    fighter.save()
+    make_stat_override(fighter, "movement", '12"')
 
     fighter = ListFighter.objects.get(pk=fighter.pk)
 

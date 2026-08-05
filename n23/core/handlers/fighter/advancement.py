@@ -480,78 +480,17 @@ def _reverse_stat_advancement(
     """
     Reverse a stat advancement.
 
-    For mod-based advancements (uses_mod_system=True), the stat change
-    disappears automatically when the advancement is archived.
+    The stat change disappears on its own when the advancement is archived,
+    because the value is computed from the mod system at display time.
 
-    For legacy advancements (uses_mod_system=False), we need to recalculate
-    the override field based on remaining advancements.
+    A handful of pre-Track-B advancements still carry ``uses_mod_system=False``
+    and contribute no mod. Their effect was baked into a ``<stat>_override``
+    column, which Track C2 turned into a plain override row and Track C3
+    stopped reading. Recalculating the column here would write somewhere
+    nothing reads, so these are left alone: the preserved value stays as a
+    manual override, editable on the fighter's stats page.
     """
-    if advancement.uses_mod_system:
-        # Mod-based: stat change disappears automatically when archived
-        return
-
-    # Legacy advancement: need to recalculate the override field
-    stat_name = advancement.stat_increased
-    override_field = f"{stat_name}_override"
-
-    # Count remaining non-archived stat advancements for this stat
-    # (excluding the one being deleted)
-    remaining_count = (
-        ListFighterAdvancement.objects.filter(
-            fighter=fighter,
-            archived=False,
-            advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
-            stat_increased=stat_name,
-            uses_mod_system=False,  # Only count legacy advancements
-        )
-        .exclude(id=advancement.id)
-        .count()
-    )
-
-    if remaining_count == 0:
-        # No more legacy advancements for this stat, clear the override
-        setattr(fighter, override_field, None)
-    else:
-        # Recalculate the override based on remaining advancements
-        base_value = getattr(fighter.content_fighter, stat_name)
-        new_value = _calculate_stat_value(base_value, remaining_count)
-        setattr(fighter, override_field, new_value)
-
-    fighter.save()
-
-
-def _calculate_stat_value(base_value: str, improvement_count: int) -> str:
-    """
-    Calculate the new stat value after a number of improvements.
-
-    Args:
-        base_value: The base stat value (e.g., "3+", "4", '4"')
-        improvement_count: Number of improvements to apply
-
-    Returns:
-        The improved stat value
-    """
-    if not base_value:
-        return base_value
-
-    if "+" in base_value:
-        # Target roll stats (WS, BS, Initiative, etc.) - lower is better
-        base_numeric = int(base_value.replace("+", ""))
-        new_value = base_numeric - improvement_count
-        return f"{new_value}+"
-    elif '"' in base_value:
-        # Distance stats (Movement) - higher is better
-        base_numeric = int(base_value.replace('"', ""))
-        new_value = base_numeric + improvement_count
-        return f'{new_value}"'
-    else:
-        # Numeric stats (S, T, W, A) - higher is better
-        try:
-            base_numeric = int(base_value)
-            new_value = base_numeric + improvement_count
-            return str(new_value)
-        except ValueError:
-            return base_value
+    return
 
 
 @traced("_reverse_skill_advancement")

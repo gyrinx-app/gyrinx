@@ -181,8 +181,13 @@ def test_materialise_covers_all_blank_templates_with_dashes(
 def test_fighter_cards_are_unchanged_including_the_annotated_path(
     user, make_list, make_list_fighter, fighter_type
 ):
-    """A real fighter's card, with a legacy override in play, through both
-    the plain property and the with_related_data fast path."""
+    """A real fighter's card, through both the plain property and the
+    with_related_data fast path, must survive materialisation intact.
+
+    The fighter carries a legacy override that no statline can hold yet, so
+    this also pins down that materialising alone neither displays nor
+    destroys it — moving it is Track C2's job.
+    """
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Carded Fighter")
     fighter.weapon_skill_override = "2+"
@@ -204,9 +209,11 @@ def test_fighter_cards_are_unchanged_including_the_annotated_path(
     after_plain, after_fast = card(fighter.pk)
     assert after_plain == before_plain
     assert after_fast == before_fast
-    # The override survives: no EAV override row exists, so the legacy
-    # field is still the fallback
-    assert any(x[0] == "weapon_skill" and x[2] == "2+" for x in after_plain)
+    # The column survives for Track C2 to migrate, and reaches neither card
+    # (Track C3 stopped reading it) — so materialising cannot move the stat.
+    fighter.refresh_from_db()
+    assert fighter.weapon_skill_override == "2+"
+    assert not any(x[0] == "weapon_skill" and x[2] == "2+" for x in after_plain)
 
 
 @pytest.mark.django_db
@@ -339,13 +346,17 @@ def test_an_oversized_value_fails_the_run_loudly(
 
 
 @pytest.mark.django_db
-def test_an_orphan_eav_override_documents_why_the_preview_warns(
+def test_an_orphan_override_row_is_never_inert(
     user, make_list, make_list_fighter, fighter_type
 ):
-    """An EAV override on a statline-less template flips from inert to
-    outranking the legacy override when the statline appears. Zero such rows
-    exist in prod; the materialise preview counts them so an operator sees
-    any that appear before committing."""
+    """An override on a statline-less template applies immediately.
+
+    It used to sit inert behind the legacy column and then flip to outranking
+    it the moment a statline appeared — the surprise the materialise preview
+    counts and warns about. Since Track C3 overrides are matched by stat name
+    against whatever statline renders, so there is no flip: the row applies
+    before and after, and materialising cannot move the stat.
+    """
     from n23.core.models.list import ListFighterStatOverride
 
     lst = make_list("Gang")
@@ -357,11 +368,11 @@ def test_an_orphan_eav_override_documents_why_the_preview_warns(
         list_fighter=fighter, content_stat=ws, value="6+", owner=user
     )
 
-    assert shown(fighter, "weapon_skill") == "2+"  # EAV row inert today
+    assert shown(fighter, "weapon_skill") == "6+"
 
     run_materialise()
 
-    assert shown(fighter, "weapon_skill") == "6+"  # now it outranks
+    assert shown(fighter, "weapon_skill") == "6+"
 
 
 def shown(fighter, stat):
@@ -375,21 +386,28 @@ def shown(fighter, stat):
 
 
 @pytest.mark.django_db
-def test_stats_form_shows_and_migrates_a_legacy_override(
+def test_stats_form_round_trips_an_override_and_ignores_the_legacy_column(
     client, user, make_list, make_list_fighter, fighter_type
 ):
-    """C1→C2 window: the owner must be able to see AND clear their override.
+    """The owner must be able to see AND clear their override.
 
-    Before: post-materialise the EAV form rendered empty while the card kept
-    showing the legacy value, and blanking the form did not clear it.
+    The form is seeded from the override store only. A leftover legacy column
+    must not appear in it: since Track C3 nothing reads that column, so
+    offering it for editing would show a value the card does not display.
     """
     from n23.core.models.list import ListFighterStatOverride
 
     lst = make_list("Gang")
     fighter = make_list_fighter(lst, "Windowed Fighter")
-    fighter.weapon_skill_override = "2+"
+    fighter.weapon_skill_override = "9+"  # stale column, must stay invisible
     fighter.save()
     run_materialise()
+    ws = fighter.content_fighter.custom_statline.statline_type.stats.get(
+        stat__field_name="weapon_skill"
+    )
+    ListFighterStatOverride.objects.create(
+        list_fighter=fighter, content_stat=ws, value="2+", owner=user
+    )
 
     client.force_login(user)
     url = f"/n23/list/{lst.id}/fighter/{fighter.id}/stats"
@@ -407,9 +425,9 @@ def test_stats_form_shows_and_migrates_a_legacy_override(
     response = client.post(url, {})
     assert response.status_code == 302
     fighter.refresh_from_db()
-    assert fighter.weapon_skill_override is None
     assert not ListFighterStatOverride.objects.filter(list_fighter=fighter).exists()
-    assert shown(fighter, "weapon_skill") != "2+"
+    # Cleared means back to the base value — the stale column does not resurface
+    assert shown(fighter, "weapon_skill") not in ("2+", "9+")
 
 
 @pytest.mark.django_db

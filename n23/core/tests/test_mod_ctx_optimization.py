@@ -341,9 +341,12 @@ def test_list_fighter_statline_query_count(user, content_house):
 
     result, info = capture_queries(get_fighter_statline)
 
-    # Count different types of queries
+    # Count different types of queries. Quoted so this counts the ContentStat
+    # table itself: a bare `content_contentstat` also matches
+    # `content_contentstatline`, a different table, which made this assertion
+    # measure something other than what it claims.
     contentstat_queries = sum(
-        1 for q in info.queries if "content_contentstat" in q["sql"]
+        1 for q in info.queries if '"content_contentstat"' in q["sql"]
     )
 
     # We should have at most 2 ContentStat queries (the prefetch and maybe a statline check)
