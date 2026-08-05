@@ -36,7 +36,7 @@ def test_private_campaign_visible_to_participant(
     client.force_login(user)
 
     # Browse "all campaigns" (my=0)
-    response = client.get("/campaigns/?my=0")
+    response = client.get("/n23/campaigns/?my=0")
     assert response.status_code == 200
     assert private_campaign in response.context["campaigns"]
 
@@ -58,7 +58,7 @@ def test_private_campaign_not_visible_to_non_participant(
     client = Client()
     client.force_login(user)
 
-    response = client.get("/campaigns/?my=0")
+    response = client.get("/n23/campaigns/?my=0")
     assert response.status_code == 200
     assert private_campaign not in response.context["campaigns"]
 
@@ -98,7 +98,7 @@ def test_private_campaign_visible_with_participating_filter(
     client.force_login(user)
 
     # Browse all + participating
-    response = client.get("/campaigns/?my=0&participating=1")
+    response = client.get("/n23/campaigns/?my=0&participating=1")
     assert response.status_code == 200
     campaigns = list(response.context["campaigns"])
     assert private_campaign in campaigns
@@ -122,6 +122,6 @@ def test_public_campaigns_still_visible_when_browsing_all(
     client = Client()
     client.force_login(user)
 
-    response = client.get("/campaigns/?my=0")
+    response = client.get("/n23/campaigns/?my=0")
     assert response.status_code == 200
     assert public_campaign in response.context["campaigns"]

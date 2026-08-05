@@ -229,7 +229,7 @@ def test_list_detail_hides_impersonate_for_regular_user(client, user, make_list)
 @pytest.mark.django_db
 def test_middleware_swaps_request_user(rf, superuser, user):
     log = ImpersonationLog.objects.create(owner=superuser, target=user)
-    request = rf.get("/lists/")
+    request = rf.get("/n23/lists/")
     request.user = superuser
     request.session = {
         IMPERSONATE_KEY: user.id,
@@ -247,7 +247,7 @@ def test_middleware_swaps_request_user(rf, superuser, user):
 @pytest.mark.django_db
 def test_middleware_expires_stale_session(rf, superuser, user):
     log = ImpersonationLog.objects.create(owner=superuser, target=user)
-    request = rf.get("/lists/")
+    request = rf.get("/n23/lists/")
     request.user = superuser
     request.session = {
         IMPERSONATE_KEY: user.id,
@@ -270,7 +270,7 @@ def test_middleware_revokes_when_not_superuser(rf, user, make_user):
     """If the real principal is no longer a superuser, drop the overlay."""
     target = make_user("target", "password")
     log = ImpersonationLog.objects.create(owner=user, target=target)
-    request = rf.get("/lists/")
+    request = rf.get("/n23/lists/")
     request.user = user  # not a superuser
     request.session = {
         IMPERSONATE_KEY: target.id,

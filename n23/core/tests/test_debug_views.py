@@ -44,7 +44,7 @@ def test_list_actions_404_when_debug_disabled(client, user, make_list):
     """The list-actions debug view must 404 in production, even for the owner."""
     lst = make_list("Test Gang")
     client.force_login(user)
-    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 404
 
@@ -62,7 +62,7 @@ def test_list_actions_visible_to_staff_in_production(client, make_list, make_use
     staff.is_staff = True
     staff.save()
     client.force_login(staff)
-    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 200
 
@@ -72,7 +72,7 @@ def test_list_actions_visible_to_staff_in_production(client, make_list, make_use
 def test_list_actions_404_for_anonymous(client, make_list):
     """Anonymous users get a 404 (not another user's activity log)."""
     lst = make_list("Test Gang")
-    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 404
 
@@ -84,7 +84,7 @@ def test_list_actions_404_for_non_owner(client, make_list, make_user):
     lst = make_list("Test Gang")
     other = make_user("intruder", "password")
     client.force_login(other)
-    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 404
 
@@ -95,7 +95,7 @@ def test_list_actions_visible_to_owner(client, user, make_list):
     """The list owner can view their own actions in development."""
     lst = make_list("Test Gang")
     client.force_login(user)
-    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 200
 
@@ -109,7 +109,7 @@ def test_list_actions_visible_to_staff(client, make_list, make_user):
     staff.is_staff = True
     staff.save()
     client.force_login(staff)
-    response = client.get(reverse("debug_list_actions", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_actions", args=[lst.id]))
 
     assert response.status_code == 200
 
@@ -148,7 +148,7 @@ def test_balance_sheet_visible_to_staff_in_production(client, sheet_list, make_u
     staff.is_staff = True
     staff.save()
     client.force_login(staff)
-    response = client.get(reverse("debug_list_balance_sheet", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_balance_sheet", args=[lst.id]))
     assert response.status_code == 200
     assert b"Reconciles." in response.content
 
@@ -158,7 +158,7 @@ def test_balance_sheet_visible_to_staff_in_production(client, sheet_list, make_u
 def test_balance_sheet_404_for_owner_in_production(client, user, sheet_list):
     lst, _ = sheet_list
     client.force_login(user)
-    response = client.get(reverse("debug_list_balance_sheet", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_balance_sheet", args=[lst.id]))
     assert response.status_code == 404
 
 
@@ -166,7 +166,7 @@ def test_balance_sheet_404_for_owner_in_production(client, user, sheet_list):
 @override_settings(DEBUG=True, **_no_toolbar)
 def test_balance_sheet_404_for_anonymous(client, sheet_list):
     lst, _ = sheet_list
-    response = client.get(reverse("debug_list_balance_sheet", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_balance_sheet", args=[lst.id]))
     assert response.status_code == 404
 
 
@@ -176,7 +176,7 @@ def test_balance_sheet_404_for_non_owner(client, sheet_list, make_user):
     lst, _ = sheet_list
     other = make_user("other", "password")
     client.force_login(other)
-    response = client.get(reverse("debug_list_balance_sheet", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_balance_sheet", args=[lst.id]))
     assert response.status_code == 404
 
 
@@ -185,7 +185,7 @@ def test_balance_sheet_404_for_non_owner(client, sheet_list, make_user):
 def test_balance_sheet_owner_sees_healthy_list_reconciling(client, user, sheet_list):
     lst, _ = sheet_list
     client.force_login(user)
-    response = client.get(reverse("debug_list_balance_sheet", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_balance_sheet", args=[lst.id]))
     assert response.status_code == 200
     content = response.content.decode()
     assert "Reconciles." in content
@@ -202,7 +202,7 @@ def test_balance_sheet_highlights_drift(client, user, sheet_list):
         rating_current=fighter.rating_current + 45
     )
     client.force_login(user)
-    response = client.get(reverse("debug_list_balance_sheet", args=[lst.id]))
+    response = client.get(reverse("core:debug_list_balance_sheet", args=[lst.id]))
     assert response.status_code == 200
     content = response.content.decode()
     assert "reconciliation problem" in content
@@ -216,7 +216,7 @@ def test_balance_sheet_view_is_read_only_and_bounded(client, user, sheet_list):
     """The view issues no writes and a bounded number of queries."""
     lst, _ = sheet_list
     client.force_login(user)
-    url = reverse("debug_list_balance_sheet", args=[lst.id])
+    url = reverse("core:debug_list_balance_sheet", args=[lst.id])
     with CaptureQueriesContext(connection) as ctx:
         response = client.get(url)
     assert response.status_code == 200
@@ -240,8 +240,8 @@ def test_balance_sheet_and_actions_pages_interlink(client, user, sheet_list):
     lst, _ = sheet_list
     client.force_login(user)
 
-    sheet_url = reverse("debug_list_balance_sheet", args=[lst.id])
-    actions_url = reverse("debug_list_actions", args=[lst.id])
+    sheet_url = reverse("core:debug_list_balance_sheet", args=[lst.id])
+    actions_url = reverse("core:debug_list_actions", args=[lst.id])
 
     assert actions_url in client.get(sheet_url).content.decode()
     assert sheet_url in client.get(actions_url).content.decode()
@@ -259,5 +259,5 @@ def test_list_dropdown_internal_section_links_balance_sheet(
     staff.save()
     client.force_login(staff)
     content = client.get(reverse("core:list", args=[lst.id])).content.decode()
-    assert reverse("debug_list_balance_sheet", args=[lst.id]) in content
-    assert reverse("debug_list_actions", args=[lst.id]) in content
+    assert reverse("core:debug_list_balance_sheet", args=[lst.id]) in content
+    assert reverse("core:debug_list_actions", args=[lst.id]) in content

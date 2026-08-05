@@ -552,7 +552,7 @@ def test_campaign_copy_to_rejects_archived_target_on_confirm(
 
     # Should redirect back to source campaign with error
     assert response.status_code == 302
-    assert f"/campaign/{source.id}" in response.url
+    assert f"/n23/campaign/{source.id}" in response.url
 
 
 @pytest.mark.django_db
@@ -588,7 +588,7 @@ def test_campaign_copy_from_rejects_archived_source_on_confirm(
 
     # Should redirect back to target campaign with error
     assert response.status_code == 302
-    assert f"/campaign/{target.id}" in response.url
+    assert f"/n23/campaign/{target.id}" in response.url
 
 
 # --- Template Campaign Tests ---
@@ -668,7 +668,7 @@ def test_campaign_copy_from_template_confirm(client, user, make_campaign, make_u
 
     # Should redirect to the target campaign after successful copy
     assert response.status_code == 302
-    assert f"/campaign/{target.id}" in response.url
+    assert f"/n23/campaign/{target.id}" in response.url
 
     # Verify the content was actually copied
     assert target.asset_types.count() == 1

@@ -59,7 +59,7 @@ def test_fighter_switcher_renders_minimal(client, user, make_list, make_list_fig
     f2 = make_list_fighter(lst, "Bravo")
 
     client.force_login(user)
-    resp = client.get(f"/list/{lst.id}/fighter/{f1.id}")
+    resp = client.get(f"/n23/list/{lst.id}/fighter/{f1.id}")
     assert resp.status_code == 200
     content = resp.content.decode()
     # Switcher dropdown shows both fighter names.

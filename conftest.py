@@ -19,7 +19,7 @@ from n23.content.models import (
     ContentWeaponProfile,
 )
 from n23.content.models.skill import ContentSkill, ContentSkillCategory
-from n23.core.context_processors import BANNER_CACHE_KEY
+from gyrinx.site.models import BANNER_CACHE_KEY
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter

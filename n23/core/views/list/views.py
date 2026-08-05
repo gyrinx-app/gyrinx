@@ -16,7 +16,7 @@ from django.views.decorators.http import require_POST
 
 from gyrinx import messages
 from n23.content.models import ContentEquipment, ContentFighter, ContentHouse
-from n23.core.context_processors import BANNER_CACHE_KEY
+from gyrinx.site.models import BANNER_CACHE_KEY
 from n23.core.forms.list import CloneListForm, EditListForm, NewListForm
 from n23.core.handlers.list import handle_list_clone, handle_list_creation
 from n23.core.models.list import List, ListFighter

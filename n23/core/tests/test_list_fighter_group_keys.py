@@ -220,7 +220,7 @@ def test_list_view_includes_fighters_with_groups(client, django_user_model):
     )
 
     # Access the list view
-    response = client.get(f"/list/{test_list.id}")
+    response = client.get(f"/n23/list/{test_list.id}")
 
     # Check that the view returns successfully
     assert response.status_code == 200

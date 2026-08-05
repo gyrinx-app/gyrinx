@@ -102,7 +102,7 @@ def test_vehicle_injury_uses_damage_terminology(test_data, client):
 
     # Add an injury to the vehicle
     response = client.post(
-        f"/list/{test_data['list'].id}/fighter/{test_data['vehicle_fighter'].id}/injury/add",
+        f"/n23/list/{test_data['list'].id}/fighter/{test_data['vehicle_fighter'].id}/injury/add",
         {
             "injury": test_data["injury"].id,
             "fighter_state": ListFighter.ACTIVE,
@@ -135,7 +135,7 @@ def test_regular_fighter_injury_uses_injury_terminology(test_data, client):
 
     # Add an injury to the regular fighter
     client.post(
-        f"/list/{test_data['list'].id}/fighter/{test_data['regular_list_fighter'].id}/injury/add",
+        f"/n23/list/{test_data['list'].id}/fighter/{test_data['regular_list_fighter'].id}/injury/add",
         {
             "injury": test_data["injury"].id,
             "fighter_state": ListFighter.ACTIVE,
@@ -172,7 +172,7 @@ def test_vehicle_recovery_uses_repair_terminology(test_data, client):
 
     # Remove the injury
     client.post(
-        f"/list/{test_data['list'].id}/fighter/{test_data['vehicle_fighter'].id}/injury/{injury_obj.id}/remove",
+        f"/n23/list/{test_data['list'].id}/fighter/{test_data['vehicle_fighter'].id}/injury/{injury_obj.id}/remove",
     )
 
     # Check the campaign action was created with correct terminology
@@ -204,7 +204,7 @@ def test_regular_fighter_recovery_uses_recovery_terminology(test_data, client):
 
     # Remove the injury
     client.post(
-        f"/list/{test_data['list'].id}/fighter/{test_data['regular_list_fighter'].id}/injury/{injury_obj.id}/remove",
+        f"/n23/list/{test_data['list'].id}/fighter/{test_data['regular_list_fighter'].id}/injury/{injury_obj.id}/remove",
     )
 
     # Check the campaign action was created with correct terminology

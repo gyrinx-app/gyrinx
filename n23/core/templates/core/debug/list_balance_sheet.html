@@ -44,7 +44,7 @@
     <body>
         <div class="back">
             <a href="{% url 'core:list' list.id %}">← Back to {{ list.name }}</a>
-            · <a href="{% url 'debug_list_actions' list.id %}">Actions log</a>
+            · <a href="{% url 'core:debug_list_actions' list.id %}">Actions log</a>
         </div>
         <h1>Balance Sheet</h1>
         <p class="description">
@@ -180,7 +180,7 @@
         {% if sheet.has_action_chain %}
             <p class="description">
                 {{ sheet.actions|length }} action{{ sheet.actions|length|pluralize }};
-                full log in the <a href="{% url 'debug_list_actions' list.id %}">actions debug view</a>.
+                full log in the <a href="{% url 'core:debug_list_actions' list.id %}">actions debug view</a>.
             </p>
         {% endif %}
     </body>

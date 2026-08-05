@@ -22,15 +22,15 @@ from n23.core.views.print_lab import (
 def test_lab_hidden_from_anonymous_when_not_debug(client):
     """With DEBUG off and no staff, the lab is a 404 (not a 500 or a leak)."""
     with override_settings(DEBUG=False):
-        assert client.get(reverse("debug_print_lab")).status_code == 404
-        assert client.get(reverse("debug_print_lab_sheet")).status_code == 404
+        assert client.get(reverse("core:debug_print_lab")).status_code == 404
+        assert client.get(reverse("core:debug_print_lab_sheet")).status_code == 404
 
 
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_lab_available_in_debug(client):
-    assert client.get(reverse("debug_print_lab")).status_code == 200
-    assert client.get(reverse("debug_print_lab_sheet")).status_code == 200
+    assert client.get(reverse("core:debug_print_lab")).status_code == 200
+    assert client.get(reverse("core:debug_print_lab_sheet")).status_code == 200
 
 
 @pytest.mark.django_db
@@ -40,15 +40,15 @@ def test_lab_available_to_staff_without_debug(client, make_user):
     staff.save()
     client.force_login(staff)
     with override_settings(DEBUG=False):
-        assert client.get(reverse("debug_print_lab")).status_code == 200
-        assert client.get(reverse("debug_print_lab_sheet")).status_code == 200
+        assert client.get(reverse("core:debug_print_lab")).status_code == 200
+        assert client.get(reverse("core:debug_print_lab_sheet")).status_code == 200
 
 
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_sheet_allows_sameorigin_framing(client):
     """The sheet must be embeddable in the harness iframe (project default is DENY)."""
-    resp = client.get(reverse("debug_print_lab_sheet"))
+    resp = client.get(reverse("core:debug_print_lab_sheet"))
     assert resp.headers.get("X-Frame-Options") == "SAMEORIGIN"
 
 
@@ -60,7 +60,7 @@ def test_sheet_allows_sameorigin_framing(client):
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_sheet_preset_gallery_renders_all(client):
-    resp = client.get(reverse("debug_print_lab_sheet"))
+    resp = client.get(reverse("core:debug_print_lab_sheet"))
     body = resp.content.decode()
     # one card per preset
     assert body.count("classic-card") >= len(synthetic_presets())
@@ -71,7 +71,7 @@ def test_sheet_preset_gallery_renders_all(client):
 @override_settings(DEBUG=True)
 @pytest.mark.parametrize("preset_key", list(PRESET_LABELS))
 def test_sheet_single_preset_renders(client, preset_key):
-    url = reverse("debug_print_lab_sheet") + f"?source=preset&preset={preset_key}"
+    url = reverse("core:debug_print_lab_sheet") + f"?source=preset&preset={preset_key}"
     resp = client.get(url)
     assert resp.status_code == 200
     assert "classic-card" in resp.content.decode()
@@ -80,7 +80,7 @@ def test_sheet_single_preset_renders(client, preset_key):
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_sheet_paged_mode_adds_class(client):
-    resp = client.get(reverse("debug_print_lab_sheet") + "?paged=1")
+    resp = client.get(reverse("core:debug_print_lab_sheet") + "?paged=1")
     assert "print-sheet--paged" in resp.content.decode()
 
 
@@ -90,7 +90,7 @@ def test_xp_renders_as_bold_value_in_kills_row(client):
     """XP is a bold value in the XP/Kills row, not a statline column."""
     import re
 
-    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=overflow"
+    url = reverse("core:debug_print_lab_sheet") + "?source=preset&preset=overflow"
     body = client.get(url).content.decode()
     assert "cc-stat--xp" not in body  # no longer a statline column
     m = re.search(r"cc-kills__xp[^>]*>([^<]*)</span>", body)
@@ -103,7 +103,7 @@ def test_xp_renders_as_bold_value_in_kills_row(client):
 def test_sheet_bad_fighter_id_is_graceful(client):
     """A bad id shows an error message, never a 500."""
     resp = client.get(
-        reverse("debug_print_lab_sheet") + "?source=fighter&fighter=not-a-uuid"
+        reverse("core:debug_print_lab_sheet") + "?source=fighter&fighter=not-a-uuid"
     )
     assert resp.status_code == 200
     assert "No fighter found" in resp.content.decode()
@@ -114,7 +114,9 @@ def test_sheet_bad_fighter_id_is_graceful(client):
 def test_sheet_real_fighter_renders(client, make_list, make_list_fighter):
     lst = make_list("Test Gang")
     fighter = make_list_fighter(lst, "Grimjaw")
-    url = reverse("debug_print_lab_sheet") + f"?source=fighter&fighter={fighter.id}"
+    url = (
+        reverse("core:debug_print_lab_sheet") + f"?source=fighter&fighter={fighter.id}"
+    )
     resp = client.get(url)
     assert resp.status_code == 200
     assert "Grimjaw" in resp.content.decode()
@@ -126,7 +128,7 @@ def test_sheet_real_gang_renders_all_fighters(client, make_list, make_list_fight
     lst = make_list("Squad")
     make_list_fighter(lst, "Alpha")
     make_list_fighter(lst, "Bravo")
-    url = reverse("debug_print_lab_sheet") + f"?source=list&list={lst.id}"
+    url = reverse("core:debug_print_lab_sheet") + f"?source=list&list={lst.id}"
     body = client.get(url).content.decode()
     assert "Alpha" in body
     assert "Bravo" in body
@@ -157,7 +159,7 @@ def test_sheet_real_gang_excludes_dead_and_stash(
         name="Stash", content_fighter=stash_cf, list=lst, owner=lst.owner
     )
 
-    url = reverse("debug_print_lab_sheet") + f"?source=list&list={lst.id}"
+    url = reverse("core:debug_print_lab_sheet") + f"?source=list&list={lst.id}"
     body = client.get(url).content.decode()
     assert "Alive" in body
     assert "Corpse" not in body
@@ -252,7 +254,7 @@ def test_psyker_preset_splits_powers_and_gear_categories():
 @override_settings(DEBUG=True)
 def test_psyker_sheet_shows_power_and_category_rows(client):
     """The rendered card labels the powers and gear-category rows."""
-    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=psyker"
+    url = reverse("core:debug_print_lab_sheet") + "?source=preset&preset=psyker"
     body = client.get(url).content.decode()
     assert "Wyrd Powers" in body
     assert "Legendary Names" in body
@@ -276,7 +278,7 @@ def test_injuries_live_in_their_own_field_not_notes():
 @override_settings(DEBUG=True)
 def test_sheet_always_shows_injuries_label(client):
     """Even a blank card carries the labelled Injuries write-in box."""
-    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=blank"
+    url = reverse("core:debug_print_lab_sheet") + "?source=preset&preset=blank"
     body = client.get(url).content.decode()
     assert "Injuries" in body
     assert "cc-injuries" in body
@@ -286,7 +288,7 @@ def test_sheet_always_shows_injuries_label(client):
 @override_settings(DEBUG=True)
 def test_bottom_fields_have_writein_boxes(client):
     """Kills, Notes, and Injuries each get a hand-fillable write-in box."""
-    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=blank"
+    url = reverse("core:debug_print_lab_sheet") + "?source=preset&preset=blank"
     body = client.get(url).content.decode()
     # three write-in boxes: kills, notes, injuries
     assert body.count("cc-writein") >= 3
@@ -314,7 +316,9 @@ def test_real_fighter_injuries_render_on_card(
     card = card_from_fighter(fighter, list_with_campaign)
     assert "Humiliated" in card.injuries
     # ...and it renders in the sheet
-    url = reverse("debug_print_lab_sheet") + f"?source=fighter&fighter={fighter.id}"
+    url = (
+        reverse("core:debug_print_lab_sheet") + f"?source=fighter&fighter={fighter.id}"
+    )
     assert "Humiliated" in client.get(url).content.decode()
 
 
@@ -323,7 +327,7 @@ def test_real_fighter_injuries_render_on_card(
 def test_all_presets_render_without_error(client):
     """Every preset (incl. overflow + blank) renders in the sheet."""
     for key in PRESET_LABELS:
-        url = reverse("debug_print_lab_sheet") + f"?source=preset&preset={key}"
+        url = reverse("core:debug_print_lab_sheet") + f"?source=preset&preset={key}"
         assert client.get(url).status_code == 200
 
 
@@ -387,6 +391,6 @@ def test_blank_card_keeps_one_full_width_detail_column():
 @pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_sheet_renders_two_detail_columns(client):
-    url = reverse("debug_print_lab_sheet") + "?source=preset&preset=psyker"
+    url = reverse("core:debug_print_lab_sheet") + "?source=preset&preset=psyker"
     body = client.get(url).content.decode()
     assert body.count('class="cc-detail__col"') == 2

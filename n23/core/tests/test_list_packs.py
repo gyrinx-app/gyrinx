@@ -85,7 +85,7 @@ class TestPackSubscriptionViews:
         url = reverse("core:pack-unsubscribe", args=(pack.id,))
         response = client.post(url, {"list_id": str(lst.id), "return_url": "list"})
         assert response.status_code == 302
-        assert f"/list/{lst.id}/packs" in response.url
+        assert f"/n23/list/{lst.id}/packs" in response.url
 
 
 @pytest.mark.django_db
@@ -576,7 +576,7 @@ class TestPackListsView:
             url, {"list_id": str(lst.id), "return_url": "pack-lists"}
         )
         assert response.status_code == 302
-        assert f"/pack/{pack.id}/lists/" in response.url
+        assert f"/n23/pack/{pack.id}/lists/" in response.url
 
     def test_unsubscribe_redirects_to_pack_lists(
         self, client, cc_user, pack, make_list
@@ -589,7 +589,7 @@ class TestPackListsView:
             url, {"list_id": str(lst.id), "return_url": "pack-lists"}
         )
         assert response.status_code == 302
-        assert f"/pack/{pack.id}/lists/" in response.url
+        assert f"/n23/pack/{pack.id}/lists/" in response.url
 
 
 @pytest.mark.django_db

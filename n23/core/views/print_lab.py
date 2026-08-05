@@ -611,7 +611,7 @@ def print_lab(request):
         params["grid"] = "1"
     if paged:
         params["paged"] = "1"
-    sheet_url = reverse("debug_print_lab_sheet") + "?" + urlencode(params)
+    sheet_url = reverse("core:debug_print_lab_sheet") + "?" + urlencode(params)
 
     # A few real examples for quick access (best-effort; empty in a bare DB).
     from types import SimpleNamespace

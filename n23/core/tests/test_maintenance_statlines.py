@@ -392,7 +392,7 @@ def test_stats_form_shows_and_migrates_a_legacy_override(
     run_materialise()
 
     client.force_login(user)
-    url = f"/list/{lst.id}/fighter/{fighter.id}/stats"
+    url = f"/n23/list/{lst.id}/fighter/{fighter.id}/stats"
     response = client.get(url)
     assert response.status_code == 200
     ws_field = [

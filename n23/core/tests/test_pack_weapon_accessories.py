@@ -360,7 +360,7 @@ def test_pack_accessory_visible_on_weapon_edit_page(
 @pytest.mark.django_db
 def test_add_accessory_form_loads(client, user, pack):
     client.force_login(user)
-    response = client.get(f"/pack/{pack.id}/add/weapon-accessory/")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon-accessory/")
     assert response.status_code == 200
     assert b"Add Weapon Accessory" in response.content
 
@@ -369,7 +369,7 @@ def test_add_accessory_form_loads(client, user, pack):
 def test_add_accessory_creates_item(client, user, pack):
     client.force_login(user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Telescopic Sight",
             "description": "Improves long-range accuracy.",
@@ -396,7 +396,7 @@ def test_add_accessory_with_stat_mod(client, user, pack):
     attaches it to the accessory."""
     client.force_login(user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Damage Booster",
             "description": "",
@@ -422,7 +422,7 @@ def test_add_accessory_with_trait_mod(client, user, pack):
 
     client.force_login(user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Heavy Stock",
             "description": "",
@@ -445,7 +445,7 @@ def test_add_accessory_rejects_non_integer_value_for_improve(client, user, pack)
     crash in ContentModStat.apply() at runtime."""
     client.force_login(user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Bad Mod",
             "description": "",
@@ -469,7 +469,7 @@ def test_stat_mod_value_whitespace_dedups(client, user, pack):
     client.force_login(user)
     for value in ("1", " 1 "):
         response = client.post(
-            f"/pack/{pack.id}/add/weapon-accessory/",
+            f"/n23/pack/{pack.id}/add/weapon-accessory/",
             {
                 "name": f"Acc {value}",
                 "description": "",
@@ -493,7 +493,7 @@ def test_mod_dedup_across_accessories(client, user, pack):
 
     for name in ("Sight A", "Sight B"):
         response = client.post(
-            f"/pack/{pack.id}/add/weapon-accessory/",
+            f"/n23/pack/{pack.id}/add/weapon-accessory/",
             {
                 "name": name,
                 "description": "",
@@ -517,7 +517,7 @@ def test_edit_view_opens_trait_collapsible_when_trait_mod_set(client, user, pack
     base_trait = ContentWeaponTrait.objects.create(name="Knockback")
     client.force_login(user)
     client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Trait Setter",
             "description": "",
@@ -549,7 +549,7 @@ def test_add_view_trait_collapsible_closed_by_default(client, user, pack):
     """On the empty add form, the trait collapsible defaults to closed."""
     ContentWeaponTrait.objects.create(name="Some Trait")
     client.force_login(user)
-    response = client.get(f"/pack/{pack.id}/add/weapon-accessory/")
+    response = client.get(f"/n23/pack/{pack.id}/add/weapon-accessory/")
     content = response.content.decode()
     trait_section_idx = content.find("Weapon trait modifiers")
     assert trait_section_idx >= 0
@@ -566,7 +566,7 @@ def test_edit_accessory_preserves_mods_and_can_remove(client, user, pack):
 
     # Create the accessory with a stat mod.
     create_response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {
             "name": "Editable Accessory",
             "description": "",
@@ -622,7 +622,7 @@ def test_add_accessory_rejects_duplicate_base_name(client, user, pack):
     ContentWeaponAccessory.objects.create(name="Sight")
     client.force_login(user)
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {"name": "Sight", "description": "", "cost": "0", "rarity": "C"},
     )
     assert response.status_code == 200
@@ -633,11 +633,11 @@ def test_add_accessory_rejects_duplicate_base_name(client, user, pack):
 def test_add_accessory_rejects_duplicate_within_pack(client, user, pack):
     client.force_login(user)
     client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {"name": "PackSight", "description": "", "cost": "0", "rarity": "C"},
     )
     response = client.post(
-        f"/pack/{pack.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack.id}/add/weapon-accessory/",
         {"name": "PackSight", "description": "", "cost": "0", "rarity": "C"},
     )
     assert response.status_code == 200
@@ -651,13 +651,13 @@ def test_different_packs_can_have_same_accessory_name(client, user, make_pack):
     client.force_login(user)
 
     response = client.post(
-        f"/pack/{pack1.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack1.id}/add/weapon-accessory/",
         {"name": "Shared Sight", "description": "", "cost": "0", "rarity": "C"},
     )
     assert response.status_code == 302
 
     response = client.post(
-        f"/pack/{pack2.id}/add/weapon-accessory/",
+        f"/n23/pack/{pack2.id}/add/weapon-accessory/",
         {"name": "Shared Sight", "description": "", "cost": "0", "rarity": "C"},
     )
     assert response.status_code == 302

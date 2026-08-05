@@ -59,16 +59,16 @@ def test_credits_show_sign_zero():
 
 def test_get_return_url_from_get_params(rf):
     """Test extracting return_url from GET parameters."""
-    request = rf.get("/some-page/", {"return_url": "/campaign/123/"})
+    request = rf.get("/some-page/", {"return_url": "/n23/campaign/123/"})
     result = get_return_url(request, "/default/")
-    assert result == "/campaign/123/"
+    assert result == "/n23/campaign/123/"
 
 
 def test_get_return_url_from_post_params(rf):
     """Test extracting return_url from POST parameters."""
-    request = rf.post("/some-page/", {"return_url": "/campaign/456/"})
+    request = rf.post("/some-page/", {"return_url": "/n23/campaign/456/"})
     result = get_return_url(request, "/default/")
-    assert result == "/campaign/456/"
+    assert result == "/n23/campaign/456/"
 
 
 def test_get_return_url_post_takes_priority(rf):
@@ -104,10 +104,10 @@ def test_get_return_url_rejects_javascript_protocol(rf):
 def test_get_return_url_handles_special_characters(rf):
     """Test that URLs with query strings are handled correctly."""
     request = rf.get(
-        "/some-page/", {"return_url": "/campaign/123/?filter=active&page=2"}
+        "/some-page/", {"return_url": "/n23/campaign/123/?filter=active&page=2"}
     )
     result = get_return_url(request, "/default/")
-    assert result == "/campaign/123/?filter=active&page=2"
+    assert result == "/n23/campaign/123/?filter=active&page=2"
 
 
 # Tests for return_url_param template tag
