@@ -3,8 +3,8 @@
 import pytest
 from django.contrib.auth import get_user_model
 
+from gyrinx.querysets import search_queryset
 from n23.content.models import ContentHouse
-from n23.core.utils import search_queryset
 
 User = get_user_model()
 

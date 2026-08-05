@@ -14,7 +14,7 @@
     `safe_referer` validates the Referer against the current host
     (core/templatetags/custom_tags.py), so there is no open-redirect path, and
     views already validate return_url on the way out via
-    core/utils.get_return_url(). This component adds no unvalidated path.
+    gyrinx.http.get_return_url(). This component adds no unvalidated path.
 
     `return_url` IS DELIBERATELY NOT DECLARED IN <c-vars>, and that is the
     whole point. A declared prop SHADOWS the ambient page context: with

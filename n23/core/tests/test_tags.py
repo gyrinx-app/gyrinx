@@ -1,13 +1,13 @@
 import pytest
 from django.template.context import make_context as django_make_context
 
+from gyrinx.http import get_return_url
 from n23.core.templatetags.custom_tags import (
     credits,
     is_active,
     return_url_field,
     return_url_param,
 )
-from n23.core.utils import get_return_url
 
 
 @pytest.fixture

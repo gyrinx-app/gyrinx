@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from gyrinx.http import safe_redirect
 from gyrinx.impersonation import (
     IMPERSONATE_KEY,
     IMPERSONATE_LOG_KEY,
@@ -21,7 +22,6 @@ from gyrinx.impersonation import (
     can_impersonate_target,
 )
 from gyrinx.site.models import ImpersonationLog
-from n23.core.utils import safe_redirect
 
 
 @login_required

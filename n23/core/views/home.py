@@ -4,15 +4,14 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import render
 
-from n23.core.utils import search_queryset
-
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.querysets import search_queryset
+from gyrinx.tracing import span, traced
 from n23.content.models import ContentHouse
 from n23.core.models.battle import Battle
 from n23.core.models.campaign import Campaign
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List, ListFighter
 from n23.core.models.pack import CustomContentPack
-from gyrinx.tracing import span, traced
 
 
 @traced("view_index")

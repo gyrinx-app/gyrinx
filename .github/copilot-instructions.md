@@ -21,7 +21,7 @@ for the specifics.
 
 **Security.** Never apply `|safe` to user-supplied content — the project ships a
 `safe_rich_text` filter for sanitising. Always validate redirect targets from user
-input with `safe_redirect` / `get_return_url` (`n23/core/utils.py`).
+input with `safe_redirect` / `get_return_url` (`gyrinx/http.py`).
 
 **The fighter list is the hot query path.** Adding a FK or M2M to `ListFighter`
 means updating `ListFighterQuerySet.with_related_data()` and the query-count

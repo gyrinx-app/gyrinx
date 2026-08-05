@@ -5,12 +5,12 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
+from gyrinx.analytics.models import EventVerb
+from gyrinx.querysets import search_queryset
 from n23.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentPsykerPower,
 )
-from n23.core.utils import search_queryset
-from gyrinx.analytics.models import EventVerb
 from n23.core.models.list import ListFighterPsykerPowerAssignment
 
 

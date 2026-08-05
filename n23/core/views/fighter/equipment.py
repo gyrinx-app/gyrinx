@@ -13,7 +13,10 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
-from n23.core.utils import search_queryset
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.http import get_return_url, safe_redirect
+from gyrinx.models import is_int, is_valid_uuid
+from gyrinx.querysets import search_queryset
 from n23.content.models import (
     ContentAvailabilityPreset,
     ContentEquipment,
@@ -51,7 +54,6 @@ from n23.core.handlers.equipment import (
     handle_equipment_upgrade,
     handle_weapon_profile_purchase,
 )
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import (
     List,
     ListFighter,
@@ -59,10 +61,8 @@ from n23.core.models.list import (
     VirtualListFighterEquipmentAssignment,
 )
 from n23.core.models.pack import CustomContentPackItem
-from n23.core.utils import get_return_url, safe_redirect
 from n23.core.views import make_query_params_str
 from n23.core.views.list.common import get_clean_list_or_404
-from gyrinx.models import is_int, is_valid_uuid
 
 
 @login_required

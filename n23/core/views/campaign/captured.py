@@ -3,19 +3,19 @@
 import logging
 
 from django.contrib.auth.decorators import login_required
-from django.db import models
 from django.core.exceptions import ValidationError
+from django.db import models
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.http import get_return_url, safe_redirect
+from gyrinx.tracker import track
 from n23.core.handlers.fighter.capture import handle_fighter_return_to_owner
 from n23.core.models.campaign import Campaign
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import CapturedFighter
-from n23.core.utils import get_return_url, safe_redirect
-from gyrinx.tracker import track
 
 # Constants for transaction limits
 MAX_CREDITS = 10000

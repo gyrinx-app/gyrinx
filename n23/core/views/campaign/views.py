@@ -8,8 +8,8 @@ from django.urls import reverse
 from django.utils.http import urlencode
 from django.views import generic
 
+from gyrinx.querysets import search_queryset
 from n23.core.models.campaign import Campaign, CampaignAction, CampaignAsset
-from n23.core.utils import search_queryset
 from n23.core.models.invitation import CampaignInvitation
 from n23.core.models.list import CapturedFighter, List
 
