@@ -464,6 +464,13 @@ def make_statline(content_stat_definitions) -> Callable[..., object]:
     )
 
     def make_statline_(content_fighter, fields=STATLINE_FIELDS, name="Fighter"):
+        # A fighter has at most one statline (OneToOne), so a second call --
+        # or a call on a fixture that already has one -- would raise
+        # IntegrityError rather than doing the obvious thing.
+        existing = getattr(content_fighter, "custom_statline", None)
+        if existing is not None:
+            return existing
+
         statline_type, _ = ContentStatlineType.objects.get_or_create(name=name)
         statline = ContentStatline.objects.create(
             content_fighter=content_fighter, statline_type=statline_type

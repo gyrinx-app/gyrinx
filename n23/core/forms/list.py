@@ -950,22 +950,26 @@ class EditListFighterStatsForm(forms.Form):
             # so this only guards a fighter authored since.
             return
 
-        # Get existing overrides
+        # Get existing overrides. Archived rows are skipped to match what the
+        # card renders: showing one here would let a plain Save recreate it as
+        # a live override — the view rewrites overrides from what was
+        # submitted — and the stat would move on its own. Filtered in Python
+        # so this reads the prefetch cache rather than re-querying.
         existing_overrides = {
-            override.content_stat.id: override.value
-            for override in fighter.stat_overrides.select_related("content_stat")
+            override.content_stat_id: override.value
+            for override in fighter.stat_overrides.all()
+            if not override.archived
+        }
+
+        # Base values in one go, rather than a query per stat
+        base_values = {
+            stat.statline_type_stat_id: stat.value for stat in statline.stats.all()
         }
 
         # Create fields for each stat in the statline
         for stat_def in statline.statline_type.stats.all():
             field_name = f"stat_{stat_def.id}"
-
-            # Get the base value from ContentStatline
-            try:
-                base_stat = statline.stats.get(statline_type_stat=stat_def)
-                placeholder = base_stat.value
-            except Exception:
-                placeholder = "-"
+            placeholder = base_values.get(stat_def.id, "-")
 
             self.fields[field_name] = forms.CharField(
                 required=False,

@@ -8,14 +8,16 @@ from gyrinx.models import SMART_QUOTES
 
 
 @pytest.fixture
-def fighter_with_statline(user, content_fighter, house, make_statline):
+def fighter_with_statline(user, content_fighter, content_house, make_statline):
     """A fighter whose template has a statline, so the stats form has fields.
 
     Overrides are rows keyed to a statline's stats (#1861 Track C2), so a
     template without one gives the form nothing to validate.
     """
     make_statline(content_fighter)
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
+    # content_house, not `house`: content_fighter belongs to the former, and a
+    # list in a different house would be an odd pairing to test against.
+    lst = List.objects.create(name="Test List", owner=user, content_house=content_house)
     return ListFighter.objects.create(
         list=lst,
         content_fighter=content_fighter,
@@ -91,11 +93,10 @@ def test_edit_list_fighter_stats_form_accepts_simple_quotes(fighter_with_statlin
         weapon_skill: "3'",  # Simple single quote
     }
     form = EditListFighterStatsForm(data=form_data, fighter=fighter)
-    form.is_valid()
-    # Should not have smart quote errors
-    for field_name in [movement, weapon_skill]:
-        if field_name in form.errors:
-            assert "Smart quotes" not in str(form.errors[field_name])
+    # Asserting validity outright, not just the absence of a smart-quote
+    # error: the weaker check passes even when the form rejects the value for
+    # some other reason.
+    assert form.is_valid(), form.errors
 
 
 @pytest.mark.django_db

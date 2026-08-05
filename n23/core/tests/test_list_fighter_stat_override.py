@@ -345,6 +345,43 @@ def test_edit_fighter_stats_view_post_custom_statline(
 
 
 @pytest.mark.django_db
+def test_archived_override_is_neither_shown_nor_revived_by_saving(
+    client, list_fighter, vehicle_statline, vehicle_stats, user
+):
+    """An archived override must not reach the form.
+
+    The card skips archived rows. If the form showed one, opening the page
+    and pressing Save with no edits would recreate it as a live override —
+    the view deletes and recreates from what was submitted — and the stat
+    would move on its own.
+    """
+    from n23.core.forms.list import EditListFighterStatsForm
+
+    override = ListFighterStatOverride.objects.create(
+        list_fighter=list_fighter,
+        content_stat=vehicle_stats[0],
+        value='10"',
+        owner=user,
+    )
+    override.archive()
+
+    field_name = f"stat_{vehicle_stats[0].id}"
+    form = EditListFighterStatsForm(fighter=list_fighter)
+    assert form.fields[field_name].initial == ""
+
+    # Saving that form back must not resurrect it
+    client.force_login(user)
+    url = reverse(
+        "core:list-fighter-stats-edit", args=[list_fighter.list.id, list_fighter.id]
+    )
+    response = client.post(url, {})
+    assert response.status_code == 302
+    assert not ListFighterStatOverride.objects.filter(
+        list_fighter=list_fighter, archived=False
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_edit_fighter_stats_form_initialization_with_overrides(
     list_fighter, vehicle_statline, vehicle_stats, user
 ):
