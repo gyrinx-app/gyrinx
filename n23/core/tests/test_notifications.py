@@ -216,6 +216,50 @@ def test_banners_for_filters(user, make_list, make_campaign):
     notify_list_owner(lst, subject="not-a-banner", show_as_banner=False)
     notify_list_owner(other_list, subject="other-list-banner", show_as_banner=True)
 
-    banners = Notification.objects.banners_for(user, list_=lst)
+    banners = Notification.objects.banners_for(user, lst)
     assert banners.count() == 1
     assert banners.first().subject == "banner"
+
+
+@pytest.mark.django_db
+def test_banners_for_matches_scope_as_well_as_target(
+    user, make_user, make_list, make_campaign
+):
+    """A notification about a gang inside a campaign banners on both pages.
+
+    The arbitrator's copy carries the gang as `target` and the campaign as
+    `scope`, which is what the two fixed FKs used to express.
+    """
+    arbitrator = make_user("arb", "password")
+    campaign = make_campaign("Turf War", owner=arbitrator)
+    gang = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+
+    notify_campaign_arbitrator(
+        campaign, subject="gang changed", related_list=gang, show_as_banner=True
+    )
+
+    # Visible on the campaign page (matched via scope)...
+    assert Notification.objects.banners_for(arbitrator, campaign).count() == 1
+    # ...and on the gang's own page (matched via target).
+    assert Notification.objects.banners_for(arbitrator, gang).count() == 1
+    # But not on an unrelated gang.
+    assert (
+        Notification.objects.banners_for(arbitrator, make_list("Elsewhere")).count()
+        == 0
+    )
+
+
+@pytest.mark.django_db
+def test_target_url_prefers_target_then_scope(user, make_list, make_campaign):
+    """target_url asks the object for its own URL, falling back to the scope."""
+    campaign = make_campaign("Turf War")
+    gang = make_list("Gang", status=List.CAMPAIGN_MODE, campaign=campaign)
+
+    about_gang = notify_list_owner(gang, subject="gang")
+    assert about_gang.target_url == gang.get_absolute_url()
+
+    about_campaign = notify_campaign_arbitrator(campaign, subject="campaign")
+    assert about_campaign.target_url == campaign.get_absolute_url()
+
+    plain = notify(recipient=user, subject="no target")
+    assert plain.target_url == ""

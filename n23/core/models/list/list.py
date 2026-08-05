@@ -1489,4 +1489,9 @@ class List(AppBase):
     def __str__(self):
         return self.name
 
+    def get_absolute_url(self):
+        from django.urls import reverse
+
+        return reverse("core:list", args=[str(self.id)])
+
     objects = ListManager.from_queryset(ListQuerySet)()
