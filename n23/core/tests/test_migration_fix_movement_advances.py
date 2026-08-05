@@ -4,7 +4,7 @@ from django.apps import apps
 
 from n23.content.models import ContentFighter, ContentHouse
 from n23.core.models import List, ListFighter, ListFighterAdvancement
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

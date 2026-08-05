@@ -20,7 +20,7 @@ from n23.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 # ContentEquipment cost methods tests

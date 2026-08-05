@@ -11,7 +11,7 @@ from n23.content.models import (
 )
 from n23.content.admin import ContentFighterEquipmentCategoryLimitForm
 from n23.core.models import List, ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

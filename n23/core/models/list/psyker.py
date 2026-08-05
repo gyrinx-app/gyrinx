@@ -8,10 +8,7 @@ from n23.content.models import (
     ContentPsykerPower,
 )
 from n23.core.models.list.fighter import ListFighter
-from gyrinx.models import (
-    Archived,
-    Base,
-)
+from gyrinx.models import Archived, Base
 
 logger = logging.getLogger(__name__)
 pylist = list

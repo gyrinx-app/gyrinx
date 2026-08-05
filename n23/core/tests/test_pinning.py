@@ -426,7 +426,7 @@ def test_vehicle_purchase_pins(
     ctx, user, make_content_fighter, content_house, make_equipment
 ):
     from n23.core.handlers.fighter.vehicle import handle_vehicle_purchase
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     vehicle_equipment = make_equipment("Ridgehauler", cost=100)
     vehicle_fighter = make_content_fighter(

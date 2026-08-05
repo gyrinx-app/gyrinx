@@ -29,7 +29,7 @@ from django.utils.html import format_html, format_html_join
 
 from n23.core.models.list import List
 from n23.core.models.notification import Notification, NotificationType
-from gyrinx.models import format_cost_display
+from n23.models import format_cost_display
 
 logger = logging.getLogger(__name__)
 

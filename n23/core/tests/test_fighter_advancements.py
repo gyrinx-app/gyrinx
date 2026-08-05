@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 from django.urls import reverse
 import pytest
 
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

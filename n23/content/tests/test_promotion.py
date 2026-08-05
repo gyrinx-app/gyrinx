@@ -18,7 +18,7 @@ from n23.content.models.promotion import (
     PROMOTION_TARGET_CATEGORIES,
     seed_default_promotions,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 def _make_path(**kwargs):

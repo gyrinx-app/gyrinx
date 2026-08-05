@@ -18,7 +18,7 @@ from n23.core.handlers.equipment import (
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

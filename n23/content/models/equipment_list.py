@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import CostMixin
+from n23.models import CostMixin
 
 from .base import Content
 

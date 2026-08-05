@@ -31,11 +31,8 @@ from n23.core.models.history_aware_manager import HistoryAwareManager
 from n23.core.tasks import (
     refresh_list_facts,
 )
-from gyrinx.models import (
-    FighterCategoryChoices,
-    QuerySetOf,
-    format_cost_display,
-)
+from gyrinx.models import QuerySetOf
+from n23.models import FighterCategoryChoices, format_cost_display
 from gyrinx.tracing import span, traced
 from gyrinx.tracker import track
 

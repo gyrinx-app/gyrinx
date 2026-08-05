@@ -13,7 +13,7 @@ from n23.content.models import (
 from n23.core.forms.skill_tree import ListSkillTreeForm
 from n23.core.models.list import List, ListFighter, ListSkillTreeAssignment
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 def _add_to_pack(pack, obj):

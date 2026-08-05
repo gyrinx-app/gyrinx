@@ -37,7 +37,7 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from n23.core.views.list.common import get_clean_list_or_404
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 def can_fighter_roll_dice_for_advancement(fighter):

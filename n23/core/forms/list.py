@@ -24,7 +24,8 @@ from gyrinx.forms import (
     group_select,
     group_sorter,
 )
-from gyrinx.models import SMART_QUOTES, FighterCategoryChoices
+from gyrinx.models import SMART_QUOTES
+from n23.models import FighterCategoryChoices
 from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 

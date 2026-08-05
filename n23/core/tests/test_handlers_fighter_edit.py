@@ -15,7 +15,7 @@ from n23.content.models import ContentEquipmentFighterProfile
 from n23.core.handlers.fighter import handle_fighter_edit
 from n23.core.models.action import ListActionType
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

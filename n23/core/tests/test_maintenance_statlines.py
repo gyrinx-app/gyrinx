@@ -19,7 +19,7 @@ from n23.core.maintenance.statlines import (
 )
 from n23.core.models import Backfill
 from n23.core.models.list import ListFighter
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 # Mirrors content.0156: position order, Ld..Int highlighted, Ld first of group.
 _TYPE_META = {

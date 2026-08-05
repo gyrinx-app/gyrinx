@@ -71,7 +71,7 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
     ListFighterEquipmentSet,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 # --- Selection-spec parser --------------------------------------------------

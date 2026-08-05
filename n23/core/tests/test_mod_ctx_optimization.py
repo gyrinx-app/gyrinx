@@ -9,7 +9,7 @@ from n23.content.models import (
 )
 from n23.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from n23.core.models.util import ModContext
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 from gyrinx.query import capture_queries
 
 

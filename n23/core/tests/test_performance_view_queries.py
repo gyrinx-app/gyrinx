@@ -36,7 +36,7 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 from gyrinx.util import print_word_diff
 
 User = get_user_model()

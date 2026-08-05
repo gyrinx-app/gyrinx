@@ -12,7 +12,7 @@ from django.core.exceptions import ValidationError
 from n23.core.handlers.fighter import handle_vehicle_purchase
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

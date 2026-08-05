@@ -85,7 +85,8 @@ from n23.core.models.pack import (
     CustomContentPackPermission,
 )
 from n23.core.utils import safe_redirect, search_queryset
-from gyrinx.models import FighterCategoryChoices, is_valid_uuid
+from gyrinx.models import is_valid_uuid
+from n23.models import FighterCategoryChoices
 
 
 class ContentTypeEntry(NamedTuple):
@@ -1937,7 +1938,7 @@ def add_pack_fighter_stats(request, id):
     statline_type_override = None
     if params.statline_type_id:
         from n23.core.forms.pack import _EXCLUDED_FIGHTER_CATEGORIES
-        from gyrinx.models import FighterCategoryChoices as FCC
+        from n23.models import FighterCategoryChoices as FCC
 
         allowed_categories = {
             v for v, _ in FCC.choices if v not in _EXCLUDED_FIGHTER_CATEGORIES
@@ -5252,7 +5253,6 @@ def house_rule_picker(request, id):
         q = picker_data["search_query"]
     else:  # fighter
         target_label = "fighters & vehicles"
-        from gyrinx.models import FighterCategoryChoices
 
         fighters_qs = (
             ContentFighter.objects.with_packs([pack])

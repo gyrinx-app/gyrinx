@@ -22,7 +22,7 @@ from n23.content.models import (
 )
 from n23.core.models import List, ListAttributeAssignment
 from n23.core.models.list import ListFighter
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

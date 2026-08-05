@@ -12,7 +12,7 @@ from n23.content.models import (
     ContentWeaponAccessory,
 )
 from n23.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices, format_cost_display
+from n23.models import FighterCategoryChoices, format_cost_display
 
 
 class TestFormatCostDisplay:

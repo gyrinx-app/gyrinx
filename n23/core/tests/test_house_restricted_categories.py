@@ -18,7 +18,7 @@ from n23.content.models import (
     ContentWeaponProfile,
 )
 from n23.core.models.list import ListFighter
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.fixture

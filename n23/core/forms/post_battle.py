@@ -15,7 +15,7 @@ from n23.core.models.battle import Battle
 from n23.core.models.campaign import CampaignAsset
 from n23.core.models.list import List, ListFighter
 from gyrinx.forms import group_select
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 class RepeatedSelect(forms.SelectMultiple):

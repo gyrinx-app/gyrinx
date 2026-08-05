@@ -234,7 +234,7 @@ def test_add_vehicle_creates_campaign_action(
 ):
     """Test that adding a vehicle in campaign mode creates a campaign action."""
     from n23.core.models.campaign import CampaignAction
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     client.login(username="testuser", password="password")
 

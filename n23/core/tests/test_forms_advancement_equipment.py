@@ -2,7 +2,7 @@ import pytest
 
 from n23.content.models import ContentAdvancementEquipment
 from n23.core.forms.advancement import AdvancementTypeForm
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

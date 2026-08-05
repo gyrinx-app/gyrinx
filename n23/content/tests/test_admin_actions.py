@@ -614,7 +614,7 @@ def test_fighter_display_tolerates_dangling_house(make_content_fighter, content_
     import uuid
 
     from n23.content.admin import fighter_house_name
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     fighter = make_content_fighter(
         type="Drifter",

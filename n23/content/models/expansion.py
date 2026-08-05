@@ -22,7 +22,7 @@ from multiselectfield import MultiSelectField
 from polymorphic.models import PolymorphicModel
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import FighterCategoryChoices, format_cost_display
+from n23.models import FighterCategoryChoices, format_cost_display
 
 from .base import Content
 

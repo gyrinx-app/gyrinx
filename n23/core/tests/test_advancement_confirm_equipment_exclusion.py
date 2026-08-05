@@ -10,7 +10,7 @@ from n23.content.models import (
     ContentEquipmentUpgrade,
 )
 from n23.core.models import ListFighterAdvancement, ListFighterEquipmentAssignment
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

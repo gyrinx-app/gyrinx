@@ -11,7 +11,7 @@ from n23.core.maintenance.stat_advancements import (
     build_plan,
     send_messages,
 )
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 def make_simple_content_fighter(house):
@@ -21,7 +21,7 @@ def make_simple_content_fighter(house):
     their own.
     """
     from n23.content.models import ContentFighter
-    from gyrinx.models import FighterCategoryChoices
+    from n23.models import FighterCategoryChoices
 
     return ContentFighter.objects.create(
         type="Commit Order Fighter",

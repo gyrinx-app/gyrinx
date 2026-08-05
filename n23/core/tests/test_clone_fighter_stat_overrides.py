@@ -10,7 +10,7 @@ from n23.content.models import (
     ContentStatlineTypeStat,
 )
 from n23.core.models.list import ListFighterStatOverride
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 @pytest.mark.django_db

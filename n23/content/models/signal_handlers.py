@@ -19,7 +19,7 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
 from n23.content.signals import MISSING, get_new_cost, get_old_cost, get_old_field
-from gyrinx.models import format_cost_display
+from n23.models import format_cost_display
 from gyrinx.tracing import traced
 
 from .equipment import (

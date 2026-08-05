@@ -11,7 +11,7 @@ from n23.content.models import (
 )
 from n23.core.models.campaign import Campaign, CampaignAction
 from n23.core.models.list import List, ListFighter, ListFighterInjury
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 
 def create_test_campaign_data():

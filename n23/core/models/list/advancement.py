@@ -15,9 +15,7 @@ from n23.content.models import (
 from n23.core.models.base import AppBase
 from n23.core.models.list.assignment import ListFighterEquipmentAssignment
 from n23.core.models.list.fighter import ListFighter
-from gyrinx.models import (
-    FighterCategoryChoices,
-)
+from n23.models import FighterCategoryChoices
 
 logger = logging.getLogger(__name__)
 pylist = list

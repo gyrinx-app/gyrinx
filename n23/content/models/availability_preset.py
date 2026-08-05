@@ -10,7 +10,7 @@ from django.db.models import Case, IntegerField, Q, Value, When
 from multiselectfield import MultiSelectField
 from simple_history.models import HistoricalRecords
 
-from gyrinx.models import FighterCategoryChoices
+from n23.models import FighterCategoryChoices
 
 from .base import Content
 
