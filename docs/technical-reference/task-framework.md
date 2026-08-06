@@ -4,13 +4,19 @@ This reference documents the complete configuration options, environment variabl
 
 ## TaskRoute Configuration
 
-Register tasks in `gyrinx/tasks/registry.py` using `TaskRoute`:
+Declare tasks in the `task_routes` list of the app's own `tasks.py`, using
+`TaskRoute`. The platform discovers these lists across all installed apps:
 
 ```python
-from gyrinx.tasks import TaskRoute
-from n23.core.tasks import my_task
+# n23/core/tasks.py
+from django.tasks import task
 
-tasks = [
+from gyrinx.tasks import TaskRoute
+
+@task
+def my_task(): ...
+
+task_routes = [
     TaskRoute(my_task),
 ]
 ```

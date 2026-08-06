@@ -25,25 +25,22 @@ def send_notification(user_id: str, message: str):
     # ... send notification logic
 ```
 
-1. **Register the task** in `gyrinx/tasks/registry.py`:
+1. **Declare a route for it** in the same file's `task_routes` list:
 
 ```python
-from n23.core.tasks import send_notification
+# n23/core/tasks.py
+from gyrinx.tasks import TaskRoute
 
-def _get_tasks() -> list[TaskRoute]:
-    global _tasks
-    if _tasks is None:
-        from n23.core.tasks import (
-            # ... existing imports
-            send_notification,
-        )
-
-        _tasks = [
-            # ... existing tasks
-            TaskRoute(send_notification),
-        ]
-    return _tasks
+task_routes = [
+    # ... existing routes
+    TaskRoute(send_notification),
+]
 ```
+
+The platform picks this up automatically — no platform file to edit. If the app
+has no `tasks.py` yet, create one and add the list; discovery finds any
+`<app>/tasks.py`. Forget this step and the `gyrinx.tasks.E001` system check
+fails on `manage check`, `runserver` and CI.
 
 1. **Enqueue the task** from your application code:
 
@@ -311,7 +308,7 @@ Set `TASKS_FAULT_SEED` to make the injected chaos reproducible, and `TASKS_WORKE
 
 ### Steps
 
-1. **Remove the task** from `gyrinx/tasks/registry.py`
+1. **Remove the task** from the `task_routes` list in its app's `tasks.py`
 
 2. **Deploy** - The orphan cleanup will automatically delete the Cloud Scheduler job
 

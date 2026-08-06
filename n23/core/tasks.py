@@ -3,6 +3,8 @@ from collections import defaultdict
 
 from django.tasks import task
 
+from gyrinx.tasks import TaskRoute
+
 logger = logging.getLogger(__name__)
 
 
@@ -756,3 +758,27 @@ def backfill_pins(
         from n23.core.models import Backfill
 
         _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
+
+
+# =============================================================================
+# Task routes
+#
+# This edition's background tasks, declared for the platform to discover (see
+# gyrinx/tasks/discovery.py). A @task that isn't listed here can't be enqueued
+# in production; the gyrinx.tasks.E001 system check fails the build if one is
+# missed.
+# =============================================================================
+
+task_routes = [
+    TaskRoute(hello_world),
+    TaskRoute(propagate_content_cost_change),
+    TaskRoute(propagate_default_child_fighter_assignment),
+    TaskRoute(refresh_list_facts),
+    # A 250-row batch through pin_assignment is many queries; give
+    # the worker room before Pub/Sub redelivers.
+    TaskRoute(backfill_pins, ack_deadline=600),
+    TaskRoute(reconcile_all_lists, ack_deadline=600),
+    # Cloning a full gang (fighters, equipment, stash, facts recompute) is
+    # many queries; give the worker room before Pub/Sub redelivers.
+    TaskRoute(complete_campaign_list_clone, ack_deadline=600),
+]

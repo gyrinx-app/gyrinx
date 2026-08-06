@@ -12,6 +12,8 @@ import requests
 from django.conf import settings
 from django.tasks import task
 
+from gyrinx.tasks import TaskRoute
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,3 +129,9 @@ def _update_discord_message(application_id: str, interaction_token: str, content
         )
     except Exception as e:
         logger.error(f"Failed to update Discord message: {e}")
+
+
+# Declared for the platform to discover (see gyrinx/tasks/discovery.py).
+task_routes = [
+    TaskRoute(trigger_discord_issue_action),
+]

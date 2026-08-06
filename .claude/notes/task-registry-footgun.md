@@ -1,5 +1,25 @@
 # Background task registry: the silent dev/prod split, and a better abstraction
 
+## Status
+
+Both recommendations have landed.
+
+- **(A) System check** — shipped as `gyrinx/tasks/checks.py` (`gyrinx.tasks.E001`
+  / `E002`).
+- **(B) Declaration-owned registration** — shipped, but as a declarative list
+  rather than the `@gyrinx_task` decorator sketched below. Each app declares a
+  module-level `task_routes = [TaskRoute(fn, ...)]` in its own `<app>/tasks.py`,
+  and `gyrinx/tasks/discovery.py` collects those across installed apps. Same
+  outcome — config lives beside the function, the platform names no edition task
+  (#2093) — with a smaller blast radius than rewriting every `@task` decorator.
+  The decorator remains open as a later refinement: it is the only version that
+  makes omission *structurally* impossible, which is why (A) stays the tripwire.
+
+Note that this is **not** option D. Discovery collects per-app *declarations*,
+which still carry ack deadlines and schedules explicitly; it does not scan for
+`@task` functions and provision topics for whatever it finds.
+
+
 ## The incident
 
 The Phase 8 cost-pinning PR (#1946) shipped a new background task, `backfill_pins`

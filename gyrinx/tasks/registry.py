@@ -1,63 +1,54 @@
 """
-Task Registry - Explicit task registration.
+Task Registry - the collected view of every app's task routes.
 
-Add your tasks here, similar to Django's urlpatterns.
+Apps declare their own routes in their own ``<app>/tasks.py``, as a module-level
+``task_routes`` list:
 
-Usage:
+    from django.tasks import task
     from gyrinx.tasks import TaskRoute
-    from n23.core.tasks import send_welcome_email, generate_report
 
-    tasks = [
+    @task
+    def send_welcome_email(user_id: int): ...
+
+    task_routes = [
         TaskRoute(send_welcome_email),
         TaskRoute(generate_report, ack_deadline=600),
     ]
 
-Note: Task imports are done lazily in _get_tasks() to avoid circular imports
-during Django startup. The backend imports this module before Django's task
-framework is fully initialized.
+This module collects them (see ``gyrinx.tasks.discovery``) and offers the lookup
+helpers the backends and provisioning use. It names no tasks itself: the
+platform should not have to know what an edition calls its work (#2093).
 """
 
-from gyrinx.tasks import TaskRoute
+from gyrinx.tasks.discovery import discover_task_routes
+from gyrinx.tasks.route import TaskRoute
 
-# Cache for lazily-loaded tasks
+# Cache for the lazily-discovered routes.
 _tasks: list[TaskRoute] | None = None
 
 
 def _get_tasks() -> list[TaskRoute]:
     """
-    Lazily load and cache the task list.
+    Discover the routes on first use, then cache them.
 
-    This avoids circular imports that occur when importing task functions
-    at module level (n23.core.tasks uses @task decorator from django.tasks,
-    which triggers backend loading, which imports this registry).
+    Discovery must not run at this module's import time, for two independent
+    reasons:
+
+    1. **Circular import.** Importing an app's ``tasks`` module runs Django's
+       ``@task`` decorator, which loads the configured task backend, which does
+       ``from gyrinx.tasks.registry import get_task`` at module scope. Pulling
+       the app modules in from here at import time would re-enter this module
+       while it is still half-built.
+    2. **The app registry.** Discovery walks ``django.apps``, which is only
+       populated once Django has loaded every app — later than this module is
+       first imported.
+
+    Deferring to first call sidesteps both: by the time anything asks for a
+    route, the apps are loaded and the backend is fully imported.
     """
     global _tasks
     if _tasks is None:
-        from gyrinx.api.tasks import trigger_discord_issue_action
-        from n23.core.tasks import (
-            backfill_pins,
-            complete_campaign_list_clone,
-            reconcile_all_lists,
-            hello_world,
-            propagate_content_cost_change,
-            propagate_default_child_fighter_assignment,
-            refresh_list_facts,
-        )
-
-        _tasks = [
-            TaskRoute(hello_world),
-            TaskRoute(propagate_content_cost_change),
-            TaskRoute(propagate_default_child_fighter_assignment),
-            TaskRoute(refresh_list_facts),
-            TaskRoute(trigger_discord_issue_action),
-            # A 250-row batch through pin_assignment is many queries; give
-            # the worker room before Pub/Sub redelivers.
-            TaskRoute(backfill_pins, ack_deadline=600),
-            TaskRoute(reconcile_all_lists, ack_deadline=600),
-            # Cloning a full gang (fighters, equipment, stash, facts recompute) is
-            # many queries; give the worker room before Pub/Sub redelivers.
-            TaskRoute(complete_campaign_list_clone, ack_deadline=600),
-        ]
+        _tasks = discover_task_routes()
     return _tasks
 
 
