@@ -1,8 +1,17 @@
 """Backfill: audit record of an admin-triggered one-off data repair.
 
+Platform-side, because the repair console is: a run has a trigger, a scope, a
+status, a progress blob and an outcome whatever it was repairing. Which repairs
+exist is the edition's business — ``operation`` holds a bare slug and the label
+comes from ``gyrinx.maintenance.registry``, so an edition can add a repair
+without a platform migration.
+
 Bare ``models.Model`` rather than ``AppBase`` because this is a system-meta
 model with no notion of ownership / archive / user-content history. See
 ``CampaignContentPack`` (#1801) for the same precedent.
+
+The table is still ``core_backfill``: the model moved packages, the rows did
+not. See ``gyrinx/maintenance/migrations/0001_move_backfill_to_maintenance.py``.
 """
 
 import uuid
@@ -10,54 +19,14 @@ import uuid
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from gyrinx.maintenance.registry import operation_label
+
 User = get_user_model()
 
 __all__ = ["Backfill"]
 
 
 class Backfill(models.Model):
-    class Operation(models.TextChoices):
-        MIGRATE_PERSISTENT_STASH = (
-            "migrate_persistent_stash",
-            "Migrate persistent stash items (#1825)",
-        )
-        RECONCILE_LISTS = (
-            "reconcile_lists",
-            "Reconcile list cost caches (#1826 Phase 8)",
-        )
-        BACKFILL_PINS = (
-            "backfill_pins",
-            "Backfill acquisition receipts (#1826 Phase 8)",
-        )
-        # Retired: run once in production on 2026-08-04 and its code removed
-        # with #1861 Track C3. The member stays so the historical records keep
-        # rendering a name rather than a bare slug; re-running it now would
-        # switch on advancements that C2 deliberately left shadowed.
-        FIX_STAT_ADVANCEMENTS = (
-            "fix_stat_advancements",
-            "Finish the stat-advancement cleanup (#2070, retired)",
-        )
-        # Both retired: run once in production on 2026-08-04, and their code
-        # removed once every fighter type was guaranteed a statline at save
-        # time — which left them with nothing to find. The members stay so the
-        # historical records keep rendering names.
-        NORMALISE_STAT_FORMATS = (
-            "normalise_stat_formats",
-            "Normalise legacy stat-column formats (#1861 Track C1, retired)",
-        )
-        MATERIALISE_STATLINES = (
-            "materialise_statlines",
-            "Materialise statlines for legacy templates (#1861 Track C1, retired)",
-        )
-        # Retired: run once in production on 2026-08-05, and its code removed
-        # with #1861 Track C4, which dropped the columns it read. The member
-        # stays so the historical record keeps rendering a name.
-        MIGRATE_STAT_OVERRIDES = (
-            "migrate_stat_overrides",
-            "Migrate fighter stat overrides to the override store "
-            "(#1861 Track C2, retired)",
-        )
-
     class Status(models.TextChoices):
         # Long-running operations execute on the task runner and report
         # progress into `summary` batch by batch; RUNNING is their state
@@ -74,7 +43,10 @@ class Backfill(models.Model):
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     modified = models.DateTimeField(auto_now=True)
 
-    operation = models.CharField(max_length=64, choices=Operation.choices)
+    # No choices: the set of repairs is contributed at runtime by whichever
+    # edition is installed. Retired operations stay registered (label only) so
+    # their historical records keep rendering a name.
+    operation = models.CharField(max_length=64)
     triggered_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
@@ -97,10 +69,23 @@ class Backfill(models.Model):
     # O(n²) storage for no audit value.
 
     class Meta:
+        # Pinned: the rows predate the move out of `core` and did not move with
+        # the model.
+        db_table = "core_backfill"
         ordering = ["-created"]
         verbose_name = "backfill"
         verbose_name_plural = "backfills"
 
+    @property
+    def operation_label(self) -> str:
+        """Human name for this run's operation, or the raw slug if unknown.
+
+        Stands in for the ``get_operation_display()`` this field would have if
+        its choices were static. A slug survives its registration disappearing —
+        old records still render, just without a friendly name.
+        """
+        return operation_label(self.operation)
+
     def __str__(self):
         ts = self.created.isoformat(timespec="seconds") if self.created else "?"
-        return f"{self.get_operation_display()} @ {ts} — {self.get_status_display()}"
+        return f"{self.operation_label} @ {ts} — {self.get_status_display()}"

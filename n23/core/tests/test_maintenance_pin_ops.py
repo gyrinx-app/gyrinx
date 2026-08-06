@@ -9,7 +9,8 @@ self-re-enqueueing batches, and report progress into a Backfill audit record
 import pytest
 from django.urls import reverse
 
-from n23.core.models import Backfill
+from gyrinx.maintenance.models import Backfill
+from n23.core.maintenance.operations import Operation
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import (
     List,
@@ -65,7 +66,7 @@ def test_reconcile_task_reports_progress_and_attribution(tracked_list, superuser
     )
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -97,7 +98,7 @@ def test_reconcile_run_records_per_list_detail(tracked_list, superuser):
     List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -124,7 +125,7 @@ def test_reconcile_detail_page_renders_per_list(client, superuser, tracked_list)
     true_rating = fresh(lst).rating_current
     List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -150,7 +151,7 @@ def test_reconcile_detail_shows_clamp_hint_only_when_clamped(client, superuser):
     """The 'computed total was negative — investigate' hint appears only when a
     zero-clamp actually fired."""
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.DONE,
         summary={"lists": 3, "corrected": 1, "clamped": 2, "per_list": []},
@@ -169,7 +170,7 @@ def test_failed_reconcile_detail_shows_error_and_partial_detail(
     alongside the error."""
     lst = make_list("Partial Gang")
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.FAILED,
         error="boom on batch after abc",
@@ -206,7 +207,7 @@ def test_backfill_task_reports_progress(tracked_list, superuser):
         pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
     )
     record = Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -237,7 +238,7 @@ def test_maintenance_pages_render_and_trigger(
     with django_capture_on_commit_callbacks(execute=True):
         response = client.post(reverse("admin:maintenance_backfill_pins"))
     assert response.status_code == 302
-    record = Backfill.objects.filter(operation=Backfill.Operation.BACKFILL_PINS).latest(
+    record = Backfill.objects.filter(operation=Operation.BACKFILL_PINS).latest(
         "created"
     )
     assert record.triggered_by == superuser
@@ -293,7 +294,7 @@ def test_scoped_backfill_touches_only_the_target_list(
     )
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         list_id_scope=lst.pk,
         status=Backfill.Status.RUNNING,
@@ -341,7 +342,7 @@ def test_scoped_reconcile_touches_only_the_target_list(
         )
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         list_id_scope=lst.pk,
         status=Backfill.Status.RUNNING,
@@ -374,7 +375,7 @@ def test_multi_batch_chain_threads_totals(tracked_list, superuser):
         pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
     )
     record = Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -421,7 +422,7 @@ def test_backfill_complete_with_failures_marks_failed(
     monkeypatch.setattr(pinning, "pin_assignment", flaky)
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -446,7 +447,7 @@ def test_reconcile_exception_marks_failed_and_stops(
     monkeypatch.setattr("n23.core.cost.reconcile.reconcile_list", boom)
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -466,7 +467,7 @@ def test_terminal_record_status_is_never_unmade(superuser):
     from n23.core.tasks import _update_backfill
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         status=Backfill.Status.FAILED,
         summary={"failed": 3},
@@ -492,14 +493,14 @@ def test_garbage_uuid_is_a_friendly_error(client, superuser):
 def test_second_trigger_while_running_is_refused(client, superuser):
     client.force_login(superuser)
     Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
     response = client.post(reverse("admin:maintenance_backfill_pins"))
     assert response.status_code == 302
     assert (
-        Backfill.objects.filter(operation=Backfill.Operation.BACKFILL_PINS).count() == 1
+        Backfill.objects.filter(operation=Operation.BACKFILL_PINS).count() == 1
     )  # no second record, no second chain
 
 
@@ -532,7 +533,7 @@ def test_reconcile_task_bails_when_cancelled(tracked_list, superuser):
     true_rating = fresh(lst).rating_current
     List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.CANCELLED,
     )
@@ -555,7 +556,7 @@ def test_backfill_task_bails_when_cancelled(tracked_list, superuser):
         pinned_base_amount=None, pinned_base_state=PinState.UNPINNED
     )
     record = Backfill.objects.create(
-        operation=Backfill.Operation.BACKFILL_PINS,
+        operation=Operation.BACKFILL_PINS,
         triggered_by=superuser,
         status=Backfill.Status.CANCELLED,
     )
@@ -574,7 +575,7 @@ def test_backfill_task_bails_when_cancelled(tracked_list, superuser):
 @pytest.mark.django_db
 def test_cancel_view_marks_running_record_cancelled(client, superuser):
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )
@@ -586,7 +587,7 @@ def test_cancel_view_marks_running_record_cancelled(client, superuser):
 
     # No-op on an already-terminal record.
     done = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.DONE
+        operation=Operation.RECONCILE_LISTS, status=Backfill.Status.DONE
     )
     client.post(reverse("admin:maintenance_backfill_cancel", args=[done.pk]))
     done.refresh_from_db()
@@ -599,7 +600,7 @@ def test_cancel_view_is_superuser_only(client, make_user):
     staff.is_staff = True
     staff.save()
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.RUNNING
+        operation=Operation.RECONCILE_LISTS, status=Backfill.Status.RUNNING
     )
     client.force_login(staff)
     assert (
@@ -617,7 +618,7 @@ def test_cancelled_is_sticky_against_all_writes():
     """CANCELLED wins over everything — a lagging final batch's DONE/FAILED
     write (or any progress write) must not resurrect a cancelled run."""
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS, status=Backfill.Status.CANCELLED
+        operation=Operation.RECONCILE_LISTS, status=Backfill.Status.CANCELLED
     )
     # None/RUNNING progress write — dropped.
     _update_backfill(str(record.id), {"lists": 5}, status=Backfill.Status.RUNNING)
@@ -637,7 +638,7 @@ def test_cancelled_is_sticky_against_all_writes():
 @pytest.mark.django_db
 def test_running_detail_page_shows_cancel_button(client, superuser):
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=superuser,
         status=Backfill.Status.RUNNING,
     )

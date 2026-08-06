@@ -13,7 +13,8 @@ from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
 )
-from n23.core.models import Backfill
+from gyrinx.maintenance.models import Backfill
+from n23.core.maintenance.operations import Operation
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
@@ -156,7 +157,7 @@ def test_post_applies_creates_backfill_and_moves_assignment(
     # A backfill row was created
     bf = Backfill.objects.get(triggered_by=su)
     assert bf.status == Backfill.Status.DONE
-    assert bf.operation == Backfill.Operation.MIGRATE_PERSISTENT_STASH
+    assert bf.operation == Operation.MIGRATE_PERSISTENT_STASH
     assert bf.summary["moved"] == 1
     assert bf.summary["affected_lists"] == 1
 
@@ -204,6 +205,119 @@ def test_post_scoped_by_list_id_only_touches_that_list(
     bf = Backfill.objects.get(triggered_by=su)
     assert str(bf.list_id_scope) == str(s1["list"].id)
     assert bf.summary["moved"] == 1
+
+
+# ------------------------------------------------- labels and detail rendering
+
+
+@pytest.fixture
+def maintenance_superuser(make_user):
+    su = make_user("maint-su", "pw")
+    su.is_staff = True
+    su.is_superuser = True
+    su.save()
+    return su
+
+
+@pytest.mark.django_db
+def test_detail_page_uses_the_operations_own_summary_fragment(
+    client, maintenance_superuser
+):
+    """A reconcile run renders reconcile-shaped detail, not the generic dump."""
+    bf = Backfill.objects.create(
+        operation=Operation.RECONCILE_LISTS,
+        status=Backfill.Status.DONE,
+        summary={"lists": 7, "corrected": 2, "clamped": 0, "per_list": []},
+    )
+    client.force_login(maintenance_superuser)
+    body = client.get(
+        reverse("admin:maintenance_backfill_detail", args=[bf.pk])
+    ).content.decode()
+
+    assert "Lists scanned:" in body
+    assert "No gangs changed in this run." in body
+
+
+@pytest.mark.django_db
+def test_retired_operation_still_renders_its_name(client, maintenance_superuser):
+    """Its code is gone, but the record predates that and must stay readable."""
+    bf = Backfill.objects.create(
+        operation=Operation.FIX_STAT_ADVANCEMENTS,
+        status=Backfill.Status.DONE,
+        summary={"walked": 12},
+    )
+    assert bf.operation_label == Operation.FIX_STAT_ADVANCEMENTS.label
+
+    client.force_login(maintenance_superuser)
+    body = client.get(
+        reverse("admin:maintenance_backfill_detail", args=[bf.pk])
+    ).content.decode()
+
+    assert "stat-advancement cleanup" in body
+    # No fragment registered, so the summary falls back to a plain dump.
+    assert "walked" in body
+
+
+@pytest.mark.django_db
+def test_unknown_operation_slug_degrades_to_the_slug(client, maintenance_superuser):
+    """A record written by an edition that is no longer installed still opens."""
+    bf = Backfill.objects.create(
+        operation="some_other_edition_repair",
+        status=Backfill.Status.DONE,
+        summary={"rows": 1},
+    )
+    assert bf.operation_label == "some_other_edition_repair"
+
+    client.force_login(maintenance_superuser)
+    resp = client.get(reverse("admin:maintenance_backfill_detail", args=[bf.pk]))
+    assert resp.status_code == 200
+    assert b"some_other_edition_repair" in resp.content
+
+
+@pytest.mark.django_db
+def test_index_lists_only_runnable_operations(client, maintenance_superuser):
+    client.force_login(maintenance_superuser)
+    body = client.get(reverse("admin:maintenance_index")).content.decode()
+
+    assert Operation.RECONCILE_LISTS.label in body
+    assert Operation.BACKFILL_PINS.label in body
+    # Retired operations have no page, so they must not be offered as repairs.
+    assert Operation.FIX_STAT_ADVANCEMENTS.label not in body
+
+
+@pytest.mark.django_db
+def test_backfills_changelist_shows_names_not_slugs(client, maintenance_superuser):
+    """`operation` has no choices, so the label has to come from the registry.
+
+    Without the ModelAdmin asking for it, Django renders the bare slug in both
+    the column and the filter — which is what it did before this was fixed.
+    """
+    Backfill.objects.create(
+        operation=Operation.RECONCILE_LISTS, status=Backfill.Status.DONE
+    )
+    client.force_login(maintenance_superuser)
+    body = client.get(reverse("admin:maintenance_backfill_changelist")).content.decode()
+
+    assert Operation.RECONCILE_LISTS.label in body
+    # The slug is still fine inside the filter's ?operation= links; what must
+    # not appear is a slug rendered as an element's visible text.
+    assert ">reconcile_lists<" not in body
+
+
+@pytest.mark.django_db
+def test_every_operation_page_is_gated_to_superusers(client, make_user):
+    """The gate is applied at mount time, so it covers edition pages too."""
+    staff = make_user("maint-staff", "pw")
+    staff.is_staff = True
+    staff.save()
+    client.force_login(staff)
+
+    for url_name in (
+        "admin:maintenance_persistent_stash",
+        "admin:maintenance_reconcile_lists",
+        "admin:maintenance_backfill_pins",
+    ):
+        assert client.get(reverse(url_name)).status_code == 403, url_name
 
 
 def _fighter_statline_type():

@@ -375,7 +375,7 @@ def _update_backfill(
         return False
     from django.db import transaction as db_transaction
 
-    from n23.core.models import Backfill
+    from gyrinx.maintenance.models import Backfill
 
     with db_transaction.atomic():
         try:
@@ -426,7 +426,7 @@ def _is_cancelled(backfill_id):
     no infra intervention needed."""
     if backfill_id is None:
         return False
-    from n23.core.models import Backfill
+    from gyrinx.maintenance.models import Backfill
 
     return Backfill.objects.filter(
         pk=backfill_id, status=Backfill.Status.CANCELLED
@@ -464,7 +464,7 @@ def reconcile_all_lists(
     from django.contrib.auth import get_user_model
 
     from n23.core.cost.reconcile import reconcile_list
-    from n23.core.models import Backfill
+    from gyrinx.maintenance.models import Backfill
     from n23.core.models.list import List
 
     user = None
@@ -677,7 +677,7 @@ def backfill_pins(
                     assignment_id,
                     last_success_id,
                 )
-                from n23.core.models import Backfill
+                from gyrinx.maintenance.models import Backfill
 
                 _update_backfill(
                     backfill_id,
@@ -739,7 +739,7 @@ def backfill_pins(
             "and re-run (idempotent: only still-unpinned rows are retried).",
             total_failed,
         )
-        from n23.core.models import Backfill
+        from gyrinx.maintenance.models import Backfill
 
         _update_backfill(
             backfill_id,
@@ -755,7 +755,7 @@ def backfill_pins(
             "backfill_pins: walk complete, %s rows pinned total.",
             total_pinned,
         )
-        from n23.core.models import Backfill
+        from gyrinx.maintenance.models import Backfill
 
         _update_backfill(backfill_id, progress, status=Backfill.Status.DONE)
 
