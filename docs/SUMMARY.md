@@ -83,6 +83,8 @@ Documentation for Necromunda 2023, the edition Gyrinx currently implements. Ever
 - [Content Data Management](operations/content-data-management.md)
 - [Deployment](deployment.md)
 - [Runbook](runbook.md)
+- [Incident Reports](operations/incidents/README.md)
+  - [Crawler Overload (6 Aug 2026)](operations/incidents/2026-08-06-crawler-overload.md)
 
 ## Links
 
