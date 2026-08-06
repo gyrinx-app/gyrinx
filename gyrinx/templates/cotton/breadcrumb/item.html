@@ -16,4 +16,4 @@
     Props
       href   optional; makes the crumb a link.
       class  extra classes on the crumb wrapper.
-{% endcomment %}{% load custom_tags %}<c-vars href="" class="" /><span{% if class %} class="{{ class }}"{% endif %}>{% if href and not print %}<a class="linked-secondary" href="{{ href }}">{{ slot|strip }}</a>{% else %}{{ slot|strip }}{% endif %}</span>
+{% endcomment %}{% load platform_tags %}<c-vars href="" class="" /><span{% if class %} class="{{ class }}"{% endif %}>{% if href and not print %}<a class="linked-secondary" href="{{ href }}">{{ slot|strip }}</a>{% else %}{{ slot|strip }}{% endif %}</span>

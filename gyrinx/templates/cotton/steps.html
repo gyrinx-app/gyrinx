@@ -23,7 +23,7 @@
     the PAGE WRAPPER decides how wide it is. Do not wrap it in a narrower
     column than the step content it heads, or the bar and the form beneath it
     disagree about where the page edge is.
-{% endcomment %}{% load custom_tags %}<c-vars step="1" total="1" title="" subtitle="" class="" />{% widthratio step total 100 as progress %}{% comment %} djlint:off {% endcomment %}<div class="progress mb-2{% if class %} {{ class }}{% endif %}"
+{% endcomment %}{% load platform_tags %}<c-vars step="1" total="1" title="" subtitle="" class="" />{% widthratio step total 100 as progress %}{% comment %} djlint:off {% endcomment %}<div class="progress mb-2{% if class %} {{ class }}{% endif %}"
      role="progressbar"
      aria-label="Step {{ step }} of {{ total }}"
      aria-valuenow="{{ progress }}"

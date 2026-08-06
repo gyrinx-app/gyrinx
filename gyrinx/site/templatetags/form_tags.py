@@ -195,7 +195,7 @@ def submit_variant(intent):
     _loud(
         f"submit intent {intent!r} is not in the design-system vocabulary. "
         f"Known intents: {', '.join(sorted(SUBMIT_INTENTS))}. Add the verb to "
-        "SUBMIT_INTENTS in n23/core/templatetags/form_tags.py with a "
+        "SUBMIT_INTENTS in gyrinx/site/templatetags/form_tags.py with a "
         "deliberate colour — do not let it default."
     )
     return "secondary"

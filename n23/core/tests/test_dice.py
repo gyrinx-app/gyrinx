@@ -6,7 +6,7 @@ import pytest
 from django.test import RequestFactory
 from django.urls import reverse
 
-from n23.core.templatetags.custom_tags import qt, qt_append, qt_nth
+from gyrinx.site.templatetags.platform_tags import qt, qt_append, qt_nth
 from n23.core.views.dice import MAX_DICE_PER_GROUP, MAX_GROUPS
 
 # Rolled dice carry an aria-label the Roll-button icons don't, so this only

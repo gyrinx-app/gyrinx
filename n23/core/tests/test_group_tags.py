@@ -2,7 +2,7 @@ import pytest
 from django.contrib.auth.models import User, Group, AnonymousUser
 from django.template import Context, Template
 
-from n23.core.templatetags.group_tags import in_group
+from gyrinx.site.templatetags.group_tags import in_group
 
 
 @pytest.mark.django_db
