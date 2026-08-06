@@ -91,7 +91,7 @@ class PubSubBackend(BaseTaskBackend):
             TaskResult with the task ID (status is READY, though publish may still be in flight)
 
         Raises:
-            ValueError: If task is not registered in registry.py
+            ValueError: If the task isn't declared in its app's task_routes
         """
         task_id = str(uuid.uuid4())
         task_name = task.func.__name__
@@ -100,7 +100,9 @@ class PubSubBackend(BaseTaskBackend):
         route = get_task(task_name)
         if not route:
             raise ValueError(
-                f"Task '{task_name}' not registered. Add it to gyrinx/tasks/registry.py"
+                f"Task '{task_name}' not registered. Add "
+                f"TaskRoute({task_name}) to the task_routes list in the "
+                f"tasks.py module that declares it."
             )
 
         topic_path = self.publisher.topic_path(self.project_id, route.topic_name)

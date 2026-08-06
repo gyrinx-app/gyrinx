@@ -29,7 +29,7 @@ def test_current_registry_passes_the_check():
 
 def test_unregistered_declared_task_is_flagged(monkeypatch):
     """Drop one real task from the registry view and the check reports E001 for
-    it — the exact mistake #1947 is about (declared, forgotten in registry.py)."""
+    it — the exact mistake #1947 is about (declared, left out of task_routes)."""
     routes = [r for r in get_all_tasks() if r.name != "hello_world"]
     monkeypatch.setattr(checks, "get_all_tasks", lambda: routes)
 
@@ -38,7 +38,10 @@ def test_unregistered_declared_task_is_flagged(monkeypatch):
     e001 = [e for e in errors if e.id == "gyrinx.tasks.E001"]
     assert len(e001) == 1
     assert "hello_world" in e001[0].msg
-    assert "registry.py" in e001[0].hint
+    # The hint must point at the module that declares the task, not at the
+    # platform registry — that redirection is the whole point of #2093.
+    assert "task_routes" in e001[0].hint
+    assert "n23/core/tasks.py" in e001[0].hint
 
 
 def test_module_owning_a_registered_task_is_scanned(monkeypatch):
@@ -65,36 +68,9 @@ def test_app_discovery_reaches_conventional_task_modules(monkeypatch):
     assert "n23.core.tasks" in paths
 
 
-def test_app_discovery_covers_edition_namespaces(monkeypatch):
-    """The per-edition namespaces are first-party too. The n23 rename (#2093)
-    moved ``gyrinx.core`` to ``n23.core``; if the prefix filter still only
-    accepted ``gyrinx.``, this scan would silently stop discovering the
-    edition's task module and the #1947 guard would weaken to nothing —
-    a gap that only shows up in production."""
-
-    class _StubAppConfig:
-        def __init__(self, name):
-            self.name = name
-
-    monkeypatch.setattr(checks, "TASK_MODULES", ())
-    monkeypatch.setattr(
-        checks.django_apps,
-        "get_app_configs",
-        lambda: [
-            _StubAppConfig("n23.core"),
-            _StubAppConfig("n26.content"),
-            _StubAppConfig("thirdparty.app"),
-        ],
-    )
-    # Pretend every candidate resolves, so this exercises the prefix filter
-    # rather than module resolution.
-    monkeypatch.setattr(checks.importlib.util, "find_spec", lambda name: object())
-
-    paths = checks._task_module_paths([])
-
-    assert "n23.core.tasks" in paths
-    assert "n26.content.tasks" in paths
-    assert "thirdparty.app.tasks" not in paths
+# The prefix filter itself now lives in gyrinx.tasks.discovery and is covered
+# by test_discovery.py — the check consumes that same list rather than
+# repeating the scan.
 
 
 def test_registry_entry_that_isnt_a_task_is_flagged(monkeypatch):

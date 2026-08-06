@@ -28,8 +28,10 @@ Design notes for the local backend: `.claude/notes/local-async-tasks-research.md
 - [`models.py`](models.py) — `TaskExecution` (observability + state machine) and
   `QueuedTask` (the durable queue row).
 - [`signals.py`](signals.py) — lifecycle handlers that maintain `TaskExecution`.
-- [`registry.py`](registry.py) / [`route.py`](route.py) — task registration and
-  per-task config.
+- [`registry.py`](registry.py) / [`route.py`](route.py) /
+  [`discovery.py`](discovery.py) — task registration and per-task config. Apps
+  declare their own routes in a `task_routes` list in their `<app>/tasks.py`;
+  the registry collects them, so the platform names no edition task (#2093).
 - [`provisioning.py`](provisioning.py) / [`apps.py`](apps.py) — Pub/Sub + Scheduler
   provisioning (Cloud Run only; skipped locally, in migrations, and in tests).
 
