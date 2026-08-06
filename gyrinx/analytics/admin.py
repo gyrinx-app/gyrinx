@@ -11,9 +11,8 @@ from django.shortcuts import render
 from django.urls import path
 from django.utils import timezone
 
-from n23.core.models import Campaign, List, ListFighter
-
 from gyrinx.analytics.models import Event
+from gyrinx.analytics.registry import growth_series
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -189,84 +188,38 @@ class AnalyticsAdminSite(admin.site.__class__):
         }
 
     def get_cumulative_creation_data(self, start_date):
-        """Get cumulative creation data for fighters, lists, and campaigns"""
-        # Get daily counts for fighters in list-building lists
-        daily_fighters = (
-            ListFighter.objects.filter(
-                created__gte=start_date, list__status=List.LIST_BUILDING
-            )
-            .annotate(date=TruncDate("created"))
-            .values("date")
-            .annotate(count=Count("id"))
-            .order_by("date")
-        )
+        """Cumulative creation counts, one line per registered growth series.
 
-        # Get daily counts for list-building lists
-        daily_lists = (
-            List.objects.filter(created__gte=start_date, status=List.LIST_BUILDING)
-            .annotate(date=TruncDate("created"))
-            .values("date")
-            .annotate(count=Count("id"))
-            .order_by("date")
-        )
+        What gets counted is the edition's business — the platform only knows
+        how to accumulate. See ``gyrinx.analytics.registry``; with nothing
+        registered the chart renders empty rather than failing.
+        """
+        series = growth_series()
+        counts_by_series = [s.daily_counts(start_date) for s in series]
 
-        # Get daily counts for campaigns
-        daily_campaigns = (
-            Campaign.objects.filter(created__gte=start_date)
-            .annotate(date=TruncDate("created"))
-            .values("date")
-            .annotate(count=Count("id"))
-            .order_by("date")
-        )
-
-        # Create dictionaries for quick lookup
-        fighter_counts = {entry["date"]: entry["count"] for entry in daily_fighters}
-        list_counts = {entry["date"]: entry["count"] for entry in daily_lists}
-        campaign_counts = {entry["date"]: entry["count"] for entry in daily_campaigns}
+        datasets = [
+            {
+                "label": s.label,
+                "data": [],
+                "borderColor": s.border_color,
+                "backgroundColor": s.background_color,
+                "tension": 0.1,
+            }
+            for s in series
+        ]
 
         # Generate all dates in the range
         current_date = start_date.date()
         end_date = timezone.now().date()
 
         labels = []
-        datasets = [
-            {
-                "label": "Fighters (Cumulative)",
-                "data": [],
-                "borderColor": "rgb(75, 192, 192)",
-                "backgroundColor": "rgba(75, 192, 192, 0.2)",
-                "tension": 0.1,
-            },
-            {
-                "label": "Lists (Cumulative)",
-                "data": [],
-                "borderColor": "rgb(54, 162, 235)",
-                "backgroundColor": "rgba(54, 162, 235, 0.2)",
-                "tension": 0.1,
-            },
-            {
-                "label": "Campaigns (Cumulative)",
-                "data": [],
-                "borderColor": "rgb(255, 99, 132)",
-                "backgroundColor": "rgba(255, 99, 132, 0.2)",
-                "tension": 0.1,
-            },
-        ]
-
-        cumulative_fighters = 0
-        cumulative_lists = 0
-        cumulative_campaigns = 0
+        running_totals = [0] * len(series)
 
         while current_date <= end_date:
-            # Add daily counts to cumulative totals
-            cumulative_fighters += fighter_counts.get(current_date, 0)
-            cumulative_lists += list_counts.get(current_date, 0)
-            cumulative_campaigns += campaign_counts.get(current_date, 0)
-
             labels.append(current_date.strftime("%Y-%m-%d"))
-            datasets[0]["data"].append(cumulative_fighters)
-            datasets[1]["data"].append(cumulative_lists)
-            datasets[2]["data"].append(cumulative_campaigns)
+            for i, counts in enumerate(counts_by_series):
+                running_totals[i] += counts.get(current_date, 0)
+                datasets[i]["data"].append(running_totals[i])
 
             current_date += timedelta(days=1)
 

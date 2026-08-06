@@ -1,9 +1,12 @@
 """Admin for notifications, including a broadcast (create-to-many) view.
 
 Banner and ImpersonationLog are still registered from ``n23.core.admin``; only
-the notification admin has been brought over so far. The "participants of a
-campaign" broadcast audience reaches into the edition for ``Campaign`` — the
-same edition-facing dependency ``gyrinx.analytics.admin`` already has.
+the notification admin has been brought over so far.
+
+Who a broadcast can be addressed to is not decided here: audiences come from
+``gyrinx.site.registry``, which the platform seeds with "all active users" and
+each edition extends with its own (see ``n23/core/admin/broadcast.py``). That
+is what keeps this module free of edition imports.
 """
 
 from django import forms
@@ -19,8 +22,8 @@ from gyrinx.site.models import (
     NotificationType,
     notify_many,
 )
+from gyrinx.site.registry import broadcast_audiences, get_broadcast_audience
 from gyrinx.widgets import TinyMCEWithUpload
-from n23.core.models.campaign import Campaign
 
 User = get_user_model()
 
@@ -35,26 +38,19 @@ class NotificationAdminForm(forms.ModelForm):
 
 
 class BroadcastForm(forms.Form):
-    AUDIENCE_ALL = "all_active"
-    AUDIENCE_WITH_LIST = "with_list"
-    AUDIENCE_CAMPAIGN = "campaign"
-    AUDIENCE_CHOICES = [
-        (AUDIENCE_ALL, "All active users"),
-        (AUDIENCE_WITH_LIST, "Users with a list"),
-        (AUDIENCE_CAMPAIGN, "Participants of a campaign"),
-    ]
+    """The broadcast composer. Its audience options come from the registry.
+
+    Audience choices and any fields those audiences need are built per instance
+    rather than declared on the class, because an edition may not have finished
+    registering when this module is first imported.
+    """
 
     subject = forms.CharField(max_length=255)
     content = forms.CharField(widget=TinyMCEWithUpload, required=False)
     notification_type = forms.ChoiceField(
         choices=NotificationType.choices, initial=NotificationType.GENERAL
     )
-    audience = forms.ChoiceField(choices=AUDIENCE_CHOICES)
-    campaign = forms.ModelChoiceField(
-        queryset=Campaign.objects.all(),
-        required=False,
-        help_text="Required when audience is 'Participants of a campaign'.",
-    )
+    audience = forms.ChoiceField(choices=())
     send_as_system = forms.BooleanField(
         required=False,
         initial=True,
@@ -62,27 +58,36 @@ class BroadcastForm(forms.Form):
         help_text="Show a Gyrinx badge instead of your username. Uncheck to attribute it to yourself.",
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        audiences = broadcast_audiences()
+        self.fields["audience"].choices = [(a.key, a.label) for a in audiences]
+        # Qualifier fields are optional at field level and enforced in clean()
+        # only for the audience that owns them — otherwise picking "all active
+        # users" would demand a campaign.
+        qualifiers = []
+        for audience in audiences:
+            if audience.field_name and audience.field:
+                field = audience.field()
+                field.required = False
+                self.fields[audience.field_name] = field
+                qualifiers.append(audience.field_name)
+        # Keep each qualifier next to the dropdown that governs it, rather than
+        # trailing after the send-as-system checkbox.
+        self.order_fields(
+            ["subject", "content", "notification_type", "audience", *qualifiers]
+        )
+
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("audience") == self.AUDIENCE_CAMPAIGN and not cleaned.get(
-            "campaign"
-        ):
-            self.add_error("campaign", "Choose a campaign for this audience.")
+        audience = get_broadcast_audience(cleaned.get("audience"))
+        if audience and audience.field_name and not cleaned.get(audience.field_name):
+            self.add_error(audience.field_name, audience.field_required_error)
         return cleaned
 
     def get_recipients(self):
-        audience = self.cleaned_data["audience"]
-        if audience == self.AUDIENCE_ALL:
-            return User.objects.filter(is_active=True)
-        if audience == self.AUDIENCE_WITH_LIST:
-            return User.objects.filter(list__isnull=False).distinct()
-        # Campaign participants: list owners in the campaign + the arbitrator.
-        campaign = self.cleaned_data["campaign"]
-        ids = set(campaign.lists.values_list("owner_id", flat=True))
-        if campaign.owner_id:
-            ids.add(campaign.owner_id)
-        ids.discard(None)
-        return User.objects.filter(pk__in=ids)
+        audience = get_broadcast_audience(self.cleaned_data["audience"])
+        return audience.recipients(self.cleaned_data)
 
 
 @admin.register(Notification)
