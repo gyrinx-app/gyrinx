@@ -163,6 +163,46 @@ def test_a_pre_mod_system_stat_advancement_still_applies_cleanly(fighter_with_xp
 
 
 @pytest.mark.django_db
+def test_a_pre_mod_system_advancement_never_moves_the_card(
+    fighter_with_xp, content_fighter
+):
+    """`uses_mod_system=False` must contribute nothing, even beside a real one.
+
+    Nineteen of these survive in production. Each one's improvement is already
+    held in a stat override on its fighter, so if this gate ever came off they
+    would apply a second time and those fighters would silently get a free
+    upgrade. Base weapon skill here is 3+.
+    """
+    base = {stat.field_name: stat.value for stat in fighter_with_xp.statline}
+    assert base["weapon_skill"] == "3+"
+
+    # A pre-mod-system advancement on its own: no effect.
+    ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="weapon_skill",
+        uses_mod_system=False,
+        xp_cost=5,
+        cost_increase=5,
+    )
+    fresh = ListFighter.objects.get(pk=fighter_with_xp.pk)
+    assert {s.field_name: s.value for s in fresh.statline}["weapon_skill"] == "3+"
+
+    # Alongside a real one, only the real one counts — 3+ improves once to 2+,
+    # not twice to 1+.
+    ListFighterAdvancement.objects.create(
+        fighter=fighter_with_xp,
+        advancement_type=ListFighterAdvancement.ADVANCEMENT_STAT,
+        stat_increased="weapon_skill",
+        uses_mod_system=True,
+        xp_cost=5,
+        cost_increase=5,
+    )
+    fresh = ListFighter.objects.get(pk=fighter_with_xp.pk)
+    assert {s.field_name: s.value for s in fresh.statline}["weapon_skill"] == "2+"
+
+
+@pytest.mark.django_db
 def test_copy_attributes_to_keeps_advancements_on_the_same_system(
     fighter_with_xp, make_list_fighter
 ):

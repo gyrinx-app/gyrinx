@@ -1455,6 +1455,10 @@ class ListFighter(AppBase):
         # (not legacy override fields)
         # Note: Use .all() with Python filtering to leverage prefetched data.
         # Using .filter() would bypass the prefetch cache and cause N+1 queries.
+        # `uses_mod_system` is load-bearing, not leftover: the handful of
+        # advancements predating the mod system already have their improvement
+        # baked into a stat override, so letting them through here would apply
+        # it twice. See the field on ListFighterAdvancement (#1861).
         advancement_mods = [
             (AdvancementStatMod(adv.stat_increased), "Advancement")
             for adv in self.advancements.all()

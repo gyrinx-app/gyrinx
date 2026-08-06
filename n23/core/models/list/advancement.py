@@ -205,14 +205,24 @@ class ListFighterAdvancement(AppBase):
         help_text="The increase in fighter cost from this advancement.",
     )
 
-    # Mod system flag - determines whether this advancement uses the mod system
-    # or the legacy override fields for stat modifications.
-    # New advancements default to True (use mods), existing advancements are False.
+    # A permanent marker for advancements predating the mod system, not a
+    # migration in progress. Nineteen rows across eleven gangs still carry
+    # False; everything since #1861 Track B is True and nothing sets it False.
+    #
+    # They are deliberately left alone. Each one's improvement is already
+    # inside a plain stat override on its fighter, so switching them on would
+    # apply it a second time; deleting them would take 295 credits of gang
+    # rating with them. Seven of the twelve in live gangs hold override values
+    # no code path produces (a bare "5" against a "4+" base, in one case just
+    # "+"), so they look hand-typed — "correcting" those would be overruling
+    # what a player chose rather than fixing a bug. See #1861.
     uses_mod_system = models.BooleanField(
         default=True,
         help_text=(
-            "If True, stat advancements use the mod system (computed at display time). "
-            "If False, uses legacy override fields (mutates fighter state)."
+            "If True (all new advancements), a stat advancement is applied by "
+            "the mod system, computed when the card is rendered. If False, the "
+            "advancement predates that system: it applies nothing, and the "
+            "improvement it bought is held as a stat override on the fighter."
         ),
     )
 
