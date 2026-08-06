@@ -266,14 +266,24 @@ DATABASES = {
 # Caching
 # https://docs.djangoproject.com/en/6.0/topics/cache/
 
+# Both caches are per-process LocMemCache, so every container starts cold and
+# each gunicorn worker keeps its own copy. That is tolerable only if the cache is
+# big enough to hold the whole working set — the default MAX_ENTRIES of 300 is
+# not. Production has 420 rules + 120 skills resolving against 570 page refs, so
+# at the default the cache culled a third of itself continuously and the hit rate
+# collapsed under crawl load, putting an unindexable LIKE query on the database
+# for every rule on every fighter card. Sized well above the working set so it
+# behaves as a cache rather than a rotating buffer.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "unique-snowflake",
+        "OPTIONS": {"MAX_ENTRIES": 5000, "CULL_FREQUENCY": 10},
     },
     "content_page_ref_cache": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "content-page-ref-cache",
+        "OPTIONS": {"MAX_ENTRIES": 5000, "CULL_FREQUENCY": 10},
     },
 }
 
