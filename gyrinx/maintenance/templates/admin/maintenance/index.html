@@ -56,7 +56,7 @@
                         <td>
                             <a href="{% url 'admin:maintenance_backfill_detail' b.pk %}">{{ b.created|date:"Y-m-d H:i:s" }}</a>
                         </td>
-                        <td>{{ b.get_operation_display }}</td>
+                        <td>{{ b.operation_label }}</td>
                         <td>{{ b.get_status_display }}</td>
                         <td>{{ b.triggered_by|default:"—" }}</td>
                         <td>

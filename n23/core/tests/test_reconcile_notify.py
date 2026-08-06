@@ -10,7 +10,8 @@ from django.urls import reverse
 
 from n23.core.cost.reconcile_notify import notify_lists_reconciled
 from n23.core.models.action import ListActionType
-from n23.core.models.backfill import Backfill
+from gyrinx.maintenance.models import Backfill
+from n23.core.maintenance.operations import Operation
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
 from gyrinx.site.models import Notification, NotificationType
@@ -168,7 +169,7 @@ def test_estate_run_notifies_once_per_owner_and_arb(
         lists.append((lst, true_rating))
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         triggered_by=admin,
         status=Backfill.Status.RUNNING,
     )
@@ -214,7 +215,7 @@ def test_estate_run_no_drift_notifies_nobody(
     buy_equipment(player, lst, fighter, make_equipment("Gun", cost=15))
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         status=Backfill.Status.RUNNING,
     )
     reconcile_all_lists.func(backfill_id=str(record.id), batch_size=500)
@@ -237,7 +238,7 @@ def test_completion_notifies_once_even_on_redelivery(
     List.objects.filter(pk=lst.pk).update(rating_current=true_rating + 10, dirty=False)
 
     record = Backfill.objects.create(
-        operation=Backfill.Operation.RECONCILE_LISTS,
+        operation=Operation.RECONCILE_LISTS,
         status=Backfill.Status.RUNNING,
     )
     reconcile_all_lists.func(backfill_id=str(record.id), batch_size=500)

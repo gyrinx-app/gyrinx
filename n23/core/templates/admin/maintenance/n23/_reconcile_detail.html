@@ -1,0 +1,56 @@
+{% comment %}
+    Renders a reconcile run's summary on the backfill detail page. Included by
+    the platform's backfill_detail.html via the operation's detail_template.
+{% endcomment %}
+<h2>Summary</h2>
+<ul>
+    <li>
+        <strong>Lists scanned:</strong> {{ backfill.summary.lists|default:0 }}
+    </li>
+    <li>
+        <strong>Corrected:</strong> {{ backfill.summary.corrected|default:0 }}
+    </li>
+    <li>
+        <strong>Zero-clamped:</strong> {{ backfill.summary.clamped|default:0 }}
+        {% if backfill.summary.clamped %}
+            <span class="mt-hint">(computed total was negative — investigate)</span>
+        {% endif %}
+    </li>
+</ul>
+<h2>Per-list detail</h2>
+{% if backfill.summary.per_list %}
+    <table class="table mt-table">
+        <thead>
+            <tr>
+                <th>List</th>
+                <th>Rating</th>
+                <th>Stash</th>
+                <th>Audit action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in backfill.summary.per_list %}
+                <tr>
+                    <td>
+                        <a href="{% url 'core:list' row.list_id %}"
+                           target="_blank"
+                           rel="noopener">{{ row.list_name }}</a>
+                    </td>
+                    <td>{{ row.rating_before }} → {{ row.rating_after }}</td>
+                    <td>{{ row.stash_before }} → {{ row.stash_after }}</td>
+                    <td>
+                        {% if row.audit_action_id %}
+                            <code>{{ row.audit_action_id }}</code>
+                        {% else %}
+                            <span class="mt-hint">cache-only (no ledger action)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>
+        <em>No gangs changed in this run.</em>
+    </p>
+{% endif %}

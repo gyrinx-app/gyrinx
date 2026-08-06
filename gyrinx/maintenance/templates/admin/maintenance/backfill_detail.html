@@ -16,7 +16,7 @@
     <p>
         <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
     </p>
-    <h1>{{ backfill.get_operation_display }}</h1>
+    <h1>{{ backfill.operation_label }}</h1>
     <table class="table mt-meta">
         <tr>
             <th>ID</th>
@@ -62,119 +62,12 @@
     {% endif %}
     {% comment %}
     Always show what the run recorded — including the partial detail a failed
-    run captured before it stopped.
+    run captured before it stopped. How a summary reads is the operation's own
+    business, so the operation supplies that fragment; operations registering
+    none (and records whose operation is no longer registered) get a plain dump.
     {% endcomment %}
-    {% if is_reconcile %}
-        <h2>Summary</h2>
-        <ul>
-            <li>
-                <strong>Lists scanned:</strong> {{ backfill.summary.lists|default:0 }}
-            </li>
-            <li>
-                <strong>Corrected:</strong> {{ backfill.summary.corrected|default:0 }}
-            </li>
-            <li>
-                <strong>Zero-clamped:</strong> {{ backfill.summary.clamped|default:0 }}
-                {% if backfill.summary.clamped %}
-                    <span class="mt-hint">(computed total was negative — investigate)</span>
-                {% endif %}
-            </li>
-        </ul>
-        <h2>Per-list detail</h2>
-        {% if backfill.summary.per_list %}
-            <table class="table mt-table">
-                <thead>
-                    <tr>
-                        <th>List</th>
-                        <th>Rating</th>
-                        <th>Stash</th>
-                        <th>Audit action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in backfill.summary.per_list %}
-                        <tr>
-                            <td>
-                                <a href="{% url 'core:list' row.list_id %}"
-                                   target="_blank"
-                                   rel="noopener">{{ row.list_name }}</a>
-                            </td>
-                            <td>{{ row.rating_before }} → {{ row.rating_after }}</td>
-                            <td>{{ row.stash_before }} → {{ row.stash_after }}</td>
-                            <td>
-                                {% if row.audit_action_id %}
-                                    <code>{{ row.audit_action_id }}</code>
-                                {% else %}
-                                    <span class="mt-hint">cache-only (no ledger action)</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p>
-                <em>No gangs changed in this run.</em>
-            </p>
-        {% endif %}
-    {% elif is_persistent_stash %}
-        <h2>Summary</h2>
-        <ul>
-            <li>
-                <strong>Moved:</strong> {{ backfill.summary.moved }}
-            </li>
-            <li>
-                <strong>Affected lists:</strong> {{ backfill.summary.affected_lists }}
-            </li>
-        </ul>
-        <h3>Skipped</h3>
-        <ul>
-            {% for reason, count in backfill.summary.skipped.items %}
-                <li>
-                    <code>{{ reason }}</code>: {{ count }}
-                </li>
-            {% endfor %}
-        </ul>
-        <h2>Per-list detail</h2>
-        {% if backfill.summary.per_list %}
-            <table class="table mt-table">
-                <thead>
-                    <tr>
-                        <th>List</th>
-                        <th>Items moved</th>
-                        <th>Stash before</th>
-                        <th>Stash after</th>
-                        <th>Audit action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in backfill.summary.per_list %}
-                        <tr>
-                            <td>
-                                <a href="{% url 'core:list' row.list_id %}"
-                                   target="_blank"
-                                   rel="noopener">{{ row.list_name }}</a>
-                            </td>
-                            <td>
-                                {% for item in row.items %}
-                                    {{ item }}
-                                    {% if not forloop.last %};{% endif %}
-                                {% endfor %}
-                            </td>
-                            <td>{{ row.stash_before }}</td>
-                            <td>{{ row.stash_after }}</td>
-                            <td>
-                                <code>{{ row.audit_action_id }}</code>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p>
-                <em>No lists were affected by this run.</em>
-            </p>
-        {% endif %}
+    {% if detail_template %}
+        {% include detail_template %}
     {% else %}
         <h2>Summary</h2>
         <ul>
