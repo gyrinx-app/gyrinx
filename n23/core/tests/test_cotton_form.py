@@ -892,7 +892,7 @@ def test_strip_filter_escapes_unsafe_input_and_preserves_safe_input():
     from django.utils.html import conditional_escape
     from django.utils.safestring import mark_safe
 
-    from n23.core.templatetags.custom_tags import strip_filter
+    from gyrinx.site.templatetags.platform_tags import strip_filter
 
     # The defence is escaping the QUOTES: with those gone the payload cannot
     # terminate the attribute it is sitting in, so the words surviving as text is

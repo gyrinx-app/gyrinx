@@ -12,7 +12,7 @@
     URL FALLBACK — byte-identical to the include, all three steps:
         url  ->  return_url  ->  {% safe_referer "/" %}
     `safe_referer` validates the Referer against the current host
-    (core/templatetags/custom_tags.py), so there is no open-redirect path, and
+    (gyrinx/site/templatetags/platform_tags.py), so there is no open-redirect path, and
     views already validate return_url on the way out via
     gyrinx.http.get_return_url(). This component adds no unvalidated path.
 
@@ -52,4 +52,4 @@
     Body is a `text` prop, not a slot: all 23 existing sites pass plain text,
     and `{% if slot %}` is truthy for whitespace-only content — which djlint can
     introduce — so a slot would make an empty <c-cancel></c-cancel> render blank.
-{% endcomment %}{% load custom_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><c-btn variant="link" href="{% if url %}{{ url }}{% elif return_url %}{{ return_url }}{% else %}{% safe_referer "/" %}{% endif %}" class="{{ class }}" :attrs="attrs">{% if text %}{{ text }}{% else %}Cancel{% endif %}</c-btn>{% comment %} djlint:on {% endcomment %}
+{% endcomment %}{% load platform_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><c-btn variant="link" href="{% if url %}{{ url }}{% elif return_url %}{{ return_url }}{% else %}{% safe_referer "/" %}{% endif %}" class="{{ class }}" :attrs="attrs">{% if text %}{{ text }}{% else %}Cancel{% endif %}</c-btn>{% comment %} djlint:on {% endcomment %}

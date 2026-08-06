@@ -17,4 +17,4 @@
                permanently-underlined links is visual noise under every item.
                Direction of travel is `linked-*` everywhere.
       class    extra classes.
-{% endcomment %}{% load custom_tags %}<c-vars href="" variant="secondary" class="" /><a href="{{ href }}" class="linked-{{ variant }}{% if class %} {{ class }}{% endif %}"{% if attrs.attrs_dict %} {{ attrs }}{% endif %}>{{ slot|strip }}</a>
+{% endcomment %}{% load platform_tags %}<c-vars href="" variant="secondary" class="" /><a href="{{ href }}" class="linked-{{ variant }}{% if class %} {{ class }}{% endif %}"{% if attrs.attrs_dict %} {{ attrs }}{% endif %}>{{ slot|strip }}</a>

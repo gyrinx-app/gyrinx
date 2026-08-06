@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-08-05T06:06:09Z",
+  "generated_at": "2026-08-06T14:14:05Z",
   "metrics": {
     "./analytics/streamlit/app.py": {
       "CONFIDENCE.HIGH": 0,
@@ -128,7 +128,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 617,
+      "loc": 836,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -405,6 +405,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/api/tasks.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 113,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/api/test_admin.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -518,7 +531,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 19,
+      "loc": 78,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -561,6 +574,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/http.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 74,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/impersonation.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -596,7 +622,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 553,
+      "loc": 345,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -635,7 +661,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 70,
+      "loc": 141,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -769,6 +795,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/querysets.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 60,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/settings.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -778,7 +817,7 @@
       "SEVERITY.LOW": 1,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 345,
+      "loc": 344,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -817,7 +856,20 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 7,
+      "loc": 10,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/site/admin.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 135,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -843,8 +895,86 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 110,
+      "loc": 477,
       "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/site/templatetags/__init__.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 0,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/site/templatetags/allauth_bootstrap.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 39,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/site/templatetags/badge_tags.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 84,
+      "nosec": 0,
+      "skipped_tests": 4
+    },
+    "./gyrinx/site/templatetags/form_tags.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 187,
+      "nosec": 2,
+      "skipped_tests": 0
+    },
+    "./gyrinx/site/templatetags/group_tags.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 23,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./gyrinx/site/templatetags/platform_tags.py": {
+      "CONFIDENCE.HIGH": 7,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 7,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 536,
+      "nosec": 2,
       "skipped_tests": 0
     },
     "./gyrinx/state_machine.py": {
@@ -1159,6 +1289,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "./gyrinx/views_csrf.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 26,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "./gyrinx/views_debug.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -1171,6 +1314,19 @@
       "loc": 227,
       "nosec": 0,
       "skipped_tests": 1
+    },
+    "./gyrinx/views_impersonation.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 66,
+      "nosec": 0,
+      "skipped_tests": 0
     },
     "./gyrinx/widgets.py": {
       "CONFIDENCE.HIGH": 0,
@@ -1246,7 +1402,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1388,
+      "loc": 1502,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1493,7 +1649,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 470,
+      "loc": 421,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1610,7 +1766,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 599,
+      "loc": 636,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1663,6 +1819,19 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 64,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "./n23/content/statlines.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 172,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1740,7 +1909,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 10,
+      "loc": 9,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1848,19 +2017,6 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "./n23/core/admin/notification.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 130,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "./n23/core/admin/pack.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -1923,19 +2079,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 42,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/context_processors.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 59,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2117,7 +2260,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 926,
+      "loc": 884,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2377,7 +2520,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 479,
+      "loc": 443,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2615,32 +2758,6 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "./n23/core/maintenance/stat_advancements.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 629,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/maintenance/statlines.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 321,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "./n23/core/management/commands/backfill_pins.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -2758,19 +2875,6 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "./n23/core/middleware.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 79,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "./n23/core/models/__init__.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -2780,7 +2884,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 17,
+      "loc": 16,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2806,7 +2910,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 65,
+      "loc": 70,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2910,7 +3014,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 362,
+      "loc": 338,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2975,7 +3079,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 2498,
+      "loc": 2434,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -2988,7 +3092,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1149,
+      "loc": 1152,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3041,19 +3145,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 500,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/models/notification.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 361,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3144,7 +3235,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 690,
+      "loc": 586,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3161,32 +3252,6 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "./n23/core/templatetags/allauth_bootstrap.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 39,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/templatetags/badge_tags.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 84,
-      "nosec": 0,
-      "skipped_tests": 4
-    },
     "./n23/core/templatetags/color_tags.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -3201,41 +3266,15 @@
       "skipped_tests": 2
     },
     "./n23/core/templatetags/custom_tags.py": {
-      "CONFIDENCE.HIGH": 9,
+      "CONFIDENCE.HIGH": 2,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
       "CONFIDENCE.UNDEFINED": 0,
       "SEVERITY.HIGH": 2,
       "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 7,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 604,
-      "nosec": 2,
-      "skipped_tests": 0
-    },
-    "./n23/core/templatetags/form_tags.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 187,
-      "nosec": 2,
-      "skipped_tests": 0
-    },
-    "./n23/core/templatetags/group_tags.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 23,
+      "loc": 98,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3274,7 +3313,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 33,
+      "loc": 46,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3339,7 +3378,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 43,
+      "loc": 44,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3378,7 +3417,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 202,
+      "loc": 84,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3404,7 +3443,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 49,
+      "loc": 44,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3599,7 +3638,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 313,
+      "loc": 314,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3678,19 +3717,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 618,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/views/csrf.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 26,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3911,7 +3937,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 93,
+      "loc": 88,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -3938,19 +3964,6 @@
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
       "loc": 205,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "./n23/core/views/impersonation.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 66,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4041,7 +4054,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 1162,
+      "loc": 1159,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4054,7 +4067,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 166,
+      "loc": 168,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4067,7 +4080,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 5370,
+      "loc": 5289,
       "nosec": 0,
       "skipped_tests": 3
     },
@@ -4158,7 +4171,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 154,
+      "loc": 155,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -4288,7 +4301,7 @@
       "SEVERITY.LOW": 15,
       "SEVERITY.MEDIUM": 9,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 71697,
+      "loc": 70856,
       "nosec": 4,
       "skipped_tests": 56
     }
@@ -4331,7 +4344,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "302 ACCOUNT_FORMS = {\n303     \"reset_password\": \"gyrinx.account_forms.ResetPasswordForm\",\n304     \"login\": \"gyrinx.account_forms.LoginForm\",\n305     \"signup\": \"gyrinx.account_forms.SignupForm\",\n306 }\n307 # Custom setting to (dis)allow signups\n308 ACCOUNT_ALLOW_SIGNUPS = os.getenv(\"ACCOUNT_ALLOW_SIGNUPS\", \"True\") == \"True\"\n",
+      "code": "306 ACCOUNT_FORMS = {\n307     \"reset_password\": \"gyrinx.account_forms.ResetPasswordForm\",\n308     \"login\": \"gyrinx.account_forms.LoginForm\",\n309     \"signup\": \"gyrinx.account_forms.SignupForm\",\n310 }\n311 # Custom setting to (dis)allow signups\n312 ACCOUNT_ALLOW_SIGNUPS = os.getenv(\"ACCOUNT_ALLOW_SIGNUPS\", \"True\") == \"True\"\n",
       "col_offset": 4,
       "end_col_offset": 20,
       "filename": "./gyrinx/settings.py",
@@ -4342,11 +4355,137 @@
       },
       "issue_severity": "LOW",
       "issue_text": "Possible hardcoded password: 'gyrinx.account_forms.ResetPasswordForm'",
-      "line_number": 303,
-      "line_range": [302, 303, 304, 305, 306],
+      "line_number": 307,
+      "line_range": [306, 307, 308, 309, 310],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html",
       "test_id": "B105",
       "test_name": "hardcoded_password_string"
+    },
+    {
+      "code": "255 \n256     return mark_safe(code)\n257 \n",
+      "col_offset": 11,
+      "end_col_offset": 26,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 80,
+        "link": "https://cwe.mitre.org/data/definitions/80.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Potential XSS on mark_safe function.",
+      "line_number": 256,
+      "line_range": [256],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
+      "test_id": "B703",
+      "test_name": "django_mark_safe"
+    },
+    {
+      "code": "255 \n256     return mark_safe(code)\n257 \n",
+      "col_offset": 11,
+      "end_col_offset": 26,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 79,
+        "link": "https://cwe.mitre.org/data/definitions/79.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
+      "line_number": 256,
+      "line_range": [256],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
+      "test_id": "B308",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "339 def dot():\n340     return mark_safe(\"&nbsp;\u00b7&nbsp;\")\n341 \n",
+      "col_offset": 11,
+      "end_col_offset": 38,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 79,
+        "link": "https://cwe.mitre.org/data/definitions/79.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
+      "line_number": 340,
+      "line_range": [340],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
+      "test_id": "B308",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "669 \n670     return mark_safe(cleaned)\n671 \n",
+      "col_offset": 11,
+      "end_col_offset": 29,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 80,
+        "link": "https://cwe.mitre.org/data/definitions/80.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Potential XSS on mark_safe function.",
+      "line_number": 670,
+      "line_range": [670],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
+      "test_id": "B703",
+      "test_name": "django_mark_safe"
+    },
+    {
+      "code": "669 \n670     return mark_safe(cleaned)\n671 \n",
+      "col_offset": 11,
+      "end_col_offset": 29,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 79,
+        "link": "https://cwe.mitre.org/data/definitions/79.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
+      "line_number": 670,
+      "line_range": [670],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
+      "test_id": "B308",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "698     stripped = text.strip()\n699     return mark_safe(stripped) if isinstance(value, SafeData) else stripped\n",
+      "col_offset": 11,
+      "end_col_offset": 30,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 80,
+        "link": "https://cwe.mitre.org/data/definitions/80.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Potential XSS on mark_safe function.",
+      "line_number": 699,
+      "line_range": [699],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
+      "test_id": "B703",
+      "test_name": "django_mark_safe"
+    },
+    {
+      "code": "698     stripped = text.strip()\n699     return mark_safe(stripped) if isinstance(value, SafeData) else stripped\n",
+      "col_offset": 11,
+      "end_col_offset": 30,
+      "filename": "./gyrinx/site/templatetags/platform_tags.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 79,
+        "link": "https://cwe.mitre.org/data/definitions/79.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
+      "line_number": 699,
+      "line_range": [699],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
+      "test_id": "B308",
+      "test_name": "blacklist"
     },
     {
       "code": "124 def stable_uuid(v):\n125     return uuid.UUID(hashlib.md5(v.encode()).hexdigest()[:32])\n126 \n",
@@ -4587,7 +4726,7 @@
       "test_name": "blacklist"
     },
     {
-      "code": "254 \n255     search_value_hash = hashlib.sha1(search_value.encode(\"utf-8\")).hexdigest()\n256     cache_key = f\"ref_{search_value_hash}\"\n",
+      "code": "55 \n56     search_value_hash = hashlib.sha1(search_value.encode(\"utf-8\")).hexdigest()\n57     cache_key = f\"ref_{search_value_hash}\"\n",
       "col_offset": 24,
       "end_col_offset": 66,
       "filename": "./n23/core/templatetags/custom_tags.py",
@@ -4598,14 +4737,14 @@
       },
       "issue_severity": "HIGH",
       "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
-      "line_number": 255,
-      "line_range": [255],
+      "line_number": 56,
+      "line_range": [56],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
       "test_id": "B324",
       "test_name": "hashlib"
     },
     {
-      "code": "260         kwargs[\"category\"] = category\n261         cat_hash = hashlib.sha1(category.encode(\"utf-8\")).hexdigest()\n262         cache_key += f\"_{cat_hash}\"\n",
+      "code": "61         kwargs[\"category\"] = category\n62         cat_hash = hashlib.sha1(category.encode(\"utf-8\")).hexdigest()\n63         cache_key += f\"_{cat_hash}\"\n",
       "col_offset": 19,
       "end_col_offset": 57,
       "filename": "./n23/core/templatetags/custom_tags.py",
@@ -4616,137 +4755,11 @@
       },
       "issue_severity": "HIGH",
       "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
-      "line_number": 261,
-      "line_range": [261],
+      "line_number": 62,
+      "line_range": [62],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
       "test_id": "B324",
       "test_name": "hashlib"
-    },
-    {
-      "code": "293 \n294     return mark_safe(code)\n295 \n",
-      "col_offset": 11,
-      "end_col_offset": 26,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 80,
-        "link": "https://cwe.mitre.org/data/definitions/80.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Potential XSS on mark_safe function.",
-      "line_number": 294,
-      "line_range": [294],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
-      "test_id": "B703",
-      "test_name": "django_mark_safe"
-    },
-    {
-      "code": "293 \n294     return mark_safe(code)\n295 \n",
-      "col_offset": 11,
-      "end_col_offset": 26,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 79,
-        "link": "https://cwe.mitre.org/data/definitions/79.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 294,
-      "line_range": [294],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
-      "test_id": "B308",
-      "test_name": "blacklist"
-    },
-    {
-      "code": "393 def dot():\n394     return mark_safe(\"&nbsp;\u00b7&nbsp;\")\n395 \n",
-      "col_offset": 11,
-      "end_col_offset": 38,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 79,
-        "link": "https://cwe.mitre.org/data/definitions/79.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 394,
-      "line_range": [394],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
-      "test_id": "B308",
-      "test_name": "blacklist"
-    },
-    {
-      "code": "754 \n755     return mark_safe(cleaned)\n756 \n",
-      "col_offset": 11,
-      "end_col_offset": 29,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 80,
-        "link": "https://cwe.mitre.org/data/definitions/80.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Potential XSS on mark_safe function.",
-      "line_number": 755,
-      "line_range": [755],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
-      "test_id": "B703",
-      "test_name": "django_mark_safe"
-    },
-    {
-      "code": "754 \n755     return mark_safe(cleaned)\n756 \n",
-      "col_offset": 11,
-      "end_col_offset": 29,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 79,
-        "link": "https://cwe.mitre.org/data/definitions/79.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 755,
-      "line_range": [755],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
-      "test_id": "B308",
-      "test_name": "blacklist"
-    },
-    {
-      "code": "789     stripped = text.strip()\n790     return mark_safe(stripped) if isinstance(value, SafeData) else stripped\n",
-      "col_offset": 11,
-      "end_col_offset": 30,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 80,
-        "link": "https://cwe.mitre.org/data/definitions/80.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Potential XSS on mark_safe function.",
-      "line_number": 790,
-      "line_range": [790],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html",
-      "test_id": "B703",
-      "test_name": "django_mark_safe"
-    },
-    {
-      "code": "789     stripped = text.strip()\n790     return mark_safe(stripped) if isinstance(value, SafeData) else stripped\n",
-      "col_offset": 11,
-      "end_col_offset": 30,
-      "filename": "./n23/core/templatetags/custom_tags.py",
-      "issue_confidence": "HIGH",
-      "issue_cwe": {
-        "id": 79,
-        "link": "https://cwe.mitre.org/data/definitions/79.html"
-      },
-      "issue_severity": "MEDIUM",
-      "issue_text": "Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.",
-      "line_number": 790,
-      "line_range": [790],
-      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe",
-      "test_id": "B308",
-      "test_name": "blacklist"
     },
     {
       "code": "19 import os\n20 import subprocess\n21 import sys\n",

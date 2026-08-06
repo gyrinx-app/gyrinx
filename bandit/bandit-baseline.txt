@@ -1,4 +1,4 @@
-Run started:2026-08-05 06:06:12.015139+00:00
+Run started:2026-08-06 14:14:08.774876+00:00
 
 Test results:
 >> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
@@ -23,14 +23,82 @@ Test results:
    Severity: Low   Confidence: Medium
    CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
    More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b105_hardcoded_password_string.html
-   Location: ./gyrinx/settings.py:303:4
-302	ACCOUNT_FORMS = {
-303	    "reset_password": "gyrinx.account_forms.ResetPasswordForm",
-304	    "login": "gyrinx.account_forms.LoginForm",
-305	    "signup": "gyrinx.account_forms.SignupForm",
-306	}
-307	# Custom setting to (dis)allow signups
-308	ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+   Location: ./gyrinx/settings.py:307:4
+306	ACCOUNT_FORMS = {
+307	    "reset_password": "gyrinx.account_forms.ResetPasswordForm",
+308	    "login": "gyrinx.account_forms.LoginForm",
+309	    "signup": "gyrinx.account_forms.SignupForm",
+310	}
+311	# Custom setting to (dis)allow signups
+312	ACCOUNT_ALLOW_SIGNUPS = os.getenv("ACCOUNT_ALLOW_SIGNUPS", "True") == "True"
+
+--------------------------------------------------
+>> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
+   Severity: Medium   Confidence: High
+   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./gyrinx/site/templatetags/platform_tags.py:256:11
+255
+256	    return mark_safe(code)
+257
+
+--------------------------------------------------
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./gyrinx/site/templatetags/platform_tags.py:256:11
+255
+256	    return mark_safe(code)
+257
+
+--------------------------------------------------
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./gyrinx/site/templatetags/platform_tags.py:340:11
+339	def dot():
+340	    return mark_safe("&nbsp;·&nbsp;")
+341
+
+--------------------------------------------------
+>> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
+   Severity: Medium   Confidence: High
+   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./gyrinx/site/templatetags/platform_tags.py:670:11
+669
+670	    return mark_safe(cleaned)
+671
+
+--------------------------------------------------
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./gyrinx/site/templatetags/platform_tags.py:670:11
+669
+670	    return mark_safe(cleaned)
+671
+
+--------------------------------------------------
+>> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
+   Severity: Medium   Confidence: High
+   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
+   Location: ./gyrinx/site/templatetags/platform_tags.py:699:11
+698	    stripped = text.strip()
+699	    return mark_safe(stripped) if isinstance(value, SafeData) else stripped
+
+--------------------------------------------------
+>> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
+   Severity: Medium   Confidence: High
+   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
+   Location: ./gyrinx/site/templatetags/platform_tags.py:699:11
+698	    stripped = text.strip()
+699	    return mark_safe(stripped) if isinstance(value, SafeData) else stripped
 
 --------------------------------------------------
 >> Issue: [B324:hashlib] Use of weak MD5 hash for security. Consider usedforsecurity=False
@@ -229,88 +297,20 @@ Test results:
    Severity: High   Confidence: High
    CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
    More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html
-   Location: ./n23/core/templatetags/custom_tags.py:255:24
-254
-255	    search_value_hash = hashlib.sha1(search_value.encode("utf-8")).hexdigest()
-256	    cache_key = f"ref_{search_value_hash}"
+   Location: ./n23/core/templatetags/custom_tags.py:56:24
+55
+56	    search_value_hash = hashlib.sha1(search_value.encode("utf-8")).hexdigest()
+57	    cache_key = f"ref_{search_value_hash}"
 
 --------------------------------------------------
 >> Issue: [B324:hashlib] Use of weak SHA1 hash for security. Consider usedforsecurity=False
    Severity: High   Confidence: High
    CWE: CWE-327 (https://cwe.mitre.org/data/definitions/327.html)
    More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html
-   Location: ./n23/core/templatetags/custom_tags.py:261:19
-260	        kwargs["category"] = category
-261	        cat_hash = hashlib.sha1(category.encode("utf-8")).hexdigest()
-262	        cache_key += f"_{cat_hash}"
-
---------------------------------------------------
->> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
-   Severity: Medium   Confidence: High
-   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
-   Location: ./n23/core/templatetags/custom_tags.py:294:11
-293
-294	    return mark_safe(code)
-295
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./n23/core/templatetags/custom_tags.py:294:11
-293
-294	    return mark_safe(code)
-295
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./n23/core/templatetags/custom_tags.py:394:11
-393	def dot():
-394	    return mark_safe("&nbsp;·&nbsp;")
-395
-
---------------------------------------------------
->> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
-   Severity: Medium   Confidence: High
-   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
-   Location: ./n23/core/templatetags/custom_tags.py:755:11
-754
-755	    return mark_safe(cleaned)
-756
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./n23/core/templatetags/custom_tags.py:755:11
-754
-755	    return mark_safe(cleaned)
-756
-
---------------------------------------------------
->> Issue: [B703:django_mark_safe] Potential XSS on mark_safe function.
-   Severity: Medium   Confidence: High
-   CWE: CWE-80 (https://cwe.mitre.org/data/definitions/80.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b703_django_mark_safe.html
-   Location: ./n23/core/templatetags/custom_tags.py:790:11
-789	    stripped = text.strip()
-790	    return mark_safe(stripped) if isinstance(value, SafeData) else stripped
-
---------------------------------------------------
->> Issue: [B308:blacklist] Use of mark_safe() may expose cross-site scripting vulnerabilities and should be reviewed.
-   Severity: Medium   Confidence: High
-   CWE: CWE-79 (https://cwe.mitre.org/data/definitions/79.html)
-   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b308-mark-safe
-   Location: ./n23/core/templatetags/custom_tags.py:790:11
-789	    stripped = text.strip()
-790	    return mark_safe(stripped) if isinstance(value, SafeData) else stripped
+   Location: ./n23/core/templatetags/custom_tags.py:62:19
+61	        kwargs["category"] = category
+62	        cat_hash = hashlib.sha1(category.encode("utf-8")).hexdigest()
+63	        cache_key += f"_{cat_hash}"
 
 --------------------------------------------------
 >> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
@@ -340,7 +340,7 @@ Test results:
 --------------------------------------------------
 
 Code scanned:
-	Total lines of code: 71697
+	Total lines of code: 70856
 	Total lines skipped (#nosec): 4
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 56
 

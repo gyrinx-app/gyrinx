@@ -12,7 +12,7 @@ from gyrinx.badges import (
     rank_for_tier_title,
 )
 from gyrinx.accounts.models import PatreonStatus, UserProfile
-from n23.core.templatetags.badge_tags import badge_icon, user_badge
+from gyrinx.site.templatetags.badge_tags import badge_icon, user_badge
 
 
 # --- Registry (pure) ---

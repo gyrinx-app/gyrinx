@@ -67,7 +67,7 @@ the gate, fix the call site.
   `alert` classes or hand-write a bordered box. Bootstrap `card` stays reserved for fighter
   grids and equipment categories.
 - Never apply `|safe` directly to user-supplied content. Sanitize first — the project ships
-  the `safe_rich_text` template filter (in `core/templatetags/custom_tags.py`) for this.
+  the `safe_rich_text` template filter (in `gyrinx/site/templatetags/platform_tags.py`) for this.
   Only use `|safe` on values you control or that have already been sanitized.
 - **No client-side form mutation.** Variant pickers (kind/mode switches that
   change which fields are visible, which options a `<select>` has, or which

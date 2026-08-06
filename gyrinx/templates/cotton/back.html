@@ -53,7 +53,7 @@
     #2002 canonical spec: the link TEXT is the parent page's name
     (list.name, pack.name, content_fighter.type — the dominant real usage);
     bare "Back" only when the parent is genuinely ambiguous.
-{% endcomment %}{% load custom_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><nav aria-label="breadcrumb"{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}>
+{% endcomment %}{% load platform_tags %}{% comment %} djlint:off {% endcomment %}<c-vars url="" text="" class="" /><nav aria-label="breadcrumb"{% with attrstr=attrs|stringformat:"s" %}{% if attrstr %} {{ attrstr|safe }}{% endif %}{% endwith %}>
     <ol class="breadcrumb{% if class %} {{ class }}{% endif %}">
         <li class="breadcrumb-item active">
             <i class="bi-chevron-left" aria-hidden="true"></i>

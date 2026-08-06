@@ -8,7 +8,7 @@ The feature toggle system uses a custom Django template filter that checks group
 
 ### Template Tag
 
-The `in_group` filter is defined in `core/templatetags/group_tags.py`:
+The `in_group` filter is defined in `gyrinx/site/templatetags/group_tags.py`:
 
 ```python
 @register.filter
