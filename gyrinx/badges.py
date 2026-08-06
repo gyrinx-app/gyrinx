@@ -38,21 +38,21 @@ PATREON_BADGES: list[BadgeDef] = [
         slug="scummer",
         title="Scummer",
         rank=1,
-        svg="core/img/badges/scummer.svg",
+        svg="platform/img/badges/scummer.svg",
         description="Gyrinx supporter — Scummer tier",
     ),
     BadgeDef(
         slug="guilder",
         title="Guilder",
         rank=2,
-        svg="core/img/badges/guilder.svg",
+        svg="platform/img/badges/guilder.svg",
         description="Gyrinx supporter — Guilder tier",
     ),
     BadgeDef(
         slug="uphiver",
         title="Uphiver",
         rank=3,
-        svg="core/img/badges/uphiver.svg",
+        svg="platform/img/badges/uphiver.svg",
         description="Gyrinx supporter — Uphiver tier",
     ),
 ]
@@ -66,7 +66,7 @@ STAFF_BADGE = BadgeDef(
     slug="staff",
     title="Staff",
     rank=100,
-    svg="core/img/badges/staff.svg",
+    svg="platform/img/badges/staff.svg",
     description="Gyrinx staff",
 )
 
