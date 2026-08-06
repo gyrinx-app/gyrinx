@@ -151,6 +151,10 @@ class ContentPolicy(Content):
         verbose_name_plural = "Policies"
 
 
+# Distinguishes "cached, and the answer is nothing" from "not cached".
+_MISSING = object()
+
+
 class ContentPageRef(Content):
     """
     Represents a reference to a page (or pages) in a rulebook (:model:`content.ContentBook`). Provides a parent
@@ -217,15 +221,29 @@ class ContentPageRef(Content):
         Uses caching to avoid repeated lookups. Returns a QuerySet.
         """
         cache = caches["content_page_ref_cache"]
-        key = f"content_page_ref_cache:{title}"
-        cached = cache.get(key)
-        if cached:
+        # Include the kwargs in the key: the same title looked up with and without
+        # a category is two different questions with two different answers.
+        key = f"content_page_ref_cache:{title}:{sorted(kwargs.items())}"
+        # Sentinel rather than a truthiness test. An empty result is falsy, so
+        # `if cached:` treated "we looked and there is nothing" as a cache miss —
+        # meaning any title without a page ref re-ran an unindexable LIKE query on
+        # every single call and could never be cached.
+        cached = cache.get(key, _MISSING)
+        if cached is not _MISSING:
             return cached
 
-        refs = ContentPageRef.objects.filter(**kwargs).filter(
-            Q(title__icontains=title) | Q(title=title)
+        # Evaluated to a list before caching. A QuerySet is lazy, and caching one
+        # stores a re-runnable query rather than the answer.
+        refs = list(
+            ContentPageRef.objects.filter(**kwargs).filter(
+                Q(title__icontains=title) | Q(title=title)
+            )
         )
-        cache.set(key, refs)
+        # An hour, not forever: with MAX_ENTRIES well above the working set
+        # nothing is evicted, so a permanent entry would hide admin edits to page
+        # refs until the container restarted. An hour costs at most one requery
+        # per title per process and self-heals.
+        cache.set(key, refs, 3600)
         return refs
 
     # TODO: Move this to a custom Manager

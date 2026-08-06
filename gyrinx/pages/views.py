@@ -16,7 +16,14 @@ from gyrinx.pages.models import FlatPageVisibility
 # brings no users, so it is excluded entirely. Bytespider (ByteDance) likewise.
 # For everyone else (Googlebot, bingbot, ...) the list overview pages carry the
 # search value — the per-fighter detail pages are crawl noise, so they are
-# disallowed for all agents.
+# disallowed for all agents. The print views are the most expensive pages on
+# the site and have no business being indexed.
+#
+# These paths carry the /n23/ edition prefix. They MUST be kept in step with
+# n23/core/urls/__init__.py: when the edition moved under /n23/ in #2110 these
+# rules silently stopped matching, every fighter and print page became
+# crawlable, and the resulting crawl took the site down. The test below asserts
+# each pattern resolves to a real view rather than just checking the text.
 ROBOTS_TXT = """\
 User-agent: Amazonbot
 Disallow: /
@@ -25,7 +32,9 @@ User-agent: Bytespider
 Disallow: /
 
 User-agent: *
-Disallow: /list/*/fighter/
+Disallow: /n23/list/*/fighter/
+Disallow: /n23/list/*/print
+Disallow: /n23/list/*/print/
 Disallow: /accounts/
 Disallow: /admin/
 """
