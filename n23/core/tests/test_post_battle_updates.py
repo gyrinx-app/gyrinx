@@ -12,7 +12,6 @@ from n23.core.handlers.fighter import (
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter, ListFighterCounter, ListFighterInjury
 
-
 # --- Handlers --------------------------------------------------------------
 
 

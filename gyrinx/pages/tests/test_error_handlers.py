@@ -6,7 +6,6 @@ from django.contrib.sites.models import Site
 from django.test import Client, RequestFactory, override_settings
 from django.urls import reverse
 
-
 from gyrinx.pages.models import FlatPageVisibility
 from gyrinx.pages.views import error_400, error_403, error_404, error_500
 

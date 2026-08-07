@@ -9,16 +9,15 @@ DEAD through the real kill handler.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import ContentInjury
 from n23.content.models.injury import ContentInjuryDefaultOutcome
 from n23.core.handlers.fighter.kill import handle_fighter_kill
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter, ListFighterInjury
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class FighterAddInjuryResult:
     injury: ListFighterInjury
     outcome_state: str
     killed: bool
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_fighter_add_injury")

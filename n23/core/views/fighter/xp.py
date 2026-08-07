@@ -9,8 +9,8 @@ from django.urls import reverse
 
 from gyrinx import messages
 from n23.core.models.list import List, ListFighter
-from n23.core.views.list.common import get_clean_list_or_404
 from n23.core.views.fighter.permissions import arbitrator_q
+from n23.core.views.list.common import get_clean_list_or_404
 
 
 @login_required

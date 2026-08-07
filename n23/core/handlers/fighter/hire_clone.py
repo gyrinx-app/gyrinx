@@ -1,17 +1,16 @@
 """Handlers for fighter hire and clone operations."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import ContentFighter
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import List, ListFighter
 from n23.models import FighterCategoryChoices
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -22,7 +21,7 @@ class FighterHireResult:
     fighter_cost: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -32,11 +31,11 @@ class FighterCloneParams:
     name: str
     content_fighter: ContentFighter
     target_list: List
-    category_override: Optional[FighterCategoryChoices] = None
+    category_override: FighterCategoryChoices | None = None
     # Type-change promotion pointer; None clears it on the clone (the caller decides
     # whether the promotion travels — the duplicate form's checkbox governs both this
     # and category_override together).
-    promoted_content_fighter: Optional[ContentFighter] = None
+    promoted_content_fighter: ContentFighter | None = None
 
 
 @dataclass
@@ -48,7 +47,7 @@ class FighterCloneResult:
     fighter_cost: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_fighter_hire")

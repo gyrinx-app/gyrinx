@@ -1,10 +1,10 @@
 """Handlers for fighter capture, release, return, and sell operations."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
@@ -14,7 +14,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -29,7 +28,7 @@ class FighterCaptureResult:
     equipment_removed: list[tuple[str, int]]  # [(assignment_id, cost), ...]
     capture_list_action: ListAction
     equipment_removal_actions: list[ListAction]
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -41,7 +40,7 @@ class FighterSellResult:
     capturing_list: List
     sale_price: int
     sell_list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -54,9 +53,9 @@ class FighterReturnResult:
     ransom_amount: int
     fighter_cost: int
     original_list_action: ListAction
-    capturing_list_action: Optional[ListAction]
-    original_campaign_action: Optional[CampaignAction]
-    capturing_campaign_action: Optional[CampaignAction]
+    capturing_list_action: ListAction | None
+    original_campaign_action: CampaignAction | None
+    capturing_campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -67,7 +66,7 @@ class FighterReleaseResult:
     original_list: List
     fighter_cost: int
     release_list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_fighter_capture")

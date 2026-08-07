@@ -6,8 +6,6 @@ terminology overrides. The generic grouping helpers they pair with
 (``group_select``, ``group_sorter``) remain in the platform.
 """
 
-from typing import Optional
-
 from django import forms
 
 from n23.content.models import ContentFighter
@@ -19,7 +17,7 @@ def fighter_group_key(fighter: ContentFighter):
     return fighter.house.name
 
 
-def template_form_with_terms(form: forms.Form, fighter: Optional[ListFighter] = None):
+def template_form_with_terms(form: forms.Form, fighter: ListFighter | None = None):
     # Get the correct terminology for this fighter
     terms = dict(
         term_singular=fighter.term_singular if fighter else "Fighter",

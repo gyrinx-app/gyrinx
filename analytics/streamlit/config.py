@@ -1,8 +1,9 @@
 """Shared configuration for the analytics dashboard."""
 
+from datetime import datetime, timedelta
+
 import streamlit as st
 from sqlalchemy import create_engine, text
-from datetime import datetime, timedelta
 
 DB_HOST = "localhost"
 DB_PORT = 5433

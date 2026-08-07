@@ -9,8 +9,8 @@ performance bottlenecks and optimization opportunities.
 import json
 import sys
 from collections import defaultdict
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 
 
 @dataclass

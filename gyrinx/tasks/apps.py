@@ -28,11 +28,11 @@ class TasksConfig(AppConfig):
         - Auto-provisions Pub/Sub topics/subscriptions in Cloud Run
         """
         # Import signal handlers to register them (works with any backend)
-        from gyrinx.tasks import signals  # noqa: F401
+        from gyrinx.tasks import signals  # noqa: F401  # isort: skip
 
         # Import the system check module so its @register() runs — enforces that
         # every @task is in the registry, in every environment (#1947).
-        from gyrinx.tasks import checks  # noqa: F401
+        from gyrinx.tasks import checks  # noqa: F401  # isort: skip
 
         # Only provision Pub/Sub in Cloud Run environment
         if not os.getenv("K_SERVICE"):

@@ -22,7 +22,6 @@ from n23.content.models import (
 )
 from n23.models import FighterCategoryChoices
 
-
 # ContentEquipment cost methods tests
 
 

@@ -18,7 +18,7 @@ from .base import Content
 logger = logging.getLogger(__name__)
 
 
-def parse_roll_value(roll_value: str) -> Optional[tuple[int, int]]:
+def parse_roll_value(roll_value: str) -> tuple[int, int] | None:
     """
     Parse a roll_value string into an inclusive (low, high) range.
 

@@ -9,13 +9,13 @@ mirroring the advancement pattern.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 
+from gyrinx.tracing import traced
 from n23.content.models import ContentRollFlow, ContentRollTableRow
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
@@ -25,7 +25,6 @@ from n23.core.models.list import (
     ListFighterCounter,
     ListFighterRollResult,
 )
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class RollFlowResult:
     outcome: str
 
     update_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -54,7 +53,7 @@ class RollResultDeletionResult:
     counter_refund: int
 
     update_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_roll_flow")
@@ -66,10 +65,10 @@ def handle_roll_flow(
     flow: ContentRollFlow,
     row: ContentRollTableRow,
     rolled_value: int,
-    campaign_action_id: Optional[UUID] = None,
-    roll_token: Optional[UUID] = None,
+    campaign_action_id: UUID | None = None,
+    roll_token: UUID | None = None,
     notes: str = "",
-) -> Optional[RollFlowResult]:
+) -> RollFlowResult | None:
     """
     Apply a roll-flow outcome: deduct the counter, record the result,
     propagate the rating increase, and write ledger/campaign actions.

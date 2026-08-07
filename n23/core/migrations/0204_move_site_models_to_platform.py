@@ -2,7 +2,6 @@
 
 from django.db import migrations
 
-
 MOVED = ["banner", "historicalbanner", "impersonationlog"]
 
 

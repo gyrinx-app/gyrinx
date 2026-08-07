@@ -1,5 +1,6 @@
 import pytest
 
+from gyrinx.query import capture_queries
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
@@ -9,7 +10,6 @@ from n23.content.models import (
 from n23.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from n23.core.models.util import ModContext
 from n23.models import FighterCategoryChoices
-from gyrinx.query import capture_queries
 
 
 @pytest.mark.django_db

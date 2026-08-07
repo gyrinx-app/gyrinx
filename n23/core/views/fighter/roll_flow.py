@@ -17,6 +17,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.content.models import ContentRollFlow
 from n23.core.forms.list import RollFlowDiceForm
 from n23.core.handlers.fighter import (
@@ -24,7 +25,6 @@ from n23.core.handlers.fighter import (
     handle_roll_result_deletion,
 )
 from n23.core.models.campaign import CampaignAction
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import ListFighterRollResult
 from n23.core.views.fighter.permissions import get_list_and_fighter
 

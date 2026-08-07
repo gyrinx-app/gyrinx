@@ -1,14 +1,25 @@
 from django import forms
 
+from gyrinx.forms import (
+    group_select,
+    group_sorter,
+)
+from gyrinx.models import SMART_QUOTES
+from gyrinx.widgets import (
+    TINYMCE_EXTRA_ATTRS,
+    BsCheckboxSelectMultiple,
+    BsClearableFileInput,
+    BsRadioSelect,
+    TinyMCEWithUpload,
+)
 from n23.content.models import (
     ContentEquipmentUpgrade,
     ContentFighter,
     ContentHouse,
 )
-from gyrinx.widgets import (
-    BsCheckboxSelectMultiple,
-    BsClearableFileInput,
-    BsRadioSelect,
+from n23.core.forms.terms import (
+    fighter_group_key,
+    template_form_with_terms,
 )
 from n23.core.models.list import (
     List,
@@ -16,17 +27,7 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from n23.core.widgets import ColorRadioSelect
-from n23.core.forms.terms import (
-    fighter_group_key,
-    template_form_with_terms,
-)
-from gyrinx.forms import (
-    group_select,
-    group_sorter,
-)
-from gyrinx.models import SMART_QUOTES
 from n23.models import FighterCategoryChoices
-from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 class NewListForm(forms.ModelForm):

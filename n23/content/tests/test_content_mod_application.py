@@ -30,7 +30,6 @@ from n23.content.models import (
 from n23.core.models.list import ListFighterEquipmentAssignment
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 
-
 # Helpers ---------------------------------------------------------------------
 
 

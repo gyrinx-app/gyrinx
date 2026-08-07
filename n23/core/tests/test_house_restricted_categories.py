@@ -5,9 +5,10 @@ ContentEquipmentCategory.restricted_to) are excluded from default
 selections but remain available for users to opt-in via the UI.
 """
 
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 from django.urls import reverse
-from urllib.parse import urlparse, parse_qs
 
 from n23.content.models import (
     ContentEquipment,

@@ -1,15 +1,15 @@
 import pytest
 from django.core.exceptions import ValidationError
 
+from n23.content.admin import ContentFighterEquipmentCategoryLimitForm
 from n23.content.models import (
+    ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
+    ContentFighter,
     ContentFighterEquipmentCategoryLimit,
     ContentHouse,
-    ContentEquipment,
-    ContentFighter,
 )
-from n23.content.admin import ContentFighterEquipmentCategoryLimitForm
 from n23.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from n23.models import FighterCategoryChoices
 

@@ -2,30 +2,33 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Case, When
 
+from gyrinx.forms import group_select
+from gyrinx.widgets import (
+    TINYMCE_EXTRA_ATTRS,
+    BsCheckboxSelectMultipleCompact,
+    TinyMCEWithUpload,
+)
 from n23.content.models.attribute import ContentAttribute, ContentAttributeValue
 from n23.content.models.equipment import ContentEquipment, ContentEquipmentCategory
 from n23.content.models.fighter import ContentFighter
 from n23.content.models.house import ContentHouse
+from n23.content.models.metadata import ContentRule
 from n23.content.models.psyker import (
     ContentPsykerDiscipline,
     ContentPsykerPower,
 )
-from n23.content.models.statline import ContentStatlineType
-from n23.content.models.metadata import ContentRule
 from n23.content.models.skill import ContentSkill, ContentSkillCategory
+from n23.content.models.statline import ContentStatlineType
 from n23.content.models.weapon import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
 )
-from gyrinx.widgets import BsCheckboxSelectMultipleCompact
 from n23.core.models.pack import (
     CustomContentPack,
     CustomContentPackAttachment,
 )
-from gyrinx.forms import group_select
 from n23.models import FighterCategoryChoices, equipment_category_groups
-from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 def rich_text_description_widget(height="200px"):

@@ -7,7 +7,7 @@ moved to ``n23.models``: they are edition vocabulary, not infrastructure.
 
 import logging
 import uuid
-from typing import List, TypeVar, Union
+from typing import TypeVar
 from uuid import UUID
 
 from django.db import models
@@ -111,4 +111,4 @@ class Base(models.Model):
 
 
 T = TypeVar("T")
-QuerySetOf = Union[QuerySet, List[T]]
+QuerySetOf = QuerySet | list[T]

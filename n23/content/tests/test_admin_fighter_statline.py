@@ -5,6 +5,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory
 
+from gyrinx.models import SMART_QUOTES
 from n23.content.admin import ContentFighterAdmin
 from n23.content.models import (
     ContentFighter,
@@ -13,7 +14,6 @@ from n23.content.models import (
     ContentStatlineType,
 )
 from n23.core.models import List, ListFighter
-from gyrinx.models import SMART_QUOTES
 
 
 @pytest.fixture

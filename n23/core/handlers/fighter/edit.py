@@ -1,15 +1,15 @@
 """Handler for fighter edit operations."""
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import ContentFighter
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import ListFighter
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -86,9 +86,9 @@ def _generate_field_description(
 @traced("_calculate_cost_delta")
 def _calculate_cost_delta(
     fighter: ListFighter,
-    old_cost_override: Optional[int],
-    new_cost_override: Optional[int],
-    old_base_cost: Optional[int] = None,
+    old_cost_override: int | None,
+    new_cost_override: int | None,
+    old_base_cost: int | None = None,
 ) -> int:
     """
     Calculate the cost delta when changing cost_override.
@@ -134,7 +134,7 @@ def _calculate_cost_delta(
 def _calculate_content_fighter_cost_delta(
     fighter: ListFighter,
     old_content_fighter: ContentFighter,
-    old_cost_override: Optional[int] = None,
+    old_cost_override: int | None = None,
 ) -> int:
     """
     Calculate the cost delta when changing content_fighter.
@@ -176,11 +176,11 @@ def _calculate_content_fighter_cost_delta(
 @traced("_detect_field_changes")
 def _detect_field_changes(
     fighter: ListFighter,
-    old_name: Optional[str],
-    old_content_fighter: Optional[ContentFighter],
-    old_legacy_content_fighter: Optional[ContentFighter],
-    old_category_override: Optional[str],
-    old_cost_override: Optional[int],
+    old_name: str | None,
+    old_content_fighter: ContentFighter | None,
+    old_legacy_content_fighter: ContentFighter | None,
+    old_category_override: str | None,
+    old_cost_override: int | None,
     is_stash: bool,
 ) -> list[FieldChange]:
     """
@@ -314,12 +314,12 @@ def handle_fighter_edit(
     *,
     user,
     fighter: ListFighter,
-    old_name: Optional[str] = None,
-    old_content_fighter: Optional[ContentFighter] = None,
-    old_legacy_content_fighter: Optional[ContentFighter] = _UNCHANGED,
-    old_category_override: Optional[str] = _UNCHANGED,
-    old_cost_override: Optional[int] = _UNCHANGED,
-) -> Optional[FighterEditResult]:
+    old_name: str | None = None,
+    old_content_fighter: ContentFighter | None = None,
+    old_legacy_content_fighter: ContentFighter | None = _UNCHANGED,
+    old_category_override: str | None = _UNCHANGED,
+    old_cost_override: int | None = _UNCHANGED,
+) -> FighterEditResult | None:
     """
     Handle fighter property edits with ListAction tracking.
 

@@ -62,7 +62,7 @@ class LegacyEditionRedirect(RedirectView):
 
 legacy_redirects = [
     re_path(
-        r"^(?P<rest>(?:%s)(?:/.*)?)$" % "|".join(LEGACY_PREFIXES),
+        r"^(?P<rest>(?:%s)(?:/.*)?)$" % "|".join(LEGACY_PREFIXES),  # noqa: UP031
         LegacyEditionRedirect.as_view(url=f"/{EDITION_PREFIX}%(rest)s"),
     )
 ]

@@ -1,7 +1,7 @@
 """Cached facts analysis - lists with dirty=False."""
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from config import setup_sidebar
 
 st.set_page_config(page_title="Cached Facts", page_icon="💾", layout="wide")

@@ -5,6 +5,7 @@ from itertools import groupby
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.utils import flatten_fieldsets
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.db.models import Case, When
@@ -17,12 +18,10 @@ from polymorphic.admin import (
     StackedPolymorphicInline,
 )
 
+from gyrinx.forms import group_select
+from gyrinx.models import SMART_QUOTES
 from n23.content.actions import copy_selected_to_fighter, copy_selected_to_house
 from n23.content.models.availability_preset import ContentAvailabilityPreset
-from gyrinx.forms import group_select
-from django.contrib.admin.utils import flatten_fieldsets
-
-from gyrinx.models import SMART_QUOTES
 from n23.content.statlines import (
     set_fighter_statline,
     stat_placeholder,
@@ -38,6 +37,7 @@ from .models import (
     ContentBattleRole,
     ContentBattleRoleOption,
     ContentBook,
+    ContentCounter,
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
@@ -63,12 +63,8 @@ from .models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentHouse,
     ContentHouseSkillRankAccess,
-    ContentCounter,
     ContentInjury,
     ContentInjuryGroup,
-    ContentRollFlow,
-    ContentRollTable,
-    ContentRollTableRow,
     ContentMod,
     ContentModApplication,
     ContentModFighterRule,
@@ -83,6 +79,9 @@ from .models import (
     ContentPromotionPath,
     ContentPsykerDiscipline,
     ContentPsykerPower,
+    ContentRollFlow,
+    ContentRollTable,
+    ContentRollTableRow,
     ContentRule,
     ContentSkill,
     ContentSkillCategory,

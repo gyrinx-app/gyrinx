@@ -1,10 +1,10 @@
 """Handler for fighter kill operations in campaign mode."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.cost.pinning import pin_assignment
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
@@ -14,7 +14,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -26,7 +25,7 @@ class FighterKillResult:
     equipment_count: int
     persistent_count: int
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
     description: str
 
 

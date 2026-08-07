@@ -1,8 +1,8 @@
 """Most active lists and campaigns."""
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 from config import setup_sidebar
 
 st.set_page_config(page_title="Active Lists & Campaigns", page_icon="🔥", layout="wide")

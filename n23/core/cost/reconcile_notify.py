@@ -27,8 +27,8 @@ from collections import defaultdict
 from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 
-from n23.core.models.list import List
 from gyrinx.site.models import Notification, NotificationType
+from n23.core.models.list import List
 from n23.models import format_cost_display
 
 logger = logging.getLogger(__name__)

@@ -10,11 +10,11 @@ a single ``request.POST`` carries the whole grid.
 from django import forms
 from django.utils.html import format_html, format_html_join
 
+from gyrinx.forms import group_select
 from n23.core.forms.list import available_injuries_for_fighter
 from n23.core.models.battle import Battle
 from n23.core.models.campaign import CampaignAsset
 from n23.core.models.list import List, ListFighter
-from gyrinx.forms import group_select
 from n23.models import FighterCategoryChoices
 
 

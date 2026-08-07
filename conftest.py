@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 from django.apps import apps
@@ -8,6 +8,11 @@ from django.contrib.sites.models import Site
 from django.core.cache import cache, caches
 from django.db.models.signals import post_migrate
 
+from gyrinx.site.models import BANNER_CACHE_KEY
+
+# Re-export the local task-queue driver fixture so tests can request `task_queue`
+# to drive the durable queue in manual mode (inject duplicates/failures/drops).
+from gyrinx.tasks.testing import task_queue  # noqa: F401
 from n23.content.models import (
     ContentBook,
     ContentEquipment,
@@ -20,16 +25,11 @@ from n23.content.models import (
 )
 from n23.content.models.skill import ContentSkill, ContentSkillCategory
 from n23.content.statlines import set_fighter_stats
-from gyrinx.site.models import BANNER_CACHE_KEY
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 from n23.models import FighterCategoryChoices
-
-# Re-export the local task-queue driver fixture so tests can request `task_queue`
-# to drive the durable queue in manual mode (inject duplicates/failures/drops).
-from gyrinx.tasks.testing import task_queue  # noqa: F401
 
 User = get_user_model()
 

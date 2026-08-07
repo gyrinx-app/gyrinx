@@ -2,12 +2,12 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentAdvancementAssignment,
     ContentFighter,
@@ -22,7 +22,6 @@ from n23.core.models.list import (
     ListFighterAdvancement,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +37,12 @@ class FighterAdvancementResult:
 
     # ListActions created
     update_action: ListAction  # UPDATE_FIGHTER for cost_increase
-    equipment_action: Optional[ListAction]  # ADD_EQUIPMENT for equipment advancements
+    equipment_action: ListAction | None  # ADD_EQUIPMENT for equipment advancements
 
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
     # What was created/modified (for logging)
-    equipment_assignment: Optional[ListFighterEquipmentAssignment]
+    equipment_assignment: ListFighterEquipmentAssignment | None
 
 
 @traced("handle_fighter_advancement")
@@ -57,15 +56,15 @@ def handle_fighter_advancement(
     cost_increase: int,
     advancement_choice: str,
     # Type-specific parameters (only one set should be provided)
-    stat_increased: Optional[str] = None,
-    skill: Optional[ContentSkill] = None,
-    equipment_assignment: Optional[ContentAdvancementAssignment] = None,
-    promotion_path: Optional[ContentPromotionPath] = None,
-    promotion_target: Optional[ContentFighter] = None,
-    description: Optional[str] = None,
+    stat_increased: str | None = None,
+    skill: ContentSkill | None = None,
+    equipment_assignment: ContentAdvancementAssignment | None = None,
+    promotion_path: ContentPromotionPath | None = None,
+    promotion_target: ContentFighter | None = None,
+    description: str | None = None,
     # Campaign action linking
-    campaign_action_id: Optional[UUID] = None,
-) -> Optional[FighterAdvancementResult]:
+    campaign_action_id: UUID | None = None,
+) -> FighterAdvancementResult | None:
     """
     Handle fighter advancement with ListAction tracking.
 
@@ -294,12 +293,12 @@ def _generate_outcome_description(
     *,
     advancement_type: str,
     advancement_choice: str,
-    stat_increased: Optional[str],
-    skill: Optional[ContentSkill],
-    equipment_assignment: Optional[ContentAdvancementAssignment],
-    promotion_path: Optional[ContentPromotionPath] = None,
-    promotion_target: Optional[ContentFighter] = None,
-    description: Optional[str],
+    stat_increased: str | None,
+    skill: ContentSkill | None,
+    equipment_assignment: ContentAdvancementAssignment | None,
+    promotion_path: ContentPromotionPath | None = None,
+    promotion_target: ContentFighter | None = None,
+    description: str | None,
 ) -> str:
     """Generate a human-readable outcome description for the advancement."""
     # Import here to avoid circular imports

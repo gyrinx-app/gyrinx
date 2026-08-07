@@ -748,7 +748,7 @@ def test_campaign_remove_list_unassigns_assets():
     campaign.lists.add(list_obj)
 
     # Create an asset type and assets
-    from n23.core.models.campaign import CampaignAssetType, CampaignAsset
+    from n23.core.models.campaign import CampaignAsset, CampaignAssetType
 
     asset_type = CampaignAssetType.objects.create(
         campaign=campaign,

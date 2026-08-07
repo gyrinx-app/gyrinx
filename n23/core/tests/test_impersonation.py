@@ -7,6 +7,7 @@ from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
 
+from gyrinx.analytics.models import Event
 from gyrinx.impersonation import (
     IMPERSONATE_KEY,
     IMPERSONATE_LOG_KEY,
@@ -15,7 +16,6 @@ from gyrinx.impersonation import (
     can_impersonate_target,
 )
 from gyrinx.middleware import ImpersonationMiddleware
-from gyrinx.analytics.models import Event
 from gyrinx.site.models import ImpersonationLog
 
 

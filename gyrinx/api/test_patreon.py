@@ -1,11 +1,10 @@
 import pytest
+from allauth.account.models import EmailAddress
 from django.contrib.auth.models import User
 
-from allauth.account.models import EmailAddress
-
+from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.api.models import WebhookRequest
 from gyrinx.api.patreon import process_patreon_webhook
-from gyrinx.accounts.models import PatreonStatus, UserProfile
 
 
 def _make_payload(

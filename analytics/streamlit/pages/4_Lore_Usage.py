@@ -1,7 +1,7 @@
 """Lore/narrative usage analysis."""
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from config import setup_sidebar
 
 st.set_page_config(page_title="Lore Usage", page_icon="📖", layout="wide")

@@ -65,7 +65,7 @@ class FlatpageNode(template.Node):
                 flatpages = flatpages.filter(url__regex=r"^/[^/]+/?$")
             else:
                 flatpages = flatpages.filter(
-                    url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)
+                    url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (self.depth - 1)  # noqa: UP031 - percent-format keeps the regex readable; an f-string needs {{}} doubling
                 )
 
         context[self.context_name] = flatpages
@@ -101,9 +101,9 @@ def get_pages(parser, token):
     """
     bits = token.split_contents()
     syntax_message = (
-        "%(tag_name)s expects a syntax of %(tag_name)s "
-        "['url_starts_with'] [for user] as context_name" % {"tag_name": bits[0]}
-    )
+        "{tag_name} expects a syntax of {tag_name} "
+        "['url_starts_with'] [for user] as context_name"
+    ).format(tag_name=bits[0])
     # Must have at 3-6 bits in the tag
     if 3 <= len(bits) <= 6:
         # If there's an even number of bits, there's no prefix

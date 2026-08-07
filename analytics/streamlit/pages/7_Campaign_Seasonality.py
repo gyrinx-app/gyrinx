@@ -6,12 +6,12 @@ Investigates two hypotheses:
 2. Campaigns run end-to-end in around 6 weeks
 """
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import streamlit as st
 from config import setup_sidebar
+from plotly.subplots import make_subplots
 from sqlalchemy import text
 
 st.set_page_config(page_title="Campaign Seasonality", page_icon="📅", layout="wide")

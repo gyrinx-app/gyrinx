@@ -27,13 +27,6 @@ from gyrinx.models import is_valid_uuid
 from gyrinx.querysets import search_queryset
 from n23.content.models.attribute import ContentAttribute, ContentAttributeValue
 from n23.content.models.default_assignment import ContentFighterDefaultAssignment
-from n23.content.statlines import (
-    normalize_stat_value as _normalize_stat_value,
-    set_fighter_statline,
-    stat_definitions_for as _get_fighter_stat_definitions,
-    stat_placeholder as _stat_placeholder,
-    statline_type_for_category as _get_statline_type_for_category,
-)
 from n23.content.models.equipment import (
     AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY,
     ContentEquipment,
@@ -61,6 +54,21 @@ from n23.content.models.weapon import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
     ContentWeaponTrait,
+)
+from n23.content.statlines import (
+    normalize_stat_value as _normalize_stat_value,
+)
+from n23.content.statlines import (
+    set_fighter_statline,
+)
+from n23.content.statlines import (
+    stat_definitions_for as _get_fighter_stat_definitions,
+)
+from n23.content.statlines import (
+    stat_placeholder as _stat_placeholder,
+)
+from n23.content.statlines import (
+    statline_type_for_category as _get_statline_type_for_category,
 )
 from n23.core.forms.pack import (
     HOUSE_RULE_TARGET_CHOICES,

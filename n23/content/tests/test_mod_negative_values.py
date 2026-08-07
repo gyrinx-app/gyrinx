@@ -1,4 +1,5 @@
 import pytest
+
 from n23.content.models import ContentModStat, ContentStat
 
 

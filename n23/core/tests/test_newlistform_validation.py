@@ -4,7 +4,6 @@ from django.contrib.auth import get_user_model
 from n23.content.models import ContentHouse
 from n23.core.forms.list import NewListForm
 
-
 User = get_user_model()
 
 

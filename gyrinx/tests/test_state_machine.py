@@ -7,12 +7,12 @@ import threading
 import pytest
 from django.db import connection, models
 
+from gyrinx.models import Base
 from gyrinx.state_machine import (
     STATUS_MAX_LENGTH,
     InvalidStateTransition,
     StateMachine,
 )
-from gyrinx.models import Base
 
 
 # Test model that uses StateMachine

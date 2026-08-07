@@ -6,12 +6,12 @@ from n23.content.models.equipment import ContentEquipment, ContentEquipmentCateg
 from n23.content.models.fighter import ContentFighter
 from n23.content.models.house import ContentHouse
 from n23.content.models.metadata import ContentRule
-from n23.content.models.weapon import ContentWeaponTrait
 from n23.content.models.statline import (
     ContentStat,
     ContentStatlineType,
     ContentStatlineTypeStat,
 )
+from n23.content.models.weapon import ContentWeaponTrait
 from n23.content.statlines import set_fighter_statline
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 
@@ -4565,6 +4565,7 @@ def test_pack_content_forms_use_tinymce_for_description():
     ``PackAttachmentForm`` is intentionally excluded — its description is a
     plain caption.
     """
+    from gyrinx.widgets import TinyMCEWithUpload
     from n23.core.forms.pack import (
         ContentAttributeValuePackForm,
         ContentGearPackForm,
@@ -4577,7 +4578,6 @@ def test_pack_content_forms_use_tinymce_for_description():
         ContentWeaponTraitPackForm,
         PackAttachmentForm,
     )
-    from gyrinx.widgets import TinyMCEWithUpload
 
     rich_text_forms = [
         ContentRuleForm,

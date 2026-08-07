@@ -4,10 +4,16 @@ import pytest
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 
+from gyrinx.analytics.models import (
+    Event,
+    EventField,
+    EventNoun,
+    EventVerb,
+    get_client_ip,
+    log_event,
+)
 from n23.content.models import ContentHouse
 from n23.core.models import List
-from gyrinx.analytics.models import Event, EventNoun, EventVerb, log_event
-from gyrinx.analytics.models import EventField, get_client_ip
 
 
 @pytest.mark.django_db

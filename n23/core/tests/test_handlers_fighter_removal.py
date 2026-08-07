@@ -19,7 +19,6 @@ from n23.core.handlers.fighter import (
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
 
-
 # ===== Equipment Removal Tests =====
 
 

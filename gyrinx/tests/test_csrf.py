@@ -34,10 +34,10 @@ def test_csrf_failure_redirects_with_message(client: Client):
     # Django's test client includes CSRF tokens by default, so we use a different approach
 
     # Save the current CSRF_FAILURE_VIEW setting
-    from gyrinx.views_csrf import csrf_failure
-
     # Create a mock request
     from django.test import RequestFactory
+
+    from gyrinx.views_csrf import csrf_failure
 
     factory = RequestFactory()
     request = factory.post(form_url, data={"name": "Test List"})
@@ -64,6 +64,7 @@ def test_csrf_failure_redirects_with_message(client: Client):
 def test_csrf_failure_redirects_to_home_without_referer(client: Client):
     """Test that CSRF failure redirects to home page when no referer is present."""
     from django.test import RequestFactory
+
     from gyrinx.views_csrf import csrf_failure
 
     factory = RequestFactory()
@@ -97,8 +98,9 @@ def test_csrf_failure_view_is_csrf_exempt():
 def test_csrf_failure_with_malicious_referer(client: Client):
     """Test that CSRF failure rejects malicious referer URLs."""
     from django.test import RequestFactory
-    from gyrinx.views_csrf import csrf_failure
     from django.urls import reverse
+
+    from gyrinx.views_csrf import csrf_failure
 
     factory = RequestFactory()
     request = factory.post("/some-url/", data={})

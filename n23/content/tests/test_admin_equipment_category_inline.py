@@ -3,13 +3,13 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 
+from gyrinx.query import capture_queries
 from n23.content.admin import ContentEquipmentCategoryAdmin
 from n23.content.models import (
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
     ContentFighterEquipmentCategoryLimit,
 )
-from gyrinx.query import capture_queries
 
 User = get_user_model()
 

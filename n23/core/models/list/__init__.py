@@ -19,19 +19,16 @@ bodies) or use string annotations, exactly as in the original module.
 module-level ``@receiver`` handlers register only by being imported.
 """
 
+# Imported last and only for its side effects: importing the module registers
+# every module-level ``@receiver`` signal handler.
+from . import signal_handlers  # noqa: F401
 from ._common import (
     ALLOWED_CATEGORY_OVERRIDES,
     bulk_mark_assignments_dirty,
     bulk_mark_fighters_dirty,
     validate_category_override,
 )
-from .list import List, ListManager, ListQuerySet
-from .fighter import (
-    ListFighter,
-    ListFighterManager,
-    ListFighterQuerySet,
-    _materialise_child_fighter_defaults,
-)
+from .advancement import AdvancementStatMod, ListFighterAdvancement
 from .assignment import (
     ListFighterEquipmentAssignment,
     ListFighterEquipmentAssignmentAccessory,
@@ -40,15 +37,6 @@ from .assignment import (
     ListFighterEquipmentAssignmentUpgrade,
     PinState,
 )
-from .equipment_set import ListFighterEquipmentSet
-from .virtual import (
-    VirtualListFighterEquipmentAssignment,
-    VirtualListFighterPsykerPowerAssignment,
-)
-from .psyker import ListFighterPsykerPowerAssignment
-from .advancement import AdvancementStatMod, ListFighterAdvancement
-from .roll_result import ListFighterRollResult
-from .counter_spend import ListFighterCounterSpend
 from .campaign_state import (
     CapturedFighter,
     ListAttributeAssignment,
@@ -57,10 +45,21 @@ from .campaign_state import (
     ListFighterStatOverride,
     ListSkillTreeAssignment,
 )
-
-# Imported last and only for its side effects: importing the module registers
-# every module-level ``@receiver`` signal handler.
-from . import signal_handlers  # noqa: F401
+from .counter_spend import ListFighterCounterSpend
+from .equipment_set import ListFighterEquipmentSet
+from .fighter import (
+    ListFighter,
+    ListFighterManager,
+    ListFighterQuerySet,
+    _materialise_child_fighter_defaults,
+)
+from .list import List, ListManager, ListQuerySet
+from .psyker import ListFighterPsykerPowerAssignment
+from .roll_result import ListFighterRollResult
+from .virtual import (
+    VirtualListFighterEquipmentAssignment,
+    VirtualListFighterPsykerPowerAssignment,
+)
 
 __all__ = [
     # _common

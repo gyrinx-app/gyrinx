@@ -1,7 +1,7 @@
 from django.urls import path
 
-from ..views import print_config, vehicle
 from ..views import pack as pack_views
+from ..views import print_config, vehicle
 from ..views.list import attributes as list_attributes
 from ..views.list import invitations as list_invitations
 from ..views.list import post_battle as list_post_battle

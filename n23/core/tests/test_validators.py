@@ -5,7 +5,6 @@ from django.core.exceptions import ValidationError
 
 from n23.core.validators import HTMLTextMaxLengthValidator
 
-
 # --- HTMLTextMaxLengthValidator unit tests ---
 
 

@@ -7,18 +7,18 @@ and raise ValidationError on failure.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentEquipmentUpgrade,
     ContentWeaponAccessory,
     ContentWeaponProfile,
     VirtualWeaponProfile,
 )
-from n23.core.cost.propagation import Delta, propagate_from_assignment
 from n23.core.cost.pinning import pin_assignment
+from n23.core.cost.propagation import Delta, propagate_from_assignment
 from n23.core.handlers.equipment.deltas import component_delta
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
@@ -27,7 +27,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -38,7 +37,7 @@ class EquipmentPurchaseResult:
     total_cost: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -49,7 +48,7 @@ class AccessoryPurchaseResult:
     accessory_cost: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -60,7 +59,7 @@ class WeaponProfilePurchaseResult:
     profile_cost: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @dataclass
@@ -71,7 +70,7 @@ class EquipmentUpgradeResult:
     cost_difference: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_equipment_purchase")

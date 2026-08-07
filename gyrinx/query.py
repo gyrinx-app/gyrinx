@@ -21,8 +21,9 @@ Or as a decorator:
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from django.db import connections
 from django.test.utils import CaptureQueriesContext
@@ -44,12 +45,12 @@ class QueryInfo:
 
     count: int
     total_time: float
-    queries: List[Dict[str, str]]  # each has "sql" and "time" (string seconds)
+    queries: list[dict[str, str]]  # each has "sql" and "time" (string seconds)
 
 
 def capture_queries(
     func: Callable[[], Any], *, using: str = "default"
-) -> Tuple[Any, QueryInfo]:
+) -> tuple[Any, QueryInfo]:
     """Run a callable with SQL query capture enabled.
 
     This wraps the callable in Django's ``CaptureQueriesContext`` for the specified
@@ -143,7 +144,7 @@ def with_query_capture(using="default", *log_args, **log_kwargs):
     return deco
 
 
-def log_query_info(info, *, limit: Optional[int] = 10, level: int = logging.DEBUG):
+def log_query_info(info, *, limit: int | None = 10, level: int = logging.DEBUG):
     """Pretty-print a QueryInfo object to the Python logger.
 
     Args:

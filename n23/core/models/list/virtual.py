@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Union
 
 from django.utils.functional import cached_property
 
+from gyrinx.models import QuerySetOf
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentUpgrade,
@@ -16,7 +17,6 @@ from n23.content.models import (
 )
 from n23.core.models.list.assignment import ListFighterEquipmentAssignment
 from n23.core.models.list.fighter import ListFighter
-from gyrinx.models import QuerySetOf
 from n23.models import format_cost_display
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ class VirtualListFighterEquipmentAssignment:
     equipment: ContentEquipment
     profiles: QuerySetOf[ContentWeaponProfile] = field(default_factory=list)
     _assignment: (
-        Union[ListFighterEquipmentAssignment, ContentFighterDefaultAssignment] | None
+        ListFighterEquipmentAssignment | ContentFighterDefaultAssignment | None
     ) = None
 
     @classmethod

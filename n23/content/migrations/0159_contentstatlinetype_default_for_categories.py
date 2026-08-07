@@ -3,7 +3,6 @@
 import multiselectfield.db.fields
 from django.db import migrations
 
-
 # Standard fighter categories that default to the "Fighter" statline type.
 # VEHICLE, CREW, GANG_TERRAIN, and STASH are excluded — they either have
 # their own statline type or don't need one.

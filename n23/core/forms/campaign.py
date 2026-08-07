@@ -3,8 +3,11 @@ import json
 from django import forms
 from django.contrib.auth import get_user_model
 
-
-from gyrinx.widgets import BsCheckboxSelectMultiple
+from gyrinx.widgets import (
+    TINYMCE_EXTRA_ATTRS,
+    BsCheckboxSelectMultiple,
+    TinyMCEWithUpload,
+)
 from n23.core.handlers.crew import TOGGLEABLE_CREW_CATEGORIES
 from n23.core.models.campaign import (
     Campaign,
@@ -18,7 +21,6 @@ from n23.core.models.campaign import (
     CampaignSubAsset,
 )
 from n23.core.widgets import ColorRadioSelect
-from gyrinx.widgets import TINYMCE_EXTRA_ATTRS, TinyMCEWithUpload
 
 
 class NewCampaignForm(forms.ModelForm):

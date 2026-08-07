@@ -15,7 +15,6 @@ from n23.core.maintenance.persistent_stash import find_candidates
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
 
-
 _SCENARIO_SEQ = 0
 
 

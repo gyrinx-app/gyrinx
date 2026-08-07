@@ -36,7 +36,7 @@ def gather_data(directory: Path) -> list[DataSource]:
     for file in data_dir.rglob("*.yaml"):
         click.echo(f" - {file}")
         try:
-            with open(file, "r") as f:
+            with open(file) as f:
                 loaded = yaml.load(f, Loader=yaml.SafeLoader)
                 for key in loaded:
                     data_sources.append(DataSource(key, file, loaded[key]))
@@ -86,7 +86,7 @@ def gather_schemas(directory: Path) -> dict[str, Schema]:
     for file in schema_dir.rglob("*.schema.json"):
         click.echo(f" - {file}")
         try:
-            with open(file, "r") as f:
+            with open(file) as f:
                 schema = json.load(f)
                 # TODO: Validate schema itself
                 name = file.name.replace(".schema.json", "")

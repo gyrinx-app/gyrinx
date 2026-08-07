@@ -1,12 +1,12 @@
 """Forms for fighter advancement system."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
+from gyrinx.forms import group_select
 from n23.content.models import (
     ContentAdvancementAssignment,
     ContentAdvancementEquipment,
@@ -16,7 +16,6 @@ from n23.content.models import (
     ContentStat,
 )
 from n23.core.models.campaign import CampaignAction
-from gyrinx.forms import group_select
 
 # Human-readable suffix for what a promotion bundles, mirroring the old hardcoded labels
 # ("Promote to Specialist (Random Primary Skill)").
@@ -64,8 +63,8 @@ class AdvancementConfig:
     display_name: str
     xp_cost: int
     cost_increase: int
-    roll: Optional[int] = None  # For GANGER 2d6 rolls
-    restricted_to_fighter_categories: Optional[list[str]] = None
+    roll: int | None = None  # For GANGER 2d6 rolls
+    restricted_to_fighter_categories: list[str] | None = None
 
     def is_available_to_category(self, category: str) -> bool:
         """Check if this advancement is available to a fighter category."""
@@ -489,7 +488,7 @@ class AdvancementTypeForm(forms.Form):
 
     @classmethod
     def get_initial_for_action(
-        cls, campaign_action: Optional[CampaignAction] = None, fighter=None
+        cls, campaign_action: CampaignAction | None = None, fighter=None
     ) -> dict:
         """
         Extract initial parameters from a CampaignAction.
@@ -541,7 +540,7 @@ class AdvancementTypeForm(forms.Form):
     @classmethod
     def get_advancement_config(
         cls, advancement_choice: str
-    ) -> Optional[AdvancementConfig]:
+    ) -> AdvancementConfig | None:
         """Get the AdvancementConfig for a given choice."""
         return cls.ADVANCEMENT_CONFIGS.get(advancement_choice)
 

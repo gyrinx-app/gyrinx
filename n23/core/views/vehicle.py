@@ -1,7 +1,6 @@
 """Views for vehicle addition flow."""
 
 import uuid
-from typing import Optional
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
@@ -12,6 +11,7 @@ from django.urls import reverse
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentFighterProfile,
@@ -23,17 +23,16 @@ from n23.core.forms.vehicle import (
     VehicleSelectionForm,
 )
 from n23.core.handlers.fighter import handle_vehicle_purchase
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List
 
 
 class VehicleFlowParams(BaseModel):
     """Parameters for the vehicle addition flow."""
 
-    action: Optional[str] = None
-    vehicle_equipment_id: Optional[uuid.UUID] = None
+    action: str | None = None
+    vehicle_equipment_id: uuid.UUID | None = None
     crew_name: str | None = None
-    crew_fighter_id: Optional[uuid.UUID] = None
+    crew_fighter_id: uuid.UUID | None = None
 
 
 @login_required

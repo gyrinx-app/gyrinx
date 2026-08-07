@@ -19,7 +19,6 @@ wealth event.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
@@ -38,7 +37,7 @@ class ReconcileResult:
     stash_before: int
     rating_after: int
     stash_after: int
-    action: Optional[ListAction]
+    action: ListAction | None
     # Whether the list has a ledger at all — distinguishes "no entry because
     # untracked" from "no entry needed" (cache-only repair back to the head).
     tracked: bool = False

@@ -7,10 +7,10 @@ and raise ValidationError on failure.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentWeaponAccessory,
     ContentWeaponProfile,
@@ -27,7 +27,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -37,7 +36,7 @@ class SaleItemDetail:
     name: str
     cost: int  # Original equipment cost
     sale_price: int  # Final sale price (after dice roll or manual)
-    dice_roll: Optional[int]  # Dice roll result (None if manual price)
+    dice_roll: int | None  # Dice roll result (None if manual price)
 
 
 @dataclass
@@ -48,7 +47,7 @@ class EquipmentSaleResult:
     total_equipment_cost: int  # Original equipment cost removed from stash
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_equipment_sale")

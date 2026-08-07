@@ -6,8 +6,8 @@ Defines the TaskRoute class used to register tasks with their configuration.
 
 import re
 import zoneinfo
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from django.conf import settings
 

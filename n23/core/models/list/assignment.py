@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from django.contrib import admin
 from django.core.exceptions import ValidationError
@@ -10,6 +9,9 @@ from django.db.models import (
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
+from gyrinx.history_mixin import HistoryMixin
+from gyrinx.models import Archived, Base
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentUpgrade,
@@ -22,12 +24,9 @@ from n23.content.models import (
     VirtualWeaponProfile,
 )
 from n23.core.models.facts import AssignmentFacts
-from gyrinx.history_mixin import HistoryMixin
 from n23.core.models.list._common import preferred_equipment_list_override
-from gyrinx.models import Archived, Base
-from n23.models import format_cost_display
 from n23.core.models.list.fighter import ListFighter
-from gyrinx.tracing import traced
+from n23.models import format_cost_display
 
 logger = logging.getLogger(__name__)
 pylist = list
@@ -466,7 +465,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     def cost_display(self):
         return format_cost_display(self.cost_int_cached)
 
-    def facts(self) -> Optional[AssignmentFacts]:
+    def facts(self) -> AssignmentFacts | None:
         """
         Return cached facts about this assignment.
 

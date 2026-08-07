@@ -3,10 +3,10 @@ from django import forms
 from django.contrib.auth.models import User
 
 from n23.content.models import (
-    ContentInjury,
-    ContentInjuryDefaultOutcome,
     ContentFighter,
     ContentHouse,
+    ContentInjury,
+    ContentInjuryDefaultOutcome,
 )
 from n23.core.forms.list import AddInjuryForm
 from n23.core.models.list import List, ListFighter

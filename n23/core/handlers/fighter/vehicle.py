@@ -7,10 +7,10 @@ and raise ValidationError on failure.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentEquipment,
     ContentFighter,
@@ -28,7 +28,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -42,9 +41,9 @@ class VehiclePurchaseResult:
     total_cost: int
     is_stash: bool
     description: str
-    crew_list_action: Optional[ListAction]  # Only when not stash
+    crew_list_action: ListAction | None  # Only when not stash
     vehicle_list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_vehicle_purchase")
@@ -55,8 +54,8 @@ def handle_vehicle_purchase(
     lst: List,
     vehicle_equipment: ContentEquipment,
     vehicle_fighter: ContentFighter,
-    crew_fighter: Optional[ContentFighter],
-    crew_name: Optional[str],
+    crew_fighter: ContentFighter | None,
+    crew_name: str | None,
     is_stash: bool,
 ) -> VehiclePurchaseResult:
     """

@@ -4,8 +4,8 @@ Gyrinx Analytics Dashboard
 Run with: streamlit run analytics/streamlit/app.py
 """
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from config import setup_sidebar
 
 st.set_page_config(

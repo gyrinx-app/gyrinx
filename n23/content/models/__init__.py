@@ -9,6 +9,15 @@ All models are re-exported here for backward compatibility with imports like:
 """
 
 # Base classes and shared utilities
+# Re-export FighterCategoryChoices for backward compatibility
+# (some code imports it from content.models instead of n23.models)
+from n23.models import FighterCategoryChoices  # noqa: F401
+
+from .advancement import ContentAdvancementAssignment, ContentAdvancementEquipment
+from .attribute import ContentAttribute, ContentAttributeValue
+
+# Availability preset models
+from .availability_preset import ContentAvailabilityPreset
 from .base import (
     Content,
     ContentManager,
@@ -16,28 +25,12 @@ from .base import (
     RulelineDisplay,
     StatlineDisplay,
 )
-
-# Simple domain models
-from .skill import ContentSkill, ContentSkillCategory
-from .attribute import ContentAttribute, ContentAttributeValue
-from .statline import (
-    ContentStat,
-    ContentStatline,
-    ContentStatlineStat,
-    ContentStatlineType,
-    ContentStatlineTypeStat,
+from .battle import (
+    ContentBattleRole,
+    ContentBattleRoleOption,
 )
-from .metadata import (
-    ContentBook,
-    ContentPageRef,
-    ContentPolicy,
-    ContentRule,
-    similar,
-)
-
-# Core domain models
-from .house import ContentFighterHouseOverride, ContentHouse
-from .gang_skills import ContentHouseSkillRankAccess
+from .counter import ContentCounter
+from .default_assignment import ContentFighterDefaultAssignment
 from .equipment import (
     ContentEquipment,
     ContentEquipmentCategory,
@@ -51,15 +44,23 @@ from .equipment import (
     ContentEquipmentUpgradeQuerySet,
     ContentFighterEquipmentCategoryLimit,
 )
-from .weapon import (
-    ContentWeaponAccessory,
-    ContentWeaponAccessoryManager,
-    ContentWeaponAccessoryQuerySet,
-    ContentWeaponProfile,
-    ContentWeaponProfileManager,
-    ContentWeaponProfileQuerySet,
-    ContentWeaponTrait,
-    VirtualWeaponProfile,
+
+# Assignment models
+from .equipment_list import (
+    ContentFighterEquipmentListItem,
+    ContentFighterEquipmentListUpgrade,
+    ContentFighterEquipmentListWeaponAccessory,
+)
+
+# Expansion models
+from .expansion import (
+    ContentEquipmentListExpansion,
+    ContentEquipmentListExpansionItem,
+    ContentEquipmentListExpansionRule,
+    ContentEquipmentListExpansionRuleByAttribute,
+    ContentEquipmentListExpansionRuleByFighterCategory,
+    ContentEquipmentListExpansionRuleByHouse,
+    ExpansionRuleInputs,
 )
 from .fighter import (
     ContentFighter,
@@ -67,13 +68,22 @@ from .fighter import (
     ContentFighterManager,
     ContentFighterQuerySet,
 )
+from .gang_skills import ContentHouseSkillRankAccess
 
-# Dependent domain models
-from .psyker import (
-    ContentFighterPsykerDisciplineAssignment,
-    ContentFighterPsykerPowerDefaultAssignment,
-    ContentPsykerDiscipline,
-    ContentPsykerPower,
+# Core domain models
+from .house import ContentFighterHouseOverride, ContentHouse
+from .injury import (
+    ContentEquipmentInjuryLink,
+    ContentInjury,
+    ContentInjuryDefaultOutcome,
+    ContentInjuryGroup,
+)
+from .metadata import (
+    ContentBook,
+    ContentPageRef,
+    ContentPolicy,
+    ContentRule,
+    similar,
 )
 from .modifier import (
     ContentMod,
@@ -87,54 +97,44 @@ from .modifier import (
     ContentModStatApplyMixin,
     ContentModTrait,
 )
-from .injury import (
-    ContentEquipmentInjuryLink,
-    ContentInjury,
-    ContentInjuryDefaultOutcome,
-    ContentInjuryGroup,
+from .promotion import ContentPromotionPath
+
+# Dependent domain models
+from .psyker import (
+    ContentFighterPsykerDisciplineAssignment,
+    ContentFighterPsykerPowerDefaultAssignment,
+    ContentPsykerDiscipline,
+    ContentPsykerPower,
 )
-from .battle import (
-    ContentBattleRole,
-    ContentBattleRoleOption,
-)
-from .counter import ContentCounter
 from .roll_table import (
     ContentRollFlow,
     ContentRollTable,
     ContentRollTableRow,
 )
 
-# Assignment models
-from .equipment_list import (
-    ContentFighterEquipmentListItem,
-    ContentFighterEquipmentListUpgrade,
-    ContentFighterEquipmentListWeaponAccessory,
+# Simple domain models
+from .skill import ContentSkill, ContentSkillCategory
+from .statline import (
+    ContentStat,
+    ContentStatline,
+    ContentStatlineStat,
+    ContentStatlineType,
+    ContentStatlineTypeStat,
 )
-from .default_assignment import ContentFighterDefaultAssignment
-from .advancement import ContentAdvancementAssignment, ContentAdvancementEquipment
-from .promotion import ContentPromotionPath
-
-# Expansion models
-from .expansion import (
-    ContentEquipmentListExpansion,
-    ContentEquipmentListExpansionItem,
-    ContentEquipmentListExpansionRule,
-    ContentEquipmentListExpansionRuleByAttribute,
-    ContentEquipmentListExpansionRuleByFighterCategory,
-    ContentEquipmentListExpansionRuleByHouse,
-    ExpansionRuleInputs,
+from .weapon import (
+    ContentWeaponAccessory,
+    ContentWeaponAccessoryManager,
+    ContentWeaponAccessoryQuerySet,
+    ContentWeaponProfile,
+    ContentWeaponProfileManager,
+    ContentWeaponProfileQuerySet,
+    ContentWeaponTrait,
+    VirtualWeaponProfile,
 )
 
-# Availability preset models
-from .availability_preset import ContentAvailabilityPreset
-
-# Import signal handlers to register them
-# This must be done last to avoid circular imports
-from . import signal_handlers  # noqa: F401
-
-# Re-export FighterCategoryChoices for backward compatibility
-# (some code imports it from content.models instead of n23.models)
-from n23.models import FighterCategoryChoices  # noqa: F401
+# Import signal handlers to register them. Must stay last to avoid a circular
+# import — `isort: skip` keeps the sorter from hoisting it back up.
+from . import signal_handlers  # noqa: F401  # isort: skip
 
 __all__ = [
     # Base

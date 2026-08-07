@@ -6,13 +6,12 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from gyrinx.badges import HIDE_BADGE
-from gyrinx.account_forms import BadgeSelectionForm
-from gyrinx.account_forms import UsernameChangeForm
-from gyrinx.impersonation import can_impersonate_target
+from gyrinx.account_forms import BadgeSelectionForm, UsernameChangeForm
 from gyrinx.accounts.models import UserProfile
-from n23.core.models.campaign import Campaign
 from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.badges import HIDE_BADGE
+from gyrinx.impersonation import can_impersonate_target
+from n23.core.models.campaign import Campaign
 from n23.core.models.list import List
 from n23.core.models.pack import CustomContentPack
 

@@ -7,14 +7,13 @@ handler later to share the same rules.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ class FighterAddXPResult:
 
     fighter: ListFighter
     amount: int
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_fighter_add_xp")

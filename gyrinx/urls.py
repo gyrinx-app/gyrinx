@@ -22,9 +22,9 @@ from django.contrib import admin
 from django.contrib.admindocs import urls as admindocs_urls
 from django.urls import include, path, re_path
 
+from gyrinx import views_debug
 from gyrinx.admin_site import admin_gated_patterns
 from gyrinx.pages import views
-from gyrinx import views_debug
 
 admin.site.site_header = "Gyrinx Admin"
 

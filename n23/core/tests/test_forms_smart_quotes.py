@@ -2,9 +2,9 @@
 
 import pytest
 
+from gyrinx.models import SMART_QUOTES
 from n23.core.forms.list import EditListFighterStatsForm
 from n23.core.models import List, ListFighter
-from gyrinx.models import SMART_QUOTES
 
 
 @pytest.fixture

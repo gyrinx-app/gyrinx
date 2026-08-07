@@ -9,7 +9,6 @@ from n23.core.models.campaign import (
     CampaignListAttributeAssignment,
 )
 
-
 # --- Model Tests ---
 
 

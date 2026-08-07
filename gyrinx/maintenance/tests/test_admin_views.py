@@ -9,11 +9,11 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
+from gyrinx.maintenance.models import Backfill
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
 )
-from gyrinx.maintenance.models import Backfill
 from n23.core.maintenance.operations import Operation
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
@@ -321,12 +321,13 @@ def test_every_operation_page_is_gated_to_superusers(client, make_user):
 
 
 def _fighter_statline_type():
+    from n23.core.maintenance.statlines import STAT_FIELDS
+
     from n23.content.models.statline import (
         ContentStat,
         ContentStatlineType,
         ContentStatlineTypeStat,
     )
-    from n23.core.maintenance.statlines import STAT_FIELDS
 
     # Metadata mirrors content.0156 — divergent hand-mirrors are a trap for
     # any future display assertion added in this file.

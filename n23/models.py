@@ -10,8 +10,10 @@ All classes here are abstract — nothing in this module creates a table.
 
 from django.db import models
 
-from gyrinx.models import is_int
-from gyrinx.models import QuerySetOf  # noqa: F401  (re-exported for callers)
+from gyrinx.models import (
+    QuerySetOf,  # noqa: F401  (re-exported for callers)
+    is_int,
+)
 
 
 def format_cost_display(cost_value, show_sign=False):

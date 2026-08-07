@@ -3,7 +3,7 @@ Tests for the PubSubBackend task result persistence.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -203,7 +203,7 @@ def test_get_result_returns_task_result(pubsub_backend):
         task_name="test_task",
         args=[],
         kwargs={},
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
 
     result = pubsub_backend.get_result(task_id)
@@ -227,7 +227,7 @@ def test_get_result_status_ready(pubsub_backend):
         task_id=task_id,
         task_name="test_task",
         status="READY",
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
 
     result = pubsub_backend.get_result(task_id)
@@ -241,7 +241,7 @@ def test_get_result_status_running(pubsub_backend):
     execution = TaskExecution.objects.create(
         task_id=task_id,
         task_name="test_task",
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
     execution.mark_running()
 
@@ -256,7 +256,7 @@ def test_get_result_status_successful(pubsub_backend):
     execution = TaskExecution.objects.create(
         task_id=task_id,
         task_name="test_task",
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
     execution.mark_running()
     execution.mark_successful()
@@ -272,7 +272,7 @@ def test_get_result_status_failed(pubsub_backend):
     execution = TaskExecution.objects.create(
         task_id=task_id,
         task_name="test_task",
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
     execution.mark_failed(error_message="Test error")
 
@@ -287,7 +287,7 @@ def test_get_result_includes_timing_fields(pubsub_backend):
     execution = TaskExecution.objects.create(
         task_id=task_id,
         task_name="test_task",
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
     execution.mark_running()
     execution.mark_successful()
@@ -308,7 +308,7 @@ def test_get_result_includes_args_kwargs(pubsub_backend):
         task_name="test_task",
         args=["arg1"],
         kwargs={"key": "value"},
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
 
     result = pubsub_backend.get_result(task_id)
@@ -324,7 +324,7 @@ def test_get_result_includes_error_message(pubsub_backend):
     execution = TaskExecution.objects.create(
         task_id=task_id,
         task_name="test_task",
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
     execution.mark_failed(error_message="Something went wrong")
 

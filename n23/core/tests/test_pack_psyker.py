@@ -17,16 +17,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
 from n23.content.models.fighter import ContentFighter
+from n23.content.models.metadata import ContentRule
 from n23.content.models.psyker import (
     ContentFighterPsykerDisciplineAssignment,
     ContentFighterPsykerPowerDefaultAssignment,
     ContentPsykerDiscipline,
     ContentPsykerPower,
 )
-from n23.content.models.metadata import ContentRule
 from n23.core.models.list import List, ListFighter
 from n23.core.models.pack import CustomContentPack, CustomContentPackItem
-
 
 # --- Fixtures -----------------------------------------------------------------
 

@@ -8,7 +8,7 @@ Push subscriptions deliver messages back to the same Cloud Run service.
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from django.conf import settings
 from django.tasks import TaskResult
@@ -108,7 +108,7 @@ class PubSubBackend(BaseTaskBackend):
         topic_path = self.publisher.topic_path(self.project_id, route.topic_name)
 
         # Compute enqueued_at once for consistency between message and database
-        enqueued_at = datetime.now(timezone.utc)
+        enqueued_at = datetime.now(UTC)
 
         # Serialize message
         message_data = {

@@ -13,7 +13,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         """
         Whether to allow sign ups.
         """
-        allow_signups = super(CustomAccountAdapter, self).is_open_for_signup(request)
+        allow_signups = super().is_open_for_signup(request)
         # Override with setting, otherwise default to super.
         return getattr(settings, "ACCOUNT_ALLOW_SIGNUPS", allow_signups)
 

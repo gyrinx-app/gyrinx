@@ -15,7 +15,6 @@ This module contains:
 """
 
 import logging
-from typing import Optional
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -65,7 +64,7 @@ class ContentMod(PolymorphicModel, Content):
 
 
 class ContentModStatApplyMixin:
-    def _get_stat_configuration(self, all_stats: Optional[dict[str, dict]] = None):
+    def _get_stat_configuration(self, all_stats: dict[str, dict] | None = None):
         """
         Read this modification's stat classification from its ContentStat.
         Returns a tuple of (is_inverted, is_inches, is_modifier, is_target).
@@ -112,7 +111,7 @@ class ContentModStatApplyMixin:
             )
         return (False, False, False, False)
 
-    def apply(self, input_value: str, mod_ctx: Optional[ModContext] = None) -> str:
+    def apply(self, input_value: str, mod_ctx: ModContext | None = None) -> str:
         """
         Apply the modification to a given value.
         """

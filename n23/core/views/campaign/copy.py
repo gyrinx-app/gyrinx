@@ -7,14 +7,14 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.tracker import track
 from n23.core.forms.campaign import CampaignCopyFromForm, CampaignCopyToForm
 from n23.core.handlers.campaign_copy import (
     check_copy_conflicts,
     copy_campaign_content,
 )
 from n23.core.models.campaign import Campaign
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
-from gyrinx.tracker import track
 from n23.core.views.campaign.common import get_campaign_admin_or_404
 
 

@@ -9,15 +9,13 @@ from n23.content.models import (
     ContentAttributeValue,
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
-    ContentHouse,
-)
-from n23.content.models import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRuleByAttribute,
     ContentEquipmentListExpansionRuleByFighterCategory,
     ContentEquipmentListExpansionRuleByHouse,
+    ContentFighter,
+    ContentHouse,
     ExpansionRuleInputs,
 )
 from n23.core.models import List, ListAttributeAssignment
@@ -833,8 +831,7 @@ def test_multiple_expansions_for_same_equipment():
 @pytest.mark.django_db
 def test_with_expansion_cost_for_fighter():
     """Test the with_expansion_cost_for_fighter queryset method."""
-    from n23.content.models import ContentFighterEquipmentListItem
-    from n23.content.models import ExpansionRuleInputs
+    from n23.content.models import ContentFighterEquipmentListItem, ExpansionRuleInputs
 
     # Setup
     house = ContentHouse.objects.create(name="Test House")
@@ -924,8 +921,7 @@ def test_with_expansion_cost_for_fighter():
 @pytest.mark.django_db
 def test_with_expansion_cost_for_fighter_no_expansion():
     """Test with_expansion_cost_for_fighter when no expansion applies."""
-    from n23.content.models import ContentFighterEquipmentListItem
-    from n23.content.models import ExpansionRuleInputs
+    from n23.content.models import ContentFighterEquipmentListItem, ExpansionRuleInputs
 
     # Setup
     house = ContentHouse.objects.create(name="Test House")

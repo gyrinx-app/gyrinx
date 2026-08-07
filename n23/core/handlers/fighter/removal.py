@@ -5,11 +5,11 @@ making them directly testable without HTTP machinery.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.cost.propagation import propagate_to_list
 from n23.core.handlers.refund import calculate_refund_credits
 from n23.core.models.action import ListAction, ListActionType
@@ -17,7 +17,6 @@ from n23.core.models.list import (
     List,
     ListFighter,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -29,7 +28,7 @@ class FighterArchiveResult:
     fighter_cost: int
     refund_applied: bool  # Only relevant when archiving
     description: str
-    list_action: Optional[ListAction]
+    list_action: ListAction | None
 
 
 @traced("handle_fighter_archive_toggle")

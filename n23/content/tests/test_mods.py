@@ -2,8 +2,12 @@ import logging
 
 import pytest
 
-from n23.content.models import ContentModFighterStat, ContentModStat, ContentStat
-from n23.content.models import modifier
+from n23.content.models import (
+    ContentModFighterStat,
+    ContentModStat,
+    ContentStat,
+    modifier,
+)
 
 
 @pytest.mark.django_db

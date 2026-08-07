@@ -1,7 +1,6 @@
-from gyrinx.models import Archived, Base, Owned
-
 from gyrinx.history_aware_manager import HistoryAwareManager
 from gyrinx.history_mixin import HistoryMixin
+from gyrinx.models import Archived, Base, Owned
 
 
 class AppBase(HistoryMixin, Base, Owned, Archived):
