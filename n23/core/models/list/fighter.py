@@ -93,7 +93,7 @@ class InjuryDisplay:
     ``treatments`` is empty for an untreated injury, which is the common case.
     """
 
-    injury: "ListFighterInjury"
+    injury: ListFighterInjury
     treatments: pylist[InjuryTreatment]
 
     @property
@@ -1373,7 +1373,7 @@ class ListFighter(AppBase):
         }
 
     @cached_property
-    def injuries_display(self) -> pylist["InjuryDisplay"]:
+    def injuries_display(self) -> pylist[InjuryDisplay]:
         """This fighter's injuries paired with whatever gear treats them.
 
         Display surfaces should read this rather than ``injuries.all`` so the
@@ -1887,7 +1887,7 @@ class ListFighter(AppBase):
         weapon_accessories: pylist[ContentWeaponAccessory] | None = None,
         from_default_assignment: ContentFighterDefaultAssignment | None = None,
         cost_override: int | None = None,
-    ) -> "ListFighterEquipmentAssignment":
+    ) -> ListFighterEquipmentAssignment:
         """
         Assign equipment to the fighter, optionally with weapon profiles and accessories.
 
@@ -1931,7 +1931,7 @@ class ListFighter(AppBase):
         return assign
 
     @traced("listfighter_direct_assignments")
-    def _direct_assignments(self) -> QuerySetOf["ListFighterEquipmentAssignment"]:
+    def _direct_assignments(self) -> QuerySetOf[ListFighterEquipmentAssignment]:
         return self.listfighterequipmentassignment_set.all()
 
     @cached_property
@@ -1946,7 +1946,7 @@ class ListFighter(AppBase):
         ]
 
     @traced("listfighter_assignments")
-    def assignments(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
+    def assignments(self) -> pylist[VirtualListFighterEquipmentAssignment]:
         from n23.core.models.list.virtual import (
             VirtualListFighterEquipmentAssignment,
         )
@@ -1960,7 +1960,7 @@ class ListFighter(AppBase):
         ]
 
     @cached_property
-    def assignments_cached(self) -> pylist["VirtualListFighterEquipmentAssignment"]:
+    def assignments_cached(self) -> pylist[VirtualListFighterEquipmentAssignment]:
         return self.assignments()
 
     # --- Equipment sets (Tools of the Trade, #1853) --------------------------
@@ -1973,7 +1973,7 @@ class ListFighter(AppBase):
     # ``selected_cost_int`` read the filtered list below.
 
     @cached_property
-    def _equipment_sets_cached(self) -> pylist["ListFighterEquipmentSet"]:
+    def _equipment_sets_cached(self) -> pylist[ListFighterEquipmentSet]:
         """All of this fighter's equipment sets (prefetched on the hot path)."""
         return list(self.equipment_sets.all())
 
@@ -2024,7 +2024,7 @@ class ListFighter(AppBase):
     @cached_property
     def displayed_assignments_cached(
         self,
-    ) -> pylist["VirtualListFighterEquipmentAssignment"]:
+    ) -> pylist[VirtualListFighterEquipmentAssignment]:
         """``assignments_cached`` filtered to the active set (for display)."""
         if self.displayed_assignment_ids is None:
             return self.assignments_cached
@@ -2116,7 +2116,7 @@ class ListFighter(AppBase):
         return any(r.value == TOOLS_OF_THE_TRADE_RULE_NAME for r in self.ruleline)
 
     @cached_property
-    def is_child_fighter(self: "ListFighter") -> bool:
+    def is_child_fighter(self: ListFighter) -> bool:
         """
         Check if this fighter is a child fighter (spawned by an equipment assignment).
 
@@ -2728,7 +2728,7 @@ class ListFighter(AppBase):
     @traced("listfighter_convert_default_assignment")
     def convert_default_assignment(
         self,
-        assign: "VirtualListFighterEquipmentAssignment | ContentFighterDefaultAssignment",
+        assign: VirtualListFighterEquipmentAssignment | ContentFighterDefaultAssignment,
     ):
         """
         Convert a default assignment to a direct assignment.

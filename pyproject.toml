@@ -120,17 +120,12 @@ find = {}
 [tool.setuptools_scm]
 
 [tool.ruff]
-# Deliberately pinned, and deliberately BEHIND `requires-python`.
-#
-# Ruff infers this from requires-python, so raising the floor to 3.14 would make
-# the formatter emit 3.14-only syntax — it rewrites `except (A, B):` into PEP
-# 758's `except A, B:` in 29 files here. That parses on 3.14 and nowhere else,
-# which would mean the code could no longer run on 3.12 and rolling the Docker
-# base image back would stop being an option. A runtime upgrade should stay
-# reversible until it has proven itself in production.
-#
-# Raise this to py314 as a separate, deliberate change once that is true.
-target-version = "py312"
+# Matches `requires-python`. Held at py312 while 3.14 was unproven, because
+# letting ruff target the real runtime makes the formatter emit PEP 758
+# `except A, B:` — syntax that parses on 3.14 and nowhere else, which takes away
+# the option of rolling the Docker base image back. 3.14 has now run in
+# production, so the rollback is no longer worth holding the syntax back for.
+target-version = "py314"
 
 [tool.ruff.lint]
 # The selection is pinned rather than left to ruff's defaults. Without this, a

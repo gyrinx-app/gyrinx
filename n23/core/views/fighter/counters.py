@@ -68,7 +68,7 @@ def edit_list_fighter_counter(request, id, fighter_id, counter_id):
         if remove_spend_id:
             try:
                 spend_uuid = UUID(remove_spend_id)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 raise Http404("Invalid spend id")
             spend = get_object_or_404(
                 ListFighterCounterSpend,

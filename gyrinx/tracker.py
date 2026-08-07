@@ -37,7 +37,7 @@ def track(event: str, n: int = 1, value: float | None = None, **labels: Any) -> 
                 # Side-effect test for JSON serializability
                 json.dumps(val)
                 filtered_labels[key] = val
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 # Not JSON serializable, try to extract ID
                 if hasattr(val, "id"):
                     filtered_labels[key] = str(val.id)

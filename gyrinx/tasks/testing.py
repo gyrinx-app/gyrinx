@@ -67,12 +67,12 @@ class ManualTaskQueue:
 
     # -- scripting faults -------------------------------------------------------------
 
-    def fail_next(self, n: int = 1) -> "ManualTaskQueue":
+    def fail_next(self, n: int = 1) -> ManualTaskQueue:
         """Force the next ``n`` deliveries to fail (transient nack → retry/backoff)."""
         self._fail_countdown += n
         return self
 
-    def drop_next(self, n: int = 1) -> "ManualTaskQueue":
+    def drop_next(self, n: int = 1) -> ManualTaskQueue:
         """Silently lose the next ``n`` deliveries (the task never runs)."""
         self._drop_countdown += n
         return self

@@ -8,7 +8,6 @@ This module contains:
 """
 
 import logging
-from typing import Optional
 
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -89,7 +88,7 @@ class ContentRollTable(Content):
             return dice[0] * 10 + dice[1]
         return sum(dice)
 
-    def row_for_roll(self, value: int) -> Optional["ContentRollTableRow"]:
+    def row_for_roll(self, value: int) -> ContentRollTableRow | None:
         """
         Find the row matching a roll value, or None if no row matches.
 

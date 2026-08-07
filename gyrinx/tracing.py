@@ -187,7 +187,7 @@ def _init_tracing() -> None:
 @contextmanager
 def span(
     name: str, *, record_exception: bool = True, **attributes: Any
-) -> Generator[Any | None, None, None]:
+) -> Generator[Any | None]:
     """Create a custom span as a context manager.
 
     Args:

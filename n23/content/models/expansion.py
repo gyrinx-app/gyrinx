@@ -13,7 +13,7 @@ This module contains:
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -43,8 +43,8 @@ class ExpansionRuleInputs:
                           If provided, takes precedence over fighter.get_category().
     """
 
-    list: Optional["List"] = None
-    fighter: Optional["ListFighter"] = None
+    list: List | None = None
+    fighter: ListFighter | None = None
     fighter_category: str | None = None
 
 

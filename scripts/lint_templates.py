@@ -84,7 +84,7 @@ def lint_file(path: Path) -> list[tuple[int, str, str, str]]:
     violations = []
     try:
         content = path.read_text(encoding="utf-8")
-    except (UnicodeDecodeError, OSError):
+    except UnicodeDecodeError, OSError:
         return violations
 
     for line_num, line in enumerate(content.splitlines(), 1):

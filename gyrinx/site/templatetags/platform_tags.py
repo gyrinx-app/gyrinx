@@ -53,7 +53,7 @@ def active_path(context: RequestContext, *prefixes):
     try:
         path = context.request.path
         return "active" if any(path.startswith(p) for p in prefixes) else ""
-    except (AttributeError, Resolver404):
+    except AttributeError, Resolver404:
         return ""
 
 
@@ -100,7 +100,7 @@ def get_item(obj, key):
         return None
     try:
         return obj[key]
-    except (KeyError, TypeError, IndexError):
+    except KeyError, TypeError, IndexError:
         return None
 
 
@@ -266,7 +266,7 @@ def subtract(value, arg):
     """Subtract arg from value."""
     try:
         return int(value) - int(arg)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0
 
 

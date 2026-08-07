@@ -416,7 +416,7 @@ def card_from_fighter(fighter, list_obj=None) -> ClassicCard:
     if img:
         try:
             image_url = img.url
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             image_url = ""
 
     subtitle_bits = []
@@ -639,7 +639,7 @@ def lore_card_from_fighter(fighter, *, include_private=False) -> ClassicTextCard
     if img:
         try:
             image_url = img.url
-        except (ValueError, AttributeError):
+        except ValueError, AttributeError:
             image_url = ""
 
     return ClassicTextCard(

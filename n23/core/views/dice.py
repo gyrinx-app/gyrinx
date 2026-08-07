@@ -31,7 +31,7 @@ def _dice_counts(request, key):
             break
         try:
             n = int(raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         counts.append(max(0, min(n, MAX_DICE_PER_GROUP)))
     return counts

@@ -453,7 +453,7 @@ def post_battle_updates(request, id):
         if battle_param:
             try:
                 uuid.UUID(str(battle_param))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 battle_param = None
         if battle_param and battles.filter(pk=battle_param).exists():
             initial["battle"] = battle_param

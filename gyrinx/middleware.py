@@ -86,7 +86,7 @@ class RequestSizeExceptionMiddleware:
             }
             try:
                 return render(request, "errors/error.html", context, status=400)
-            except (TemplateDoesNotExist, TemplateSyntaxError):
+            except TemplateDoesNotExist, TemplateSyntaxError:
                 # Fallback to simple response if template rendering fails
                 return HttpResponse(
                     "400 Bad Request: The request body is too large.",
@@ -162,7 +162,7 @@ class ImpersonationMiddleware:
             return False
         try:
             started_dt = datetime.fromisoformat(started)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # Unparseable timestamp — treat as expired so we fail closed.
             return True
         return (

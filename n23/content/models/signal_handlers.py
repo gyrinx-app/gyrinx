@@ -888,7 +888,7 @@ def ensure_statline(sender, instance, created, **kwargs):
 
     try:
         statline_type = statline_type_for_category(instance.category)
-    except (ContentStatlineType.DoesNotExist, ValueError):
+    except ContentStatlineType.DoesNotExist, ValueError:
         # No statline type configured for this category. Deliberately loud for
         # VEHICLE / EXOTIC_BEAST, where guessing produces nonsense companion
         # stats — but a signal is the wrong place to raise, so leave the

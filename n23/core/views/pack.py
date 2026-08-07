@@ -1835,7 +1835,7 @@ def add_pack_fighter_stats(request, id):
             rule_ids=rule_ids,
             statline_type_id=statline_type_id,
         )
-    except (KeyError, ValidationError):
+    except KeyError, ValidationError:
         # Invalid or missing params — redirect back to Step 1.
         return HttpResponseRedirect(
             reverse("core:pack-add-item", args=(pack.id, "fighter"))
@@ -4510,7 +4510,7 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
             cost_str = request.POST.get(f"cost_{equipment.pk}", "0")
             try:
                 base_cost = max(0, int(cost_str))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 base_cost = 0
 
             # Skip duplicates.
@@ -4544,7 +4544,7 @@ def add_pack_fighter_equipment_list_weapon(request, id, item_id):
                     )
                     try:
                         profile_cost = max(0, int(profile_cost_str))
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         profile_cost = 0
                     eli = ContentFighterEquipmentListItem(
                         fighter=content_fighter,
@@ -4634,7 +4634,7 @@ def add_pack_fighter_equipment_list_gear(request, id, item_id):
             cost_str = request.POST.get(f"cost_{equipment.pk}", "0")
             try:
                 cost = max(0, int(cost_str))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 cost = 0
 
             if ContentFighterEquipmentListItem.objects.filter(
@@ -4802,7 +4802,7 @@ def edit_pack_fighter_equipment_list_item(request, id, item_id, eli_id):
             cost_str = request.POST.get(f"cost_{item.pk}", "")
             try:
                 item.cost = max(0, int(cost_str))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
             item._history_user = request.user
             item.save()
@@ -4863,7 +4863,7 @@ def add_pack_fighter_equipment_list_accessory(request, id, item_id):
             cost_str = request.POST.get(f"cost_{accessory.pk}", "")
             try:
                 cost = max(0, int(cost_str))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 cost = accessory.cost
 
             if ContentFighterEquipmentListWeaponAccessory.objects.filter(
@@ -4935,7 +4935,7 @@ def edit_pack_fighter_equipment_list_accessory(request, id, item_id, acc_eli_id)
         cost_str = request.POST.get("cost", "")
         try:
             row.cost = max(0, int(cost_str))
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             # Best-effort parse — invalid input leaves the existing cost untouched.
             pass
         row._history_user = request.user

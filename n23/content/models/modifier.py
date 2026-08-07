@@ -38,7 +38,7 @@ def _plain_int(value):
     """
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

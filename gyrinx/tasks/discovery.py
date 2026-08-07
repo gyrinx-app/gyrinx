@@ -78,7 +78,7 @@ def first_party_task_modules() -> list[str]:
         candidate = f"{app_config.name}.{TASK_MODULE_NAME}"
         try:
             spec = importlib.util.find_spec(candidate)
-        except (ImportError, AttributeError, ValueError):
+        except ImportError, AttributeError, ValueError:
             spec = None  # parent not importable / not a package — nothing there
         if spec is not None:
             modules.append(candidate)

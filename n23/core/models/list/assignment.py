@@ -294,7 +294,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
     # Profiles
 
     @traced("listfighterequipmentassignment_assign_profile")
-    def assign_profile(self, profile: "ContentWeaponProfile"):
+    def assign_profile(self, profile: ContentWeaponProfile):
         """Assign a weapon profile to this equipment."""
         if profile.equipment != self.content_equipment_cached:
             raise ValueError(
@@ -326,7 +326,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         ]
 
     @traced("listfighterequipmentassignment_all_profiles")
-    def all_profiles(self) -> list["VirtualWeaponProfile"]:
+    def all_profiles(self) -> list[VirtualWeaponProfile]:
         """Return all profiles for the equipment, including the default profiles."""
         standard_profiles = self.standard_profiles_cached
         weapon_profiles = self.weapon_profiles_cached
@@ -340,7 +340,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return result
 
     @cached_property
-    def all_profiles_cached(self) -> list["VirtualWeaponProfile"]:
+    def all_profiles_cached(self) -> list[VirtualWeaponProfile]:
         return self.all_profiles()
 
     @traced("listfighterequipmentassignment_standard_profiles")
@@ -683,7 +683,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return self._profile_cost_with_override()
 
     @traced("listfighterequipmentassignment_profile_cost_with_override_for_profile")
-    def _profile_cost_with_override_for_profile(self, profile: "VirtualWeaponProfile"):
+    def _profile_cost_with_override_for_profile(self, profile: VirtualWeaponProfile):
         # Cache the results of this method for each profile so we don't have to recalculate
         # by fetching the override each time.
         # TODO: There is almost certainly a utility method for this somewhere.
@@ -779,7 +779,7 @@ class ListFighterEquipmentAssignment(HistoryMixin, Base, Archived):
         return sum(after_overrides)
 
     @traced("listfighterequipmentassignment_accessory_cost_with_override")
-    def _accessory_cost_with_override(self, accessory: "ContentWeaponAccessory"):
+    def _accessory_cost_with_override(self, accessory: ContentWeaponAccessory):
         if self.from_default_assignment:
             # If this is a default assignment and the default assignment contains this accessory,
             # then we don't need to check for an override: it's free.

@@ -86,7 +86,7 @@ def user_badge(profile_user, extra_classes=""):
     # anonymous user has no ``profile`` attribute at all.
     try:
         profile = profile_user.profile
-    except (AttributeError, ObjectDoesNotExist):
+    except AttributeError, ObjectDoesNotExist:
         return ""
     if profile is None:
         return ""

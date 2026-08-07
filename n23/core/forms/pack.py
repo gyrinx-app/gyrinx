@@ -861,7 +861,7 @@ class ContentWeaponAccessoryPackForm(
                 # up at runtime when the mod is applied to a weapon profile.
                 try:
                     int(value)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     self.add_error(
                         f"stat_mod_{stat_key}_value",
                         f"Enter an integer for {stat_label} when using {mode}.",
@@ -1247,7 +1247,7 @@ class FighterModPickerMixin(StandardFieldsMixin):
                 # improve/worsen — reject non-integers up front.
                 try:
                     int(value)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     self.add_error(
                         value_key,
                         f"Enter an integer for {stat.full_name} when using {mode}.",
@@ -1776,7 +1776,7 @@ class ContentHouseRuleForm(forms.Form):
             if mode in ("improve", "worsen") and value:
                 try:
                     int(value)
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     self.add_error(
                         "value",
                         "Value must be a whole number when improving or worsening a stat.",

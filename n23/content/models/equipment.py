@@ -207,22 +207,22 @@ class ContentEquipmentQuerySet(ContentQuerySet):
     for weapons vs. non-weapons, and fighter-specific cost.
     """
 
-    def weapons(self) -> "ContentEquipmentQuerySet":
+    def weapons(self) -> ContentEquipmentQuerySet:
         """
         Filters the queryset to include only equipment items identified as weapons.
         """
         return self.filter(has_weapon_profiles=True)
 
-    def non_weapons(self) -> "ContentEquipmentQuerySet":
+    def non_weapons(self) -> ContentEquipmentQuerySet:
         """
         Filters the queryset to include only equipment items that are not weapons.
         """
         return self.exclude(has_weapon_profiles=True)
 
-    def house_restricted(self, house) -> "ContentEquipmentQuerySet":
+    def house_restricted(self, house) -> ContentEquipmentQuerySet:
         return self.filter(Q(category__restricted_to=house))
 
-    def with_cost_for_fighter(self, content_fighter) -> "ContentEquipmentQuerySet":
+    def with_cost_for_fighter(self, content_fighter) -> ContentEquipmentQuerySet:
         """
         Annotates the queryset with fighter-specific cost overrides, if any.
         """
@@ -245,7 +245,7 @@ class ContentEquipmentQuerySet(ContentQuerySet):
 
     def with_expansion_cost_for_fighter(
         self, content_fighter, rule_inputs
-    ) -> "ContentEquipmentQuerySet":
+    ) -> ContentEquipmentQuerySet:
         """
         Annotates the queryset with fighter-specific cost overrides,
         including those from equipment list expansions.
@@ -295,7 +295,7 @@ class ContentEquipmentQuerySet(ContentQuerySet):
             from_expansion=Exists(expansion_items),
         )
 
-    def with_profiles_for_fighter(self, content_fighter) -> "ContentEquipmentQuerySet":
+    def with_profiles_for_fighter(self, content_fighter) -> ContentEquipmentQuerySet:
         """
         Annotates the queryset with weapon profiles for a given fighter, if any.
 
@@ -317,7 +317,7 @@ class ContentEquipmentQuerySet(ContentQuerySet):
 
     def with_expansion_profiles_for_fighter(
         self, content_fighter, rule_inputs
-    ) -> "ContentEquipmentQuerySet":
+    ) -> ContentEquipmentQuerySet:
         """
         Annotates the queryset with weapon profiles for a given fighter,
         including those from equipment list expansions.
@@ -542,9 +542,7 @@ class ContentEquipment(FighterCostMixin, Content):
         """
         return self.contentweaponprofile_set.all()
 
-    def profiles_for_fighter(
-        self, content_fighter
-    ) -> QuerySetOf["ContentWeaponProfile"]:
+    def profiles_for_fighter(self, content_fighter) -> QuerySetOf[ContentWeaponProfile]:
         """
         Returns all weapon profiles for this equipment, annotated with
         fighter-specific cost if available.
@@ -599,9 +597,7 @@ class ContentEquipmentUpgradeQuerySet(ContentQuerySet):
     Custom QuerySet for ContentEquipmentUpgrade. Provides fighter-specific cost overrides.
     """
 
-    def with_cost_for_fighter(
-        self, content_fighter
-    ) -> "ContentEquipmentUpgradeQuerySet":
+    def with_cost_for_fighter(self, content_fighter) -> ContentEquipmentUpgradeQuerySet:
         """
         Annotates the queryset with cost overrides for a given fighter, if present.
         """

@@ -49,7 +49,7 @@ def fix_movement_advances(apps, schema_editor):
                     fighter.movement_override = new_movement
                     fighter.save()
                     fixed_count += 1
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     # Skip if we can't parse the movement value
                     continue
 

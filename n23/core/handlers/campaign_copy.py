@@ -309,7 +309,7 @@ class TemplateApplication:
 
     copied: CopyResult
     settings_copied: list[str] = field(default_factory=list)
-    action: "CampaignAction | None" = None
+    action: CampaignAction | None = None
 
 
 def ensure_default_resource_type(
