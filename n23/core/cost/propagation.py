@@ -29,7 +29,7 @@ class Delta:
         return self.delta != 0
 
 
-def _apply_to_list(lst: "List", rating_delta: int = 0, stash_delta: int = 0) -> None:
+def _apply_to_list(lst: List, rating_delta: int = 0, stash_delta: int = 0) -> None:
     """Apply a rating/stash movement to the list-level cache.
 
     The single list-cache writer for the push path. Values clamp at zero
@@ -52,7 +52,7 @@ def _apply_to_list(lst: "List", rating_delta: int = 0, stash_delta: int = 0) -> 
     lst.stash_current = max(0, lst.stash_current + stash_delta)
 
 
-def _fighter_list_deltas(fighter: "ListFighter", delta: int) -> dict:
+def _fighter_list_deltas(fighter: ListFighter, delta: int) -> dict:
     """Bucket a fighter-level movement into the list's rating or stash."""
     if fighter.is_stash:
         return {"stash_delta": delta}
@@ -61,7 +61,7 @@ def _fighter_list_deltas(fighter: "ListFighter", delta: int) -> dict:
 
 @traced("propagate_from_assignment")
 def propagate_from_assignment(
-    assignment: "ListFighterEquipmentAssignment",
+    assignment: ListFighterEquipmentAssignment,
     delta: Delta,
     update_list: bool = True,
 ) -> Delta:
@@ -113,7 +113,7 @@ def propagate_from_assignment(
 
 @traced("propagate_from_fighter")
 def propagate_from_fighter(
-    fighter: "ListFighter",
+    fighter: ListFighter,
     delta: Delta,
     update_list: bool = True,
 ) -> Delta:
@@ -156,7 +156,7 @@ def propagate_from_fighter(
 
 @traced("propagate_to_list")
 def propagate_to_list(
-    lst: "List",
+    lst: List,
     *,
     rating_delta: int = 0,
     stash_delta: int = 0,

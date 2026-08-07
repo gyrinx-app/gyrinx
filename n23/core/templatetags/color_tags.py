@@ -83,7 +83,7 @@ def _house_icon_svg(icon, extra_classes):
         with icon.open("rb") as fh:
             raw = fh.read().decode("utf-8")
         svg = sanitize_house_icon_svg(raw, extra_classes=extra_classes)
-    except (OSError, ValueError, UnicodeDecodeError):
+    except OSError, ValueError, UnicodeDecodeError:
         svg = ""
 
     cache.set(cache_key, svg)

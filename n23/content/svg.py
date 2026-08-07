@@ -185,7 +185,7 @@ def sanitize_house_icon_svg(raw: str, extra_classes: str = "") -> str:
         try:
             w = float(str(_find_attr(attrs, "width")).replace("px", "").strip())
             h = float(str(_find_attr(attrs, "height")).replace("px", "").strip())
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # No usable intrinsic size and no viewBox — can't scale reliably.
             return ""
         view_box = f"0 0 {w:g} {h:g}"

@@ -922,7 +922,7 @@ def list_fighter_advancement_confirm(request, id, fighter_id):
                 id=advancement_id
             )
             context["advancement_name"] = equipment_advancement.name
-        except (ValueError, ContentAdvancementEquipment.DoesNotExist):
+        except ValueError, ContentAdvancementEquipment.DoesNotExist:
             context["advancement_name"] = "Equipment"
 
     return render(
@@ -1085,7 +1085,7 @@ def list_fighter_advancement_select(request, id, fighter_id):
         try:
             advancement_id = params.get_equipment_advancement_id()
             advancement = ContentAdvancementEquipment.objects.get(id=advancement_id)
-        except (ValueError, ContentAdvancementEquipment.DoesNotExist):
+        except ValueError, ContentAdvancementEquipment.DoesNotExist:
             messages.error(request, "Invalid equipment advancement.")
             return HttpResponseRedirect(
                 reverse("core:list-fighter-advancement-type", args=(lst.id, fighter.id))

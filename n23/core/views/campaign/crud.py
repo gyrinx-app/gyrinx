@@ -36,7 +36,7 @@ def _get_template_campaign(request):
             Campaign.objects.filter(template=True, archived=False),
             id=template_id,
         )
-    except (DjangoValidationError, ValueError):
+    except DjangoValidationError, ValueError:
         # Not a UUID at all — a hand-edited or truncated link.
         raise Http404("No such template campaign.")
 

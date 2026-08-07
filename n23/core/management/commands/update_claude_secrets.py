@@ -77,7 +77,7 @@ class Command(BaseCommand):
                         timestamp_s = timestamp_ms / 1000
                         expires_date = datetime.fromtimestamp(timestamp_s)
                         display_value = f"{secret_value} ({expires_date.strftime('%Y-%m-%d %H:%M:%S')})"
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         display_value = secret_value
                 else:
                     display_value = self._sanitize_secret(secret_value)

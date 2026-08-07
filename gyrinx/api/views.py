@@ -186,7 +186,7 @@ def _verify_discord_signature(body: bytes, signature: str, timestamp: str) -> bo
         verify_key = VerifyKey(bytes.fromhex(settings.DISCORD_PUBLIC_KEY))
         verify_key.verify(timestamp.encode() + body, bytes.fromhex(signature))
         return True
-    except (BadSignatureError, ValueError):
+    except BadSignatureError, ValueError:
         return False
 
 

@@ -221,7 +221,7 @@ def ensure_json_serializable(data):
             # Try to serialize to JSON first to check if it's already serializable
             json.dumps(data)
             return data
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # If not serializable, convert to string
             return str(data)
 

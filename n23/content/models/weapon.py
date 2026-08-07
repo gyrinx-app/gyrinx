@@ -128,7 +128,7 @@ class ContentWeaponProfileQuerySet(ContentQuerySet):
     Custom QuerySet for :model:`content.ContentWeaponProfile`. Provides fighter-specific cost overrides.
     """
 
-    def with_cost_for_fighter(self, content_fighter) -> "ContentWeaponProfileQuerySet":
+    def with_cost_for_fighter(self, content_fighter) -> ContentWeaponProfileQuerySet:
         """
         Annotates the queryset with cost overrides for a given fighter, if present.
         """
@@ -392,9 +392,7 @@ class ContentWeaponAccessoryQuerySet(ContentQuerySet):
     Custom QuerySet for :model:`content.ContentWeaponAccessory`. Provides fighter-specific cost overrides.
     """
 
-    def with_cost_for_fighter(
-        self, content_fighter
-    ) -> "ContentWeaponAccessoryQuerySet":
+    def with_cost_for_fighter(self, content_fighter) -> ContentWeaponAccessoryQuerySet:
         """
         Annotates the queryset with cost overrides for a given fighter, if present.
         """

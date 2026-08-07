@@ -161,7 +161,7 @@ class Command(BaseCommand):
                 app_label, model_name = model_label.split(".")
                 model = apps.get_model(app_label, model_name)
                 model_classes.append((model_label, model))
-            except (ValueError, LookupError):
+            except ValueError, LookupError:
                 continue
 
         # Clear in reverse order to handle dependencies

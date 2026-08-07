@@ -186,7 +186,7 @@ def notifications_bulk(request):
         for raw in request.POST.getlist("ids"):
             try:
                 ids.append(uuid.UUID(str(raw)))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
         if not ids:
             messages.info(request, "No notifications selected.")

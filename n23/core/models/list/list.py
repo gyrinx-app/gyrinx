@@ -608,7 +608,7 @@ class List(AppBase):
         return list(self.packs.all())
 
     @traced("list_fighters")
-    def fighters(self) -> QuerySetOf["ListFighter"]:
+    def fighters(self) -> QuerySetOf[ListFighter]:
         # Pass the subscribed packs so skill/rule prefetches are pack-aware,
         # letting ruleline()/skilline() read from the prefetch cache instead
         # of issuing ~6 fallback queries per fighter.
@@ -617,19 +617,19 @@ class List(AppBase):
         ).filter(archived=False)
 
     @traced("list_archived_fighters")
-    def archived_fighters(self) -> QuerySetOf["ListFighter"]:
+    def archived_fighters(self) -> QuerySetOf[ListFighter]:
         return self.listfighter_set.with_related_data(
             packs=self.subscribed_packs_cached
         ).filter(archived=True)
 
     @cached_property
     @traced("list_fighters_cached")
-    def fighters_cached(self) -> QuerySetOf["ListFighter"]:
+    def fighters_cached(self) -> QuerySetOf[ListFighter]:
         return self.fighters()
 
     @cached_property
     @traced("list_archived_fighters_cached")
-    def archived_fighters_cached(self) -> QuerySetOf["ListFighter"]:
+    def archived_fighters_cached(self) -> QuerySetOf[ListFighter]:
         return self.archived_fighters()
 
     @cached_property
@@ -691,7 +691,7 @@ class List(AppBase):
 
     @cached_property
     @traced("list_active_fighters")
-    def active_fighters(self) -> QuerySetOf["ListFighter"]:
+    def active_fighters(self) -> QuerySetOf[ListFighter]:
         """Get all fighters that could participate in a battle."""
         return self.fighters().exclude(content_fighter__is_stash=True)
 
@@ -1340,7 +1340,7 @@ class List(AppBase):
         return True
 
     @traced("list_clone")
-    def clone(self, name=None, owner=None, for_campaign=None, **kwargs) -> "List":
+    def clone(self, name=None, owner=None, for_campaign=None, **kwargs) -> List:
         """Clone the list, creating a new list with the same fighters.
 
         Args:

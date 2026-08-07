@@ -95,7 +95,7 @@ def build_task_result(
         try:
             json.dumps(return_value)
             object.__setattr__(result, "_return_value", return_value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             logger.debug(
                 "Task return value is not JSON-serializable, not storing",
                 extra={"task_id": task_id},

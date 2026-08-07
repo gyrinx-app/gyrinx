@@ -100,7 +100,7 @@ def edit_list_fighter_rules(request, id, fighter_id):
         page_number = int(page_number)
         if page_number < 1:
             page_number = 1
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         page_number = 1
 
     # If the requested page is out of range due to search, redirect to page 1

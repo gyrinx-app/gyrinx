@@ -114,7 +114,7 @@ def convert(apps, schema_editor):
         try:
             for _ in range(count):
                 value = mod.apply(value, mod_ctx)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return None
         return value
 

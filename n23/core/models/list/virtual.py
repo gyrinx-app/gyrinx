@@ -1,7 +1,7 @@
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from django.utils.functional import cached_property
 
@@ -324,7 +324,7 @@ class VirtualListFighterEquipmentAssignment:
     def standard_profiles_cached(self):
         return self.standard_profiles()
 
-    def weapon_profiles(self) -> list["VirtualWeaponProfile"]:
+    def weapon_profiles(self) -> list[VirtualWeaponProfile]:
         """
         Return all weapon profiles for this equipment.
         """
@@ -592,15 +592,13 @@ class VirtualListFighterPsykerPowerAssignment:
     fighter: ListFighter
     psyker_power: ContentPsykerPower
     _assignment: (
-        Union[
-            "ListFighterPsykerPowerAssignment",
-            ContentFighterPsykerPowerDefaultAssignment,
-        ]
+        ListFighterPsykerPowerAssignment
+        | ContentFighterPsykerPowerDefaultAssignment
         | None
     ) = None
 
     @classmethod
-    def from_assignment(cls, assignment: "ListFighterPsykerPowerAssignment"):
+    def from_assignment(cls, assignment: ListFighterPsykerPowerAssignment):
         return cls(
             fighter=assignment.list_fighter,
             psyker_power=assignment.psyker_power,

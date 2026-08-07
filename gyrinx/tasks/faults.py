@@ -80,11 +80,11 @@ class FaultConfig:
             time.sleep(delay)
 
     @classmethod
-    def disabled(cls) -> "FaultConfig":
+    def disabled(cls) -> FaultConfig:
         return cls()
 
     @classmethod
-    def from_options(cls, options: dict | None) -> "FaultConfig":
+    def from_options(cls, options: dict | None) -> FaultConfig:
         """Build from a backend ``OPTIONS["faults"]`` dict (unknown keys ignored)."""
         if not options:
             return cls.disabled()
@@ -99,7 +99,7 @@ class FaultConfig:
         return cls(**{k: v for k, v in options.items() if k in allowed})
 
     @classmethod
-    def from_env(cls, prefix: str = "TASKS_FAULT_") -> "FaultConfig":
+    def from_env(cls, prefix: str = "TASKS_FAULT_") -> FaultConfig:
         """Build from environment variables, e.g. ``TASKS_FAULT_DUPLICATE_RATE=0.1``.
 
         Lets you flip chaos on for a dev-server session without editing settings.

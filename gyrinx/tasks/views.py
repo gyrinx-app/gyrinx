@@ -299,7 +299,7 @@ def pubsub_push_handler(request):
                 from dateutil.parser import isoparse
 
                 enqueued_at = isoparse(data["enqueued_at"])
-            except (ValueError, ImportError):
+            except ValueError, ImportError:
                 pass
 
         # Run through the shared executor so prod fires the exact same
