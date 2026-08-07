@@ -331,9 +331,6 @@ class ListDetailView(generic.DetailView):
         # Performance: filter in Python to leverage the prefetched listfighter_set
         fighters_with_groups = [f for f in all_fighters if not f.archived]
         context["fighters_with_groups"] = fighters_with_groups
-        context["fighters_minimal"] = [
-            {"id": f.id, "name": f.name} for f in fighters_with_groups
-        ]
 
         # Get pending invitation count for this list (only for owner)
         if self.request.user.is_authenticated and list_obj.owner == self.request.user:

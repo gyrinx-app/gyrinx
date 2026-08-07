@@ -21,7 +21,6 @@ from n23.core.views.fighter.crud import (
     clone_list_fighter,
     delete_list_fighter,
     edit_list_fighter,
-    embed_list_fighter,
     kill_list_fighter,
     new_list_fighter,
     restore_list_fighter,
@@ -79,7 +78,6 @@ __all__ = [
     "kill_list_fighter",
     "resurrect_list_fighter",
     "delete_list_fighter",
-    "embed_list_fighter",
     "ListArchivedFightersView",
     # skills.py
     "edit_list_fighter_skills",
