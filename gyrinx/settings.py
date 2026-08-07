@@ -125,6 +125,9 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     "django.contrib.admindocs",
     "django.contrib.sites",
+    # Admin-editable 301s, used to keep old URLs working when a page moves.
+    # Depends on contrib.sites above; the middleware is at the end of MIDDLEWARE.
+    "django.contrib.redirects",
     "django.contrib.flatpages",
     "django.contrib.humanize",
     "debug_toolbar",
@@ -195,6 +198,11 @@ MIDDLEWARE = [
     "gyrinx.middleware.ImpersonationMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
+    # Serves admin-managed 301s. Must stay LAST: process_response runs in
+    # reverse order and this only acts on a 404, so anything below it here would
+    # see the 404 first. Matches on the full path *including* the query string,
+    # and an empty new_path returns 410 Gone rather than redirecting.
+    "django.contrib.redirects.middleware.RedirectFallbackMiddleware",
     # CSP
     # "csp.middleware.CSPMiddleware",
 ]
