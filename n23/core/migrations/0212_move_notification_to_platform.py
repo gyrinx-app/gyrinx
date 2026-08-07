@@ -3,20 +3,44 @@
 from django.db import migrations
 
 
+def _move_content_types(apps, from_label, to_label, models):
+    """Carry ContentType rows between app labels, in place and idempotently.
+
+    In place so the id survives: every permission grant and generic reference
+    points at that id, and minting a new row would orphan them.
+
+    The stray-clearing step is what makes a rollback survivable. Unapplying this
+    migration leaves the model in the migration state, so post_migrate mints a
+    fresh row under the label we are moving *to*; without clearing it first, the
+    update below collides on the (app_label, model) unique constraint the next
+    time this runs. Its permissions are auto-created and referenced by nothing —
+    the real grants hang off the original row — so they go with it.
+    """
+    ContentType = apps.get_model("contenttypes", "ContentType")
+    Permission = apps.get_model("auth", "Permission")
+
+    for model in models:
+        original = ContentType.objects.filter(app_label=from_label, model=model).first()
+        if original is None:
+            continue  # already moved, or never existed — nothing to carry
+
+        stray = ContentType.objects.filter(app_label=to_label, model=model).exclude(
+            pk=original.pk
+        )
+        Permission.objects.filter(content_type__in=stray).delete()
+        stray.delete()
+
+        ContentType.objects.filter(pk=original.pk).update(app_label=to_label)
+
+
 def content_type_to_platform(apps, schema_editor):
     """Carry the ContentType row over in place, keeping its id so attached
     permissions and any GenericForeignKey referencing it stay valid."""
-    ContentType = apps.get_model("contenttypes", "ContentType")
-    ContentType.objects.filter(app_label="core", model="notification").update(
-        app_label="gyrinxsite"
-    )
+    _move_content_types(apps, "core", "gyrinxsite", ["notification"])
 
 
 def content_type_to_core(apps, schema_editor):
-    ContentType = apps.get_model("contenttypes", "ContentType")
-    ContentType.objects.filter(app_label="gyrinxsite", model="notification").update(
-        app_label="core"
-    )
+    _move_content_types(apps, "gyrinxsite", "core", ["notification"])
 
 
 class Migration(migrations.Migration):
@@ -30,6 +54,7 @@ class Migration(migrations.Migration):
         ("core", "0211_drop_notification_related_columns"),
         ("gyrinxsite", "0002_move_notification_to_platform"),
         ("contenttypes", "0002_remove_content_type_name"),
+        ("auth", "0001_initial"),
     ]
 
     operations = [
