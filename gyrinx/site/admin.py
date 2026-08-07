@@ -18,6 +18,7 @@ from django.shortcuts import redirect, render
 from django.urls import path
 
 from gyrinx.site.models import (
+    ChangelogEntry,
     Notification,
     NotificationType,
     notify_many,
@@ -27,7 +28,12 @@ from gyrinx.widgets import TinyMCEWithUpload
 
 User = get_user_model()
 
-__all__ = ["NotificationAdmin", "NotificationAdminForm", "BroadcastForm"]
+__all__ = [
+    "ChangelogEntryAdmin",
+    "NotificationAdmin",
+    "NotificationAdminForm",
+    "BroadcastForm",
+]
 
 
 class NotificationAdminForm(forms.ModelForm):
@@ -159,3 +165,16 @@ class NotificationAdmin(admin.ModelAdmin):
             "opts": self.model._meta,
         }
         return render(request, "admin/gyrinxsite/notification/broadcast.html", context)
+
+
+@admin.register(ChangelogEntry)
+class ChangelogEntryAdmin(admin.ModelAdmin):
+    """Write the changelog where everything else is written: the body is
+    rich text through the same TinyMCE the rest of the admin uses."""
+
+    list_display = ("date", "title")
+    ordering = ("-date", "-created")
+    search_fields = ("title",)
+    formfield_overrides = {
+        models.TextField: {"widget": TinyMCEWithUpload},
+    }

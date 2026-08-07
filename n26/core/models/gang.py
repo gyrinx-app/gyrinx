@@ -36,6 +36,12 @@ class Gang(Base, Owned, Archived, Rated):
         default=0,
         help_text="Cash in hand. Pinned: starting budget less everything spent.",
     )
+    colour = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Shown against the gang wherever it is listed.",
+    )
 
     class Meta:
         verbose_name = "gang"
@@ -76,7 +82,12 @@ class Gang(Base, Owned, Archived, Rated):
         return self.credits
 
     @property
+    def stash_rating(self):
+        """What the stash holds, or 0 before one exists. Column reads."""
+        stash = getattr(self, "stash", None)
+        return stash.rating if stash else 0
+
+    @property
     def wealth(self):
         """Rating, plus cash, plus what the stash holds. Column reads."""
-        stash = getattr(self, "stash", None)
-        return self.rating + self.credits + (stash.rating if stash else 0)
+        return self.rating + self.credits + self.stash_rating

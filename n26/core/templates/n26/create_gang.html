@@ -1,0 +1,37 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Founding a gang, for real. The gallery's shell twin
+(designsystem/shell/new_gang.html) renders this form unbound against
+sample types; this one binds it, posts it, and a valid submit founds
+the gang — the row, its founding assignment, and whatever the type's
+built-ins bring.
+{% endcomment %}
+{% block head_title %}Create a gang{% endblock head_title %}
+{% block nav_heading %}Create a gang{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='new-gang' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.create-gang action="{% url 'n26-create-gang' %}"
+                            :form="form"
+                            :gang_types="gang_types">
+        {% comment %}
+        Only the owner above this one. There is no gang yet — that is
+        the whole point of the page — so the trail is as long as it can
+        honestly be.
+        {% endcomment %}
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
+                    <c-n26.flair-link text="{{ user.username }}"
+                                      tone="current"
+                                      href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Gang
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+    </c-n26.view.create-gang>
+{% endblock content %}

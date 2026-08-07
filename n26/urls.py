@@ -11,6 +11,8 @@ from n26.core import views
 from n26.library import views as authoring_views
 
 urlpatterns = [
+    path("", views.dashboard, name="n26-dashboard"),
+    path("gangs/new/", views.create_gang, name="n26-create-gang"),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
     path(

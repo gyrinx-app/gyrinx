@@ -199,7 +199,22 @@ class TestRefusals:
 
 
 class TestTheEndpoint:
-    """Form state in, card state out — the scratch-card contract."""
+    """Form state in, card state out — the scratch-card contract.
+
+    The client signs in as staff: the platform fences the whole /n26/
+    prefix (gyrinx.middleware.N26TestersGateMiddleware), and preview is
+    an authoring tool anyway.
+    """
+
+    @pytest.fixture(autouse=True)
+    def staff_client(self, client):
+        from django.contrib.auth.models import User
+
+        client.force_login(User.objects.create_user("previewer", is_staff=True))
+        # One warm-up request, so the session bookkeeping rows the first
+        # request writes exist before unchanged_database takes its
+        # snapshot — autouse fixtures run ahead of requested ones.
+        client.get("/n26/")
 
     def test_post_gives_back_card_state(self, client, default_pack, unchanged_database):
         response = client.post(

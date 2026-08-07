@@ -151,9 +151,12 @@ class TestTheDoorIsStaffed:
         assert "login" in response["Location"]
 
     def test_a_plain_user_is_not_staff(self, client, default_pack):
+        """The platform's testers gate answers before the staff check
+        does: a signed-in stranger gets the invisible-beta 404. The
+        tester-but-not-staff case lives in test_platform_integration."""
         client.force_login(User.objects.create_user("player"))
         response = client.get("/n26/authoring/subtype/")
-        assert response.status_code == 302  # bounced to the admin login
+        assert response.status_code == 404
 
 
 class TestSectionsAndLastingEffects:
