@@ -6,6 +6,10 @@ from n23.core.handlers.fighter.advancement import (
     handle_fighter_advancement,
     handle_fighter_advancement_deletion,
 )
+from n23.core.handlers.fighter.counter import (
+    FighterCounterAdjustResult,
+    handle_fighter_adjust_counter,
+)
 from n23.core.handlers.fighter.counter_spend import (
     CounterSpendRemovalResult,
     CounterSpendResult,
@@ -24,6 +28,10 @@ from n23.core.handlers.fighter.hire_clone import (
     handle_fighter_clone,
     handle_fighter_hire,
 )
+from n23.core.handlers.fighter.injury import (
+    FighterAddInjuryResult,
+    handle_fighter_add_injury,
+)
 from n23.core.handlers.fighter.kill import (
     FighterKillResult,
     handle_fighter_kill,
@@ -38,14 +46,6 @@ from n23.core.handlers.fighter.resurrect import (
     RESURRECT_TARGET_STATES,
     FighterResurrectResult,
     handle_fighter_resurrect,
-)
-from n23.core.handlers.fighter.counter import (
-    FighterCounterAdjustResult,
-    handle_fighter_adjust_counter,
-)
-from n23.core.handlers.fighter.injury import (
-    FighterAddInjuryResult,
-    handle_fighter_add_injury,
 )
 from n23.core.handlers.fighter.roll_flow import (
     RollFlowResult,

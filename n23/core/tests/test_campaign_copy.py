@@ -20,7 +20,6 @@ from n23.core.models.campaign import (
 )
 from n23.core.models.pack import CustomContentPack
 
-
 # --- Handler Tests ---
 
 

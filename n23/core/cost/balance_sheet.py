@@ -28,7 +28,6 @@ arrives with the pin schema in a later phase of the programme.
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Optional
 from uuid import UUID
 
 from n23.core.models.list import List, PinState
@@ -134,13 +133,13 @@ class ComponentLine:
 class AssignmentBalance:
     """One equipment assignment (direct or default) on a fighter."""
 
-    assignment_id: Optional[UUID]
+    assignment_id: UUID | None
     equipment_name: str
     kind: str  # "assigned" | "default"
     lines: tuple[ComponentLine, ...]
-    total_cost_override: Optional[int]
+    total_cost_override: int | None
     computed: int  # what cost_int() returns for this assignment
-    cached_rating: Optional[int]  # LFEA.rating_current; None for defaults
+    cached_rating: int | None  # LFEA.rating_current; None for defaults
     dirty: bool
 
     @property
@@ -208,7 +207,7 @@ class ListBalance:
     list_id: UUID
     name: str
     fighters: tuple[FighterBalance, ...]  # active, non-stash
-    stash: Optional[FighterBalance]
+    stash: FighterBalance | None
     cached_rating: int
     cached_stash: int
     cached_credits: int

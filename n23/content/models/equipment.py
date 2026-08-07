@@ -33,7 +33,6 @@ from n23.models import (
 
 from .base import Content, ContentManager, ContentQuerySet
 
-
 # Pack VEHICLE / EXOTIC_BEAST fighters are accompanied by an auto-created
 # ContentEquipment (see ``_ensure_auto_equipment_for_fighter`` in views/pack.py
 # and ``sync_auto_equipment_cost`` in signal_handlers.py). The mapping below

@@ -8,18 +8,16 @@ from django.contrib.auth import get_user_model
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentFighter,
-    ContentHouse,
-    ContentWeaponProfile,
-)
-from n23.models import FighterCategoryChoices
-from n23.content.models import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRuleByHouse,
+    ContentFighter,
+    ContentHouse,
+    ContentWeaponProfile,
     ExpansionRuleInputs,
 )
 from n23.core.models.list import List, ListFighter, ListFighterEquipmentAssignment
+from n23.models import FighterCategoryChoices
 
 User = get_user_model()
 

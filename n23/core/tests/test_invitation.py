@@ -2,8 +2,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
-from n23.core.models import Campaign, CampaignInvitation, List
 from n23.content.models import ContentHouse
+from n23.core.models import Campaign, CampaignInvitation, List
 
 User = get_user_model()
 

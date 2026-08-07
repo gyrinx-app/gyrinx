@@ -8,14 +8,13 @@ for the audit trail.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import ContentCounter
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter, ListFighterCounter
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class FighterCounterAdjustResult:
     counter: ContentCounter
     applied: int
     new_value: int
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_fighter_adjust_counter")
@@ -40,7 +39,7 @@ def handle_fighter_adjust_counter(
     counter: ContentCounter,
     delta: int,
     battle=None,
-) -> Optional[FighterCounterAdjustResult]:
+) -> FighterCounterAdjustResult | None:
     """
     Adjust a fighter's counter value by ``delta`` (positive or negative),
     clamped to a minimum of zero. Creates the ``ListFighterCounter`` row on

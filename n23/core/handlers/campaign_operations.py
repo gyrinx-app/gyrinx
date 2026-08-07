@@ -2,17 +2,16 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from n23.core.models.action import ListAction, ListActionType
-from n23.core.models.campaign import Campaign, CampaignAction
-from n23.core.models.list import List
 from gyrinx.tasks.groups import enqueue_in_group
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
+from n23.core.models.action import ListAction, ListActionType
+from n23.core.models.campaign import Campaign, CampaignAction
+from n23.core.models.list import List
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +31,8 @@ class ListBudgetDistributionResult:
     """Result of distributing budget to a single list."""
 
     campaign_list: List
-    list_action: Optional[ListAction]
-    campaign_action: Optional[CampaignAction]
+    list_action: ListAction | None
+    campaign_action: CampaignAction | None
     credits_added: int
     reason: str = ""
 

@@ -13,21 +13,20 @@ from django.test import Client
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
+from gyrinx.util import print_word_diff
 from n23.content.models import (
     ContentAttribute,
     ContentAttributeValue,
     ContentEquipment,
     ContentEquipmentCategory,
-    ContentHouse,
-    ContentModFighterStat,
-    ContentStat,
-    ContentWeaponProfile,
-)
-from n23.content.models import (
     ContentEquipmentListExpansion,
     ContentEquipmentListExpansionItem,
     ContentEquipmentListExpansionRuleByAttribute,
     ContentEquipmentListExpansionRuleByHouse,
+    ContentHouse,
+    ContentModFighterStat,
+    ContentStat,
+    ContentWeaponProfile,
 )
 from n23.core.models.list import (
     List,
@@ -36,7 +35,6 @@ from n23.core.models.list import (
     ListFighterEquipmentAssignment,
 )
 from n23.models import FighterCategoryChoices
-from gyrinx.util import print_word_diff
 
 User = get_user_model()
 
@@ -340,7 +338,7 @@ def test_performance_view_query_count(performance_test_data, settings):
     # Try to read existing snapshot
     existing_snapshot = None
     try:
-        with open(snapshot_file, "r") as f:
+        with open(snapshot_file) as f:
             existing_snapshot = json.load(f)
             expected_count = existing_snapshot.get("query_count", None)
     except FileNotFoundError:

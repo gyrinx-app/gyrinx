@@ -8,9 +8,9 @@ admin does not have to import from ``core.views``.
 
 from django import forms
 
+from gyrinx.models import SMART_QUOTES
 from n23.content.models.equipment import AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY
 from n23.content.models.statline import ContentStatlineType
-from gyrinx.models import SMART_QUOTES
 
 
 def statline_type_for_category(category):

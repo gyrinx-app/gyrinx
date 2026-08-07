@@ -11,9 +11,9 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
 
-from n23.core.models import BattleNote, Campaign, List
 from gyrinx.site.templatetags.platform_tags import plain_text_truncate, safe_rich_text
 from n23.content.models import ContentHouse
+from n23.core.models import BattleNote, Campaign, List
 
 
 @pytest.mark.django_db

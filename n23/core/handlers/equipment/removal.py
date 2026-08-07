@@ -11,6 +11,7 @@ from uuid import UUID
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentEquipmentUpgrade,
     ContentWeaponAccessory,
@@ -31,7 +32,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass

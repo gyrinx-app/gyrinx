@@ -13,8 +13,8 @@ asserts the widened sweep now reaches it — both the `set_dirty()` fan-out
 and its `_affected_list_ids` mirror, which must stay in lockstep.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import pytest
 from django.contrib.contenttypes.models import ContentType

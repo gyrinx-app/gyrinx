@@ -6,14 +6,15 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils.html import format_html
 
+from gyrinx.forms import group_select
 from n23.core.admin.base import BaseAdmin
-from n23.core.cost.reconcile import reconcile_list
-from n23.core.cost.reconcile_notify import notify_lists_reconciled
 from n23.core.admin.filters import (
     AutocompleteRelatedFilter,
     autocomplete_filter_media,
 )
-from gyrinx.forms import group_select
+from n23.core.cost.reconcile import reconcile_list
+from n23.core.cost.reconcile_notify import notify_lists_reconciled
+
 from ..models.list import (
     List,
     ListAttributeAssignment,
@@ -102,9 +103,9 @@ def reenqueue_campaign_clone(modeladmin, request, queryset):
     CLONING_IN_PROGRESS. Filter ListAdmin by Status = "Joining Campaign" to find them.
     Idempotent: the task no-ops if the stub has since finished (see #1222).
     """
+    from gyrinx.tasks.groups import enqueue_in_group
     from n23.core.handlers.campaign_operations import campaign_start_group_key
     from n23.core.tasks import complete_campaign_list_clone
-    from gyrinx.tasks.groups import enqueue_in_group
 
     stubs = queryset.filter(status=List.CLONING_IN_PROGRESS)
     enqueued = 0

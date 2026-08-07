@@ -3,9 +3,9 @@ from django.db import transaction
 from django.shortcuts import render
 from django.utils.translation import gettext as _
 
+from gyrinx.models import QuerySetOf
 from n23.content.forms import CopySelectedToFighterForm, CopySelectedToHouseForm
 from n23.content.models import ContentFighter, ContentHouse
-from gyrinx.models import QuerySetOf
 
 
 @admin.action(description="Copy to another Fighter")

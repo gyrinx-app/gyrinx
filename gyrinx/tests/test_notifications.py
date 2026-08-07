@@ -2,7 +2,6 @@
 
 import pytest
 
-from n23.core.models.list import List
 from gyrinx.site.models import (
     Notification,
     NotificationType,
@@ -12,6 +11,7 @@ from gyrinx.site.models import (
     notify_list_owner,
     notify_many,
 )
+from n23.core.models.list import List
 
 
 @pytest.mark.django_db

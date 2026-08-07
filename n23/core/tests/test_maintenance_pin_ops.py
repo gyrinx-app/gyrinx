@@ -10,6 +10,7 @@ import pytest
 from django.urls import reverse
 
 from gyrinx.maintenance.models import Backfill
+from gyrinx.tasks.registry import get_task
 from n23.core.maintenance.operations import Operation
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import (
@@ -20,7 +21,6 @@ from n23.core.models.list import (
 )
 from n23.core.tasks import _update_backfill, backfill_pins, reconcile_all_lists
 from n23.core.tests.test_balance_sheet import buy_equipment, fresh, hire_fighter
-from gyrinx.tasks.registry import get_task
 
 
 @pytest.fixture

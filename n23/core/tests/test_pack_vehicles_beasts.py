@@ -15,12 +15,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.urls import reverse
 
+from n23.content.models.default_assignment import ContentFighterDefaultAssignment
 from n23.content.models.equipment import (
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentFighterProfile,
 )
-from n23.content.models.default_assignment import ContentFighterDefaultAssignment
 from n23.content.models.fighter import ContentFighter
 from n23.content.models.statline import (
     ContentStat,
@@ -29,7 +29,6 @@ from n23.content.models.statline import (
 )
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from n23.core.models.pack import CustomContentPackItem
-
 
 # --- Fixtures ------------------------------------------------------------------
 

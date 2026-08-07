@@ -1,14 +1,13 @@
 """Handlers for list operations (creation, cloning, etc.)."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.content.models import ContentFighter
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import List, ListFighter
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -16,7 +15,7 @@ class ListCreationResult:
     """Result of creating a list."""
 
     lst: List
-    stash_fighter: Optional[ListFighter]
+    stash_fighter: ListFighter | None
     initial_action: ListAction
 
 

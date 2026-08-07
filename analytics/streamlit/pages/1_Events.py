@@ -1,8 +1,8 @@
 """Events analytics page."""
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 from config import setup_sidebar
 
 st.set_page_config(page_title="Events", page_icon="📊", layout="wide")

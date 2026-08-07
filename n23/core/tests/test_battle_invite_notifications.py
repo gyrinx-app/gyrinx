@@ -9,8 +9,8 @@ the acting user, one notification per owner, and only newly added gangs on edit.
 import pytest
 from django.urls import reverse
 
-from n23.core.models import Battle, Campaign
 from gyrinx.site.models import Notification, NotificationType
+from n23.core.models import Battle, Campaign
 
 
 def _campaign(make_campaign, owner):

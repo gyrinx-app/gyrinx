@@ -2,7 +2,7 @@
 
 import random
 import uuid
-from typing import Literal, Optional
+from typing import Literal
 from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
@@ -14,6 +14,7 @@ from django.urls import reverse
 from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.content.models import ContentAdvancementEquipment, ContentSkill
 from n23.core.forms.advancement import (
     AdvancementDiceChoiceForm,
@@ -29,7 +30,6 @@ from n23.core.handlers.fighter import (
     handle_fighter_advancement_deletion,
 )
 from n23.core.models.campaign import CampaignAction
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import (
     List,
     ListFighter,
@@ -337,7 +337,7 @@ def filter_equipment_assignments_for_duplicates(equipment_advancement, fighter):
 
 class AdvancementBaseParams(BaseModel):
     # UUID of the campaign action if dice were rolled
-    campaign_action_id: Optional[uuid.UUID] = None
+    campaign_action_id: uuid.UUID | None = None
 
 
 class AdvancementFlowParams(AdvancementBaseParams):
@@ -348,9 +348,9 @@ class AdvancementFlowParams(AdvancementBaseParams):
     # Fighter cost increase from this advancement
     cost_increase: int = 0
     # Free text description for "other" advancement types
-    description: Optional[str] = None
+    description: str | None = None
     # For multi-target promotions: the chosen target fighter type
-    promotion_target_id: Optional[uuid.UUID] = None
+    promotion_target_id: uuid.UUID | None = None
     # Request-scoped caches (False = not yet fetched) — the flow predicates call
     # promotion_path()/promotion_target()/target counts several times per request,
     # which would otherwise re-query per call. Safe because a params instance lives

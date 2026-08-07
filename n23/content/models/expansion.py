@@ -45,7 +45,7 @@ class ExpansionRuleInputs:
 
     list: Optional["List"] = None
     fighter: Optional["ListFighter"] = None
-    fighter_category: Optional[str] = None
+    fighter_category: str | None = None
 
 
 class ContentEquipmentListExpansion(Content):
@@ -297,12 +297,12 @@ class ContentEquipmentListExpansionItem(Content):
         we conservatively mark all assignments with this equipment dirty. Expansion cost
         changes are rare admin operations, so this is safe and correct.
         """
+        from django.db.models import Q
+
         from n23.core.models.list import (
             ListFighterEquipmentAssignment,
             bulk_mark_assignments_dirty,
         )
-
-        from django.db.models import Q
 
         base_q = Q(content_equipment=self.equipment)
         # If this item has a specific weapon profile, only mark assignments with that profile

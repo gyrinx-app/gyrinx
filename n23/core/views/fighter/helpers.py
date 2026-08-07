@@ -1,18 +1,18 @@
 """Helper functions and mixins for fighter-related views."""
 
 from collections import defaultdict
-from typing import Any, Dict, List as ListType, Optional
+from typing import Any
 
 from django.db.models import Exists, OuterRef, Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentPsykerDiscipline,
     ContentPsykerPower,
 )
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import (
     List,
     ListFighter,
@@ -41,7 +41,7 @@ class FighterEditMixin:
         fighter: ListFighter,
         lst: List,
         verb: EventVerb,
-        field: Optional[str] = None,
+        field: str | None = None,
         **extra,
     ):
         """Log fighter-related events."""
@@ -59,7 +59,7 @@ class FighterEditMixin:
         )
 
 
-def get_common_query_params(request: HttpRequest) -> Dict[str, Any]:
+def get_common_query_params(request: HttpRequest) -> dict[str, Any]:
     """Extract common query parameters."""
     return {
         "search_query": request.GET.get("q", "").strip(),
@@ -69,7 +69,7 @@ def get_common_query_params(request: HttpRequest) -> Dict[str, Any]:
 
 def build_virtual_psyker_power_assignments(
     powers, fighter: ListFighter
-) -> ListType[VirtualListFighterPsykerPowerAssignment]:
+) -> list[VirtualListFighterPsykerPowerAssignment]:
     """Build virtual assignment objects from power queryset."""
     assigns = []
     for power in powers:
@@ -114,8 +114,8 @@ def build_virtual_psyker_power_assignments(
 
 
 def group_available_assignments(
-    assigns: ListType[Any], group_attr: str, filter_assigned: bool = True
-) -> ListType[Dict[str, Any]]:
+    assigns: list[Any], group_attr: str, filter_assigned: bool = True
+) -> list[dict[str, Any]]:
     """Group assignments by a given attribute."""
     available_by_group = defaultdict(list)
 

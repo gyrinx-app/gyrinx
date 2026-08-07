@@ -10,13 +10,13 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.content.models import ContentCounter
 from n23.core.forms.list import EditCounterForm, SpendCounterForm
 from n23.core.handlers.fighter import (
     handle_counter_spend,
     handle_counter_spend_removal,
 )
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import ListFighterCounter, ListFighterCounterSpend
 from n23.core.views.fighter.permissions import get_list_and_fighter
 

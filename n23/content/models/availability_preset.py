@@ -14,7 +14,6 @@ from n23.models import FighterCategoryChoices
 
 from .base import Content
 
-
 AVAILABILITY_CHOICES = [
     ("C", "Common (C)"),
     ("R", "Rare (R)"),

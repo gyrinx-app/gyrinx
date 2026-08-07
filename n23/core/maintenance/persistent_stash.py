@@ -14,7 +14,6 @@ admin maintenance view at ``/admin/maintenance/persistent-stash/``.
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
-from typing import Optional
 
 from django.db import transaction
 
@@ -49,8 +48,8 @@ class Candidate:
     list_id: str
     list_name: str
     decision: str  # "move" or one of SKIP_REASONS
-    dying_fighter_id: Optional[str] = None
-    dying_fighter_name: Optional[str] = None
+    dying_fighter_id: str | None = None
+    dying_fighter_name: str | None = None
     detail: str = ""
 
 

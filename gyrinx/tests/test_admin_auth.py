@@ -1,10 +1,10 @@
 import pytest
+from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
+from allauth.account.models import EmailAddress
 from django.contrib import admin
+from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import User
 from django.test import RequestFactory
-from django.contrib.admin.sites import AdminSite
-from allauth.account.models import EmailAddress
-from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
 from gyrinx.accounts.admin import (
     EmailAddressAdmin,

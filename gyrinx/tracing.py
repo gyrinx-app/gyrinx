@@ -28,9 +28,10 @@ Error handling is automatic - exceptions are recorded on spans and re-raised.
 import logging
 import os
 import sys
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from functools import wraps
-from typing import Any, Callable, Generator, Optional
+from typing import Any
 
 from django.conf import settings
 
@@ -186,7 +187,7 @@ def _init_tracing() -> None:
 @contextmanager
 def span(
     name: str, *, record_exception: bool = True, **attributes: Any
-) -> Generator[Optional[Any], None, None]:
+) -> Generator[Any | None, None, None]:
     """Create a custom span as a context manager.
 
     Args:
@@ -221,7 +222,7 @@ def span(
             raise
 
 
-def traced(name: Optional[str] = None, **default_attributes: Any) -> Callable:
+def traced(name: str | None = None, **default_attributes: Any) -> Callable:
     """Decorator to automatically trace a function.
 
     Args:

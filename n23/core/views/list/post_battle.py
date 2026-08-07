@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.urls import reverse
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.content.models import ContentInjury
 from n23.core.forms.post_battle import PostBattleUpdatesForm
 from n23.core.handlers.fighter import (
@@ -26,7 +27,6 @@ from n23.core.models.campaign import (
     CampaignAsset,
     CampaignListResource,
 )
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List, ListFighter
 from n23.core.views.fighter.permissions import get_list_for_edit
 

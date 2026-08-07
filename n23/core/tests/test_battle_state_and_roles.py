@@ -1,10 +1,10 @@
 import pytest
 from django.urls import reverse
 
+from gyrinx.state_machine import InvalidStateTransition
 from n23.content.models import ContentBattleRole, ContentBattleRoleOption
 from n23.core.models import Battle, BattleParticipant
 from n23.core.models.list import List
-from gyrinx.state_machine import InvalidStateTransition
 
 
 @pytest.fixture

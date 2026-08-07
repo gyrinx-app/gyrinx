@@ -340,8 +340,9 @@ def test_reconcile_handles_archived_fighters(tracked_list, user):
 
 @pytest.mark.django_db
 def test_reconcile_lists_command_reports(tracked_list, user, capsys):
-    from django.core.management import call_command
     from io import StringIO
+
+    from django.core.management import call_command
 
     lst, fighter, *_ = tracked_list
     true_rating = fresh(lst).rating_current

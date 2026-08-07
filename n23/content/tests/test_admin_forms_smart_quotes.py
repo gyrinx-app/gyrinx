@@ -2,8 +2,8 @@
 
 import pytest
 
-from n23.content.admin import ContentStatlineStatForm, ContentWeaponProfileAdminForm
 from gyrinx.models import SMART_QUOTES
+from n23.content.admin import ContentStatlineStatForm, ContentWeaponProfileAdminForm
 
 
 @pytest.mark.django_db

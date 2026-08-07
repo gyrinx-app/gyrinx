@@ -1,16 +1,14 @@
 """Handler for fighter resurrection operations in campaign mode."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.cost.propagation import Delta, propagate_from_fighter
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import ListFighter
-from gyrinx.tracing import traced
-
 
 # Injury states a dead fighter may be moved into when leaving DEAD. DEAD itself
 # is excluded — resurrection always takes the fighter out of death.
@@ -30,7 +28,7 @@ class FighterResurrectResult:
     restored_cost: int
     target_state: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
     description: str
 
 

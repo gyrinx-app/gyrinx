@@ -1,6 +1,6 @@
 import pytest
-from django.test import Client
 from django.contrib.auth import get_user_model
+from django.test import Client
 
 from n23.content.models import ContentHouse
 from n23.core.models import List

@@ -29,19 +29,18 @@ from django.contrib.auth.signals import user_logged_out
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-
 from django.utils import timezone
 
-from n23.content.house_icons import CUSTOM_GANG_ICON_SLUG, set_house_icon
-from n23.content.models.house import ContentHouse
+from gyrinx.accounts.models import UserProfile
+from gyrinx.analytics.models import Event, EventField, EventNoun, EventVerb, log_event
 from gyrinx.impersonation import (
     IMPERSONATE_LOG_KEY,
     IMPERSONATE_SESSION_KEYS,
 )
-from gyrinx.accounts.models import UserProfile
-from gyrinx.analytics.models import Event, EventField, EventNoun, EventVerb, log_event
-from n23.core.models.pack import CustomContentPackItem
 from gyrinx.tracing import traced
+from n23.content.house_icons import CUSTOM_GANG_ICON_SLUG, set_house_icon
+from n23.content.models.house import ContentHouse
+from n23.core.models.pack import CustomContentPackItem
 
 
 @receiver(user_logged_in)

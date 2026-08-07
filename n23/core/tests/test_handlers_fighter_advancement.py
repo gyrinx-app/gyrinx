@@ -28,7 +28,6 @@ from n23.core.models.list import (
 )
 from n23.models import FighterCategoryChoices
 
-
 # --- Fixtures ---
 # Note: stash_fighter_type is defined in conftest.py
 

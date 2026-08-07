@@ -12,6 +12,7 @@ from django.views import generic
 from django.views.decorators.clickjacking import xframe_options_exempt
 
 from gyrinx import messages
+from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.forms.list import CloneListFighterForm, ListFighterForm
 from n23.core.handlers.fighter import (
     RESURRECT_TARGET_STATES,
@@ -24,7 +25,6 @@ from n23.core.handlers.fighter import (
     handle_fighter_kill,
     handle_fighter_resurrect,
 )
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
 from n23.core.models.list import List, ListFighter
 from n23.core.views.list.common import get_clean_list_or_404
 

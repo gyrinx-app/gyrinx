@@ -8,9 +8,9 @@ from django.core.files.base import ContentFile
 from django.template import Context, Template
 
 ICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
-    '<path d="M10 10 L20 20"/></svg>'
-).encode("utf-8")
+    b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
+    b'<path d="M10 10 L20 20"/></svg>'
+)
 
 TEMPLATE = Template("{% load color_tags %}{% house_icon house %}")
 

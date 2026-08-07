@@ -6,7 +6,6 @@ from django.urls import reverse
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List
 
-
 # ---------------------------------------------------------------------------
 # List star toggle
 # ---------------------------------------------------------------------------

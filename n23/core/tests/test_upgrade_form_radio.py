@@ -1,12 +1,12 @@
 import pytest
 from django import forms
 
+from gyrinx.widgets import BsRadioSelect
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentUpgrade,
 )
-from gyrinx.widgets import BsRadioSelect
 from n23.core.forms.list import ListFighterEquipmentAssignmentUpgradeForm
 from n23.core.models.list import ListFighterEquipmentAssignment
 

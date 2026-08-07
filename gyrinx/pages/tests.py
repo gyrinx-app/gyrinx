@@ -213,7 +213,7 @@ class TestOptimizedRegexPatterns:
                 flatpages = flatpages.filter(url__regex=r"^/[^/]+/?$")
             elif depth > 1:
                 flatpages = flatpages.filter(
-                    url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (depth - 1)
+                    url__regex=r"^/[^/]+(?:/[^/]+){0,%d}/?$" % (depth - 1)  # noqa: UP031 - percent-format keeps the regex readable; an f-string needs {{}} doubling
                 )
 
             # Root page is excluded by all depth filters

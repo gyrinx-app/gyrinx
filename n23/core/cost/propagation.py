@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from django.db.models import F, Value
 from django.db.models.functions import Greatest
 
+from gyrinx.tracing import traced
 from n23.core.models.list import (
     List,
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass

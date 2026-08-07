@@ -8,15 +8,15 @@ from django.db.models import (
 )
 from simple_history.models import HistoricalRecords
 
+from gyrinx.base_models import AppBase
+from gyrinx.models import Archived, Base
 from n23.content.models import (
     ContentAttributeValue,
     ContentSkillCategory,
     ContentStatlineTypeStat,
 )
-from gyrinx.base_models import AppBase
 from n23.core.models.list.fighter import ListFighter
 from n23.core.models.list.list import List
-from gyrinx.models import Archived, Base
 
 logger = logging.getLogger(__name__)
 pylist = list

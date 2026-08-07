@@ -1,10 +1,10 @@
 """Equipment operation handlers."""
 
-from n23.core.handlers.equipment.deltas import component_delta
 from n23.core.handlers.equipment.cost_override import (
     EquipmentCostOverrideResult,
     handle_equipment_cost_override,
 )
+from n23.core.handlers.equipment.deltas import component_delta
 from n23.core.handlers.equipment.purchase import (
     AccessoryPurchaseResult,
     EquipmentPurchaseResult,

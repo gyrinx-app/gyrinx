@@ -2,7 +2,7 @@ import logging
 import re
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from django.contrib import admin
 from django.contrib.postgres.aggregates import ArrayAgg
@@ -23,11 +23,15 @@ from django.db.models.functions import Coalesce, Concat, JSONObject
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
+from gyrinx.base_models import AppBase
+from gyrinx.models import QuerySetOf
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
     ContentEquipmentInjuryLink,
+    ContentEquipmentUpgrade,
     ContentFighter,
     ContentFighterCategoryTerms,
     ContentFighterDefaultAssignment,
@@ -36,19 +40,17 @@ from n23.content.models import (
     ContentFighterPsykerPowerDefaultAssignment,
     ContentModFighterRule,
     ContentModFighterSkill,
-    ContentRule,
     ContentModFighterStat,
+    ContentRule,
     ContentSkill,
     ContentSkillCategory,
     ContentStat,
     ContentStatline,
     ContentWeaponAccessory,
-    ContentEquipmentUpgrade,
     ContentWeaponProfile,
     RulelineDisplay,
     StatlineDisplay,
 )
-from gyrinx.base_models import AppBase
 from n23.core.models.facts import FighterFacts
 from n23.core.models.list._common import (
     ALLOWED_CATEGORY_OVERRIDES,
@@ -56,9 +58,7 @@ from n23.core.models.list._common import (
 )
 from n23.core.models.list.list import List
 from n23.core.models.util import ModContext
-from gyrinx.models import QuerySetOf
 from n23.models import FighterCategoryChoices, format_cost_display
-from gyrinx.tracing import traced
 
 if TYPE_CHECKING:
     from n23.core.models.list.assignment import ListFighterEquipmentAssignment
@@ -1219,7 +1219,7 @@ class ListFighter(AppBase):
             return format_cost_display(facts.rating)
         return format_cost_display(self.cost_int_cached)
 
-    def facts(self) -> Optional[FighterFacts]:
+    def facts(self) -> FighterFacts | None:
         """
         Return cached facts about this fighter.
 
@@ -1520,7 +1520,7 @@ class ListFighter(AppBase):
         stat: str,
         value: str,
         mods: pylist[ContentModFighterStat],
-        mod_ctx: Optional[ModContext] = None,
+        mod_ctx: ModContext | None = None,
     ):
         current_value = value
         for mod in mods:

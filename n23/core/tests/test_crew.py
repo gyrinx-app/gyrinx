@@ -8,6 +8,9 @@ lifecycle views.
 """
 
 import re
+from itertools import count
+from random import Random
+from uuid import uuid4
 
 import pytest
 from django.apps import apps
@@ -15,10 +18,6 @@ from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import NoReverseMatch, reverse
-
-from itertools import count
-from random import Random
-from uuid import uuid4
 
 from n23.core.forms.crew import (
     CrewForm,
@@ -47,8 +46,8 @@ from n23.core.handlers.crew import (
     eligible_crew_fighters,
     eligible_crew_fighters_for_loadouts,
     handle_crew_archive,
-    handle_crew_lock,
     handle_crew_loadouts_save,
+    handle_crew_lock,
     handle_crew_ready,
     handle_crew_recipe_save,
     handle_crew_stash_save,
@@ -72,7 +71,6 @@ from n23.core.models.list import (
     ListFighterEquipmentSet,
 )
 from n23.models import FighterCategoryChoices
-
 
 # --- Selection-spec parser --------------------------------------------------
 
@@ -5178,7 +5176,6 @@ def test_flagged_gear_on_a_regular_fighter_is_not_double_counted(
     """Flagged equipment carried by a regular fighter is already priced into that
     fighter, so their linked child must not add it again."""
     from n23.content.models import ContentEquipmentFighterProfile
-
     from n23.core.models.crew import crew_fighter_cost
 
     owner = crew_setup["fighters"][0]

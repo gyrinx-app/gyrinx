@@ -9,7 +9,6 @@ apart. Everything else in the battle flow is simple CRUD and stays in the views.
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -18,12 +17,12 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
-from n23.core.handlers.crew import snapshot_played_crew_ratings
-from n23.core.models.battle import Battle
-from n23.core.models.action import ListActionType
-from n23.core.models.campaign import CampaignAction
 from gyrinx.site.models import NotificationType, notify
 from gyrinx.tracing import traced
+from n23.core.handlers.crew import snapshot_played_crew_ratings
+from n23.core.models.action import ListActionType
+from n23.core.models.battle import Battle
+from n23.core.models.campaign import CampaignAction
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class BattleEndResult:
     battle: Battle
     is_draw: bool
     winners: list
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_battle_end")

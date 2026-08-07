@@ -4,7 +4,7 @@ from django.urls import reverse
 
 from n23.content.models import ContentFighter, ContentHouse
 from n23.core.models.campaign import Campaign, CampaignAction
-from n23.core.models.list import List, ListFighter, CapturedFighter
+from n23.core.models.list import CapturedFighter, List, ListFighter
 
 User = get_user_model()
 

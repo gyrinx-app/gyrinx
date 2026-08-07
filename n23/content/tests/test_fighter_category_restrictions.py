@@ -1,11 +1,11 @@
 import pytest
 
 from n23.content.models import (
+    ContentEquipment,
     ContentEquipmentCategory,
     ContentEquipmentCategoryFighterRestriction,
-    ContentHouse,
-    ContentEquipment,
     ContentFighter,
+    ContentHouse,
 )
 from n23.core.models import List, ListFighter, ListFighterEquipmentAssignment
 from n23.models import FighterCategoryChoices

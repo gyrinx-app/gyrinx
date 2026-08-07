@@ -1,9 +1,8 @@
 """Forms for vehicle addition flow."""
 
-from typing import Optional
-
 from django import forms
 
+from gyrinx.forms import group_sorter
 from n23.content.models import (
     ContentEquipment,
     ContentEquipmentFighterProfile,
@@ -11,9 +10,8 @@ from n23.content.models import (
     ContentHouse,
 )
 from n23.core.forms.list import ContentFighterChoiceField, group_select
-from n23.core.models.list import List
 from n23.core.forms.terms import fighter_group_key
-from gyrinx.forms import group_sorter
+from n23.core.models.list import List
 from n23.models import FighterCategoryChoices
 
 
@@ -55,7 +53,7 @@ class VehicleEquipmentChoiceField(forms.ModelChoiceField):
 class VehicleSelectionForm(forms.Form):
     """Form for selecting a vehicle (equipment with ContentEquipmentFighterProfile)."""
 
-    def __init__(self, *args, list_instance: Optional[List] = None, **kwargs):
+    def __init__(self, *args, list_instance: List | None = None, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Create the field with custom choice field
@@ -141,7 +139,7 @@ class CrewSelectionForm(forms.Form):
     def __init__(
         self,
         *args,
-        list_instance: Optional[List] = None,
+        list_instance: List | None = None,
         vehicle_equipment=None,
         **kwargs,
     ):

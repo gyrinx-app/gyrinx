@@ -1,10 +1,10 @@
 """Handler for equipment cost override operations."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.cost.propagation import Delta, propagate_from_assignment
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.list import (
@@ -12,7 +12,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -29,8 +28,8 @@ class EquipmentCostOverrideResult:
 
 def _calculate_cost_delta(
     assignment: ListFighterEquipmentAssignment,
-    old_override: Optional[int],
-    new_override: Optional[int],
+    old_override: int | None,
+    new_override: int | None,
 ) -> tuple[int, int, int]:
     """
     Calculate the cost delta when changing total_cost_override.
@@ -59,8 +58,8 @@ def _calculate_cost_delta(
 def _generate_description(
     assignment: ListFighterEquipmentAssignment,
     fighter: ListFighter,
-    old_override: Optional[int],
-    new_override: Optional[int],
+    old_override: int | None,
+    new_override: int | None,
     cost_delta: int,
 ) -> str:
     """Generate a human-readable description for the cost override change."""
@@ -91,9 +90,9 @@ def handle_equipment_cost_override(
     lst: List,
     fighter: ListFighter,
     assignment: ListFighterEquipmentAssignment,
-    old_total_cost_override: Optional[int],
-    new_total_cost_override: Optional[int],
-) -> Optional[EquipmentCostOverrideResult]:
+    old_total_cost_override: int | None,
+    new_total_cost_override: int | None,
+) -> EquipmentCostOverrideResult | None:
     """
     Handle equipment total_cost_override change with ListAction tracking.
 

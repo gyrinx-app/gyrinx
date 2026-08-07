@@ -38,7 +38,7 @@ class InjectedFailure(Exception):
     a transient nack that never reflects a real bug in the task."""
 
 
-class Outcome(str, enum.Enum):
+class Outcome(enum.StrEnum):
     SUCCESS = "success"
     DROPPED = "dropped"  # fault-injected message loss
     RETRY_SCHEDULED = "retry_scheduled"

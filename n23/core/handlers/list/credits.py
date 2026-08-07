@@ -1,14 +1,14 @@
 """Handlers for list credit operations."""
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
 from n23.core.models.action import ListAction, ListActionType
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.list import List
-from gyrinx.tracing import traced
 
 
 @dataclass
@@ -24,7 +24,7 @@ class CreditsModificationResult:
     credits_earned_after: int
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_credits_modification")

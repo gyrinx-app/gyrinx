@@ -1,7 +1,6 @@
 import json
 import subprocess
 from datetime import datetime
-from typing import Dict, Optional
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -109,7 +108,7 @@ class Command(BaseCommand):
                 error_msg = "Error occurred (details hidden for security)"
             raise CommandError(f"Failed to update secrets: {error_msg}")
 
-    def _get_keychain_credentials(self) -> Optional[str]:
+    def _get_keychain_credentials(self) -> str | None:
         """Retrieve credentials from Mac keychain"""
         try:
             # Use security command to get the password from keychain
@@ -129,7 +128,7 @@ class Command(BaseCommand):
             self.stderr.write(f"Error accessing keychain: {str(e)}")
             return None
 
-    def _parse_credentials(self, credentials_json: str) -> Optional[Dict[str, str]]:
+    def _parse_credentials(self, credentials_json: str) -> dict[str, str] | None:
         """Parse JSON credentials and extract required fields"""
         try:
             data = json.loads(credentials_json)
@@ -155,7 +154,7 @@ class Command(BaseCommand):
             self.stderr.write(f"Error parsing credentials: {str(e)}")
             return None
 
-    def _get_repo_info(self) -> Optional[str]:
+    def _get_repo_info(self) -> str | None:
         """Get GitHub repository information"""
         try:
             # Get the remote URL
@@ -190,7 +189,7 @@ class Command(BaseCommand):
             self.stderr.write(f"Error getting repository info: {str(e)}")
             return None
 
-    def _update_github_secrets(self, repo: str, secrets: Dict[str, str]) -> None:
+    def _update_github_secrets(self, repo: str, secrets: dict[str, str]) -> None:
         """Update GitHub repository secrets"""
         for secret_name, secret_value in secrets.items():
             try:

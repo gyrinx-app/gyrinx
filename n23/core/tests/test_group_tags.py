@@ -1,5 +1,5 @@
 import pytest
-from django.contrib.auth.models import User, Group, AnonymousUser
+from django.contrib.auth.models import AnonymousUser, Group, User
 from django.template import Context, Template
 
 from gyrinx.site.templatetags.group_tags import in_group

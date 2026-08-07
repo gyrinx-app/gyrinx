@@ -4,7 +4,7 @@ Tests for the Pub/Sub push handler view.
 
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -277,7 +277,7 @@ def task_execution():
         task_name="_test_task",
         args=[],
         kwargs={},
-        enqueued_at=datetime.now(timezone.utc),
+        enqueued_at=datetime.now(UTC),
     )
 
 

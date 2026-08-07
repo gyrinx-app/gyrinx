@@ -4,6 +4,7 @@ from django.db import transaction
 from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 
+from gyrinx.tracing import traced
 from n23.content.models import (
     ContentEquipmentEquipmentProfile,
     ContentEquipmentFighterProfile,
@@ -18,7 +19,6 @@ from n23.core.models.list.list import List
 from n23.core.tasks import (
     propagate_default_child_fighter_assignment,
 )
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 pylist = list

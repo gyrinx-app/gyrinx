@@ -1,12 +1,12 @@
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 logger = logging.getLogger("gyrinx.tracker")
 
 
-def track(event: str, n: int = 1, value: Optional[float] = None, **labels: Any) -> None:
+def track(event: str, n: int = 1, value: float | None = None, **labels: Any) -> None:
     """
     Emit a structured log event.
 

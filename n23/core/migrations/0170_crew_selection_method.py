@@ -6,8 +6,9 @@ explicit field, backfilled so that no existing crew changes meaning: the
 derivation that ``Crew.method_label()`` used to do is applied once, here.
 """
 
-import n23.core.models.crew
 from django.db import migrations, models
+
+import n23.core.models.crew
 
 
 def derive_selection_method(apps, schema_editor):

@@ -35,7 +35,7 @@ class Command(BaseCommand):
         verbose = options.get("verbose", False)
 
         try:
-            with open(fixture_file, "r") as f:
+            with open(fixture_file) as f:
                 fixture_data = json.load(f)
         except FileNotFoundError:
             raise CommandError(f"Fixture file '{fixture_file}' not found")

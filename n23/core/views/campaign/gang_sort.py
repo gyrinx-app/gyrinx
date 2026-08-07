@@ -15,8 +15,8 @@ of gangs, the cost figures are cached columns, and the resource amounts are
 already in the view's ``resource_lookup``. No extra queries.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 #: Used when neither the request nor the campaign specifies a valid sort.
 DEFAULT_GANG_SORT = "-wealth"
@@ -76,7 +76,7 @@ def _resource_key(resource_type_id, resource_lookup) -> Callable:
     return key
 
 
-def parse_gang_sort(token, resource_types, resource_lookup=None) -> Optional[GangSort]:
+def parse_gang_sort(token, resource_types, resource_lookup=None) -> GangSort | None:
     """Build a :class:`GangSort` from a token, or None if it isn't valid here.
 
     Resource metrics are validated against this campaign's resource types, so a

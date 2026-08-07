@@ -4,8 +4,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
 from n23.content.models import ContentFighter, ContentHouse, ContentRule
-from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 from n23.core.models import List, ListFighter
+from n23.core.models.pack import CustomContentPack, CustomContentPackItem
 
 User = get_user_model()
 

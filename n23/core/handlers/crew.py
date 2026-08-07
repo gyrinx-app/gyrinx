@@ -20,13 +20,13 @@ Simple CRUD (extras) stays in the views.
 import logging
 from dataclasses import dataclass
 from random import Random  # nosec B311 - game dice, not crypto
-from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
+from gyrinx.tracing import traced
 from n23.core.models.campaign import CampaignAction
 from n23.core.models.crew import (
     Crew,
@@ -37,7 +37,6 @@ from n23.core.models.crew import (
 )
 from n23.core.models.list import ListFighter, ListFighterEquipmentAssignment
 from n23.models import FighterCategoryChoices
-from gyrinx.tracing import traced
 
 logger = logging.getLogger(__name__)
 
@@ -536,8 +535,8 @@ def crew_stash_totals(crews) -> dict:
 
 
 def crew_spread_rating(
-    crew: Crew, stash_total: Optional[int] = None
-) -> tuple[Optional[int], bool]:
+    crew: Crew, stash_total: int | None = None
+) -> tuple[int | None, bool]:
     """What a crew is worth *right now* for spread/underdog comparison, and
     whether that figure is provisional. Returns ``(rating, is_provisional)``.
 
@@ -582,7 +581,7 @@ def crew_spread_rating(
     return crew.rating_before_balancing(stash_total), False
 
 
-def crew_battle_spread(crew: Crew) -> Optional[int]:
+def crew_battle_spread(crew: Crew) -> int | None:
     """How far ``crew``'s rating sits below the highest crew in its battle, in
     credits — or ``None`` when there's nothing to say.
 
@@ -941,7 +940,7 @@ class CrewLockResult:
     chosen_count: int
     random_count: int
     roll_detail: str
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
     whole_gang: bool = False
     # Chosen fighters dropped at lock because they were no longer eligible
     # (archived / stashed / killed / in recovery since the recipe was built).

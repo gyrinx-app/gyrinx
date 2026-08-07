@@ -41,11 +41,6 @@ from django.shortcuts import render
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from n23.core.models.list import List, ListFighter
-from n23.core.utils import (
-    get_list_attributes,
-    get_list_campaign_resources,
-    get_list_held_assets,
-)
 from n23.core.print_cards import (
     DEFAULT_THEME,
     THEMES,
@@ -61,11 +56,16 @@ from n23.core.print_cards import (
     lore_card_from_fighter,
     lore_card_from_list,
 )
+from n23.core.utils import (
+    get_list_attributes,
+    get_list_campaign_resources,
+    get_list_held_assets,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def synthetic_presets() -> "dict[str, ClassicCard | ClassicTextCard]":
+def synthetic_presets() -> dict[str, ClassicCard | ClassicTextCard]:
     """Ordered map of preset key -> card, covering layout edge cases."""
     presets: dict[str, ClassicCard | ClassicTextCard] = {}
 
@@ -597,8 +597,9 @@ def print_lab(request):
     _, error = _cards_for_request(request)
 
     # Build the sheet URL, mirroring the current selection.
-    from django.urls import reverse
     from urllib.parse import urlencode
+
+    from django.urls import reverse
 
     params = {"source": source, "theme": theme}
     if source == "preset":

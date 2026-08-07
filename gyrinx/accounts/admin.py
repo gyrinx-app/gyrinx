@@ -1,4 +1,8 @@
 import csv
+
+from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
+from allauth.account.internal.flows.email_verification import get_email_verification_url
+from allauth.account.models import EmailAddress
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
@@ -6,9 +10,6 @@ from django.contrib.auth.models import Group, User
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils.translation import gettext as _
-from allauth.account.models import EmailAddress
-from allauth.account.internal.flows.email_verification import get_email_verification_url
-from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 
 from gyrinx.accounts.models import UserProfile
 

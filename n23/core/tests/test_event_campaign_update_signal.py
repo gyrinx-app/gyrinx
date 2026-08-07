@@ -5,8 +5,8 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from n23.core.models.campaign import Campaign
 from gyrinx.analytics.models import Event, EventNoun, EventVerb, log_event
+from n23.core.models.campaign import Campaign
 
 
 @pytest.mark.django_db

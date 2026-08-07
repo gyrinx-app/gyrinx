@@ -1,6 +1,7 @@
 from urllib.parse import urlencode
-from django.urls import reverse
+
 import pytest
+from django.urls import reverse
 
 from n23.models import FighterCategoryChoices
 

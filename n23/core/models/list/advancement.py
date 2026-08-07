@@ -1,18 +1,17 @@
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import models
 from simple_history.models import HistoricalRecords
 
+from gyrinx.base_models import AppBase
 from n23.content.models import (
     ContentFighter,
     ContentModStatApplyMixin,
     ContentPromotionPath,
     ContentSkill,
 )
-from gyrinx.base_models import AppBase
 from n23.core.models.list.assignment import ListFighterEquipmentAssignment
 from n23.core.models.list.fighter import ListFighter
 from n23.models import FighterCategoryChoices
@@ -37,8 +36,8 @@ class ResolvedPromotion:
 
     to_category: str
     rank: int
-    path: Optional[ContentPromotionPath] = None
-    target: Optional[ContentFighter] = None
+    path: ContentPromotionPath | None = None
+    target: ContentFighter | None = None
 
 
 # The two promotion choices that were hardcoded before promotions became content-driven.
@@ -54,7 +53,7 @@ LEGACY_PROMOTION_CHOICES = {
 }
 
 
-def resolve_promotion_choice(choice: Optional[str]) -> Optional[ResolvedPromotion]:
+def resolve_promotion_choice(choice: str | None) -> ResolvedPromotion | None:
     """Resolve an advancement_choice string to its promotion meaning, if it is one.
 
     Returns None for non-promotion choices, and for new-era choices whose path row no
@@ -257,7 +256,7 @@ class ListFighterAdvancement(AppBase):
             return f"{self.fighter.name} - {self.description}"
         return f"{self.fighter.name} - Advancement"
 
-    def resolved_promotion(self) -> Optional[ResolvedPromotion]:
+    def resolved_promotion(self) -> ResolvedPromotion | None:
         """Resolve this advancement's promotion meaning, if it is one (either era).
 
         The type-change target is the stored chosen target, or the path's sole target

@@ -8,16 +8,15 @@ gangs isn't buried.
 import pytest
 from django.urls import reverse
 
-from n23.core.cost.reconcile_notify import notify_lists_reconciled
-from n23.core.models.action import ListActionType
 from gyrinx.maintenance.models import Backfill
+from gyrinx.site.models import Notification, NotificationType
+from n23.core.cost.reconcile_notify import notify_lists_reconciled
 from n23.core.maintenance.operations import Operation
+from n23.core.models.action import ListActionType
 from n23.core.models.campaign import Campaign
 from n23.core.models.list import List, ListFighter
-from gyrinx.site.models import Notification, NotificationType
 from n23.core.tasks import reconcile_all_lists
 from n23.core.tests.test_balance_sheet import buy_equipment, fresh, hire_fighter
-
 
 # --- notify_lists_reconciled: grouping + de-dupe --------------------------------
 

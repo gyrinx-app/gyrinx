@@ -12,7 +12,6 @@ from n23.core.handlers.fighter.resurrect import handle_fighter_resurrect
 from n23.core.models.action import ListActionType
 from n23.core.models.list import ListFighter
 
-
 # ===== Kill Handler Tests =====
 
 

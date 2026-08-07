@@ -2,6 +2,7 @@
 
 import pytest
 
+from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import (
     ALL_BADGES,
     HIDE_BADGE,
@@ -11,9 +12,7 @@ from gyrinx.badges import (
     badge_choices,
     rank_for_tier_title,
 )
-from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.site.templatetags.badge_tags import badge_icon, user_badge
-
 
 # --- Registry (pure) ---
 

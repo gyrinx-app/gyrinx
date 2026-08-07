@@ -1,6 +1,6 @@
 import logging
 from collections import OrderedDict, defaultdict
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.contrib import admin
@@ -17,6 +17,11 @@ from django.db.models import (
 from django.utils.functional import cached_property
 from simple_history.models import HistoricalRecords
 
+from gyrinx.base_models import AppBase
+from gyrinx.history_aware_manager import HistoryAwareManager
+from gyrinx.models import QuerySetOf
+from gyrinx.tracing import span, traced
+from gyrinx.tracker import track
 from n23.content.models import (
     ContentAttribute,
     ContentAttributeValue,
@@ -24,17 +29,12 @@ from n23.content.models import (
     ContentHouse,
 )
 from n23.core.models.action import ListAction
-from gyrinx.base_models import AppBase
 from n23.core.models.campaign import Campaign
 from n23.core.models.facts import ListFacts
-from gyrinx.history_aware_manager import HistoryAwareManager
 from n23.core.tasks import (
     refresh_list_facts,
 )
-from gyrinx.models import QuerySetOf
 from n23.models import FighterCategoryChoices, format_cost_display
-from gyrinx.tracing import span, traced
-from gyrinx.tracker import track
 
 if TYPE_CHECKING:
     from n23.core.models.list.fighter import ListFighter
@@ -446,7 +446,7 @@ class List(AppBase):
         # via facts_from_db/create_action, and callers expect a live sum.
         return self.rating_current + self.stash_current + self.credits_current
 
-    def facts(self) -> Optional[ListFacts]:
+    def facts(self) -> ListFacts | None:
         """
         Return cached facts about this list.
 
@@ -1162,7 +1162,7 @@ class List(AppBase):
 
     @cached_property
     @traced("list_latest_action")
-    def latest_action(self) -> Optional[ListAction]:
+    def latest_action(self) -> ListAction | None:
         """Get the latest ListAction for this list, if any.
 
         Performance: This requires prefetching latest_actions via with_related_data().
@@ -1236,9 +1236,7 @@ class List(AppBase):
 
         return la
 
-    def apply_credit_delta(
-        self, delta: int, earned_delta: Optional[int] = None
-    ) -> None:
+    def apply_credit_delta(self, delta: int, earned_delta: int | None = None) -> None:
         """Apply a credit movement to the cached credit fields.
 
         The single explicit writer for campaign-credit movement outside

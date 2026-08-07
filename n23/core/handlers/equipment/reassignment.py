@@ -7,10 +7,11 @@ and raise ValidationError on failure.
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 from django.db import transaction
 
+from gyrinx.tracing import traced
+from gyrinx.tracker import track
 from n23.core.cost.propagation import (
     Delta,
     propagate_from_assignment,
@@ -24,8 +25,6 @@ from n23.core.models.list import (
     ListFighter,
     ListFighterEquipmentAssignment,
 )
-from gyrinx.tracing import traced
-from gyrinx.tracker import track
 
 
 @dataclass
@@ -38,7 +37,7 @@ class EquipmentReassignmentResult:
     to_fighter: ListFighter
     description: str
     list_action: ListAction
-    campaign_action: Optional[CampaignAction]
+    campaign_action: CampaignAction | None
 
 
 @traced("handle_equipment_reassignment")

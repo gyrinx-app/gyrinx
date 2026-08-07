@@ -17,11 +17,11 @@ Examples:
 import argparse
 import asyncio
 import os
+import socket
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-import socket
 
 # Add the project root to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -33,10 +33,10 @@ from django.conf import settings
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings_dev")
 django.setup()
 
+from asgiref.sync import sync_to_async  # noqa: E402
 from django.contrib.auth import get_user_model  # noqa: E402
 from django.test import Client  # noqa: E402
 from django.urls import reverse  # noqa: E402
-from asgiref.sync import sync_to_async  # noqa: E402
 
 try:
     from playwright.async_api import async_playwright
@@ -288,7 +288,7 @@ class ScreenshotCapture:
         # Read existing content if file exists
         existing_content = ""
         if md_file.exists() and label == "after":
-            with open(md_file, "r") as f:
+            with open(md_file) as f:
                 existing_content = f.read()
 
         with open(md_file, "w") as f:

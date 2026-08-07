@@ -18,10 +18,10 @@ from django.db.models import Q
 from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
+from gyrinx.tracing import traced
 from n23.content.signals import MISSING, get_new_cost, get_old_cost, get_old_field
 from n23.content.statlines import set_fighter_statline, statline_type_for_category
 from n23.models import format_cost_display
-from gyrinx.tracing import traced
 
 from .equipment import (
     AUTO_EQUIPMENT_CATEGORY_BY_FIGHTER_CATEGORY,

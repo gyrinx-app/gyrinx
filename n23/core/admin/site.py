@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.contrib.contenttypes.models import ContentType
 from django.utils.html import format_html
 
-from gyrinx.site.models import Banner
 from gyrinx.analytics.models import Event, EventNoun, EventVerb
+from gyrinx.site.models import Banner
 
 
 @admin.register(Banner)
